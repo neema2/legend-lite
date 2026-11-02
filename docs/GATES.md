@@ -16921,6 +16921,75 @@ measured on both corpora with the registers and a parity witness; the chain at M
    '')`: the routine staged to a constant, the replace a statement the database computes), 1 `makeString`. Item 8 reads
    this. Ledger pins `SqlTextVerdicts` 1335 -> 1343, `AssertVerdicts` 1775 -> 1777 (the label).
 
+31. **Item 8 -- the text side the plan reads at the verdict step (2026-11-02; the brief's item 8, written before the
+   code).** The census (item 30, corrected) named every refused text assert on the DuckDB host pass an engine-text
+   assert whose OUR side is a planned `VALUES` side: a navigation over the plan's registered rows (a plan handle's
+   `.sqlQuery` through `->at(0)->cast(@SQLExecutionNode)`, a frame's activity, a helper's result bound by a let), or
+   `replace` over a STAGED routine's text. M10b made both texts constants of the verdict step and refused any other
+   side by name; the walk evaluated such a side BY A STATEMENT at the assert's turn, which a body planned before it runs
+   cannot send. Built: (a) under the collector (`SqlTextVerdicts.plan`), `JudgePlans.evalSide` answers a constant as
+   before and DEFERS our text (`Collector.defer`: the arm is reading our text, the side's kind is `VALUES`, it is
+   declared a String to one, and it was planned under the environment the arm was given -- `tryArm`'s runtime-dialect
+   form rebinds the frame and the table replaces and stays by name) as the verdict step's ASK (`HostSides.Ask`, the
+   argument and flags the arm evaluated it with, planned at the step by `HostSides.plan` as the arm would have) with
+   the statement origin the arm marked (`REFEREE_OURS` in `tryArm` and `tryArmPlanText`), answering the arm a text
+   TOKEN compared by identity; the golden side is never deferred (the arms route on its text: `statementRoute`,
+   `isPopulationGolden`, the plan replay's holes), one deferral per planned assert; (b) `Collected.ours` null for a
+   deferred text, its APPEAL taking the texts it judges as parameters (`TextAppeal.appeal(ours, textEqual)`: the rows
+   leg and the decline failures close over nothing the step reads; `decide` wraps it for the batch row), `plan` building
+   the check with the golden's constant ask and the deferred ask, `judge` reading our text off the side the database
+   answered (a null a failure by name), recomputing the equality the arm computed and deciding as the walk decides; (c)
+   one reader of our text for every arm, `oursText`, gating the actual side by its declared type (R16: not a String or
+   Any to one -- `Boolean[*] .supportsStream`, a `String[*]`, a count -- answers null on both roads with nothing sent,
+   where the walk evaluated the side to learn it and declined after a statement; the arm then declines to the generic
+   equality as before); (d) the verdict step of such a check sent under the origin the arm marked (`BodyRouter`'s sink
+   maps the steps once, `HostAsserts.find`, `AssertVerdicts.deferredTextOrigin`) and the walk's `HostAssert.run`
+   fetching under the same mark -- the walk plans through the collector too since M6, so its deferred side ran under the
+   ambient origin until this (the parity witness caught it). Not built: a second fold after staging (`replace` over the
+   staged text in Java) -- it would widen the user's ruling of 2026-10-30 (the compiler's three string operations over
+   constants the test wrote) to a routine's text; the deferred statement needs no fold, the database computes the
+   replace at the step as on the walk. `LiteralFold` unchanged. HOST JUDGE ONLY: under the database judge the batch row
+   composes the text equality at planning (`VerdictSql.textEquals(golden, ours)`), so a deferred text would be read by
+   a statement while the body is planned -- the database gate (`AssertVerdicts.gateOf`) refuses such an assert by name
+   (`database: engine text read at the step`), exactly as it refused it before this item through the not-a-constant
+   answer; carrying the side into the fused statement is a later design. An unrolled assert whose parts carry two
+   statement origins is refused by name (`oneTextOrigin`: one step is sent under one origin). The census: the equals
+   arm's decline named on a final decline alone (the generic path plans most such shapes); an `if` root named. Ledger
+   pins `SqlTextVerdicts` 1343 -> 1405, `AssertVerdicts` 1777 -> 1815 with their reasons.
+32. **Movement (item 8):** DuckDB host pass `moved=2978 -> 3,010` (2471 / 108 / 14 skipped, unchanged); H2 host
+   `2978 -> 3,010` (2289 / 295 / 14, unchanged); database `2945 -> 2,952` (2473 / 108 / 14, unchanged); H2 database `2836 -> 2,843` (2233 / 353 / 14, unchanged) -- the 7 a pass are the `.supportsStream` bodies the type gate hands to the generic equality; 12 of 12 lane tests green
+   (`//spec:corpus_duckdb`, `//spec:corpus_h2`), no register changed. The first measurement read database `2,977` /
+   `2,868`: those 32 bodies per pass moved by reading the text while planning (the audit's finding 1), refused since. The 107 `text not a constant` asserts
+   fall to 4 (two bodies: `testToSqlStringReplaceTablesPostProcessor` and `testDecimal`, the runtime-dialect
+   `toSQLStringPretty(..., testRuntime(), ...)` form, by name); the 6 `.supportsStream` bodies move through the gate
+   (the generic equality over the plan's rows); 15 bodies the arm now plans are refused next by M10b's S1 (`engine text
+   in a system-routed body` 2 -> 17: the appeal needs the user session; M10d). Stayed on the DuckDB host pass 184 ->
+   152; the host planner's refusals outside system reads: 9 the cell pool, 2 `testGetAll` (an `if` root), 1 the
+   zip-tolerance `forAll`, 1 `testViewChainsWithBusinessDate` (system-routed engine text), 1 `testDecimal`.
+33. **The checks (item 8):** `BodyRouterParityTest.deferredTextPrograms` (the frame model: a plan handle's SQL against
+   its golden inline and through a let, under `assertEqualsH2Compatible`; `toSQLString(...)->replace(...)` under
+   `assertEquals` and `assertSameSQL` -- equal texts hold at the step with no appeal; our text's one statement under
+   `REFEREE_OURS` on both roads; another spelling with agreeing rows: the appeal at the step replays and the referee
+   MATCHes, for the toSQLString arm and the plan-text arm; diverging rows fail with the arm's own message; a count over
+   the plan's nodes under the arm's claim: the gate, the generic equality, no probe statement on either road; a golden
+   that is no constant walked alike by name), the engine-text witnesses as before; `//core:census`, root, architecture,
+   judge, driver, testplan; `//spec:corpus_duckdb`, `//spec:corpus_h2`. The deferred texts under the database judge
+   walked alike (`assertWalkedAlike` now also pins the statements sent, in order: nothing sent while the router plans
+   and refuses; the witness fails with the gate's refusal removed). The independent audit (COMMIT WITH FIXES, folded):
+   HIGH-1 the database road read the deferred text by a statement while planning (`gateOf` waved an engine-text check
+   through as text-only; `planDatabase`'s adjudicate then ran the arm with no collector) -- out of the walk's order
+   behind an effect or a seed, twice where the planning pass gave the body back; outcomes stayed identical for the
+   measured shapes, which is why the lanes did not see it; refused by name (above), the database numbers re-measured;
+   LOW-2 one origin over an unroll with mixed marks: refused by name; LOW-3 the type gate's edges (a `String[0..1]`
+   empty cell fails by name at the step where the walk's generic equality failed with another message; a Variant
+   decoding to a String refused, which no arm's side is) written into `oursText`'s javadoc; LOW-4 the census label
+   narrowed to an `if` root (the walk asks about every value statement); NIT the javadocs that said both texts are
+   constants, this placeholder, the brief's pin list. Kept: the token compared by identity (`collect` checks it
+   against the recorded deferral both ways; javac and NullAway raise nothing). Verified by the audit: every
+   `oursText` call passes the prefix `plan` received (the Ask is planned over the same `before` and environment at the
+   step and in the walk's run); the golden never deferred; no arm transforms our text before `decide`; every appeal
+   reads its parameters; the gate's null for a Boolean, a collection or a count was already the walk's answer.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

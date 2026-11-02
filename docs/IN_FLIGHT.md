@@ -3052,7 +3052,10 @@ what they send: one genuine mixed body); item 7b built (`testplan/ElementConsump
 predicates; `NativeFn.Effect.readsArgumentsAtPlanning`; `ElementConsumptionTest`; the chain bodies in
 `consumedElementReferencePrograms`); item 7c built (`testplan/Seeds.seedForm`, `TestKinds.effect`'s mapped seed form,
 `BodyClass.seedFormEffectMap`, `StatementEffects.reaches`' subsumed stop; the probe `//spec:consumption_probe`; the
-witnesses `seedFormEffectMapPrograms`, `aSubsumedCallsBodyIsNoKindOfTheStatement`). The user's rulings of 2026-11-02:
+witnesses `seedFormEffectMapPrograms`, `aSubsumedCallsBodyIsNoKindOfTheStatement`); item 8 built
+(`driver/SqlTextVerdicts.java` `Collector.defer`, `TextAppeal`, `oursText`, `judge`; `JudgePlans.evalSide`;
+`AssertVerdicts.deferredTextOrigin`, `HostAssert.run`; `HostAsserts.find`; `BodyRouter`'s sink `deferredTextOrigins`; the
+witness `deferredTextPrograms`). The user's rulings of 2026-11-02:
 burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
 last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
 the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session.

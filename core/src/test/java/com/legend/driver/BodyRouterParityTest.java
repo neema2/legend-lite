@@ -1226,6 +1226,87 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 8: an engine-text assert whose OUR text is a side the plan runs -- a plan handle's SQL read through a
+     *  navigation (inline, through a let, under the dual-golden root), a staged routine's text under {@code replace} --
+     *  planned as the verdict step's ask and read there, the equality computed at the step; the appeal with the
+     *  step's text (the rows leg MATCHing another spelling, failing diverging rows); the statement census agreeing
+     *  because the step is sent under the origin the arm marked; the type gate declining a side that is no text on both
+     *  roads with no probe statement; a golden that is no constant staying the walk's by name. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void deferredTextPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String planLet = "let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, x::RT.runtimeValue, []);";
+        String nav = "$p.rootExecutionNode.executionNodes->at(0)->cast(@meta::relational::mapping::SQLExecutionNode)"
+                + ".sqlQuery->toOne()";
+        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}", false,
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(planSql.startsWith("select "), planSql);
+        String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String replaced = ours.replace("\"root\"", "\"r\"");
+        assertTrue(!ours.equals(replaced), ours);
+        String replace = "->replace('\"root\"', '\"r\"')";
+        int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
+        // the text equal: the verdict at the step over the side the step ran, no appeal
+        for (String equal : List.of(
+                "{| " + planLet + " assertEquals('" + pure(planSql) + "', " + nav + ");}",
+                "{| " + planLet + " let s = " + nav + "; assertEquals('" + pure(planSql) + "', $s);}",
+                "{| " + planLet + " let s = " + nav + "; meta::relational::functions::sqlQueryToString::h2"
+                        + "::assertEqualsH2Compatible('legacy', '" + pure(planSql) + "', $s);}",
+                "{| assertEquals('" + pure(replaced) + "', " + producer + replace + ");}",
+                "{| meta::relational::functions::asserts::assertSameSQL('" + pure(replaced) + "', " + producer
+                        + replace + ");}")) {
+            Run walked = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            assertEquals("ok", walked.outcome, "the text equal holds: " + equal);
+        }
+        // our text's one statement runs under the origin the arm marks (REFEREE_OURS in the toSQLString arm): the
+        // census agrees because the step is sent under that mark
+        Run marked = assertParity(backend, ctx, "x::RT", "{| assertEquals('" + pure(replaced) + "', " + producer
+                + replace + ");}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertEquals(1, originsOf(marked.origins)[oursLeg], "our text read by one statement under the arm's mark: "
+                + marked.statements);
+        // the text differing, the rows agreeing: the appeal at the step replays and the referee says MATCH
+        Run matched = assertParity(backend, ctx, "x::RT", "{| assertEquals('" + pure(ours) + "', " + producer
+                + replace + ");}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", matched.outcome, "the rows agree: the appeal holds");
+        assertTrue(matched.verdicts.toString().contains("refereed MATCH"), matched.verdicts.toString());
+        Run planMatched = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
+                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}",
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", planMatched.outcome, "the plan's rows agree: the appeal holds");
+        // the rows differing: the appeal fails the assert with the arm's own message, our text the step's
+        Run diverged = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
+                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertTrue(diverged.outcome.startsWith("AssertFailed") && diverged.outcome.contains("diverged"),
+                diverged.outcome);
+        // the gate: a side the arm claims (a plan handle behind it) that is no text by its type -- the generic
+        // equality on both roads, no probe statement
+        Run counted = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals(1,"
+                + " $p.rootExecutionNode.executionNodes->size());}", "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", counted.outcome);
+        assertEquals(0, originsOf(counted.origins)[oursLeg], "no probe of a side that is no text: "
+                + counted.statements);
+        // a golden that is no constant: the arms route on its text at planning -- the body stays the walk's, by name
+        assertWalkedAlike(backend, ctx, "x::RT", "{| " + planLet + " let g = " + nav + "; assertEquals($g, "
+                + producer + ");}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        // under the database judge the batch row composes the text equality at planning, so a text the step would
+        // read stays the walk's, by name, nothing read while planning (the item's audit, finding 1): the walk twice,
+        // alike, the statements at the assert's turn
+        for (String deferred : List.of(
+                "{| " + planLet + " assertEquals('" + pure(planSql) + "', " + nav + ");}",
+                "{| assertEquals('" + pure(replaced) + "', " + producer + replace + ");}")) {
+            assertWalkedAlike(backend, ctx, "x::RT", deferred, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.DATABASE);
+        }
+    }
+
     /** {@code body} is a moved class's, yet the router leaves it to the walk by a named rule of its judge's planner:
      *  the two runs are the walk's twice, alike in everything, and the router moved nothing. */
     private static void assertWalkedAlike(TestBackend backend, ModelContext ctx, String runtime, String body,
@@ -1237,6 +1318,9 @@ class BodyRouterParityTest {
         assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
         assertEquals(walked.census, routed.census, "the verdict census: " + body);
         assertEquals(walked.origins, routed.origins, "the statement-origin census: " + body);
+        // nothing sent while the router planned and refused: the statements are the walk's, in its order
+        assertEquals(stampsAsParameters(walked.statements), stampsAsParameters(routed.statements),
+                "the statements sent: " + body);
         assertEquals(walked.moved, routed.moved, "the router walked the body: " + body);
     }
 

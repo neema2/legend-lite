@@ -229,7 +229,14 @@ final class AssertVerdicts {
         if (shape.check().judgment() instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
-        if (shape.check().judgment() instanceof HostJudgment.EngineText) {
+        if (shape.check().judgment() instanceof HostJudgment.EngineText e) {
+            if (e.collected().ours() == null) {
+                // our text a side the host judge's step reads (M10c item 8): the batch row composes the text equality
+                // at planning, so planDatabase's adjudicate would read the side by a statement then -- before the
+                // program, out of the walk's order. The walk's, by name, until the fused statement carries the side
+                com.legend.exec.Census.unplannedAssert("database: engine text read at the step: " + shapeOf(bare));
+                return DatabaseGate.UNPLANNED;
+            }
             // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the walk's
             // own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
             return DatabaseGate.ENGINE_TEXT;
@@ -778,7 +785,12 @@ final class AssertVerdicts {
                 return last == null ? ok() : last;
             }
             enter();
-            return judge(HostSides.fetch(name(), check.asks(), letPrefix, specs, env));
+            // an engine-text check reading our text as a side: fetched under the origin the arm marked for it, as
+            // the arm sent it before the side was deferred and as the program road's step is sent (M10c item 8)
+            com.legend.exec.StatementOrigin marked = deferredTextOrigin(check.judgment());
+            try (var __o = marked == null ? null : com.legend.exec.StatementOrigin.enter(marked)) {
+                return judge(HostSides.fetch(name(), check.asks(), letPrefix, specs, env));
+            }
         }
     }
 
@@ -926,8 +938,12 @@ final class AssertVerdicts {
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
+            // a call with no callee, or an `if` whose branches assert (the walk's two-branch evaluation, S4's ruling) --
+            // each named for the census; any other root is a value statement the walk asks about too, not an assert
             if (bare instanceof TypedNativeCall || bare instanceof TypedUserCall) {
                 com.legend.exec.Census.unplannedAssert("no callee: " + bare.getClass().getSimpleName());
+            } else if (bare instanceof com.legend.compiler.spec.typed.TypedIf) {
+                com.legend.exec.Census.unplannedAssert("an if root");
             }
             return null;
         }
@@ -1014,9 +1030,13 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
+                // the engine-text arm declining is no decline of the assert: the generic path below plans most such
+                // shapes (a plan handle's Boolean, M10c item 8's gate); the census names it on a final decline alone
+                boolean armDeclined = false;
                 if (SqlTextVerdicts.mayArm(name, wantEqual, args, letPrefix, specs)) {
                     // the engine-text arm (M10b): a producer shape planned under a collector, its two texts the step's
-                    // constant sides; null where the arm declines the shape, and the generic path below is the walk's
+                    // sides (the golden a constant; ours a constant or a side the step reads, M10c item 8); null where
+                    // the arm declines the shape, and the generic path below is the walk's
                     HostSides.Check engineText = SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook);
                     if (SqlTextVerdicts.notAConstant(engineText)) {
                         // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
@@ -1028,8 +1048,9 @@ final class AssertVerdicts {
                     if (engineText != null) {
                         yield engineText;
                     }
-                    com.legend.exec.Census.unplannedAssert("equals: engine-text arm declined: " + shapeOf(bare));
+                    armDeclined = true;
                 }
+                String after = armDeclined ? " after the engine-text arm declined" : "";
                 HostSides.Check rendered = renderedPlan(name, wantEqual, args, letPrefix, hook, true);
                 if (rendered != null) {
                     yield rendered;
@@ -1038,7 +1059,7 @@ final class AssertVerdicts {
                         || bareSortOverCells(args.get(1)) != null)) {
                     // the sorted flat-cells idiom: the cell pool, or the equality where neither side is a grid
                     // (decided once the sides ran: two stages, the walk's)
-                    com.legend.exec.Census.unplannedAssert("equals: cell pool: " + shapeOf(bare));
+                    com.legend.exec.Census.unplannedAssert("equals: cell pool" + after + ": " + shapeOf(bare));
                     yield null;
                 }
                 if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
@@ -1051,7 +1072,7 @@ final class AssertVerdicts {
                 HostSides.Check equals = HostJudge.planEquals(name, wantEqual, args, incidental, gridPair, letPrefix,
                         env, hook);
                 if (equals == null) {
-                    com.legend.exec.Census.unplannedAssert("equals: planEquals declined: " + shapeOf(bare));
+                    com.legend.exec.Census.unplannedAssert("equals: planEquals declined" + after + ": " + shapeOf(bare));
                 }
                 yield equals;
             }
@@ -1468,6 +1489,43 @@ final class AssertVerdicts {
         return j instanceof HostJudgment.EngineText
                 || j instanceof HostJudgment.Unrolled u
                         && u.parts().stream().anyMatch(p -> holdsEngineText(p.check().judgment()));
+    }
+
+    /** The statement origin the walk's arm marked for OUR text where {@code j} holds an engine-text comparison whose
+     *  text is a side the verdict step runs (M10c item 8: {@code SqlTextVerdicts.Collected.oursOrigin}), looked for
+     *  through an unroll's parts; null where none (the step runs under its own). An unroll whose parts carry
+     *  different marks is refused before it is placed ({@link #oneTextOrigin}). */
+    static com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredTextOrigin(HostJudgment j) {
+        if (j instanceof HostJudgment.EngineText e) {
+            return e.collected().oursOrigin();
+        }
+        if (j instanceof HostJudgment.Unrolled u) {
+            for (var p : u.parts()) {
+                com.legend.exec.StatementOrigin o = deferredTextOrigin(p.check().judgment());
+                if (o != null) {
+                    return o;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether one statement origin serves every part of {@code j}: the program road sends a verdict step's sides
+     *  under one origin where the walk enters each unrolled part's own mark, so an unroll whose parts' marks differ
+     *  (one part's text deferred under the arm's mark, another's not) cannot agree with the walk's census (the M10c
+     *  item 8 audit's finding 2). Any other judgment is one part. */
+    static boolean oneTextOrigin(HostJudgment j) {
+        if (!(j instanceof HostJudgment.Unrolled u)) {
+            return true;
+        }
+        java.util.Set<java.util.Optional<com.legend.exec.StatementOrigin>> marks = new java.util.HashSet<>();
+        for (var p : u.parts()) {
+            if (!oneTextOrigin(p.check().judgment())) {
+                return false;
+            }
+            marks.add(java.util.Optional.ofNullable(deferredTextOrigin(p.check().judgment())));
+        }
+        return marks.size() <= 1;
     }
 
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in

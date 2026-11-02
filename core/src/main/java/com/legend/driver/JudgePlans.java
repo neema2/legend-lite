@@ -386,10 +386,16 @@ final class JudgePlans {
         SqlTextVerdicts.Collector collecting = env.engineText();
         if (collecting != null && collecting.planning()) {
             // an engine-text arm PLANNED for the program road (the test-is-the-product plan's M10b,
-            // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), nothing sent at
-            // planning; any other side names the walk
+            // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), or our text a
+            // side the step runs (M10c item 8), nothing sent at planning; any other side names the walk
             PlannedSide p = plannedSide(value, letPrefix, specs, env, identity, fold, hook);
             if (p.kind() != Kind.CONSTANT) {
+                // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it
+                TypedSide deferred = collecting.defer(value, p, identity, fold,
+                        hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env);
+                if (deferred != null) {
+                    return deferred;
+                }
                 // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
                 throw new SqlTextVerdicts.NotAConstant("a text side that is not a constant of the plan: " + p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()

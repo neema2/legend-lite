@@ -148,6 +148,9 @@ public final class BodyRouter {
         /** The places in the program's sequence of the database judge's verdict groups: the walk sends a fused
          *  statement under BODY (M7). */
         private final java.util.Set<Integer> databaseGroups;
+        /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
+         *  arm marked for it (M10c item 8). */
+        private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
         private final @Nullable AssertListener listener;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
@@ -167,16 +170,29 @@ public final class BodyRouter {
             this.database = database;
             this.listener = listener;
             java.util.Set<Integer> groups = new java.util.HashSet<>();
-            if (database != null) {
-                List<ExecutionPlan.Node> steps = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps()
-                        : List.of(planned.plan().root());
-                for (int i = 0; i < steps.size(); i++) {
-                    if (steps.get(i) instanceof ExecutionPlan.Verdicts) {
-                        groups.add(i);
+            java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
+            List<ExecutionPlan.Node> steps = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps()
+                    : List.of(planned.plan().root());
+            for (int i = 0; i < steps.size(); i++) {
+                if (!(steps.get(i) instanceof ExecutionPlan.Verdicts group)) {
+                    continue;
+                }
+                if (database != null) {
+                    groups.add(i);
+                }
+                if (asserts != null && group.verdicts().size() == 1) {
+                    // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
+                    // marked for it (M10c item 8)
+                    HostAsserts.Planned p = asserts.find(group.verdicts().get(0));
+                    com.legend.exec.StatementOrigin o = p == null ? null
+                            : AssertVerdicts.deferredTextOrigin(p.assertion().check().judgment());
+                    if (o != null) {
+                        textOrigins.put(i, o);
                     }
                 }
             }
             this.databaseGroups = groups;
+            this.deferredTextOrigins = textOrigins;
         }
 
         TypedSide lastVerdict() {
@@ -227,11 +243,13 @@ public final class BodyRouter {
         }
 
         /** A frame let's eager run is sent under the walk's origin for it, LET (M9); the database judge's fused
-         *  statement under BODY, as the walk's flush sends it (M7); every other step as its kind. */
+         *  statement under BODY, as the walk's flush sends it (M7); an engine-text verdict step reading our text as a
+         *  side under the origin the arm marked for it (M10c item 8); every other step as its kind. */
         @Override
         public com.legend.exec.@Nullable StatementOrigin originOf(int step) {
             return planned.frameRuns().contains(step) ? com.legend.exec.StatementOrigin.LET
-                    : databaseGroups.contains(step) ? com.legend.exec.StatementOrigin.BODY : null;
+                    : databaseGroups.contains(step) ? com.legend.exec.StatementOrigin.BODY
+                    : deferredTextOrigins.get(step);
         }
 
         private HostAsserts.Planned assertOf(ExecutionPlan.Verdict verdict) {

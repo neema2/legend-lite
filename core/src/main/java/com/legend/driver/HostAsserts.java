@@ -149,6 +149,12 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env);
+                if (p != null && !AssertVerdicts.oneTextOrigin(p.assertion().check().judgment())) {
+                    // an unroll whose parts' texts carry different statement origins: one step cannot be sent under
+                    // both (the M10c item 8 audit's finding 2)
+                    com.legend.exec.Census.unplannedAssert("unrolled engine texts under two origins");
+                    return null;
+                }
                 if (p == null || systemRouted && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, which is not this program's one session (M10b)
@@ -241,10 +247,15 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** The assert the runner handed {@code verdict} for. */
     Planned of(ExecutionPlan.Verdict verdict) {
-        Planned p = byVerdict.get(verdict);
+        Planned p = find(verdict);
         if (p == null) {
             throw new IllegalStateException("a verdict step no assert of the body planned: " + verdict.name());
         }
         return p;
+    }
+
+    /** The assert planned for {@code verdict}, or null where this judge planned none for it (the database judge's). */
+    @Nullable Planned find(ExecutionPlan.Verdict verdict) {
+        return byVerdict.get(verdict);
     }
 }

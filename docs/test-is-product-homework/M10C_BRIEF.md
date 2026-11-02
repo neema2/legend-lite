@@ -58,7 +58,8 @@ The planners' refusals, by site:
    stamp's own mechanism, M9c; R17 C4), the appeal reading the bound text at the step -- the tenet's form (the database
    computes the navigation); (ii) folding the navigation over the registered rows in Java -- a shadow evaluator of Pure
    navigation, which `docs/WORLD_MAP.md` refuses (compare spelled tokens, never compute a value): not an option. A
-   navigation the planning cannot bind (a join with a user store) stays the walk's, by name.
+   navigation the planning cannot bind (a join with a user store) stays the walk's, by name. **Form (i) is item 8
+   (2026-11-02): the side an ASK of the verdict step, read there.**
 2. **The grid pair and the rendered text under the database judge (~221 bodies). BUILT 2026-11-02: DuckDB database pass
    moved 2,398 -> 2,662, H2 2,331 -> 2,595, outcomes identical on every pass, the rosters byte-identical.**
    What the code says (read before the build; the first draft of this item had the mechanics wrong): under the
@@ -279,7 +280,72 @@ The planners' refusals, by site:
    histogram); the 61 refused bodies attributed (GATES item 30): 42 `text not a constant` (a let-bound helper or
    routine text, a plan-object navigation, a union frame's SQL), 9 the cell pool, 4 the dual-golden variable, 2 the
    system-routed engine text, the rest ones and twos. Deciding nothing; the next items read it.
-8. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
+8. **The text side the plan reads at the verdict step (item 1b's form (i); written before the code, 2026-11-02).
+   BUILT 2026-11-02 for the HOST judge: DuckDB host pass moved 2,978 -> 3,010, H2 host 2,978 -> 3,010, outcomes
+   identical; the 107 refused text asserts fall to 4 (two runtime-dialect bodies, by name); 15 bodies the arm now plans
+   meet M10b's S1 next (the system-routed engine text). Under the DATABASE judge the batch row composes the equality at
+   planning, so a deferred text stays the walk's by name (the audit's finding 1); carrying the side into the fused
+   statement is a later design. GATES items 31-33.**
+   The census (item 7d, corrected the same day) names the 107 refused text asserts (49 bodies on the DuckDB host pass):
+   every one is an engine-text assert whose OUR side is a planned `VALUES` side -- 72 a navigation over PLAN ROWS (a plan
+   handle's `.sqlQuery` through `->at(0)->cast(@SQLExecutionNode)`, a frame's activity, a helper's result bound by a let;
+   `testJoinWithConstantDate`, `testRelationalDatabaseMapper`, `testTemporalDateVariableAtRoot`), 34 `replace` over a
+   STAGED routine's text (`toSQLString(...)->replace(...)`, `$sql->replace('\n', '')`: `testSqlGenerationForAdjust
+   StrictDateUsageInFiltersForH2`, `testToSqlStringReplaceTablesPostProcessor`), 1 `makeString`. M10b's design made both
+   texts constants of the verdict step; the walk evaluates such a side BY A STATEMENT at the assert's turn, which a body
+   planned before it runs cannot send -- so the planner refused the body by name (`NotAConstant`). The side is a
+   statement the database answers over the plan's own rows (the registered handle and activity rows ride the query, the
+   user's ruling of 2026-09-02; M9c's stamp binds a frame's) or over a staged constant: a side the verdict step can
+   carry as any other (M9a reads frames so). Four parts:
+
+   (a) **The deferred text.** Under the collector (`SqlTextVerdicts.plan`), `JudgePlans.evalSide` answers a constant
+   side as before; a `VALUES` side that is OUR text -- the arm's actual side (every arm names it: the producer side, the
+   exec read, the plan navigation, the strip), declared `String` to one by its type, planned under the step's own
+   environment (the arm passed the environment it was given: `tryArm`'s runtime-dialect form rebinds the frame and the
+   table replaces and stays by name) -- is DEFERRED: the collector records the side as the step's ASK
+   (`HostSides.Ask`: the same argument and flags the arm evaluated it with, so `HostSides.plan` plans it at the step as
+   the arm would have) and the statement origin the arm marked (`REFEREE_OURS` in `tryArm` and `tryArmPlanText`, none
+   in the exec-read and dual-golden arms), and answers the arm a text TOKEN the arm compares as it compares any text.
+   The GOLDEN side is never deferred: the arms route on its text at planning (`statementRoute`, `isPopulationGolden`,
+   `stripChainedPlanWarning`, the plan replay's holes), so a golden that is no constant stays the walk's, by name. One
+   deferral per planned assert (the arms evaluate our text once; two is an error, not a second shape).
+
+   (b) **The verdict at the step.** `Collected` carries a null `ours` for a deferred text, and its APPEAL takes the texts
+   it judges as PARAMETERS (`TextAppeal.appeal(ours, textEqual)`: the rows leg and the decline failures close over
+   nothing read at planning that the step reads) -- `decide` wraps it for the batch row and calls it on the walk with the
+   texts in hand, as before. `plan` builds the check with the golden's constant ask and the deferred ask; `judge` reads
+   OUR text from the step's second side (a null cell is a failure by name: a `String[1]` side read no text), recomputes
+   the text equality and decides as the walk decides -- equal holds, else the appeal with the step's text. A constant
+   `ours` is checked against the planned text as before.
+
+   (c) **The type gate (R16).** Every arm reads our text through one reader, `SqlTextVerdicts.oursText`: a side whose
+   declared type is not a text to one (`Boolean[*] .supportsStream`, `String[*]`, a count) can never answer the string
+   the arm compares -- the walk evaluated the side to learn this and declined after a statement; the reader answers null
+   from the type on both roads, nothing sent, and the arm declines to the generic equality as it did (the plan-handle
+   idiom M9d already plans: `planEquals` over the plan's rows). A side typed `Any` to one is still read (a string may
+   inhabit it). The 14 Boolean asserts move this way; the walk sends one statement less for them.
+
+   (d) **The origin at the step.** The runner sends a step under the origin the test library names (`originOf`, M9's
+   LET for a frame run); a verdict step whose engine-text check holds a deferred side marked by the arm is sent under
+   that mark (`REFEREE_OURS`), so the statement census agrees between the roads for these shapes as it does for frames.
+   `HostAsserts` exposes the planned assert of a verdict step; `BodyRouter`'s sink maps the steps once at construction.
+
+   **Not built, and why:** a second fold after staging (`replace` over the staged text folded in Java) would move the
+   replace from the database to Java and widen the user's ruling of 2026-10-30 (the compiler's three string operations
+   over constants THE TEST WROTE; `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`) to a routine's text;
+   the deferred statement needs no fold: the database computes the replace at the step, as it does on the walk.
+   `LiteralFold` (the constant-plan boundary: a bare literal root of an admitted kind) is unchanged.
+
+   **Witnesses** (`BodyRouterParityTest`, the frame model): a plan handle's SQL text against its golden (inline and
+   through a let; equal, another spelling with agreeing rows -- the appeal MATCHes at the step -- and diverging rows);
+   `assertEqualsH2Compatible` with a let-bound plan text; `toSQLString(...)->replace(...)` under `assertEquals` and
+   `assertSameSQL` (the origin census agrees: `REFEREE_OURS`); a count over the plan's nodes under the arm's claim (the
+   gate: the generic equality, no probe statement on either road); a golden that is no constant stays the walk's.
+   Expected on the DuckDB host pass: the 49 bodies move but the few whose arm rebinds the environment; outcomes
+   identical; the ledger pins of `SqlTextVerdicts` and `AssertVerdicts` move with their reasons (the other files carry
+   no line pin).
+
+9. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement

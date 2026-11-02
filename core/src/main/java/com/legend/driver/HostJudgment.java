@@ -263,7 +263,9 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
      *  two texts, their equality, the decline decided before them, the APPEAL and its environment) and whether the
      *  equality arm's census route is counted at the step. The one judgment holding a closure and the harness's
      *  objects: the rows leg is harness Java outside the plan by the user's ruling (R3, T13, R6), run at the step on a
-     *  failed text alone; the texts themselves are the step's two constant sides, checked against the planned ones. */
+     *  failed text alone; the texts themselves are the step's two sides -- constants checked against the planned ones,
+     *  or our text the side the step RUNS where the arm's actual side is a statement over the plan's rows (M10c item
+     *  8: {@code Collected.ours} null, the equality computed at the step). */
     record EngineText(SqlTextVerdicts.Collected collected, boolean routed) implements HostJudgment {
     }
 }
