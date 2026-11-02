@@ -502,8 +502,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the merge). Measured 430,054.
  *  430,500 -> 432,500 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
  *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
- *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 431,975. */
-const BUDGET = 432_500;
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 431,975.
+ *  432,500 -> 433,500 (2026-11-02, the host executors' R2, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: every host path on the
+ *  one plan record -- engine-client/src/plan-record.ts's reader of a host's result and the decimal rule, and
+ *  relation-type.ts recordPlan, which every grid's plan is read by in place of the old {sql, type}; no startup file
+ *  added). Measured 433,105. */
+const BUDGET = 433_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -712,8 +716,12 @@ const BUDGET = 432_500;
  *  same date). Measured 417,953.
  *  418,500 -> 420,500 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
  *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
- *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 419,944. */
-const ENGINE_BUDGET = 420_500;
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 419,944.
+ *  420,500 -> 421,500 (2026-11-02, the host executors' R2, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: every host path on the
+ *  one plan record -- engine-client/src/plan-record.ts's reader of a host's result and the decimal rule, and
+ *  relation-type.ts recordPlan, which every grid's plan is read by in place of the old {sql, type}; no startup file
+ *  added). Measured 421,125. */
+const ENGINE_BUDGET = 421_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1095,8 +1103,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  same date). Measured 446,209.
  *  446,500 -> 448,700 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
  *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
- *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 448,194. */
-const WIDGET_BUDGET = 448_700;
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 448,194.
+ *  448,700 -> 449,700 (2026-11-02, the host executors' R2, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: every host path on the
+ *  one plan record -- engine-client/src/plan-record.ts's reader of a host's result and the decimal rule, and
+ *  relation-type.ts recordPlan, which every grid's plan is read by in place of the old {sql, type}; no startup file
+ *  added). Measured 449,363. */
+const WIDGET_BUDGET = 449_700;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

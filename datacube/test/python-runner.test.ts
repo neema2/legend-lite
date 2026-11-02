@@ -68,7 +68,10 @@ describe('a page on Python, planned by Python', () => {
   });
 
   it("dry-runs on the host's compute, plan-and-run's planning half, the model by its text and the token", async () => {
-    const { link, calls } = python(() => json({ plan: 'OK\n{"sql":"SELECT 1","type":{"columns":[]}}' }));
+    // Python's planner answers the plan record (R2): one typed result over the statement
+    const record = { format: 'legend-lite-plan', version: 20, parameters: [],
+      root: { _type: 'tdsResult', shape: 'RELATION', columns: [], sql: { statement: 'SELECT 1', slots: [], target: {}, tree: null } } };
+    const { link, calls } = python(() => json({ plan: `OK\n${JSON.stringify(record)}` }));
     const runner = pythonRunner(link, MODEL, RUNTIME);
     await runner.compile(QUERY, { epoch: 1 } as CubeSnapshot);
     assert.equal(calls.length, 1, 'the model is held in the page: only the dry run is sent');

@@ -600,7 +600,7 @@ class PureV1ApiTest {
                 Runtime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }
                 """;
         String t = "#>{t::DB.T}#";
-        String h2 = "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#";
+        String tradesTable = "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#";
         record Case(String model, String query, String runtime) {
         }
         List<Case> cases = new ArrayList<>();
@@ -611,11 +611,11 @@ class PureV1ApiTest {
                 t + "->extend(~t: r|$r.TS->toOne()->timeBucket(1, DurationUnit.DAYS))", t + "->extend(~tm: r|%10:30:00)")) {
             cases.add(new Case(types, "|" + q + "->from(t::RT)", "t::RT"));
         }
-        for (String q : List.of(h2, h2 + "->select(~[region, notional])",
-                h2 + "->groupBy(~[region], ~[total:x|$x.notional:y|$y->sum()])->sort([~region->ascending()])",
-                h2 + "->groupBy(~[desk, year], ~[n:x|$x.qty:y|$y->count(), avg:x|$x.pnl:y|$y->average()])",
-                h2 + "->extend(~[big: x|$x.notional > 50.0, label: x|$x.region->toOne() + '-' + $x.desk->toOne()])",
-                h2 + "->distinct(~[region])->limit(2)")) {
+        for (String q : List.of(tradesTable, tradesTable + "->select(~[region, notional])",
+                tradesTable + "->groupBy(~[region], ~[total:x|$x.notional:y|$y->sum()])->sort([~region->ascending()])",
+                tradesTable + "->groupBy(~[desk, year], ~[n:x|$x.qty:y|$y->count(), avg:x|$x.pnl:y|$y->average()])",
+                tradesTable + "->extend(~[big: x|$x.notional > 50.0, label: x|$x.region->toOne() + '-' + $x.desk->toOne()])",
+                tradesTable + "->distinct(~[region])->limit(2)")) {
             cases.add(new Case(model, "|" + q + "->from(trades::h2::RT)", "trades::h2::RT"));
         }
         String trading = resource("upstream-api/query-app/trading.pure");

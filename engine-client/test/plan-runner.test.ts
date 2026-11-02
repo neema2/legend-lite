@@ -117,3 +117,27 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
       /an update, a check or a typed result, not a effect/);
   });
 });
+
+describe('every plan door a host asks answers the one plan record (R2: docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, D11)', () => {
+  const query = '|#>{w::DB.SRC}#->select(~[id, amount])->from(w::RT)';
+  const record = (tagged: string): { format: string; version: number; root: { _type: string } } =>
+    JSON.parse(ok(tagged)) as { format: string; version: number; root: { _type: string } };
+
+  it('a query\'s rows, planned over a model held or given as text, as Pure text or a tree; a write; an execute', async () => {
+    const tree = toJson(await grammar.lambda(query));
+    const body = JSON.stringify({ clientVersion: 'vX_X_X', function: JSON.parse(tree), model: { _type: 'text', code: MODEL },
+      context: { _type: 'BaseExecutionContext' } });
+    const doors: Record<string, string> = {
+      plan: answer(m, { kind: 'plan', handle, query, runtime: 'w::RT' }),
+      planJson: answer(m, { kind: 'planJson', handle, lambda: tree, runtime: 'w::RT' }),
+      planModel: answer(m, { kind: 'planModel', model: MODEL, lambda: tree, runtime: 'w::RT' }),
+      executionPlan: answer(m, { kind: 'executionPlan', handle, lambda: toJson(lambda([], fn('write', src(), target()))), runtime: 'w::RT' }),
+      executePlan: answer(m, { kind: 'executePlan', body, models: JSON.stringify([MODEL]) }).replace(/^OK\n200\n[^\n]*\n/, 'OK\n'),
+    };
+    for (const [door, tagged] of Object.entries(doors)) {
+      const read = record(tagged);
+      assert.deepEqual([read.format, read.version], ['legend-lite-plan', 20], door);
+      assert.match(read.root._type, door === 'executionPlan' ? /^sequence$/ : /^tdsResult$/, door);
+    }
+  });
+});

@@ -300,3 +300,38 @@ class Hosting(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PlanDoors(unittest.TestCase):
+    """Every plan door a host asks of the native library answers the one plan record (R2: one plan kind for every host
+    path, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D11), its root the one typed result a host runs. The one door not on
+    it, the Arrow execute's ``{"sql", "metadata"}`` (``lite_execute_plan``), is named here until it moves onto the
+    core's Arrow writer (R4)."""
+
+    def test_every_plan_door_answers_the_plan_record(self):
+        from legend_lite import compiler
+        query = '|#>{trades::DB.TRADES}#->select(~[region])->from(trades::RT)'
+        tree = _json.dumps(ll.parse(query))
+        held = _answer(library().call('lite_hold_model', MODEL))
+        body = _json.dumps({'clientVersion': 'vX_X_X', 'function': ll.parse(query), 'model': {'_type': 'text', 'code': MODEL},
+                            'context': {'_type': 'BaseExecutionContext'}})
+        try:
+            doors = {
+                'lite_plan_text': _answer(library().call('lite_plan_text', MODEL, query, 'trades::RT')),
+                'lite_plan_json': _answer(library().call('lite_plan_json', MODEL, tree, 'trades::RT')),
+                'lite_plan_text_held': _answer(library().call('lite_plan_text_held', held, query, 'trades::RT')),
+                'lite_plan_json_held': _answer(library().call('lite_plan_json_held', held, tree, 'trades::RT')),
+                'lite_execution_plan_json_held': _answer(library().call('lite_execution_plan_json_held', held, tree,
+                                                                        'trades::RT')),
+                'lite_execute_json_plan': compiler.execute_json_plan(body, [MODEL]).body,
+            }
+            for door, text in doors.items():
+                read = json.loads(text)
+                self.assertEqual((read['format'], read['version']), ('legend-lite-plan', compiler.PLAN_VERSION), door)
+                self.assertEqual(read['root']['_type'], 'tdsResult', door)
+                self.assertEqual(compiler.read_plan(text).sql, read['root']['sql']['statement'], door)
+            # the one door still of another shape, named until R4 moves it
+            arrow = json.loads(compiler.execute_plan(body, [MODEL]).body)
+            self.assertEqual(sorted(arrow), ['metadata', 'sql'])
+        finally:
+            library().call('lite_release_model', held)

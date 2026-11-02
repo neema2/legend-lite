@@ -103,6 +103,26 @@ public final class Boundary {
         return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
     }
 
+    /** The models a host runs, from their JSON array of texts. */
+    private static java.util.List<String> models(String modelsJson) {
+        java.util.List<String> models = new java.util.ArrayList<>();
+        if (!(com.legend.json.Json.parse(modelsJson) instanceof com.legend.json.Json.Arr arr)) {
+            throw new IllegalArgumentException("the models: not a JSON array");
+        }
+        for (com.legend.json.Json.Node n : arr.items()) {
+            if (!(n instanceof com.legend.json.Json.Str text)) {
+                throw new IllegalArgumentException("the models: an entry that is not a model's text");
+            }
+            models.add(text.value());
+        }
+        return models;
+    }
+
+    /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
+    public static com.legend.server.PureV1Api.Answer refusal(String message) {
+        return com.legend.server.PureV1Api.refused(message);
+    }
+
     // ---- planning and typing
 
     /**
