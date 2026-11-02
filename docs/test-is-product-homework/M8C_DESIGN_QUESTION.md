@@ -1,5 +1,11 @@
 # M8c — the canon over the product columns (B8, MV4): a design question for the user (2026-11-01)
 
+**RULED 2026-11-02 (the plan's R24):** the construction-site canon stays and is generalized as the object's `equal()` value,
+carried on every lane for classes with `<<equality.Key>>` properties alone (a keyless class's equality is its `__id`), in a
+column named `__equalityKey`; the depth bound (b) is withdrawn; MV4 is restated as one equality value per object and one
+layout on both lanes. Built after M10c, before M10d.
+
+
 The plan's §7 M8 names, after M8a (the host judgment as data) and M8b (the database verdict row self-contained), **M8c:
 the canon over the product columns** (B8; R10 "the canon computed over the product plan's columns, fully"; MV4
 "verdicts and messages carrying a canon; untracked evaluations"). This note records what the code says before the

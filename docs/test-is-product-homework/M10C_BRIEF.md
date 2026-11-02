@@ -114,12 +114,38 @@ The planners' refusals, by site:
    rows, the corpus's `scanColumns` chain -- pinned on both roads under both judges, every boundary the same but the
    walk's one body-session setup statement (the scan's let evaluated on the body's session; the program's one target
    the system database -- the M10a difference `systemRoutedPrograms`' store-free case allows).
-4. **A user-written assert helper at the root (20).** `assertConversion(a, b)` is a user function whose body asserts;
-   the walk inlines it (`UserCallInliner.inlineBody`, `BodyCompiler` ~305) and adjudicates the inlined statement. The
-   test door does the same: a statement-root user call whose callee's body is statements ending in an assert is
-   inlined into the body at its place (the inliner, α-renamed lets), then planned as the body's own statements -- a
-   named rule over the callee's body shape (every statement a let or an assert; no effect, no frame), the rest the
-   walk's.
+4. **A user-written assert helper at the root (20). BUILT 2026-11-02: DuckDB host pass moved 2,744 -> 2,764, database
+   2,716 -> 2,734; H2 host 2,744 -> 2,764, database 2,649 -> 2,650 (the struct-less dialect walls the class-value pairs
+   at planning: the bodies given back, see (i)); outcomes identical on every pass, the rosters byte-identical.** `assertConversion(expected,
+   input)` is a user function whose body is lets then an assert over class values; the walk's `prepareValue` inlines the
+   statement with the lets before it (`UserCallInliner.inlineBody`, G½), stages it, reads its root and -- where the
+   original is a user call and the root a verdict native asserting a CLASS VALUE or reading a STRING ENTRY
+   (`VerdictRoutes.assertsClassValue`, `readsStringEntry`: the corpus's `runLegendTest` wrappers and `assertConversion`)
+   -- adjudicates that root; every other helper root is a value. The rule named once (`BodyDriver.isHelperAssertRoot`,
+   `helperAssertRoot`: a cheap necessary condition first -- the callee's body reaches an asserts-package call or a
+   string entry's read -- then the same inlining, the reduced root or null) and shared by the program road through one
+   predicate (`isHelperCall`): `planHost` plans the reduced root recursively, reported under the helper's own name;
+   `databaseGate` and `planDatabase` reduce the helper once up front and gate and adjudicate the reduced assert under
+   its own name (the walk's `batched` opens the batch root for the reduced assert under the DATABASE judge). The report's
+   LABEL under the HOST judge changes with this item, deliberately (the audit's reading): the walk's `tryAdjudicate`
+   names a statement's verdict by its root, and since `planHost` plans the helper the walk takes that plan first, so
+   both roads report `x::assertSame` where the walk's `prepareValue` reported the reduced root's `assertEquals` before
+   -- as the lineage-lines and dual-golden rewraps; the census family (`adjudicated assertEquals`) is the reduced
+   root's on both roads under both judges, unchanged. The witness (`helperAssertPrograms`): a keyed class `x::Key` and a helper
+   `x::assertSame(expected, actual) { let a = $actual; assertEquals($expected, $a); }`; keys equal (held), keys differing
+   (failed), after a let -- on both roads under both judges, the outcomes pinned absolutely on DuckDB. Two things the
+   witness found and pins as the walk's own until M10d: (i) on a dialect without struct and list encodings the keyed
+   pair walls (`DialectCapability`) on both roads alike, raised by the root loop at the flush; under the DATABASE judge
+   the planning pass defers the row (nothing rendered: PLANNED, the family counted), then the segment's close finds no
+   member the dialect spells (`VerdictBatch.plan`'s split rung catches the capability; `DatabaseAsserts.close`: no step)
+   and gives the body back to the walk, which counts the family again -- M8's note in `close` ("every member's canon the
+   dialect cannot spell ... M8 carries the refusal as a step"), the same path a DIRECT class-value `assertEquals` takes
+   on such a dialect (pre-existing; on H2 the 22 toPostgresModel tests fail on both lanes already) -- M10d, where a
+   planning failure is the body's outcome (R14), carries it as the step; (ii) under the DATABASE judge a helper whose deferred verdict fails is ANSWERED
+   `true` by the walk (`prepareValue` streams the inlined assert's value as the statement's value before the batch's
+   flush judges it) where a statement-root assert and the program road answer nothing -- a quirk the walk's deletion
+   removes. The audit (COMMIT WITH FIXES, folded): the naming rationale and (i)'s mechanism as above; the helper
+   reduced once per road (seven inline passes before); one predicate for the three sites; the pre-check.
 5. **The quantified forms (18).** Two shapes today: the VECTOR form (`xs->map(x|assert(pred))`: the predicate
    vectorizes in the database, the boolean vector judged on the host, the first failure raising) and the UNROLL form
    (a literal collection whose lambda carries lets or a non-boolean assert: each element bound as a let, the inliner

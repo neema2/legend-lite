@@ -16680,6 +16680,44 @@ measured on both corpora with the registers and a parity witness; the chain at M
    mechanism sentence (the side-kind rule never meets the scan: the kind routes) and its attribution of the five
    bodies (they move, they do not stay) corrected; the two witness gaps filled (a non-print equality over scan rows,
    the `scanColumns` chain); a stale comment in `HostAsserts` ("until M10a opens the system session") rewritten.
+13. **Item 4 -- a user-written assert helper at the root:** legend-engine's `assertConversion(expected, input)` (a user
+   function: lets, then `assertEquals` over class values) is inlined by the walk's `prepareValue` with the lets before
+   it and staged, and its reduced root adjudicated where that root is a verdict native asserting a CLASS VALUE or
+   reading a STRING ENTRY (`VerdictRoutes`); the rule is named once (`BodyDriver.isHelperAssertRoot`,
+   `helperAssertRoot`: a cheap necessary condition -- the callee's body reaches an asserts-package call or a string
+   entry's read -- then the same inlining, the reduced root or null) and the program road shares it through one
+   predicate (`isHelperCall`): `planHost` plans the reduced root under the helper's own name; `databaseGate` and
+   `planDatabase` reduce the helper once up front and gate and adjudicate the reduced assert under its own name (the
+   walk's `batched` opens the batch root for it under the DATABASE judge). The HOST report's label changes with the
+   item, deliberately: the walk's `tryAdjudicate` names a statement's verdict by its root and takes `planHost`'s plan
+   first, so both roads report the helper (`x::assertSame`) where the walk's `prepareValue` reported the reduced root
+   (`assertEquals`) before -- as the lineage-lines and dual-golden rewraps; the census family is the reduced root's on
+   both roads, unchanged.
+14. **Movement (item 4):** DuckDB host pass `moved=2744 -> 2,764` (2471 / 108, unchanged), database `2716 -> 2,734`
+   (2473 / 108, unchanged); H2 host `2744 -> 2,764` (2289 / 295), database `2649 -> 2,650` (2233 / 353); 12 of 12
+   lane tests green, the rosters byte-identical. On H2 the class-value pairs wall at planning (no struct encoding) and
+   the bodies are given back to the walk (item 15's (i)).
+15. **The checks (item 4):** the driver suite (`BodyRouterParityTest.helperAssertPrograms`: a keyed class and a helper
+   `x::assertSame(expected, actual) { let a = $actual; assertEquals($expected, $a); }`, keys equal, keys differing,
+   after a let, under both judges on every in-process backend, pinned absolutely on DuckDB), root, architecture, judge,
+   testplan, `//core:census` (`JavaEvalLedgerTest` AssertVerdicts 1564 -> 1579, BodyDriver 961 -> 985, dated);
+   `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached. Two things the witness found, pinned as the walk's own
+   until M10d: (i) on a dialect without struct and list encodings the keyed pair walls on both roads alike (the root
+   loop at the flush); under the DATABASE judge the planning pass defers the row (PLANNED, the family counted), then
+   the segment's close finds no member the dialect spells (`VerdictBatch.plan`'s split rung; `DatabaseAsserts.close`: no
+   step) and gives the body back to the walk, which counts the family again -- M8's note in `close`, the path a direct
+   class-value `assertEquals` takes on such a dialect too (pre-existing); M10d carries it as the step (R14); (ii) under the DATABASE
+   judge a helper whose deferred verdict fails is ANSWERED `true` by the walk (`prepareValue` streams the inlined
+   assert's value before the batch's flush judges it) where a statement-root assert and the program road answer
+   nothing -- a quirk the walk's deletion removes.
+16. **Item 4's independent audit (COMMIT WITH FIXES, folded):** the HOST naming rationale was inverted (the walk's report
+   label changed with the item: named as such) and exemption (i)'s mechanism misdescribed (the segment's close, not a
+   wall at planning): both corrected in the code's comments, the witness and the records; the helper was reduced up to
+   seven times per assert across the gate, the planning pass and the static pass: reduced once per road now, through
+   one predicate (`isHelperCall`) at the three sites, with a necessary-condition pre-check before any inlining (the
+   HOST walk had begun to inline every statement-root user call once more); the lane numbers, missing when the audit
+   read the brief, recorded. Noted, not a defect: a helper whose inlining raises is now counted at the walk's
+   pre-arm raise where it raised outside the census before; the program road matches it.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

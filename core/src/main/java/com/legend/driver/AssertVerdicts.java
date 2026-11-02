@@ -111,6 +111,15 @@ final class AssertVerdicts {
     static DatabasePlan planDatabase(com.legend.judge.VerdictBatch batch, TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        if (isHelperCall(bare)) {
+            // a helper call at the root reduced once to the assert it is (M10c item 4): gated and adjudicated as that
+            // assert, under its own name -- as the walk's prepareValue opens the batch's root for the reduced assert
+            TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
+            if (helper == null) {
+                return DatabasePlan.UNPLANNED;
+            }
+            bare = helper;
+        }
         if (!databasePlansWithoutReading(bare, letPrefix, specs, env, rawHook)) {
             return DatabasePlan.UNPLANNED;
         }
@@ -167,6 +176,15 @@ final class AssertVerdicts {
     static DatabaseGate databaseGate(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        if (isHelperCall(bare)) {
+            // a helper call at the root reduced once to the assert it is (M10c item 4): the gate and the planning pass
+            // read the reduced root, as planHost plans it on the host road
+            TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
+            if (helper == null) {
+                return DatabaseGate.UNPLANNED;
+            }
+            bare = helper;
+        }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
             return DatabaseGate.UNPLANNED;
@@ -307,6 +325,14 @@ final class AssertVerdicts {
 
     static void flush(com.legend.judge.VerdictBatch batch, BodyDriver.ExecEnv env) {
         batch.flush(env.assertListener());
+    }
+
+    /** A statement-root HELPER call: a user function that is neither a root engine-text arm nor a verdict native
+     *  (the test-is-the-product plan's M10c item 4; {@code BodyDriver.helperAssertRoot} says what it reduces to). */
+    static boolean isHelperCall(TypedSpec bare) {
+        String fqn = calleeFqn(bare);
+        return fqn != null && bare instanceof TypedUserCall && !SqlTextVerdicts.isRoot(fqn)
+                && NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).isEmpty();
     }
 
     static String listenerName(TypedSpec bare) {
@@ -829,7 +855,18 @@ final class AssertVerdicts {
         NativeFn.Verdict fn = root ? null
                 : NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (!root && fn == null) {
-            return null;
+            // a HELPER call at the root (the test-is-the-product plan's M10c item 4): the walk inlines it and
+            // adjudicates its reduced root where that root asserts a class value or reads a string entry
+            // (BodyDriver.helperAssertRoot); planned the same. Reported under the call the body spells: the walk's
+            // tryAdjudicate names a statement's verdict by its root, and since this plan exists the walk under the
+            // HOST judge takes it first -- before this item the walk's prepareValue reported the helper under its
+            // reduced root's name (a deliberate change of the report's label, as the lineage-lines and dual-golden
+            // rewraps; the DATABASE judge names the reduced root on both roads, planDatabase)
+            TypedSpec helper = isHelperCall(bare) ? BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook)
+                    : null;
+            HostAssert rewritten = helper == null ? null : planHost(helper, letPrefix, specs, env, rawHook);
+            return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
+                    rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
         }
         String name = fn == null ? null : fn.bareName();
         HostSides.Check check;

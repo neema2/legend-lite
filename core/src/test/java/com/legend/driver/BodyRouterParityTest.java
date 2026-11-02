@@ -333,6 +333,11 @@ class BodyRouterParityTest {
         return """
                 Class x::Firm { name: String[1]; }
                 Class <<meta::pure::profiles::temporal.businesstemporal>> x::TFirm { name: String[1]; }
+                Class x::Key { <<equality.Key>> k: String[1]; v: Integer[1]; }
+                // a user-written assert helper (toPostgresModel's assertConversion: lets, then an assert over class
+                // values): the walk inlines the call and adjudicates its reduced root; M10c item 4 plans the same
+                function x::assertSame(expected: x::Key[1], actual: x::Key[1]): Boolean[1]
+                { let a = $actual; assertEquals($expected, $a); }
                 function x::firms(): meta::pure::tds::TabularDataSet[1] { x::Firm.all()->project([f|$f.name], ['name']) }
                 function x::aFirm(): x::Firm[1] { ^x::Firm(name='Cyl') }
                 function x::oneExec(): Integer[1] { meta::pure::router::execute(|x::Firm.all()->project([f|$f.name],
@@ -765,6 +770,67 @@ class BodyRouterParityTest {
                 walkedSql.removeIf(s -> s.startsWith("[session]"));
                 assertEquals(walkedSql, moved.statements, "the statements sent, the body session's setup aside: "
                         + c.getKey());
+            }
+        }
+    }
+
+    /** M10c item 4: a USER-WRITTEN ASSERT HELPER at the root ({@code x::assertSame(expected, actual)}: lets, then an
+     *  assert over class values, as toPostgresModel's {@code assertConversion}) is inlined and its reduced root planned
+     *  as the assert it is on both roads, under that assert's name -- the walk's own rule (a class value asserted or a
+     *  string entry read); the outcomes pinned absolutely under both judges. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void helperAssertPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            for (var c : List.of(
+                    // the keys agree (v is no key): held
+                    java.util.Map.entry("{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='a', v=2));}", "ok"),
+                    java.util.Map.entry("{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='b', v=1));}", "AssertFailed"),
+                    // after a let the helper reads
+                    java.util.Map.entry("{| let e = ^x::Key(k='c', v=3); x::assertSame($e, ^x::Key(k='c', v=4));}",
+                            "ok"))) {
+                assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, c.getKey()), "x::RT", true), c.getKey());
+                Run walked = run(backend, ctx, "x::RT", c.getKey(), false, "select count(*) from FIRM", FIRM_ROWS, mode);
+                if (walked.outcome.startsWith("DialectCapability")) {
+                    // a keyed instance's canon needs the dialect's struct and list encodings: a dialect without them
+                    // walls the pair on both roads alike (the walk's own answer, raised by the root loop at the flush).
+                    // Under the DATABASE judge the planning pass defers the row (nothing rendered: PLANNED, the family
+                    // counted), then the segment's close finds no member the dialect spells (VerdictBatch.plan's split
+                    // rung catches the DialectCapability; DatabaseAsserts.close: no step) and gives the body back to
+                    // the walk, which counts the family again -- M8's note in close, carried as a step by M10d. The
+                    // outcome and the verdicts are the walk's. Pinned as that until M10d.
+                    Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS,
+                            mode);
+                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
+                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
+                    // the host road carries the wall as its step's raise (moved); the database road gives the body
+                    // back (not moved)
+                    assertEquals(mode == ExecuteOptions.JudgeMode.DATABASE ? walked.moved : walked.moved + 1,
+                            moved.moved, "the body's road under the wall: " + c.getKey());
+                    continue;
+                }
+                if (mode == ExecuteOptions.JudgeMode.DATABASE && c.getValue().equals("AssertFailed")) {
+                    // the walk's own quirk for a helper whose deferred verdict fails: prepareValue answers the inlined
+                    // assert's value (true) as the statement's value before the batch's flush judges it, where a
+                    // statement-root assert answers nothing on a failure -- the program road answers nothing, as for
+                    // every failing assert; every other boundary the same (the walk's deletion removes the quirk)
+                    Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS,
+                            mode);
+                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
+                    assertTrue(walked.outcome.startsWith("AssertFailed"), c.getKey() + " -> " + walked.outcome);
+                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
+                    assertEquals(walked.census, moved.census, "the verdict census: " + c.getKey());
+                    assertEquals(walked.origins, moved.origins, "the statement-origin census: " + c.getKey());
+                    assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + c.getKey());
+                    continue;
+                }
+                walked = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+                if (backend.type().name().equals("DuckDB")) {
+                    assertTrue(walked.outcome.startsWith(c.getValue()), "DuckDB judges: " + c.getKey() + " -> "
+                            + walked.outcome);
+                }
             }
         }
     }

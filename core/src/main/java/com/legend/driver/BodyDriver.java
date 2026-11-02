@@ -300,6 +300,61 @@ public final class BodyDriver {
         }
     }
 
+    /** The walk's rule for a statement-root HELPER call ({@link #prepareValue}): a user call whose inlined, staged
+     *  root is a verdict native asserting a CLASS VALUE or reading a STRING ENTRY is adjudicated as that assert (the
+     *  corpus's {@code runLegendTest} wrappers, {@code toPostgresModel}'s {@code assertConversion}); every other
+     *  helper root is a value. */
+    static boolean isHelperAssertRoot(TypedSpec bare, TypedSpec preRoot) {
+        return bare instanceof com.legend.compiler.spec.typed.TypedUserCall
+                && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
+                && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
+                        || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot));
+    }
+
+    /** The assert a statement-root HELPER call reduces to, by the walk's rule ({@link #isHelperAssertRoot}: the call
+     *  inlined with the lets before it, G½, and staged, as {@link #prepareValue} does), or null where the rule does
+     *  not apply (no helper, or a helper whose root is a value). The program road plans this root as the assert it
+     *  is, under its own name, as the walk adjudicates it (the test-is-the-product plan's M10c item 4). */
+    static @com.legend.base.Nullable TypedSpec helperAssertRoot(TypedSpec bare, java.util.List<TypedSpec> letPrefix,
+            SpecCompiler specs, ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+        if (!(bare instanceof com.legend.compiler.spec.typed.TypedUserCall call)) {
+            return null;
+        }
+        // a necessary condition of the rule, read before the inlining (which stages the planning-time routines):
+        // the callee's body reaches an asserts-package call or a string entry's read; a value helper (x::firms())
+        // reaches neither and is a value without a pass over it
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        boolean assertShaped = false;
+        for (TypedSpec stmt : specs.compile(call.callee()).body()) {
+            if (com.legend.compiler.spec.StatementEffects.reaches(stmt, n -> n instanceof
+                    com.legend.compiler.spec.typed.TypedNativeCall nc && nc.callee().qualifiedName().startsWith(
+                            com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)
+                    || n instanceof com.legend.compiler.spec.typed.TypedJsonResult
+                    || n instanceof com.legend.compiler.spec.typed.TypedJsonAccess, specs, memo)) {
+                assertShaped = true;
+                break;
+            }
+        }
+        if (!assertShaped) {
+            return null;
+        }
+        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(bare);
+        var inliner = new com.legend.compiler.spec.UserCallInliner(specs, hook);
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>(inliner.inlineBody(single));
+        env.queryLets().putAll(inliner.queryLets());
+        final java.util.List<TypedSpec> stageEnv = body;
+        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                .stage(b, stageEnv, com.legend.planner.EnginePlans.nativeRoutines(specs, env.plan())));
+        TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
+        while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
+            preRoot = pf.source();
+        }
+        preRoot = foldPairProjection(preRoot);
+        return isHelperAssertRoot(bare, preRoot) ? preRoot : null;
+    }
+
     static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
             java.util.List<TypedSpec> letPrefix, java.util.Map<String, ExecFrame> execFrames,
             SpecCompiler specs, ExecEnv env) {
@@ -334,10 +389,7 @@ public final class BodyDriver {
         // constructed instances — the struct verdict of batch 53; no
         // SQL-text arm can judge a struct, so nothing downstream is
         // displaced)
-        if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall
-                && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
-                && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
-                        || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
+        if (isHelperAssertRoot(bare, preRoot)) {
             TypedSide inlinedVerdict = AssertVerdicts.tryAdjudicate(
                     preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
                     spliceHook(execFrames, letPrefix, specs, env));

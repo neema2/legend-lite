@@ -3041,7 +3041,9 @@ double, `JavaEvalLedgerTest`). **M10c in progress 2026-11-02**: item 1a built (`
 `AssertVerdicts.java` `adjudicate`'s pair branch, `databaseGate`, `staticGrid`, `renderedStatic`; the witness
 `gridPairsAndRenderedTextsUnderTheDatabaseJudge`); item 3 built (`testplan/BodyClass.java` `anotherWay`'s scan rule;
 `AssertVerdicts.java` `planHost`'s lineage rewrite; `DatabaseAsserts.java` `plannable(typed, systemRouted)`; the witness
-`lineagePrograms`); next its items 4-6 and 1b, then M10d,
+`lineagePrograms`); item 4 built (`driver/BodyDriver.java` `isHelperAssertRoot`, `helperAssertRoot`;
+`AssertVerdicts.java` `isHelperCall`, `planHost`, `databaseGate`, `planDatabase`; the witness `helperAssertPrograms`);
+next its items 5-6 and 1b, then M10d,
 Z, in this session; M8c awaits the user's ruling (the session's answer to the user's two questions posted 2026-11-02,
 §9 "M8c").
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
