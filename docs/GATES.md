@@ -16854,3 +16854,55 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
     like `macos-14`, the architecture the rosters and goldens were minted on.
     - `//tools/guards:workflows_test` (actionlint) is green.
     - Whether every macOS lane passes on macOS 15 is shown by this PR's CI, the first run on the new image.
+
+## 2026-11-02 — The host executors' baselines (H0): the tab's decode and Python's JSON route measured, no code changed
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` (ratified with the user 2026-11-02), step H0. Two manual benchmarks, new;
+no behaviour change. Both read the five columns Java's benchmark reads (`//core:seam_benchmark`: an integer id, a text,
+a `DECIMAL(18,2)`, a timestamp, a nullable integer), at 10 to 1,000,000 rows. Each size has one cold call, a second of
+warm-up, then two seconds of calls timed one by one; the medians are below. Measured in this cloud container (4 vCPU,
+15 GB), at `main` `cf73e6ef`.
+
+1. **The tab** (`//engine-client:executor_bench`: `DuckDbEngine` over DuckDB-WASM in Node 22.16, the statement
+   `SELECT ... FROM bench ORDER BY id LIMIT n`). `arrow` is DuckDB's Arrow table alone; `execute` and `stream` are the
+   product's paths, every cell decoded to a `Scalar` (`toRawTable`, `decoderFor`). Both paths answer the same values
+   at every size (the digest, column by column across chunks).
+
+   | Rows | arrow | execute | stream |
+   |---|---|---|---|
+   | 10 | 1.72 ms | 1.80 ms | 1.87 ms |
+   | 100 | 2.13 ms | 2.45 ms | 2.44 ms |
+   | 1,000 | 2.46 ms | 4.83 ms | 4.80 ms |
+   | 10,000 | 7.0 ms | 35.1 ms | 37.7 ms |
+   | 100,000 | 14.2 ms | 308 ms | 345 ms |
+   | 1,000,000 | 161 ms | 3,384 ms | 3,388 ms |
+
+   From 1,000 rows up, the decode is most of the time: 5x DuckDB's own time at 10,000 rows, 21x at 1,000,000. That is
+   the per-cell work §2.1 of the note names: `rawAt` walking the chunk list from the start for every cell, the null
+   check reading each cell twice, a `BigInt` per timestamp, a `Scalar` per cell.
+
+2. **Python** (`//python:executor_bench`: a frame registered in `Frames`, the query
+   `->select(...)->sort(~id->ascending())->limit(n)`, the planner's own statement). `duckdb` is that statement's Arrow
+   table alone on the frames' connection; `frames` is `Table.execute`; `arrow` and `json` are the engine's two
+   executes, called in-process (`Engine.answer`, no HTTP).
+
+   | Rows | duckdb | frames | arrow | json |
+   |---|---|---|---|---|
+   | 10 | 10.5 ms | 11.3 ms | 17.0 ms | 20.9 ms |
+   | 100 | 10.2 ms | 11.4 ms | 19.8 ms | 20.0 ms |
+   | 1,000 | 10.2 ms | 11.4 ms | 19.6 ms | 32.4 ms |
+   | 10,000 | 47.7 ms | 53.4 ms | 60.4 ms | 228 ms |
+   | 100,000 | 54.0 ms | 55.8 ms | 72.5 ms | 1,900 ms |
+   | 1,000,000 | 99.9 ms | 103 ms | 188 ms | 23,169 ms |
+
+   - `frames` adds about a millisecond to DuckDB's own time at every size: the planning, in-process.
+   - The Arrow execute adds 7-9 ms at small sizes (its plan from the native library, the IPC stream, zstd) and 88 ms
+     at 1,000,000 rows.
+   - The JSON execute takes 23.2 s at 1,000,000 rows, 120 times the Arrow execute. Every cell crosses three times:
+     `fetchall()` into Python objects, `compiler.host_rows` into JSON text, and the native library parses that text
+     before Java's writer spells it (§2.2 of the note).
+   - The 10 ms floor is the planner's statement over the whole 1,000,000-row frame (a sort, then the limit). The two
+     benchmarks run different statements, so their numbers are not compared across languages.
+
+3. **What the baselines decide.** H1's per-column decode is aimed at the tab's 5-21x. H2's JSON route has its handoff
+   options measured against the Arrow execute's 188 ms, posted to the user before any is built (D2).

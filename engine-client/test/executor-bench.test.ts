@@ -40,13 +40,15 @@ function plan(rows: number): Plan {
   return { sql: `SELECT id, name, amount, ts, bucket FROM bench ORDER BY id LIMIT ${rows}`, columns: COLUMNS };
 }
 
-/** Every decoded value of a result, in column order, hashed: the same values answer the same digest. */
+/** Every decoded value of a result, column by column across its chunks, hashed: the same values answer the same digest
+ *  however the rows were chunked. */
 function digest(tables: readonly ResultTable[]): string {
   const h = createHash('sha256');
-  for (const t of tables) {
-    for (const c of t.columns) {
-      h.update(c.name);
-      for (const v of c.values) h.update(typeof v === 'bigint' ? `n${v}` : JSON.stringify(v));
+  const names = tables[0]?.columns.map((c) => c.name) ?? [];
+  for (const [i, name] of names.entries()) {
+    h.update(name);
+    for (const t of tables) {
+      for (const v of t.columns[i]!.values) h.update(typeof v === 'bigint' ? `n${v}` : JSON.stringify(v));
     }
   }
   return h.digest('hex').slice(0, 16);
