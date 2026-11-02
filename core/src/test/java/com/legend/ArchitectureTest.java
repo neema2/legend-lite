@@ -1439,6 +1439,9 @@ final class ArchitectureTest {
                 // the kinds of each body the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
                 // appended by the router, read by the corpus lanes' histogram only -- measurement, never a verdict
                 "com.legend.exec.Census.STAYED_KINDS",
+                // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
+                // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
+                "com.legend.exec.Census.UNPLANNED_ASSERTS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

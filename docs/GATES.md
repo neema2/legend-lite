@@ -16892,6 +16892,24 @@ measured on both corpora with the registers and a parity witness; the chain at M
    `subsumed(uc)` helper. The corpus's exact V2 shape (`setUpDataSQLsV2($db, createDbConfig(...))`) is witnessed at the
    class-rule level alone (the engine's `createDbConfig` needs a DbExtension the frame model does not declare); the lanes
    run the 48 real bodies.
+30. **The unplanned-assert census (a measurement, 2026-11-02):** `Census.UNPLANNED_ASSERTS` (registered in
+   `ArchitectureTest.staticCollectionStateIsImmutableOrRegistered` with its reason), appended by the host planner at each
+   of its declines with the assert's SHAPE (`AssertVerdicts.shapeOf`: the callee and each argument's declared type and
+   node kind) and a label naming the decline (the quantified contract, no callee, a helper root not reduced, the
+   engine-text arm's `NOT_A_CONSTANT`, the dual-golden rewrite, the equals arm's three declines -- the engine-text arm,
+   the cell pool, `planEquals` -- and an engine text in a system-routed body); the lanes write
+   `corpus2-unplanned-asserts.tsv` (fqn, status, label) and print the histogram. The `AssertVerdicts` ledger pin moves
+   1737 -> 1775 (stripped lines; the labels, nothing evaluated). The attribution of the 61 bodies the host planner
+   refuses on the DuckDB host pass after item 7c (`assert,host-unplanned-assert`): 42 `text not a constant` in the
+   equals arm -- a text side bound by a LET to a helper's or a routine's result (`let resultSQL =
+   relationalMapperSqlQuery(...)`, 12), a PropertyAccess over a plan object or a pair (`$planWithString.second`,
+   `$sqlComment`, `.supportsStream`, 18), `$result->sqlRemoveFormatting()` over a union or extend frame (7), two
+   variables (5); 4 `assertEqualsH2Compatible` with a variable text; 9 the CELL POOL (`assertEquals([...],
+   $result.rows.values->sort())`: a flat literal collection against a relation-typed side); 2 engine text in a
+   system-routed body; 1 the quantified tolerance; 1 `assertSameSQL` over a computed text; 2 misc. The next item reads
+   the first family: on the walk `prepareValue` inlines the statement with its lets and STAGES the Java routines
+   (`NativeDispatch.stage`: `toSQLString`, `planToString` become constants) before the arm sees the side, where the host
+   planner's arm reads the let's value raw and calls it not a constant -- a planning-time staging the planner lacks.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

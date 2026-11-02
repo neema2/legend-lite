@@ -274,6 +274,11 @@ The planners' refusals, by site:
    a data argument that does not fold stays; the unit witness of the subsumed argument. Expected: the 48 `setupTestData`
    bodies (modelJoin advanced, simple, milestoning, union) move or name their next blocker (the TDS `toString` compare,
    the `->sql()` text); measured, not promised.
+7d. **The unplanned-assert census (2026-11-02, a measurement).** Every decline of the host planner named by the assert's
+   shape (`Census.UNPLANNED_ASSERTS`, `AssertVerdicts.shapeOf`; the lanes' `corpus2-unplanned-asserts.tsv` and
+   histogram); the 61 refused bodies attributed (GATES item 30): 42 `text not a constant` (a let-bound helper or
+   routine text, a plan-object navigation, a union frame's SQL), 9 the cell pool, 4 the dual-golden variable, 2 the
+   system-routed engine text, the rest ones and twos. Deciding nothing; the next items read it.
 8. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 

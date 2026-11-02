@@ -215,6 +215,7 @@ public class MinimalCorpusTest {
         List<String> fallbackRows = new ArrayList<>();
         /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
         List<String> stayedRows = new ArrayList<>();
+        List<String> unplannedRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
@@ -230,6 +231,7 @@ public class MinimalCorpusTest {
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
+                int unplannedBefore = com.legend.exec.Census.UNPLANNED_ASSERTS.size();
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
                 long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
@@ -304,6 +306,9 @@ public class MinimalCorpusTest {
                 for (int si = stayedBefore; si < com.legend.exec.Census.STAYED_KINDS.size(); si++) {
                     stayedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.STAYED_KINDS.get(si));
                 }
+                for (int ui = unplannedBefore; ui < com.legend.exec.Census.UNPLANNED_ASSERTS.size(); ui++) {
+                    unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.UNPLANNED_ASSERTS.get(ui));
+                }
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
@@ -366,6 +371,16 @@ public class MinimalCorpusTest {
         // THE KIND CENSUS of the bodies the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
         // per test in the TSV; the histogram over the PASSING tests' bodies names what each movement step must admit
         Files.write(com.legend.testing.TestOutputs.file("corpus2-body-stayed.tsv"), stayedRows);
+        // THE UNPLANNED-ASSERT CENSUS (M10c, 2026-11-02): each assert the host planner declined, by its shape, per test
+        Files.write(com.legend.testing.TestOutputs.file("corpus2-unplanned-asserts.tsv"), unplannedRows);
+        java.util.Map<String, Integer> unplannedHist = new java.util.TreeMap<>();
+        for (String row : unplannedRows) {
+            unplannedHist.merge(row.substring(row.lastIndexOf('\t') + 1), 1, Integer::sum);
+        }
+        // in the map's own (name) order: the count is the number, no sort site (JavaEvalLedgerTest's harness census)
+        for (var e : unplannedHist.entrySet()) {
+            System.out.println("[corpus2] unplanned-assert " + e.getValue() + " " + e.getKey());
+        }
         java.util.Map<String, Integer> stayedByKinds = new java.util.TreeMap<>();
         for (String row : stayedRows) {
             String[] cols = row.split("\t", 3);

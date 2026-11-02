@@ -878,6 +878,24 @@ final class AssertVerdicts {
      * and counts nothing; a classification that raises once the family is named is planned as that raise under the
      * family (the walk counts the family before the arm: M6's audit, N2).
      */
+    /** An assert's SHAPE for the unplanned-assert census ({@code Census.UNPLANNED_ASSERTS}): its callee's simple name
+     *  and each argument's declared type with the argument's node kind -- a label the lanes histogram, deciding
+     *  nothing. */
+    static String shapeOf(TypedSpec bare) {
+        String fqn = calleeFqn(bare);
+        String name = fqn == null ? bare.getClass().getSimpleName() : fqn.substring(fqn.lastIndexOf(':') + 1);
+        List<TypedSpec> args = bare instanceof TypedNativeCall nc ? nc.args()
+                : bare instanceof TypedUserCall uc ? uc.args() : List.of();
+        StringBuilder out = new StringBuilder(name).append('(');
+        for (int i = 0; i < args.size(); i++) {
+            TypedSpec a = args.get(i);
+            out.append(i > 0 ? ", " : "").append(a.info().type().typeName()).append('[')
+                    .append(a.info().multiplicity()).append("] ")
+                    .append(a.getClass().getSimpleName().replace("Typed", ""));
+        }
+        return out.append(')').toString();
+    }
+
     static @com.legend.base.Nullable HostAssert planHost(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
@@ -901,10 +919,16 @@ final class AssertVerdicts {
             if (qp instanceof VectorPlan v) {
                 return v.assertion();
             }
+            if (qp == null) {
+                com.legend.exec.Census.unplannedAssert("quantified: " + shapeOf(bare));
+            }
             return qp instanceof UnrollPlan u ? composite(bare, u) : null;
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
+            if (bare instanceof TypedNativeCall || bare instanceof TypedUserCall) {
+                com.legend.exec.Census.unplannedAssert("no callee: " + bare.getClass().getSimpleName());
+            }
             return null;
         }
         // the three engine-text ROOT arms (the test-is-the-product plan's M10b) are planned by the arm the walk runs
@@ -923,6 +947,9 @@ final class AssertVerdicts {
             // rewraps; the DATABASE judge names the reduced root on both roads, planDatabase)
             TypedSpec helper = isHelperCall(bare) ? BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook)
                     : null;
+            if (helper == null) {
+                com.legend.exec.Census.unplannedAssert("helper root not reduced: " + shapeOf(bare));
+            }
             HostAssert rewritten = helper == null ? null : planHost(helper, letPrefix, specs, env, rawHook);
             return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
                     rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
@@ -939,6 +966,7 @@ final class AssertVerdicts {
         }
         if (check == SqlTextVerdicts.NOT_A_CONSTANT) {
             // a text side the arm would evaluate by a statement at the assert's turn: the walk's
+            com.legend.exec.Census.unplannedAssert("text not a constant: " + shapeOf(bare));
             return null;
         }
         if (check == null) {
@@ -948,10 +976,16 @@ final class AssertVerdicts {
                 // assertEquals(upgraded, actual), planned as that verdict
                 TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries.assertEqualsOf(hroot.args().get(1),
                         hroot.args().get(2), specs);
+                if (asEquals == null) {
+                    com.legend.exec.Census.unplannedAssert("dual-golden rewrite declined: " + shapeOf(bare));
+                }
                 HostAssert rewritten = asEquals == null ? null : planHost(asEquals, letPrefix, specs, env, rawHook);
                 // reported under the call the body spells, as the walk reports it (the M10b audit's S3)
                 return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
                         rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
+            }
+            if (fn != NativeFn.Verdict.ASSERT_EQUALS && fn != NativeFn.Verdict.ASSERT_NOT_EQUALS) {
+                com.legend.exec.Census.unplannedAssert("arm declined: " + shapeOf(bare));
             }
             return null;
         }
@@ -985,11 +1019,13 @@ final class AssertVerdicts {
                     if (engineText == SqlTextVerdicts.NOT_A_CONSTANT) {
                         // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
                         // the generic equality's (which would compare the texts the arm appeals)
+                        com.legend.exec.Census.unplannedAssert("equals: text not a constant: " + shapeOf(bare));
                         yield null;
                     }
                     if (engineText != null) {
                         yield engineText;
                     }
+                    com.legend.exec.Census.unplannedAssert("equals: engine-text arm declined: " + shapeOf(bare));
                 }
                 HostSides.Check rendered = renderedPlan(name, wantEqual, args, letPrefix, hook, true);
                 if (rendered != null) {
@@ -999,6 +1035,7 @@ final class AssertVerdicts {
                         || bareSortOverCells(args.get(1)) != null)) {
                     // the sorted flat-cells idiom: the cell pool, or the equality where neither side is a grid
                     // (decided once the sides ran: two stages, the walk's)
+                    com.legend.exec.Census.unplannedAssert("equals: cell pool: " + shapeOf(bare));
                     yield null;
                 }
                 if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
@@ -1008,7 +1045,12 @@ final class AssertVerdicts {
                 boolean incidental = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
                         == com.legend.compiler.spec.OrderView.INCIDENTAL;
                 boolean gridPair = tabularShaped(args.get(0)) || tabularShaped(args.get(1));
-                yield HostJudge.planEquals(name, wantEqual, args, incidental, gridPair, letPrefix, env, hook);
+                HostSides.Check equals = HostJudge.planEquals(name, wantEqual, args, incidental, gridPair, letPrefix,
+                        env, hook);
+                if (equals == null) {
+                    com.legend.exec.Census.unplannedAssert("equals: planEquals declined: " + shapeOf(bare));
+                }
+                yield equals;
             }
             case ASSERT_SAME_ELEMENTS -> {
                 if (args.size() < 2) {

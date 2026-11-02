@@ -81,6 +81,18 @@ public final class Census {
     public static final List<String> STAYED_KINDS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
+    /** The asserts the host planner declined to plan for the program road, each by the shape it declined (the
+     * test-is-the-product plan's M10c, 2026-11-02): a named list beside {@link #STAYED_KINDS} (the lanes attribute
+     * them per test and histogram them, so the remaining assert shapes are named by count). Measurement, deciding
+     * nothing: the body stays on the walk whatever is written here. */
+    public static final List<String> UNPLANNED_ASSERTS =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** {@link #UNPLANNED_ASSERTS}: one declined assert, by its shape. */
+    public static void unplannedAssert(String shape) {
+        UNPLANNED_ASSERTS.add(shape);
+    }
+
     public static void inc(Key k) {
         COUNTS[k.ordinal()].increment();
     }

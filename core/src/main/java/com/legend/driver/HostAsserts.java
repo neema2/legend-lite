@@ -152,6 +152,9 @@ final class HostAsserts implements TestDoor.Asserts {
                 if (p == null || systemRouted && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, which is not this program's one session (M10b)
+                    if (p != null) {
+                        com.legend.exec.Census.unplannedAssert("engine text in a system-routed body");
+                    }
                     return null;
                 }
             }
