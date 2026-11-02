@@ -16617,6 +16617,40 @@ measured on both corpora with the registers and a parity witness; the chain at M
    the planner would plan it as a value let with the call spliced whole); the witness gains the corpus's spelling. The
    rule itself sound: the scan and the arm share one predicate (a user call whose FQN `isRoot` names), nothing counted
    or sent at the static pass.
+5. **Item 2 -- the grid pair and the rendered text under the database judge:** under the DATABASE judge the walk's
+   `adjudicate` routed a pair of two relation-typed sides to the HOST grid owner before any arm (`HostJudge.planGridPair`,
+   D3), so M7's static gate refused the pair as "a side read on the host at the assert"; the rendered text's database arm
+   (`renderedValueVerdict`) already planned both sides and brought the golden to rows, but its late-bound branch (a raw
+   grid's text, a keyed statement) is a shape the program road does not place, so the gate refused every rendered pair.
+   Now the arm has `gridPair` (`VerdictArm`: the one dispatch -- the router classifies, the judge's arm judges): the host
+   arm the grid owner as before, the database arm `VerdictSql.gridPair` over the two planned grids (`databaseVerdict`'s
+   two-grid branch: the cells walked for the declared-Float leniency where the schemas agree), a row multiset unless the
+   actual side's order view is SORTED (the grid owner's own rule), the agreement arm both; `databaseGate` admits the
+   pair when both grids are `staticGrid` (a relation type with named columns, none dynamic or late-bound) and a
+   rendered pair when its rendered grid is (`renderedStatic`); a late-bound grid stays the walk's, by name.
+6. **Movement (item 2):** DuckDB database pass `moved=2398 -> 2,662` (2473 / 108, unchanged), H2 database
+   `2331 -> 2,595` (2233 / 353, unchanged), both host passes unchanged (2,690); 12 of 12 lane tests green, the rosters
+   byte-identical (the register tests cached on identical outputs). The census: `activities,assert,
+   database-unplanned-assert,let-execute` 221 -> 5 on DuckDB (219 -> 4 on H2), plain 57 -> 55 (55 -> 53), the
+   `assert,database-unplanned-assert,let-execute` 29 -> 0 (28 -> 0); the `sql-census` totals unchanged (the host grid
+   owner counted as the database's before, through the Java arms the plan's §2.E names).
+7. **The checks (item 2):** the driver suite (`BodyRouterParityTest.gridPairsAndRenderedTextsUnderTheDatabaseJudge`:
+   equal and differing pairs, `assertNotEquals`, a defined order against an unsorted actual (a multiset) and against a
+   sorted one (in order), toCSV against its golden equal and not, a frame's grid rendered -- outcomes pinned absolutely,
+   the same on both roads; `theAssertShapesTheDatabasePlannerLeavesOnTheWalk` keeps the class-kind `assertEq` and
+   gains the three mismatched pairs, each the grid owner's verdict), root, architecture, judge, testplan, `//core:census`
+   (the ledger); `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached, twice (before and after the audit's folds).
+8. **Item 2's independent audit (COMMIT WITH FIXES, folded):** the blocker -- the ledger's exact size pins had moved and
+   `//core:census` is the local gate's, not the driver suite's (re-dated: `JavaEvalLedgerTest` AssertVerdicts
+   1511 -> 1559, DatabaseJudge 595 -> 600, HostJudge 1128 -> 1132, each "routing, nothing evaluated"); the majors --
+   the first build routed EVERY two-relation pair on the walk to the judge's arm, so under the DATABASE judge a
+   late-bound pair the host had judged on its cells would be declined by the database arm (an outcome change, R23),
+   and the SQL grid pair diverges from the host grid owner on three facts the owner decides from the grids first (the
+   column names, the width, the expected grid's declared kinds typing both) -- folded as ONE predicate for the gate and
+   the route (`AssertVerdicts.sqlGridPair`: two declared grids of one width, named and typed alike position by
+   position; a pair it refuses keeps the host grid owner on every road, as before). Residue recorded in the brief: the
+   Float leniency's positional join under the multiset view; `renderedStatic` keyed on `renderedSide` where the route
+   keys on `renderForm`; no `grid-pair` route count from the database arm; the agreement lane's extra statement.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

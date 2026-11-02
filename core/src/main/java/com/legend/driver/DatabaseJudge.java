@@ -581,6 +581,15 @@ final class DatabaseJudge {
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, incidental, false);
         }
+        @Override public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            // the two planned grids' row canons against each other (VerdictSql.gridPair: the cells walked for the
+            // declared-Float leniency where the schemas agree), a row multiset unless the actual side is sorted --
+            // the grid owner's own rule (TdsCompare.grids), in the statement (the test-is-the-product plan's M10c
+            // item 2)
+            return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
+                    false);
+        }
         @Override public TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);

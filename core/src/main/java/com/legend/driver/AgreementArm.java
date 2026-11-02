@@ -246,6 +246,15 @@ final class AgreementArm implements VerdictArm {
     }
 
     @Override
+    public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return java.util.Objects.requireNonNull(agree(name, env,
+                () -> host.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook),
+                () -> database.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook)));
+    }
+
+    @Override
     public @com.legend.base.Nullable TypedSide jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

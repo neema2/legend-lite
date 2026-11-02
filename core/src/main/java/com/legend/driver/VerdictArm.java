@@ -79,6 +79,15 @@ interface VerdictArm {
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
+    /** The GRID PAIR: {@code assertEquals} / {@code assertNotEquals} over two statically relation-typed sides
+     * (D3: the grid owner judges, never a byte decline); {@code sorted}: the actual side's order view is SORTED, so
+     * the rows compare in order (else as a row multiset). The host arm is the grid owner over both grids executed
+     * ({@code TdsCompare.grids}); the database arm the SQL grid pair over the two planned grids
+     * ({@code VerdictSql.gridPair}; the test-is-the-product plan's M10c item 2). */
+    TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
+
     /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text, cell-pool
      * and grid-pair routes declined; {@code incidental}: the actual side's order is SQL arrival
      * order (the judgment is order-insensitive); {@code gridPair}: a side is statically tabular. */

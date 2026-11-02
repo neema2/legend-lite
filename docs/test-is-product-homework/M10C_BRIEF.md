@@ -59,13 +59,39 @@ The planners' refusals, by site:
    computes the navigation); (ii) folding the navigation over the registered rows in Java -- a shadow evaluator of Pure
    navigation, which `docs/WORLD_MAP.md` refuses (compare spelled tokens, never compute a value): not an option. A
    navigation the planning cannot bind (a join with a user store) stays the walk's, by name.
-2. **The grid pair and the rendered text under the database judge (~221 bodies).** M7 left "the shapes whose database
-   arm reads a side on the host at its turn": the grid pair's `VerdictSql.gridPair` needs both grids' schemas (today
-   read from a probe of the side), the rendered text (`TdsCompare.renderedText`'s line multiset) the grid's rendering.
-   The schemas are the typed sides' relation types (`TypedRows.schema`), known at planning; `databasePlansWithoutReading`
-   admits the pair when both are relations whose schemas the lowering declares, and the rendered text when its grid's
-   is; the cell tolerance and the line multiset as `VerdictSql` forms (T3's rows). A grid whose schema the planning
-   cannot declare (a dynamic pivot, a late-bound grid: `JudgePlans.tabular`'s keyed forms) stays the walk's, by name.
+2. **The grid pair and the rendered text under the database judge (~221 bodies). BUILT 2026-11-02: DuckDB database pass
+   moved 2,398 -> 2,662, H2 2,331 -> 2,595, outcomes identical on every pass, the rosters byte-identical.**
+   What the code says (read before the build; the first draft of this item had the mechanics wrong): under the
+   DATABASE judge the walk's `adjudicate` routed a pair of two relation-typed sides to the HOST grid owner before any
+   arm (`HostJudge.planGridPair`, D3: both grids executed, `TdsCompare.grids` judges), so M7's static gate refused the
+   pair as "a side read on the host at the assert"; the rendered text's database arm (`renderedValueVerdict`) already
+   plans both sides and brings the golden to rows -- it reads nothing, but its late-bound branch (a raw grid's text:
+   a keyed `Render.gridCsv` statement) is a shape the program road does not place, so the gate refused every rendered
+   pair. The build: the arm gains `gridPair` (the one dispatch: the router classifies, the judge's arm judges) -- the
+   host arm the grid owner as before, the database arm `VerdictSql.gridPair` over the two planned grids (the cells
+   walked for the declared-Float leniency where the schemas agree), a row multiset unless the actual side's order view
+   is SORTED (the grid owner's own rule), the agreement arm both; `databaseGate` admits the pair when both grids are
+   `staticGrid` (a relation type with named columns, none dynamic or late-bound) and the rendered text when its rendered
+   grid is (`renderedStatic`). A late-bound grid (a raw grid, a dynamic pivot) stays the walk's, by name. The witness
+   (`gridPairsAndRenderedTextsUnderTheDatabaseJudge`): equal and differing pairs, `assertNotEquals`, a defined order
+   (a multiset) against a sorted actual (in order), toCSV against its golden equal and not, a frame's grid rendered, the
+   rendered text under `assertSameElements` -- outcomes pinned absolutely, the same on both roads. The independent audit
+   (COMMIT WITH FIXES, folded): the SQL grid pair compares row canons alone where the host grid owner decides three
+   facts from the grids first -- the column names, the width (two empty grids of different widths), the expected
+   grid's declared kinds typing both cells (a Float-declared expected against an Integer-declared actual) -- all facts
+   of the two declared schemas; so ONE predicate, `sqlGridPair` (both grids declared, one width, named and typed alike
+   position by position), both gates the database road and routes the walk's pair, and a pair it refuses keeps the
+   host grid owner on every road (the walk under the DATABASE judge included: the first build had routed every pair
+   to the database arm, which declines a late-bound grid where the host judged its cells); the three mismatches are
+   witnesses that stay on the walk with the grid owner's verdicts; the ledger's exact pins re-dated (AssertVerdicts
+   1511 -> 1559, DatabaseJudge 595 -> 600, HostJudge 1128 -> 1132). Residue: the declared-Float 2-ULP leniency under
+   the multiset view joins cells by arrival where the host pairs rows as a multiset first (ULP-differing floats in
+   another arrival order: the host holds, the statement fails; no corpus body); `renderedStatic` keys on
+   `renderedSide` where the route keys on `renderForm` (a render-form-only shape is admitted and lands unjudged at
+   planning, the walk's own outcome, nothing sent); the database arm counts no `grid-pair` route (the verdict row's
+   `sqlJudgedInDatabase` is its census); the agreement lane (BOTH) now runs the SQL pair beside the host owner, one
+   statement more per pair -- measured: `bazel run //spec:corpus_one -- duckdb both` on the final predicate, JUnit exit 0,
+   2471 / 108 as the host pass, `disagree=0` (the agreement gate's answer).
 3. **The lineage lines (49 + the database's).** `LineageTreeLines.asLines` already rewrites the assert into an ordinary
    collection equality (the golden's lines a String collection literal; ours the prelude's Pure body over the handle's
    lineage rows) -- the host checks plan the rewritten assert (`planHost(lines)` recursively, as the walk's `adjudicate`

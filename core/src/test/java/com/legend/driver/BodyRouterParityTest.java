@@ -625,18 +625,23 @@ class BodyRouterParityTest {
         }
     }
 
-    /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn (the grid pair of two
-     *  relation-typed sides, {@code assertEq} over a class-kind side, the rendered-text sides): the class admits the
-     *  body and the database planner leaves it on the walk by its static gate, before any side is read. */
+    /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over
+     *  a class-kind side; since M10c item 2 a grid pair whose declared schemas differ -- in a width, a column's name
+     *  or a column's declared kind -- which the host grid owner judges from the grids where the SQL form compares the
+     *  row canons alone): the class admits the body and the database planner leaves it on the walk by its static
+     *  gate, before any side is read; the grid owner's verdicts pinned. */
     @ParameterizedTest
     @MethodSource("backends")
     void theAssertShapesTheDatabasePlannerLeavesOnTheWalk(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         for (String body : List.of(
-                "{| assertEquals(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1),"
-                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1));}",
                 "{| assertEq(^x::Firm(name='a'), ^x::Firm(name='a'));}",
-                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->meta::relational::tests::csv::toCSV());}")) {
+                // equal cells under another column name: the names decide (false)
+                "{| assertEquals(#TDS\na\n1\n#, #TDS\nb\n1\n#);}",
+                // two empty grids of different widths: the widths decide (false)
+                "{| assertEquals(#TDS\na\n1\n#->filter(r|$r.a > 5), #TDS\na,b\n1,x\n#->filter(r|$r.a > 5));}",
+                // a Float-declared expected against an Integer-declared actual: the expected's kinds type both
+                "{| assertEquals(#TDS\na\n1.5\n#, #TDS\na\n1\n#);}")) {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
             Run walked = run(backend, ctx, "x::RT", body, false, "select 1", List.of(),
                     ExecuteOptions.JudgeMode.DATABASE);
@@ -648,6 +653,47 @@ class BodyRouterParityTest {
             assertEquals(walked.census, routed.census, "the verdict census: " + body);
             assertEquals(walked.origins, routed.origins, "the statement-origin census (nothing read at planning): "
                     + body);
+            if (body.contains("#TDS")) {
+                assertTrue(walked.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
+                        + walked.outcome);
+            }
+        }
+    }
+
+    /** M10c item 2: the GRID PAIR (two relation-typed sides) and the RENDERED TEXT (a toCSV render of a grid against
+     *  its golden) under the DATABASE judge are rows of the fused statement -- the grid pair {@code VerdictSql.gridPair}
+     *  over the two planned grids (a row multiset unless the actual side is sorted: the host grid owner's own rule),
+     *  the rendered text the golden brought to rows -- so the database planner admits a body whose grids' schemas are
+     *  declared at planning; the outcomes pinned absolutely, the same on both roads. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void gridPairsAndRenderedTextsUnderTheDatabaseJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String grid = "#TDS\na,b\n1,x\n2,y\n#";
+        String csv = "->meta::relational::tests::csv::toCSV()";
+        for (var c : List.of(
+                java.util.Map.entry("{| assertEquals(" + grid + "->filter(r|$r.a > 1), " + grid
+                        + "->filter(r|$r.a > 1));}", "ok"),
+                java.util.Map.entry("{| assertEquals(" + grid + "->filter(r|$r.a > 1), " + grid
+                        + "->filter(r|$r.a > 0));}", "AssertFailed"),
+                java.util.Map.entry("{| assertNotEquals(" + grid + "->filter(r|$r.a > 1), " + grid
+                        + "->filter(r|$r.a > 0));}", "ok"),
+                // a defined order on both sides: the rows a multiset (the actual side is not sorted)
+                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "ok"),
+                // the actual side sorted: the rows compared in order
+                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + "->sort(asc('a')));}",
+                        "AssertFailed"),
+                // the rendered text against its golden, equal and not
+                java.util.Map.entry("{| assertEquals('a\n1\n', #TDS\na\n1\n#" + csv + ");}", "ok"),
+                java.util.Map.entry("{| assertEquals('a\n2\n', #TDS\na\n1\n#" + csv + ");}", "AssertFailed"),
+                // a frame's grid rendered
+                java.util.Map.entry("{| let r = " + EXECUTE + "; assertEquals('name\nAcme\nBolt\n',"
+                        + " $r.values->toOne()" + csv + ");}", "ok"),
+                // the rendered text under assertSameElements: the lines a multiset
+                java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}", "ok"))) {
+            Run walked = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.DATABASE);
+            assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
         }
     }
 

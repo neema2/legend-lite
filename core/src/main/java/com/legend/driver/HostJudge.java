@@ -960,6 +960,11 @@ final class HostJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook);
         }
+        @Override public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            // the grid owner over both grids executed in definition order (planGridPair reads the order view itself)
+            return HostSides.judged(name, planGridPair(name, wantEqual, args, letPrefix, hook), letPrefix, specs, env);
+        }
         @Override public @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook);

@@ -3036,7 +3036,10 @@ row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/
 (the static pass's gate); `testplan/BodyClass.java` (`Kind.TDG_GENERATOR`, the routine as its query, the let rule);
 `compiler/spec/VerdictQueries.java` (`text`); the tests (`BodyRouterParityTest.engineTextPrograms` with a referee
 double, `JavaEvalLedgerTest`). **M10c in progress 2026-11-02**: item 1a built (`driver/DatabaseAsserts.java`: `plannable`'s `scanned`;
-`BodyRouterParityTest`'s frame model carries the engine's `assertEqualsH2Compatible` body); next its items 2-6, then M10d,
+`BodyRouterParityTest`'s frame model carries the engine's `assertEqualsH2Compatible` body); item 2 built
+(`driver/VerdictArm.java` `gridPair`, its three arms in `HostJudge`, `DatabaseJudge`, `AgreementArm`;
+`AssertVerdicts.java` `adjudicate`'s pair branch, `databaseGate`, `staticGrid`, `renderedStatic`; the witness
+`gridPairsAndRenderedTextsUnderTheDatabaseJudge`); next its items 3-6, then M10d,
 Z, in this session; M8c awaits the user's ruling (the session's answer to the user's two questions posted 2026-11-02,
 §9 "M8c").
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's

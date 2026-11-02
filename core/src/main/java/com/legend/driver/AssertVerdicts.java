@@ -193,17 +193,76 @@ final class AssertVerdicts {
                 boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
                 List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix,
                         specs);
-                yield !(com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
-                                && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type()))
-                        && renderedPlan(fn.bareName(), wantEqual, args, letPrefix, hook, true) == null;
+                if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
+                        && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {
+                    // the SQL grid pair (M10c item 2): the route's own predicate
+                    yield sqlGridPair(args.get(0), args.get(1));
+                }
+                yield renderedPlan(fn.bareName(), wantEqual, args, letPrefix, hook, true) == null
+                        || renderedStatic(args, letPrefix);
             }
-            case ASSERT_SAME_ELEMENTS -> raw.size() >= 2 && renderedPlan(fn.bareName(), true,
-                    com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix,
-                    hook, false) == null;
+            case ASSERT_SAME_ELEMENTS -> {
+                if (raw.size() < 2) {
+                    yield false;
+                }
+                List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix,
+                        specs);
+                yield renderedPlan(fn.bareName(), true, args, letPrefix, hook, false) == null
+                        || renderedStatic(args, letPrefix);
+            }
             case ASSERT_EQ -> raw.size() >= 2 && !classKind(raw.get(0)) && !classKind(raw.get(1));
             default -> true;
         };
         return plans ? DatabaseGate.PLANS : DatabaseGate.UNPLANNED;
+    }
+
+    /** A relation-typed side whose schema the planning declares: columns named at typing, none dynamic or late-bound
+     *  -- the SQL grid pair's width and kinds are known before any side runs (the test-is-the-product plan's M10c
+     *  item 2). A late-bound grid (a raw grid, a dynamic pivot) is the walk's: its columns exist when the plan runs. */
+    static boolean staticGrid(TypedSpec s) {
+        return com.legend.compiler.element.type.Type.schemaView(s.info().type())
+                instanceof com.legend.compiler.element.type.Type.RelationType rt
+                && !rt.columns().isEmpty() && rt.dynamicColumns().isEmpty();
+    }
+
+    /** Whether a pair of relation-typed sides is the SQL GRID PAIR's (the database arm's `gridPair`; the test-is-the-
+     *  product plan's M10c item 2): both grids {@link #staticGrid}, of one width, their columns named alike and
+     *  declared of one kind, position by position -- the three facts the host grid owner decides from the grids
+     *  ({@code TdsCompare.grids}: the names, the width, the expected grid's kinds typing both) that the SQL form,
+     *  which compares the row canons alone, does not see. The same predicate gates the database road and routes the
+     *  walk's pair, so a pair it refuses keeps the host grid owner on every road (the item's audit, A). */
+    static boolean sqlGridPair(TypedSpec e, TypedSpec a) {
+        if (!staticGrid(e) || !staticGrid(a)) {
+            return false;
+        }
+        var se = (com.legend.compiler.element.type.Type.RelationType) java.util.Objects.requireNonNull(
+                com.legend.compiler.element.type.Type.schemaView(e.info().type()));
+        var sa = (com.legend.compiler.element.type.Type.RelationType) java.util.Objects.requireNonNull(
+                com.legend.compiler.element.type.Type.schemaView(a.info().type()));
+        if (se.columns().size() != sa.columns().size()) {
+            return false;
+        }
+        for (int i = 0; i < se.columns().size(); i++) {
+            if (!se.columns().get(i).name().equals(sa.columns().get(i).name())
+                    || !se.columns().get(i).type().equals(sa.columns().get(i).type())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}
+     *  (a late-bound grid's text is a keyed statement the program road does not place: {@code renderedValueVerdict}'s
+     *  raw-grid branch); a rendered value is any. */
+    static boolean renderedStatic(List<TypedSpec> args, List<TypedSpec> letPrefix) {
+        java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
+        for (TypedSpec a : args.subList(0, 2)) {
+            var r = com.legend.compiler.spec.VerdictQueries.renderedSide(a, chase);
+            if (r != null && r.grid() && !staticGrid(r.value())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Leg 3.4: the assert's verdict statements DEFER into the body's batch
@@ -438,11 +497,22 @@ final class AssertVerdicts {
                 // D3 — the GRID-PAIR arm: both sides statically
                 // relation-stamped execute as grids; the grid owner
                 // (TdsCompare.grids: columns ordered, rows under the
-                // order policy) judges — never a byte decline.
+                // order policy) judges — never a byte decline. The judge's
+                // arm: the host's the grid owner over both grids, the
+                // database's the SQL grid pair (M10c item 2); the rows in
+                // order where the actual side is SORTED, else a multiset
                 if (com.legend.compiler.element.type.Type.isRelation(
                         args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(
                                 args.get(1).info().type())) {
+                    if (sqlGridPair(args.get(0), args.get(1))) {
+                        boolean sorted = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                                == com.legend.compiler.spec.OrderView.SORTED;
+                        yield arm.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook);
+                    }
+                    // two grids whose declared schemas differ (a width, a name, a kind) or whose columns the
+                    // planning does not know: the grid owner on the host decides, as before (the SQL form compares
+                    // the cells alone; the M10c item 2 audit's A)
                     yield HostSides.judged(name, HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook),
                             letPrefix, specs, env);
                 }
