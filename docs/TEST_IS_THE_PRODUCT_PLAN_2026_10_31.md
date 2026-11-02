@@ -1194,8 +1194,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   for both roads (`Seeds.seedForm`, `oneEffectMapper` by the literal-effect rule), a subsumed call's arguments no read
   and its body no kind (`StatementEffects.reaches` stops at a subsumed callee as the sibling scans did); DuckDB host pass
   moved 2,929 -> 2,978, database 2,898 -> 2,945, H2 2,978 / 2,836, outcomes identical, no register changed (GATES items
-  27-29). **Next:** the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes, the
-  tails (item 6, item 1b), the database pass's extra bodies, the last body, M10d, Z.
+  27-29). **T8 POSTED (2026-11-02):** `docs/test-is-product-homework/T8_GENERATOR_DESIGN.md` -- the 32 generator
+  bodies and the 30 Alloy twins read as the walk sees them, the design the measurement supports (the generator a plan
+  fragment: the fetches planning-time steps, the CSV a database value, the re-seed an `INSERT ... SELECT`; no Keyed-step
+  row crossing) and the one R21 question (`assertTestData`'s compare: the CSV texts, or upstream's SQL spellings as a
+  named residue); awaits the user's word (the plan's T8 row said this case is posted first). **Next:** the refused
+  assert shapes with M8c (R24) in its slot, the frame shapes, the tails (item 6, item 1b), the database pass's extra
+  bodies, the last body, T8 on the ruling, M10d, Z.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
