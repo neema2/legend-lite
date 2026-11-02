@@ -1,8 +1,9 @@
-# The host executors: TypeScript and Python run the plan as Java does, and both reach Snowflake
+# The host executors: one plan, one set of rules, one result, one owner of each spelling -- in Java, TypeScript and Python
 
-**Status: ratified with the user 2026-11-02** ("Yes I love it a lot", answering the five decisions below as posted). This
-note is the program's design and its plan. A change to a decision is a decision, recorded here with its date and reason,
-never an edit in passing. Its status lives in §8.
+**Status: rev 2, 2026-11-02, after the user's step back** (below). Rev 1's five rulings (D1-D5) stand, ratified with
+the user that day. Rev 2 adds the principles (§1.1) and five decisions proposed for the user's ruling (D6-D10, §1.3).
+It also replaces rev 1's order with the roadmap (§5). A change to a principle or a decision is a decision, recorded here
+with its date and reason, never an edit in passing. Status lives in §8.
 
 The user's words that started it (2026-11-02): *"Let's start the typescript and python executors, let's look at how to
 make those executors similar to the java executor in design as well if you think that makes sense? And for both let's
@@ -10,20 +11,83 @@ see if we can also add calling snowflake as remote engine too not just duckdb/wa
 http sql API the snowflake people have told me they do support cors even though not documented, and for python make sure
 we use whatever gives arrow natively so it's fast."*
 
-## 0. What the program is for
+And the step back, the same day: *"take a giant step back to know what we want to achieve, fast and safe execution but
+more importantly good clean design and consistency between java python TS/browser - so maybe I've been pushing the
+performance angle too much, what is the right roadmap unbiased let's write down full roadmap and then execute on it
+expertly."*
 
-Java runs a query one way (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`): the planner writes one plan record
-(`executionplan.ExecutionPlan`); one runner (`exec.PlanRunner`) reviews it whole and runs it on a session it opens through
-one seam; the cells are decoded once, by the plan's own column facts (`exec.JdbcDecode`); and the writers at the boundary
-spell them, one owner of every spelling (`result.CellText`). The tab's executor (TypeScript, `engine-client/`) and
-Python's (`python/legend_lite/`) grew their own shapes beside it (§2). This program gives them Java's design -- the same
-plan, the same seams, the same rules -- in each language's own grain, and gives both a Snowflake session.
+## 0. What we want, in order
 
-It is not a port of Java's row model. JDBC hands Java one row at a time, so Java's batches are rows; every database the
-tab and Python reach hands them Arrow, which is columnar. Java's own profile (`docs/GATES.md`, "The product path's payoff
-measured", items 1-10) found its cost in per-cell objects and per-cell dispatch. So the hosts stay columnar end to end.
+1. **A clean design, the same in Java, Python and the browser.** One plan, one set of rules, one result, one owner of
+   each spelling. A host differs from another only in how it reaches its database.
+2. **Safe execution.** The same plan on the same data answers the same values, and is refused the same way, on every
+   host. Nothing defaults silently (AGENTS.md invariant 4). Consistency is tested, never assumed.
+3. **Fast execution.** It follows from the design (columnar end to end, nothing spelled before it is read). It is
+   measured at every step, and a regression is caught by a budget, not found by a user.
 
-## 1. The rulings (the user, 2026-11-02)
+**Where the system stands.** The planner is already one piece of code: Java, compiled to the JVM, to WebAssembly (the
+tab) and to a native library (Python). Its three builds are held to each other by tests that compare their plans with
+the JVM's (`//wasm:differential_test`, `//python:bindings_test`, over `//wasm:corpus`). Execution is where the three
+drift apart:
+
+- the tab reads three plan shapes, and Python has no runner;
+- each host decodes and spells values its own way (the tab spells every decimal and timestamp as text when its rows
+  arrive);
+- no test compares what the hosts answer when they execute (§2).
+
+So the program is about the hosts' execution. The planner stays as it is.
+
+Java runs a query one way (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`):
+
+- the planner writes one plan record (`executionplan.ExecutionPlan`);
+- one runner (`exec.PlanRunner`) reviews it whole and runs it on a session it opens through one seam;
+- the cells are decoded once, by the plan's own column facts (`exec.JdbcDecode`);
+- the writers at the boundary spell them, one owner of every spelling (`result.CellText`).
+
+The hosts take that design in their own grain. JDBC hands Java one row at a time, so Java's batches are rows. Every
+database the tab and Python reach hands them Arrow, which is columnar, so the hosts stay columnar end to end.
+
+## 1. Principles and rulings
+
+### 1.1 The principles
+
+- **P1. Decide once, in Java; carry in each host.** Whatever decides is Java's, reached by every host through the
+  planner it embeds: a type, a plan, a plan's review and its refusals, a value's spelling on any wire. A host's own code
+  moves data. It opens a session, runs a statement, turns its database's wire into the result (P3), and hands the
+  result to a consumer, or to Java's writers when text is wanted. That is the repository's tenet ("Java orchestrates,
+  the database executes"; `docs/WORLD_MAP.md`'s "compare, never compute") applied to the hosts.
+- **P2. One plan.** The plan record's JSON (`legend-lite-plan`, `PlanJson.VERSION`) is the only thing a host runs.
+- **P3. One result.** A result is typed columns. Logically it is the plan's columns with their exact values. Physically
+  it is Arrow, in the schema Java's `ArrowWriter` writes for the plan:
+
+  | Pure type | Arrow |
+  |---|---|
+  | integers | `Int64` |
+  | floats | `Float64` |
+  | `Decimal` | `Decimal128(p, s)` |
+  | `Boolean` | `Bool` |
+  | `String` | `Utf8` |
+  | `StrictDate` | `Date32` |
+  | `DateTime` | `Timestamp(NANOSECOND)` |
+  | `StrictTime` | `Time64` |
+  | nested values | lists, structs and maps |
+
+  The same plan on the same data is the same Arrow on every host.
+- **P4. One owner of each spelling.**
+  - **Wire text** (lite JSON rows, legend-engine's JSON and TDS, PureV1, CSV) is Java's alone (`CellText`).
+  - **A value's exact text in the tab** (the literal a filter writes back, a pivot's column name, a saved document's
+    value, an equality key) is `engine-client/src/values.ts`'s, held to Java's spelling of the same value by the
+    conformance suite (P5).
+  - **The text on screen** is DataCube's formatter's, from the typed value.
+- **P5. Consistency is tested.** One conformance suite runs the same plans on the same data on every host and compares
+  three things: the typed values cell by cell, the Arrow byte for byte, and any wire text byte for byte against Java's
+  writers. A difference is a defect, or a row of `docs/SEMANTICS_REGISTER.md` the user ruled.
+- **P6. Safe by construction.** No silent default. A refusal is named, and the same on every host. Every step runs
+  under the suite. No output's spelling changes without the user's word, asked case by case.
+- **P7. Fast by design, held by budgets.** Columnar end to end, nothing spelled before it is read. Each host's
+  benchmarks are kept, with budgets, and the time of an interaction is measured end to end: plan, SQL, decode, draw.
+
+### 1.2 The rulings (the user, 2026-11-02)
 
 - **D1. The hosts' result is Arrow, columnar.** TypeScript's and Python's runners answer Arrow record batches, not Java's
   row batches.
@@ -35,6 +99,31 @@ measured", items 1-10) found its cost in per-cell objects and per-cell dispatch.
 - **D4. The tab's Snowflake session goes direct, over CORS** (undocumented; the user has it from Snowflake), and the same
   session code can go through a proxy instead (the warehouse server, or Python's engine) should CORS be withdrawn.
 - **D5. Python's Snowflake client is ADBC** (`adbc-driver-snowflake`), in a `snowflake` extra of its own.
+
+### 1.3 Proposed, for the user's ruling (rev 2)
+
+- **D6. A plan's review is Java's (P1).** Today the tab's runner repeats Java's checks in TypeScript (`plan-runner.ts`):
+  the format and version, the bindings, the target, what a host may run. Python would need a third copy.
+  - Proposed: the planner each host embeds answers the review: may this host run this plan, and if not, the refusal in
+    words. The host keeps only the loop that runs the steps in order, binds a count and begins and ends the
+    transaction.
+  - The alternative: port the checks to each host and hold the copies to Java's by the suite.
+- **D7. The result's Arrow schema is Java's (P3).** Python's Arrow answers today keep DuckDB's own types, with the Pure
+  type in each field's metadata (`frames.py` `typed_by_plan`): an `Int32` stays `Int32`, a timestamp stays in
+  microseconds. Aligning them to P3 changes the schema those answers carry, so each change is posted to the user case
+  by case before it lands (an `Int32` widened to `Int64`, microseconds to nanoseconds).
+- **D8. A host hands rows to Java's writers as Arrow.** Today Python hands them as JSON text (`compiler.host_rows`), and
+  so does the tab (`hostRows`): every cell a Python or JavaScript value, then a token, then parsed again by Java. That is
+  23 s at 1,000,000 rows in Python (GATES, H0).
+  - Proposed: the handoff is the result itself (P3), as Arrow IPC, read in Java by a reader beside the hand-written
+    writer (`arrow_ipc/`, no Arrow library in core).
+  - That retires both JSON handoffs, and the tab's own lite-JSON writer for a write's answer (`plan-runner.ts`
+    `rowsOf`): P4's wire text has one owner.
+- **D9. The tab's result model is typed columns over the result's Arrow**, with the exact text made only when it is
+  asked for (§3.6a).
+- **D10. The conformance suite starts from today's behaviour.** Its first run records every difference between the hosts
+  as a ledger. The ledger only shrinks: an entry goes by a fix, or becomes a register row the user rules. Nothing is
+  "fixed" by changing an expected answer.
 
 ## 2. The code as it is
 
@@ -128,7 +217,8 @@ an upstream server's `generatePlan`, `datacube/src/planner.ts:132-217`) is anoth
 ### 3.2 One runner per language, with Java's rules
 
 `engine-client/src/plan-runner.ts` already reads the record for a host's writes. It grows reads (`tdsResult`), and
-Python gains its twin. Both keep `PlanRunner`'s rules:
+Python gains its twin. Whether the review below is computed by Java and asked by the host (D6, proposed) or repeated
+in each host, every runner keeps `PlanRunner`'s rules:
 
 - The plan is reviewed whole before any session opens: its format and version, its parameters, every slot's binding,
   every step's target. What a runner cannot run is refused by name, never run some other way (a binding of a key's cell,
@@ -297,23 +387,75 @@ Java's Snowflake results (through snowflake-jdbc, legend-engine's own driver) ar
 must equal them, value by value, on the lane. Every difference found is posted to the user, case by case, before it lands,
 and ledgered (AGENTS.md, the upstream-fidelity tenet).
 
-## 5. The order
+## 5. The roadmap
 
-Each step: measured first, its outputs proven unchanged where it changes no behaviour, an independent audit, its records
-(GATES, IN_FLIGHT, §8), then pushed to the branch. No PR and no push to `main` without the user's word.
+Each phase has a goal, a scope and an exit test, and runs as one cycle: a brief, the build, an independent audit (an
+agent that wrote none of it), its fold, the records (GATES, IN_FLIGHT, §8), then a push to the branch. No PR and no push
+to `main` without the user's word. A phase changes no output's spelling unless the user ruled it, case by case.
 
-- **H0. This note, and the baselines.** The tab's engine and Python's paths measured at 10 to 1,000,000 rows
-  (`//engine-client:executor_bench`, `//python:executor_bench`, both manual). No behaviour change.
-- **H1. The tab's runner reads.** `plan-runner.ts` runs a `tdsResult` on a session that streams Arrow; DuckDB-WASM and the
-  warehouse move under the seam; the decode per column (§3.4); the tab's `Plan` shape retired. Every answer the same
-  values as today (the benchmark's digests, the existing suites), then measured.
-- **H2. Python's runner.** The same, on duckdb-python; the JSON route's handoff measured, its options posted (D2).
-- **H3. Snowflake in Python, through ADBC.** The session, the decode of ADBC's schema to the plan's, the extra; measured
-  and checked against Java's answers on the lane.
-- **H4. Snowflake in the tab, through the SQL API.** The session (polling, partitions), the decode of `jsonv2`, CORS
-  checked from a browser; checked against Java's answers on the lane.
-- **H5. The conformance suite** (§3.7) across the three executors, on DuckDB in CI and on the Snowflake lane.
-- **Z.** An independent final audit, the records, CI on every OS; the landing handed to the user.
+| Phase | Goal | Exit |
+|---|---|---|
+| **R0. The charter** | This note's principles and D6-D10 ruled by the user. | The user's word. |
+| **R1. The conformance suite** | The safety net, before any host changes. | The suite green against its ledger in CI, on every OS. |
+| **R2. One plan** | Every host runs the plan record (P2). | No host reads another plan shape; the suite's ledger the same or smaller. |
+| **R3. One session seam per host** | One way in to every database, streaming Arrow. | A guard: the runner is the one caller of a session (as Java's `theRunnerIsTheOneCallerOfTheSessionsStatements`). |
+| **R4. One result** | Typed columns, P3's Arrow on every host. | The suite compares the hosts' Arrow byte for byte. |
+| **R5. One owner of each spelling** | Wire text Java's alone (D8); the tab's exact text held to Java's. | No wire text spelled outside Java (a guard). |
+| **R6. Snowflake** | A Snowflake session in Python (ADBC) and in the tab (the SQL API). | The suite green on the Snowflake lane against Java's JDBC answers. |
+| **R7. Budgets** | Speed held, not chased. | Budgets per host in a lane; an interaction measured end to end. |
+| **Z** | The landing. | An independent final audit, the records, CI on every OS; handed to the user. |
+
+**R1. The conformance suite.**
+- **The cases:** the planner corpus `//wasm:corpus` (a trades model and its queries, already the planner's shared
+  judge), the type matrix of `//engine-client:column_decode_test` (every type DuckDB writes, with nulls and edge
+  values), and the typed-values cases DataCube pins (`datacube/test/typed-values`).
+- **The data:** seeded by the planner's own test-data operation, so every host loads the same rows.
+- **The runs:** each case planned once by Java, then run by:
+  - Java (`PlanRunner` on DuckDB through JDBC, with the Arrow and JSON-rows writers);
+  - the tab (DuckDB-WASM in Node, through the tab's engine as it is);
+  - Python (the frames' DuckDB, through `Table.execute` and the engine's executes as they are).
+- **The comparison:** the typed values, the Arrow, the text.
+- **The ledger:** today's differences (D10). The suite is the judge every later phase runs under.
+
+**R2. One plan.**
+- **The tab:** the callers of `Plan {sql, columns}` and `ExecutePlan` move to the record (§2.1 paths A, B, C, E, F),
+  and the runner reads a `tdsResult`.
+- **Python:** `Table.execute`, the engine's executes and plan-and-run move to the record.
+- **The review:** per D6.
+- legend-engine's own plan (`UpstreamPlanner`) is another planner's, and stays.
+
+**R3. One session seam per host.**
+- **The tab:** DuckDB-WASM, the warehouse and a remote legend-engine sit behind one interface: a statement and its values
+  in, Arrow batches out, and the transaction's statements.
+- **Python:** the frames' DuckDB and the warehouse, the same.
+- The runner is their one caller.
+
+**R4. One result.**
+- **The tab:** typed columns over the Arrow (§3.6a, D9), its readers moved one group at a time. H1a's column decode is
+  this phase's first piece, already built.
+- **Python:** its answers in P3's schema (D7's cases ruled first).
+- Every displayed and saved text stays the same, held by DataCube's suites and the conformance suite.
+
+**R5. One owner of each spelling.**
+- **The handoff:** Arrow IPC into Java's writers (D8), which retires `host_rows`, `hostRows` and `rowsOf`.
+- **The tab's exact text** (`values.ts`) is held to Java's spelling of each value by the suite.
+- **The behaviours found to differ** (§3.6a's six, and §7's) are posted to the user one by one.
+
+**R6. Snowflake.**
+- **Python:** the ADBC session (§4.1).
+- **The tab:** the SQL API session (§4.2), its CORS checked from a browser first, its proxy the same code.
+- **The judge:** the conformance suite on the Snowflake lane, against Java's answers through snowflake-jdbc.
+
+**R7. Budgets.**
+- The H0 benchmarks, and a benchmark of an interaction end to end (plan, SQL, decode, draw) at the sizes DataCube
+  fetches (up to 1,001 rows a level, `DEFAULT_MAX_ROWS`), and an uncapped flat grid.
+- A budget each, in a manual lane.
+- A speed fix only where a measurement shows one.
+
+**What is done already.**
+- **H0.** The baselines and the code map: R1's and R7's inputs.
+- **H1a.** The tab's column decode: R4's first piece. Every value is the same, and an audit found one defect, fixed.
+- **H1b's design (§3.6a).** R4's plan for the tab.
 
 ## 6. Rules
 
@@ -336,7 +478,7 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
 
 ## 8. Status
 
-- 2026-11-02: ratified; H0 started (branch `claude/wizardly-dirac-rw6tim`, from `main` at `cf73e6ef`).
+- 2026-11-02: ratified (rev 1); H0 started (branch `claude/wizardly-dirac-rw6tim`, from `main` at `cf73e6ef`).
 - 2026-11-02: H0's baselines measured (`docs/GATES.md`, "The host executors' baselines (H0)"). At 1,000,000 rows the
   tab's decode takes 3,384 ms over DuckDB-WASM's 161 ms. Python's JSON execute takes 23.2 s against its Arrow
   execute's 188 ms.
@@ -345,3 +487,5 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
   budgets moved by about 2 KB each, with dated notes. GATES "H1a: the tab's column decode".
 - 2026-11-02: H1a's audit folded: an infinite timestamp is refused again, as before (the audit's one defect); a
   malformed chunk is read cell by cell; the ASCII path bounded. GATES item 7.
+- 2026-11-02: rev 2, after the user's step back: the principles (§1.1), D6-D10 proposed (§1.3), the roadmap R0-R7 and Z
+  (§5). R1, the conformance suite, comes before any host changes.
