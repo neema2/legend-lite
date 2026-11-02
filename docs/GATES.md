@@ -12727,7 +12727,8 @@ statements): a median of 662 characters, a p90 of 2.2 KB, a p99 of 15 KB, a maxi
 - **An H2 session takes lazy execution** (D2, new): as our sessions open H2 it buffers each result whole in the
   JVM's heap, and under 256 MB no path drains 2,000,000 rows; with `LAZY_QUERY_EXECUTION` every streaming path
   drains at 77 MB. The plan's target for an H2 database carries `SET LAZY_QUERY_EXECUTION 1` among its session
-  statements; landed with step 7's typed seam.
+  statements; landed with step 7's typed seam. (**Corrected 2026-11-01: it never landed** -- no dialect, connector or
+  session sets it; the 2026-11-01 entry "The product path's payoff measured" measures the gap. Open.)
 - **P3 confirmed with a number**: the wire plan carries no tree; that alone takes a typical plan from 27 KB to 4 KB.
 - **No compression, no binary format** (P4 stands): the corpus never makes a statement over 74 KB; the megabyte
   plans are two MongoDB lowerings whose size is the lowering's to shrink, not the format's to hide.
@@ -18777,3 +18778,231 @@ The decisions log D73.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+
+## 2026-11-01 — The product path's payoff measured, and its overhead taken out (every output byte-identical)
+
+The user, 2026-11-01: "did we get the product payoff?", then "Profile arrow, json, and CSV ... think about if database
+should go back to doing them again", "why even raw types is 1.3x jdbc", then "keep going do whatever you think can
+safely and generically without overfitting ... make them production grade and get them in", and "isolate the
+performance stuff on clean new branch on current main" (branch `claude/product-path-perf`, from `efff0406`). Built and
+first measured on the seam branch (PR #83's `c9847ebe`), then moved here alone: no file of the seam program's, no
+decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; this entry is the record).
+
+1. **Measured** with `//core:seam_benchmark` (manual), extended with the product's own paths: the plan runner with no
+   writer, with each of the four writers, the raw JDBC read of the same statement, and the database writing the
+   product's exact bytes; a CRC32 of each output (`-Dseam.crc`) and a JFR recording per path (`-Dseam.jfr`). DuckDB,
+   10,000,000 rows of `id BIGINT, name VARCHAR, amount DECIMAL(18,2), ts TIMESTAMP, bucket`, a 2 GB heap, wall time,
+   both columns measured here on this branch (main = the benchmark alone, this change = the benchmark and the code):
+
+   | Path | main (`efff0406`) | this change |
+   |---|---|---|
+   | raw JDBC read of the product's statement (1′) | 4.85 s | 4.95 s |
+   | the plan runner, typed batches, no writer (6) | 9.1-9.3 s | 5.9-6.0 s |
+   | + `ArrowWriter` (9) | 11.8 s | 7.3 s |
+   | + `CsvWriter` (8) | 17.1 s | 8.3 s |
+   | + `JsonRowsWriter` (7) | 22.2 s | 8.9 s |
+   | + `PureV1Writer` (10, the server's engine-format answer) | 19.7 s | 8.9 s |
+   | the database writing the product's exact CSV (4″) | 8.6 s | 8.6 s |
+   | the database writing the product's exact JSON (3″) | 9.4 s | 9.4 s |
+
+   At 1,000,000 rows: JSON 2.93 -> 1.54 s, CSV 2.14 -> 1.22 s, PureV1 2.45 -> 1.39 s, Arrow 1.31 -> 0.95 s, no writer
+   0.97 -> 0.62 s. **Byte-identical**: each writer's CRC32 at 1,000,000 rows the same on main and with this change (JSON
+   `17719932` over 107,001,011 characters, CSV `4ef82f2d` over 66,601,036, PureV1 `1d92eb68` over 84,001,138, Arrow
+   `687598f6` over 54,367,016 bytes), and the database's exact-spelling paths answer the same CRCs as the writers. (The
+   same measurement on the seam branch earlier the same day: the same CRCs; no writer 9.3-10.0 -> 5.9-6.1 s, Arrow 11.5
+   -> 7.5, CSV 16.8 -> 8.3, JSON 23.3 -> 9.6, the database's exact CSV and JSON 10.3 and 11.2 s that run.)
+2. **Where the time went** (JFR, per path): the typed seam asked each cell's slot kind three or four times (a substring
+   per ask: about a fifth of the seam) and read every timestamp twice (the driver's `Timestamp`, then the `java.time`
+   re-read); every date was spelled by `String.format`, its pattern parsed per call (about a fifth of the JSON and CSV
+   writers); the JSON writer escaped each column's name for every cell and made a text per cell to copy;
+   `Json.escapeTo` appended one character at a time (a tenth of the JSON writer); the PureV1 writer made a list and a
+   text per row; the Arrow writer counted a decimal's digits through its text (a sixth of its time) and parsed a padded
+   string per timestamp.
+3. **Built** (no plan, SQL or output change; no guard moved):
+   - `exec/JdbcDecode.Reader`, one per statement (`JdbcStatements.rows`): each column's slot kind read once; a column of
+     a TIMESTAMP slot whose driver answers `java.sql.Timestamp` (which the read re-reads as `java.time`) is read as
+     `java.time` at once from its second non-null cell on -- one SQL type, one class on every row; the re-read is the
+     value either way -- and a re-read answering nothing for a cell that is not SQL's null is still refused (asked
+     again only on a null). A driver without `javaTime` (Snowflake, Databricks) keeps its own object, as before.
+   - `values/PureDateLiteral`: every `String.format` replaced by hand-written spelling (`engineJson`, `spelled`,
+     `twoDigits`, `nineDigits`; a nano-of-second only, anything else refused).
+   - `json/Json.escapeTo`: the leading run that needs no escape appended whole (the escape set unchanged: a control,
+     `"`, `\`).
+   - `result/JsonRowsWriter`: the member names made once with the columns (held beside each column in its `columns`
+     field, item 9); each cell's token written into the batch's text by a compact writer. `result/PureV1Writer`: each row's values written in place the same way.
+   - `result/ArrowWriter`: a decimal's digit count from `BigDecimal.precision()` (the unscaled value's digits); a
+     subsecond's nanoseconds read in place (more than nine digits refused by name as before; `Long.parseLong` kept to its
+     two registered uses, the R3 guard).
+   - Tests: `JdbcDecodeDuckDbTest.aStatementsReadAnswersEveryRowAsTheCellReadDoes` (null first rows, values of every
+     precision, a year-44 timestamp, the statement's read against each row read alone); `PureDateSpellingTest` (every
+     precision's spelling against `String.format`'s over years -44 to 275760, the fields at their edges, every subsecond
+     length); `SeamBenchmark*` the paths above (the database's exact statements in the DuckDB test, their owner).
+4. **The user's question -- should the database format again? No.** Writing the product's exact bytes the database is
+   no faster than the product's writers now (CSV 8.6 s against 8.3, JSON 9.4 against 8.9 here; 10.3 and 11.2 against
+   8.3 and 9.6 on the seam branch's run): moving the spelling into SQL buys nothing and costs a dialect's worth of
+   spelling per database. **Raw JDBC against the product's typed read** is now 1.2x (6.0 s against 4.95): what remains
+   is the batch's boxing and the date carrier (a `PureDateLiteral` record per timestamp cell, its subsecond a `String`).
+5. **A record corrected:** the 2026-10-18 entry's D2 ("An H2 session takes lazy execution ... landed with step 7's
+   typed seam") never landed: no dialect, connector or session sets `LAZY_QUERY_EXECUTION`. Measured on the seam branch:
+   the product on H2 buffers a 2,000,000-row result whole and fails out of memory under a 2 GB heap, where the same
+   connection with `SET LAZY_QUERY_EXECUTION 1` drains every product path. Open, not built: it changes an H2 session's
+   behaviour (H2's lazy mode has its own limits on a connection's interleaved statements), so it waits for the user's go.
+6. **Named, not built** (each the user's go first): H2's lazy execution (5); a numeric timestamp carrier; batches
+   without boxing; the Arrow writer's buffers reused across batches.
+7. **The chain, on this branch**: 75 of 75 -- every non-Postgres `//core` test (73, `guardrails` and `census` among
+   them), `//json:tests` and `//pct:pct_discipline`; PCT channel A 16 of 16 (DuckDB, SQLite and MongoDB five suites
+   each, H2 relation), exact against their ledgers; channel B 10 of 11 -- every suite IDENTICAL line for line to main's
+   own run (the code stashed, 11 suites run on main's sources) apart from the execution-trace ids, and the one red
+   (`pct_channel_b_sqlite_essential`, 332 < 333) red on main too, test for test the same; the corpus verdicts on
+   DuckDB and H2 green, the rosters unchanged (nine of ten roster checks cached: their judges' outputs byte-identical);
+   the Postgres targets unprivileged (`tools/postgres/as_unprivileged.sh`) 18 of 18 -- the eight `//core` Postgres
+   tests, PCT's five suites exact, channel B's five suites identical per test to the 2026-10-31 run; `//gates:local` (`--lockfile_mode=error`) 447 of
+   457 as root, the nine failures the eight `//core` Postgres tests and `//datacube:verify_app_test`, each "initdb
+   refuses root" -- all nine green unprivileged (the eight above, `verify_app_test` run on its own).
+8. **Small fetches** (the user, 2026-11-01: "benchmark on like ... 10-20-50-100-200-1000 rows to make sure we didn't
+   over tune on large datasets only - like datacube other smaller fetches also"): `SeamBenchmark.smallFetches`
+   (`--test_filter='#smallFetches'`; sizes `-Dseam.small.sizes`), the product's statement over the first n rows, each
+   fetch one `PlanRunner.stream` on a session borrowed for it; per path and size a cold first call, a second of
+   warm-up, then two seconds of fetches each timed alone. Run four times alternating main and this change (each column
+   the mean of two runs' medians, microseconds per fetch), the raw JDBC read of the same statement beside them:
+
+   | DuckDB | n=10 main / this | n=100 main / this | n=1000 main / this |
+   |---|---|---|---|
+   | raw JDBC read | 481 / 483 | 519 / 522 | 1,027 / 1,007 |
+   | plan runner, no writer | 735 / 750 (runs 732, 738 / 767, 733) | 804 / 733 | 1,741 / 1,317 |
+   | + JSON rows | 728 / 701 | 1,020 / 797 | 3,102 / 1,812 |
+   | + CSV | 732 / 686 | 930 / 777 | 2,540 / 1,686 |
+   | + PureV1 | 770 / 716 | 985 / 840 | 2,812 / 1,797 |
+   | + Arrow | 785 / 715 | 879 / 817 | 2,065 / 1,581 |
+
+   | H2 (repeated statements answered from its cache) | n=10 main / this | n=100 main / this | n=1000 main / this |
+   |---|---|---|---|
+   | raw JDBC read | 0.9 / 0.9 | 5.1 / 5.0 | 46 / 45 |
+   | plan runner, no writer | 12.4 / 9.8 | 60 / 35 | 597 / 316 |
+   | + JSON rows | 24.3 / 13.5 | 181 / 71 | 1,884 / 710 |
+   | + CSV | 19.9 / 12.2 | 132 / 56 | 1,402 / 555 |
+   | + PureV1 | 22.4 / 13.9 | 153 / 68 | 1,591 / 673 |
+   | + Arrow | 18.3 / 15.2 | 83 / 51 | 839 / 454 |
+
+   No size got slower: at 10 rows on DuckDB every writer is 4-9% faster and the bare runner within its runs' spread;
+   from 20 rows up every path is faster, by 23-42% at 1,000; on H2 every path at every size, by 17-63%. All 48 outputs
+   (2 databases x 6 sizes x 4 writers) the same CRC32 on main and here. **The per-fetch floor on DuckDB** (about 250
+   us over the raw read at 10 rows, the same on main) is the borrowed session's own setup: with one session held for
+   every fetch (`6s`, a diagnostic path) the plan runner at 10 rows is 501 us against the raw read's 497. The server
+   already holds its databases that way (`ConnectionResolver`: a held database's requests run on views of one
+   session, sharing its state, so its session statements go once); a URL connection opens a connection per request,
+   which costs more than this. Nothing built for it.
+9. **The independent review** (an agent that wrote none of it, given the diff and the code, not these conclusions;
+   PR #85): no blocker. It found no input on any supported driver where an output or a behaviour differs from main --
+   about 4,000,000 randomized differential checks of main's and this branch's date spellings, `escapeTo`, both JSON
+   writers' layouts and the Arrow digit and nanosecond arithmetic, 0 differences; each driver's null and typed-getter
+   behaviour read from its bytecode (DuckDB, H2 2.1 and 2.4, pgjdbc, MariaDB, ClickHouse, Trino, BigQuery; SQLite
+   never answers a `Timestamp`; Snowflake and Databricks never take the direct read). Its findings, folded here:
+   - **No test drove the reader with a driver that re-reads no timestamp** (Snowflake's, Databricks'): deleting the
+     `javaTime` condition left every core test green. Now `JdbcDecodeH2Test.aStatementsReadReadsATimestampAsItsDriverDecides`
+     records the getters the reader calls on H2's own result set over five rows (nulls first and between): with
+     `javaTime` off no cell is read as `java.time`; with it on the reader switches after the first non-null cell, a
+     null after the switch told by `wasNull` alone. Mutation-checked: with the condition deleted the test fails.
+   - **Two row readers to keep in step**: the static `JdbcDecode.row` (tests only) now reads through a `Reader`, so
+     the single-row tests test the product's path.
+   - **A null after the switch cost two driver reads**: now `wasNull`, which every supported driver sets for
+     `getObject(int, Class)`; a re-read answering nothing for a non-null cell is still refused.
+   - **The guard allowlist grew a row** (`JsonRowsWriter.keys`): the member names now ride in the writer's existing
+     `columns` field (a column and its name), and the allowlist is main's again.
+   - Not changed (nits): the reader's "one SQL type, one class on every row" stays a documented assumption (true of
+     every supported driver; only TIMESTAMP slots take the direct read); `nineDigits` keeps its refusal of anything
+     but a nano-of-second; `spelled`'s part count stays a number.
+   After the fold: every output's CRC32 the same as main's again (1,000,000 rows and all 48 small fetches); the
+   chain re-run on the fold: 75 of 75 (core, `//json:tests`, `//pct:pct_discipline`); PCT channel A 16 of 16 exact;
+   channel B's 11 suites identical line for line to main's own run (the one red, SQLite essential 332 < 333, red on
+   main too); the corpus verdicts green; Postgres and `//datacube:verify_app_test` unprivileged 19 of 19, channel B's
+   five Postgres suites identical per test.
+10. **Tier 1 of the remaining overhead** (the user, 2026-11-01: "Let's do tier 1", after a profile of the branch at
+    10,000,000 rows put two thirds of the runner in the DuckDB driver itself, and of what is ours: a timestamp's date
+    carrier 14%, the decode's dispatch on the slot's WORD about 10% -- a string compared per cell -- the batches 7-10%;
+    the JSON writer's node made per cell a third of its time):
+    - `exec/JdbcDecode.Kind`: a column's decode kind read once from its slot's word, the cell's decode a switch on it
+      (no word compared per cell; a column with no slot the Pure type's, as before).
+    - `result/CellText.writePureJson`, `writeEngine`: a cell's token written straight into the batch's writer, the
+      same choices as `pureJson`/`engine`; a structure, a double and a decimal under a Float column through their node
+      as before (the Float spellings decided in one place; the writer guard's counts unchanged, no pin moved).
+      `CellTextDirectTest`: the two forms equal for every carrier under every column kind and written-precision fact,
+      alone and back to back, a refused cell refused alike.
+    - Byte-identical: every writer's CRC32 at 1,000,000 rows and all 48 small-fetch outputs the same as main's.
+    - 10,000,000 rows, two runs (the PR's previous head -> tier 1): the runner with no writer 5.9-6.0 -> 5.7-6.0 s (raw
+      4.84-4.87 s), JSON rows 8.9 -> 8.2 s, PureV1 8.9 -> 7.7-8.0 s, CSV 8.3 -> 8.0-8.1 s, Arrow 7.3 -> 7.0-7.1 s.
+    - The chain on tier 1: 75 of 75 (core, `//json:tests`, `//pct:pct_discipline`); PCT channel A 16 of 16 exact;
+      channel B's 11 suites identical line for line to main's own run (SQLite essential's 332 < 333 red on main too);
+      the corpus verdicts green on both databases, the DuckDB judges run fresh; Postgres and
+      `//datacube:verify_app_test` unprivileged 19 of 19. A first attempt filled the container's disk: its
+      failures were "No space left on device", and the DuckDB database judge's pass, which could not unpack DuckDB's
+      native library, was cached as UNMEASURED; its outputs deleted and the pass run again, the rosters are unchanged.
+11. **The Arrow ceiling, measured (no code)** (the user, 2026-11-01: "let's measure only arrow"). A scratch probe,
+    not in the repository, ran the same five-column statement at 10,000,000 rows on one DuckDB 1.5.6.0 connection,
+    three rounds:
+    - the raw JDBC typed read, one getter per cell: 4.6-4.8 s;
+    - DuckDB's own Arrow export (`DuckDBResultSet.arrowExportStream`, through `arrow-c-data`), every value read from
+      the vectors: 1.19 s (1.66 s in the first round);
+    - the same export written out as Arrow IPC with no value read: 1.1-1.2 s (515 MB).
+
+    The product path's Arrow writer takes 7.0-7.1 s on the same rows (item 10). A pass-through is not a drop-in: the
+    export's schema is not this writer's (`Int(32)` against `Int(64)`; `Timestamp(MICROSECOND, null)` against
+    nanoseconds in UTC; no column metadata), so it would need a ruling on the schema or a conversion of the vectors.
+    It would also put Arrow among `//core:exec`'s deps, and the wall (D72) does not allow that today. Nothing was
+    built.
+
+    Snowflake, read from snowflake-jdbc 4.4.0's class files: no public route to its Arrow chunks.
+    - The public `SnowflakeResultSetSerializable` answers a JDBC `ResultSet` per split.
+    - The chunk bytes are reachable only through `net.snowflake.client.internal.jdbc` (`SnowflakeResultSetSerializableV1`,
+      `ResultStreamProvider`), whose accessors report an outside caller to the driver's telemetry.
+    - The driver's own Arrow classes are shaded.
+
+    Measured in the Snowflake lane session (the user's yes there, 2026-11-01), before the user dropped the line. The
+    same five columns on INTEGRATION_WH1 with the result cache off, two runs each, every route timed until its last row:
+
+    | Route at 10,000,000 rows | Best | Supported |
+    |---|---|---|
+    | JDBC, one thread, `getObject` per cell, Arrow wire format | 0.81M rows/s (12.4 s) | yes |
+    | JDBC, the same with the JSON wire format | 0.27M rows/s | yes |
+    | JDBC, `getResultSetSerializables` read on 8 threads, `getObject` per cell | 2.00M rows/s (5.0 s) | yes |
+    | ADBC Snowflake from Java via `adbc-driver-jni`, Arrow batches | 1.84M rows/s (5.4 s) | yes, a 74 MB native library |
+    | Python connector Arrow batches / ADBC from Python | 1.54M / 2.16M rows/s | yes, Python only |
+    | `COPY INTO` a stage as Parquet, then `GET` | 0.99M rows/s | yes; timestamps cut to ms, a UTC zone added |
+
+    - Time to the first row or batch is 1.3-2.9 s on every route: the query's own latency. A small fetch gains nothing
+      from any of these.
+    - The download is the bottleneck, not the decode. One raw chunk decoded at 34.5M rows/s (pyarrow); the parallel
+      split reached ADBC's rate while still building a Java object per cell.
+    - The wire format is Snowflake's own: `NUMBER(18,2)` as an unscaled `int32`, `TIMESTAMP_NTZ` as a struct of
+      epoch and fraction, integer widths compacted per chunk. Every client converts from it. The Python connector's
+      default turns `NUMBER(18,2)` into `float64`, which is lossy; ADBC answers exact `decimal128` and nanosecond
+      timestamps.
+    - The raw-chunk route (the internal class's public methods; no reflection) was run twice. So two outside-caller
+      telemetry records went to Snowflake.
+12. **Tier 1's independent audit** (an agent that wrote none of it, given the diff and the code, not these conclusions):
+    no defect. It could not break the claim that tier 1 is byte-identical to main.
+    - Writers: main's and this branch's compiled side by side, 40,000 cases through all five writers, well-formed
+      and adversarial cells (every carrier under every column kind, precision fact and slot; names needing escapes;
+      refused carriers). The output and every refusal's class and message were identical.
+    - Decoder: about 90,000 cases on a mock driver (unknown and lowercase slot words, `TIMESTAMP(6)`, `javaTime` off
+      a quarter of the time, a re-read answering nothing). Tier 1 is identical to its parent, and to main with a
+      driver that answers one class per column.
+    - Real drivers, for the direct timestamp read: SQLite run (it never answers a `Timestamp`); MariaDB, Trino,
+      ClickHouse and BigQuery read from their bytecode (a SQL NULL answers null and sets `wasNull`).
+    - Its three nits:
+      - N1, `CellTextDirectTest` coverage: folded. Six refused carriers at the top level, a to-many column with a
+        slot, and PureV1's shape (engine tokens inside an array).
+      - N2: a driver whose timestamp column answers a `Timestamp` on one row and another class on a later row would
+        differ from main (a `java.sql.Date` read as a date-time; a different refusal message). Verified on the mock;
+        no supported driver does it. Catching it would cost the read this change removes. Not built.
+      - N3, `TenetRatchetTest`: its ceiling stayed at 21 after the legacy executor's sites were deleted
+        (2026-10-27), so main's 8 sites sat under it and this PR's 9th went unseen. Pinned to 9 with the user's yes,
+        the 9th named: the direct read, `getObject(i, LocalDateTime.class)`.
+13. **The macOS lane moved to the `macos-15` image** (the user's go, 2026-11-02: "Do it for this PR so we get it
+    running main too"). From 2026-11-01, every macOS job on this PR was cancelled with no runner assigned and no step
+    run. That happened on two attempts of the same run, and on main's own scheduled run. GitHub retires the `macos-14`
+    image on 2026-11-02, after brownouts and a warned cut in capacity (github.blog changelog, 2026-10-01). The gate
+    pinned that image (`.github/workflows/gate.yml`, `runs-on: macos-14`). It now pins `macos-15`, which is arm64
+    like `macos-14`, the architecture the rosters and goldens were minted on.
+    - `//tools/guards:workflows_test` (actionlint) is green.
+    - Whether every macOS lane passes on macOS 15 is shown by this PR's CI, the first run on the new image.

@@ -125,4 +125,61 @@ class JdbcDecodeH2Test {
                     JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false)));
         }
     }
+
+    /** A statement's read over many rows (JdbcDecode.Reader, PR #85's review, 2026-11-01): a driver that re-reads no
+     *  timestamp (Snowflake's, Databricks') never has a cell read as java.time, on any row; one that does reads a
+     *  TIMESTAMP column's cells as java.time at once from its second non-null cell, its nulls still nulls, every
+     *  row's value the same either way. The getters the read calls are recorded on H2's own result set. */
+    @Test
+    void aStatementsReadReadsATimestampAsItsDriverDecides() throws Exception {
+        String sql = "SELECT TS FROM (VALUES (1, CAST(NULL AS TIMESTAMP)), (2, TIMESTAMP '2024-01-02 10:30:00.123456'),"
+                + " (3, CAST(NULL AS TIMESTAMP)), (4, TIMESTAMP '1999-12-31 23:59:59'),"
+                + " (5, TIMESTAMP '2024-06-03 09:07:00.5')) V(K, TS) ORDER BY K";
+        List<ExecutionPlan.Column> cols = List.of(JdbcDecodeCases.opt("TS", "DateTime", "TIMESTAMP"));
+        List<Object> expected = java.util.Arrays.asList(null, PureDateLiteral.parse("2024-01-02T10:30:00.123456000"),
+                null, PureDateLiteral.parse("1999-12-31T23:59:59.000000000"),
+                PureDateLiteral.parse("2024-06-03T09:07:00.500000000"));
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_reader" + H2Connector.SETTINGS)) {
+            for (boolean javaTime : new boolean[] {false, true}) {
+                List<String> calls = new java.util.ArrayList<>();
+                List<Object> cells = new java.util.ArrayList<>();
+                try (java.sql.Statement st = c.createStatement(); java.sql.ResultSet real = st.executeQuery(sql)) {
+                    java.sql.ResultSet rs = recording(real, calls);
+                    JdbcDecode.Reader reader = new JdbcDecode.Reader(cols,
+                            new DatabaseConnector.Decoding(javaTime, false, false, false));
+                    while (rs.next()) {
+                        cells.add(reader.row(rs).get(0));
+                    }
+                }
+                assertEquals(expected, cells, "javaTime " + javaTime);
+                long direct = calls.stream().filter(m -> m.equals("getObject(LocalDateTime)")).count();
+                if (javaTime) {
+                    // row 1 is null; row 2 answers a Timestamp and is re-read; rows 3 to 5 are read as java.time at
+                    // once, row 3's null told by wasNull alone
+                    assertEquals(4, direct, calls.toString());
+                    assertEquals(2, calls.stream().filter(m -> m.equals("getObject")).count(), calls.toString());
+                    assertEquals(1, calls.stream().filter(m -> m.equals("wasNull")).count(), calls.toString());
+                } else {
+                    assertEquals(0, direct, calls.toString());
+                }
+            }
+        }
+    }
+
+    /** {@code rs}, each getter it answers recorded in {@code calls} by name (and a typed getObject's class). */
+    private static java.sql.ResultSet recording(java.sql.ResultSet rs, List<String> calls) {
+        return (java.sql.ResultSet) java.lang.reflect.Proxy.newProxyInstance(
+                JdbcDecodeH2Test.class.getClassLoader(), new Class<?>[] {java.sql.ResultSet.class},
+                (proxy, method, args) -> {
+                    if (method.getName().startsWith("get") || method.getName().equals("wasNull")) {
+                        calls.add(method.getName().equals("getObject") && args.length == 2
+                                ? "getObject(" + ((Class<?>) args[1]).getSimpleName() + ")" : method.getName());
+                    }
+                    try {
+                        return method.invoke(rs, args);
+                    } catch (java.lang.reflect.InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+    }
 }

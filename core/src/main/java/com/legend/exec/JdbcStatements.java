@@ -275,8 +275,10 @@ final class JdbcStatements implements Statements {
                         at += com.legend.result.RowDecode.physicalColumns(List.of(c));
                     }
                 }
+                // the decode kind of each column read once (main's product-path tier 1), over the columns as read
+                JdbcDecode.Reader reader = new JdbcDecode.Reader(read, driver);
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, read, driver));
+                    cells.row(reader.row(rs));
                 }
             }
         } catch (SQLException e) {
@@ -303,8 +305,9 @@ final class JdbcStatements implements Statements {
                     reported.add(WireTypes.column(r));
                 }
                 columns.columns(reported);
+                JdbcDecode.Reader reader = new JdbcDecode.Reader(reported, driver);
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, reported, driver));
+                    cells.row(reader.row(rs));
                 }
             }
         } catch (SQLException e) {

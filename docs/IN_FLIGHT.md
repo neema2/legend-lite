@@ -3068,6 +3068,13 @@ user's rulings of 2026-11-02:
 burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
 last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
 the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session.
+  **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
+  path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
+  `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests
+  (`JdbcDecodeDuckDbTest`, `JdbcDecodeH2Test`, `PureDateSpellingTest` (new)) and the manual benchmark
+  (`SeamBenchmark*`); PR #85. Isolated from the seam program's branch (PR #83) at the user's word; every output
+  byte-identical. PR #83 touches `JdbcStatements.java`'s read loop too: whichever lands second takes the reader there --
+  PR #83 merged `main` on 2026-11-02 and took it (its wire-typed column read and `reportedRows` feed the reader).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
