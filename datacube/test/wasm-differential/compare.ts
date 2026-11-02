@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
-import { relationColumns } from '../../../engine-client/src/relation-type.ts';
+import { recordPlan } from '../../../engine-client/src/relation-type.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import { MODEL, queries, RUNTIME } from './cases.ts';
@@ -40,13 +40,13 @@ function blocks(text: string): Map<string, string> {
 
 // The JVM side keeps the refusal's kind; the TS planner drops it by
 // design. Compare on the parts both sides carry. An OK answer is the plan
-// -- its SQL and the compiler's result type -- read through the product's
+// record (R2) -- its statement and its columns -- read through the product's
 // own reader, so the types are held to the JVM too.
 function norm(s: string): string {
   const [tag, ...rest] = s.split('\n');
   if (tag === 'ERR') return `ERR\n${rest.slice(1).join('\n')}`;
-  const body = JSON.parse(rest.join('\n')) as { sql: string; type: unknown };
-  return `OK\n${JSON.stringify({ sql: body.sql, columns: relationColumns(body.type) })}`;
+  const plan = recordPlan(rest.join('\n'));
+  return `OK\n${JSON.stringify({ sql: plan.sql, columns: plan.columns })}`;
 }
 
 it('DataCube\'s own queries plan the same in WASM and on the JVM', async () => {

@@ -10,8 +10,12 @@ import {
 import type { PlannerWorker } from '../../engine-client/src/legend/planner-protocol.ts';
 
 /** A module's OK answer: the SQL and its result type (here, typing nothing). */
-function ok(sql: string): string {
-  return `OK\n${JSON.stringify({ sql, type: { _type: 'relationType', columns: [] } })}`;
+/** A plan's OK answer: the plan record (R2), one typed result over `sql`, its `columns` as the record states them. */
+function ok(sql: string, columns: readonly { name: string; type: string; enumeration: boolean | null }[] = []): string {
+  return `OK\n${JSON.stringify({
+    format: 'legend-lite-plan', version: 20, parameters: [],
+    root: { _type: 'tdsResult', shape: 'RELATION', columns, sql: { statement: sql, slots: [], target: {}, tree: null } },
+  })}`;
 }
 
 /**
@@ -107,15 +111,11 @@ describe('LitePlanner', () => {
     );
   });
 
-  it('carries the compiler\'s result type beside the SQL', async () => {
-    const type = {
-      _type: 'relationType',
-      columns: [
-        { name: 'region', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } } },
-        { name: 'total', genericType: { rawType: { _type: 'packageableType', fullPath: 'Decimal' } } },
-      ],
-    };
-    const p = planner(() => `OK\n${JSON.stringify({ sql: 'SELECT 1', type })}`);
+  it('carries the compiler\'s result type beside the SQL, a precision decimal by the record\'s rule', async () => {
+    const p = planner(() => ok('SELECT 1', [
+      { name: 'region', type: 'String', enumeration: false },
+      { name: 'total', type: 'Decimal(18,2)', enumeration: false },
+    ]));
     assert.deepEqual(await p.planText('g'), {
       sql: 'SELECT 1',
       columns: [{ name: 'region', type: 'String' }, { name: 'total', type: 'Decimal' }],

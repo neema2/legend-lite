@@ -31,7 +31,7 @@ import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
-import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
+import { recordPlan, relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { SeedTable, TableSeed } from '../../engine-client/src/model-data.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
@@ -432,10 +432,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const handle = await this.#handle();
     const answer = await this.#call({ kind: 'plan', handle, query: pureGrammar, runtime });
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    // `{"sql", "type"}`: the SQL and the compiler's type of its result, in upstream's
-    // RelationType shape -- the same renderer legend-lite's pure/v1 answers use.
-    const body = JSON.parse(decode(answer, pureGrammar)) as { sql: string; type: unknown };
-    const plan: Plan = { sql: body.sql, columns: relationColumns(body.type) };
+    // the plan record (R2): its statement, and its columns typed by the record's own facts
+    const plan: Plan = recordPlan(decode(answer, pureGrammar));
     // kept only while it is the planner's model still: an answer for a model since replaced is not this one's
     if (useCache && this.#options.model === model) this.#cache.set(key, plan);
     return plan;
@@ -535,10 +533,10 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
   }
 
-  /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
+  /** A plan's answer (planJson's, tagged: the plan record, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2) read as this
+   *  planner reads its own: its statement, and its columns typed by the record's own facts. */
   readPlan(answer: string, query: Lambda): Plan {
-    const body = JSON.parse(decode(answer, query)) as { sql: string; type: unknown };
-    return { sql: body.sql, columns: relationColumns(body.type) };
+    return recordPlan(decode(answer, query));
   }
 
   /**

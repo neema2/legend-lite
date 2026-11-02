@@ -72,35 +72,21 @@ export { PlanRefusal };
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
-  const read = readPlanRecord(plan) as { parameters?: unknown; root?: Step };
-  if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
+  // what a host's runner runs is the planner's to decide, at planning (HostPlans.program, D6:
+  // docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2) -- no parameters, one typed result, one database set up by nothing,
+  // no per-key regions, every bound value one value -- so the runner reads the plan's format and version, refuses a
+  // step it does not know by name, and runs only on the database its session is
+  const read = readPlanRecord(plan) as { root?: Step };
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
     : root._type === 'tdsResult' ? [root] : undefined;
   if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence or a typed result, not a ${root._type}`);
   const sqls = steps.map((s) => stepSql(s));
-  const results = steps.filter((s) => s._type === 'tdsResult');
-  if (results.length !== 1) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
-  // one database, as it is: every step's target the same, of this session's type, set up by nothing first
-  const [first] = sqls;
-  const target = JSON.stringify(first!.target);
-  if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
-  const t = first!.target as { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string };
-    servers?: { _type?: string }; session?: readonly string[]; setup?: readonly unknown[] };
+  if (sqls.length === 0) throw new PlanRefusal('a plan with no step');
+  const t = sqls[0]!.target as { database?: { connection?: { databaseType?: string }; databaseType?: string }; session?: readonly string[] };
   const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
-  if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
-  if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
-  for (const s of sqls) {
-    if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
-    for (const slot of s.slots) {
-      if (slot.binding._type !== 'one') {
-        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);
-      }
-      if (slot.binding.typeHole !== undefined) throw new PlanRefusal(`'${slot.parameter}' takes its type from its value, which is not run here`);
-    }
-  }
   const changes = steps.some((s) => s._type === 'update') && o.joined !== true;
   for (const statement of t.session ?? []) await session.run(statement, []);
   const values = new Map<string, PlanValue>();

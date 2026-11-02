@@ -28,7 +28,7 @@ import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { ExecuteInput } from '../../../engine-client/src/legend/wire.ts';
 import { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
-import { relationColumns } from '../../../engine-client/src/relation-type.ts';
+import { recordPlan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import { liteServer } from '../../../query-store/test/lite-server.ts';
@@ -267,7 +267,8 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       // grid: the tab's own path against Java's values, by meaning
       if (!name.startsWith('err') && j.status === 200) {
         const planned = await grammar.plan({ _type: 'text', code: MODEL }, await grammar.lambda(`{| ${query}}`), RUNTIME);
-        const plan = { sql: planned.sql, columns: relationColumns(planned.type) };
+        // the plan record (R2), read as the grid's planners read it
+        const plan = recordPlan(planned);
         const rows = await grid.execute(plan, 0);
         const theirs = javaMeanings(j.text, plan.columns.map((c) => c.type));
         const mine = gridMeanings(rows);

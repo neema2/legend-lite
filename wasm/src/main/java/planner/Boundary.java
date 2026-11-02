@@ -103,26 +103,6 @@ public final class Boundary {
         return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
     }
 
-    /** The models a host runs, from their JSON array of texts. */
-    private static java.util.List<String> models(String modelsJson) {
-        java.util.List<String> models = new java.util.ArrayList<>();
-        if (!(com.legend.json.Json.parse(modelsJson) instanceof com.legend.json.Json.Arr arr)) {
-            throw new IllegalArgumentException("the models: not a JSON array");
-        }
-        for (com.legend.json.Json.Node n : arr.items()) {
-            if (!(n instanceof com.legend.json.Json.Str text)) {
-                throw new IllegalArgumentException("the models: an entry that is not a model's text");
-            }
-            models.add(text.value());
-        }
-        return models;
-    }
-
-    /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
-    public static com.legend.server.PureV1Api.Answer refusal(String message) {
-        return com.legend.server.PureV1Api.refused(message);
-    }
-
     // ---- planning and typing
 
     /**
@@ -134,13 +114,14 @@ public final class Boundary {
     }
 
     /**
-     * A query written as Pure TEXT planned: {@code {"sql": ..., "type": RelationType}}, the type in legend-engine's
-     * {@code lambdaRelationType} shape through the one renderer the server's {@code pure/v1} answers use
-     * ({@code UpstreamRelationType}) -- so a host reads a column's type from the compiler, never from the engine's
-     * wire (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md, step 1).
+     * A query written as Pure TEXT planned for a host that runs it itself: the plan record (PlanJson's text), the one
+     * plan every host path runs (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, D11; until 2026-11-02 a
+     * {@code {"sql", "type"}} of its own) -- its one typed result the statement the host runs, its columns' facts what
+     * the host reads each column's type by, never the engine's wire's (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md,
+     * step 1). A plan a host does not run is refused here, at planning, by name ({@link #hostPlanned}).
      */
     public static String plan(String model, String query, String runtime) {
-        return planned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan(runtime));
+        return hostPlanned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query), runtime);
     }
 
     /**
@@ -154,22 +135,22 @@ public final class Boundary {
     }
 
     /**
-     * A lambda's protocol JSON planned -- {@code {"sql","type"}}, as {@link #plan} (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T4a).
+     * A lambda's protocol JSON planned -- the plan record, as {@link #plan} (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T4a).
      * Not {@code execution/generatePlan}'s twin (that answers legend-engine's execution plan), so it stays the
      * boundary's own; a lambda typed alone is {@code compilation/lambdaRelationType}, asked through {@link #pureV1},
      * and a whole model compiled is {@code compilation/compile} on either route (docs/PROTOCOL_PROGRAM_2026_10_05.md,
      * leg 6).
      */
     public static String planJson(String model, String lambdaJson, String runtime) {
-        return planned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime));
+        return hostPlanned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)), runtime);
     }
 
-    private static String planned(com.legend.plan.QueryPlan p) {
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("sql", p.sql());
-        out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
-        return com.legend.json.Json.toCompact(out);
+    /** A query's rows planned for a host: its plan record, when it is one a host runs (one typed result over a
+     *  statement of text: {@code HostPlans.read}, D6); otherwise refused by name, at planning. */
+    private static String hostPlanned(com.legend.TypedQuery query, String runtime) {
+        return com.legend.executionplan.PlanJson.write(
+                com.legend.executionplan.HostPlans.read(query.executionPlan(runtime)));
     }
 
     // ---- models held: compiled once, planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
@@ -189,26 +170,28 @@ public final class Boundary {
 
     /** {@link #plan} over a model held: the query planned, the model compiled no more. */
     public static String planHeld(int handle, String query, String runtime) {
-        return MODELS.with(handle, ctx -> planned(com.legend.Compiler.query(ctx, query).plan(runtime)));
+        return MODELS.with(handle, ctx -> hostPlanned(com.legend.Compiler.query(ctx, query), runtime));
     }
 
     /** {@link #planJson} over a model held. */
     public static String planJsonHeld(int handle, String lambdaJson, String runtime) {
-        return MODELS.with(handle, ctx -> planned(com.legend.Compiler.query(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime)));
+        return MODELS.with(handle, ctx -> hostPlanned(com.legend.Compiler.query(ctx,
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)), runtime));
     }
 
     /**
-     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 19): a program
+     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text): a program
      * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
      * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
      * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells
      * the rows), the plan its host's runner runs step by step (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
+     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7). A plan the host's runner does not run is refused here,
+     * at planning, by name ({@code HostPlans.program}: D6, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2).
      */
     public static String executionPlanJsonHeld(int handle, String lambdaJson, String runtime) {
-        return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
+        return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.executionplan.HostPlans
+                .program(com.legend.Compiler.query(ctx, com.legend.protocol.ProtocolReader.lambda(lambdaJson))
+                        .executionPlan(runtime))));
     }
 
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */

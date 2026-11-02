@@ -13,6 +13,7 @@ import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer 
 import type { SeedTable, TableSeed } from '../model-data.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
+import { answerStatement } from '../plan-record.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -175,14 +176,15 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
-  /** The SQL a query compiles to on its runtime, and the type of its result (upstream's relationType shape). */
-  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: string; type: unknown }> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as { sql: string; type: unknown };
+  /** A query planned on its runtime for the tab to run: the plan record (PlanJson's text, its one typed result; R2),
+   *  read by relation-type.ts recordPlan. */
+  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }));
   }
 
-  /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */
+  /** The SQL a query compiles to on its runtime -- legend-lite's plan's statement, shown to a person ("Show SQL"). */
   async sql(model: PureModelContext, lambda: Lambda, runtime: string): Promise<string> {
-    return (await this.plan(model, lambda, runtime)).sql;
+    return answerStatement(await this.plan(model, lambda, runtime));
   }
 
   /**

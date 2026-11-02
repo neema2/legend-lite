@@ -24,12 +24,48 @@ export function readPlanRecord(plan: string): { readonly parameters?: unknown; r
   return read;
 }
 
-/** The one statement a host's execute runs (PureV1Api.jsonPlan's plan: one typed result over a statement of text,
- *  everything else refused there, at planning): its text. A plan of another shape is refused by name. */
-export function answerStatement(plan: string): string {
-  const root = readPlanRecord(plan).root as { readonly _type?: string; readonly sql?: { readonly statement?: unknown; readonly slots?: unknown } } | undefined;
-  if (root?._type !== 'tdsResult' || typeof root.sql?.statement !== 'string' || !Array.isArray(root.sql.slots) || root.sql.slots.length > 0) {
-    throw new PlanRefusal(`an execute's plan is one typed result over a statement of text, not a ${String(root?._type)}`);
+/** One column of a plan record's typed result: its name, its Pure type as the typer names it (`Decimal(10,2)`, an
+ *  enumeration's path), and whether the compiler typed it with an enumeration (null where no compiler typed it). */
+export interface RecordColumn {
+  readonly name: string;
+  readonly type: string;
+  readonly enumeration: boolean | null;
+}
+
+/** A query's rows as a host runs them (the plan record's one typed result over a statement of text: HostPlans.read,
+ *  and PureV1Api.jsonPlan's; anything else refused there, at planning): its statement and its columns. A plan of
+ *  another format, version or shape is refused by name, never run some other way. */
+export function hostResult(plan: string): { readonly statement: string; readonly columns: readonly RecordColumn[] } {
+  const root = readPlanRecord(plan).root as { readonly _type?: string; readonly columns?: unknown;
+    readonly sql?: { readonly statement?: unknown; readonly slots?: unknown } } | undefined;
+  if (root?._type !== 'tdsResult' || typeof root.sql?.statement !== 'string' || !Array.isArray(root.sql.slots) || root.sql.slots.length > 0
+    || !Array.isArray(root.columns)) {
+    throw new PlanRefusal(`a host's plan is one typed result over a statement of text, not a ${String(root?._type)}`);
   }
-  return root.sql.statement;
+  const columns = root.columns.map((c: unknown) => {
+    const col = c as { name?: unknown; type?: unknown; enumeration?: unknown };
+    if (typeof col.name !== 'string' || typeof col.type !== 'string' || !(typeof col.enumeration === 'boolean' || col.enumeration === null)) {
+      throw new PlanRefusal(`a plan's column without a name, a type and its enumeration fact: ${JSON.stringify(c)}`);
+    }
+    return { name: col.name, type: col.type, enumeration: col.enumeration };
+  });
+  return { statement: root.sql.statement, columns };
+}
+
+/** The one statement a host runs for a query's rows (hostResult): its text. */
+export function answerStatement(plan: string): string {
+  return hostResult(plan).statement;
+}
+
+/** A plan record's column type as legend-engine's relation type names it, by the record's one rule
+ *  (core's ExecutionPlan.Column.plainType; Python's compiler.plain_type): a precision decimal, which the typer spells
+ *  `Decimal(p,s)`, is `Decimal` (its precision and scale are its SQL type's); any other type is its own name. */
+export function plainType(type: string): string {
+  if (type.startsWith('Decimal(') && type.endsWith(')')) {
+    const [precision, scale, ...rest] = type.slice('Decimal('.length, -1).split(',');
+    if (rest.length === 0 && precision !== undefined && scale !== undefined && /^[0-9]+$/.test(precision) && /^[0-9]+$/.test(scale)) {
+      return 'Decimal';
+    }
+  }
+  return type;
 }

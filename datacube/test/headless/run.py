@@ -71,7 +71,7 @@ class Host(unittest.TestCase):
                       " const refused = await ask({ id: 3, kind: 'plan', handle, query: '|#>{a::DB.t}#', runtime: 'a::NoSuch' });"
                       " const db = legendLite.database.connection;"
                       " await db.query(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\");"
-                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).sql);"
+                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).root.sql.statement);"
                       " const rows = []; for (let i = 0; i < t.numRows; i++) rows.push(t.getChildAt(0).get(i));"
                       " return { rows, refused: [refused.ok, refused.answer.split('\\n')[0]] };"
                       f" }})({json.dumps(model)});")

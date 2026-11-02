@@ -11,6 +11,7 @@
 // A name it does not know is an ERROR, never a guess: a column typed wrongly
 // aggregates wrongly without a word.
 
+import { hostResult, plainType as recordTypePath, type RecordColumn } from './plan-record.ts';
 import { plainType } from './types.ts';
 
 /** One result column: its name and its Pure type, as the compiler typed it. */
@@ -66,6 +67,23 @@ const NONE: ReadonlySet<string> = new Set();
 /** A column of `path`: an enumeration of the model is said so, any other type read as above. */
 function columnOf(name: string, path: string, bitColumns: ReadonlySet<string>, enumerations: ReadonlySet<string>): PlanColumn {
   return enumerations.has(path) ? { name, type: 'String', enumeration: path } : { name, type: typeOf(name, path, bitColumns) };
+}
+
+/**
+ * A query planned for a host (the plan record, its one typed result: docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2) as
+ * the SQL to run and its columns, each typed by the record's own facts: its type by the record's one rule
+ * (plan-record.ts plainType: a precision decimal's `Decimal(p,s)` is `Decimal`), read as above. An enumeration's
+ * column is its path, refused as above, unless the caller reads enumerations as text (`enumerationsAsText`: Query's
+ * cube, whose rows are the values' names), when it is a String. A column no compiler typed is refused.
+ */
+export function recordPlan(plan: string, enumerationsAsText = false): Plan {
+  const { statement, columns } = hostResult(plan);
+  return { sql: statement, columns: columns.map((c) => recordColumn(c, enumerationsAsText)) };
+}
+
+function recordColumn(c: RecordColumn, enumerationsAsText: boolean): PlanColumn {
+  if (c.enumeration === null) throw new Error(`the plan's column '${c.name}' is none the compiler typed`);
+  return enumerationsAsText && c.enumeration ? { name: c.name, type: 'String' } : { name: c.name, type: pureType(recordTypePath(c.type)) };
 }
 
 /** legend-engine's `RelationType` JSON (`lambdaRelationType`'s answer) as columns. */

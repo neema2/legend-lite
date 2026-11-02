@@ -102,17 +102,18 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     assert.deepEqual(await engine.exclusive((held) => held.rows('SELECT 1', [])), [[1]]);
   });
 
-  it('refuses by name what a host never plans, nothing run', async () => {
+  it('refuses by name a plan it does not read or a database it is not on, nothing run', async () => {
+    // what a host's runner runs is decided at planning (HostPlans.program, D6: core's HostPlansTest pins each refusal);
+    // the runner reads the plan's format and version, refuses a step it does not know, and runs on its own database only
     const plan = JSON.parse(planned(fn('write', src(), target()))) as Record<string, unknown>;
     const session: PlanSession = { databaseType: 'Postgres', run: async () => { throw new Error('ran'); }, transaction: async () => { throw new Error('ran'); } };
     await assert.rejects(() => runPlan(JSON.stringify(plan), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] }), session), /takes parameters/);
     await assert.rejects(() => runPlan('{"format":"other"}', session), /not a legend-lite execution plan/);
-    // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 20): refused, never run
     await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 20/);
-    const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
-    const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
-    await assert.rejects(() => runPlan(JSON.stringify(regioned), here), /per-key regions/);
+    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, root: { _type: 'keyed' } }), here), /root is a sequence or a typed result, not a keyed/);
+    const root = plan.root as { steps: Record<string, unknown>[] };
+    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, root: { ...root, steps: [{ _type: 'effect' }, ...root.steps] } }), here),
+      /an update, a check or a typed result, not a effect/);
   });
 });

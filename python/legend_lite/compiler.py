@@ -124,10 +124,24 @@ def read_planned(answer: str) -> Plan:
 
 
 def read_plan(answer: str) -> Plan:
-    """The planner's plan (``{"sql", "type"}``, the answer after its ``OK`` tag) as a Plan: the one reading of it, as
-    DataCube's planner reads it (lite-planner.ts ``readPlan``)."""
-    out = _json.loads(answer)
-    return Plan(out['sql'], _columns(out['type']))
+    """The planner's plan (the plan record, the answer after its ``OK`` tag: one typed result over a statement of
+    text, the one plan every host path runs, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2) as a Plan: its statement,
+    and its columns, each typed by the record's one rule (:func:`plain_type`) -- the one reading of it, as DataCube's
+    planner reads it (lite-planner.ts ``readPlan``). A plan of another format, version or shape is refused by name."""
+    root = _record_root(answer)
+    return Plan(root['sql']['statement'], tuple(Column(c['name'], plain_type(c['type']), c) for c in root['columns']))
+
+
+def plain_type(type_name: str) -> str:
+    """A plan record's column type as legend-engine's relation type names it, by the record's one rule
+    (``ExecutionPlan.Column.plainType``; engine-client's plan-record.ts ``plainType``): a precision decimal, which the
+    typer spells ``Decimal(p,s)``, is ``Decimal`` (its precision and scale are its SQL type's); any other type is its
+    own name."""
+    if type_name.startswith('Decimal(') and type_name.endswith(')'):
+        precision, comma, scale = type_name[len('Decimal('):-1].partition(',')
+        if comma and precision.isdigit() and scale.isdigit() and precision.isascii() and scale.isascii():
+            return 'Decimal'
+    return type_name
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:
@@ -252,7 +266,9 @@ def pure_v1(path: str, query: str, body: str) -> Answer:
 def execute_plan(body: str, models: list[str]) -> Answer:
     """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models``
     (the only models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and
-    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is."""
+    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is. The one
+    host path not yet on the plan record (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): it moves in one step onto the
+    core's Arrow writer, once that writer takes Arrow (R3) and the user has ruled its schema's changes (D7, R4)."""
     return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
 
 
@@ -271,18 +287,25 @@ PLAN_VERSION = 20
 
 
 def answer_statement(plan: str) -> str:
-    """The one statement a host's execute runs (``PureV1Api.jsonPlan``'s plan: one typed result over a statement of
-    text, anything else refused there, at planning): its text. A plan of another format, version or shape is refused by
-    name (``ValueError``), never run some other way."""
+    """The one statement a host runs for a query's rows (the plan record's one typed result: ``HostPlans.read``, and
+    ``PureV1Api.jsonPlan``'s, anything else refused there, at planning): its text. A plan of another format, version or
+    shape is refused by name (``ValueError``), never run some other way."""
+    return _record_root(plan)['sql']['statement']
+
+
+def _record_root(plan: str) -> dict[str, Any]:
+    """A plan record's one typed result over a statement of text, its format and version this host's; anything else
+    refused by name (``ValueError``)."""
     read = _json.loads(plan)
     if read.get('format') != 'legend-lite-plan' or read.get('version') != PLAN_VERSION:
         raise ValueError(f"not a legend-lite execution plan of version {PLAN_VERSION}: "
                          f"{_json.dumps({'format': read.get('format'), 'version': read.get('version')})}")
     root = read.get('root') or {}
     sql = root.get('sql') or {}
-    if root.get('_type') != 'tdsResult' or not isinstance(sql.get('statement'), str) or sql.get('slots'):
-        raise ValueError(f"an execute's plan is one typed result over a statement of text, not a {root.get('_type')}")
-    return sql['statement']
+    if root.get('_type') != 'tdsResult' or not isinstance(sql.get('statement'), str) or sql.get('slots') \
+            or not isinstance(root.get('columns'), list):
+        raise ValueError(f"a host's plan is one typed result over a statement of text, not a {root.get('_type')}")
+    return root
 
 
 def execute_json_answer(plan: str, rows: str) -> Answer:

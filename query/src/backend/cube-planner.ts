@@ -9,7 +9,7 @@
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { Planner } from '../../../datacube/src/embed.ts';
 import type { PrintStyle } from '../../../engine-client/src/pure-v1.ts';
-import { relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
+import { recordPlan, relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContext } from './wire.ts';
 
@@ -39,7 +39,8 @@ export class CubePlanner implements Planner {
     signal?.throwIfAborted();
     const planned = await this.#grammar.plan(this.#model, query, this.#runtime);
     signal?.throwIfAborted();
-    const plan: Plan = { sql: planned.sql, columns: this.#columns(planned.type) };
+    // the plan record (R2): its statement, its columns by the record's own facts, an enumeration's column a String
+    const plan: Plan = recordPlan(planned, true);
     this.#plans.set(key, plan);
     return plan;
   }
