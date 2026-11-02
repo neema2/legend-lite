@@ -707,6 +707,28 @@ constraint on the class makes it unusable for object-shaped reads.
 **Fifth in the execution-path family** (F10, F12, F13, F15, F16). The others were about
 the ANSWER differing; this one is about whether the mapping is legal at all.
 
+## F24 — A DateTime keeps its UTC offset through a TDS projection and loses it through a graph fetch
+
+Found 2026-08-14 by the generated graph-fetch trees (`scripts/corpus/graphs.py`, 788837524). One column of one row,
+through one mapping, serializes two ways: a projection answers `"2024-06-03T09:07:00.000000000+0000"`, a graph fetch
+`"2024-06-03T09:07:00.000000000"`. Of the sixty trees generated then, the ten that held a DateTime anywhere failed, and
+only those. Pinned by the `GG_` trees `scripts/corpus/quarantine.py` lists under F24; `quarantine.check_f24` holds that
+list to exactly the trees that project a DateTime, in both directions. Repro: `scripts/corpus/repro/timestamp-graphfetch/`
+(`repro::ts::Projected`, the control, passes; `repro::ts::Fetched` fails; confirmed at 4.145.0 on 2026-11-02, when the
+repro gained the two services its header had only described). Another of the execution-path family (F10, F12, F13,
+F15, F16). Its entry here was missing until 2026-11-02 (the PR #87 review, finding 4).
+
+## F29 — A graph fetch of exactly one row serializes `values` as an object, not a one-element array
+
+Found 2026-08-15 by the corpus without aiming at it (5dbb0f85d): a seed change left one generated graph-fetch service,
+`GG_PortfolioTree`, with a single row, and it began failing while its siblings passed. The query shape, the mapping
+and the serialization are the same: two rows give `values` an array, one row a bare object, so a consumer that reads
+`values` as a list breaks the day a filter narrows it to one. Repro: `scripts/corpus/repro/graphfetch-single-row/`
+(`demo::SingleRowTree` beside `demo::TwoRowTree`, which passes; confirmed at 4.145.0 on 2026-11-02). No service of
+the corpus pins it now:
+`GG_PortfolioTree` left on 2026-08-15 (7cb3a0cb9), and its quarantine entry stayed until 2026-11-02, when the PR #87
+review found it and this missing entry (finding 4).
+
 ---
 
 ## Non-findings, recorded so they are not re-investigated

@@ -117,6 +117,7 @@ test_suite(
         "//scripts/corpus:scoreboard_gate",
         "//scripts/corpus:functions_gate",
         "//scripts/corpus:changed_test",
+        "//scripts/corpus:quarantine_test",
         "//scripts/corpus:run_test",
         "//core:guardrails",
         "//core:census",

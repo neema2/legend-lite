@@ -5,12 +5,13 @@
 # Exec-2 and Test-11). A dispatch fires only once this file is on the default branch; it then runs on any branch:
 #   gh workflow run engine-verdict.yml --ref <branch> -f platform=linux
 #
-# WHY A MATRIX. //scripts/corpus:engine_stress (8 shards, each one JVM at -Xmx6g, tagged resources:memory:7168) took
-# about 90 minutes on a 20-core desk at four JVMs (about 6 JVM-hours for 6,055 testables, 2026-10-31). A public
+# WHY A MATRIX. //scripts/corpus:engine_stress (then 8 shards, each one JVM at -Xmx6g, tagged resources:memory:7168)
+# took about 90 minutes on a 20-core desk at four JVMs (about 6 JVM-hours for 6,055 testables, 2026-10-31). A public
 # repository's ubuntu-latest has 4 vCPUs, 16 GB and a 6-hour job limit: two JVMs at most, and one job would need 3 to
-# 4.5 hours, too near the limit. So each job runs one of engine_stress's eight slices (run.py --shard K/8, the same
-# every-eighth testables), and the merge job makes one verdict of the eight (scripts/corpus/verdicts.py). The merge
-# fails if a shard is missing or a testable was judged twice, so a lost job is never a smaller green verdict.
+# 4.5 hours, too near the limit. So each job runs one eighth of the testables (run.py --shard K/8, every eighth one:
+# engine_stress's shards K and K + 8 of its sixteen), and the merge job makes one verdict of the eight
+# (scripts/corpus/verdicts.py). The merge fails if a shard is missing or a testable was judged twice, so a lost job is
+# never a smaller green verdict.
 #
 # WHERE THE VERDICT IS READ. The merge job's annotations: the summary with a fingerprint of every testable's verdict
 # (`verdicts.py fingerprint <engine-verdicts.tsv>` gives a desk's run the same number, so two platforms agree exactly
@@ -54,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # engine_stress's shard_count (scripts/corpus/BUILD.bazel)
+        # half engine_stress's shard_count (scripts/corpus/BUILD.bazel), so slice K is its shards K and K + 8
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - name: line endings and long paths (a Windows checkout would corrupt the corpus)

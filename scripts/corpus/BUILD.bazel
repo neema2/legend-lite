@@ -406,10 +406,12 @@ py_binary(
     "probe_functions",
 ]]
 
-# 4,735 testables, every eighth to a shard, in batches of 200, one JVM at a time per shard. Measured 2026-10-21 on a
-# Windows desk with four JVMs at once: about 3 s a testable (graph fetch up to 17 s) and 40 s to parse and compile the
-# corpus, so a shard takes about half of the enormous test's hour. Each JVM holds the compiled corpus (-Xmx6g, about
-# 4 GB resident).
+# 6,057 testables (2026-11-02; 4,735 when this was first measured), every sixteenth to a shard, in batches of 200, one
+# JVM at a time per shard: about 380 a shard. Measured 2026-10-21 on a Windows desk with four JVMs at once: about 3 s a
+# testable (graph fetch up to 17 s) and 40 s to parse and compile the corpus, so a shard takes about a third of the
+# enormous test's hour. At eight shards the corpus's growth had brought one to about 757 testables, 45 to 50 minutes
+# (the PR #87 review's finding 5). Sixteen is twice engine-verdict.yml's eight, so its slice K is this test's shards K
+# and K + 8. Each JVM holds the compiled corpus (-Xmx6g, about 4 GB resident).
 py_test(
     name = "engine_stress",
     size = "enormous",
@@ -417,11 +419,25 @@ py_test(
     data = _ENGINE_DATA,
     env = _ENGINE_ENV,
     main = "engine_stress.py",
-    shard_count = 8,
+    shard_count = 16,
     tags = [
         "manual",
         "resources:memory:7168",
     ],
+    deps = [":run_lib"],
+)
+
+# every quarantine and hang entry names a testable of the corpus (quarantine.stale_keys; no engine is run)
+py_test(
+    name = "quarantine_test",
+    size = "small",
+    srcs = ["quarantine_test.py"],
+    data = [
+        "//core:src/test/resources/com/legend/integration/stress-layout.json",
+        "//core:stress_files",
+    ],
+    env = _GATE_ENV,
+    main = "quarantine_test.py",
     deps = [":run_lib"],
 )
 

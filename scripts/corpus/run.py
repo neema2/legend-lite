@@ -59,7 +59,7 @@ os.environ.setdefault("CORPUS_ROOT", str(Path(_RUNFILES.Rlocation(_LAYOUT)).pare
 import functest  # noqa: E402
 import model  # noqa: E402
 import verdicts as verdict_lines  # noqa: E402
-from quarantine import ENGINE_QUARANTINE, HANGS  # noqa: E402
+from quarantine import ENGINE_QUARANTINE, HANGS, stale_keys  # noqa: E402
 
 # Testables per JVM. Each JVM first parses and compiles the whole corpus (about 25 s), then runs its testables at about
 # 2 s each, so a batch amortises that over many.
@@ -279,6 +279,10 @@ def main() -> None:
     args = p.parse_args()
 
     names = testables()
+    # a quarantine entry naming no testable is never judged, so it can never be FIXED (quarantine.stale_keys)
+    stale = stale_keys(names)
+    if stale:
+        raise SystemExit("quarantine.py has entries for no testable; delete them:\n  " + "\n  ".join(stale))
     if args.only:
         wanted = [line.split("#")[0].strip() for line in _typed(args.only).read_text(encoding="utf-8").splitlines()]
         wanted = [w for w in wanted if w]

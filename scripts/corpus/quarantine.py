@@ -56,12 +56,11 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 # makes this narrow enough to pin rather than a general nullability complaint. See
 # scripts/corpus/probe_qualified_broken_chain.py for the four-case separation.
 #
-# Two services reach it, both generated: the dense stack over curve summaries and the
-# filtered variant of the same reach. Both project the same `tickerOn` through the same
-# to-one chain, so they are one defect seen twice rather than two.
-for _n in ("D_CurveSummaryDense", "SP_defCurveSummaryFilter"):
-    ENGINE_QUARANTINE[f"stress::{_n}"] = (
-        "F54", "a concatenating qualified property fabricates a value on a broken chain")
+# Two services reached it, both generated: the dense stack over curve summaries and the
+# filtered variant of the same reach (D_CurveSummaryDense, SP_defCurveSummaryFilter). Both left
+# the corpus on 2026-08-22 (666a9b089) and their entries stayed until 2026-11-02, when the PR #87
+# review found them (finding 4; stale_keys, below, now refuses one): no service pins F54 now, and
+# repro/qualified-property-broken-chain/ holds it.
 
 ENGINE_QUARANTINE["stress::LE2_ExemptionMatches"] = (
     "F6", "count() over an empty to-many returns 1, not 0")
@@ -348,11 +347,9 @@ for _svc in ("stress::SJ_Fee", "stress::SD_Fee"):
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
 # same mapping and the same serialization format, so the JSON TYPE of `values` depends on
 # the row count. Minimized in repro/graphfetch-single-row/, which puts the one-row and
-# two-row cases side by side; the two-row case PASSES there.
-ENGINE_QUARANTINE.update({
-    "stress::GG_PortfolioTree": ("F29", "one-row graph fetch yields an object, not a "
-                                        "one-element array"),
-})
+# two-row cases side by side; the two-row case PASSES there. Its service, GG_PortfolioTree, left
+# the corpus on 2026-08-15 (7cb3a0cb9) and its entry stayed until 2026-11-02 (the PR #87 review's
+# finding 4): no service pins F29 now, and the repro holds it.
 
 # F26 -- a CROSS-DATABASE join compiles and then cannot execute. The chain
 # HIER_INSTRUMENT (hier::HierDB) -> HIER_ISSUER (hier::IssuerDB) -> HIER_COUNTRY is accepted
@@ -424,6 +421,20 @@ LITE_QUARANTINE: dict[str, tuple[str, str]] = {
 
 # Kept for callers that predate the split; run.py is the legend-engine harness.
 QUARANTINE = ENGINE_QUARANTINE
+
+
+def stale_keys(testables) -> list[str]:
+    """The entries of ENGINE_QUARANTINE, HANGS and LITE_QUARANTINE that name no testable of the corpus.
+
+    A stale entry never reports: run.py judges only the corpus's testables, so it is neither KNOWN-FAIL nor FIXED, and
+    the finding it cites reads as pinned when nothing pins it. Three entries sat that way for ten weeks (F54's two and
+    F29's one, found by the PR #87 review, finding 4), so it is checked: run.py refuses to run over one, and
+    //scripts/corpus:quarantine_test fails on one."""
+    known = set(testables)
+    return [f"{where}: {name} ({entry[0]}) names no testable of the corpus"
+            for where, entries in (("ENGINE_QUARANTINE", ENGINE_QUARANTINE), ("HANGS", HANGS),
+                                   ("LITE_QUARANTINE", LITE_QUARANTINE))
+            for name, entry in sorted(entries.items()) if name not in known]
 
 # stress::F5_TraderChildCounts is deliberately NOT quarantined. It is the only fan-out
 # service whose data contains no childless entity, and it passes. Keeping it in the green
