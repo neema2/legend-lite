@@ -109,7 +109,11 @@ public final class BodyKinds {
                     frames.put(let.name(), true);
                     continue;
                 } else if (kind == LetPlanner.Kind.VALUE && kinds.isEmpty()
-                        && com.legend.planner.BodyPlanner.handleType(let.value(), ctx) != null) {
+                        && (com.legend.planner.BodyPlanner.handleType(let.value(), ctx) != null
+                        || BodyClass.bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
+                        && BodyClass.bindingConsumed(let, i, body, query.specs()))) {
+                    // a handle's let, or a let binding system elements the body never reads as a value (M10c item 7):
+                    // the program splices it, no read -- the class rules' own exclusion, so the tags name none
                     lets.add(let);
                     continue;
                 } else {

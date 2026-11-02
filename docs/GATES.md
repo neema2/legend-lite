@@ -16759,6 +16759,36 @@ measured on both corpora with the registers and a parity witness; the chain at M
    known gap ("view-backed relation: view slice pending") and the program carries the wall as its step after the
    guard's rows -- a decision outside a verdict row where the walk raised it at the assert's turn (M10b's registered
    mechanism for `testSubAggregationMultiLevelJoinString`); FAIL on both roads as before, outcome unchanged.
+21. **Item 7 -- the spurious system reads (the mixed-bodies design note's (A)):** the largest walked bucket measured body
+   by body (`docs/test-is-product-homework/MIXED_SYSTEM_USER_BODIES_DESIGN.md`): 136 of the 145 `assert,system-read`
+   bodies after M10b are graphFetch tests whose only "system read" is a store element named inside `testRuntime()`'s
+   `^Runtime(connectionStores = ^ConnectionStore(element = db, ...))` construction (or an inline Runtime literal),
+   consumed by `execute`'s orchestration argument, which the walk reads in source form at planning; one such body
+   (`graphFetch::tests::qualifier::testEnumParameter`) sends zero statements to the system session on both lanes
+   (`statement-origins ... system=0`, measured). The rule: `BodyClass.bindsSystemElementsOnly` -- a let before the last
+   statement whose value's reads of the system store are element references alone, through the user functions it calls
+   and the constructions it builds, and no other read (no system class's `all()`, no system table, no system function,
+   no navigation of an element's properties: `BodyClass.elementNavigation`, the independent audit's find -- `x::DB.schemas`
+   reads the element's row, and the side kinds name only the reference inside it, so the first draft would have let a
+   navigation consumed inside a frame's lambda pass as no read) -- generalizes M10b's direct-element rule
+   (`bindsASystemElement`); such a let, when consumed (`bindingConsumed`), is no system read at the three sites (the
+   routing, the frame program, the assert program), and the kinds census (`BodyKinds`) skips it as it skips a handle's
+   let, so the stayed table's tags name no spurious read (the audit's LOW-4). A real metamodel read beside a user read
+   keeps the body on the walk until M4 (the note's (B), proposed at M10d's start).
+22. **Movement (item 7):** DuckDB host pass `moved=2782 -> 2,904` (2471 / 108, unchanged), database `2752 -> 2,875` (2473 / 108,
+   unchanged); H2 host `2782 -> 2,904` (2289 / 295), database `2668 -> 2,781` (2233 / 353); 12 of 12 lane tests
+   green, no register changed. The census: `assert,system-read` 137 -> 24 on the DuckDB host pass (8 on H2), and
+   6 (5 on H2) once the kinds census skips the consumed let too (the audit's LOW-4 fold; the chain re-run on the folded
+   code: the same 2,904 / 2,875 and 2,904 / 2,781, 18 of 18 lane tests green, no register changed), the
+   `*-unplanned-assert,system-read` lines 44 -> 25 (host) / 44 -> 25 (database; 24 / 24 on H2); the effect and frame mixes
+   carrying a system read unchanged (38 + 30 + 25 + 8: M10d's, or the real mixed bodies of the note's (B)).
+23. **The checks (item 7):** the driver suite (`BodyRouterParityTest.consumedElementReferencePrograms`: the helper-built
+   Runtime, the inline literal, the mapping as a let too, in the corpus's `.values` shape (an assert program, the audit's
+   HIGH-1: the first draft's witnesses were all frame-shaped) and the frame shape (a frame program) -- not system-routed,
+   moved on both roads under both judges, zero system-origin statements; a body with no user read not system-routed either;
+   the element's navigation consumed inside the frame's lambda no class (the audit's MEDIUM-2); a real metamodel read
+   beside the frame stays on the walk), root, architecture, judge,
+   testplan, `//core:census` (no pin moved: `BodyClass` carries none); `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

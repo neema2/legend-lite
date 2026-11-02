@@ -187,7 +187,28 @@ The planners' refusals, by site:
    walk raised it at the assert's turn (M10b's registered mechanism); FAIL on both roads as before.
 6. **The tails.** The dual-golden route null (6: the rewrite to `assertEquals(upgraded, actual)` declines too -- measure
    which arm), the non-constant text sides (5), no callee (2): each measured and named; none moves without a witness.
-7. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
+7. **The spurious system reads (about 130 bodies per lane). BUILT 2026-11-02: DuckDB host pass moved 2,782 -> 2,904,
+   database 2,752 -> 2,875; H2 host 2,904, database 2,668 -> 2,781; outcomes identical on every pass, no register changed.** The mixed-bodies
+   design note (`MIXED_SYSTEM_USER_BODIES_DESIGN.md`, written at the user's ask) measured the largest walked bucket body
+   by body: 136 of the 145 `assert,system-read` bodies are graphFetch tests whose only "system read" is a store element
+   named inside `testRuntime()`'s `^Runtime(...)` construction (or an inline Runtime literal), consumed by `execute`'s
+   orchestration argument, which the walk reads in source form at planning -- one such body sends zero statements to the
+   system session on both lanes (measured). The rule (the note's (A)): `BodyClass.bindsSystemElementsOnly` -- a let
+   before the last statement whose value's reads of the system store are element references alone, through the user
+   functions it calls and the constructions it builds, and no other read (no system class's `all()`, no system table, no
+   system function, no navigation of an element's properties) -- generalizes M10b's direct-element rule; such a let, when
+   consumed (`bindingConsumed`), is no system read at the three sites (the routing, the assert program, the frame
+   program). A real metamodel read beside a user read keeps the body on the walk until M4 (the note's (B)). The witness
+   (`consumedElementReferencePrograms`): the helper-built Runtime, the inline literal, the mapping as a let too, in the
+   corpus's `.values` shape (an assert program) and the frame shape (a frame program) -- not system-routed, moved on both
+   roads under both judges, zero system statements; a body with no user read not system-routed either; the element's
+   navigation consumed inside a frame's lambda no class; a real metamodel read beside the frame stays. The independent
+   audit (COMMIT WITH FIXES, folded): the "no other read" half named only the side kinds, which name the REFERENCE inside
+   a navigation (`x::DB.schemas.tables.name`) and not the navigation -- a navigation consumed inside a frame's lambda
+   would have passed as no read (`BodyClass.elementNavigation` added, the witness above); the first draft's witnesses were
+   all frame-shaped while the 136 bodies are `.values`-shaped (the assert program's site: witnessed); the kinds census
+   tagged the consumed let the class rules exclude (`BodyKinds` skips it as a handle's let).
+8. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement

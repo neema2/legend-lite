@@ -27,6 +27,7 @@ import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRawSqlRelation;
 import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
@@ -191,7 +192,7 @@ public enum BodyClass {
             if (readsStore(statement, n -> userStoreRead(n, systemClasses, ctx), query.specs(), userMemo)) {
                 return false;
             }
-            if (bindsASystemElement(statement, i, body, systemClasses, ctx)) {
+            if (bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())) {
                 system |= !bindingConsumed((TypedLet) statement, i, body, query.specs());
                 continue;
             }
@@ -201,12 +202,35 @@ public enum BodyClass {
         return system;
     }
 
-    /** Whether {@code statement}, at {@code i} in {@code body}, is a let binding a system element as a value
-     *  ({@code let m = my::Mapping}: {@link #systemElementReference}), before the last statement. */
-    static boolean bindsASystemElement(TypedSpec statement, int i, List<TypedSpec> body, Set<String> systemClasses,
-            ModelContext ctx) {
-        return statement instanceof TypedLet let && i < body.size() - 1
-                && let.value() instanceof TypedPackageableRef ref && systemElementReference(ref, systemClasses, ctx);
+    /** Whether {@code statement}, at {@code i} in {@code body}, is a let before the last statement whose value's reads of
+     *  the system store are ELEMENT REFERENCES alone ({@link #systemElementReference}): the element itself
+     *  ({@code let m = my::Mapping}, M10b) or an element named inside a construction the value reaches through the
+     *  user functions it calls ({@code let runtime = testRuntime()}, whose body builds
+     *  {@code ^Runtime(connectionStores = ^ConnectionStore(element = db, ...))}; an inline {@code ^Runtime(...)}
+     *  literal likewise) -- and no other read of the store (no system class's {@code all()}, no system table, no
+     *  system function, no navigation of an element's properties). Such a binding, when {@link #bindingConsumed}, is
+     *  consumed at planning (an execute's orchestration argument is read in source form) and reads nothing on either
+     *  road (the test-is-the-product plan's M10c item 7; measured: a graphFetch body of this shape sends no statement
+     *  to the system session). */
+    static boolean bindsSystemElementsOnly(TypedSpec statement, int i, List<TypedSpec> body, Set<String> systemClasses,
+            ModelContext ctx, SpecCompiler specs) {
+        if (!(statement instanceof TypedLet let) || i >= body.size() - 1) {
+            return false;
+        }
+        Map<FunctionId, Boolean> refs = new HashMap<>();
+        Map<FunctionId, Boolean> others = new HashMap<>();
+        return readsStore(let.value(), n -> systemElementReference(n, systemClasses, ctx), specs, refs)
+                && !readsStore(let.value(), n -> elementNavigation(n, systemClasses)
+                        || sideKind(n, systemClasses, ctx) != null && !systemElementReference(n, systemClasses, ctx),
+                        specs, others);
+    }
+
+    /** A property read over a tracked system element ({@code x::DB.schemas}, {@code $db.schemas.tables.name} inside a
+     *  helper): a read of the element's row, which the walk routes to the system session -- never an element reference
+     *  alone (item 7's audit: the kinds name the reference inside such a navigation, not the navigation). */
+    static boolean elementNavigation(TypedSpec n, Set<String> systemClasses) {
+        return n instanceof TypedPropertyAccess pa && pa.source().info().type() instanceof Type.ClassType ct
+                && systemClasses.contains(ct.fqn());
     }
 
     /**
@@ -386,7 +410,7 @@ public enum BodyClass {
                 }
                 // a let binding a system element the body never reads as a value: a value let the program splices,
                 // no system read (M10b, as the assert program's rule)
-                boolean consumedBinding = bindsASystemElement(statement, i, body, systemClasses, ctx)
+                boolean consumedBinding = bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
                         && bindingConsumed(let, i, body, query.specs());
                 if (kind != LetPlanner.Kind.VALUE || !kinds.isEmpty()
                         || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
@@ -497,7 +521,7 @@ public enum BodyClass {
                     && !(statement instanceof TypedLet);
             // a let binding a system element the body never reads as a value (consumed by toSQLString, by
             // executionPlan): a value let the program splices, no system read (M10b; the same test routes the body)
-            boolean consumedBinding = bindsASystemElement(statement, i, body, systemClasses, ctx)
+            boolean consumedBinding = bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
                     && bindingConsumed((TypedLet) statement, i, body, query.specs());
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),

@@ -339,6 +339,11 @@ class BodyRouterParityTest {
                 function x::assertSame(expected: x::Key[1], actual: x::Key[1]): Boolean[1]
                 { let a = $actual; assertEquals($expected, $a); }
                 function x::firms(): meta::pure::tds::TabularDataSet[1] { x::Firm.all()->project([f|$f.name], ['name']) }
+                // the corpus's testRuntime(): a Runtime built in a helper, naming the store element (M10c item 7)
+                function x::testRuntime(): meta::core::runtime::Runtime[1]
+                { ^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore(element = x::DB,
+                    connection = ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                      type = meta::relational::runtime::DatabaseType.%s))) }
                 function x::aFirm(): x::Firm[1] { ^x::Firm(name='Cyl') }
                 function x::oneExec(): Integer[1] { meta::pure::router::execute(|x::Firm.all()->project([f|$f.name],
                     ['name']), x::M, x::RT.runtimeValue, [])->size() }
@@ -409,7 +414,7 @@ class BodyRouterParityTest {
                 ###Runtime
                 Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
                 Runtime x::RTSeeded { mappings: [x::M]; connections: [ x::DB: [ env: x::ConnSeeded ] ]; }
-                """.formatted(backend.type().name(), backend.type().name());
+                """.formatted(backend.type().name(), backend.type().name(), backend.type().name());
     }
 
     private static final List<String> FIRM_ROWS = List.of(
@@ -891,6 +896,70 @@ class BodyRouterParityTest {
                 walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(), mode);
                 assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
             }
+        }
+    }
+
+    /** M10c item 7: a let whose only reads of the system store are ELEMENT REFERENCES (the corpus's
+     *  {@code let runtime = testRuntime()}: a store named inside a Runtime construction the helper builds; an inline
+     *  literal; the mapping as a let too), consumed by the execute's orchestration argument, is no read: the body is
+     *  not system-routed, it moves (the corpus's {@code .values} shape an assert program, the frame shape a frame
+     *  program) and sends nothing to the system session on either road. A body with no user read is not system-routed
+     *  by such a let either. A NAVIGATION of the element bound ({@code x::DB.schemas.tables.name}: a read of its row)
+     *  is a system read even when the let is consumed inside the frame's lambda -- a system read beside a user read,
+     *  the walk's (two targets; the audit's find). */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void consumedElementReferencePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String query = "|x::Firm.all()->project([f|$f.name], ['name'])";
+        String inlineRuntime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType." + backend.type().name() + ")))";
+        // the corpus's shape: the result's values bound (an assert program's value let)
+        List<String> valueShapes = List.of(
+                "{| let runtime = x::testRuntime(); let result = meta::pure::router::execute(" + query + ", x::M,"
+                        + " $runtime, []).values; assertEquals(['Acme', 'Bolt'], $result.rows.values);}",
+                "{| let runtime = " + inlineRuntime + "; let result = meta::pure::router::execute(" + query + ", x::M,"
+                        + " $runtime, []).values; assertEquals(['Acme', 'Bolt'], $result.rows.values);}",
+                // the mapping as a let too, as the corpus spells it
+                "{| let mapping = x::M; let runtime = x::testRuntime(); let result = meta::pure::router::execute(" + query
+                        + ", $mapping, $runtime, []).values; assertEquals(2, $result.rows->size());}");
+        // the frame shape (a frame program)
+        List<String> frameShapes = List.of(
+                "{| let runtime = x::testRuntime(); let r = meta::pure::router::execute(" + query + ", x::M, $runtime,"
+                        + " []); assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}");
+        for (BodyClass expected : List.of(BodyClass.ASSERT_PROGRAM, BodyClass.FRAME_PROGRAM)) {
+            for (String body : expected == BodyClass.ASSERT_PROGRAM ? valueShapes : frameShapes) {
+                assertFalse(BodyClass.systemRouted(typed(ctx, body), "x::RT"), "no system read: " + body);
+                assertEquals(expected, BodyClass.of(typed(ctx, body), "x::RT", true), body);
+                for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST,
+                        ExecuteOptions.JudgeMode.DATABASE)) {
+                    Run walked = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+                    assertEquals("ok", walked.outcome, body);
+                    assertEquals(0, originsOf(walked.origins)[StatementOrigin.SYSTEM.ordinal()],
+                            "nothing sent to the system session: " + body);
+                }
+            }
+        }
+        // no user read at all: the element references alone read nothing, so the let routes the body nowhere
+        String none = "{| let runtime = x::testRuntime(); assertEquals(true, true);}";
+        assertFalse(BodyClass.systemRouted(typed(ctx, none), "x::RT"), "an element reference routes nothing: " + none);
+        // the element's navigation (a read of its row) consumed inside the frame's lambda: a system read beside the
+        // user read -- two targets, no class (BodyClass.elementNavigation)
+        String navigation = "{| let t = x::DB.schemas.tables.name; let r = meta::pure::router::execute(|x::Firm.all()"
+                + "->filter(f|$t->contains($f.name))->project([f|$f.name], ['name']), x::M, x::RT.runtimeValue, []);"
+                + " assertEquals([], $r.values.rows.values);}";
+        assertNull(BodyClass.of(typed(ctx, navigation), "x::RT", true), "a navigation is a read: " + navigation);
+        // a real metamodel read beside the frame: two sessions, the walk's
+        String mixed = "{| let r = meta::pure::router::execute(" + query + ", x::M, x::RT.runtimeValue, []);"
+                + " assertEquals(['FIRM', 'TFIRM'], x::DB.schemas.tables.name->sort());"
+                + " assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}";
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            Run walked = run(backend, ctx, "x::RT", mixed, false, "select count(*) from FIRM", FIRM_ROWS, mode);
+            Run routed = run(backend, ctx, "x::RT", mixed, true, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals(walked.moved, routed.moved, "the mixed body stays on the walk: " + mixed);
+            assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
+            assertEquals("ok", walked.outcome, mixed);
         }
     }
 
