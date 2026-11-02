@@ -34,15 +34,15 @@ final class JdbcDecodeCases {
 
     // (no written-precision fact: the decoders read none; it is the writers' -- CellText -- and ResultWritersTest's)
     static ExecutionPlan.Column col(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null, null, null);
     }
 
     static ExecutionPlan.Column opt(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1), slot, null, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1), slot, null, null, null);
     }
 
     static ExecutionPlan.Column many(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, null), slot, null, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, null), slot, null, null, null);
     }
 
     static List<List<Object>> rows(Connection c, com.legend.model.ConnectionDefinition.DatabaseType type, String sql,

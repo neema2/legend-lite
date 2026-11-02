@@ -33,6 +33,14 @@ public final class PlanColumns {
         };
     }
 
+    /** A column's declared type in the plan's terms ({@link ExecutionPlan.Declared}): its path as legend-engine's
+     *  relation type names it ({@link UpstreamRelationType#typePath}, the one spelling of it), and whether it is an
+     *  enumeration. */
+    public static ExecutionPlan.Declared declared(com.legend.compiler.element.type.Type t) {
+        return new ExecutionPlan.Declared(UpstreamRelationType.typePath(t),
+                t instanceof com.legend.compiler.element.type.Type.EnumType);
+    }
+
     /** A column's multiplicity in the plan's terms (a column's is always bounded). */
     public static ExecutionPlan.Multiplicity multiplicity(Multiplicity m) {
         Multiplicity.Bounded b = m.requireBounded("a result column's multiplicity");
@@ -44,7 +52,8 @@ public final class PlanColumns {
     public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()
-                .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity())))
+                .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity()),
+                        declared(c.type())))
                 .toList(), lowered, shape);
     }
 }

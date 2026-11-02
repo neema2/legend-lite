@@ -38,12 +38,12 @@ class ResultWritersTest {
 
     /** A column with no temporal of its own (its written-precision fact null, said). */
     private static Column col(String name, String type, String slot) {
-        return new Column(name, type, ONE, slot, null, null);
+        return new Column(name, type, ONE, slot, null, null, null);
     }
 
     /** A temporal column with its written-precision fact, as ColumnFacts.precision sets it for that type and slot. */
     private static Column col(String name, String type, String slot, ExecutionPlan.Precision precision) {
-        return new Column(name, type, ONE, slot, null, precision);
+        return new Column(name, type, ONE, slot, null, precision, null);
     }
 
     private static String write(ResultSink sink, StringWriter out, List<Column> columns, List<List<?>> rows)

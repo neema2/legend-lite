@@ -486,7 +486,7 @@ public final class TestDataGenerator {
             String slot = com.legend.executionplan.ColumnFacts.slot(r.type() == null
                     ? com.legend.sql.SqlType.Scalar.VARCHAR : r.type());
             columns.add(new ExecutionPlan.Column(r.name(), com.legend.exec.WireTypes.pureTypeNameOf(slot),
-                    new ExecutionPlan.Multiplicity(0, 1), slot, null, null));
+                    new ExecutionPlan.Multiplicity(0, 1), slot, null, null, null));
             if (colsOut != null) {
                 colsOut.add(r.name());
             }
@@ -1024,7 +1024,7 @@ public final class TestDataGenerator {
             // the lines as one text column's values (a VALUE plan of one VARCHAR column)
             for (List<Object> row : rows(st, new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                     List.of(new ExecutionPlan.Column("_csv_line", "String", new ExecutionPlan.Multiplicity(0, 1),
-                            "VARCHAR", null, null)), st.sql(st.render(lines))))) {
+                            "VARCHAR", null, null, null)), st.sql(st.render(lines))))) {
                 out.append(row.get(0)).append('\n');
             }
         }

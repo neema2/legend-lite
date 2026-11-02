@@ -84,9 +84,9 @@ class PostgresArmTest {
             statements.rows("SELECT inet_server_port() AS port, 41 + 1 AS answer", java.util.List.of(),
                     java.util.List.of(), java.util.List.of(
                             new com.legend.executionplan.ExecutionPlan.Column("port", "Integer",
-                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null),
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null, null),
                             new com.legend.executionplan.ExecutionPlan.Column("answer", "Integer",
-                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null)),
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null, null)),
                     rows::add);
             assertEquals(1, rows.size());
             assertEquals(java.util.List.of(String.valueOf(com.legend.testing.EmbeddedPostgres.shared().port()), "42"),

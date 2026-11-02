@@ -64,7 +64,14 @@ public final class UpstreamRelationType {
      * names the enumeration.
      */
     public static String tdsTypePath(Type t) {
-        return t instanceof Type.EnumType ? "String" : typePath(t);
+        return tdsTypePath(typePath(t), t instanceof Type.EnumType);
+    }
+
+    /** {@link #tdsTypePath(Type)} from a column's declared type as a plan states it ({@code ExecutionPlan.Declared}:
+     *  its {@link #typePath}, and whether it is an enumeration), so a writer that reads the plan alone names it
+     *  exactly as one that reads the compiler's type does (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2). */
+    public static String tdsTypePath(String path, boolean enumeration) {
+        return enumeration ? "String" : path;
     }
 
     /** A column type's name as a client reads it: its path, a decimal as {@code Decimal}. */
@@ -81,13 +88,19 @@ public final class UpstreamRelationType {
      * other type is refused, as the engine refuses it.
      */
     public static String relationalSpelling(Type t) {
-        if (t instanceof Type.EnumType) {
+        return relationalSpelling(typePath(t), t instanceof Type.EnumType);
+    }
+
+    /** {@link #relationalSpelling(Type)} from a column's declared type as a plan states it (its {@link #typePath}, and
+     *  whether it is an enumeration): the one spelling, read from the compiler's type or from the plan's fact. */
+    public static String relationalSpelling(String path, boolean enumeration) {
+        if (enumeration) {
             // an enumeration column is its store column's string (measured, 4.145.0, 2026-09-30:
             // VARCHAR(n) of the physical column); lite has no physical provenance, so it spells
             // the plain String's VARCHAR(1024), as it does every computed string (recorded)
             return "VARCHAR(1024)";
         }
-        return switch (typePath(t)) {
+        return switch (path) {
             case "Integer" -> "INTEGER";
             case "Float", "Decimal", "Number" -> "FLOAT";
             case "String" -> "VARCHAR(1024)";
@@ -100,7 +113,7 @@ public final class UpstreamRelationType {
             // the engine spells no other (measured, 4.145.0, 2026-10-28: it refuses a StrictTime, a list and a
             // VARBINARY column before it executes), so neither does lite
             default -> throw new com.legend.error.NotImplementedException(
-                    "plan: legend-engine has no relational spelling of " + typePath(t)
+                    "plan: legend-engine has no relational spelling of " + path
                             + " (it refuses such a column before it executes)");
         };
     }

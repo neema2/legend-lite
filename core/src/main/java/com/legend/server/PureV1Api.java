@@ -497,46 +497,29 @@ public final class PureV1Api {
     }
 
     /**
-     * Execute's answer in upstream's Arrow format for a host that ran {@link #jsonPlan}'s {@code run} statement
-     * itself (track A, 2026-10-29; the twin of {@link #jsonAnswer}): the plan half's answer and the host's rows (a
-     * JSON array of objects, each a column's name and its cell as the host's driver read it), decoded by the plan's
-     * columns and written by lite's Arrow writer under the plan's envelope, as one zstd frame. A graph fetch's plan
-     * is refused: ARROW_IPC answers relations.
+     * Execute's answer in upstream's Arrow format for a host that ran {@link #jsonPlan}'s plan's statement itself
+     * (track A, 2026-10-29; the twin of {@link #jsonAnswer}): that plan (the plan record, its one typed result) and
+     * the host's rows (a JSON array of objects, each a column's name and its cell as the host's driver read it),
+     * decoded by the plan's columns and written by lite's Arrow writer under the envelope the plan's own facts make
+     * ({@link #planEnvelope}), as one zstd frame. A graph fetch's plan is refused: ARROW_IPC answers relations.
      */
     public static Answer arrowAnswer(String plan, String rows) {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         Answer run = answer(500, "COMPILATION", () -> {
-            Json.Obj planned;
-            try {
-                planned = Json.parseObject(plan);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
-                        + "); it begins: " + head(plan), e);
-            }
-            if (!(planned.has("shape") && planned.get("shape") instanceof Json.Str shape
-                    && planned.has("resultColumns") && planned.get("resultColumns") instanceof Json.Arr resultColumns
-                    && planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
-                throw new IllegalArgumentException("the plan answers no shape, result columns or builder: it is not "
-                        + "jsonPlan's");
-            }
-            if (!shape.value().equals("RELATION")) {
+            com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
+            if (result.shape() != com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch is answered in JSON");
             }
-            if (!(planned.has("columns") && planned.get("columns") instanceof Json.Arr names
-                    && planned.has("activities") && planned.get("activities") instanceof Json.Arr activities
-                    && planned.has("sql") && planned.get("sql") instanceof Json.Str sql)) {
-                throw new IllegalArgumentException("the plan answers no columns, activities or sql: it is not jsonPlan's");
-            }
-            List<com.legend.executionplan.ExecutionPlan.Column> columns =
-                    com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
+            String sql = result.sql().statement();
+            com.legend.result.PureV1Writer.Envelope e = planEnvelope(sql, result.columns());
             Map<String, String> metadata = new LinkedHashMap<>();
-            metadata.put("legend.builder", Json.toCompact(builder));
-            metadata.put("legend.activities", Json.toCompact(List.of(activity(sql.value(), false))));
-            metadata.put("legend.columns", Json.toCompact(names));
+            metadata.put("legend.builder", e.builder());
+            metadata.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
+            metadata.put("legend.columns", Json.toCompact(e.names()));
             try {
-                com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
-            } catch (java.io.IOException e) {
-                throw new java.io.UncheckedIOException(e);
+                com.legend.result.HostRows.stream(rows, result.columns(), new com.legend.result.ArrowWriter(out, metadata));
+            } catch (java.io.IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
             }
             return "";
         });
@@ -545,6 +528,27 @@ public final class PureV1Api {
         }
         return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
                 Map.of("x-legend-response-format", "FormatNotSet"));
+    }
+
+    /** The one typed result a host's plan answers with ({@link #jsonPlan}'s plan record, handed back): read by the plan
+     *  record's own reader (its format and version), its root that one result, its statement binding no values; any
+     *  other plan is refused by name, its head shown. */
+    private static com.legend.executionplan.ExecutionPlan.TdsResult hostResult(String plan) {
+        com.legend.executionplan.ExecutionPlan read;
+        try {
+            read = com.legend.executionplan.PlanJson.read(plan);
+        } catch (IllegalArgumentException e) {
+            // the refusal names what it was reading and shows its head: a host's answer text that does not parse
+            // is otherwise a line and a column with no text to look at (2026-10-26, the arm and Windows lanes)
+            throw new IllegalArgumentException("the plan half's answer does not read as a plan (" + e.getMessage()
+                    + "); it begins: " + head(plan), e);
+        }
+        if (!(read.root() instanceof com.legend.executionplan.ExecutionPlan.TdsResult result)
+                || !result.sql().slots().isEmpty()) {
+            throw new IllegalArgumentException("the plan is not one typed result over a statement of text: it is not "
+                    + "jsonPlan's; it begins: " + head(plan));
+        }
+        return result;
     }
 
     /**
@@ -583,7 +587,7 @@ public final class PureV1Api {
     /** A relation's envelope for the columns the run announced: each column's builder entry by the type the compiler
      *  gave it (a column only the data names -- a dynamic pivot's -- by its plan type, a primitive), the relational
      *  activity carrying {@code sql}, and the columns' names as the engine labels them. */
-    private static com.legend.result.PureV1Writer.Envelope envelope(com.legend.compiler.element.type.ExprType rootType,
+    static com.legend.result.PureV1Writer.Envelope envelope(com.legend.compiler.element.type.ExprType rootType,
             String sql, List<com.legend.executionplan.ExecutionPlan.Column> columns) {
         Map<String, com.legend.compiler.element.type.Type> declared = new LinkedHashMap<>();
         for (var c : UpstreamRelationType.columns(rootType)) {
@@ -612,6 +616,39 @@ public final class PureV1Api {
                         + declared.keySet());
             }
             builderColumns.add(builderColumn(name, t));
+            names.add(name);
+        }
+        Map<String, Object> builder = new LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", builderColumns);
+        return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder),
+                Json.toCompact(List.of(activity(sql, true))), names);
+    }
+
+    /**
+     * A relation's envelope from the plan alone (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2: a host's writer reads
+     * the plan, never the compiler): each column's builder entry by the declared type the plan states for it
+     * ({@link com.legend.executionplan.ExecutionPlan.Declared}, made at planning from the compiler's type
+     * {@link #envelope} reads, its spellings the same functions'), the relational activity carrying {@code sql}, and
+     * the columns' names as the engine labels them. A column the plan states no declared type for is none the
+     * compiler typed, and is refused by name.
+     */
+    static com.legend.result.PureV1Writer.Envelope planEnvelope(String sql,
+            List<com.legend.executionplan.ExecutionPlan.Column> columns) {
+        List<Map<String, Object>> builderColumns = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (var c : columns) {
+            String name = com.legend.result.CellText.presentedName(c.name());
+            com.legend.executionplan.ExecutionPlan.Declared d = c.declared();
+            if (d == null) {
+                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: the plan states"
+                        + " no declared type for it");
+            }
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("name", name);
+            col.put("type", UpstreamRelationType.tdsTypePath(d.path(), d.enumeration()));
+            col.put("relationalType", UpstreamRelationType.relationalSpelling(d.path(), d.enumeration()));
+            builderColumns.add(col);
             names.add(name);
         }
         Map<String, Object> builder = new LinkedHashMap<>();
@@ -654,16 +691,16 @@ public final class PureV1Api {
     }
 
     /**
-     * E8's plan half for a host that runs the SQL itself and answers in the engine's JSON (the tab: its DuckDB;
-     * Python's engine; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the {@code ExecuteInput} read, bound and planned
-     * as {@link #execute} plans it -- as typed rows -- and answered with what {@link #jsonAnswer} needs to write the
-     * answer the server writes from the host's rows: {@code run}, the one statement to run (also {@code sql}); the
-     * answer's {@code shape} ({@code RELATION}, or {@code OBJECTS} for a graph fetch); {@code resultColumns}, the
-     * statement's result columns with their type facts, by which the rows decode; and a relation's envelope (the TDS
-     * builder, the activities and the columns' names as the JSON answer writes them), or a graph fetch's builder
-     * {@code {"_type": "json"}}. {@code models} are the only models the host runs, as {@link #arrowPlan}'s. A plan
-     * the host cannot run as one statement of text -- a pivot whose columns the data names (its keys are read first),
-     * a program that writes, a statement that binds values -- is refused by name: legend-lite's server runs it.
+     * E8's plan for a host that runs the SQL itself and answers in the engine's JSON (the tab: its DuckDB; Python's
+     * engine; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the {@code ExecuteInput} read, bound and planned as
+     * {@link #execute} plans it -- as typed rows -- and answered with the plan record itself (PlanJson's text: since
+     * 2026-11-02 the one plan every host path runs, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): its one typed
+     * result, whose statement the host runs and whose columns' facts decode the rows and make the answer's envelope
+     * ({@link #jsonAnswer}). {@code models} are the only models the host runs, as {@link #arrowPlan}'s. What the host
+     * cannot run is refused here, at planning, by name -- a plan that is not one statement of text (a pivot whose
+     * columns the data names, its keys read first; a program that writes), a statement that binds values -- and so is
+     * a relation column legend-engine's builder has no entry for, before any statement runs: legend-lite's server runs
+     * the plans a host does not.
      */
     public static Answer jsonPlan(String body, java.util.Collection<String> models) {
         return answer(500, "COMPILATION", () -> {
@@ -683,78 +720,38 @@ public final class PureV1Api {
                 throw new com.legend.error.NotImplementedException("a host runs a statement's text, and this one binds "
                         + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
             }
-            String statement = result.sql().statement();
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("sql", statement);
-            out.put("run", statement);
-            out.put("shape", result.shape().name());
-            out.put("resultColumns", Json.parse(com.legend.executionplan.PlanJson.writeColumns(result.columns())));
-            if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
-                out.put("builder", Map.of("_type", "json"));
-            } else {
-                com.legend.result.PureV1Writer.Envelope e = envelope(hosted.query().resultType(), statement,
-                        result.columns());
-                out.put("builder", Json.parse(e.builder()));
-                out.put("activities", Json.parse(e.activities()));
-                out.put("columns", e.names());
+            if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION) {
+                // the envelope made now, as the answer will make it: a column with no builder entry refuses at planning
+                planEnvelope(result.sql().statement(), result.columns());
             }
-            return Json.toCompact(out);
+            return com.legend.executionplan.PlanJson.write(plan);
         });
     }
 
     /**
-     * E8's answer for a host that ran {@link #jsonPlan}'s {@code run} statement on its own database: {@code plan} that
-     * plan's answer, {@code rows} the host's rows (a JSON array of objects, each a result column's name and its cell
-     * as the host's driver read it: {@link com.legend.result.HostRows}) -- decoded by the plan's result columns and
-     * written by the writer {@link #execute} answers with, so the host's answer is the server's text. The database
-     * computed every value; the writer spells them.
+     * E8's answer for a host that ran {@link #jsonPlan}'s plan's statement on its own database: {@code plan} that plan
+     * (the plan record), {@code rows} the host's rows (a JSON array of objects, each a result column's name and its
+     * cell as the host's driver read it: {@link com.legend.result.HostRows}) -- decoded by the plan's columns and
+     * written by the writer {@link #execute} answers with, under the envelope the plan's own facts make
+     * ({@link #planEnvelope}), so the host's answer is the server's text. The database computed every value; the
+     * writer spells them.
      */
     public static Answer jsonAnswer(String plan, String rows) {
         return answer(500, "COMPILATION", () -> {
-            // jsonPlan's own answer, handed back: read by kind, never cast (the tab's WebAssembly has no ClassCastException)
-            Json.Obj planned;
-            try {
-                planned = Json.parseObject(plan);
-            } catch (IllegalArgumentException e) {
-                // the refusal names what it was reading and shows its head: a host's answer text that does not parse
-                // is otherwise a line and a column with no text to look at (2026-10-26, the arm and Windows lanes)
-                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
-                        + "); it begins: " + head(plan), e);
-            }
-            if (!(planned.has("shape") && planned.get("shape") instanceof Json.Str shape
-                    && planned.has("resultColumns") && planned.get("resultColumns") instanceof Json.Arr resultColumns
-                    && planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
-                throw new IllegalArgumentException("the plan answers no shape, result columns or builder: it is not "
-                        + "jsonPlan's");
-            }
-            List<com.legend.executionplan.ExecutionPlan.Column> columns =
-                    com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
+            com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
             java.io.StringWriter out = new java.io.StringWriter();
-            com.legend.result.ResultSink sink;
-            switch (shape.value()) {
-                case "OBJECTS" -> sink = com.legend.result.PureV1Writer.objects(out);
-                case "RELATION" -> {
-                    if (!(planned.has("columns") && planned.get("columns") instanceof Json.Arr names
-                            && planned.has("activities") && planned.get("activities") instanceof Json.Arr activities)) {
-                        throw new IllegalArgumentException("the plan answers no columns or activities: it is not "
-                                + "jsonPlan's");
-                    }
-                    List<String> labels = new ArrayList<>();
-                    for (Json.Node n : names.items()) {
-                        if (!(n instanceof Json.Str name)) {
-                            throw new IllegalArgumentException("the plan's columns are not names: it is not jsonPlan's");
-                        }
-                        labels.add(name.value());
-                    }
-                    com.legend.result.PureV1Writer.Envelope envelope = new com.legend.result.PureV1Writer.Envelope(
-                            Json.toCompact(builder), Json.toCompact(activities), labels);
-                    sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope);
+            com.legend.result.ResultSink sink = switch (result.shape()) {
+                case OBJECTS -> com.legend.result.PureV1Writer.objects(out);
+                case RELATION -> {
+                    com.legend.result.PureV1Writer.Envelope envelope =
+                            planEnvelope(result.sql().statement(), result.columns());
+                    yield com.legend.result.PureV1Writer.relation(out, announced -> envelope);
                 }
-                default -> throw new IllegalArgumentException("the plan's shape '" + shape.value()
-                        + "' is none jsonPlan answers");
-            }
+                case VALUE -> throw new IllegalArgumentException("the plan answers a value, which jsonPlan refuses: it "
+                        + "is not jsonPlan's");
+            };
             try {
-                com.legend.result.HostRows.stream(rows, columns, sink);
+                com.legend.result.HostRows.stream(rows, result.columns(), sink);
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }

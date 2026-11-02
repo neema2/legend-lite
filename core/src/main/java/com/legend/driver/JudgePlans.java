@@ -222,7 +222,7 @@ final class JudgePlans {
 
     private static com.legend.executionplan.ExecutionPlan.Column hostColumn(String name, String type,
             com.legend.executionplan.ExecutionPlan.Multiplicity multiplicity) {
-        return new com.legend.executionplan.ExecutionPlan.Column(name, type, multiplicity, null, null, null);
+        return new com.legend.executionplan.ExecutionPlan.Column(name, type, multiplicity, null, null, null, null);
     }
 
     /** A row of one cell, which may be null (a list holding a null, which {@code List.of} refuses). */
@@ -418,7 +418,7 @@ final class JudgePlans {
         }
         ExecutionPlan.TdsResult node = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
-                        com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
+                        com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null, null)),
                 PlanMaker.sql(plan, env.dialect(), target(env)));
         PlanRunner.Rows rows = run(node, PlanSessions.of(w.session(), env.trace()));
         if (rows.rows().size() != 1) {

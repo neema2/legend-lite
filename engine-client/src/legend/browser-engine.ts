@@ -13,6 +13,7 @@
 
 import { findAll, isFunction, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../engine.ts';
+import { answerStatement } from '../plan-record.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
@@ -61,10 +62,10 @@ export class BrowserEngine implements Engine {
 
   /** `execute`'s answer as its text: planned, run on the engine, and written by the server's own writer. */
   async executeText(input: ExecuteInput, signal?: AbortSignal): Promise<string> {
-    const { plan, text } = await this.#planner.executePlan(input);
+    const plan = await this.#planner.executePlan(input);
     // the plan's one statement, its rows handed back as the engine's decoder read them
-    const raw = await this.#engine.run(plan.run, 0, signal);
-    return this.#planner.executeAnswer(text, hostRows(raw));
+    const raw = await this.#engine.run(answerStatement(plan), 0, signal);
+    return this.#planner.executeAnswer(plan, hostRows(raw));
   }
 
   /** `compilation/compile` in the tab, answered by the planner as the server answers it: OK, or its first failure. */

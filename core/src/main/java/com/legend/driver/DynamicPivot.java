@@ -95,7 +95,7 @@ public final class DynamicPivot {
         String slot = com.legend.executionplan.ColumnFacts.slot(keyType);
         com.legend.executionplan.ExecutionPlan.Column column = new com.legend.executionplan.ExecutionPlan.Column(
                 "v", WireTypes.pureTypeNameOf(slot), new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1),
-                slot, null, null);
+                slot, null, null, null);
         List<SqlExpr> in = new ArrayList<>();
         StatementOrigin.count(StatementOrigin.PROBE);
         for (List<Object> row : reader.rows(q, List.of(column))) {

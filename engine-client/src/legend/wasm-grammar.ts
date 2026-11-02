@@ -107,23 +107,6 @@ function httpAnswer(folded: string): { status: number; type: string; body: strin
   return { status: Number(answer.slice(0, first)), type: answer.slice(first + 1, second), body: answer.slice(second + 1) };
 }
 
-/**
- * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): `run`, the
- * typed statement the tab runs -- a relation's rows, or a graph fetch's objects, one per row -- its answer's shape and
- * result columns, and the answer's every part but its rows (its text, for the planner's executeAnswer).
- */
-export interface ExecutePlan {
-  /** The plan's statement: what the answer's activity reports. */
-  readonly sql: string;
-  /** What the host runs: the same statement, its rows handed back to executeAnswer. */
-  readonly run: string;
-  /** A relation's rows, or a graph fetch's objects. */
-  readonly shape: 'RELATION' | 'OBJECTS';
-  /** The statement's result columns with their type facts, by which the planner reads the rows back. */
-  readonly resultColumns: readonly unknown[];
-  readonly builder: { readonly _type: string };
-}
-
 export class WasmGrammar implements Grammar {
   readonly #port: PlannerPort;
   /** pure/v1 in the tab: the server's client over the planner. */
@@ -170,22 +153,22 @@ export class WasmGrammar implements Grammar {
   }
 
   /**
-   * Execute's plan half (ExecutePlan) and its text, asked of the planner over `input`'s own model. A refusal -- a
-   * parameter with no value, a query that does not compile -- is the engine's, in its words and status, as a server's
-   * execute refuses it (500, its errorType COMPILATION).
+   * Execute's plan (PureV1Api.jsonPlan: the plan record, PlanJson's text, its one typed result the statement the tab
+   * runs; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2), asked of the planner over `input`'s own model. A refusal -- a
+   * parameter with no value, a query that does not compile, a plan the tab cannot run -- is the engine's, in its words
+   * and status, as a server's execute refuses it (500, its errorType COMPILATION).
    */
-  async executePlan(input: ExecuteInput): Promise<{ readonly plan: ExecutePlan; readonly text: string }> {
+  async executePlan(input: ExecuteInput): Promise<string> {
     // the tab runs the model it is handed (its data the page's): that one, the planner's check then always met; a
     // model not given as text is the planner's to refuse, in the server's words
     const model = input.model as { readonly _type?: string; readonly code?: string };
     const models = model._type === 'text' && typeof model.code === 'string' ? [model.code] : [];
-    const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
-    return { plan: JSON.parse(text) as ExecutePlan, text };
+    return answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
   }
 
   /**
-   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the rows the tab's database answered its
-   * `run` statement with (browser-engine's hostRows), decoded by the plan's columns and written by the writer
+   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's plan record) and the rows the tab's database answered
+   * its statement with (browser-engine's hostRows), decoded by the plan's columns and written by the writer
    * legend-lite's server answers with -- its text, the server's.
    */
   async executeAnswer(plan: string, rows: string): Promise<string> {

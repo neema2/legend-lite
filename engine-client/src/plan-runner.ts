@@ -15,6 +15,7 @@
 // PURE: no DOM, no planner; a host gives its session.
 
 import type { HostOperationsSource } from './host-operations.ts';
+import { PlanRefusal, readPlanRecord } from './plan-record.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -33,12 +34,9 @@ export interface PlanSession {
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
 interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown }
 
-/** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
- *  (the result boundary program: a plan's answer is a `tdsResult` of typed columns, never a text result of a format;
- *  the written-precision fact on a column since S1.4) -- `update`, `check` and `sequence` as version 5 wrote them; a
- *  statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are no write's. */
-// 19 since 2026-10-29: the LITERAL slot word retired (track L's L2; core's PlanJson.VERSION is the one owner)
-const PLAN_VERSION = 19;
+// The execution plan's format this runner reads is plan-record.ts's (PLAN_VERSION, core's PlanJson.VERSION its one owner):
+// `update`, `check` and `sequence` as version 5 wrote them; a statement's per-key regions and a key's cell (a dynamic
+// pivot's probe plan) are no write's.
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -64,9 +62,7 @@ export async function hostSession(databaseType: string, run: PlanSession['run'],
 }
 
 /** A plan's refusal, in words: nothing of it ran. */
-export class PlanRefusal extends Error {
-  override readonly name = 'PlanRefusal';
-}
+export { PlanRefusal };
 
 /**
  * A plan run on `session` (`plan`: PlanJson's text): its answer as lite's JSON rows, written here from the typed rows
@@ -76,10 +72,7 @@ export class PlanRefusal extends Error {
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
-  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step };
-  if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
-    throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
-  }
+  const read = readPlanRecord(plan) as { parameters?: unknown; root?: Step };
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');

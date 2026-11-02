@@ -293,9 +293,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
      *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
      *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
-     *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
+     *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. A fifth,
+     *  {@code declared} (2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): the compiler's declared type of a
+     *  column the compiler typed ({@link Declared}), what a host reads a column's type by and what legend-engine's
+     *  answer names it by -- null for a column no compiler typed (a key's, a nested value's, a probe's, a judge's), and
+     *  refused by name where a reader needs it. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
-            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision) {
+            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision,
+            @com.legend.base.Nullable Declared declared) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -308,6 +313,25 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          *  tree itself. */
         public static String taggedSlotColumn(String column, int i) {
             return com.legend.sql.SqlType.Tagged.slotColumn(column, i);
+        }
+
+        /** This column's facts under another name (a keyed result's per-key column, a column read under the name its
+         *  statement writes it). */
+        public Column named(String other) {
+            return new Column(other, type, multiplicity, slot, store, precision, declared);
+        }
+    }
+
+    /**
+     * The compiler's declared type of a column it typed (2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2: the
+     * plan carries every fact a reader of its answer needs, so a host and a writer read the plan alone): {@code path},
+     * the type's path as legend-engine's relation type names it ({@code genericType.rawType.fullPath}: a primitive's
+     * name, a precision decimal's {@code Decimal}, an enumeration's path, a variant's path); and {@code enumeration},
+     * whether the type is a Pure enumeration (a relation's other non-primitive, a variant, is not one).
+     */
+    public record Declared(String path, boolean enumeration) {
+        public Declared {
+            Objects.requireNonNull(path, "path");
         }
     }
 

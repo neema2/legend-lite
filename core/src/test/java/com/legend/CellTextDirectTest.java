@@ -35,12 +35,12 @@ class CellTextDirectTest {
     private static List<ExecutionPlan.Column> columns() {
         List<ExecutionPlan.Column> out = new ArrayList<>();
         for (String type : TYPES) {
-            out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, 1), null, null, null));
+            out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, 1), null, null, null, null));
             for (ExecutionPlan.Precision p : ExecutionPlan.Precision.values()) {
-                out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, 1), null, null, p));
+                out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, 1), null, null, p, null));
             }
             // a slot (named in a refusal's words) and a to-many column (the tier-1 audit's nit N1, 2026-11-01)
-            out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, null), "VARCHAR", null, null));
+            out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, null), "VARCHAR", null, null, null));
         }
         return out;
     }

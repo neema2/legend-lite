@@ -513,11 +513,12 @@ class PureV1ApiTest {
 
     /**
      * E8 for a host that runs the SQL on its own database ({@code jsonPlan} then {@code jsonAnswer}, the tab's:
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1; typed rows since 2026-10-27, the result boundary program's phase 3):
-     * the plan's {@code run} is the typed statement the server runs, and the host's rows, handed back as it read them,
-     * are decoded by the plan's result columns and written by the server's own writer: the server's answer text, byte
-     * for byte (the trace id each answer's own). A graph fetch's plan runs its own statement, which the Arrow half
-     * refuses.
+     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1; typed rows since 2026-10-27, the result boundary program's phase 3;
+     * the plan record since 2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): the plan's one typed result is
+     * the statement the server runs, and the host's rows, handed back as it read them, are decoded by the plan's
+     * columns and written by the server's own writer under the envelope the plan's facts make: the server's answer
+     * text, byte for byte (the trace id each answer's own). A graph fetch's plan runs its own statement, which the
+     * Arrow half refuses.
      */
     @Test
     void e8_jsonPlanThenJsonAnswer_isTheServersAnswerText_andAGraphFetchIsPlanned() throws Exception {
@@ -526,18 +527,19 @@ class PureV1ApiTest {
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         PureV1Api.Answer a = PureV1Api.jsonPlan(request, List.of(model));
         assertEquals(200, a.status(), a.json());
-        Json.Obj plan = Json.parseObject(a.json());
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
-                new ArrayList<>(plan.fields().keySet()));
-        assertEquals("RELATION", plan.getString("shape"));
-        Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
-        assertEquals(plan.getString("sql"), activity.getString("sql"));
+        // the plan record itself, its one typed result over a statement of text
+        com.legend.executionplan.ExecutionPlan record = com.legend.executionplan.PlanJson.read(a.json());
+        com.legend.executionplan.ExecutionPlan.TdsResult result =
+                (com.legend.executionplan.ExecutionPlan.TdsResult) record.root();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, result.shape());
+        assertTrue(result.sql().slots().isEmpty(), a.json());
+        String run = result.sql().statement();
         // the run statement on the same database the server's runner reads: its rows, as a host's driver reads them,
         // written by the server's writer, are the server's text
         List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
                 .getObj("connection").getObj("datasourceSpecification")
                 .getStringArray("testDataSetupSqls");
-        String hostRows = hostRows(setup, plan.getString("run"));
+        String hostRows = hostRows(setup, run);
         PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
@@ -546,6 +548,9 @@ class PureV1ApiTest {
         assertEquals(500, PureV1Api.jsonPlan(request, List.of(model + "\n")).status());
         // a plan that is not jsonPlan's: refused, never cast
         assertEquals(500, PureV1Api.jsonAnswer("{\"builder\":5}", "[]").status());
+        PureV1Api.Answer old = PureV1Api.jsonAnswer("{\"format\":\"legend-lite-plan\",\"version\":19,\"root\":{}}", "[]");
+        assertEquals(500, old.status(), old.json());
+        assertTrue(old.json().contains("does not read as a plan"), old.json());
         // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
         // halves alike
         for (String value : List.of("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)",
@@ -563,18 +568,105 @@ class PureV1ApiTest {
         PureV1Api.Answer graph = PureV1Api.jsonPlan("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
         assertEquals(200, graph.status(), graph.json());
-        Json.Obj graphPlan = Json.parseObject(graph.json());
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder"),
-                new ArrayList<>(graphPlan.fields().keySet()));
-        assertEquals("OBJECTS", graphPlan.getString("shape"));
-        assertEquals("{\"_type\":\"json\"}", Json.toCompact(graphPlan.getObj("builder")));
-        assertEquals(graphPlan.getString("sql"), graphPlan.getString("run"));
+        com.legend.executionplan.ExecutionPlan.TdsResult graphResult = (com.legend.executionplan.ExecutionPlan.TdsResult)
+                com.legend.executionplan.PlanJson.read(graph.json()).root();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, graphResult.shape());
         // one object is written bare, as execute writes it: the host's row holds the object's JSON, as its database
         // built it
-        String objects = ((Json.Obj) graphPlan.getArr("resultColumns").items().get(0)).getString("name");
+        String objects = graphResult.columns().get(0).name();
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
                 PureV1Api.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
                         .json());
+    }
+
+    /**
+     * The envelope a host's writer makes from the plan alone ({@code planEnvelope}: each column's declared type, the
+     * plan's fact) is the envelope the server's writer makes from the compiler's types ({@code envelope}), query by
+     * query: a table of every type (a precision decimal among them), the trades model's queries, and the trading
+     * model's enumeration column (its builder type {@code String}, its relational spelling {@code VARCHAR(1024)}, by
+     * both). The two makers of legend-engine's builder are held to each other until the server's writer reads the plan
+     * alone too (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2); a column legend-engine has no builder entry for is
+     * refused by both, in the same words.
+     */
+    @Test
+    void aPlansEnvelopeFromItsOwnFacts_isTheEnvelopeFromTheCompilersTypes() throws Exception {
+        String types = """
+                ###Relational
+                Database t::DB ( Table T ( ID INTEGER PRIMARY KEY, I BIGINT, F DOUBLE, D DECIMAL(18,2), S VARCHAR(64),
+                  B BIT, DT DATE, TS TIMESTAMP ) )
+                ###Connection
+                RelationalDatabaseConnection t::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                Runtime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }
+                """;
+        String t = "#>{t::DB.T}#";
+        String h2 = "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#";
+        record Case(String model, String query, String runtime) {
+        }
+        List<Case> cases = new ArrayList<>();
+        for (String q : List.of(t, t + "->select(~[D, DT, TS])", t + "->filter(r|$r.D > 1.5d)",
+                t + "->extend(~[d2: r|$r.D * 2, f2: r|$r.F + 1.0, s2: r|$r.S->toOne()->toUpper(), y: r|$r.DT->toOne()->year()])",
+                t + "->groupBy(~[B], ~[total: r|$r.D : y|$y->sum(), n: r|$r.ID : y|$y->count(), hi: r|$r.TS : y|$y->max()])",
+                t + "->extend(~[lit: r|%2024-01-31, ts: r|%2024-01-31T09:00:00, flag: r|$r.I > 3, dec: r|1.25d])",
+                t + "->extend(~t: r|$r.TS->toOne()->timeBucket(1, DurationUnit.DAYS))", t + "->extend(~tm: r|%10:30:00)")) {
+            cases.add(new Case(types, "|" + q + "->from(t::RT)", "t::RT"));
+        }
+        for (String q : List.of(h2, h2 + "->select(~[region, notional])",
+                h2 + "->groupBy(~[region], ~[total:x|$x.notional:y|$y->sum()])->sort([~region->ascending()])",
+                h2 + "->groupBy(~[desk, year], ~[n:x|$x.qty:y|$y->count(), avg:x|$x.pnl:y|$y->average()])",
+                h2 + "->extend(~[big: x|$x.notional > 50.0, label: x|$x.region->toOne() + '-' + $x.desk->toOne()])",
+                h2 + "->distinct(~[region])->limit(2)")) {
+            cases.add(new Case(model, "|" + q + "->from(trades::h2::RT)", "trades::h2::RT"));
+        }
+        String trading = resource("upstream-api/query-app/trading.pure");
+        cases.add(new Case(trading, "|demo::trading::Trade.all()->project(~[id: x|$x.tradeId, side: x|$x.side])"
+                + "->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", "demo::trading::H2Runtime"));
+        int compared = 0;
+        int refusedByBoth = 0;
+        boolean enumeration = false;
+        boolean decimal = false;
+        java.util.Map<String, com.legend.compiler.element.ModelContext> compiled = new java.util.HashMap<>();
+        String firstNotPlanned = null;
+        for (Case c : cases) {
+            com.legend.compiler.element.ModelContext ctx =
+                    compiled.computeIfAbsent(c.model(), com.legend.Compiler::compileModel);
+            com.legend.TypedQuery query;
+            com.legend.executionplan.ExecutionPlan plan;
+            try {
+                query = com.legend.Compiler.query(ctx, c.query());
+                plan = query.executionPlan(c.runtime());
+            } catch (RuntimeException notPlanned) {
+                if (firstNotPlanned == null) {
+                    firstNotPlanned = c.query() + ": " + notPlanned;
+                }
+                continue;   // a query this model does not plan: nothing to compare
+            }
+            List<com.legend.executionplan.ExecutionPlan.Column> columns = plan.answerColumns();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, plan.answerShape(), c.query());
+            String sql = plan.answerSql().statement();
+            com.legend.result.PureV1Writer.Envelope fromTypes;
+            try {
+                fromTypes = PureV1Api.envelope(query.resultType(), sql, columns);
+            } catch (RuntimeException refused) {
+                RuntimeException byFacts = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> PureV1Api.planEnvelope(sql, columns), c.query());
+                assertEquals(refused.getMessage(), byFacts.getMessage(), c.query());
+                refusedByBoth++;
+                continue;
+            }
+            com.legend.result.PureV1Writer.Envelope fromFacts = PureV1Api.planEnvelope(sql, columns);
+            assertEquals(fromTypes.builder(), fromFacts.builder(), c.query());
+            assertEquals(fromTypes.names(), fromFacts.names(), c.query());
+            enumeration |= fromFacts.builder().contains(
+                    "{\"name\":\"side\",\"type\":\"String\",\"relationalType\":\"VARCHAR(1024)\"}");
+            decimal |= columns.stream().anyMatch(col -> col.type().startsWith("Decimal(")
+                    && col.declared() != null && col.declared().path().equals("Decimal"));
+            compared++;
+        }
+        assertTrue(compared >= 12, "compared " + compared + ", refused by both " + refusedByBoth
+                + "; the first not planned: " + firstNotPlanned);
+        assertTrue(enumeration, "the enumeration column compared");
+        assertTrue(decimal, "a precision decimal column compared, its declared path Decimal");
     }
 
     /**

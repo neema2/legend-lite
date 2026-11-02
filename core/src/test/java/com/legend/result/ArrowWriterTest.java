@@ -41,7 +41,7 @@ class ArrowWriterTest {
 
     private static ExecutionPlan.Column col(String name, String type, String slot, ExecutionPlan.Precision p) {
         boolean many = slot != null && slot.startsWith("ARRAY<");
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, many ? null : 1), slot, null, p);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, many ? null : 1), slot, null, p, null);
     }
 
     private static Batch batch(List<ExecutionPlan.Column> columns, List<List<Object>> rows) {

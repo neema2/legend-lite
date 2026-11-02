@@ -45,12 +45,12 @@ class PlanJsonTest {
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
-                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)", null)),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)", null, null)),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
                         // a placeholder typed by its value (H2): its type hole, with each kind's spelling
-                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null)),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null, null)),
                                 new Sql("select ID * CAST(? AS ) as x from T", List.of(new Slot("f",
                                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(22,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DECIMAL,
@@ -64,7 +64,7 @@ class PlanJsonTest {
                         // (its written-precision fact too, format 17: the column's fourth fact round-trips; a value
                         // root's instant is MINIMAL, format 18)
                         new TdsResult(TdsResult.Shape.VALUE, List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null,
-                                ExecutionPlan.Precision.MINIMAL)),
+                                ExecutionPlan.Precision.MINIMAL, null)),
                                 new Sql("select CAST(? AS ) as t", List.of(new Slot("t",
                                         new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(17,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME,
@@ -74,7 +74,7 @@ class PlanJsonTest {
                                                         new ExecutionPlan.TypeSpelling("TIMESTAMP",
                                                                 ExecutionPlan.Digits.NONE, 6)),
                                                 ExecutionPlan.ValueKind.DATE_TIME)))), t, null)),
-                        new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null, null)),
+                        new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null, null, null)),
                                 new Sql("select json_object(...) from T", List.of(), t, null)),
                         // a write plan's steps (the writes design's leg 7): a change whose count a later slot binds,
                         // one whose count none reads, and a check
@@ -106,7 +106,7 @@ class PlanJsonTest {
         Target t = new Target(new Database.Platform(Databases.PLATFORM), new Servers.Every(),
                 List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
-                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
+                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
@@ -136,14 +136,14 @@ class PlanJsonTest {
         // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
         // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
         // MINIMAL value, a value root's instant; 19 the same day: the LITERAL slot word retired (track L's L2)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":19,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":20,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v19 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v20 plan"), refused.getMessage());
     }
 
     @Test

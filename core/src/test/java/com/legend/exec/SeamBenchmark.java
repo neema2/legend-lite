@@ -62,13 +62,13 @@ final class SeamBenchmark {
         return upper ? name.toUpperCase(java.util.Locale.ROOT) : name;
     }
     private static final List<ExecutionPlan.Column> PLAN_COLUMNS = List.of(
-            new ExecutionPlan.Column("id", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null, null),
-            new ExecutionPlan.Column("name", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null),
+            new ExecutionPlan.Column("id", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null, null, null),
+            new ExecutionPlan.Column("name", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null, null),
             new ExecutionPlan.Column("amount", "Decimal", new ExecutionPlan.Multiplicity(1, 1), "DECIMAL(18,2)", null,
-                    null),
+                    null, null),
             new ExecutionPlan.Column("ts", "DateTime", new ExecutionPlan.Multiplicity(1, 1), "TIMESTAMP", null,
-                    ExecutionPlan.Precision.INSTANT),
-            new ExecutionPlan.Column("bucket", "Integer", new ExecutionPlan.Multiplicity(0, 1), "INTEGER", null, null));
+                    ExecutionPlan.Precision.INSTANT, null),
+            new ExecutionPlan.Column("bucket", "Integer", new ExecutionPlan.Multiplicity(0, 1), "INTEGER", null, null, null));
 
     /** Every path over {@code c}'s view {@code bench} of {@code rows} rows, written in {@code dialect} ({@code upper}:
      *  whether its unquoted names fold up), {@code csvLine} and {@code agg} its CSV line and its text aggregate. */

@@ -257,16 +257,37 @@ def execute_plan(body: str, models: list[str]) -> Answer:
 
 
 def execute_json_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
-    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is ``{"sql", "run", "shape",
-    "resultColumns", "builder", ...}`` -- ``run`` the typed statement the server runs, whose rows go back to
-    :func:`execute_json_answer`; any other answer is a refusal, to be sent as it is."""
+    """The plan of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
+    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is the plan record (PlanJson's text, the
+    one plan every host path runs: docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2), its one typed result the statement
+    to run (:func:`answer_statement`), whose rows go back to :func:`execute_json_answer` with it; any other answer is a
+    refusal, to be sent as it is."""
     return _http(library().call('lite_execute_json_plan', body, _json.dumps(models)))
 
 
+# The execution plan's format a host reads (core/.../executionplan/PlanJson.java VERSION, its one owner; the tab's twin
+# engine-client/src/plan-record.ts): 20 since 2026-11-02, a column's declared type (R2).
+PLAN_VERSION = 20
+
+
+def answer_statement(plan: str) -> str:
+    """The one statement a host's execute runs (``PureV1Api.jsonPlan``'s plan: one typed result over a statement of
+    text, anything else refused there, at planning): its text. A plan of another format, version or shape is refused by
+    name (``ValueError``), never run some other way."""
+    read = _json.loads(plan)
+    if read.get('format') != 'legend-lite-plan' or read.get('version') != PLAN_VERSION:
+        raise ValueError(f"not a legend-lite execution plan of version {PLAN_VERSION}: "
+                         f"{_json.dumps({'format': read.get('format'), 'version': read.get('version')})}")
+    root = read.get('root') or {}
+    sql = root.get('sql') or {}
+    if root.get('_type') != 'tdsResult' or not isinstance(sql.get('statement'), str) or sql.get('slots'):
+        raise ValueError(f"an execute's plan is one typed result over a statement of text, not a {root.get('_type')}")
+    return sql['statement']
+
+
 def execute_json_answer(plan: str, rows: str) -> Answer:
-    """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``rows`` the rows the database answered
-    its ``run`` statement with (a JSON array of objects, each a column's name and its cell as the driver read it:
+    """Execute's answer in legend-engine's JSON: ``plan`` the plan's body (the plan record), ``rows`` the rows the database
+    answered its statement with (a JSON array of objects, each a column's name and its cell as the driver read it:
     :func:`host_rows`), decoded by the plan's columns and written by legend-lite's server's own writer -- the server's
     answer text."""
     return _http(library().call('lite_execute_json_answer', plan, rows))

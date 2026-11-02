@@ -29,7 +29,7 @@ class RowDecodeTest {
 
     // (no written-precision fact: the decode reads none; it is the writers' -- CellText -- and ResultWritersTest's)
     private static Column col(String name, String type, String slot) {
-        return new Column(name, type, ONE, slot, null, null);
+        return new Column(name, type, ONE, slot, null, null, null);
     }
 
     private static Object one(String type, String slot, String token) {
@@ -128,7 +128,7 @@ class RowDecodeTest {
         assertEquals(List.of(2L, "x"), com.legend.result.RowDecode.cells("{\"a\":\"x\",\"b\":2}", cols));
         // a value root's one column is named `value` by the plan and after its output by the wire
         assertEquals(List.of(2L), com.legend.result.RowDecode.cells("{\"_v\":2}", List.of(col("value", "Integer", "INTEGER"))));
-        ExecutionPlan.Column optional = new Column("v", "Integer", new Multiplicity(0, 1), "INTEGER", null, null);
+        ExecutionPlan.Column optional = new Column("v", "Integer", new Multiplicity(0, 1), "INTEGER", null, null, null);
         assertEquals(java.util.Collections.singletonList(null), com.legend.result.RowDecode.cells("{\"v\":null}", List.of(optional)));
     }
 }

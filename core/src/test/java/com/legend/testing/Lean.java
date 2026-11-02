@@ -188,7 +188,7 @@ public final class Lean {
                     // read by the column's declared Pure type (a Number: a whole number a Long, any other an exact
                     // decimal; a Date: its text parsed), as the decoder reads any slotless cell (rule 3)
                     cells.add(RowDecode.cell(node, RowDecode.slotWord(c.slot()).equals("TAGGED")
-                            ? new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), null, null, null) : c));
+                            ? new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), null, null, null, null) : c));
                 }
                 rows.add(cells);
             }

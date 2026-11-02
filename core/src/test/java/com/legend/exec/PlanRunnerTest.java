@@ -206,7 +206,7 @@ class PlanRunnerTest {
      *  these tests judge; a writer would spell the cell). */
     static ExecutionPlan.TdsResult cell(ExecutionPlan.Sql sql) {
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE, List.of(new ExecutionPlan.Column("n",
-                "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null, null)), sql);
+                "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null, null, null)), sql);
     }
 
     /** {@code plan}'s one cell, run on a session of {@code sessions}: its text, null for a null cell. */
