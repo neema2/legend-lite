@@ -1985,10 +1985,22 @@ function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J,K,L>(t: Relation<T>
   $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty() || $r->read($k)->isNotEmpty() || $r->read($l)->isNotEmpty())
 }
 
-// THE DATA'S LAST DATE (R9, latest): every row's the latest date of the answer, under the caller's name.
-function timeseries::lines::latest<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// THE DATA'S LAST DATE (R9, latest): the last date of a source's rows (after its WHERE), on every row of t, under the
+// caller's name -- one date for the query, whichever items it answers (the user, 2026-11-02: the spec's rule, where
+// the answer's own last date had been read).
+function timeseries::lines::latestOf<T,U,D,O>(t: Relation<T>[1], source: Relation<U>[1], date: ColSpec<D⊆U>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend(~lone:r|1)->extend(over(~[lone]), ~lt:{p,w,r|$r->read($date)}:y|$y->max())->without(~[lone])->rename(~lt, $out)
+  $t->extend(~ll:r|1)
+    ->join($source->extend(~lr:r|1)->groupBy(~[lr], ~[lm:x|$x->read($date):y|$y->max()]), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a.ll == $b.lr})
+    ->without(~[ll, lr])->rename(~lm, $out)
+}
+
+// ... of several sources: the later of the latest so far and another source's last date.
+function timeseries::lines::laterOf<T,U,M,D,O>(t: Relation<T>[1], latest: ColSpec<M⊆T>[1], source: Relation<U>[1], date: ColSpec<D⊆U>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::latestOf($source, $date, ~lo)
+    ->extend(~lx:r|if($r->read($latest)->toOne() >= $r.lo->toOne(), |$r->read($latest), |$r.lo))
+    ->without(~[lo])->rename(~lx, $out)
 }
 
 // THE ANSWER'S ORDER: by its date, then by its instrument (a line per instrument's answer).

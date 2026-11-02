@@ -334,17 +334,26 @@ public final class TsToPure {
                         ? TsToPure.column(java.util.Objects.requireNonNull(java.util.Objects.requireNonNull(
                                 lines.fields.get(c.parts().get(0).text())).get(c.parts().get(1).text())), c.pos())
                         : x);
-                // latest (R9): the data's last date, the answer's (an item's own name where one is called so)
+                // latest (R9): the data's last date -- every source's after its WHERE, the latest of them -- (an
+                // item's own name where one is called so)
                 String latest = null;
                 if (answer.stream().noneMatch(c -> c.equalsIgnoreCase("latest"))) {
                     boolean[] reads = new boolean[1];
                     visit(condition, x -> reads[0] |= x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
                             && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text()));
                     if (reads[0]) {
-                        // the data's last date, the library's latest
-                        latest = lines.fresh("latest");
-                        rel = call(TsLines.LINES + "latest", rel, new ColSpec(date), new ColSpec(latest));
-                        String l = latest;
+                        // the library's latestOf the first source, laterOf each next: one date for the query,
+                        // whichever items it answers
+                        for (TsLines.Source s : opened.values()) {
+                            String next = lines.fresh("latest");
+                            rel = latest == null
+                                    ? call(TsLines.LINES + "latestOf", rel, s.relation(), new ColSpec(s.date()),
+                                            new ColSpec(next))
+                                    : call(TsLines.LINES + "laterOf", rel, new ColSpec(latest), s.relation(),
+                                            new ColSpec(s.date()), new ColSpec(next));
+                            latest = next;
+                        }
+                        String l = java.util.Objects.requireNonNull(latest, "a query of no source");
                         condition = map(condition, x -> x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
                                 && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text())
                                 ? TsToPure.column(l, c.pos()) : x);
@@ -1017,9 +1026,18 @@ public final class TsToPure {
                                 m.pos()));
                         one = true;
                     } else {
+                        // the instrument is named by its value, one way (the user, 2026-11-02): a condition on the
+                        // BY column itself is refused with its fix, never read as close['SPX'] by its shape
+                        if (instrument != null && m instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ
+                                && (names(b.left(), instrument) || names(b.right(), instrument))) {
+                            SqlAst.Expr v = names(b.left(), instrument) ? b.right() : b.left();
+                            String written = v instanceof SqlAst.StringLit sl ? "'" + sl.value() + "'"
+                                    : v instanceof SqlAst.IntegerLit il ? il.value().toString() : "...";
+                            throw invalid("a subscript names its instrument by its value, "
+                                    + base.parts().get(1).text() + "[" + written + "]: " + instrument
+                                    + " is the BY column (R2)", m.pos());
+                        }
                         matches.add(m);
-                        one |= instrument != null && m instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ
-                                && (names(b.left(), instrument) || names(b.right(), instrument));
                     }
                 }
                 boolean split = instrument != null && !one;

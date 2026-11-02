@@ -678,6 +678,29 @@ class TsIslandTest {
         }
     }
 
+    @Test
+    void latestIsTheSourcesLastDateWhicheverItemsAreRead() throws Exception {
+        // R9, as the spec says (the user, 2026-11-02): the last date of the source after its WHERE, one date for the
+        // query -- here BBB's 31st, though the only item reads AAA, whose last row is the 30th; the answer's own last
+        // date (the 30th) had been read before
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
+                    + " FROM (PRICES WHERE SYMBOL = 'BBB' OR DAY < '2024-01-31') ON DAY BY SYMBOL"
+                    + " FILTER DAY > latest - 3d}#");
+            assertEquals(List.of("2024-01-29", "2024-01-30"), got.stream().map(r -> r.get("DAY")).toList(),
+                    backend + ": the dates after the 28th, the source's last date the 31st");
+        }
+    }
+
+    @Test
+    void aWindowCountsAnyWholeNumberOfObservations() throws Exception {
+        // as gs-quant's Window(w) (the user, 2026-11-02): no cap of 100,000; a window longer than the line never fills,
+        // so no row has a value
+        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT avg(CLOSE['AAA'], 250000) AS ma"
+                + " FROM PRICES ON DAY BY SYMBOL}#");
+        assertEquals(List.of(), got, "a window of 250,000 observations over 12 never fills");
+    }
+
     private static double sampleStd(double[] v, int from, int to) {
         double mean = 0;
         for (int i = from; i <= to; i++) {
@@ -1023,6 +1046,9 @@ class TsIslandTest {
                 "SAMPLE BY takes one calendar period");
         refusals.put("SELECT CLOSE['AAA'] AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w", "how is CLOSE taken each period");
         refusals.put("SELECT last(CLOSE['AAA']) AS a FROM PRICES ON DAY BY SYMBOL", "last(x) is a period's last value");
+        // the instrument named by its value, one way (the user, 2026-11-02): a condition on the BY column refused
+        refusals.put("SELECT CLOSE[SYMBOL = 'AAA'] AS a FROM PRICES ON DAY BY SYMBOL",
+                "a subscript names its instrument by its value, CLOSE['AAA']: SYMBOL is the BY column (R2)");
         refusals.put("SELECT sum(CLOSE['AAA'] * 2) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w",
                 "a period's sum is of a source's column");
         refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL FILL(LAST)", "FILL is FILL(PREV)");

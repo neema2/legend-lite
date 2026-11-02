@@ -139,8 +139,9 @@ final class TsFunctions {
                 if (s != null) {
                     return new Span(-1, s);
                 }
-                if (e instanceof SqlAst.IntegerLit n && n.value().signum() > 0
-                        && n.value().compareTo(java.math.BigInteger.valueOf(100_000)) <= 0) {
+                // any whole number of observations from 1, as gs-quant's Window(w) takes (the user, 2026-11-02: the
+                // cap of 100,000 had no reason recorded, and is gone); a count is an int
+                if (e instanceof SqlAst.IntegerLit n && n.value().signum() > 0 && n.value().bitLength() < 32) {
                     return new Span(n.value().intValue(), null);
                 }
                 String text = e instanceof SqlAst.StringLit sl ? sl.value() : e instanceof SqlAst.TypedLit t
