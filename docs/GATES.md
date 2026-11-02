@@ -16846,3 +16846,11 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
       - N3, `TenetRatchetTest`: its ceiling stayed at 21 after the legacy executor's sites were deleted
         (2026-10-27), so main's 8 sites sat under it and this PR's 9th went unseen. Pinned to 9 with the user's yes,
         the 9th named: the direct read, `getObject(i, LocalDateTime.class)`.
+13. **The macOS lane moved to the `macos-15` image** (the user's go, 2026-11-02: "Do it for this PR so we get it
+    running main too"). From 2026-11-01, every macOS job on this PR was cancelled with no runner assigned and no step
+    run. That happened on two attempts of the same run, and on main's own scheduled run. GitHub retires the `macos-14`
+    image on 2026-11-02, after brownouts and a warned cut in capacity (github.blog changelog, 2026-10-01). The gate
+    pinned that image (`.github/workflows/gate.yml`, `runs-on: macos-14`). It now pins `macos-15`, which is arm64
+    like `macos-14`, the architecture the rosters and goldens were minted on.
+    - `//tools/guards:workflows_test` (actionlint) is green.
+    - Whether every macOS lane passes on macOS 15 is shown by this PR's CI, the first run on the new image.
