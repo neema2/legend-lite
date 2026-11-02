@@ -1215,7 +1215,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   38-40):** M10b's S1 -- an engine-text assert in a system-routed body has its arm planned on the body's environment
   (the appeal reads the user's tables there) and its sides on the program's (one target); the corpus caught the first
   build planning the sides on the body's too (the datetime tests, before any commit). DuckDB host pass
-  `moved=3017 -> 3,034`, H2 host `3017 -> 3,034`, outcomes identical. **Next:** M8c (R24) in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
+  `moved=3017 -> 3,034`, H2 host `3017 -> 3,034`, outcomes identical. **Item 11 BUILT (2026-11-02; GATES items
+  41-43):** a from()'s inline test data on a frame body's let (seeded by the door before it), and the frame rule's
+  let-bound query read through its let -- the lanes found the old rule's hole (frames with a kind planned another way
+  moved through it; three XStore graph fetches failed once the seeds stopped hiding it). Net DuckDB host pass
+  `3,034 -> 3,030`, database `2,956`, H2 `3,030` / `2,848`, outcomes identical: six fromMapping frames move, ten
+  through-the-hole frames stay, the 12 inline-seed graph frames wait for the frame-graph design. **Next:** M8c (R24)
+  in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
   pass's extra bodies, the system-routed engine texts with M10d, the last body, T8 on the ruling, Z.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
@@ -1543,3 +1549,5 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 - 2026-11-02: **the unplanned-assert census made truthful** (GATES item 37): rows 183 -> 31 on the DuckDB host pass.
 - 2026-11-02: **M10c item 10 built**: the engine-text assert in a system-routed body (M10b's S1); DuckDB host pass
   `moved=3017 -> 3,034`, H2 host `3017 -> 3,034`, outcomes identical, every register green.
+- 2026-11-02: **M10c item 11 built**: inline seeds on a frame body's let, and the frame rule's let-bound query hole
+  closed; DuckDB host pass `3034 -> 3,030` (net, explained), outcomes identical, every register green.

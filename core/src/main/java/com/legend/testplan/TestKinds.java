@@ -101,7 +101,8 @@ final class TestKinds implements ProgramKinds {
         kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
         if (!kinds.contains(QueryDoor.TestOnly.EFFECT)) {
             // any other statement closes the open script (the walk's segment rule: the run's script is sent when its
-            // segment ends, before the next statement's contexts are established)
+            // segment ends -- the walk establishes the next statement's contexts first, the door closes first: a
+            // statement naming test data after an open script is refused by the class rules, the M5 audit's B1)
             close(program);
         }
         // the statement's seeds, as the walk establishes its contexts before every statement (M3e)

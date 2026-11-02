@@ -17075,6 +17075,42 @@ measured on both corpora with the registers and a parity witness; the chain at M
    (DuckDB's `SET TimeZone` runs on both; the datetime tests' zone lives in the plan-row texts and the rows leg's
    context); `DatabaseAsserts` unchanged.
 
+41. **Item 11 -- a from()'s inline test data in a frame body's let, and the frame rule's let-bound query (2026-11-02;
+   the brief's item 11).** The 12 bodies tagged `inline-seeds` carry the seeds on a LET (the corpus's
+   `let func = {|...->from(mapping, $runtimeWithTestData)}`, a runtime copied with `testDataSetupCsv`) that a frame then
+   runs; the frame rule admitted a value let only with no kind. The test door seeds a statement's sources before it
+   (`TestKinds.seed`) as the walk establishes them, so the rule drops `INLINE_SEEDS` from such a let -- only before
+   anything the body sends (an effect, a frame let, an assert): the walk orders a statement's seeds before closing an
+   open effect script where the door closes it first, and under the database judge a segment's fused statement is
+   placed at its last assert where the walk flushes it later (the M5 audit's B1; the item's audit F2/F3). **The first
+   build moved the 12 and the lanes went red**: three XStore temporal graph fetches failed on the program road
+   (`UnfoldableRef`: the frame's eager run lowers a graph tree whose qualifier reads the query lambda's parameters,
+   which the walk's frame build resolves). The cause was older: the frame rule scanned a frame's query only as written
+   (`call.args().get(0)`), so a LET-BOUND query (`execute($func, ...)`) showed no kind and frames whose query holds a
+   kind planned another way moved through that hole; the seeds had hidden it here. The rule now reads the query
+   through its let with the from() contexts stripped (`framesAndHandlesAsTheirQueries(Lets.bound(...))`: a from()'s
+   mapping and runtime are its context, never a system read -- M10b's rule, now on the frame's query too). The other
+   half of B1 -- the walk keys the session's seed memo by the seeds' sources, the runner by their content, so a moved
+   body may re-seed where the walk skips and the reverse (identical content: statement counts, not rows) -- stands as
+   a transitional difference the deletion ends (one keying left).
+42. **Movement (item 11):** DuckDB host pass `moved=3034 -> 3,030`, database `2959 -> 2,956`; H2 host `3034 -> 3,030`,
+   database `2850 -> 2,848`; outcomes identical on all four passes; 12 of 12 lane tests green. Moved: the six
+   `fromMapping` frames over a from() (the context stripping). Stayed again: ten frames that had moved through the hole
+   (the seven `objectReferenceIn` tests, `testSimpleGraphFetchWithQuoteIdentifiers`,
+   `testInExecutionWithTempTableAndQueryChainingAndChainConnection`, `testCrossStoreWithCSVDataSource` which fails on
+   both roads) -- each a frame whose let-bound query holds a kind planned another way. The 12 inline-seed bodies stay:
+   every one is a graph-fetch frame (the frame-graph family, its own design). A net loss of four, taken for the rule's
+   own contract: the three XStore failures show the hole can break a body.
+43. **The checks (item 11):** `BodyRouterParityTest.inlineSeedFramePrograms` (the corpus's spelling on the frame model,
+   the frame reading the seeded rows -- three firms where the fixture has two -- holding and failing, parity under both
+   judges; a frame whose own query names the inline data; the walk's by name: a let-bound graph-fetch query, a seeded
+   let after an assert, an assert holding the inline data; the witness fails with the seeds rule removed, and with the
+   let chase removed), `//core:census`, root, architecture, judge, driver, testplan; `//spec:corpus_duckdb`,
+   `//spec:corpus_h2`. The independent audit (DO NOT COMMIT on the first build, folded): HIGH-1 the let-bound query
+   hole (above); MEDIUM-2/3 the seeds' order against an open script and a fused statement -- seeds admitted only before
+   anything sent; LOW-4 the seed memo keyed two ways -- recorded above; LOW-5 the witness gaps -- the frame's own query,
+   the three refusals added; NIT the javadocs (`FRAME_PROGRAM`, `TestKinds`' script comment).
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

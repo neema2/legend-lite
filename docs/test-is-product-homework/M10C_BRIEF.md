@@ -396,7 +396,29 @@ The planners' refusals, by site:
    navigation) equal, appealed and diverging, parity under the host judge.
    **Expected:** the 12 passing bodies move (two relationalMapper bodies fail on both roads).
 
-11. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
+11. **A from()'s inline test data in a frame body's let (2026-11-02). BUILT 2026-11-02, measured (GATES items
+   41-43): the lanes and the audit found that the frame rule read a frame's query only as written -- a let-bound
+   query (`execute($func, ...)`) showed no kind, so frames whose query holds a kind planned another way moved through
+   that hole; the let's seeds had hidden it for the 12 bodies here, and three of them (the XStore temporal graph
+   fetches) failed on the program road once admitted. The rule now reads the query through its let with the from()
+   contexts stripped; seeds are admitted on a let before anything the body sends (the M5 audit's B1, the order against
+   an open script and the fused statement). Net on the DuckDB host pass 3,034 -> 3,030: the six `fromMapping` frames
+   move (a from()'s mapping is context, not a system read), ten frames that had moved through the hole stay (the
+   `objectReferenceIn` group and three more: their let-bound queries hold a kind planned another way), and the 12
+   inline-seed bodies still stay -- every one is a graph-fetch frame, the frame-graph family's design.** 12 bodies on the DuckDB host pass
+   (`assert,inline-seeds,let-execute`: the XStore and m2m2r milestoning graph fetches, `testParametrizedEnumFilter`,
+   `testSpecialUnion_m2m2r`, `testPaginated`). Read with the consumption probe: the seeds sit on a LET -- the corpus's
+   `let func = {|...->from(mapping, $runtimeWithTestData)}` (a runtime copied with `testDataSetupCsv`) -- and a frame
+   then runs the lambda. The frame class rule admits a value let only with no kind, so the let's `INLINE_SEEDS` kept
+   the body on the walk. The test door already seeds a statement's sources before it (`TestKinds.seed`, one `Setup`
+   step per sources until a write, the walk's `establishContexts` order) and drops the kind; the walk establishes them
+   before the statement. So the frame rule drops `INLINE_SEEDS` from a let's kinds -- a let alone: an assert holding
+   inline data stays refused, its planner plans an assert whose kinds are the assert's alone. **Witness**
+   (`BodyRouterParityTest.inlineSeedFramePrograms`): the corpus's spelling on the frame model, the frame reading the
+   seeded rows (three firms where the fixture has two), holding and failing, parity under both judges; it fails with
+   the rule unchanged. **Expected (written before the measurement, superseded above):** the 12 bodies move.
+
+12. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement
 

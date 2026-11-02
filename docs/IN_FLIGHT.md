@@ -3058,7 +3058,9 @@ witnesses `seedFormEffectMapPrograms`, `aSubsumedCallsBodyIsNoKindOfTheStatement
 witness `deferredTextPrograms`); item 9 built (`driver/HostJudge.java` `planCellPool`, `cellPoolOf`;
 `HostJudgment.CellPool`; `AssertVerdicts.planArm`; the witness `cellPoolPrograms`); item 10 built
 (`driver/HostAsserts.java` `plan(..., bodyEnv)`, `planAssert(..., env, program)`; `BodyRouter`; the witness
-`systemRoutedEngineTextPrograms`). The user's rulings of 2026-11-02:
+`systemRoutedEngineTextPrograms`); item 11 built (`testplan/BodyClass.java` `frameProgram`: seeds on a let before
+anything sent, the frame's query through its let; the witness `inlineSeedFramePrograms`). The user's rulings of
+2026-11-02:
 burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
 last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
 the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session.

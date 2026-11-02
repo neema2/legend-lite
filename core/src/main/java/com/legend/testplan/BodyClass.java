@@ -127,8 +127,10 @@ public enum BodyClass {
      * M9a audit's N1, the M9b audit's F2). Admitted since M9c: a read of a frame's activities ({@code $r.activities}:
      * the run's SQL, a planning-time render on both roads, and its comment, the trace stamp of the eager run -- a
      * plan parameter the run's check step binds and the sides carry, where the walk's frame holds the run's comment
-     * as a literal). Not admitted, each a later sub-step: an effect let, staged rows and raw grids, the test-data
-     * generator, {@code assertError}, a seeded runtime.
+     * as a literal). Admitted since M10c item 11: a from()'s inline test data in a let BEFORE anything the body sends
+     * (an effect, a frame let, an assert), which the test door seeds before the let as the walk establishes it; a
+     * frame's let-bound query is read through the let that binds it. Not admitted, each a later sub-step: an effect
+     * let, staged rows and raw grids, the test-data generator, {@code assertError}, a seeded runtime.
      */
     FRAME_PROGRAM;
 
@@ -346,10 +348,25 @@ public enum BodyClass {
         // a frame bound by a let, or an execute(...) read where it stands (M9b): what makes the body a frame program
         boolean aFrame = false;
         ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
+        boolean sentBefore = false;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             boolean last = i == body.size() - 1;
+            if (statement instanceof TypedLet && !last && !sentBefore) {
+                // a from()'s inline test data in a let (the corpus's `let func = {|...->from(mapping, $runtimeWithTestData)}`
+                // a frame then runs; M10c item 11): the test door seeds the let's sources before it, as the walk
+                // establishes them before the statement (TestKinds.seed) -- no kind of the let's own. Only before
+                // anything the body sends (an effect, a frame let, an assert): the walk orders a statement's seeds
+                // before closing an open effect script where the door closes it first, and under the database judge
+                // the segment's fused statement is placed at its last assert where the walk flushes it later, so a
+                // seed after either would land on the other side of it (the M5 audit's B1, the item's audit F2/F3).
+                // An assert holding inline data stays refused: its planner plans an assert whose kinds are its alone
+                kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
+            }
+            // whether this statement sends (an effect, a frame let, an assert): no later let's seeds are admitted
+            sentBefore |= kinds.contains(QueryDoor.TestOnly.EFFECT) || kinds.contains(QueryDoor.TestOnly.ASSERT)
+                    || kinds.contains(QueryDoor.TestOnly.LET_EXECUTE);
             if (StatementEffects.containsTdgGenerator(statement)) {
                 return false;
             }
@@ -379,7 +396,12 @@ public enum BodyClass {
                     // the frame's query holds no kind planned another way and reads no earlier frame, by name or
                     // through a tainted let (N1, F2); its mapping and runtime arguments are the frame's own references
                     TypedNativeCall call = (TypedNativeCall) LetPlanner.rhs(let);
-                    if (StatementEffects.reaches(call.args().get(0), n -> frameQueryKind(n, systemClasses, ctx) != null
+                    // the query read through the let that binds it (`let func = {|...}; let r = execute($func, ...)`:
+                    // the corpus's spelling) -- a variable has no children, so the scan saw no kind in a let-bound
+                    // query until M10c item 11's lanes found a temporal graph fetch through it
+                    TypedSpec frameQuery = framesAndHandlesAsTheirQueries(com.legend.compiler.spec.typed.Lets.bound(
+                            call.args().get(0), body.subList(0, i)));
+                    if (StatementEffects.reaches(frameQuery, n -> frameQueryKind(n, systemClasses, ctx) != null
                             || readsAFrame.test(n), query.specs(), frameQueryMemo)) {
                         return false;
                     }

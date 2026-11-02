@@ -1226,6 +1226,55 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 11: a from()'s INLINE TEST DATA in a let a frame then runs -- the corpus's spelling (a runtime copied
+     *  with {@code testDataSetupCsv}, a lambda whose from() names it, the frame executing the lambda): the test door
+     *  seeds the let's sources before it, as the walk establishes them, and the frame reads the seeded rows; parity
+     *  under the host judge, the seed statements included. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void inlineSeedFramePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String seeded = "let runtime = x::testRuntime(); let cs = $runtime.connectionStores->at(0);"
+                + " let c = $cs.connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);"
+                + " let rtd = ^$runtime(connectionStores = ^$cs(connection = ^$c(testDataSetupCsv ="
+                + " 'default\\nFIRM\\nID,NAME\\n1,Acme\\n2,Bolt\\n3,Cyl\\n-----\\n')));"
+                + " let func = {|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M, $rtd)};"
+                + " let r = meta::pure::router::execute($func, x::M, x::RT.runtimeValue, []);";
+        for (String body : List.of(
+                "{| " + seeded + " assertSize($r.values.rows, 3);}",
+                "{| " + seeded + " assertEquals(['Acme', 'Bolt', 'Cyl'], $r.values.rows.values->sort());}",
+                "{| " + seeded + " assertSize($r.values.rows, 2);}")) {
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.DATABASE);
+        }
+        Run held = run(backend, ctx, "x::RT", "{| " + seeded + " assertSize($r.values.rows, 3);}", true,
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", held.outcome, "the frame reads the seeded rows: " + held.statements);
+        String rtd = "let runtime = x::testRuntime(); let cs = $runtime.connectionStores->at(0);"
+                + " let c = $cs.connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);"
+                + " let rtd = ^$runtime(connectionStores = ^$cs(connection = ^$c(testDataSetupCsv ="
+                + " 'default\\nFIRM\\nID,NAME\\n1,Acme\\n2,Bolt\\n3,Cyl\\n-----\\n')));";
+        // the frame's own query naming the inline data: seeded at the frame's let, then its eager run
+        assertParity(backend, ctx, "x::RT", "{| " + rtd + " let r = meta::pure::router::execute(|x::Firm.all()->project("
+                + "[f|$f.name], ['name'])->from(x::M, $rtd), x::M, x::RT.runtimeValue, []); assertSize($r.values.rows,"
+                + " 3);}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        // the walk's, by name: a let-bound query whose kind is planned another way (a graph fetch, read through the
+        // let since this item: the corpus's executeLegendQuery bodies), a seeded let after an assert (the seeds' order
+        // against the fused statement and the open script, B1), an assert holding the inline data itself
+        for (String stays : List.of(
+                "{| " + rtd + " let func = {|x::Firm.all()->meta::pure::graphFetch::execution::graphFetch(#{x::Firm{name}}#)"
+                        + "->meta::pure::graphFetch::execution::serialize(#{x::Firm{name}}#)->from(x::M, $rtd)};"
+                        + " let r = meta::pure::router::execute($func, x::M, x::RT.runtimeValue, []); assert(true);}",
+                "{| let r0 = " + EXECUTE + "; assertSize($r0.values.rows, 2); " + seeded
+                        + " assertSize($r.values.rows, 3);}",
+                "{| " + rtd + " let r = " + EXECUTE + "; assertEquals(3, x::Firm.all()->project([f|$f.name], ['name'])"
+                        + "->from(x::M, $rtd)->size());}")) {
+            assertNull(BodyClass.of(typed(ctx, stays), "x::RT", true), "the walk's: " + stays);
+        }
+    }
+
     /** M10c item 10: an engine-text assert in a SYSTEM-ROUTED body (the body's one store read the system store's, the
      *  producer's query a routine argument), its arm planned on the body's environment and its sides on the program's:
      *  its text equal holds with no appeal; its text differing with agreeing rows appeals at the step and the rows leg
