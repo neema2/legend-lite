@@ -34,7 +34,10 @@ public final class Diagnostics {
     /** The vocabulary: the switches that exist. */
     public static final List<String> NAMES = List.of(
             "dump-sql", "pct-cases", "pct-shapes", "corpus-trace", "detach-trace", "progress", "timing",
-            "corpus-containing", "chb-only", "primitives", "plan-sizes");
+            "corpus-containing", "chb-only", "primitives", "plan-sizes",
+            // the walker-deletion program's measurement (2026-11-02): a test body the router would hand to the walk
+            // fails instead, naming why -- every lane run so lists what does not yet run as one plan
+            "forbid-walk");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 

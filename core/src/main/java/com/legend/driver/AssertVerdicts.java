@@ -853,6 +853,83 @@ final class AssertVerdicts {
         }
     }
 
+    /** The host half's verdict over its sides HELD for the agreement judge: its verdict, or the failure it raised
+     *  (an assert that does not hold), never null together. */
+    record HostHeld(@com.legend.base.Nullable TypedSide verdict, com.legend.error.@com.legend.base.Nullable AssertFailed failed) {
+    }
+
+    /**
+     * THE AGREEMENT JUDGE'S HOST HALF AT ITS STEP (the walker-deletion program, 2026-11-02): {@code a} judged over the
+     * sides the runner read, its verdict HELD -- the verdict of record is decided once the database half's rows are in
+     * ({@link #agreedAtItsStep}) -- counted as {@link #tryAdjudicate} counts an assert it adjudicates in place over the
+     * agreement arm (entered; a side's data error counted raised, reported and thrown at once, as the agreement arm
+     * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
+     */
+    static HostHeld heldAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            java.util.function.Supplier<List<TypedSide>> sides) {
+        if (a.beforeTheArm() != null) {
+            throw a.beforeTheArm();
+        }
+        if (listener != null) {
+            com.legend.judge.CanonicalDivergence.sqlEnter();
+        }
+        boolean settled = false;
+        try {
+            a.enter();
+            TypedSide v = null;
+            com.legend.error.AssertFailed failed = null;
+            try {
+                v = a.judge(sides.get());
+            } catch (com.legend.error.AssertFailed e) {
+                failed = e;
+            }
+            settled = true;
+            if (failed != null) {
+                return new HostHeld(null, failed);
+            }
+            if (v == null) {
+                throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
+                        + " judge declined the sides it read (the walk's generic path has no program form)");
+            }
+            return new HostHeld(v, null);
+        } catch (com.legend.error.DataError e) {
+            settled = true;
+            if (listener != null) {
+                com.legend.judge.CanonicalDivergence.sqlRaised();
+                listener.verdict(a.listenerName(), false, e.getMessage());
+            }
+            throw e;
+        } finally {
+            if (!settled && listener != null) {
+                com.legend.judge.CanonicalDivergence.sqlRaised();
+            }
+        }
+    }
+
+    /** The agreement judge's verdict of record for {@code a} ({@code agreed}: the agreement rule over both halves,
+     *  {@link AgreementArm#agree}), reported to {@code listener} as {@link #tryAdjudicate} reports it: a pass, or a
+     *  failure (an assert that does not hold, a data error) counted raised, its UNJUDGED reason and its verdict told,
+     *  and thrown. */
+    static TypedSide agreedAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            java.util.function.Supplier<@com.legend.base.Nullable TypedSide> agreed) {
+        try {
+            TypedSide v = java.util.Objects.requireNonNull(agreed.get(), "a host verdict the agreement rule dropped");
+            if (listener != null) {
+                listener.verdict(a.listenerName(), true, null);
+            }
+            return v;
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            if (listener != null) {
+                com.legend.judge.CanonicalDivergence.sqlRaised();
+                if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                    listener.unjudged(a.listenerName(), af.unjudgedReason());
+                }
+                listener.verdict(a.listenerName(), false, e.getMessage());
+            }
+            throw e;
+        }
+    }
+
     /** A side of {@code a}'s that could not be read before it was judged -- the database refused it ({@code failure}
      *  a data error), or the read itself raised (a reader's state error, a decoding error, an I/O failure unchecked):
      *  counted and reported as {@link #tryAdjudicate} counts and reports an assert whose side raised inside the arm --

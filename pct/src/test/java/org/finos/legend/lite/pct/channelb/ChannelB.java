@@ -282,7 +282,10 @@ public final class ChannelB {
                     com.legend.test.StorelessRuntime.RUNTIME, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
-                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH)
+                            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
+                            // bodies under one judge, to read which shapes the program road plans for it
+                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.valueOf(
+                                    System.getProperty("pct.channelb.judge", "BOTH")))
                             // a server lane's system connection, as channel A's (PctBackend)
                             .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections()));
             return new Outcome(fqn, Status.PASS, "");

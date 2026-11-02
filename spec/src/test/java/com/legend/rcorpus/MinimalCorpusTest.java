@@ -631,9 +631,15 @@ public class MinimalCorpusTest {
         int spelling = strength.getOrDefault("SPELLING", 0);
         int weak = strength.getOrDefault("CARDINALITY", 0);
         int[] floor = ceilings().strength();
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        String mode = System.getProperty("legend.judge.mode", "host");
+        if ("database".equalsIgnoreCase(mode) || "both".equalsIgnoreCase(mode)) {
             // leg 3.1: database mode reports its strength against host mode's
-            // floors; the differential gate (leg 3.3) pins it
+            // floors; the differential gate (leg 3.3) pins it. BOTH judges
+            // likewise (2026-11-02, the walker-deletion program): its verdict of
+            // record is the host pass's, pinned there; an assert the database
+            // judge's planner does not plan yet is declined by that judge and
+            // counted here as text-decided -- the residue is pinned ONCE, by the
+            // text-decided "database" ceiling (PLATFORM_TEXT_DECIDED, 44)
             System.out.println("[corpus2] database-mode strength differential=" + differential
                     + " (host floor " + floor[0] + ") spelling=" + spelling + " weak=" + weak);
             return;
@@ -907,9 +913,16 @@ public class MinimalCorpusTest {
     // text assert used to raise in Java at the assert, now the row is judged at the
     // flush, so the later Composite text assert is reached and counted. The DB2 row
     // fails at the flush as before (fail rosters unchanged).
+    // database 0 -> 44 (2026-11-02, the walker-deletion program: the agreement judge on the program road,
+    // AgreementAsserts): under BOTH judges each assert's step carries the database judge's verdict statement, planned
+    // as the database judge's planner plans it; an assert of a shape that planner does not plan yet is DECLINED by the
+    // database judge ("database judge: not this shape", the agreement rule: the host decides), where the walk's
+    // agreement arm read its sides at its turn. Measured on corpus_one duckdb both: the 44 tests are exactly the
+    // database pass's walked bodies with a database-unplanned assert (corpus2-body-stayed.tsv); outcomes unchanged
+    // (2471 / 108, disagree=0). Shrinks to zero with the database pass's burn-down.
     private static final java.util.Map<String, Integer> PLATFORM_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
-            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9, "database", 44);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
     // plan asserts as the DuckDB lane (the plan producer behind a helper),

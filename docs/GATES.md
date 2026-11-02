@@ -19006,3 +19006,41 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
     like `macos-14`, the architecture the rosters and goldens were minted on.
     - `//tools/guards:workflows_test` (actionlint) is green.
     - Whether every macOS lane passes on macOS 15 is shown by this PR's CI, the first run on the new image.
+
+## 2026-11-02 — The walker-deletion program: the inventory, and the agreement judge on the program road
+
+The user's ask (2026-11-02): every test path on the product path; the walk (`BodyDriver`, `BodyCompiler`, the body
+router and the body classes) deleted, unable to come back. The inventory is
+`docs/test-is-product-homework/walker-deletion/INVENTORY_2026_11_02.md` with its data files, measured with the walk
+forbidden (`-Dlegend.diagnostics=forbid-walk`, the router throws where it would walk) on core and channel B, and from the
+corpus passes' own `corpus2-body-stayed.tsv`.
+
+1. **The starting line.** Core: 104 tests fail with the walk forbidden. Channel B: 23 of 1,249 bodies under the HOST
+   judge (21 `assertError`), 32 under the DATABASE judge; under both judges, its default, every assert body walked.
+   Corpus: 120 bodies walked on each host pass, 194 on DuckDB's database pass, 307 on H2's. Under one judge every channel
+   B body off the walk gives the outcome it gives under both judges (1,226 compared, per test).
+2. **The agreement judge on the program road** (`driver/AgreementAsserts.java`, `DatabaseAsserts.planEach`,
+   `AssertVerdicts.heldAtItsStep` / `agreedAtItsStep`, the router's BOTH branch): each statement-root assert's verdict
+   step carries the host judge's base sides and the database judge's verdict statement over them (its own root, planned
+   alone); the runner reads both at the assert's turn (`Judging.BOTH`); the sink applies the walk's agreement rule
+   (`AgreementArm.agree`). As the walk's agreement arm: no batch across asserts, every frame run at its let, the database
+   half's frames under the host's stamps (`PlanEnv.stamp`, once).
+3. **Measured.** Channel B under both judges with the walk forbidden: the 23 shapes of item 1 left, every other outcome
+   equal to the walked baseline per test; the five channel B lanes green unforced. `corpus_one duckdb both`: moved 613
+   -> 3,067, outcomes unchanged (2,471 pass, 108 fail), `disagree=0`; the database judge declines the asserts of 44
+   tests, exactly the database pass's walked bodies with a `database-unplanned-assert` -- pinned once,
+   `PLATFORM_TEXT_DECIDED` "database" 44 (the BOTH lane's strength census reports against the host pass's floors, as the
+   database pass's does). Core's 28 test targets green.
+4. **Guards moved, each with its dated reason:** `JavaEvalLedgerTest` AssertVerdicts 1824 -> 1885 and the driver
+   register's `AgreementAsserts.java`; `ErrorShapeGuardrailTest` DatabaseAsserts broad catches 4 -> 6.
+5. **Measurement switches** (deciding nothing): `forbid-walk` in `Diagnostics.NAMES`; channel B's
+   `-Dpct.channelb.judge` (default `BOTH`).
+6. **The parser-equivalence ratchet** `own_corpus.matched` 3,041 -> 3,054 (`bazel run //parser-equivalence:update_ratchets`):
+   a net 13 more of lite's own test models joined the own corpus and match the referee byte for byte -- the witness
+   models M10b and M10c added to the core tests (`BodyRouterParityTest`, `ElementConsumptionTest`) and main's new tests
+   since the last pin (aec8b44b). CI's `checks` and `parser_equivalence` lanes failed on 5b53170c for this alone.
+7. **Checks.** `//gates:local` (`--lockfile_mode=error`): 447 pass, 1 skipped; the nine Postgres targets and
+   `//datacube:verify_app_test` fail as root in the container and pass through `tools/postgres/as_unprivileged.sh`
+   (`docs/CLOUD_SESSIONS.md`), with `update_ratchets_test` after the regeneration. Channel B's five lanes and
+   `corpus_one duckdb both` green; `//spec:corpus_duckdb //spec:corpus_h2` 12 of 12 on the final tree, the rosters
+   byte-identical, moved 3,067 / 2,992 (DuckDB host / database) and 3,067 / 2,879 (H2), as before.

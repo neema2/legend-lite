@@ -81,6 +81,14 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     }
 
     /** The run's feature flags (the caller's execute options'). */
+    /** {@code stamp} carried by the statements lowered on this environment (the stamps' accumulator), once: both halves
+     *  of the agreement judge plan a frame under the host's stamp (the walker-deletion program, 2026-11-02). */
+    public void stamp(String stamp) {
+        if (!stamps.contains(stamp)) {
+            stamps.add(stamp);
+        }
+    }
+
     public PlanEnv withFeatures(Set<Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, f, generatorPlanText, stamps);

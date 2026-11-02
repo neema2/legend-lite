@@ -51,8 +51,9 @@ public final class BodyRouter {
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
-        BodyClass bodyClass = runtimeFqn == null ? null
-                : BodyClass.of(typed, runtimeFqn, mode != ExecuteOptions.JudgeMode.BOTH);
+        // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
+        // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
+        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
         // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the database's):
         // a body holding an assert of a shape the judge's planner does not plan yet has none, and the walk runs it (a
         // named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
@@ -66,32 +67,46 @@ public final class BodyRouter {
         SystemDatabase.Route systemRoute = null;
         HostAsserts host = null;
         DatabaseAsserts database = null;
+        AgreementAsserts agreement = null;
+        BodyDriver.ExecEnv bodyEnv = runtimeFqn == null || !assertsPlanned && !systemRouted ? null
+                : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session, listener, referee, options);
+        BodyDriver.ExecEnv env = bodyEnv;
+        if (systemRouted) {
+            BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
+            com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
+                    java.util.Objects.requireNonNull(runtimeFqn));
+            systemRoute = BodyDriver.systemRoute(on, route);
+            // the session names the store's tables as the plan is written (the walk's check, openRoute): in
+            // process neither renames; a server engine is refused by the class rule before this
+            if (!systemRoute.renames().equals(com.legend.planner.SystemRoutes.renames(route))) {
+                throw new IllegalStateException("the system database on " + route.engine() + " names the store's"
+                        + " tables " + systemRoute.renames() + ", its plan " + com.legend.planner.SystemRoutes.renames(route));
+            }
+            env = on.withSession(systemRoute.session());
+        }
         if (assertsPlanned) {
-            BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, java.util.Objects.requireNonNull(runtimeFqn), dialect,
-                    session, listener, referee, options);
             // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned
             // on it -- its appeal reads the user's tables on the body's session -- and its sides on the program's
             // (M10c item 10)
-            BodyDriver.ExecEnv bodyEnv = env;
-            if (systemRouted) {
-                com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(), runtimeFqn);
-                systemRoute = BodyDriver.systemRoute(env, route);
-                // the session names the store's tables as the plan is written (the walk's check, openRoute): in
-                // process neither renames; a server engine is refused by the class rule before this
-                if (!systemRoute.renames().equals(com.legend.planner.SystemRoutes.renames(route))) {
-                    throw new IllegalStateException("the system database on " + route.engine() + " names the store's"
-                            + " tables " + systemRoute.renames() + ", its plan " + com.legend.planner.SystemRoutes.renames(route));
-                }
-                env = env.withSession(systemRoute.session());
-            }
-            if (mode == ExecuteOptions.JudgeMode.HOST) {
-                host = HostAsserts.plan(typed, runtimeFqn, env, systemRouted ? bodyEnv : null);
-            } else {
-                database = DatabaseAsserts.plan(typed, runtimeFqn, env, systemRouted);
+            BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(env);
+            String runtime = java.util.Objects.requireNonNull(runtimeFqn);
+            switch (mode) {
+                case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
+                case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
+                // both judges in one plan: each assert's step carries the host's sides and the database's statement
+                case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
+                        systemRouted);
             }
         }
-        TestDoor.Asserts asserts = host != null ? host : database;
+        TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
+            if (com.legend.diagnostics.Diagnostics.on("forbid-walk")) {
+                // the walker-deletion program's measurement: the body fails here, naming why it would walk
+                throw new IllegalStateException("forbid-walk: " + (runtimeFqn == null ? "no runtime"
+                        : bodyClass == null ? "no class admits the body"
+                        : mode.name().toLowerCase(java.util.Locale.ROOT) + " judge's planner refused an assert")
+                        + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]"));
+            }
             if (runtimeFqn != null) {
                 // the kinds that kept the body on the walk, for the lanes' census (M9); nothing decided by them
                 Census.STAYED_KINDS.add(BodyKinds.of(typed, runtimeFqn, bodyClass == null ? null
@@ -111,11 +126,12 @@ public final class BodyRouter {
                 : null;
         try {
             Moved moved = new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed), host,
-                    database, listener);
+                    database, agreement, listener);
             Sessions.Session system = systemRoute == null ? null : systemRoute.session();
             PlanRunner.program(plan, Map.of(),
                     PlanSessions.of(session, null, system == null ? null : target -> system),
-                    database != null ? PlanRunner.Judging.DATABASE : PlanRunner.Judging.HOST, moved);
+                    database != null ? PlanRunner.Judging.DATABASE
+                            : agreement != null ? PlanRunner.Judging.BOTH : PlanRunner.Judging.HOST, moved);
             if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
                 // a body whose last statement is an assert answers its verdict as host rows, as the walk does
                 JudgePlans.host(moved.lastVerdict(), answer);
@@ -149,6 +165,8 @@ public final class BodyRouter {
         private final @Nullable HostAsserts asserts;
         /** The body's asserts as the database judge planned them (under the database judge), or null. */
         private final @Nullable DatabaseAsserts database;
+        /** The body's asserts as both judges planned them (under the agreement judge), or null. */
+        private final @Nullable AgreementAsserts agreement;
         /** The places in the program's sequence of the database judge's verdict groups: the walk sends a fused
          *  statement under BODY (M7). */
         private final java.util.Set<Integer> databaseGroups;
@@ -163,7 +181,8 @@ public final class BodyRouter {
 
         Moved(TestDoor.Planned planned, SqlDialect dialect, RawSqlBoundary.@Nullable Recorder recorder,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader,
-                @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database, @Nullable AssertListener listener) {
+                @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
+                @Nullable AgreementAsserts agreement, @Nullable AssertListener listener) {
             this.planned = planned;
             this.dialect = dialect;
             this.recorder = recorder;
@@ -172,6 +191,7 @@ public final class BodyRouter {
             this.toOneReader = toOneReader;
             this.asserts = asserts;
             this.database = database;
+            this.agreement = agreement;
             this.listener = listener;
             java.util.Set<Integer> groups = new java.util.HashSet<>();
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
@@ -184,12 +204,14 @@ public final class BodyRouter {
                 if (database != null) {
                     groups.add(i);
                 }
-                if (asserts != null && group.verdicts().size() == 1) {
+                HostAsserts.Planned p = agreement != null ? agreement.of(group.verdicts().get(0)).host
+                        : asserts != null && group.verdicts().size() == 1 ? asserts.find(group.verdicts().get(0))
+                        : null;
+                if (p != null) {
                     // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
                     // marked for it (M10c item 8)
-                    HostAsserts.Planned p = asserts.find(group.verdicts().get(0));
-                    com.legend.exec.StatementOrigin o = p == null ? null
-                            : AssertVerdicts.deferredTextOrigin(p.assertion().check().judgment());
+                    com.legend.exec.StatementOrigin o = AssertVerdicts.deferredTextOrigin(
+                            p.assertion().check().judgment());
                     if (o != null) {
                         textOrigins.put(i, o);
                     }
@@ -207,6 +229,14 @@ public final class BodyRouter {
          *  verdict by the batch's root loop; a body ending on an assert answers the verdict the walk answers. */
         @Override
         public void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) {
+            if (agreement != null) {
+                // both judges have read once the step's last row is in: the agreement rule decides
+                TypedSide v = agreement.received(verdict, row, listener);
+                if (v != null) {
+                    lastVerdict = v;
+                }
+                return;
+            }
             if (database == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
             }
@@ -216,6 +246,10 @@ public final class BodyRouter {
 
         @Override
         public void fused(ExecutionPlan.Verdicts group, @Nullable DataError rejected) {
+            if (agreement != null) {
+                agreement.fused(group, rejected);
+                return;
+            }
             if (database == null) {
                 throw new IllegalStateException("a fused verdict group in a body the host judge planned");
             }
@@ -227,6 +261,11 @@ public final class BodyRouter {
          *  failure (an assert that does not hold, a side the database refused) counted as raised and reported. */
         @Override
         public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
+            if (agreement != null) {
+                // the host's verdict held until the database half's rows are in
+                agreement.hostSides(verdict, rows, listener);
+                return;
+            }
             HostAsserts.Planned p = assertOf(verdict);
             AssertVerdicts.HostAssert a = p.assertion();
             TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener,
@@ -243,6 +282,9 @@ public final class BodyRouter {
          *  raised. */
         @Override
         public RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
+            if (agreement != null) {
+                return agreement.sidesFailed(verdict, failure, listener);
+            }
             return AssertVerdicts.sideRefused(assertOf(verdict).assertion(), listener, failure);
         }
 

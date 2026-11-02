@@ -316,6 +316,109 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return true;
     }
 
+    /** One assert's database half under BOTH judges (the walker-deletion program, 2026-11-02): its root planned under
+     *  the body's collecting batch and planned alone ({@link VerdictBatch#plan}, one root), and its one verdict group
+     *  where the batch made one (null: the root's steps are resolved at planning, or every member's canon the dialect
+     *  cannot spell -- the root loop reaches it at its place, as the walk's statement-by-statement arm does). */
+    record Each(VerdictBatch.Planned planned, @Nullable ExecutionPlan.Verdicts group) {
+    }
+
+    /**
+     * {@code typed}'s asserts planned for the DATABASE half of the AGREEMENT judge ({@code JudgeMode.BOTH}; the
+     * walker-deletion program, 2026-11-02): as the walk's agreement arm asks the database arm at each assert's turn --
+     * no batch held across asserts, every frame run at its let by the host's check step -- each statement-root assert's
+     * root planned alone, its verdict statement over the frames' CTEs (the frames built on {@code env}'s batch under the
+     * stamp {@code frameStamp} names for the let: the host half's, which its check step binds). An assert absent from
+     * the answer is one the database judge DECLINES (the agreement rule: the host decides, the listener is told): a
+     * shape its arms answer null for or hand to the host at its turn ({@link AssertVerdicts#databaseGate}), an
+     * engine-text assert of a system-routed body, a group on another session or a keyed member (a raw grid's report),
+     * or every assert after a let the database half could not build. {@code env} judges with the DATABASE judge.
+     */
+    static Map<Integer, Each> planEach(TypedQuery typed, String runtime, BodyDriver.ExecEnv env, boolean systemRouted,
+            java.util.function.IntFunction<@Nullable String> frameStamp) {
+        Map<Integer, Each> out = new LinkedHashMap<>();
+        if (!plannable(typed, systemRouted)) {
+            return out;
+        }
+        SpecCompiler specs = typed.specs();
+        QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
+        List<TypedSpec> body = typed.body();
+        List<TypedSpec> letPrefix = new ArrayList<>();
+        Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
+        VerdictBatch batch = BodyDriver.newVerdictBatch(env);
+        BodyDriver.ExecEnv benv = env.withVerdictBatch(batch);
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
+            boolean last = i == body.size() - 1;
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+            if (statement instanceof TypedLet let && !last) {
+                boolean built = false;
+                try {
+                    java.util.function.Predicate<String> relationFrame =
+                            n -> frames.containsKey(n) && frames.get(n).relationRooted();
+                    LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
+                    if (kind == LetPlanner.Kind.FRAME) {
+                        frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let),
+                                letPrefix, specs, benv, java.util.Objects.requireNonNull(frameStamp.apply(i),
+                                        "the host half minted no stamp for the frame let")));
+                    } else if (kind == LetPlanner.Kind.ALIAS) {
+                        frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
+                                java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                    } else {
+                        PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
+                                benv.plan());
+                        letPrefix.add(let);
+                    }
+                    built = true;
+                } catch (RuntimeException e) {
+                    // the host half raises it at its place (a planned raise); the database half declines the rest
+                }
+                if (!built) {
+                    break;
+                }
+                continue;
+            }
+            if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
+                continue;
+            }
+            TypedSpec bare = Lets.bare(statement);
+            AssertVerdicts.DatabasePlan outcome;
+            try {
+                BodyDriver.ExecEnv at = BodyDriver.frameReplaceEnv(statement, frames, benv, letPrefix, specs);
+                AssertVerdicts.SpliceHook hook = BodyDriver.spliceHook(frames, letPrefix, specs, benv)::apply;
+                AssertVerdicts.DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
+                // a raise at planning (RAISES) is planned as the walk's arm raises it: the root resolved or walled,
+                // judged at the step with no row
+                outcome = gate == AssertVerdicts.DatabaseGate.UNPLANNED
+                        || gate == AssertVerdicts.DatabaseGate.ENGINE_TEXT && systemRouted
+                        ? AssertVerdicts.DatabasePlan.UNPLANNED
+                        : AssertVerdicts.planDatabase(batch, bare, letPrefix, specs, at, hook);
+            } catch (RuntimeException e) {
+                // the frame environment, the gate's classification or the arm raised: the arm raises the same at its
+                // turn, a wall at the root's place (a frame environment's raise is the host half's before its arm: the
+                // agreement judge never asks this half there)
+                batch.open(AssertVerdicts.listenerName(bare));
+                batch.wall(e);
+                batch.close();
+                outcome = AssertVerdicts.DatabasePlan.WALLED;
+            }
+            if (outcome == AssertVerdicts.DatabasePlan.UNPLANNED) {
+                continue;
+            }
+            VerdictBatch.Planned planned = batch.plan();
+            if (planned == null) {
+                continue;
+            }
+            List<VerdictBatch.Group> groups = planned.groups();
+            if (groups.size() > 1 || groups.stream().anyMatch(g -> g.on() != env.session() || g.keyed())) {
+                continue;
+            }
+            out.put(i, new Each(planned, groups.isEmpty() ? null : groups.get(0).step()));
+        }
+        return out;
+    }
+
     /** {@code $frame.activities}, the read of {@code frame}'s activity rows. */
     private static boolean readsActivitiesOf(TypedSpec n, String frame) {
         return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa && "activities".equals(pa.property())

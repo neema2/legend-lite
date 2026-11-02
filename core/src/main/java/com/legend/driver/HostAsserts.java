@@ -259,6 +259,11 @@ final class HostAsserts implements TestDoor.Asserts {
         return p == null ? null : List.of(p.step());
     }
 
+    /** The assert planned at {@code statement}, or null (no statement-root assert there). */
+    @Nullable Planned planned(int statement) {
+        return byStatement.get(statement);
+    }
+
     @Override
     public @Nullable String frameStamp(int statement) {
         return frameStamps.get(statement);

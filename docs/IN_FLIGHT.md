@@ -3067,7 +3067,14 @@ anything sent, the frame's query through its let; the witness `inlineSeedFramePr
 user's rulings of 2026-11-02:
 burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
 last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
-the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session.
+the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session. **The walker-deletion
+program, 2026-11-02 (the user: "keep going until we can actually delete all the walkers and they cannot hide or come
+back")**: the inventory measured with the walk forbidden
+(`docs/test-is-product-homework/walker-deletion/INVENTORY_2026_11_02.md`); the agreement judge moved to the program road
+(`driver/AgreementAsserts.java`, `DatabaseAsserts.planEach`, `AssertVerdicts`' agreement step, `BodyRouter`'s BOTH
+branch, `PlanEnv.stamp`): channel B's residue 23 bodies. Next: core's 104 by group (system-routed query programs, raw
+grids and objects, frames ending in a query, `assertError`, seeded runtimes), channel B's 23, the corpus residue, then
+the deletion and the guards that keep it deleted.
   **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
   path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
   `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests

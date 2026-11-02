@@ -157,7 +157,11 @@ class ErrorShapeGuardrailTest {
             // (1: the arm raises the same at its turn), and its planning pass records the gate's raise as the root's
             // wall (1). Nothing swallowed
             Map.entry("AssertVerdicts.java", 2),
-            Map.entry("DatabaseAsserts.java", 4),
+            // 4 -> 6 (2026-11-02, the walker-deletion program: the agreement judge's database half, planEach): a let
+            // the database half cannot build declines the asserts after it (the host half raises it at its place: a
+            // planned raise), and an assert's frame environment, gate or arm that raises is planned as the arm's wall
+            // at the root's place, as the planning pass records it. Nothing swallowed
+            Map.entry("DatabaseAsserts.java", 6),
             Map.entry("PlanRunner.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
