@@ -2944,6 +2944,16 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`JdbcDecodeDuckDbTest`, `JdbcDecodeH2Test`, `PureDateSpellingTest` (new)) and the manual benchmark
   (`SeamBenchmark*`); PR #85. Isolated from the seam program's branch (PR #83) at the user's word; every output
   byte-identical. PR #83 touches `JdbcStatements.java`'s read loop too: whichever lands second takes the reader there.
+  **Landed 2026-11-02** (neema2/legend-lite#85, merged by the user at `cf73e6ef`, with tier 1, both audits' folds, the
+  result-set ratchet at 9 and the macOS lane on `macos-15`).
+  **Announced 2026-11-02 — the host executors (branch `claude/wizardly-dirac-rw6tim`, from `cf73e6ef`;
+  `docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md`, ratified with the user that day):** TypeScript's and Python's executors
+  take Java's design and both reach Snowflake. Its files: `engine-client/src/` (`plan-runner.ts`, `duckdb.ts`,
+  `warehouse.ts`, `engine.ts`, `relation-type.ts`, `result.ts`, `values.ts`, a Snowflake session new), `engine-client/test/`,
+  `datacube/src/runner.ts` and the callers of the tab's `Plan` shape (`datacube/src/`, `query/src/`, `studio/src/`),
+  `python/legend_lite/` (`frames.py`, `engine.py`, `compiler.py`, a runner and a Snowflake session new), `python/tests/`,
+  their BUILD files, `MODULE.bazel` and the Python lock (ADBC's packages, in a `snowflake` extra), and the records. H0
+  (the note and two manual benchmarks) changes no behaviour.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

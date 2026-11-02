@@ -38,17 +38,92 @@ measured", items 1-10) found its cost in per-cell objects and per-cell dispatch.
 
 ## 2. The code as it is
 
-(Filled from the code map, 2026-11-02; every claim with its file and line.)
+A code map at `main` `cf73e6ef` (2026-11-02), by an agent reading the code, every claim with its file and line.
+
+### 2.1 The tab (TypeScript)
+
+The tab has two interfaces. `QueryEngine` (`engine-client/src/engine.ts:35-64`) has `execute(Plan)`, `stream(Plan)` and
+`run(sql)`; `typedByPlan` (`:85-97`) attaches the plan's types and refuses a column the plan does not type. The second
+is `legend/engine.ts`'s `Engine.execute(ExecuteInput)`, which answers legend-engine's TDS JSON (`wire.ts:44-62`). Three
+plan shapes reach them:
+
+| Planner operation | What it answers | Read as |
+|---|---|---|
+| `plan`, `planJson`, `planModel` | `{sql, type}` | `Plan {sql, columns}` (`relation-type.ts`) |
+| `executePlan` | `{sql, run, shape, resultColumns, builder}` | `ExecutePlan` (`legend/wasm-grammar.ts:115-125`) |
+| `executionPlan` | the plan record's JSON, version 19 | `plan-runner.ts` |
+
+The paths that run a query:
+
+- **A. A DataCube grid on the tab's DuckDB.** `PlanAndRun` / `localHost` (`datacube/src/runner.ts:243-257`): `plan`,
+  then `DuckDbEngine.execute` or `stream` (`duckdb.ts:427-475`). DuckDB-WASM's Arrow is decoded per cell by `toRawTable`
+  and `decoderFor` (`:199-285`) into `ResultTable`'s `Scalar`s (`result.ts:53-62`).
+- **B. A grid on the warehouse.** `WarehouseEngine.execute`/`stream` (`warehouse.ts:335-373`): each chunk an Arrow IPC
+  stream (`tableFromIPC`), then the same `toRawTable`.
+- **C. A grid on Python's engine.** `pythonRunner` (`datacube/src/services/python-host.ts:295-359`) posts the query to
+  `/plan-and-run.json`. The answer is Arrow IPC with the plan in its schema's metadata (`legend.plan`), read by
+  `arrowIpcAnswer`, then `readPlan`, `toRawTable` and `typedByPlan`, as one chunk. Headless V8 uses the same runner.
+- **D. A remote legend-engine.** `LegendEngineExecutor` (`engine-remote.ts:164-204`): TDS JSON (`toResultTable`) or zstd
+  Arrow (`arrowResultTable`). Only Query's server mode uses it.
+- **E. Query's and Studio's execute in the tab.** `BrowserEngine.executeText` (`legend/browser-engine.ts:63-68`):
+  `executePlan`, then `QueryEngine.run(plan.run)`, then `hostRows` (`:94-109`: the cells handed back as tokens), then
+  `executeAnswer` (the WebAssembly planner writes legend-engine's JSON: Java's writer), then `JSON.parse`.
+- **F. Query's results grid.** `CubeApp` with `CubePlanner` (`query/src/app/cube.ts:64-66`), planned by `planModel`.
+- **G. Writes.** `runPlan` (`plan-runner.ts:78-138`) reads the plan record (version 19) and runs it on a `PlanSession`.
+  It writes lite JSON rows itself (`rowsOf`, `:158-168`), an integer, a text or a boolean cell only. Its one caller is
+  `writeTable` (`datacube/src/table-output.ts:61,80`), from the tab and from Python's headless `flow.run`.
+- **H. SQL no planner wrote.** `run`: a session's setup, the host operations, snaps (`snap.ts`, `loadArrow`), Studio's
+  SQL playground.
+
+Where the tab spells values itself: `values.ts` (`dayText`, `timestampText`, `timeText`, `decimalText`,
+`timestampFromText`, `parseExact`); `duckdb.ts` (`toScalar`, `exactJson`, `decimalToScalar`, `decoderFor`, `nestedJson`);
+`engine-remote.ts:104-109` (timestamps rewritten); `browser-engine.ts` `hostRows` (the tokens handed back);
+`plan-runner.ts` `rowsOf`; and Query's own CSV, written from the TDS JSON (`query/src/ui/results.ts:288-293`). Java's
+writers spell an answer only on path E (`executeAnswer`).
+
+The warehouse driver (`warehouse.ts`) leaves every HTTP call and every answer to its WebAssembly binding
+(`SqlApiCalls`: `login`, `loginKey`, `submit`, `poll`, `fetchChunk`, `cancel`, ...), keeps the result's bytes itself (one
+Arrow IPC stream per chunk), and holds a bearer token refreshed at 80% of its life.
+
+### 2.2 Python
+
+- **`Table.execute`** (`frames.py:248-252`): `lite_plan_json_held` answers `{sql, type}`; `Frames.run` (`:390-395`) runs
+  it (`to_arrow_table`) and `typed_by_plan` (`:89-108`) puts each column's Pure type in its field metadata and casts
+  integers. A `pyarrow.Table`.
+- **The engine's Arrow execute** (`engine.py:1633-1647`): `lite_execute_plan` answers `{sql, metadata}`; `to_arrow_table`;
+  `_arrow_ipc` writes upstream's Arrow, zstd-compressed. Python writes it.
+- **The engine's JSON execute** (`engine.py:1649-1664`): `lite_execute_json_plan`; the `run` statement; `fetchall()`;
+  `compiler.host_rows` (`compiler.py:275-316`: every cell as Python object, then JSON text); `lite_execute_json_answer`
+  (Java's writer, in the native library). Three conversions per cell.
+- **`/plan-and-run.json`** (`engine.py:1482-1528`): a frame's, a project's or a warehouse table's rows, typed by the plan,
+  as uncompressed Arrow IPC with the plan in its metadata (`_arrow_rows`).
+- **Headless DataCube** (`_headless.py`): V8 asks Python's DuckDB for rows (`to_arrow_table`, then IPC, then base64) and
+  Python's planner for plans; a page's `flow.run` writes run on the tab's `runPlan`, from `lite_execution_plan_json_held`.
+- **The warehouse** (`warehouse.py`): HTTP through urllib, the same binding (`lite_warehouse_call`), its chunks as Arrow.
+- `lite_execute_arrow_answer` is declared and called nowhere (`_library.py:37-39`: "wired ... when the user rules").
+
+### 2.3 What is missing
+
+- **No test compares a host's executed rows with Java's.** The checks that exist compare plans' SQL with the JVM's
+  (`//python:bindings_test`, `//datacube:wasm_differential_test`), the tab's execute text with Python's, both written by
+  the same Java writer (`//datacube:python_execute_test`), and each warehouse driver's HTTP calls with a recorded corpus.
+- **No benchmark runs under Bazel** before this program (`datacube/bench/*.mjs` are only typechecked).
+- **No Snowflake** in either executor.
+- **Database types:** the tab runs DuckDB (`DuckDbEngine.databaseType`) and, through the warehouse, the catalog's type
+  (DuckDB or Postgres); Python hardcodes `'DuckDB'` in five places (`frames.py:180,333`, `_host.py:14`, `projects.py:46`,
+  `engine.py:1421`) and takes a warehouse table's from its catalog.
 
 ## 3. The design
 
 ### 3.1 One plan
 
 Every executor runs the plan record the planner writes, as its JSON (`legend-lite-plan`, `PlanJson.VERSION`, 19 today).
-The tab's own `Plan {sql, columns}` (`engine-client/src/relation-type.ts`) is retired into it: its callers move to the
-plan, and the plan's columns carry every fact the decode needs (the Pure type and multiplicity, the SQL slot, the store's
-declared type, the written precision). The WebAssembly and native planners already write the record (their
-`executionPlan`/`executePlan` operations; §2).
+The tab's three shapes (§2.1) become one: `Plan {sql, columns}` (`engine-client/src/relation-type.ts`, paths A, B, C,
+F) and `ExecutePlan` (path E) are retired into the record, their callers moved to it, and the record's columns carry every
+fact the decode needs (the Pure type and multiplicity, the SQL slot, the store's declared type, the written precision).
+Python's `{sql, type}` and `{sql, metadata}` answers go the same way. The WebAssembly and native planners already write
+the record (`executionPlan`, `lite_execution_plan_json_held`; §2). legend-engine's own plan (`UpstreamPlanner`, read from
+an upstream server's `generatePlan`, `datacube/src/planner.ts:132-217`) is another planner's, and stays as it is.
 
 ### 3.2 One runner per language, with Java's rules
 
