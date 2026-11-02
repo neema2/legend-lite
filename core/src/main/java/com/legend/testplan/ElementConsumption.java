@@ -161,7 +161,8 @@ final class ElementConsumption {
         }
         if (n instanceof TypedNativeCall call) {
             FunctionId id = call.callee().id();
-            if (NativeFn.Handle.of(id).isPresent() || NativeFn.JavaRoutine.of(id).isPresent()) {
+            if (NativeFn.Handle.of(call.callee().id()).isPresent()
+                    || NativeFn.JavaRoutine.of(call.callee().id()).isPresent()) {
                 return false;
             }
             if (NativeFn.Effect.readsArgumentsAtPlanning(id)) {

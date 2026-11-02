@@ -300,6 +300,17 @@ public final class BodyDriver {
         }
     }
 
+    /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members
+     *  there (every one but {@code assertTdsEquivalent}, the relation package's, and {@code toCSV}, the relational tests'),
+     *  and {@code assertError}, the context owner (the identity guardrail: a family asked by the callee's id, never its
+     *  name's prefix; the same set the package test read). */
+    private static boolean assertsPackageNative(com.legend.compiler.spec.typed.TypedNativeCall nc) {
+        com.legend.builtin.NativeFn.Verdict v = com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).orElse(null);
+        return v != null && v != com.legend.builtin.NativeFn.Verdict.ASSERT_TDS_EQUIVALENT
+                && v != com.legend.builtin.NativeFn.Verdict.TO_CSV
+                || com.legend.builtin.NativeFn.ContextOwner.of(nc.callee().id()).isPresent();
+    }
+
     /** The walk's rule for a statement-root HELPER call ({@link #prepareValue}): a user call whose inlined, staged
      *  root is a verdict native asserting a CLASS VALUE or reading a STRING ENTRY is adjudicated as that assert (the
      *  corpus's {@code runLegendTest} wrappers, {@code toPostgresModel}'s {@code assertConversion}); every other
@@ -328,8 +339,7 @@ public final class BodyDriver {
         boolean assertShaped = false;
         for (TypedSpec stmt : specs.compile(call.callee()).body()) {
             if (com.legend.compiler.spec.StatementEffects.reaches(stmt, n -> n instanceof
-                    com.legend.compiler.spec.typed.TypedNativeCall nc && nc.callee().qualifiedName().startsWith(
-                            com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)
+                    com.legend.compiler.spec.typed.TypedNativeCall nc && assertsPackageNative(nc)
                     || n instanceof com.legend.compiler.spec.typed.TypedJsonResult
                     || n instanceof com.legend.compiler.spec.typed.TypedJsonAccess, specs, memo)) {
                 assertShaped = true;

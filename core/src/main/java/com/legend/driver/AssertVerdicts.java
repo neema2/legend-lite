@@ -895,7 +895,7 @@ final class AssertVerdicts {
      *  nothing. */
     static String shapeOf(TypedSpec bare) {
         String fqn = calleeFqn(bare);
-        String name = fqn == null ? bare.getClass().getSimpleName() : fqn.substring(fqn.lastIndexOf(':') + 1);
+        String name = fqn == null ? bare.getClass().getSimpleName() : fqn;
         List<TypedSpec> args = bare instanceof TypedNativeCall nc ? nc.args()
                 : bare instanceof TypedUserCall uc ? uc.args() : List.of();
         StringBuilder out = new StringBuilder(name).append('(');

@@ -397,12 +397,12 @@ final class JudgePlans {
                     return deferred;
                 }
                 // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
-                throw new SqlTextVerdicts.NotAConstant("a text side that is not a constant of the plan: " + p.kind()
+                throw new SqlTextVerdicts.NotAConstant(SqlTextVerdicts.NotAConstant.LABEL + p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
                                 : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                                        ? " " + nc.callee().qualifiedName().substring(nc.callee().qualifiedName().lastIndexOf(':') + 1)
+                                        ? " " + nc.callee().qualifiedName()
                                         : p.root() instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                                        ? " " + uc.callee().qualifiedName().substring(uc.callee().qualifiedName().lastIndexOf(':') + 1) : "")));
+                                        ? " " + uc.callee().qualifiedName() : "")));
             }
             return shape(p, runSide(p, env));
         }

@@ -87,6 +87,9 @@ final class SqlTextVerdicts {
      *  send a statement at planning): the body stays on the walk, by name ({@link #plan} answers it as
      *  {@link #notAConstant}'s check, its message the side's kind and planned root for the unplanned-assert census). */
     static final class NotAConstant extends RuntimeException {
+        /** The message's label; the side's kind and planned root follow it. */
+        static final String LABEL = "a text side that is not a constant of the plan: ";
+
         NotAConstant(String what) {
             super(what);
         }
@@ -105,7 +108,7 @@ final class SqlTextVerdicts {
             throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
         }
         String what = String.valueOf(((HostJudgment.Raise) check.judgment()).failure().getMessage());
-        return what.substring(what.indexOf(':') + 2);
+        return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
     /** A collector for one planned assert. */
