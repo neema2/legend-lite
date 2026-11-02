@@ -98,25 +98,35 @@ def testables() -> list[str]:
     # nothing said why, which is the quietest way a test can fail to exist.
     #
     # Scanning everything costs a directory read and removes the whole class of mistake.
+    #
+    # Each element's extent is searched from its own position, never from a copy of the rest of the file: copying
+    # the remainder for every one of ~6,000 services made the scan quadratic, about 12 s for 17 MB, which timed out
+    # //scripts/corpus:quarantine_test on CI's Windows runner (2026-11-02, PR #87). The same names, in the same order.
     for f in sorted(model.STRESS.glob("*.pure")):
         text = f.read_text(encoding="utf-8")
         # A service with no testSuites is a DECLARATION, not a testable. Listing one makes
         # it report MISSING for ever -- the runner asks for a result the service was never
         # going to produce, which reads like a failure and is not one.
-        for m in re.finditer(r"^Service (\S+)", text, re.M):
-            body = text[m.end():]
-            nxt = re.search(r"^(?:Service|ExecutionEnvironment|###)", body, re.M)
-            if m.group(1).startswith("stress::") and "testSuites" in (body[:nxt.start()] if nxt else body):
+        for m in _SERVICE.finditer(text):
+            nxt = _SERVICE_END.search(text, m.end())
+            if m.group(1).startswith("stress::") and text.find("testSuites", m.end(),
+                                                                nxt.start() if nxt else len(text)) != -1:
                 out.append(m.group(1))
         # A MAPPING's test suites are a testable too, addressed by the mapping's path (the improvement plan's Phase 8:
         # mapping_tests.py's, the `stress::` ones, as D4 takes the services)
-        for m in re.finditer(r"^Mapping (\S+)", text, re.M):
-            body = text[m.end():]
-            nxt = re.search(r"^(?:Mapping|###)", body, re.M)
-            if m.group(1).startswith("stress::") and re.search(r"^\s*testSuites\s*:", body[:nxt.start()] if nxt
-                                                               else body, re.M):
+        for m in _MAPPING.finditer(text):
+            nxt = _MAPPING_END.search(text, m.end())
+            if m.group(1).startswith("stress::") and _SUITES.search(text, m.end(),
+                                                                   nxt.start() if nxt else len(text)):
                 out.append(m.group(1))
     return out + functest.testables()
+
+
+_SERVICE = re.compile(r"^Service (\S+)", re.M)
+_SERVICE_END = re.compile(r"^(?:Service|ExecutionEnvironment|###)", re.M)
+_MAPPING = re.compile(r"^Mapping (\S+)", re.M)
+_MAPPING_END = re.compile(r"^(?:Mapping|###)", re.M)
+_SUITES = re.compile(r"^\s*testSuites\s*:", re.M)
 
 
 def corpus_files() -> list[Path]:
