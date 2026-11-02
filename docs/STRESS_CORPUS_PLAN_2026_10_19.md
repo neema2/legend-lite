@@ -61,13 +61,27 @@ where its static resolution can't see the reach.
    service the oracle can't evaluate, and that stays.
 
    **What this rule does not promise** (2026-11-02, the PR #87 review's finding 6). No expected value is copied from
-   an engine's output. But not every rule the oracle follows is independent of the engine: where legend-pure's
-   definition left a reading open, or the oracle's first reading disagreed, the pinned engine was asked and its
-   reading taken. That covers Phase 3's 41 milestoning probes, Phase 8's constraint scope, and Phase 9's probed
-   semi-structured paths and `~filter` chains. Some inputs were also kept clear of engine failures: Decimal comparands
-   of at most 16 fractional digits (Phase 4), the `in_order` assertions replaced (Phase 8), and `cbrt` over cubes of
-   powers of two (D6). Each is recorded in its phase. Where a rule came from a probe, a pass on the engine shows that
-   the corpus agrees with the probe, not that the engine is right.
+   an engine's output, but not every rule the oracle follows is independent of legend-engine. Each record says where
+   its rule came from, in one of three ways:
+   - **legend-pure defines it:** the oracle follows legend-pure, against the engine if need be. That is D7, D8 and
+     Phase 4's adjudication, where `dayOfWeekNumber` had followed the engine's DuckDB lowering, "which made agreement
+     with the engine circular".
+   - **The construct is legend-engine's own, and legend-pure has no definition:** the oracle reads legend-engine's
+     pinned sources as the spec, and a probe confirms the reading. That is Phase 8's constraint scope
+     (`ensureConstraintsRequirements`, `createConstraintCheckingForTree`), Phase 9's semi-structured paths
+     (`parseSemiStructuredPathNavigation`, `duckdbExtension.pure`'s renderings) and a `~filter` chain's join types
+     (until then every hop was read as INNER, and no expectation had tested it), and Phase 3's version-range overlap
+     (legend-engine's own range tests). Phase 3's other probes asked what the pin parses and runs: the oracle was
+     written first and they agreed with it, and what was not probed, a DateTime against a DATE column, is refused.
+   - **The oracle's first reading disagreed, and the engine's answer was taken:** the arithmetic of a relational
+     query, which is the database's (`oracle._exact_addsub`, `_Dbl`, `_exact_avg`, August 2026). A DECIMAL column
+     computes exactly, a DOUBLE or FLOAT column in binary, and a division drops to double. Each rule was widened only
+     "with the disagreement as the reason", so this is the one place engine answers shaped a rule.
+
+   Some inputs were also kept clear of engine failures: Decimal comparands of at most 16 fractional digits (F61 has
+   services of its own; Phase 4), the `in_order` assertions over a DECIMAL column replaced (it is spelled at the column's
+   scale; Phase 8), and `cbrt` over cubes of powers of two (a C library's last ulp; D6). Where a rule came from the
+   engine's sources or its answers, a pass on the engine shows agreement, not independent evidence.
 2. **Prefer invariance twins where an evaluator would be expensive:** a service whose expected result must equal
    another's. Examples are a parameter against the same literal, an M2M mapping against the relational query that
    computes the same values, and `DenseMapping` against the flat mapping. `build.py` already fails when a group in
