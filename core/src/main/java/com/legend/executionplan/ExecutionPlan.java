@@ -294,13 +294,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
      *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
      *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. A fifth,
-     *  {@code declared} (2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): the compiler's declared type of a
-     *  column the compiler typed ({@link Declared}), what a host reads a column's type by and what legend-engine's
-     *  answer names it by -- null for a column no compiler typed (a key's, a nested value's, a probe's, a judge's), and
-     *  refused by name where a reader needs it. */
+     *  {@code enumeration} (2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, ruled by the user that day):
+     *  whether the compiler typed the column with a Pure enumeration -- the one fact a reader of the plan alone lacked,
+     *  since an enumeration's {@code type} is its path, as a variant's or a class's is (legend-engine's answer names an
+     *  enumeration column {@code String}) -- null for a column no compiler typed (a key's, a nested value's, a probe's,
+     *  a judge's), and refused by name where a reader needs it. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
             @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision,
-            @com.legend.base.Nullable Declared declared) {
+            @com.legend.base.Nullable Boolean enumeration) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -318,20 +319,35 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** This column's facts under another name (a keyed result's per-key column, a column read under the name its
          *  statement writes it). */
         public Column named(String other) {
-            return new Column(other, type, multiplicity, slot, store, precision, declared);
+            return new Column(other, type, multiplicity, slot, store, precision, enumeration);
         }
-    }
 
-    /**
-     * The compiler's declared type of a column it typed (2026-11-02, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2: the
-     * plan carries every fact a reader of its answer needs, so a host and a writer read the plan alone): {@code path},
-     * the type's path as legend-engine's relation type names it ({@code genericType.rawType.fullPath}: a primitive's
-     * name, a precision decimal's {@code Decimal}, an enumeration's path, a variant's path); and {@code enumeration},
-     * whether the type is a Pure enumeration (a relation's other non-primitive, a variant, is not one).
-     */
-    public record Declared(String path, boolean enumeration) {
-        public Declared {
-            Objects.requireNonNull(path, "path");
+        /** The column's type as legend-engine's relation type names it (its {@code genericType.rawType.fullPath}), by
+         *  the one rule over {@link #type}: a precision decimal, which the typer spells {@code Decimal(p,s)}, is
+         *  {@code Decimal} (its precision and scale are its slot's); any other type is its own name
+         *  (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, ruled by the user 2026-11-02). */
+        public String plainType() {
+            return isPrecisionDecimal(type) ? "Decimal" : type;
+        }
+
+        /** {@code Decimal(p,s)}, digits each, as the typer spells a precision decimal ({@code Type.PrecisionDecimal}). */
+        private static boolean isPrecisionDecimal(String t) {
+            if (!t.startsWith("Decimal(") || !t.endsWith(")")) {
+                return false;
+            }
+            String inside = t.substring("Decimal(".length(), t.length() - 1);
+            int comma = inside.indexOf(',');
+            return comma > 0 && comma < inside.length() - 1 && digits(inside.substring(0, comma))
+                    && digits(inside.substring(comma + 1));
+        }
+
+        private static boolean digits(String s) {
+            for (int i = 0; i < s.length(); i++) {
+                if (s.charAt(i) < '0' || s.charAt(i) > '9') {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

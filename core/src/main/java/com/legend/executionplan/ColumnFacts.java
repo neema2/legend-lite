@@ -30,10 +30,9 @@ public final class ColumnFacts {
     private ColumnFacts() {
     }
 
-    /** What the typer says of a column: its name, its Pure type's name, its multiplicity, and its declared type
-     *  ({@link ExecutionPlan.Declared}). */
-    public record Pure(String name, String type, ExecutionPlan.Multiplicity multiplicity,
-            ExecutionPlan.Declared declared) {
+    /** What the typer says of a column: its name, its Pure type's name, its multiplicity, and whether that type is
+     *  an enumeration ({@link ExecutionPlan.Column#enumeration}). */
+    public record Pure(String name, String type, ExecutionPlan.Multiplicity multiplicity, boolean enumeration) {
     }
 
     /**
@@ -60,7 +59,7 @@ public final class ColumnFacts {
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), slot(out.type()),
-                        stored == null ? null : store(stored), precision(p.type(), out.type(), shape), p.declared()));
+                        stored == null ? null : store(stored), precision(p.type(), out.type(), shape), p.enumeration()));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")
@@ -69,7 +68,7 @@ public final class ColumnFacts {
             if (hits.size() == 1) {
                 SqlType t = hits.get(0).type();
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), t == null ? null : slot(t),
-                        null, precision(p.type(), t, shape), p.declared()));
+                        null, precision(p.type(), t, shape), p.enumeration()));
             } else {
                 // (until 2026-10-29 a column whose name prefixed some outputs -- an unflattened row-struct column --
                 // passed here with no slot, and the plan declared one column where the statement answered its parts;

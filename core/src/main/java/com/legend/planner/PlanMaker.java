@@ -219,7 +219,7 @@ public final class PlanMaker {
                                 com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null,
                                 com.legend.executionplan.ColumnFacts.precision(root.type().typeName(),
                                         outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
-                                com.legend.plan.PlanColumns.declared(root.type()))),
+                                com.legend.plan.PlanColumns.enumeration(root.type()))),
                         sql(lowered, dialect, target));
             }
             case TABULAR -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
@@ -280,7 +280,7 @@ public final class PlanMaker {
                                 com.legend.executionplan.ColumnFacts.slot(k.slot()), null,
                                 com.legend.executionplan.ColumnFacts.precision(k.template().type().typeName(),
                                         k.slot(), ExecutionPlan.TdsResult.Shape.RELATION),
-                                com.legend.plan.PlanColumns.declared(k.template().type())),
+                                com.legend.plan.PlanColumns.enumeration(k.template().type())),
                         k.nameCell(), field);
             });
         }

@@ -67,9 +67,9 @@ public final class UpstreamRelationType {
         return tdsTypePath(typePath(t), t instanceof Type.EnumType);
     }
 
-    /** {@link #tdsTypePath(Type)} from a column's declared type as a plan states it ({@code ExecutionPlan.Declared}:
-     *  its {@link #typePath}, and whether it is an enumeration), so a writer that reads the plan alone names it
-     *  exactly as one that reads the compiler's type does (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2). */
+    /** {@link #tdsTypePath(Type)} from a column's type as a plan states it (its {@link #typePath}, the plan column's
+     *  {@code plainType()}, and whether it is an enumeration), so a writer that reads the plan alone names it exactly
+     *  as one that reads the compiler's type does (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2). */
     public static String tdsTypePath(String path, boolean enumeration) {
         return enumeration ? "String" : path;
     }
@@ -91,8 +91,8 @@ public final class UpstreamRelationType {
         return relationalSpelling(typePath(t), t instanceof Type.EnumType);
     }
 
-    /** {@link #relationalSpelling(Type)} from a column's declared type as a plan states it (its {@link #typePath}, and
-     *  whether it is an enumeration): the one spelling, read from the compiler's type or from the plan's fact. */
+    /** {@link #relationalSpelling(Type)} from a column's type as a plan states it (its {@link #typePath}, and whether
+     *  it is an enumeration): the one spelling, read from the compiler's type or from the plan's facts. */
     public static String relationalSpelling(String path, boolean enumeration) {
         if (enumeration) {
             // an enumeration column is its store column's string (measured, 4.145.0, 2026-09-30:

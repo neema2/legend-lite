@@ -33,12 +33,9 @@ public final class PlanColumns {
         };
     }
 
-    /** A column's declared type in the plan's terms ({@link ExecutionPlan.Declared}): its path as legend-engine's
-     *  relation type names it ({@link UpstreamRelationType#typePath}, the one spelling of it), and whether it is an
-     *  enumeration. */
-    public static ExecutionPlan.Declared declared(com.legend.compiler.element.type.Type t) {
-        return new ExecutionPlan.Declared(UpstreamRelationType.typePath(t),
-                t instanceof com.legend.compiler.element.type.Type.EnumType);
+    /** Whether a column's type is a Pure enumeration, in the plan's terms ({@link ExecutionPlan.Column#enumeration}). */
+    public static boolean enumeration(com.legend.compiler.element.type.Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.EnumType;
     }
 
     /** A column's multiplicity in the plan's terms (a column's is always bounded). */
@@ -53,7 +50,7 @@ public final class PlanColumns {
             ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()
                 .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity()),
-                        declared(c.type())))
+                        enumeration(c.type())))
                 .toList(), lowered, shape);
     }
 }

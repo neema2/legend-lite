@@ -166,6 +166,17 @@ Rev 3's, the clean-sheet design (ratified by the user, "Yes I love it"):
   for a text answer (the grid sends no data into the core).
 - **D15. The JVM keeps `PlanRunner` as the reference.** Test bodies stay on the JVM (`Execution.runProgram`).
 
+R2's (the user, 2026-11-02):
+
+- **D16. The plan's columns gain one fact: whether the compiler typed the column with an enumeration.** The user
+  asked what R2 adds, since the plan already carries each column's Pure type, SQL type and store type. The answer:
+  legend-engine's answer header names an enumeration column `String` (`VARCHAR(1024)`), and in the plan an
+  enumeration's type is its path, which a reader cannot tell from a variant's or a class's path without guessing. That
+  bit is the one fact the plan lacked. A precision decimal's plain name (the header's, and the hosts' type tables',
+  `Decimal`) is read from its Pure type by one rule: `Decimal(p,s)` is `Decimal`, its precision and scale the SQL
+  type's (`ExecutionPlan.Column.plainType`). A first cut that added the plain name as a second field repeated the Pure
+  type and was withdrawn at the user's word.
+
 
 ## 2. The code as it is
 
@@ -533,6 +544,25 @@ step runs under the conformance suite (§3.7).
 - **The lane:** `//gates:warehouse`, where the tab-against-Python execute test already runs.
 
 **R2. One plan kind.**
+- **The survey's findings (2026-11-02):**
+  - **Every query of both corpora gives the same SQL from the grid's plan (`{sql, type}`) as from the plan record**
+    (74 of 74 that plan; both refuse the same queries in the same words): moving a grid onto the record changes no
+    statement it runs.
+  - **The readers of the old shapes read three fields:** the SQL, each column's name, and its type path.
+  - **The grid never plans a statement that depends on data:** DataCube fetches a pivot's values first, then plans a
+    static pivot (`datacube/src/plan.ts` `planPivot`); a `Keyed` plan arises only from a person's own dynamic
+    `pivot()`, and the hosts' routes refuse it at planning.
+  - **What the record lacked:** the enumeration fact (D16), for legend-engine's answer header, which Java built from
+    the compiler's typed query, not from the plan.
+- **The commits:**
+  1. The enumeration fact (D16, plan version 20); the hosts' JSON execute answers the plan record, and its answer's
+     header is made from the plan's facts alone (`PureV1Api.planEnvelope`), held query by query to the header the
+     server makes from the compiler's types (`PureV1ApiTest`). The server's own writer moves to the plan's facts in a
+     later commit, under the PCT lanes.
+  2. The host's profile and the planning-time review (D6); the tab's runner keeps the format and version check.
+  3. The grid's paths onto the record (§2.1 paths A, B, C, F), each column's type by `plainType`.
+  4. Python's `Table.execute` and plan-and-run onto the record, and the tab's reader of Python's answer.
+  5. The old shapes retired, a census reading zero; Python's Arrow execute keeps `arrowPlan` until R4 (D7).
 - **The survey first:** the record's JSON against each retired shape's fields and each caller (§2.1 paths A, B, C, E,
   F; §2.2), and what the writers need for each output (legend-engine's builder, its activities, the trace id).
 - **The host's profile (D6):** the database types a host reaches and the outputs it writes, as the planner's input; what
@@ -603,6 +633,12 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   then makes `"0NaN-NaN-NaNT..."` of one past year 275,760 (`TIMESTAMP '287396-10-12 08:59:00.991999'`): a silent
   default. It predates the program, and the column decode answers the same. Its fix is a refusal, and so a behaviour
   change, to be posted to the user with H1's Arrow results.
+- **Seven queries of the planner's corpus are refused on both the JVM and WebAssembly** (found 2026-11-02, R2's
+  survey): `extendArith`, `extendConcat`, `extendThenFilter`, `pipelineExtend`, `extendTwo`, `extendChained` and
+  `deepPipeline` in `wasm/corpus/queries.tsv`, each with "Collection element must have a multiplicity [1], found
+  [0..1]" (arithmetic or a concatenation over a nullable column). The differential test passes, since both builds
+  refuse alike. Whether legend-engine refuses them too is to be asked of the engine runner before anything changes;
+  recorded, not changed.
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
@@ -629,3 +665,7 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   doing no input or output (the planner and the writers), Arrow between the pieces, thin host shells (§1, §3); D6-D15
   ruled; the roadmap R2-R8 and Z (§5). Before it, the user's two questions (rev 3's preface) and the scratch probe of the
   Arrow writer in both embedded builds (§3.6).
+- 2026-11-02: R2 started. The survey (the old shapes' callers and the fields they read; the grid's SQL equal on the
+  record for every corpus query). D16 ruled: the plan's columns gain only the enumeration fact, a decimal's plain name
+  read from its Pure type by one rule. R2's first commit: the fact (plan version 20), the hosts' JSON execute on the
+  plan record, its answer's header from the plan alone.

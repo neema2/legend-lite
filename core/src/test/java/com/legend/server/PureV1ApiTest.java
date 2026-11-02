@@ -580,8 +580,8 @@ class PureV1ApiTest {
     }
 
     /**
-     * The envelope a host's writer makes from the plan alone ({@code planEnvelope}: each column's declared type, the
-     * plan's fact) is the envelope the server's writer makes from the compiler's types ({@code envelope}), query by
+     * The envelope a host's writer makes from the plan alone ({@code planEnvelope}: each column's plain type and its
+     * enumeration fact) is the envelope the server's writer makes from the compiler's types ({@code envelope}), query by
      * query: a table of every type (a precision decimal among them), the trades model's queries, and the trading
      * model's enumeration column (its builder type {@code String}, its relational spelling {@code VARCHAR(1024)}, by
      * both). The two makers of legend-engine's builder are held to each other until the server's writer reads the plan
@@ -660,13 +660,13 @@ class PureV1ApiTest {
             enumeration |= fromFacts.builder().contains(
                     "{\"name\":\"side\",\"type\":\"String\",\"relationalType\":\"VARCHAR(1024)\"}");
             decimal |= columns.stream().anyMatch(col -> col.type().startsWith("Decimal(")
-                    && col.declared() != null && col.declared().path().equals("Decimal"));
+                    && col.plainType().equals("Decimal") && Boolean.FALSE.equals(col.enumeration()));
             compared++;
         }
         assertTrue(compared >= 12, "compared " + compared + ", refused by both " + refusedByBoth
                 + "; the first not planned: " + firstNotPlanned);
         assertTrue(enumeration, "the enumeration column compared");
-        assertTrue(decimal, "a precision decimal column compared, its declared path Decimal");
+        assertTrue(decimal, "a precision decimal column compared, its plain type Decimal");
     }
 
     /**

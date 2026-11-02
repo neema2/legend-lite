@@ -139,6 +139,30 @@ class PlanJsonTest {
         assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":20,"), json);
     }
 
+    /** A column's plain type, by the one rule over its typed name (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): a
+     *  precision decimal's {@code Decimal(p,s)} is {@code Decimal}; any other name, including one that only looks like
+     *  it, is its own. And whether the column is an enumeration round-trips: true, false, or null where no compiler
+     *  typed it. */
+    @Test
+    void aColumnsPlainTypeAndItsEnumerationFact() {
+        java.util.function.BiFunction<String, Boolean, Column> col = (type, enumeration) -> new Column("c", type,
+                new ExecutionPlan.Multiplicity(0, 1), null, null, null, enumeration);
+        assertEquals("Decimal", col.apply("Decimal(18,2)", false).plainType());
+        assertEquals("Decimal", col.apply("Decimal(38,0)", false).plainType());
+        for (String own : List.of("Decimal", "Integer", "demo::trading::Side", "Decimal(x,2)", "Decimal(18,)",
+                "Decimal(,2)", "Decimal(18,2", "my::Decimal(1,2)")) {
+            assertEquals(own, col.apply(own, false).plainType(), own);
+        }
+        for (Boolean enumeration : java.util.Arrays.asList(true, false, null)) {
+            String written = PlanJson.writeColumns(List.of(col.apply("demo::trading::Side", enumeration)));
+            assertEquals(enumeration, PlanJson.readColumns(written).get(0).enumeration(), written);
+        }
+        IllegalArgumentException unsaid = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> PlanJson.readColumns("[{\"name\":\"c\",\"type\":\"String\",\"multiplicity\":"
+                        + "{\"lower\":0,\"upper\":1},\"slot\":null,\"store\":null,\"precision\":null}]"));
+        assertTrue(unsaid.getMessage().contains("states not whether it is an enumeration"), unsaid.getMessage());
+    }
+
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,

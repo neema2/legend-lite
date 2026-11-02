@@ -60,9 +60,9 @@ public final class PlanJson {
      *  2026-10-29: the fact's fourth value, MINIMAL, a value root's instant at the precision its digits show (a
      *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118); 19
      *  since 2026-10-29: the {@code LITERAL} slot word retired (track L's L2: a mixed value is a tagged value, never a
-     *  spelled text; a plan naming the word is refused at the reader); 20 since 2026-11-02: a column's fifth fact, the
-     *  compiler's declared type ({@code declared}: {@link ExecutionPlan.Declared}, its path and whether it is an
-     *  enumeration; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, every host path on this plan). */
+     *  spelled text; a plan naming the word is refused at the reader); 20 since 2026-11-02: a column's fifth fact,
+     *  whether the compiler typed it with an enumeration ({@code enumeration}: {@link ExecutionPlan.Column#enumeration},
+     *  null where no compiler typed it; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, every host path on this plan). */
     public static final int VERSION = 20;
 
     private PlanJson() {
@@ -207,17 +207,10 @@ public final class PlanJson {
             co.put("slot", c.slot());
             co.put("store", c.store());   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
-            co.put("declared", c.declared() == null ? null : declared(c.declared()));   // null: no compiler typed it
+            co.put("enumeration", c.enumeration());   // null: no compiler typed it
             cols.add(co);
         }
         return cols;
-    }
-
-    private static Map<String, Object> declared(ExecutionPlan.Declared d) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        o.put("path", d.path());
-        o.put("enumeration", d.enumeration());
-        return o;
     }
 
     private static Map<String, Object> sql(Sql s) {
@@ -428,15 +421,15 @@ public final class PlanJson {
         for (Json.Node n : columns.items()) {
             Json.Obj c = (Json.Obj) n;
             String precision = c.getStringOr("precision", null);
-            if (!c.has("declared")) {
-                throw new IllegalArgumentException("a plan's column '" + c.getString("name") + "' states no declared "
-                        + "type (null where no compiler typed it): it is not a version " + VERSION + " plan's");
+            if (!c.has("enumeration") || !(c.get("enumeration") instanceof Json.Bool || c.get("enumeration") instanceof Json.Null)) {
+                throw new IllegalArgumentException("a plan's column '" + c.getString("name") + "' states not whether it "
+                        + "is an enumeration (true, false, or null where no compiler typed it): it is not a version "
+                        + VERSION + " plan's");
             }
-            ExecutionPlan.Declared declared = c.get("declared") instanceof Json.Obj d
-                    ? new ExecutionPlan.Declared(d.getString("path"), d.getBool("enumeration")) : null;
+            Boolean enumeration = c.get("enumeration") instanceof Json.Bool b ? b.value() : null;
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null),
-                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision), declared));
+                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision), enumeration));
         }
         return cols;
     }

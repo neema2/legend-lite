@@ -627,11 +627,12 @@ public final class PureV1Api {
 
     /**
      * A relation's envelope from the plan alone (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2: a host's writer reads
-     * the plan, never the compiler): each column's builder entry by the declared type the plan states for it
-     * ({@link com.legend.executionplan.ExecutionPlan.Declared}, made at planning from the compiler's type
-     * {@link #envelope} reads, its spellings the same functions'), the relational activity carrying {@code sql}, and
-     * the columns' names as the engine labels them. A column the plan states no declared type for is none the
-     * compiler typed, and is refused by name.
+     * the plan, never the compiler): each column's builder entry by the plan's own facts -- its type by the one rule
+     * ({@link com.legend.executionplan.ExecutionPlan.Column#plainType}) and whether it is an enumeration
+     * ({@link com.legend.executionplan.ExecutionPlan.Column#enumeration}, made at planning from the compiler's type
+     * {@link #envelope} reads), its spellings the same functions' -- the relational activity carrying {@code sql},
+     * and the columns' names as the engine labels them. A column the plan does not say is an enumeration or not is
+     * none the compiler typed, and is refused by name.
      */
     static com.legend.result.PureV1Writer.Envelope planEnvelope(String sql,
             List<com.legend.executionplan.ExecutionPlan.Column> columns) {
@@ -639,15 +640,15 @@ public final class PureV1Api {
         List<String> names = new ArrayList<>();
         for (var c : columns) {
             String name = com.legend.result.CellText.presentedName(c.name());
-            com.legend.executionplan.ExecutionPlan.Declared d = c.declared();
-            if (d == null) {
-                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: the plan states"
-                        + " no declared type for it");
+            Boolean enumeration = c.enumeration();
+            if (enumeration == null) {
+                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: the plan does not"
+                        + " say whether it is an enumeration");
             }
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("name", name);
-            col.put("type", UpstreamRelationType.tdsTypePath(d.path(), d.enumeration()));
-            col.put("relationalType", UpstreamRelationType.relationalSpelling(d.path(), d.enumeration()));
+            col.put("type", UpstreamRelationType.tdsTypePath(c.plainType(), enumeration));
+            col.put("relationalType", UpstreamRelationType.relationalSpelling(c.plainType(), enumeration));
             builderColumns.add(col);
             names.add(name);
         }
