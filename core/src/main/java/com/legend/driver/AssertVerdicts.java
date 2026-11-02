@@ -964,9 +964,11 @@ final class AssertVerdicts {
             // the family counted first, as adjudicate counts it before the arm (N2)
             return HostAssert.raising(listenerName(bare), name, e);
         }
-        if (check == SqlTextVerdicts.NOT_A_CONSTANT) {
-            // a text side the arm would evaluate by a statement at the assert's turn: the walk's
-            com.legend.exec.Census.unplannedAssert("text not a constant: " + shapeOf(bare));
+        if (SqlTextVerdicts.notAConstant(check)) {
+            // a text side the arm would evaluate by a statement at the assert's turn: the walk's (the census names
+            // the side's kind and planned root, then the assert's shape)
+            com.legend.exec.Census.unplannedAssert("text not a constant: " + SqlTextVerdicts.why(check) + ": "
+                    + shapeOf(bare));
             return null;
         }
         if (check == null) {
@@ -1016,10 +1018,11 @@ final class AssertVerdicts {
                     // the engine-text arm (M10b): a producer shape planned under a collector, its two texts the step's
                     // constant sides; null where the arm declines the shape, and the generic path below is the walk's
                     HostSides.Check engineText = SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook);
-                    if (engineText == SqlTextVerdicts.NOT_A_CONSTANT) {
+                    if (SqlTextVerdicts.notAConstant(engineText)) {
                         // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
                         // the generic equality's (which would compare the texts the arm appeals)
-                        com.legend.exec.Census.unplannedAssert("equals: text not a constant: " + shapeOf(bare));
+                        com.legend.exec.Census.unplannedAssert("equals: text not a constant: "
+                                + SqlTextVerdicts.why(engineText) + ": " + shapeOf(bare));
                         yield null;
                     }
                     if (engineText != null) {

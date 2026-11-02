@@ -16910,6 +16910,16 @@ measured on both corpora with the registers and a parity witness; the chain at M
    the first family: on the walk `prepareValue` inlines the statement with its lets and STAGES the Java routines
    (`NativeDispatch.stage`: `toSQLString`, `planToString` become constants) before the arm sees the side, where the host
    planner's arm reads the let's value raw and calls it not a constant -- a planning-time staging the planner lacks.
+   **Corrected the same day by a finer label:** the not-a-constant answer now carries the side's KIND and PLANNED ROOT
+   (`JudgePlans.evalSide`'s message; `SqlTextVerdicts.notAConstant`/`why` read it; the sentinel `NOT_A_CONSTANT` is gone),
+   and the caller writes ONE census row per decline (the reason, then the shape) where the catch and the caller each
+   wrote one before. The planner DOES stage: the 107 refused text asserts (49 bodies) on the DuckDB host pass are 72
+   `VALUES TypedProject` -- a navigation over PLAN ROWS (a plan handle's `.sqlQuery`, a frame's activity through
+   `->at(0)->cast(...)`, a helper's result bound by a let; 24 through a let, 24 a property access, 14 a Boolean `.supportsStream`
+   the arm claims and declines after evaluating, 8 under `assertEqualsH2Compatible`, 2 a `String[*]`), 34 `VALUES
+   TypedNativeCall replace` -- `replace` over a STAGED routine's text (`toSQLString(...)->replace(...)`, `$sql->replace('\n',
+   '')`: the routine staged to a constant, the replace a statement the database computes), 1 `makeString`. Item 8 reads
+   this. Ledger pins `SqlTextVerdicts` 1335 -> 1343, `AssertVerdicts` 1775 -> 1777 (the label).
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

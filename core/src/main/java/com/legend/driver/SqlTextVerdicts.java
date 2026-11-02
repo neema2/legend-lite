@@ -62,19 +62,29 @@ final class SqlTextVerdicts {
     }
 
     /** Raised while an arm is PLANNED for the program road where a text side is not a constant of the plan (it would
-     *  send a statement at planning): the body stays on the walk, by name ({@link #plan} answers
-     *  {@link #NOT_A_CONSTANT}). */
+     *  send a statement at planning): the body stays on the walk, by name ({@link #plan} answers it as
+     *  {@link #notAConstant}'s check, its message the side's kind and planned root for the unplanned-assert census). */
     static final class NotAConstant extends RuntimeException {
         NotAConstant(String what) {
             super(what);
         }
     }
 
-    /** {@link #plan}'s answer where a text side is not a constant of the plan: not the arm declining the shape (null:
-     *  the walk's generic path continues) but the program road refusing the body by name -- the callers compare by
-     *  identity and leave the body to the walk. Never judged. */
-    static final HostSides.Check NOT_A_CONSTANT = new HostSides.Check(List.of(),
-            new HostJudgment.Raise(new NotAConstant("a text side that is not a constant of the plan: the walk's")));
+    /** Is {@code check} {@link #plan}'s answer where a text side is not a constant of the plan: not the arm declining
+     *  the shape (null: the walk's generic path continues) but the program road refusing the body by name -- the
+     *  callers leave the body to the walk and count the refusal once, by {@link #why}. Never judged. */
+    static boolean notAConstant(HostSides.@com.legend.base.Nullable Check check) {
+        return check != null && check.judgment() instanceof HostJudgment.Raise r && r.failure() instanceof NotAConstant;
+    }
+
+    /** The side a {@link #notAConstant} check names: its kind and planned root (the message after its label). */
+    static String why(HostSides.@com.legend.base.Nullable Check check) {
+        if (check == null) {
+            throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
+        }
+        String what = String.valueOf(((HostJudgment.Raise) check.judgment()).failure().getMessage());
+        return what.substring(what.indexOf(':') + 2);
+    }
 
     /** A collector for one planned assert. */
     private static final class Collecting implements Collector {
@@ -106,8 +116,8 @@ final class SqlTextVerdicts {
      * shapes, {@link #mayArm}) run ONCE under a collector -- the two texts folded to constants, nothing sent, nothing
      * counted -- and its comparison answered as a host check whose two sides are the texts and whose judgment is
      * {@link HostJudgment.EngineText}. Null where the arm declines the shape (the walk's generic path continues:
-     * {@code planHost} plans the equality as any other, or leaves a root to the walk); {@link #NOT_A_CONSTANT} where a
-     * text side is not a constant of the plan (the walk's: the arm would evaluate it by a statement at the assert's
+     * {@code planHost} plans the equality as any other, or leaves a root to the walk); {@link #notAConstant}'s check
+     * where a text side is not a constant of the plan (the walk's: the arm would evaluate it by a statement at the assert's
      * turn, which a body planned before it runs cannot). A raise inside the arm surfaces: the caller plans it as the
      * assert's raise at its turn, as the walk raises it there.
      */
@@ -118,7 +128,7 @@ final class SqlTextVerdicts {
         BodyDriver.ExecEnv planning = env.withEngineText(collecting);
         TypedSide answered = null;
         boolean routed = false;
-        boolean notAConstant = false;
+        NotAConstant notAConstant = null;
         try {
             if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
                 answered = com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
@@ -143,12 +153,12 @@ final class SqlTextVerdicts {
                 routed = answered != null;
             }
         } catch (NotAConstant e) {
-            notAConstant = true;
+            notAConstant = e;
         } finally {
             collecting.planning = false;
         }
-        if (notAConstant) {
-            return NOT_A_CONSTANT;
+        if (notAConstant != null) {
+            return new HostSides.Check(List.of(), new HostJudgment.Raise(notAConstant));
         }
         if (answered == null) {
             return null;

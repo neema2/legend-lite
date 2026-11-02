@@ -390,7 +390,13 @@ final class JudgePlans {
             // planning; any other side names the walk
             PlannedSide p = plannedSide(value, letPrefix, specs, env, identity, fold, hook);
             if (p.kind() != Kind.CONSTANT) {
-                throw new SqlTextVerdicts.NotAConstant("a text side that is not a constant of the plan");
+                // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
+                throw new SqlTextVerdicts.NotAConstant("a text side that is not a constant of the plan: " + p.kind()
+                        + " " + (p.root() == null ? value.getClass().getSimpleName()
+                                : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                                        ? " " + nc.callee().qualifiedName().substring(nc.callee().qualifiedName().lastIndexOf(':') + 1)
+                                        : p.root() instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                                        ? " " + uc.callee().qualifiedName().substring(uc.callee().qualifiedName().lastIndexOf(':') + 1) : "")));
             }
             return shape(p, runSide(p, env));
         }
