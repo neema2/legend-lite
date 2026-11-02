@@ -335,9 +335,17 @@ def build(c, tables) -> list[Spec]:
 # correlation: F60's lesson) is compared in the reducer against a threshold its values clear by a margin,
 # `->greaterThan(t)`, never projected raw. mode is over `metric`, whose groups each have one most frequent value:
 # Pure's mode is the smallest of the most frequent, and a database's choice among a tie is its own.
+#
+# first, last and joinStrings answer the ORDER of a group's values, which a groupBy never fixes (2026-11-02, the PR #87
+# review's finding 2: the six services expected the seed's order, DuckDB's insertion order kept it, and H2's did not),
+# so the oracle refuses one over a group whose values differ (oracle._ORDERED). joinStrings keeps its groups and is
+# compared by its length, the same in any order. first and last group each value with its equals: VG_ by `name`
+# itself, where 'alpha' and 'beta' each hold two rows; VGN_ by `valueId`, a row a group, three of them absent.
 
 KEY_ACTIVE = ("k", ["active"])
 KEY_SEGMENT = ("k", ["segment"])
+KEY_NAME = ("k", ["name"])
+KEY_VALUE_ID = ("k", ["valueId"])
 METRIC = ("metric", "metricOpt")
 PAIR_RATE_METRIC = ("rate", "metric")
 PAIR_NAME_QUANTITY = ("name", "quantity")
@@ -350,7 +358,8 @@ TOTAL = {"count", "sum", "max", "min", "first", "last", "percentile", "joinStrin
 @dataclass(frozen=True)
 class GCase:
     """One aggregate over `subject` (required, optional) or over a `pair` of required properties. `ret` is its
-    Pure type; `optional`: whether a VGN_ is written; `singleton`: whether a VGS_ is."""
+    Pure type; `optional`: whether a VGN_ is written; `singleton`: whether a VGS_ is. `by` and `by_opt` replace the
+    VG_ and VGN_ groupBy keys; `then` (query.Apply's) follows the aggregate, `then_ret` its Pure type."""
     key: str
     fn: str
     subject: tuple | None
@@ -361,6 +370,10 @@ class GCase:
     inexact: bool = False
     optional: bool = True
     singleton: bool = False
+    by: tuple | None = None
+    by_opt: tuple | None = None
+    then: tuple = ()
+    then_ret: str | None = None
 
 
 AGG_CASES = [
@@ -399,9 +412,11 @@ AGG_CASES = [
     GCase("VarianceSampleRate", "varianceSample", FLOAT, "Float", inexact=True),
     GCase("PercentileQuantity", "percentile", INTEGER, "Number", args=(0.5,)),
     GCase("PercentileRate", "percentile", FLOAT, "Number", args=(0.5,)),
-    GCase("JoinStringsName", "joinStrings", STRING, "String", args=(",",)),
-    GCase("FirstName", "first", STRING, "String"),
-    GCase("LastName", "last", STRING, "String"),
+    # a group's order is the database's (above): joinStrings by its length, first and last over equal values
+    GCase("JoinStringsName", "joinStrings", STRING, "String", args=(",",), then=(("length", ()),),
+          then_ret="Integer"),
+    GCase("FirstName", "first", STRING, "String", by=KEY_NAME, by_opt=KEY_VALUE_ID),
+    GCase("LastName", "last", STRING, "String", by=KEY_NAME, by_opt=KEY_VALUE_ID),
     GCase("MaxByName", "maxBy", None, "String", pair=PAIR_NAME_QUANTITY, mapper="rowMapper"),
     GCase("MinByName", "minBy", None, "String", pair=PAIR_NAME_QUANTITY, mapper="rowMapper"),
     GCase("WavgRate", "wavg", None, "Float", pair=PAIR_RATE_METRIC, mapper="wavgRowMapper", inexact=True),
@@ -446,6 +461,9 @@ def _group_threshold(values: list) -> float | None:
 
 def _grouped(c, tables, name: str, doc: str, key: tuple, value: str, case: GCase, pair_value=None) -> Spec:
     """The service; an inexact aggregate compares against a threshold between its groups' values."""
+    if case.then:
+        assert not case.inexact, f"{name}: a threshold follows no other step"
+        return _gspec(name, doc, key, value, case, then=case.then, ret=case.then_ret, pair_value=pair_value)
     s = _gspec(name, doc, key, value, case, pair_value=pair_value)
     if not case.inexact:
         return s
@@ -455,6 +473,14 @@ def _grouped(c, tables, name: str, doc: str, key: tuple, value: str, case: GCase
         raise SystemExit(f"vocab: no threshold separates {name}'s groups: {values}")
     return _gspec(name, f"{doc} Compared with {t!r}, as its value is inexact.", key, value, case,
                   then=(("greaterThan", (t,)),), ret="Boolean", pair_value=pair_value)
+
+
+def _then_doc(case: GCase) -> str:
+    """The documentation's last sentence for a step after the aggregate."""
+    if not case.then:
+        return ""
+    assert [step for step, _a in case.then] == ["length"], f"{case.key}: say what its steps compare"
+    return " Compared by its length, the same in any order of a group's values."
 
 
 def build_aggregates(c, tables) -> list[Spec]:
@@ -470,15 +496,19 @@ def build_aggregates(c, tables) -> list[Spec]:
                                 KEY_ACTIVE, a, case, pair_value=b))
             continue
         req, opt = case.subject
-        out.append(_grouped(c, tables, f"VG_{case.key}", f"{call} over the required `{req}`, grouped by `active`.",
-                            KEY_ACTIVE, req, case))
+        key = case.by or KEY_ACTIVE
+        why = ", so each group holds one distinct value: a group's order is the database's" if case.by else ""
+        out.append(_grouped(c, tables, f"VG_{case.key}",
+                            f"{call} over the required `{req}`, grouped by `{key[1][0]}`{why}.{_then_doc(case)}",
+                            key, req, case))
         if case.optional:
             total = case.fn in TOTAL
-            key = KEY_SEGMENT if total else KEY_ACTIVE
-            why = ("whose group A holds only absent values" if total
+            key = case.by_opt or (KEY_SEGMENT if total else KEY_ACTIVE)
+            why = ("a row a group, three of them absent: a group's order is the database's" if case.by_opt
+                   else "whose group A holds only absent values" if total
                    else "whose groups each hold absent and present values")
             out.append(_grouped(c, tables, f"VGN_{case.key}",
-                                f"{call} over the optional `{opt}`, grouped by `{key[1][0]}`, {why}.",
+                                f"{call} over the optional `{opt}`, grouped by `{key[1][0]}`, {why}.{_then_doc(case)}",
                                 key, opt, case))
         if case.singleton:
             out.append(_grouped(c, tables, f"VGS_{case.key}",
@@ -657,7 +687,7 @@ def check(c, specs: list[Spec], tables) -> list[str]:
             groups: dict = {}
             for r in flat:
                 groups.setdefault(r["k"], []).append(r["v"])
-            if s.projections[0].path == ["segment"]:
+            if s.projections[0].path in (["segment"], ["valueId"]):
                 met = any(all(v is None for v in vs) for vs in groups.values())
             else:
                 met = any(None in vs and any(v is not None for v in vs) for vs in groups.values())

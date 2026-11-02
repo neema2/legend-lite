@@ -23267,7 +23267,7 @@ Service stress::VGN_PercentileRate
 Service stress::VG_JoinStringsName
 {
     pattern: '/stress/vocab/vg_joinstringsname';
-    documentation: '`joinStrings(\',\')` over the required `name`, grouped by `active`.';
+    documentation: '`joinStrings(\',\')` over the required `name`, grouped by `active`. Compared by its length, the same in any order of a group\'s values.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
@@ -23276,7 +23276,7 @@ Service stress::VG_JoinStringsName
             v:x|$x.name
         ])
         ->groupBy(~[k], ~[
-            r: x|$x.v : agg|$agg->joinStrings(',')
+            r: x|$x.v : agg|$agg->joinStrings(',')->length()
         ])
         ->sort(~k->ascending());
         mapping: stress::AllMapping;
@@ -23312,7 +23312,7 @@ Service stress::VG_JoinStringsName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":false,"r":"Alpha,alpha ,beta,gamma,alpha,omega"},{"k":true,"r":"alpha,ALPHA,alphabet,beta,O\'Neil,Zeta,delta,aleph,kappa"}]';
+                    data: '[{"k":false,"r":35},{"k":true,"r":55}]';
                   }#;
               }#
           ]
@@ -23325,7 +23325,7 @@ Service stress::VG_JoinStringsName
 Service stress::VGN_JoinStringsName
 {
     pattern: '/stress/vocab/vgn_joinstringsname';
-    documentation: '`joinStrings(\',\')` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    documentation: '`joinStrings(\',\')` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values. Compared by its length, the same in any order of a group\'s values.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
@@ -23334,7 +23334,7 @@ Service stress::VGN_JoinStringsName
             v:x|$x.nameOpt
         ])
         ->groupBy(~[k], ~[
-            r: x|$x.v : agg|$agg->joinStrings(',')
+            r: x|$x.v : agg|$agg->joinStrings(',')->length()
         ])
         ->sort(~k->ascending());
         mapping: stress::AllMapping;
@@ -23370,7 +23370,7 @@ Service stress::VGN_JoinStringsName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":null},{"k":"B","r":"alpha,ALPHA,alpha ,beta"},{"k":"C","r":"Alpha,O\'Neil,gamma,zeta,alpha"},{"k":"D","r":"alphabet,mu,aleph"}]';
+                    data: '[{"k":"A","r":null},{"k":"B","r":23},{"k":"C","r":29},{"k":"D","r":17}]';
                   }#;
               }#
           ]
@@ -23383,12 +23383,12 @@ Service stress::VGN_JoinStringsName
 Service stress::VG_FirstName
 {
     pattern: '/stress/vocab/vg_firstname';
-    documentation: '`first()` over the required `name`, grouped by `active`.';
+    documentation: '`first()` over the required `name`, grouped by `name`, so each group holds one distinct value: a group\'s order is the database\'s.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
         ->project(~[
-            k:x|$x.active,
+            k:x|$x.name,
             v:x|$x.name
         ])
         ->groupBy(~[k], ~[
@@ -23415,7 +23415,7 @@ Service stress::VG_FirstName
       ]
       tests:
       [
-        // 2 rows; 0 absent cells.
+        // 13 rows; 0 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -23428,7 +23428,7 @@ Service stress::VG_FirstName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":false,"r":"Alpha"},{"k":true,"r":"alpha"}]';
+                    data: '[{"k":"ALPHA","r":"ALPHA"},{"k":"Alpha","r":"Alpha"},{"k":"O\'Neil","r":"O\'Neil"},{"k":"Zeta","r":"Zeta"},{"k":"aleph","r":"aleph"},{"k":"alpha","r":"alpha"},{"k":"alpha ","r":"alpha "},{"k":"alphabet","r":"alphabet"},{"k":"beta","r":"beta"},{"k":"delta","r":"delta"},{"k":"gamma","r":"gamma"},{"k":"kappa","r":"kappa"},{"k":"omega","r":"omega"}]';
                   }#;
               }#
           ]
@@ -23441,12 +23441,12 @@ Service stress::VG_FirstName
 Service stress::VGN_FirstName
 {
     pattern: '/stress/vocab/vgn_firstname';
-    documentation: '`first()` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    documentation: '`first()` over the optional `nameOpt`, grouped by `valueId`, a row a group, three of them absent: a group\'s order is the database\'s.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
         ->project(~[
-            k:x|$x.segment,
+            k:x|$x.valueId,
             v:x|$x.nameOpt
         ])
         ->groupBy(~[k], ~[
@@ -23473,7 +23473,7 @@ Service stress::VGN_FirstName
       ]
       tests:
       [
-        // 4 rows; 1 absent cells.
+        // 15 rows; 3 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -23486,7 +23486,7 @@ Service stress::VGN_FirstName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":null},{"k":"B","r":"alpha"},{"k":"C","r":"Alpha"},{"k":"D","r":"alphabet"}]';
+                    data: '[{"k":"TV-01","r":"alpha"},{"k":"TV-02","r":null},{"k":"TV-03","r":"ALPHA"},{"k":"TV-04","r":"alpha "},{"k":"TV-05","r":null},{"k":"TV-06","r":"beta"},{"k":"TV-07","r":"Alpha"},{"k":"TV-08","r":"O\'Neil"},{"k":"TV-09","r":"gamma"},{"k":"TV-10","r":"zeta"},{"k":"TV-11","r":"alpha"},{"k":"TV-12","r":"alphabet"},{"k":"TV-13","r":null},{"k":"TV-14","r":"mu"},{"k":"TV-15","r":"aleph"}]';
                   }#;
               }#
           ]
@@ -23499,12 +23499,12 @@ Service stress::VGN_FirstName
 Service stress::VG_LastName
 {
     pattern: '/stress/vocab/vg_lastname';
-    documentation: '`last()` over the required `name`, grouped by `active`.';
+    documentation: '`last()` over the required `name`, grouped by `name`, so each group holds one distinct value: a group\'s order is the database\'s.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
         ->project(~[
-            k:x|$x.active,
+            k:x|$x.name,
             v:x|$x.name
         ])
         ->groupBy(~[k], ~[
@@ -23531,7 +23531,7 @@ Service stress::VG_LastName
       ]
       tests:
       [
-        // 2 rows; 0 absent cells.
+        // 13 rows; 0 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -23544,7 +23544,7 @@ Service stress::VG_LastName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":false,"r":"omega"},{"k":true,"r":"kappa"}]';
+                    data: '[{"k":"ALPHA","r":"ALPHA"},{"k":"Alpha","r":"Alpha"},{"k":"O\'Neil","r":"O\'Neil"},{"k":"Zeta","r":"Zeta"},{"k":"aleph","r":"aleph"},{"k":"alpha","r":"alpha"},{"k":"alpha ","r":"alpha "},{"k":"alphabet","r":"alphabet"},{"k":"beta","r":"beta"},{"k":"delta","r":"delta"},{"k":"gamma","r":"gamma"},{"k":"kappa","r":"kappa"},{"k":"omega","r":"omega"}]';
                   }#;
               }#
           ]
@@ -23557,12 +23557,12 @@ Service stress::VG_LastName
 Service stress::VGN_LastName
 {
     pattern: '/stress/vocab/vgn_lastname';
-    documentation: '`last()` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    documentation: '`last()` over the optional `nameOpt`, grouped by `valueId`, a row a group, three of them absent: a group\'s order is the database\'s.';
     execution: Single
     {
     query: |typedvalues::TypedValue.all()
         ->project(~[
-            k:x|$x.segment,
+            k:x|$x.valueId,
             v:x|$x.nameOpt
         ])
         ->groupBy(~[k], ~[
@@ -23589,7 +23589,7 @@ Service stress::VGN_LastName
       ]
       tests:
       [
-        // 4 rows; 1 absent cells.
+        // 15 rows; 3 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -23602,7 +23602,7 @@ Service stress::VGN_LastName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":null},{"k":"B","r":"beta"},{"k":"C","r":"alpha"},{"k":"D","r":"aleph"}]';
+                    data: '[{"k":"TV-01","r":"alpha"},{"k":"TV-02","r":null},{"k":"TV-03","r":"ALPHA"},{"k":"TV-04","r":"alpha "},{"k":"TV-05","r":null},{"k":"TV-06","r":"beta"},{"k":"TV-07","r":"Alpha"},{"k":"TV-08","r":"O\'Neil"},{"k":"TV-09","r":"gamma"},{"k":"TV-10","r":"zeta"},{"k":"TV-11","r":"alpha"},{"k":"TV-12","r":"alphabet"},{"k":"TV-13","r":null},{"k":"TV-14","r":"mu"},{"k":"TV-15","r":"aleph"}]';
                   }#;
               }#
           ]
@@ -24629,7 +24629,7 @@ Service stress::VR_JoinLeft
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0016","n":264600.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0017","n":385000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0018","n":4912500.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0019","n":1960000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0020","n":975000.0,"tid":null,"vq":null,"vid":null}]';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0016","n":264600.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0017","n":385000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0018","n":4912500.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0019","n":1960000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0020","n":975000.0,"vid":null,"vq":null,"tid":null}]';
                   }#;
               }#
           ]
@@ -26079,7 +26079,7 @@ Service stress::VT_JoinLeft
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0016","n":264600.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0017","n":385000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0018","n":4912500.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0019","n":1960000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0020","n":975000.0,"tid":null,"vq":null,"vid":null}]';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0016","n":264600.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0017","n":385000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0018","n":4912500.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0019","n":1960000.0,"vid":null,"vq":null,"tid":null},{"id":"TRD-0020","n":975000.0,"vid":null,"vq":null,"tid":null}]';
                   }#;
               }#
           ]

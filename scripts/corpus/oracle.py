@@ -1928,6 +1928,10 @@ def _rel_group(rows, keys, aggs, compress=True):
         row = dict(zip(keys, k))
         for name, col, fn in aggs:
             vals = [m.get(col) for m in members if m.get(col) is not None]
+            if compress and not _order_free(fn, vals):
+                # a groupBy's group has no order (_ORDERED, below); a window's frame does
+                raise Unsupported(f"{name}: {fn} over a group whose values differ answers the order the database "
+                                  f"reads the group in, which a groupBy never fixes")
             row[name] = (None if compress and not vals and fn != "count"
                          else _dynafunction(fn, [vals]))
         out.append(row)
@@ -1939,7 +1943,9 @@ def _rel_join(left, right, kind, on):
     right-hand columns absent -- which is the semantic the whole corpus turns on, since a
     to-one navigation compiles to exactly this."""
     out = []
-    rcols = {c for r in right for c in r}
+    # the right-hand columns in the order its rows hold them, never a set's: an unmatched row's keys are the expected
+    # JSON's, and a set's order follows PYTHONHASHSEED (the PR #87 review's finding 9)
+    rcols = list(dict.fromkeys(c for r in right for c in r))
     for l in left:
         matches = [r for r in right if on(l, r)]
         if matches:
@@ -3896,6 +3902,20 @@ _PAIR_REDUCERS = {
 }
 
 
+# The reducers whose answer is the ORDER of a group's values (2026-11-02, the PR #87 review's finding 2). A groupBy
+# fixes no order inside a group: the database reads a group's rows as it likes, and the order the oracle holds them in
+# is only the seed's. So, as a window's tie is (_ranked), a group whose values differ is refused for these; a group of
+# one distinct value answers them in any order. joinStrings' length is the same in any order, so a joinStrings whose
+# first step is length() is not refused.
+_ORDERED = {"first", "last", "joinStrings"}
+
+
+def _order_free(fn: str, vals: list, then=()) -> bool:
+    """Whether `fn` over `vals` (absent values left out) answers the same in every order of the group."""
+    return (fn not in _ORDERED or len(set(vals)) <= 1
+            or (fn == "joinStrings" and bool(then) and then[0][0] == "length"))
+
+
 def _reduce_group(a: Agg, members: list[dict]):
     """One query.Agg over a group's projected rows, as Pure defines the aggregate (above)."""
     name, src, fn = a
@@ -3908,8 +3928,14 @@ def _reduce_group(a: Agg, members: list[dict]):
         v = _PAIR_REDUCERS[fn](pairs, *a.args)
     else:
         vals = [m[src] for m in members if m[src] is not None]
-        # a group whose values are all absent is never reduced (above): absent, but for count's 0
-        v = _REDUCERS[fn](vals, *a.args) if vals or fn == "count" else None
+        if not _order_free(fn, vals, a.then):
+            raise Unsupported(f"{name}: {fn} over a group whose values differ answers the order the database reads "
+                              f"the group in, which a groupBy never fixes")
+        # a group whose values are all absent is never reduced (above): absent, but for count's 0. The steps after the
+        # aggregate are inside the reduce lambda (`agg|$agg->joinStrings(',')->length()`), so they never run either
+        if not vals and fn != "count":
+            return None
+        v = _REDUCERS[fn](vals, *a.args)
     for step, args in a.then:
         if v is None:
             raise Unsupported(f"{name}: {step} over an absent aggregate")
