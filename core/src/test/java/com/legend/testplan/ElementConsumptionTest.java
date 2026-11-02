@@ -6,8 +6,11 @@ package com.legend.testplan;
 import com.legend.Compiler;
 import com.legend.TypedQuery;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedSpec;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,6 +36,16 @@ class ElementConsumptionTest {
               meta::relational::metamodel::execute::executeInDb('insert into FIRM values (3, \\'Cyl\\')', $c); true; }
             // a helper that reads its parameter as a value: the store's tables
             function x::tables(db: meta::relational::metamodel::Database[1]): String[*] { $db.schemas.tables.name }
+            function x::setupData(csvs: String[*], db: meta::relational::metamodel::Database[1], runtime: meta::core::runtime::Runtime[1]): Boolean[1]
+            { let connection = $runtime.connectionByElement($db)->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);
+              let cfg = meta::relational::functions::sqlQueryToString::createDbConfig($connection.type);
+              let sqls = $csvs->joinStrings('\\n-\\n')->meta::alloy::service::execution::setUpDataSQLs($db);
+              $sqls->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $connection));
+              true; }
+            // the engine's createDbConfig, SUBSUMED by name (builtin/Subsumed): an opaque value never evaluated -- its
+            // body's assert (the engine's own asserts a DbExtension exists) runs on no road and is no kind of the body
+            function meta::relational::functions::sqlQueryToString::createDbConfig(
+                dbType: meta::relational::runtime::DatabaseType[1]): String[1] { assert(true, 'never run'); 'cfg'; }
             // a helper that hands its parameter on to a consuming helper
             function x::setupVia(db: meta::relational::metamodel::Database[1]): Boolean[1] { x::setup($db, x::rt($db)) }
             // the corpus's setupTestData whole: the CSV spelled as DDL and rows against the store (a planning-time
@@ -151,6 +164,52 @@ class ElementConsumptionTest {
                 + " assertEquals([], $result.rows.values);}");
         assertFalse(a.elementOnlyLet(1), "the navigation inside the mapped lambda is a read");
         assertFalse(a.consumed(0));
+    }
+
+    /** Item 7c: the corpus's setup helper as the resolver unfolds it -- the connection picked by the runtime's qualified
+     *  property (a handle by its type), read by a SUBSUMED call's argument (no read: never evaluated) and by the effect's
+     *  target inside the map's lambda -- consumed, so the store and the runtime it carries are consumed too. */
+    @Test
+    void aSubsumedCallsArgumentIsNoRead() {
+        ElementConsumption a = of("{| let db = x::DB; let runtime = x::rt($db);"
+                + " let connection = $runtime.connectionByElement($db)->cast("
+                + "@meta::external::store::relational::runtime::TestDatabaseConnection);"
+                + " let cfg = meta::relational::functions::sqlQueryToString::createDbConfig($connection.type);"
+                + " let sqls = 'default\\nFIRM\\nID,NAME\\n3,Cyl\\n'->meta::alloy::service::execution::setUpDataSQLs($db);"
+                + " $sqls->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $connection));"
+                + " let result = meta::pure::router::execute(" + QUERY + ", x::M, $runtime, []).values;"
+                + " assertEquals(['Cyl'], $result.rows.values);}");
+        assertTrue(a.consumed(2), "connection: read by a subsumed call's argument and by executeInDb's target");
+        assertTrue(a.consumedElementLet(1), "runtime: carried into the connection (a consumed handle) and the execute");
+        assertTrue(a.consumedElementLet(0), "db: the runtime, the connection, the seed form's store argument");
+    }
+
+    /** Item 7c: the corpus's setup helper, unfolded by the resolver (the parity test runs it on both roads); here the
+     *  kinds of the subsumed call's let -- the engine's createDbConfig body asserts, and that assert tagged every
+     *  setupTestData body ASSERT, which kept them all on the walk -- and the body's class. */
+    @Test
+    void aSubsumedCallsBodyIsNoKindOfTheStatement() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        String body = "{| let firmCsv = 'default\\nFIRM\\nID,NAME\\n3,Cyl\\n'; let db = x::DB; let runtime = x::rt($db);"
+                + " x::setupData([$firmCsv], $db, $runtime);"
+                + " let result = meta::pure::router::execute(" + QUERY + ", x::M, $runtime, []);"
+                + " assertEquals(['Cyl'], $result.values.rows.values);}";
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
+                        ? lf.body() : java.util.List.of(parsed);
+        TypedQuery q = Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(java.util.List.of()), ctx));
+        com.legend.planner.QueryDoor.Scan scan = new com.legend.planner.QueryDoor.Scan(q, "x::RT");
+        boolean sawConfig = false;
+        for (TypedSpec s : q.body()) {
+            if (s instanceof TypedLet l && l.name().endsWith("_cfg")) {
+                sawConfig = true;
+                assertTrue(scan.kinds(s).isEmpty(), "a subsumed call's body is no kind: " + scan.kinds(s));
+            }
+        }
+        assertTrue(sawConfig, "the helper was unfolded and its config let is in the body");
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(q, "x::RT", true));
     }
 
     @Test

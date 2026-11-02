@@ -6,8 +6,10 @@ package com.legend.testplan;
 import com.legend.TypedQuery;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.UserCallInliner;
 import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.NotImplementedException;
@@ -53,7 +55,10 @@ import java.util.Set;
  * statements, their dialect's bracket and abort, and whose text is the statements joined bare (the walk's
  * {@code sendScript}). An effect let binds what only connection reads may read (the walk's guard). An effect as the
  * program's last statement answers as the walk's arm does (R17 C11): {@code true} for the DDL that drops and creates,
- * no value otherwise. {@code loadCsvToDbTable} stays the walk's until its body's class moves (R17 C10).
+ * no value otherwise. {@code loadCsvToDbTable} stays the walk's until its body's class moves (R17 C10). A SEED FORM
+ * mapped over one such effect ({@code $sqls->map(sql | executeInDb($sql, $connection))}, the corpus's setup helpers
+ * unfolded into the body; M10c item 7c) is the texts the form spells, each bound into the lambda's statement, in one
+ * script ({@code Seeds.seedForm}, the one reader both roads share).
  */
 final class TestKinds implements ProgramKinds {
 
@@ -242,40 +247,71 @@ final class TestKinds implements ProgramKinds {
         statements.add(statement);
         ProductStatements.Statement st = ProductStatements.prepare(program.query(), statements, program.runtime(),
                 index, program.features());
-        if (!(st.prepared() instanceof Prepared.Effect e)) {
+        List<Prepared.Effect> effects = new ArrayList<>();
+        // a SEED FORM mapped over an effect, read as the class rule read it: on the statement as spelled, its source
+        // through the let that binds it (Seeds.seedForm), its lambda one effect the door writes (oneEffectMapper)
+        TypedMap raw = statement instanceof TypedMap tm && Seeds.oneEffectMapper(tm, program.lets()) ? tm : null;
+        Seeds.SeedForm form = raw == null ? null : Seeds.seedForm(raw, program.lets());
+        if (st.prepared() instanceof Prepared.Effect e) {
+            effects.add(e);
+        } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && form != null) {
+            // ($sqls->map(sql | executeInDb($sql, $connection)); the test-is-the-product plan's M10c item 7c, M9's T9
+            // kind): the texts the form spells, each bound into the RAW lambda's statement (one inline and resolution,
+            // in prepare) and prepared as the effect it is -- the walk's effectfulMap, statement by statement, in one
+            // segment
+            String param = raw.mapper().parameters().get(0);
+            for (String text : form.texts(program.query().context(), program.dialect())) {
+                TypedSpec bound = UserCallInliner.bindStringParam(raw.mapper().body().get(0), param, text);
+                List<TypedSpec> one = new ArrayList<>(program.lets());
+                one.add(bound);
+                ProductStatements.Statement bst = ProductStatements.prepare(program.query(), one, program.runtime(),
+                        index, program.features());
+                if (!(bst.prepared() instanceof Prepared.Effect be)) {
+                    throw new NotImplementedException("a seed form's statement bound into its map's lambda prepared as "
+                            + bst.prepared().getClass().getSimpleName() + " on the test door's program road");
+                }
+                effects.add(be);
+            }
+        } else {
             throw new NotImplementedException("an effect under an expression of another kind ("
                     + st.prepared().getClass().getSimpleName() + ") on the test door's program road: an effect is"
-                    + " planned as a statement of its own (an effectful map is the T9 kind the test-is-the-product"
-                    + " plan's M9 plans)");
+                    + " planned as a statement of its own, or a seed form whose data folds mapped over the one effect the"
+                    + " door writes (item 7c); any other effectful map is the T9 kind the test-is-the-product plan's M9"
+                    + " plans");
         }
-        TypedNativeCall call = e.call();
-        NativeFn.Effect effect = NativeFn.Effect.of(call.callee().id())
-                .orElseThrow();
-        if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-            throw new NotImplementedException("loadCsvToDbTable on the test door's program road:"
-                    + " its CSV is a test resource, read where the body runs (R17 C10: the walk's until its body's"
-                    + " class moves)");
-        }
-        List<String> values = new ArrayList<>();
-        for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
-            if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
-                    instanceof String folded)) {
-                throw new NotImplementedException("a computed String argument of "
-                        + e.call().callee().qualifiedName() + " on the test door's program road: its value is the"
-                        + " database's to compute before the effect is written (the T9 kind the test-is-the-product"
-                        + " plan's M9 plans)");
+        NativeFn.Effect effect = null;
+        for (Prepared.Effect e : effects) {
+            TypedNativeCall call = e.call();
+            effect = NativeFn.Effect.of(call.callee().id()).orElseThrow();
+            if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
+                throw new NotImplementedException("loadCsvToDbTable on the test door's program road:"
+                        + " its CSV is a test resource, read where the body runs (R17 C10: the walk's until its body's"
+                        + " class moves)");
             }
-            values.add(folded);
+            List<String> values = new ArrayList<>();
+            for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
+                if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
+                        instanceof String folded)) {
+                    throw new NotImplementedException("a computed String argument of "
+                            + e.call().callee().qualifiedName() + " on the test door's program road: its value is the"
+                            + " database's to compute before the effect is written (the T9 kind the test-is-the-product"
+                            + " plan's M9 plans)");
+                }
+                values.add(folded);
+            }
+            script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
+                    e.env().withDialect(program.dialect())));
         }
-        script.addAll(EffectPlanner.statements(e.call(), values, e.body(), e.env().withDialect(program.dialect())));
         scriptStatements.add(index);
         if (last) {
             close(program);
-            // the walk's arms' value: the DDL that drops and creates answers true, the others no value
+            // the walk's arms' value: the DDL that drops and creates answers true, the others no value (a mapped seed
+            // form answers its last statement's: none)
             boolean dropsAndCreates = effect == NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB
                     || effect == NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB;
+            TypedSpec value = statement instanceof TypedLet l ? l.value() : statement;
             program.add(ProductStatements.asATestAnswers(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
-                    : ProductStatements.scalar(e.call().info().type().typeName(), null)));
+                    : ProductStatements.scalar(value.info().type().typeName(), null)));
         }
     }
 

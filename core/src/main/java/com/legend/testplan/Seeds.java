@@ -4,10 +4,16 @@
 package com.legend.testplan;
 
 import com.legend.base.Nullable;
+import com.legend.builtin.NativeFn;
 import com.legend.cache.Hash;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.ExecutionContext;
+import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition;
@@ -24,7 +30,9 @@ import java.util.Optional;
  * sources name -- each {@code from()}'s inline setups and the runtime it names, and the program's own runtime -- as
  * the plan's setup steps ({@code CsvSeed.planned}, their one owner), with the value they are a pure function of. One
  * owner for the walk ({@code BodyDriver.establishContexts}, until its body classes move) and the test door's program
- * road ({@link TestKinds}: a {@code Setup} step).
+ * road ({@link TestKinds}: a {@code Setup} step). Since M10c item 7c also the one reader of a SEED FORM mapped over an
+ * effect ({@link #seedForm}, {@link #oneEffectMapper}: the corpus's setup helpers, unfolded into the body), for the
+ * walk's {@code SeedSqlForms} and the test door's effect script alike.
  *
  * <p>ONCE PER SESSION: the engine runs a LocalH2 connection's {@code testDataSetupSqls} / {@code testDataSetupCsv}
  * when it ESTABLISHES the connection, not before every query. A session that already established exactly these
@@ -97,6 +105,75 @@ public final class Seeds {
             setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
         }
         return CsvSeed.planned(setups, dialect);
+    }
+
+    /**
+     * A SEED FORM mapped over an effect (the test-is-the-product plan's M10c item 7c; M9's T9 kind): the source of
+     * {@code map} is {@code setUpDataSQLs(...)} or {@code setUpDataSQLsV2(...)}, its data argument folds to a String
+     * over {@code lets} ({@link Literals#fold}: literals joined by {@code +} and {@code joinStrings}), its store argument
+     * is read as a reference's name or as none -- exactly as the walk reads it ({@code SeedSqlForms}); null where the
+     * data does not fold (the walk evaluates it as a statement there; the program road refuses by name). One reader
+     * for both roads: the texts are {@link CsvSeed#sqls} on the program's dialect.
+     */
+    public static @Nullable SeedForm seedForm(TypedMap map, List<TypedSpec> lets) {
+        // the source as spelled or through the let that binds it ($sqls, the unfolded helper's): the walk sees the
+        // call once its lets are dissolved; the class rule and the test door read the body before that
+        return seedFormCall(com.legend.compiler.spec.typed.Lets.bound(map.source(), lets), lets);
+    }
+
+    /** {@link #seedForm(TypedMap, List)} for the form's call itself ({@code let sqls = csv->setUpDataSQLs(db)}: a value
+     *  let whose texts are planning-time constants), or null where {@code value} is not one or its data does not fold. */
+    public static @Nullable SeedForm seedFormCall(TypedSpec value, List<TypedSpec> lets) {
+        if (!(value instanceof TypedNativeCall sg) || sg.args().size() < 2
+                || !(PlatformTypes.SET_UP_DATA_SQLS.equals(sg.callee().qualifiedName())
+                        || PlatformTypes.SET_UP_DATA_SQLS_V2.equals(sg.callee().qualifiedName()))) {
+            return null;
+        }
+        if (!(Literals.fold(sg.args().get(0), lets) instanceof String csv)) {
+            return null;
+        }
+        // the store as spelled or through the let that binds it: the walk reads the call once its lets are dissolved
+        // (a reference), the class rule and the test door before that (a variable) -- one reading
+        String dbFqn = com.legend.compiler.spec.typed.Lets.bound(sg.args().get(1), lets) instanceof TypedPackageableRef pr
+                ? pr.fullPath() : null;
+        return new SeedForm(csv, dbFqn);
+    }
+
+    /** A seed form's folded data and its store's name (none where the store is a variable: the walk's reading). */
+    public record SeedForm(String csv, @Nullable String dbFqn) {
+        /** The statements the form spells, in the program's dialect. */
+        public List<String> texts(ModelContext ctx, SqlDialect dialect) {
+            return CsvSeed.sqls(csv, dbFqn, ctx, dialect);
+        }
+    }
+
+    /** Whether {@code map}'s lambda is ONE db-effect statement the test door writes, over its one parameter ({@code sql |
+     *  executeInDb($sql, $connection)}): the shape the seed-form map runs (item 7c), by the rule a literal effect
+     *  statement is admitted by ({@code BodyClass.literalEffect}, the audit's B): not {@code loadCsvToDbTable} (its CSV a
+     *  test resource), every String argument the parameter itself or a literal folded over {@code lets}, and the
+     *  parameter read nowhere else (the binder, {@code UserCallInliner.bindStringParam}, replaces it at an argument's
+     *  root alone). */
+    public static boolean oneEffectMapper(TypedMap map, List<TypedSpec> lets) {
+        if (map.mapper().parameters().size() != 1 || map.mapper().body().size() != 1
+                || !(map.mapper().body().get(0) instanceof TypedNativeCall c)
+                || !NativeFn.Effect.isDbEffect(c.callee().id())
+                || NativeFn.Effect.of(c.callee().id()).orElse(null) == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
+            return false;
+        }
+        String param = map.mapper().parameters().get(0);
+        List<TypedSpec> stringArgs = EffectPlanner.stringArgs(c);
+        for (TypedSpec arg : stringArgs) {
+            boolean theParameter = arg instanceof com.legend.compiler.spec.typed.TypedVariable v && param.equals(v.name());
+            if (!theParameter && !(Literals.fold(arg, lets) instanceof String)) {
+                return false;
+            }
+        }
+        for (TypedSpec arg : c.args()) {
+            if (!stringArgs.contains(arg) && com.legend.compiler.spec.UserCallInliner.referencesVar(arg, param)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The seeds' name in a plan: the content of the steps the session runs (a step's executed text, a load's rows),

@@ -344,6 +344,27 @@ class BodyRouterParityTest {
                 { ^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore(element = x::DB,
                     connection = ^meta::external::store::relational::runtime::TestDatabaseConnection(
                       type = meta::relational::runtime::DatabaseType.%s))) }
+                function x::testRuntimeFor(db: meta::relational::metamodel::Database[1]): meta::core::runtime::Runtime[1]
+                { ^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore(element = $db,
+                    connection = ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                      type = meta::relational::runtime::DatabaseType.%s))) }
+                // the corpus's setupTestData (modelJoin): the connection picked by the runtime's qualified property, the
+                // CSVs spelled as DDL and rows by the seed form, each statement sent through a map over executeInDb --
+                // a helper the resolver's statement inliner unfolds into the body (M10c item 7c)
+                function x::setupData(csvs: String[*], db: meta::relational::metamodel::Database[1],
+                    runtime: meta::core::runtime::Runtime[1]): Boolean[1]
+                { let connection = $runtime.connectionByElement($db)->cast(
+                    @meta::external::store::relational::runtime::TestDatabaseConnection);
+                  let sqls = $csvs->joinStrings('\\n-\\n')->meta::alloy::service::execution::setUpDataSQLs($db);
+                  $sqls->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $connection));
+                  true; }
+                // the same helper ending in the map: unfolded, the map is the body's last statement (its answer)
+                function x::seedOnly(csvs: String[*], db: meta::relational::metamodel::Database[1],
+                    runtime: meta::core::runtime::Runtime[1]): Any[*]
+                { let connection = $runtime.connectionByElement($db)->cast(
+                    @meta::external::store::relational::runtime::TestDatabaseConnection);
+                  let sqls = $csvs->joinStrings('\\n-\\n')->meta::alloy::service::execution::setUpDataSQLs($db);
+                  $sqls->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $connection)); }
                 function x::aFirm(): x::Firm[1] { ^x::Firm(name='Cyl') }
                 function x::oneExec(): Integer[1] { meta::pure::router::execute(|x::Firm.all()->project([f|$f.name],
                     ['name']), x::M, x::RT.runtimeValue, [])->size() }
@@ -414,7 +435,8 @@ class BodyRouterParityTest {
                 ###Runtime
                 Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
                 Runtime x::RTSeeded { mappings: [x::M]; connections: [ x::DB: [ env: x::ConnSeeded ] ]; }
-                """.formatted(backend.type().name(), backend.type().name(), backend.type().name());
+                """.formatted(backend.type().name(), backend.type().name(), backend.type().name(),
+                        backend.type().name());
     }
 
     private static final List<String> FIRM_ROWS = List.of(
@@ -982,6 +1004,35 @@ class BodyRouterParityTest {
             assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
             assertEquals("ok", walked.outcome, mixed);
         }
+    }
+
+    /** M10c item 7c: the corpus's setup helper -- a seed form mapped over executeInDb, unfolded into the body by the
+     *  resolver's statement inliner -- planned as the effect script on the program road; the seed drops and recreates
+     *  the table, so the rows are the CSV's. A data argument that does not fold stays on the walk. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void seedFormEffectMapPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String body = "{| let firmCsv = 'default\\nFIRM\\nID,NAME\\n3,Cyl\\n'; let db = x::DB;"
+                + " let runtime = x::testRuntimeFor($db); x::setupData([$firmCsv], $db, $runtime);"
+                + " let result = " + EXECUTE.replace("x::RT.runtimeValue", "$runtime") + ";"
+                + " assertEquals(['Cyl'], $result.values.rows.values);}";
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            Run walked = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", walked.outcome, body);
+            assertEquals(0, originsOf(walked.origins)[StatementOrigin.SYSTEM.ordinal()],
+                    "nothing sent to the system session: " + body);
+        }
+        // the data computed: the walk evaluates it as a statement; the program road refuses by name, so the body stays
+        String computed = body.replace("[$firmCsv]", "[$firmCsv->toUpper()]");
+        assertNull(BodyClass.of(typed(ctx, computed), "x::RT", true), "a computed seed stays: " + computed);
+        // the map as the body's LAST statement, with no assert: an effect program whose answer is the last effect's
+        String seedOnly = "{| let firmCsv = 'default\\nFIRM\\nID,NAME\\n3,Cyl\\n'; let db = x::DB;"
+                + " let runtime = x::testRuntimeFor($db); x::seedOnly([$firmCsv], $db, $runtime);}";
+        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(ctx, seedOnly), "x::RT", true), seedOnly);
+        assertParity(backend, ctx, "x::RT", seedOnly, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST);
     }
 
     /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference

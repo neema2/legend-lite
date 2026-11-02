@@ -41,7 +41,8 @@ import java.util.Set;
  * outside an effect's ORCHESTRATION arguments (a connection, a store, a table: a handle's or a tracked element's type,
  * the step's target), outside a {@code from()}'s mapping and runtime (its context), and outside the argument position
  * of a user call whose PARAMETER is itself consumed in the callee's body ({@link #parameterConsumed}: the same analysis
- * over the callee, the parameter seeded as a carried name). A lambda literal's body is walked (the audit's LOW-4: a
+ * over the callee, the parameter seeded as a carried name), and outside the arguments of a SUBSUMED engine program
+ * ({@code builtin/Subsumed}: an opaque value never evaluated). A lambda literal's body is walked (the audit's LOW-4: a
  * lambda a collection native runs, {@code [1]->map(i | $db.schemas...)}, evaluates where the let is spliced; a lambda
  * handed to a planning-time native sits inside the excluded arguments). A read inside the value of a CARRIER let -- an
  * element-only let or an orchestration-handle let whose own binding is consumed -- is no read ({@link #absorbs}): the
@@ -185,6 +186,11 @@ final class ElementConsumption {
             }
         }
         if (n instanceof TypedUserCall uc) {
+            if (com.legend.builtin.Subsumed.of(uc.callee().qualifiedName()).isPresent()) {
+                // a SUBSUMED engine program (createDbConfig): an opaque typed value never evaluated on any road, so its
+                // arguments are read by nothing (item 7c)
+                return false;
+            }
             List<TypedSpec> args = uc.args();
             for (int k = 0; k < args.size(); k++) {
                 TypedSpec arg = args.get(k);

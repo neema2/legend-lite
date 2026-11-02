@@ -16839,6 +16839,59 @@ measured on both corpora with the registers and a parity witness; the chain at M
    root, architecture, judge, driver, testplan, `//core:census`
    (`ElementConsumption` registered in the testplan funnel register with its tenet argument, 2026-11-02);
    `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+27. **Item 7c -- the effect helpers unfolded: the seed-form effectful map on the program road (M9's T9 kind), the
+   subsumed call's arguments and body (2026-11-02).** A probe over corpus bodies (`bazel run //spec:consumption_probe --
+   <fqn>`, kept as a `manual` measurement target beside `corpus_one`: each statement's element-only and consumed
+   verdicts, the kinds, the class, every call's catalog row; deciding nothing) read a `setupTestData` body as the walk
+   sees it: the resolver's statement inliner (`compiler/StatementInline`) has already UNFOLDED the helper into the body,
+   its lets renamed `_sN_` -- `let _s7_connection = $runtime.connectionByElement($db)->cast(...)` (the qualified property
+   `Runtime$prop$connectionByElement`, a user call, a handle by its type), `let _s8_dbConfig =
+   createDbConfig($_s7_connection.type)` (SUBSUMED, `builtin/Subsumed`), `let _s9_sqls =
+   $csvs->joinStrings('\n-\n')->setUpDataSQLsV2($db, $dbConfig)`, `$sqls->map(sql | executeInDb($sql, $connection))`,
+   `true`. Three things kept the 48 bodies on the walk, each named: (i) the subsumed call's ARGUMENT counted as a value
+   read of `connection`, so `db` and `runtime` were not consumed -- a subsumed program is an opaque typed value never
+   evaluated on any road, so its arguments are no read (`ElementConsumption.valueRead`); (ii) the subsumed call's BODY
+   was reached by the query door's kinds scan (`StatementEffects.reaches` descended into it; the engine's `createDbConfig`
+   asserts a DbExtension exists), so the config let carried an ASSERT kind and a value let with a kind keeps a body on the
+   walk -- `reaches` now stops at a subsumed callee as `containsEffect` and `writesStore` already did (one `subsumed(uc)`
+   helper for the three stops; the call node is still tested, its arguments still walked); (iii) the MAP statement, the
+   T9 kind the test door refused (`PlanMaker.unplannedOnTheTestDoor`) and no class admitted. The walk runs it as
+   `SeedSqlForms.mappedExecutionForm` (the texts `CsvSeed.sqls` over the folded CSV and the store's name, each bound into
+   the lambda's statement and run as the effect); the program road now plans the same: ONE reader of the seed form for
+   both roads (`testplan/Seeds.seedForm`, `seedFormCall`: the map's source and the store argument read through the lets
+   that bind them, the data folded over the lets by `Literals.fold` -- null where it does not fold, which stays the
+   walk's statement path and the program road's refusal by name, R14; `SeedSqlForms` calls it first), the lambda ONE db
+   effect the door writes by the literal-effect rule (`Seeds.oneEffectMapper`: not `loadCsvToDbTable`, every String
+   argument the parameter or a folded literal, the parameter read nowhere else -- the audit's B), `TestKinds.effect`
+   binding each text into the RAW lambda's statement (`UserCallInliner.bindStringParam`, one inline and resolution in
+   `prepare`) and adding its statements to the open script (one segment at the map's index; the last-statement answer the
+   statement's own type), and the class rules admitting the map where they admit a literal effect (`frameProgram`,
+   `effectProgram`; the effect program also admits the unfolded helper's consumed element lets and its seed-form let).
+   The kinds census names a stayed effectful map (`effect-map-seed` / `effect-map-computed`).
+28. **Movement (item 7c):** DuckDB host pass `moved=2929 -> 2,978` (2471 / 108 / 14 skipped, unchanged), database
+   `2898 -> 2,945` (2473 / 108 / 14); H2 host `2929 -> 2,978` (2289 / 295 / 14), database `2789 -> 2,836` (2233 / 353 /
+   14); 20 of 20 lane tests green, no register changed; `system=121` / `120` unchanged. Stayed on the DuckDB host pass
+   231 -> 184: the 38 modelJoin bodies (`activities,assert,check,effect,let-execute`), the 6 temporal ones and the 3
+   `assert,check,effect,let-execute` moved. The audit's MEDIUM-2 (a pass -> SKIPPED flip from `reaches` no longer
+   seeing a subsumed body's assert): none -- `skipped=14` on every pass before and after. The third chain, on the
+   audit-folded code: the same four moved counts, the same outcomes, 20 of 20 green; the census's new tag reads 34
+   stayed bodies with an effectful map whose data does NOT fold (`effect-map-computed`: 30 test-data-generation bodies
+   seeding the generator's own CSV string, 3 aggregationAware, 1 other) -- the generator's (T8), not this item's.
+29. **The checks (item 7c):** `BodyRouterParityTest.seedFormEffectMapPrograms` (the frame model's `x::setupData`, spelled
+   as the corpus's helper with the qualified property and `setUpDataSQLs($db)`, unfolded by the resolver: a frame
+   program, parity under both judges with the same raw-SQL ledger -- `Drop table`, `Create Table`, `INSERT` -- zero
+   system statements; the data computed stays; `x::seedOnly` ending in the map: an effect program, parity), the
+   `ElementConsumptionTest` witnesses (`aSubsumedCallsArgumentIsNoRead`, `aSubsumedCallsBodyIsNoKindOfTheStatement`:
+   the model's `createDbConfig` body asserts, the unfolded config let has no kind and the body is a frame program),
+   root, architecture, judge, driver, testplan, planner, compiler, `//core:census`; `//spec:corpus_duckdb` and
+   `//spec:corpus_h2`. The independent audit (COMMIT WITH FIXES, folded): MEDIUM-1 the mapper rule mirrors
+   `literalEffect` (above); MEDIUM-2 the lanes run and the skipped roster read (none flipped); LOW the stranded `key`
+   javadoc, the class javadocs and the register description widened, the else-branch wording, the parameter bound in
+   the raw lambda (the store argument then read through its let too, or the ledger's DDL became the no-store DELETE
+   form: the parity witness caught it), the census tag, the probe's license header, the import order, the one
+   `subsumed(uc)` helper. The corpus's exact V2 shape (`setUpDataSQLsV2($db, createDbConfig(...))`) is witnessed at the
+   class-rule level alone (the engine's `createDbConfig` needs a DbExtension the frame model does not declare); the lanes
+   run the 48 real bodies.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

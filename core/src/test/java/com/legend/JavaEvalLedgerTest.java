@@ -1622,7 +1622,8 @@ class JavaEvalLedgerTest {
                             "EffectPlanner.java",
                             // a statement's seeds: their sources (the key the session's state is checked by) and their
                             // setup steps (CsvSeed.planned), one owner for the walk and the test door (M3e, from the
-                            // body driver); nothing evaluated
+                            // body driver); since M10c item 7c (2026-11-02) the one reader of a seed form mapped over an
+                            // effect too (its data folded, its texts CsvSeed's); nothing evaluated
                             "Seeds.java",
                             // the classes of bodies that run whole on the program road (M5, R16, 2026-11-01): a named
                             // rule over a body's typed shape, reading it, never running it; nothing evaluated

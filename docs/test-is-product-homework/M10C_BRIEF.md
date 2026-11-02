@@ -240,6 +240,40 @@ The planners' refusals, by site:
    store-free body to system-routed: fixed, witnessed); the seed forms' data argument is a value, not planning-time
    (fixed, witnessed); the unpinned branches witnessed with the corpus's `setupTestData` whole and an effect's element
    argument; the inherited lambda hole closed (a mapped lambda's navigation is a read); nits.
+7c. **The effect helpers unfolded: the seed-form effectful map on the program road (M9's T9 kind), and a subsumed call's
+   arguments (written before the code, 2026-11-02). BUILT 2026-11-02: DuckDB host pass moved 2,929 -> 2,978, database
+   2,898 -> 2,945; H2 2,978 / 2,836; outcomes identical on every pass (skipped 14 unchanged), no register changed; stayed
+   231 -> 184 on the DuckDB host pass. The code found a third blocker the brief did not name: the subsumed call's BODY
+   reached by the kinds scan (its assert tagged the config let), fixed in `StatementEffects.reaches` (GATES item 27);
+   the audit's folds in GATES item 29.** The probe (`bazel run //spec:consumption_probe -- <fqn>`, a
+   measurement over corpus bodies: each statement's element-only and consumed verdicts, the kinds, the class, every
+   call's catalog row) read a `setupTestData` body as the walk sees it: the resolver's statement inliner
+   (`compiler/StatementInline`, `Compiler.resolveQuery`) has already UNFOLDED the helper into the body -- 13 statements:
+   the CSV lets, `let db = Db`, `let runtime = testRuntime($db)`, then the helper's own `let _s7_connection =
+   $runtime.connectionByElement($db)->cast(...)` (the qualified property `Runtime$prop$connectionByElement`, a user call,
+   not the effect native; a handle by its type), `let _s8_dbConfig = createDbConfig($_s7_connection.type)` (SUBSUMED:
+   an opaque typed value never evaluated on any road, `builtin/Subsumed`), `let _s9_sqls =
+   $csvs->joinStrings('\n-\n')->setUpDataSQLsV2($db, $dbConfig)`, the statement `$sqls->map(sql |
+   executeInDb($sql, $connection))`, `true`, then the frame, the expected text and two asserts. Two things keep it on
+   the walk: (i) `connection` is not consumed because the subsumed `createDbConfig($connection.type)` counts as a read --
+   a SUBSUMED call's arguments are never evaluated, so they are no read (`ElementConsumption.valueRead`); with that,
+   `connection` is a consumed handle carrier and `db` and `runtime` are consumed; (ii) the MAP statement: a map over an
+   effectful lambda, the T9 kind the test door refuses (`PlanMaker.unplannedOnTheTestDoor`) and no class admits. The walk
+   runs it as `SeedSqlForms.mappedExecutionForm`: the source a seed form (`setUpDataSQLs`, `setUpDataSQLsV2`), its data
+   argument folded over the lets (`Literals.fold`: literals joined by `+` and `joinStrings`) or, failing that, evaluated
+   as a statement, its store argument a reference's name or null, the texts `CsvSeed.sqls(csv, dbFqn, ctx, dialect)`,
+   each text bound into the lambda's body (`UserCallInliner.bindStringParam`) and run as the effect `executeInDb(text,
+   $connection)`. The program road plans the same: ONE reader of the seed form for both roads (`testplan/Seeds.seedForm`:
+   the folded data and the store's name, or null where the data does not fold -- the walk keeps its statement path
+   there, the program road refuses by name, R14), the test door's `TestKinds.effect` accepting an effectful map whose
+   source is a seed form and whose lambda body is one db effect, each bound statement prepared as the effect it is and
+   added to the open script (one segment, the map's index), and the class rules admitting such a statement where they
+   admit a literal effect (`BodyClass.seedFormEffectMap`). Witnesses: the frame model's `x::setupData(csvs, db,
+   runtime)` spelled as the corpus's helper (the qualified property, `setUpDataSQLs($db)`, the map over `executeInDb`),
+   unfolded by the resolver, under both judges (the table dropped and recreated by the seed: the rows are the CSV's);
+   a data argument that does not fold stays; the unit witness of the subsumed argument. Expected: the 48 `setupTestData`
+   bodies (modelJoin advanced, simple, milestoning, union) move or name their next blocker (the TDS `toString` compare,
+   the `->sql()` text); measured, not promised.
 8. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 

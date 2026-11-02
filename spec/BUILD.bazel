@@ -250,6 +250,28 @@ legend_java_binary(
     runtime_deps = [":spec_tests_lib"],
 )
 
+# A MEASUREMENT of the element-consumption analysis over named corpus bodies (M10c item 7b/7c; ConsumptionProbe):
+#   bazel run //spec:consumption_probe -- <test fqn>...
+legend_java_binary(
+    name = "consumption_probe",
+    testonly = True,
+    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt"],
+    jvm_flags = [
+        "--enable-native-access=ALL-UNNAMED",
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
+        "-Duser.timezone=GMT",
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dfile.encoding=UTF-8",
+        "-Xmx4096m",
+    ],
+    main_class = "com.legend.testplan.ConsumptionProbe",
+    tags = ["manual"],
+    runtime_deps = [":spec_tests_lib"],
+)
+
 # THE CORPUS ON ANOTHER DATABASE (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): the host pass on a lane's
 # own sessions, every test or a listed subset (a covering one, tools/census/primitive_cover.py):
 #   bazel run //spec:corpus_on_postgres -- postgres [<tests file, absolute>]

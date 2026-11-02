@@ -140,6 +140,13 @@ public final class BodyKinds {
             if (statement instanceof TypedLet || kinds.contains(QueryDoor.TestOnly.ASSERT)) {
                 continue;
             }
+            if (statement instanceof com.legend.compiler.spec.typed.TypedMap tm
+                    && kinds.contains(QueryDoor.TestOnly.EFFECT)) {
+                // an effectful map (M10c item 7c): a seed form whose data folds over one effect the door writes moves;
+                // any other is named for the residue histogram
+                tags.add(BodyClass.seedFormEffectMap(tm, body.subList(0, i)) ? "effect-map-seed" : "effect-map-computed");
+                continue;
+            }
             if (!BodyClass.plansNoStep(statement, body.subList(0, i), ctx)) {
                 tags.add(last ? "last-query" : "check");
             }

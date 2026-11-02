@@ -363,6 +363,11 @@ public enum BodyClass {
                 }
                 continue;
             }
+            if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && !(statement instanceof TypedLet)
+                    && seedFormEffectMap(value, body.subList(0, i))) {
+                // a seed form mapped over an effect (M10c item 7c): the test door plans its texts as one script
+                continue;
+            }
             if (statement instanceof TypedLet let && !last) {
                 if (LetPlanner.badAliasIndex(let.value(), relationFrame)) {
                     // $r.values->at(k>0) over a relation frame: the walk raises it at the let's turn (the M9a audit's
@@ -753,6 +758,7 @@ public enum BodyClass {
         ModelContext ctx = query.context();
         List<TypedSpec> body = query.body();
         Map<FunctionId, Boolean> storeMemo = new HashMap<>();
+        ElementConsumption consumption = new ElementConsumption(body, systemClasses(ctx), ctx, query.specs());
         boolean anEffect = false;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
@@ -768,9 +774,22 @@ public enum BodyClass {
                 anEffect = true;
                 continue;
             }
+            if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && !(statement instanceof TypedLet)
+                    && seedFormEffectMap(value, body.subList(0, i))) {
+                // a seed form mapped over an effect (M10c item 7c)
+                anEffect = true;
+                continue;
+            }
             // every other statement holds no test kind (no seeds, no assert, no effect inside it) and reads no store
             if (!kinds.isEmpty() || readsAStore(statement, query, storeMemo)) {
                 return false;
+            }
+            if (statement instanceof TypedLet && i < body.size() - 1
+                    && (consumption.consumedElementLet(i) || Seeds.seedFormCall(value, body.subList(0, i)) != null)) {
+                // the corpus's setup helpers unfolded (M10c item 7c): the store and the runtime bound and consumed (the
+                // element-consumption analysis: no read on either road), and the seed form bound (planning-time texts
+                // the map after it spells) -- value lets the program splices
+                continue;
             }
             boolean inert = value instanceof TypedNativeCall call
                     && NativeFn.Effect.isInertDiagnostic(call.callee().id());
@@ -781,6 +800,15 @@ public enum BodyClass {
             }
         }
         return anEffect;
+    }
+
+    /** Whether {@code value} is a SEED FORM mapped over one db effect ({@code $sqls->map(sql | executeInDb($sql,
+     *  $connection))} with {@code sqls} a {@code setUpDataSQLs} form whose data folds over {@code lets}: the corpus's
+     *  setup helpers, unfolded into the body by the resolver's statement inliner): the test door plans its texts as the
+     *  effect script the walk sends (M10c item 7c; {@code Seeds.seedForm}, one reader for both roads). */
+    static boolean seedFormEffectMap(TypedSpec value, List<TypedSpec> lets) {
+        return value instanceof com.legend.compiler.spec.typed.TypedMap tm && Seeds.seedForm(tm, lets) != null
+                && Seeds.oneEffectMapper(tm, lets);
     }
 
     /** Whether {@code value} is a String or Boolean literal: a value both roads answer with no statement sent. */
