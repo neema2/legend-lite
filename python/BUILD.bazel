@@ -192,6 +192,29 @@ py_test(
     ],
 )
 
+# The host executor's benchmark (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, H0): a frame queried at 10 to 1,000,000 rows on
+# four paths (DuckDB's Arrow alone, Table.execute, the engine's Arrow and JSON executes), each path's median and its
+# answer's digest. Manual: a measurement, never a gate.
+py_test(
+    name = "executor_bench",
+    size = "large",
+    srcs = [
+        "tests/bench_executor.py",
+        "tests/main.py",
+    ],
+    args = ["bench_executor"],
+    data = ["//native:compiler"],
+    env = _ENV | {"PYTHONTZPATH": ""},
+    main = "tests/main.py",
+    tags = ["manual"],
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@pypi//tzdata",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # The frames: queries over pandas, polars and Arrow frames answered as pandas computes them, Live and Snapped, the
 # model writer's conversions, the refusals.
 py_test(
