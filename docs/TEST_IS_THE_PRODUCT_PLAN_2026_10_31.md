@@ -1226,7 +1226,9 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   executeLegendQuery lambda's parameter read there was unbound. DuckDB host pass `moved=3030 -> 3,058`, database
   `2956 -> 2,983`, H2 `3,058` / `2,870`, outcomes identical. A walk defect found on the way: two frames over lambdas
   binding one name share one binding on the walk (the later); such bodies stay by name, and **M10d must give the
-  program road per-frame bindings before the walk goes**. **Next:** M8c (R24) in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
+  program road per-frame bindings before the walk goes**. **Item 13 BUILT (2026-11-02; GATES items 47-49):** an
+  unread let in an effect program (the embedded packages' setups: a raw read no statement reads, spliced into no
+  reader on the walk); every pass moved 9, outcomes identical. **Next:** M8c (R24) in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
   pass's extra bodies, the system-routed engine texts with M10d, the last body, T8 on the ruling, Z.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
@@ -1558,3 +1560,5 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   closed; DuckDB host pass `3034 -> 3,030` (net, explained), outcomes identical, every register green.
 - 2026-11-02: **M10c item 12 built**: graph frames, and a graph tree's qualifier arguments on the product's road;
   DuckDB host pass `moved=3030 -> 3,058`, database `2956 -> 2,983`, outcomes identical, every register green.
+- 2026-11-02: **M10c item 13 built**: an unread let in an effect program; every pass moved 9 (DuckDB host 3,067),
+  outcomes identical, every register green.

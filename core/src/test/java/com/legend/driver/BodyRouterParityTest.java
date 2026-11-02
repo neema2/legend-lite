@@ -102,6 +102,28 @@ class BodyRouterParityTest {
                 + EXEC + "'create table ' + $t + '(i int)', $c, 0, 1000);\n'done';}", "select count(*) from p5");
     }
 
+    /** M10c item 13: a RAW READ bound by a let no later statement reads -- the corpus's setup `let dataInTable =
+     *  executeInDb('select ...', $connection)` -- is spliced into no reader on the walk and ridden by the door: nothing
+     *  sent on either road, the body an effect program. The walk's, by name: a dead computed value (its reduction could
+     *  raise at another turn), a raw read a later lambda's parameter of the same name shadows after an effect (the
+     *  walk's LetPlanner stages it), a raw read that IS read (T8). */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void anUnreadLetInAnEffectProgram(TestBackend backend) throws Exception {
+        String rawRead = connection(backend) + effect("create table p9(i int)") + "let dead = " + EXEC
+                + "'select * from p9', $c, 0, 1000);\n" + effect("insert into p9 values (9)") + "true;}";
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(ctx, rawRead), RT), rawRead);
+        assertParity(backend, rawRead, "select i from p9");
+        for (String stays : List.of(
+                connection(backend) + effect("create table p8(i int)") + "let dead = 'abc'->toUpper();\n"
+                        + effect("insert into p8 values (8)") + "true;}",
+                connection(backend) + "let dead = " + EXEC + "'select 1', $c, 0, 1000);\n"
+                        + effect("create table p10(i int)") + "let other = [1, 2]->map(dead | $dead + 1);\ntrue;}")) {
+            assertNull(BodyClass.of(typed(ctx, stays), RT), "the walk's: " + stays);
+        }
+    }
+
     @ParameterizedTest
     @MethodSource("backends")
     void twoSegments(TestBackend backend) throws Exception {

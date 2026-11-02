@@ -442,7 +442,22 @@ The planners' refusals, by site:
    and failing, parity under both judges; it fails with the tree's arguments unread. **Expected:** about 30 bodies
    per host pass move, the 12 inline-seed graph frames among them, outcomes identical.
 
-13. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
+13. **An unread let in an effect program (2026-11-02). BUILT 2026-11-02, narrowed by its audit to a RAW READ planned
+   as a VALUE let: every pass moved 9 (DuckDB host 3,067, database 2,992; H2 3,067 / 2,879), outcomes identical; GATES
+   items 47-49. It rests on an older, unledgered divergence -- upstream runs `executeInDb('select ...')` at the let,
+   lite sends nothing for an unread let -- posted to the user for a ruling.** Nine stayed rows tagged `effect` alone are package setups
+   run under a test's name (the embedded mapping packages' `setUp`: `createTablesAndFillDb()`,
+   `createTimeStamKeysTableAndFill()`, unfolded by the resolver). Instrumented once: every statement passes the effect
+   rule but the last let, `let dataInTable = executeInDb('select * from DATA_WITH_TIMESTAMPS_KEYS ;', $connection)` --
+   a raw read no statement reads, which the rule refused as "a computed value". On the walk it is a VALUE let
+   (`LetPlanner`: a raw read is staged only where a statement reads it after an effect), spliced into no reader, so
+   nothing is sent; the test door rides a value let and sends nothing. So the effect rule admits a let no later
+   statement reads (`FreeVars.ofBody` over the statements after it), once its kinds are empty and it reads no store
+   (the rule's own checks before). A raw read that IS read stays the walk's (T8). **Witness**
+   (`BodyRouterParityTest.anUnreadLetInAnEffectProgram`): a dead raw read and a dead computed value between two
+   effects, effect programs with parity; it fails with the rule removed. **Expected:** the nine setups move.
+
+14. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement
 

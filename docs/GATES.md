@@ -17157,6 +17157,35 @@ measured on both corpora with the registers and a parity witness; the chain at M
    `serializeGraph` with no streamed answer, so MV6's D7 does not move for frames; OBJECT, SYSTEM_READ and EXECUTE
    anywhere else in a frame's query still refuse.
 
+47. **Item 13 -- an unread let in an effect program (2026-11-02; the brief's item 13).** Nine stayed rows tagged
+   `effect` alone were package setups run under a test's name (the embedded mapping packages' `setUp`:
+   `createTablesAndFillDb()`, `createTimeStamKeysTableAndFill()`, unfolded by the resolver). Instrumented once: every
+   statement passed the effect rule but the last let, `let dataInTable = executeInDb('select * from
+   DATA_WITH_TIMESTAMPS_KEYS ;', $connection)` -- a raw read no statement reads, refused as "a computed value". On the
+   walk it is a VALUE let (`LetPlanner`: a raw read is staged only where a statement reads it after an effect), spliced
+   into no reader, so nothing is sent; the test door rides a value let and sends nothing. The effect rule now admits a
+   RAW READ bound by a let no later statement reads (`FreeVars.ofBodyReadingTrees` over the statements after it) whose
+   let plans as a VALUE let by `LetPlanner`'s own kind -- once its kinds are empty and it reads no store (the rule's
+   checks before it). A raw read has no children, so reducing it in a later statement's prefix does nothing either.
+   Any other dead value stays a computed value; a raw read that IS read stays the walk's (T8). **Upstream runs the read
+   at the let** (legend-engine evaluates lets eagerly); lite sends nothing for an unread value let on either road -- an
+   older divergence (D75's execution model: a let is a staged table or a compile-time splice) that no row of
+   `docs/SEMANTICS_REGISTER.md` records, now on the road that survives M10: posted to the user for a ruling.
+48. **Movement (item 13):** DuckDB host pass `moved=3058 -> 3,067`, database `2983 -> 2,992`; H2 host `3058 -> 3,067`,
+   database `2870 -> 2,879`; outcomes identical on all four passes; 12 of 12 lane tests green; the nine setups moved.
+   Passing bodies on the walk, DuckDB host pass: 108 -> 99.
+49. **The checks (item 13):** `BodyRouterParityTest.anUnreadLetInAnEffectProgram` (a dead raw read between two
+   effects: an effect program, parity; the walk's by name: a dead computed value, a raw read a later lambda's
+   parameter of the same name shadows after an effect; the witness fails with the rule removed), `//core:census`,
+   root, architecture, judge, driver, testplan; `//spec:corpus_duckdb`, `//spec:corpus_h2` (the first run on the wider
+   rule, and again on the narrowed rule: the same four counts). The independent audit (COMMIT WITH FIXES, folded): MEDIUM-1 a dead
+   test-data generator or census-carrier let (no children: invisible to the store scan) was admitted, which the walk
+   folds and runs; LOW-2 the two "is it read?" tests disagreed under shadowing (a lambda parameter of the same name
+   after an effect: the walk stages the read, the door refuses a staged grid); LOW-3 a computed dead let is still
+   reduced in every later prefix, so a raising reduction lands at different turns -- all three closed by narrowing
+   the rule to a raw read planned as a VALUE let; MEDIUM-4 the unledgered upstream divergence -- posted (above); NIT
+   the tree-reading definition of a read; LOW the witness's negative pins added.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

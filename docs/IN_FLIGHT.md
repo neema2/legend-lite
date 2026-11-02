@@ -3062,7 +3062,8 @@ witness `deferredTextPrograms`); item 9 built (`driver/HostJudge.java` `planCell
 anything sent, the frame's query through its let; the witness `inlineSeedFramePrograms`); item 12 built
 (`compiler/spec/typed/FreeVars.ofBodyReadingTrees`, read by `planner/ProductStatements.prepare`;
 `ProgramFrames.consumed`; `BodyClass.frameQueryKind`, `frameProgram`'s frame-name rule; the witness
-`graphFramePrograms`). The
+`graphFramePrograms`); item 13 built (`BodyClass.effectProgram`'s unread let; the witness
+`anUnreadLetInAnEffectProgram`). The
 user's rulings of 2026-11-02:
 burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
 last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,

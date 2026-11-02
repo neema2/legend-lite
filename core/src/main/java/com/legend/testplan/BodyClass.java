@@ -842,6 +842,21 @@ public enum BodyClass {
                 // the map after it spells) -- value lets the program splices
                 continue;
             }
+            if (statement instanceof TypedLet let && i < body.size() - 1
+                    && LetPlanner.rhs(let) instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
+                    && LetPlanner.kind(let, body, i, query.specs(), new HashMap<>(), n -> false)
+                            == LetPlanner.Kind.VALUE
+                    && !com.legend.compiler.spec.typed.FreeVars.ofBodyReadingTrees(body.subList(i + 1, body.size()))
+                            .contains(let.name())) {
+                // a RAW READ bound by a let no later statement reads (the corpus's setup `let dataInTable =
+                // executeInDb('select * from ...', $connection)`: M10c item 13): a VALUE let (LetPlanner's own kind --
+                // a raw read is staged only where something reads it after an effect) the walk splices into no reader
+                // and the door rides; it has no children, so reducing it in a later statement's prefix does nothing:
+                // neither road sends or does anything for it. Any other dead value stays a computed value (below):
+                // a generator or census carrier the walk folds, a reduction that could raise at another turn (the
+                // item's audit F1-F3). Upstream runs the read at the let: a divergence posted to the user
+                continue;
+            }
             boolean inert = value instanceof TypedNativeCall call
                     && NativeFn.Effect.isInertDiagnostic(call.callee().id());
             if (!inert && !literal(value) && BodyPlanner.handleType(value, ctx) == null) {
