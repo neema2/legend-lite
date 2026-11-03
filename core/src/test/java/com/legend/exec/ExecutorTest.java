@@ -165,6 +165,85 @@ class ExecutorTest {
                 "'SF__|__total'", "Integer", "'SF__|__mean'", "Float"), types, json.toString());
     }
 
+    /**
+     * D18 D (the user, 2026-11-03): a host answers a dynamic pivot as the JVM does -- the execute route's plan half
+     * answers the keyed plan (HostPlans.query), the host runs its keys statement, the core writes the body for those
+     * keys (PureV1Api.keyedBody), the host DESCRIBEs and runs it with the keys bound, and the core writes the answer
+     * from the rows and the report (keyedAnswer): the JVM's own answer text, but for its execution trace's id.
+     */
+    @Test
+    @DisplayName("PIVOT: a host's keyed run answers the JVM's text")
+    void pivotOnAHostAnswersTheJvmsText() throws Exception {
+        String query = "#>{test::DB.T_TREES}#->pivot(~CITY, ~[total : x|$x.TREES : y|$y->sum(), "
+                + "mean : x|$x.TREES : y|$y->average()])->sort(~YR->ascending())";
+        com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), query);
+        java.io.StringWriter jvm = new java.io.StringWriter();
+        com.legend.Execution.run(com.legend.testing.LaneFloor.model(MODEL, conn), query, RUNTIME,
+                com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)),
+                PlanSessions.of(com.legend.testbackend.TestSessions.over(conn)),
+                p -> com.legend.server.PureV1Api.engineWriter(typed, p, jvm));
+
+        // the host: the plan half, the keys, the body, its report and its rows, the answer
+        String lambda = com.legend.server.PureV1Api.grammarToJsonLambda("|" + query + "->from(" + RUNTIME + ")", false)
+                .json();
+        String request = "{\"function\":" + lambda + ",\"model\":"
+                + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", MODEL)) + "}";
+        com.legend.server.PureV1Api.Answer planned = com.legend.server.PureV1Api.jsonPlan(request, List.of(MODEL));
+        assertEquals(200, planned.status(), planned.json());
+        var keyed = (com.legend.executionplan.ExecutionPlan.Keyed) com.legend.executionplan.PlanJson.read(planned.json())
+                .root();
+        List<List<String>> keys = new java.util.ArrayList<>();
+        try (Statement st = conn.createStatement(); java.sql.ResultSet rs = st.executeQuery(keyed.keys().statement())) {
+            while (rs.next()) {
+                List<String> row = new java.util.ArrayList<>();
+                for (int c = 1; c <= rs.getMetaData().getColumnCount(); c++) {
+                    row.add(rs.getString(c));
+                }
+                keys.add(row);
+            }
+        }
+        String keysJson = com.legend.json.Json.toCompact(keys);
+        com.legend.server.PureV1Api.Answer body = com.legend.server.PureV1Api.keyedBody(planned.json(), keysJson);
+        assertEquals(200, body.status(), body.json());
+        com.legend.json.Json.Obj written = com.legend.json.Json.parseObject(body.json());
+        String statement = written.getString("statement");
+        List<String> parameters = written.getStringArray("parameters");
+        List<String> reported = new java.util.ArrayList<>();
+        try (java.sql.PreparedStatement ps = conn.prepareStatement("DESCRIBE " + statement)) {
+            for (int i = 0; i < parameters.size(); i++) {
+                ps.setString(i + 1, parameters.get(i));
+            }
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    reported.add(rs.getString("column_type"));
+                }
+            }
+        }
+        List<java.util.Map<String, Object>> rows = new java.util.ArrayList<>();
+        try (java.sql.PreparedStatement ps = conn.prepareStatement(statement)) {
+            for (int i = 0; i < parameters.size(); i++) {
+                ps.setString(i + 1, parameters.get(i));
+            }
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    for (int c = 1; c <= rs.getMetaData().getColumnCount(); c++) {
+                        Object v = rs.getObject(c);
+                        // as a host's driver hands a cell back (HostRows): a number as its digits, any other its text
+                        row.put(rs.getMetaData().getColumnLabel(c), v == null || v instanceof Number ? v : v.toString());
+                    }
+                    rows.add(row);
+                }
+            }
+        }
+        com.legend.server.PureV1Api.Answer host = com.legend.server.PureV1Api.keyedAnswer(planned.json(), keysJson,
+                com.legend.json.Json.toCompact(rows), com.legend.json.Json.toCompact(reported));
+        assertEquals(200, host.status(), host.json());
+        java.util.function.UnaryOperator<String> traced =
+                t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
+        assertEquals(traced.apply(jvm.toString()), traced.apply(host.json()));
+    }
+
     @Test
     @DisplayName("shape classification is a closed switch over the type system")
     void shapeClassification() {

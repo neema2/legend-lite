@@ -47,6 +47,30 @@ public final class HostPlans {
         return plan;
     }
 
+    /**
+     * {@code plan}, when a host answers it as a query's rows on the execute route (legend-engine's execute, D18 D, the
+     * user 2026-11-03): one typed result over a statement of text ({@link #read}), or a keyed result -- a pivot whose
+     * columns its data names -- whose keys statement binds nothing and whose body binds only its keys' cells, which a
+     * host runs as the JVM's runner does (the keys, then the body the core writes for them: {@link KeyedRun}).
+     * Otherwise refused by name ({@link IllegalArgumentException}).
+     */
+    public static ExecutionPlan query(ExecutionPlan plan) {
+        if (!(plan.root() instanceof ExecutionPlan.Keyed keyed)) {
+            return read(plan);
+        }
+        if (!keyed.keys().slots().isEmpty()) {
+            throw refused("a host runs a pivot's keys statement as text, and this one binds values ("
+                    + keyed.keys().slots().size() + "); legend-lite's server runs it");
+        }
+        for (ExecutionPlan.Slot slot : keyed.body().slots()) {
+            if (!(slot.binding() instanceof ExecutionPlan.Binding.Key)) {
+                throw refused("a host binds a pivot's body to its keys alone, and this one binds '" + slot.parameter()
+                        + "'; legend-lite's server runs it");
+            }
+        }
+        return plan;
+    }
+
     /** {@code plan}, when a host's runner runs it as a program; otherwise refused by name
      *  ({@link IllegalArgumentException}). */
     public static ExecutionPlan program(ExecutionPlan plan) {

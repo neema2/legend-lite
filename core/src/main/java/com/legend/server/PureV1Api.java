@@ -786,16 +786,14 @@ public final class PureV1Api {
                 // measured on
                 throw unprobed(hosted.query());
             }
-            if (!(plan.root() instanceof com.legend.executionplan.ExecutionPlan.TdsResult result)) {
-                throw new com.legend.error.NotImplementedException("a host runs one statement, and this query's plan "
-                        + "is not one (" + plan.root().getClass().getSimpleName() + ": a pivot whose columns the data "
-                        + "names, or a program that writes); legend-lite's server runs it");
+            try {
+                // one statement of text, or a pivot whose columns its data names, run as the JVM runs it (D18 D)
+                com.legend.executionplan.HostPlans.query(plan);
+            } catch (IllegalArgumentException refused) {
+                throw new com.legend.error.NotImplementedException(String.valueOf(refused.getMessage()));
             }
-            if (!result.sql().slots().isEmpty()) {
-                throw new com.legend.error.NotImplementedException("a host runs a statement's text, and this one binds "
-                        + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
-            }
-            if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION) {
+            if (plan.root() instanceof com.legend.executionplan.ExecutionPlan.TdsResult result
+                    && result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION) {
                 // the envelope made now, as the answer will make it: a column with no builder entry refuses at planning
                 planEnvelope(result.sql().statement(), result.columns());
             }
@@ -874,9 +872,139 @@ public final class PureV1Api {
      * own account of the failure, since no host carries legend-engine's stack (S129).
      */
     public static Answer databaseRefused(String plan, String message, String trace) {
-        String failure = com.legend.database.Databases.jdbcFailureClass(
-                hostResult(plan).sql().target().database().type());
+        com.legend.executionplan.ExecutionPlan read = hostPlan(plan);
+        String failure = com.legend.database.Databases.jdbcFailureClass(read.answerSql().target().database().type());
         return error(500, null, failure + ": " + message, trace);
+    }
+
+    /**
+     * A pivot's body for a host that read its keys ({@link #jsonPlan}'s keyed plan, D18 D, the user 2026-11-03):
+     * {@code keys} the keys statement's rows as the host read them (a JSON array of rows, each an array of the texts it
+     * wrote: each key's text and the names it gives), answered {@code {"statement", "parameters"}} -- the body written
+     * for those keys by the plan record's own steps ({@link com.legend.executionplan.KeyedRun#expand}), and the text each
+     * of its placeholders binds, in order. The host runs it as the JVM's runner does, in the keys' snapshot.
+     */
+    public static Answer keyedBody(String plan, String keys) {
+        return answer(500, "COMPILATION", () -> {
+            com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
+            List<List<Object>> read = keyRows(keys);
+            // the column cap refused before the body is written, as the runner refuses it
+            com.legend.executionplan.KeyedRun.answer(keyed, read);
+            com.legend.executionplan.KeyedRun.Expanded body = com.legend.executionplan.KeyedRun.expand(keyed.body(),
+                    read, i -> {
+                        throw new IllegalStateException("a host's pivot body has no type hole (HostPlans.query)");
+                    });
+            List<Object> parameters = new ArrayList<>();
+            for (com.legend.executionplan.KeyedRun.Bound b : body.bound()) {
+                switch (b) {
+                    case com.legend.executionplan.KeyedRun.Bound.Key key -> parameters.add(key.text());
+                    case com.legend.executionplan.KeyedRun.Bound.Slot slot -> throw new IllegalStateException(
+                            "a host's pivot body binds its keys alone (HostPlans.query), and placeholder binds slot "
+                                    + slot.index());
+                }
+            }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("statement", body.statement());
+            out.put("parameters", parameters);
+            return Json.toCompact(out);
+        });
+    }
+
+    /**
+     * Execute's answer for a host that ran a pivot's keys and then {@link #keyedBody}'s body (D18 D): {@code keys} the
+     * keys' rows as {@link #keyedBody} took them, {@code rows} the body's rows (a JSON array of objects, each a body
+     * column's name and its cell as the host's driver read it: {@link com.legend.result.HostRows}), {@code reported}
+     * each body column's type as the database reported it, in the body's order (a JSON array of type names: DuckDB's own,
+     * a {@code DESCRIBE} of the body) -- the answer's columns the plan record's own steps make
+     * ({@link com.legend.executionplan.KeyedRun#answer}), its header from the report as legend-engine makes a dynamic
+     * result's ({@link #dynamicEnvelope}), its activity the plan's body, as the server's answer carries it.
+     */
+    public static Answer keyedAnswer(String plan, String keys, String rows, String reported) {
+        return answer(500, "COMPILATION", () -> {
+            com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
+            com.legend.executionplan.KeyedRun.Answer answer = com.legend.executionplan.KeyedRun.answer(keyed, keyRows(keys));
+            int n = answer.columns().size();
+            List<String> types = new ArrayList<>();
+            for (Json.Node t : ((Json.Arr) Json.parse(reported)).items()) {
+                types.add(((Json.Str) t).value());
+            }
+            if (types.size() != n) {
+                throw new IllegalArgumentException("the host reports " + types.size() + " columns of the pivot's body, "
+                        + "and its answer has " + n);
+            }
+            // each body column read by the name the body writes it, placed in the answer's order
+            List<com.legend.executionplan.ExecutionPlan.Column> readInOrder =
+                    new ArrayList<>(java.util.Collections.nCopies(n, null));
+            List<String> reportedInOrder = new ArrayList<>(java.util.Collections.nCopies(n, (String) null));
+            for (int i = 0; i < n; i++) {
+                readInOrder.set(answer.place().get(i), answer.read().get(i));
+                reportedInOrder.set(answer.place().get(i), types.get(i));
+            }
+            String sql = keyed.body().statement();
+            java.io.StringWriter out = new java.io.StringWriter();
+            com.legend.result.PureV1Writer writer = com.legend.result.PureV1Writer.dynamicRelation(out,
+                    (columns, report) -> dynamicEnvelope(sql, columns, report));
+            try {
+                com.legend.result.HostRows.stream(rows, readInOrder, new com.legend.result.ResultSink() {
+                    @Override
+                    public void columns(List<com.legend.executionplan.ExecutionPlan.Column> columns)
+                            throws java.io.IOException {
+                        writer.columns(answer.columns(), reportedInOrder);
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+                        writer.batch(batch);
+                    }
+
+                    @Override
+                    public void end() throws java.io.IOException {
+                        writer.end();
+                    }
+                });
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return out.toString();
+        });
+    }
+
+    /** A keys statement's rows as a host hands them back: a JSON array of rows, each an array of texts. */
+    private static List<List<Object>> keyRows(String keys) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (Json.Node row : ((Json.Arr) Json.parse(keys)).items()) {
+            List<Object> cells = new ArrayList<>();
+            for (Json.Node cell : ((Json.Arr) row).items()) {
+                if (!(cell instanceof Json.Str text)) {
+                    throw new IllegalArgumentException("a keys row's cell is the text the keys statement wrote, not "
+                            + Json.toCompact(cell));
+                }
+                cells.add(text.value());
+            }
+            rows.add(cells);
+        }
+        return rows;
+    }
+
+    /** A host's plan ({@link #jsonPlan}'s, handed back), read by the plan record's own reader, its head shown when it
+     *  does not read. */
+    private static com.legend.executionplan.ExecutionPlan hostPlan(String plan) {
+        try {
+            return com.legend.executionplan.PlanJson.read(plan);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("the plan half's answer does not read as a plan (" + e.getMessage()
+                    + "); it begins: " + head(plan), e);
+        }
+    }
+
+    /** {@link #jsonPlan}'s keyed plan, handed back: one a host answers ({@code HostPlans.query}). */
+    private static com.legend.executionplan.ExecutionPlan.Keyed hostKeyed(String plan) {
+        com.legend.executionplan.ExecutionPlan read = com.legend.executionplan.HostPlans.query(hostPlan(plan));
+        if (!(read.root() instanceof com.legend.executionplan.ExecutionPlan.Keyed keyed)) {
+            throw new IllegalArgumentException("the plan is not a pivot whose columns its data names: it is not "
+                    + "jsonPlan's keyed plan; it begins: " + head(plan));
+        }
+        return keyed;
     }
 
     /**
