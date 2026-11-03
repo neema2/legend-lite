@@ -348,9 +348,11 @@ dashboard, tile kinds).
   1. **Syntax**: the parser's.
   2. **A fact about a source or a column**: name to source, column to line, and a line's kind (per instrument or
      not), which reaches the library as data (`timeseries::Keyed`, the meeting functions).
-  3. **The R7 fold**: an item read from a later item's line that was built from it is one line. It depends on which
-     relation expression is which, and the library sees only values; without it a line with several rows on a date,
-     met with itself, would multiply its rows.
+  3. **One table per base (R7; 2026-11-03, replacing the R7 fold)**: a source's column read twice is one line, and
+     each per-point expression and each item over it is a column added to that line's table, every item read from
+     the table's newest form. It is binding (which read is which), and the library sees only values; without it a
+     line with several rows on a date, met with itself, would multiply its rows. A word's answer is still its own
+     table until R7's part 2 (the v1 program's A1).
   4. **R10's naming of a struct's fields**, `<item>_<field>`: Pure cannot build a column name from strings; the field
      names come from the word's return type.
   5. **A condition in a line's place is its flags** (1 where it holds, 0 where it does not, none where it is none;

@@ -262,16 +262,19 @@ public final class TsToPure {
                 String name = names.get(i);
                 Map<String, String> struct = lines.structOf(v);
                 if (struct == null) {
-                    TsLines.Valued item = new TsLines.Valued(v.line().with(call("rename", v.line().rel(),
-                            new ColSpec(v.value()), new ColSpec(name))), name);
-                    lines.extended.put(item.line(), v.line());
+                    // the item's name a column of its base's table (R7: one table, its rows once), its value copied:
+                    // a later item may read the value under its own name
+                    TsLines.Valued item = new TsLines.Valued(lines.grown(v.line(), rel -> call("extend", rel,
+                            new ColSpec(name, lambda("x", new AppliedProperty(new Variable("x"), v.value()))))),
+                            name);
                     lines.items.put(name, item);
                     answered.add(item);
                     columns.add(name);
                     continue;
                 }
-                // a struct (R10): each field the answer's column <item>_<field>, read in the query as item.field
-                ValueSpecification rel = v.line().rel();
+                // a struct (R10): each field the answer's column <item>_<field>, read in the query as item.field, a
+                // column of its base's table, its value copied
+                List<ColSpec> copies = new ArrayList<>();
                 Map<String, String> fields = new LinkedHashMap<>();
                 for (Map.Entry<String, String> f : struct.entrySet()) {
                     String column = name + "_" + f.getKey();
@@ -280,29 +283,19 @@ public final class TsToPure {
                         throw invalid(name + "'s " + f.getKey() + " is the answer's column " + column + ", a name"
                                 + " the query has already (R10): name the item another name", aliases.get(i).pos());
                     }
-                    // a column two fields are (ohlc(x, x, x, x)) renamed once, copied for the next
-                    String before = fields.entrySet().stream().filter(o -> f.getValue().equals(
-                            struct.get(o.getKey()))).map(Map.Entry::getValue).findFirst().orElse(null);
-                    rel = before == null ? call("rename", rel, new ColSpec(f.getValue()), new ColSpec(column))
-                            : call("extend", rel, new ColSpec(column, lambda("x", new AppliedProperty(
-                                    new Variable("x"), before))));
+                    copies.add(new ColSpec(column, lambda("x", new AppliedProperty(new Variable("x"), f.getValue()))));
                     fields.put(f.getKey(), column);
                     columns.add(column);
                 }
-                TsLines.Line line = v.line().with(rel);
+                TsLines.Line line = lines.grown(v.line(), rel -> call("extend", rel, new ColSpecArray(copies)));
                 lines.fields.put(name, java.util.Collections.unmodifiableMap(fields));
                 lines.items.put(name, new TsLines.Valued(line, java.util.Objects.requireNonNull(fields.get(
                         struct.keySet().iterator().next()))));
                 fields.values().forEach(c -> answered.add(new TsLines.Valued(line, c)));
             }
-            // an item read from a later item's line made of its own by added columns: one line, its rows once
+            // each item read from its base's newest table: items of one base one table, its rows once (R7)
             for (int i = 0; i < answered.size(); i++) {
-                for (int j = answered.size() - 1; j > i; j--) {
-                    if (lines.descends(answered.get(j).line(), answered.get(i).line())) {
-                        answered.set(i, new TsLines.Valued(answered.get(j).line(), answered.get(i).value()));
-                        break;
-                    }
-                }
+                answered.set(i, new TsLines.Valued(lines.newest(answered.get(i).line()), answered.get(i).value()));
             }
             TsLines.Line all = TsLines.answer(lines, answered, aliases.get(0).pos());
             String instrument = all.byInstrument() ? all.part() : null;
@@ -815,9 +808,13 @@ public final class TsToPure {
             /** Each item that is a struct: its fields' answer columns ({@code bb_lower}), by field. */
             final Map<String, Map<String, String>> fields = new LinkedHashMap<>();
             /** Each line made of another by adding a column (its rows and its columns, and one more), by the very line:
-             *  an item read from a later item's line where that line is made so of its own (R6: one line's rows,
-             *  never joined to themselves -- a line of several rows on a date would multiply them). */
-            final Map<TsLines.Line, TsLines.Line> extended = new java.util.IdentityHashMap<>();
+             *  a base's columns are one table (R7: one line's rows, never joined to themselves -- a line of several
+             *  rows on a date would multiply them). */
+            private final Map<TsLines.Line, TsLines.Line> extended = new java.util.IdentityHashMap<>();
+            /** Each base's newest line, the base itself with every column added to it so far, by the very base. */
+            private final Map<TsLines.Line, TsLines.Line> newest = new java.util.IdentityHashMap<>();
+            /** Each source's column read, by what it reads ({@link TsLines.Writer#read}). */
+            private final Map<Object, TsLines.Valued> reads = new java.util.HashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -855,14 +852,41 @@ public final class TsToPure {
                 return structs.get(v.value());
             }
 
-            /** Whether {@code line} is made of {@code of} by added columns, step by step ({@link #extended}). */
-            boolean descends(TsLines.Line line, TsLines.Line of) {
-                for (TsLines.Line l = line; l != null; l = extended.get(l)) {
-                    if (l == of) {
-                        return true;
-                    }
+            @Override
+            public TsLines.Valued read(Object key, java.util.function.Supplier<TsLines.Valued> make) {
+                TsLines.Valued v = reads.get(key);
+                if (v == null) {
+                    v = make.get();
+                    reads.put(key, v);
                 }
-                return false;
+                return v;
+            }
+
+            /** The base {@code line} is made of by added columns ({@link #extended}): itself where it is one. */
+            private TsLines.Line base(TsLines.Line line) {
+                TsLines.Line l = line;
+                for (TsLines.Line of = extended.get(l); of != null; of = extended.get(l)) {
+                    l = of;
+                }
+                return l;
+            }
+
+            /** {@code line}'s base with every column added to it so far: every column of {@code line}, its rows. */
+            TsLines.Line newest(TsLines.Line line) {
+                TsLines.Line b = base(line);
+                TsLines.Line n = newest.get(b);
+                return n == null ? b : n;
+            }
+
+            /** {@code line}'s base's newest line ({@link #newest}) with a column {@code add} adds to it: the base's
+             *  newest line from now. */
+            TsLines.Line grown(TsLines.Line line, java.util.function.Function<ValueSpecification, ValueSpecification>
+                    add) {
+                TsLines.Line from = newest(line);
+                TsLines.Line out = from.with(add.apply(from.rel()));
+                extended.put(out, from);
+                newest.put(base(from), out);
+                return out;
             }
 
             /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
@@ -1045,9 +1069,12 @@ public final class TsToPure {
                 if (parts.isEmpty()) {
                     return new TsLines.Constant(e);
                 }
+                // each part read from its base's newest line: parts of one base are one table, its rows once (R7)
+                List<TsLines.Valued> read = parts.stream().map(p -> new TsLines.Valued(newest(p.line()), p.value()))
+                        .toList();
                 TsAst.Fill fill = query.fill();
-                TsLines.Line met = parts.size() == 1 ? parts.get(0).line()
-                        : TsLines.joined(this, parts, e.pos(), fill == null ? null : fill.how());
+                TsLines.Line met = read.stream().allMatch(p -> p.line() == read.get(0).line()) ? read.get(0).line()
+                        : TsLines.joined(this, read, e.pos(), fill == null ? null : fill.how());
                 visit(over, x -> {
                     if (x instanceof SqlAst.FunctionCall o && TsParser.OPTION.equals(fn(o))) {
                         throw invalid("an option by name is a timeseries function's: returns(x, type => 'log') (R10)",
@@ -1055,11 +1082,8 @@ public final class TsToPure {
                     }
                 });
                 String value = fresh("pt");
-                TsLines.Line out = met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(intervals(over),
-                        met.rel(), false, "SELECT"))));
-                if (parts.size() == 1) {
-                    extended.put(out, met);
-                }
+                TsLines.Line out = grown(met, rel -> call("extend", rel, new ColSpec(value, rowLambda(intervals(over),
+                        rel, false, "SELECT"))));
                 return new TsLines.Valued(out, value);
             }
 

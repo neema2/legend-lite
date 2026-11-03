@@ -85,7 +85,7 @@ plus 53 more commits, and is behind `main` by none. The commits are listed in th
   - **R2 and R6, how lines meet.** `TsLines` picks which `lines::` function to call, by what kinds of line they are
     and by `FILL`.
   - **R7, items that read items.** An item that reads an earlier item. `TsToPure` also folds a later item's line into
-    an earlier one when it was built from it.
+    an earlier one when it was built from it. (Replaced 2026-11-03 by one table per base: A1, R7.)
   - **R10, struct fields.** A field's answer column is named `<item>_<field>`.
   - **R5 and R9.** The rename to one date and the `latest` substitution.
   - **The column cap.** An answer had at most 12 columns, because the library's `someValued` had only 12 overloads.
@@ -157,7 +157,8 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
   - **Two stay in Java.** Each is recorded with its reason in the one-tree plan's §6a.
     - The R7 fold: an item read from a later item's line that was built from it is one line. It depends on which
       relation expression is which, and the library sees only values. Without the fold, a line with several rows on a
-      date, met with itself, would multiply its rows.
+      date, met with itself, would multiply its rows. (Replaced 2026-11-03 by one table per base, which is binding:
+      which read is which.)
     - The R10 naming of a struct's fields, `<item>_<field>`. Pure cannot build a column name from strings. The field
       names already come from the word's return type.
   - **Moves, cheapest first:**
@@ -229,6 +230,23 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
         (every in-process database); `TsIslandTest.aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue` (13
         items, a row kept by the 13th item's value). That last one runs on the platform's database alone: 13 lines
         meeting is a deep query, and H2's parser runs out of memory on it, the known H2 limit (A7, v1.1).
+  - **R7, one table per base (ruled 2026-11-03: "Okay let's go"; part 1 done 2026-11-03).** It replaces the R7 fold.
+    - **The bug it fixes.** Every read of a source's column built its own table, so two items over one column were
+      two tables joined on (instrument, date). Where a date has several rows (a source read with no `BY`), the join
+      multiplied them: `SELECT CLOSE AS c, CLOSE * 2 AS d FROM PRICES ON DAY` answered 48 rows for 24 points. The
+      fold hid the simplest cases only, by which item was read last.
+    - **Part 1, built.** A column read twice is one table (`TsLines.Writer.read`, keyed by what the read reads).
+      Every per-point expression and every item over it is a column added to that table, and every item is read
+      from the table's newest form (`Lines.grown`, `Lines.newest`). An item's name is a copy of its value's column,
+      so a later item can still read the value. Parts of one base meet with no join. The fold (`descends`) is
+      deleted.
+      - Answers: the probe's per-point case 48 -> 24 rows; the frozen answers unchanged (the parity suite, the
+        class page's, the tile's counted series with the fold deleted, the whole `#TS` suite).
+      - SQL: three items over `CLOSE['AAA']` 3,728 -> 635 characters; `bollinger_bands` with a figure of its
+        fields 6,038 -> 2,510; queries with no repeated read unchanged. Run times unchanged within noise.
+      - Test: `TsIslandTest.theItemsOfOneColumnAreOneTableEachRowOnce` (every in-process database).
+    - **Part 2, next.** A word's answer is still its own table, so `CLOSE AS c, avg(CLOSE, 2) AS m` with no `BY`
+      still answers 46 rows for 24 points. Part 2 makes a window word a column of its line's table too.
 
 ### A2. Checkpoint: an independent review and the full gate
 
@@ -505,6 +523,7 @@ Split in two:
 | P6 | Where holidays come from | **ruled 2026-11-01**: built in the platform, v1.1 | -- |
 | P7 | The 12-column cap: lift it or keep it | **ruled 2026-11-02** ("Yes array read"): lifted by `read` over a `ColSpecArray`. Built | -- |
 | R1, R7, R9 | The one-tree plan's §9: §4's rows, D2 as narrowed, and two lines meeting | as that plan recommends | A4 |
+| 2026-11-03 | The roadmap of 2026-11-03 | **ruled 2026-11-03** ("Okay let's go"), every recommendation: the tenet "Java parses and binds; Pure decides" (into `docs/TENETS.md`); R7 as columns on one table; the broadcast by overloads on a column's type with an `All` key type (2a); the time model's D1 to D7 as recommended; Phase 1 before the A2 review; a PR for this branch at A2; intraday stays v1.1; move 8 folded into the R7 work once the slice passes | -- |
 
 **P2: what other charts do** (the user asked, 2026-11-01: "what do other great charts do like Yahoo finance or trading
 view?").
@@ -535,7 +554,7 @@ Update this table in the same commit as the work.
 
 | Item | State | Last commit |
 |---|---|---|
-| A1 the last rules out of Java | moves 1 to 7 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`; move 7 by the §6a list of what stays in Java, with a guard). Move 8 waits on the user's word | 7b23e09f, c841d939, 69796cc5, 5dc88c85, 911c08fa |
+| A1 the last rules out of Java | moves 1 to 7 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`; move 7 by the §6a list of what stays in Java, with a guard). R7 one table per base: part 1 done, part 2 (a window word as a column) next; move 8 folds into it | 7b23e09f, c841d939, 69796cc5, 5dc88c85, 911c08fa, e336c4d6 |
 | A2 review and gate | waiting on A1. #86 was folded into #81 on 2026-11-02, with main (#85) merged. #81 waits on #83 before it lands, and the v1 work is stacked on it with no PR. #86's last CI was green on every OS | af758d34 |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |

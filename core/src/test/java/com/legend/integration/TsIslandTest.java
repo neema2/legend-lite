@@ -693,6 +693,23 @@ class TsIslandTest {
     }
 
     @Test
+    void theItemsOfOneColumnAreOneTableEachRowOnce() throws Exception {
+        // R7 (2026-11-03): PRICES read with no BY has two rows on each of its dates, AAA's and BBB's -- each row a point
+        // (the user, 2026-10-30). The items over its column are columns of one table, each row once: never the
+        // column's table joined to itself on its dates (four rows a date, before)
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE AS c, CLOSE * 2 AS d, c - 1 AS e"
+                    + " FROM PRICES ON DAY}#");
+            assertEquals(2 * AAA.length, got.size(), backend + ": a row a point");
+            for (Map<String, String> r : got) {
+                double c = Double.parseDouble(r.get("c"));
+                assertEquals(2 * c, Double.parseDouble(r.get("d")), 1e-9, backend + ": d is its own row's c, twice");
+                assertEquals(c - 1, Double.parseDouble(r.get("e")), 1e-9, backend + ": e is its own row's c, less 1");
+            }
+        }
+    }
+
+    @Test
     void aWindowCountsAnyWholeNumberOfObservations() throws Exception {
         // as gs-quant's Window(w) (the user, 2026-11-02): no cap of 100,000; a window longer than the line never fills,
         // so no row has a value

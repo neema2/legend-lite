@@ -76,6 +76,10 @@ final class TsLines {
         LambdaFunction rowLambda(SqlAst.Expr e, ValueSpecification relation, boolean condition, String clause);
 
         String fresh(String what);
+
+        /** The line {@code key} reads (a source's rows, the column, how they are taken), made by {@code make} the
+         *  first time: a column read twice is one line, its rows once (R7). */
+        Valued read(Object key, java.util.function.Supplier<Valued> make);
     }
 
     /**
@@ -94,12 +98,16 @@ final class TsLines {
         if (!split) {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
-        String value = w.fresh("base");
-        // the library's line (timeseries::lines::line): its rows with a date and a value, its period, its number in
-        // time, its date and its value
-        rel = call(LINES + "line", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
-                new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
-        return new Valued(new Line(rel, instrument, split, AT), value);
+        ValueSpecification rows = rel;
+        return w.read(List.of(LINES + "line", rows, instrument, s.date(), column), () -> {
+            String value = w.fresh("base");
+            // the library's line (timeseries::lines::line): its rows with a date and a value, its period, its number
+            // in time, its date and its value
+            ValueSpecification line = call(LINES + "line", rows, new ColSpec(instrument), new ColSpec(s.date()),
+                    new ColSpec(column), new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD),
+                    new ColSpec(AT), new ColSpec(value));
+            return new Valued(new Line(line, instrument, split, AT), value);
+        });
     }
 
     /** The package of the language's lines' rules (projects/timeseries/model.pure, THE LANGUAGE'S LINES). */
@@ -134,14 +142,18 @@ final class TsLines {
         if (!split) {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
-        String value = w.fresh("base");
-        // the library's line by period (timeseries::lines::sample)
-        rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
-                sample(unit),
-                new EnumValue(TsToPure.LIBRARY + "Taken", taken),
-                new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
-                new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
-        return new Valued(new Line(rel, instrument, split, AT), value);
+        ValueSpecification rows = rel;
+        return w.read(List.of(LINES + "sample", rows, instrument, s.date(), column, unit, taken, dated), () -> {
+            String value = w.fresh("base");
+            // the library's line by period (timeseries::lines::sample)
+            ValueSpecification line = call(LINES + "sample", rows, new ColSpec(instrument), new ColSpec(s.date()),
+                    new ColSpec(column), sample(unit),
+                    new EnumValue(TsToPure.LIBRARY + "Taken", taken),
+                    new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
+                    new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT),
+                    new ColSpec(value));
+            return new Valued(new Line(line, instrument, split, AT), value);
+        });
     }
 
     /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in
