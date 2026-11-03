@@ -1279,6 +1279,7 @@ public final class InferenceKernel {
         int n = args.size();
         List<FunctionMatch.TypeFit> types = new ArrayList<>(n);
         List<FunctionMatch.MultFit> mults = new ArrayList<>(n);
+        java.util.Map<String, Type.RelationType> rows = relationRows(c, args);
         for (int i = 0; i < n; i++) {
             ExprType a = args.get(i);
             TypedParameter p = c.parameters().get(i);
@@ -1291,10 +1292,80 @@ public final class InferenceKernel {
                     || paramMultScore(p.multiplicity(), a.multiplicity(), a.type()) < 0) {
                 return null;
             }
-            types.add(typeFit(p.type(), a.type(), anyConcrete));
+            // a column specification of a relation argument's row, its column's type that row's (m3 binds T first)
+            FunctionMatch.TypeFit columnFit = columnSpecFit(p.type(), a.type(), rows, anyConcrete);
+            if (columnFit == REFUSED) {
+                return null;
+            }
+            types.add(columnFit != null ? columnFit : typeFit(p.type(), a.type(), anyConcrete));
             mults.add(multFit(p.multiplicity(), a.multiplicity(), true));
         }
         return new FunctionMatch(types, mults);
+    }
+
+    /** A column specification's fit that refuses the candidate ({@link #columnSpecFit}). */
+    private static final FunctionMatch.TypeFit REFUSED = FunctionMatch.TypeFit.of(FunctionMatch.Kind.NULL);
+
+    /** Each type parameter a candidate's relation parameter is ({@code x: Relation<T>}), bound to its argument's row:
+     *  the rows its column specifications read. */
+    private static java.util.Map<String, Type.RelationType> relationRows(TypedFunction c, List<ExprType> args) {
+        java.util.Map<String, Type.RelationType> rows = new java.util.HashMap<>();
+        for (int i = 0; i < args.size(); i++) {
+            ExprType a = args.get(i);
+            if (a != null && c.parameters().get(i).type() instanceof Type.GenericType g
+                    && Overloads.genericRawIs(g, RELATION_FQN) && g.arguments().size() == 1
+                    && g.arguments().get(0) instanceof Type.TypeVar v) {
+                Type.RelationType row = Type.schemaView(a.type());
+                if (row != null) {
+                    rows.putIfAbsent(v.name(), row);
+                }
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * A {@code ColSpec<X⊆T>} formal against a column specification of {@code T}'s row ({@code ~key}, its column's type
+     * unknown until the call is unified): ranked as m3 ranks the type argument once {@code T} is bound -- a concrete
+     * column ({@code (?:All)}, a wildcard name) by its type against the column's type in the row, which must fit it
+     * ({@link #REFUSED} where it does not); a type parameter ({@code L}) as non-concrete. Null where the formal or the
+     * argument is no such column specification (the ordinary fit).
+     */
+    private FunctionMatch.@com.legend.base.Nullable TypeFit columnSpecFit(Type formal, Type actual,
+            java.util.Map<String, Type.RelationType> rows, boolean anyConcrete) {
+        if (!(formal instanceof Type.GenericType fg) || !Overloads.genericRawIs(fg, PlatformTypes.COL_SPEC)
+                || fg.arguments().size() != 1 || !(fg.arguments().get(0) instanceof Type.SchemaAlgebra sa)
+                || sa.op() != Type.Op.SUBSET || !(sa.right() instanceof Type.TypeVar t)
+                || !(actual instanceof Type.GenericType ag) || !Overloads.genericRawIs(ag, PlatformTypes.COL_SPEC)
+                || ag.arguments().size() != 1 || !(ag.arguments().get(0) instanceof Type.RelationType named)
+                || named.columns().size() != 1) {
+            return null;
+        }
+        Type.RelationType row = rows.get(t.name());
+        Type.Column column = row == null ? null : row.columns().stream()
+                .filter(c -> c.name().equals(named.columns().get(0).name())).findFirst().orElse(null);
+        if (column == null) {
+            return null;
+        }
+        FunctionMatch.TypeFit argument = switch (sa.left()) {
+            case Type.RelationType w when w.columns().size() == 1 && w.columns().get(0).name().equals("?") -> {
+                Type want = w.columns().get(0).type();
+                if (want instanceof Type.TypeVar) {
+                    yield FunctionMatch.TypeFit.NON_CONCRETE;
+                }
+                if (!conformsForWildcard(column.type(), want)) {
+                    yield REFUSED;
+                }
+                yield typeFit(want, column.type(), anyConcrete);
+            }
+            case Type.TypeVar ignored -> FunctionMatch.TypeFit.NON_CONCRETE;
+            default -> null;
+        };
+        if (argument == null || argument == REFUSED) {
+            return argument;
+        }
+        return new FunctionMatch.TypeFit(FunctionMatch.Kind.SIMPLE, 0, List.of(), List.of(), List.of(argument),
+                List.of());
     }
 
     /** The one candidate m3's literal order ranks first ({@code Any} concrete); null on a tie. */

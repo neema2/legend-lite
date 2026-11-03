@@ -1658,6 +1658,26 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
+        void aColumnSpecificationsColumnTypePicksTheOverload() throws SQLException {
+            // register S131 (2026-11-03): a library function's columns come as column specifications over a relation
+            // parameter's row (ColSpec<X⊆T>); two overloads that differ only in that column's type are two functions,
+            // ranked as m3 ranks the type argument once T is bound -- a key of All picks the All overload, a text key
+            // (which no All fits) the generic one
+            String lib = """
+                    Enum test::All { all }
+                    function test::which<T,L>(x: Relation<T>[1], key: ColSpec<L⊆T>[1]): Relation<T+(which:String)>[1]
+                    { $x->extend(~which:r|'generic') }
+                    function test::which<T>(x: Relation<T>[1], key: ColSpec<(?:test::All)⊆T>[1]): Relation<T+(which:String)>[1]
+                    { $x->extend(~which:r|'all') }
+                    """;
+            String base = "|" + PEOPLE + "->select(~[AGE_VAL])->rename(~AGE_VAL, ~v)";
+            var all = exec(modelWith(lib), base + "->extend(~key:r|test::All.all)->test::which(~key)");
+            var generic = exec(modelWith(lib), base + "->extend(~key:r|'x')->test::which(~key)");
+            assertEquals("all", String.valueOf(all.rows().get(0).get(2)), "a key of All picks the All overload");
+            assertEquals("generic", String.valueOf(generic.rows().get(0).get(2)), "a text key picks the generic one");
+        }
+
+        @Test
         void aColumnsTypePicksTheOverload() throws SQLException {
             // register S131 (2a, the user, 2026-11-03): two overloads differing only in a relation parameter's column
             // type are two functions, ranked as m3's RelationTypeMatch ranks them -- a key of All picks the All

@@ -67,9 +67,14 @@ public final class SignatureMangle {
 
     private static void segment(StringBuilder id, TypeExpression type, Multiplicity mult, boolean columns) {
         id.append('_').append(typeId(type));
-        if (columns && type instanceof TypeExpression.Generic g && "Relation".equals(typeId(g))) {
+        if (columns && type instanceof TypeExpression.Generic g) {
             for (TypeExpression a : g.arguments()) {
-                if (a instanceof TypeExpression.RelationType r) {
+                // a relation's columns; a column specification's concrete column ({@code ColSpec<(?:All)⊆T>}: the
+                // left of its ⊆), so its overload by the column's type is another function too (S131)
+                TypeExpression row = "Relation".equals(typeId(g)) ? a
+                        : a instanceof TypeExpression.SchemaAlgebra sa && sa.op() == TypeExpression.Op.SUBSET
+                                ? sa.left() : null;
+                if (row instanceof TypeExpression.RelationType r) {
                     id.append('$');
                     for (TypeExpression.Column c : r.columns()) {
                         id.append(c.name()).append('~').append(typeId(c.type())).append('$');

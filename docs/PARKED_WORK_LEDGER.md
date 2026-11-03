@@ -301,7 +301,11 @@ parameter ranked without comparing columns, is **ported** (2026-11-03, the times
 `InferenceKernel.relationTypeFit` is legend-pure's `RelationTypeMatch` (an equal relation type exact; else the columns
 in name order, each one's type match, then their multiplicities), and the acceptance requires every column the formal
 names, each fitting by type (`newRelationTypeMatch`); its kernel test is
-`InferenceKernelTest.overload_aRelationsConcreteColumnTypeOutranksATypeParameter`.
+`InferenceKernelTest.overload_aRelationsConcreteColumnTypeOutranksATypeParameter`. Of the type operations, one form
+is ranked since (2026-11-03): a column specification of a relation parameter's row, `ColSpec<X⊆T>`, ranks by its
+column's type read from the row `T` is bound to (`InferenceKernel.columnSpecFit`: a concrete `(?:All)` by its type,
+refusing a column that does not fit; a type parameter as non-concrete), as m3 matches after binding `T`; every other
+type operation still ranks as untyped.
 
 **Why parked.** No lane result depends on these parts; each needs a port with tests against legend-pure.
 
