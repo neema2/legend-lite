@@ -850,8 +850,15 @@ const CHART_BUDGET = 303_500;
  *  (timeseries::line::, timeseries::lines::) in the library's text, about 10.6 KB of it gzipped; and the user's "Why
  *  would we not match gs-quant": O1's ramp and O2's compare, docs/TS_GSQUANT_ORACLE_2026_11_01.md, 0.8 KB -- the
  *  headroom ~2%). Measured 111,691. The text leaves the client with the one-tree plan's S4 (the planner resolves the
- *  timeseries project itself, docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a), and this budget falls by its size then. */
-const TIMESERIES_BUDGET = 114_000;
+ *  timeseries project itself, docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a), and this budget falls by its size then.
+ *  114,000 -> 118,500 (2026-11-03, the user's "Java parses and binds; Pure decides" and the time model's rulings,
+ *  docs/TS_TIME_MODEL_2026_11_02.md, "Okay let's go" -- the language's last rules in the library's text, about 4.3 KB of
+ *  it gzipped: A1's moves of 2026-11-02 (the answer's assembly, the spine, the words' name conventions, about 1.6 KB),
+ *  and today's D1 (lines with several rows on a date: perPeriod, single, most), D4 (moments meeting days refused: the
+ *  meet and union forms by the periods' types), 2a (the All key's overloads of meet, periodsOf, onto and each) and R7
+ *  (the rows forms, timeseries::rows::), about 2.7 KB; the viewer and the generated words 0.3 KB -- found by the local
+ *  gate of the A2 review, the headroom ~2%). Measured 116,279. Still falls by the text's size with S4 (#130). */
+const TIMESERIES_BUDGET = 118_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
