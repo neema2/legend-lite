@@ -212,6 +212,47 @@ export function parseExact(text: string): unknown {
 }
 
 /**
+ * A JSON number with a fraction or an exponent, kept with the digits it was written in (`parseKeepingDigits`): what it
+ * means is its column's type -- a Decimal's exact text, any other number the number `parseExact` makes of it.
+ */
+export class WrittenNumber {
+  readonly value: number;
+  readonly source: string;
+
+  constructor(value: number, source: string) {
+    this.value = value;
+    this.source = source;
+  }
+
+  /** As `parseExact` reads it: the number, or its text where a double would drop its digits. */
+  exact(): number | string {
+    const plain = this.source.includes('e') || this.source.includes('E') ? null
+      : this.source.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+    return plain === null || String(this.value) === plain ? this.value : this.source;
+  }
+}
+
+/**
+ * JSON as `parseExact` reads it, but a number with a fraction or an exponent kept as a `WrittenNumber` (its value and its
+ * digits as written), for a reader that types each value by its column (the legend-engine adapter: a Decimal keeps its
+ * scale, `12.30` as written, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D21). An integer reads as `parseExact` reads it.
+ */
+export function parseKeepingDigits(text: string): unknown {
+  return JSON.parse(text, function reviver(_key: string, value: unknown, context?: { source?: string }) {
+    if (typeof value !== 'number') return value;
+    const source = context?.source;
+    if (source === undefined) {
+      throw new Error('this browser cannot read numbers exactly (JSON.parse source text access); '
+        + 'DataCube needs a current Chrome, Edge, Firefox or Safari');
+    }
+    if (/^-?\d+$/.test(source)) {
+      return Number.isSafeInteger(value) ? value : exactInteger(BigInt(source));
+    }
+    return new WrittenNumber(value, source);
+  } as (this: unknown, key: string, value: unknown) => unknown);
+}
+
+/**
  * A cell of a NUMERIC column as a double, for PRESENTATION only -- a heatmap's colour, a
  * chart's pixel, a cell's sign: a number, a bigint, or a decimal's exact text. Numeric by
  * the column's COMPILER type, never by the value's own: a String column of '00501' holds no

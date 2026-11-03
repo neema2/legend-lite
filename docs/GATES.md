@@ -17452,3 +17452,23 @@ Checks: `//core:core_tests_{root,server,exec,architecture}`, `//core:guardrails`
 `//datacube:{conformance,python_engine,python_execute,typecheck}_test`, `//python:{arrow_handoff,bindings}_test`,
 `//python:engine_test` in four parts (68, 35, 12, 217), `//engine-client:tests`; the tab's and the native library's
 builds.
+
+## 2026-11-03 — D21 Q1: the legend-engine adapter keeps a Decimal's digits
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D21 (the user's ruling of 2026-11-03: the engine adapter as
+compatible as it can be) and §8. engine-client's legend-engine adapter reads the engine's JSON keeping each fraction's
+digits (`values.ts` `parseKeepingDigits`, `WrittenNumber`) and each column reads them by its type
+(`engine-remote.ts` `toResultTable`): a `Decimal` its digits as written (`12.30`; one written with an exponent
+refused by name), any other number as `parseExact` reads it. From `ARROW_IPC`, an Integer column that arrives as
+utf8 (a DuckDB `HUGEINT` sum, reported `OTHER`) is read back as its integer (`arrowResultTable`).
+
+The conformance suite's `adapters` check reads the engine adapter from `ARROW_IPC` too. The ledger 22 -> 10: the 14
+`Decimal` scale entries gone (7 cases x 2 servers); 2 entries added, the `arrow` twins of the `pivotDynamic` row
+already ledgered (the lite adapter refuses a keyed answer until Q2), each dated with this step.
+
+Guard moved, with its reason in place: `datacube/test/bundle-budget.test.ts` the grid page's budget 433,500 ->
+434,000 bytes gzipped (measured 433,597; the new reader is in every remote grid's path).
+
+Checks: `//datacube:{conformance,engine_remote,engine_remote_http,python_engine,python_execute,bundle_budget,typecheck}_test`,
+`//datacube:tests` (203), `//engine-client:tests`, `//engine-client:lite_adapter_test`, `//query:tests`,
+`//studio:tests`, `//query:typecheck_test`, `//studio:typecheck_test`.

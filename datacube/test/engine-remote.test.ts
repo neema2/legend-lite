@@ -7,6 +7,7 @@ import {
   toResultTable,
 } from '../../engine-client/src/engine-remote.ts';
 import { pureType } from '../../engine-client/src/relation-type.ts';
+import { parseKeepingDigits, WrittenNumber } from '../../engine-client/src/values.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { fromElement } from '../../pure-protocol/src/index.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
@@ -125,6 +126,34 @@ describe('a TDS as a result table', () => {
     assert.equal(table.columns[0]?.values[0], '2024-01-02T03:04:05.123456');
   });
 
+  it('keeps a Decimal\'s digits as the engine wrote them, and reads any other number exactly (D21, Q1)', () => {
+    // legend-engine writes a DECIMAL(18,2) cell 12.30: the column holds 12.30, so the adapter keeps it, digits and all;
+    // a Float's 24.6 is a double, and an integer past 2^53 its exact integer
+    const body = parseKeepingDigits('{"builder":{"columns":[{"name":"d","type":"Decimal"},{"name":"f","type":"Float"},'
+      + '{"name":"i","type":"Integer"}]},"result":{"columns":["d","f","i"],'
+      + '"rows":[{"values":[12.30,24.6,9007199254740993]},{"values":[-0.01,1.0E-4,1]},{"values":[0,null,-2]}]}}');
+    const table = toResultTable(body as Parameters<typeof toResultTable>[0], 1, 0);
+    assert.deepEqual(table.columns[0]?.values, ['12.30', '-0.01', 0]);
+    assert.deepEqual(table.columns[1]?.values, [24.6, 1e-4, null]);
+    assert.deepEqual(table.columns[2]?.values, [9007199254740993n, 1, -2]);
+  });
+
+  it('refuses a Decimal written with an exponent: its digits are read as written, never guessed', () => {
+    const body = parseKeepingDigits('{"builder":{"columns":[{"name":"d","type":"Decimal"}]},'
+      + '"result":{"columns":["d"],"rows":[{"values":[1.5E+3]}]}}');
+    assert.throws(() => toResultTable(body as Parameters<typeof toResultTable>[0], 1, 0),
+      /the engine wrote the Decimal 'd' as 1\.5E\+3/);
+  });
+
+  it('reads JSON keeping a fraction\'s digits: an integer as parseExact reads it', () => {
+    const v = parseKeepingDigits('[12.30, 3, 9007199254740993, 0.1]') as unknown[];
+    assert.ok(v[0] instanceof WrittenNumber && v[0].source === '12.30' && v[0].value === 12.3);
+    assert.equal((v[0] as WrittenNumber).exact(), 12.3);
+    assert.equal(v[1], 3);
+    assert.equal(v[2], 9007199254740993n);
+    assert.equal((v[3] as WrittenNumber).exact(), 0.1);
+  });
+
   it('refuses a response with no builder: its columns would have no types', () => {
     assert.throws(() => toResultTable({
       result: { columns: ['a'], rows: [{ values: [1] }] },
@@ -151,6 +180,13 @@ describe('the engine executor', () => {
         && /could not reach the server at http:\/\/engine:6300/.test(
           err.message),
     );
+  });
+
+  it('reads the engine\'s JSON answer keeping a Decimal\'s digits, through the wire (D21, Q1)', async () => {
+    const { fetchStub } = stub([{ status: 200, body: '{"builder":{"columns":[{"name":"d","type":'
+      + '"meta::pure::precisePrimitives::Numeric"}]},"result":{"columns":["d"],"rows":[{"values":[12.30]}]}}' }]);
+    const answer = await executor([], fetchStub).execute(QUERY, SNAPSHOT.epoch);
+    assert.deepEqual(answer.rows.columns[0]?.values, ['12.30']);
   });
 
   it('passes an ABORT through as the abort it is', async () => {

@@ -43,6 +43,11 @@ export function isFractional(type: string | undefined): boolean {
   return isNumeric(type) && plainType(type as string) !== 'Integer';
 }
 
+/** An Integer: a whole number, unbounded in Pure (a bigint past 2^53). */
+export function isInteger(type: string | undefined): boolean {
+  return isNumeric(type) && plainType(type as string) === 'Integer';
+}
+
 /** A Decimal: its digits exact, more than a double holds -- kept as its text, never made a number. */
 export function isDecimal(type: string | undefined): boolean {
   return isNumeric(type) && plainType(type as string) === 'Decimal';

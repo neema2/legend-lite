@@ -24,8 +24,8 @@ import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf } from './receipt.ts';
 import { PureV1Client, type PrintStyle, type PureV1Options } from './pure-v1.ts';
 import { pureType, recordPlan, relationColumns, type Plan, type PlanColumn } from './relation-type.ts';
-import { hasTimeOfDay } from './types.ts';
-import { timestampFromText } from './values.ts';
+import { hasTimeOfDay, isDecimal, isInteger } from './types.ts';
+import { exactInteger, timestampFromText, WrittenNumber } from './values.ts';
 
 /** What a remote engine answers with. */
 export interface RemoteResult {
@@ -102,6 +102,18 @@ export function toResultTable(
     const declaredType = declared[i]?.type;
     if (declaredType === undefined) throw new Error(`the engine typed no column '${name}'`);
     const type = pureType(declaredType);
+    // a number with a fraction, read by its column (D21, Q1): a Decimal its digits as written -- legend-engine writes
+    // `12.30`, and `12.30` is what the column holds -- any other number as `parseExact` reads it
+    const decimal = isDecimal(type);
+    for (let r = 0; r < values.length; r++) {
+      const v = values[r] as unknown;
+      if (v instanceof WrittenNumber) {
+        if (decimal && !/^-?\d+(\.\d+)?$/.test(v.source)) {
+          throw new Error(`the engine wrote the Decimal '${name}' as ${v.source}: a decimal's digits are read as written`);
+        }
+        values[r] = decimal ? v.source : v.exact();
+      }
+    }
     // a timestamp as stored (the engine writes nanoseconds and a zone), exact like every plane's
     if (hasTimeOfDay(type)) {
       for (let r = 0; r < values.length; r++) {
@@ -150,7 +162,18 @@ export function arrowResultTable(
   const columns: ResultColumn[] = raw.columns.map((c, i) => {
     const declaredType = declared[i]?.type;
     if (declaredType === undefined) throw new Error(`the engine typed no column '${c.name}'`);
-    return { name: c.name, type: pureType(declaredType), values: c.values };
+    const type = pureType(declaredType);
+    // upstream types an Arrow column from the database's report alone, so a sum of integers DuckDB reports as OTHER
+    // arrives as its digits in utf8: read back as the integer the builder says it is (D20, D21)
+    if (isInteger(type) && c.values.some((v) => typeof v === 'string')) {
+      const values = c.values.map((v) => {
+        if (typeof v !== 'string') return v;
+        if (!/^-?\d+$/.test(v)) throw new Error(`the engine's Integer column '${c.name}' holds the text ${JSON.stringify(v)}`);
+        return exactInteger(BigInt(v));
+      });
+      return { name: c.name, type, values };
+    }
+    return { name: c.name, type, values: c.values };
   });
   // upstream's answer always carries its activities (the SQL that ran): one without is refused, not read as none
   const ran = metadata.get('legend.activities');

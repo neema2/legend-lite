@@ -15,8 +15,9 @@
 //          `...FromArrowOrError` exports) against the same rows handed as JSON text: legend-engine's JSON byte for
 //          byte, and the Arrow answer, its schema and its values, against Java's;
 //   adapters the apps' two adapters (D20: engine-client's LegendEngineExecutor, a connection talked to as legend-engine
-//          and one talked to as lite) on each server, Java's and Python's: the typed results they give the apps --
-//          each column's name and Pure type, each value's kind and text -- the same, or the cells that differ named.
+//          -- its JSON and its ARROW_IPC -- and one talked to as lite) on each server, Java's and Python's: the typed
+//          results they give the apps -- each column's name and Pure type, each value's kind and text -- the same, or
+//          the cells that differ named.
 // Every difference found is an entry of the ledger (conformance/ledger.json) or the suite fails; an entry that no longer
 // differs fails it too, so the ledger only shrinks (D10). A failure prints the differences as the ledger writes them.
 
@@ -333,6 +334,7 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
     const adapters = servers.map(([server, at]) => ({
       server,
       engine: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME }),
+      engineArrow: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, serializationFormat: 'ARROW_IPC' }),
       lite: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, protocol: 'lite' }),
     }));
     let handoffs = 0;
@@ -388,15 +390,19 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       else if (jl.rows !== pl.rows) differ(name, 'lite-values', 'java/python', firstDifference(jl.rows, pl.rows));
       else if (jl.plan !== pl.plan) differ(name, 'lite-plan', 'java/python', firstDifference(jl.plan, pl.plan));
       // adapters: on each server, the typed result as legend-engine's adapter reads it against lite's (D20)
-      for (const { server, engine, lite } of adapters) {
-        const e = await adapted(engine, query);
+      for (const { server, engine, engineArrow, lite } of adapters) {
         const l = await adapted(lite, query);
-        if ('refused' in e || 'refused' in l) {
-          const mine = 'refused' in e ? e.refused : '(answered)';
-          const theirs = 'refused' in l ? l.refused : '(answered)';
-          if (mine !== theirs) differ(name, 'adapters-refused', server, firstDifference(mine, theirs));
-        } else if (e.columns !== l.columns) differ(name, 'adapters-columns', server, `${e.columns} vs ${l.columns}`);
-        else if (e.rows !== l.rows) differ(name, 'adapters-values', server, firstDifference(e.rows, l.rows));
+        // legend-engine's JSON and its ARROW_IPC, each read by the engine adapter, against lite's own
+        for (const [mode, reader] of [['', engine], [' arrow', engineArrow]] as const) {
+          const e = await adapted(reader, query);
+          const hosts = `${server}${mode}`;
+          if ('refused' in e || 'refused' in l) {
+            const mine = 'refused' in e ? e.refused : '(answered)';
+            const theirs = 'refused' in l ? l.refused : '(answered)';
+            if (mine !== theirs) differ(name, 'adapters-refused', hosts, firstDifference(mine, theirs));
+          } else if (e.columns !== l.columns) differ(name, 'adapters-columns', hosts, `${e.columns} vs ${l.columns}`);
+          else if (e.rows !== l.rows) differ(name, 'adapters-values', hosts, firstDifference(e.rows, l.rows));
+        }
       }
       // arrow: Java's against Python's
       const ja = await arrowOf(javaExecute(), input);

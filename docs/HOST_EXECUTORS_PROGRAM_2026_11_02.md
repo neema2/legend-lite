@@ -245,6 +245,21 @@ R2's (the user, 2026-11-02):
   - **The judges:** the conformance suite holds the edge answers to upstream's; the apps' suites run in both modes and
     show the same text where upstream's types allow, and name the cells where they do not.
 
+- **D21. Compatible at the edge, clean in lite** (the user, 2026-11-03, ruling the three cases posted in §7: "for our
+  lite stuff we should stick to best/cleanest conventions now that we are unshackled from backwards compat"; "the
+  whole point [of the engine adapter] is to stay backwards compat so we should try as much as possible to be compat
+  when it makes sense"):
+  - **Q1, the engine adapter keeps a Decimal's digits:** legend-engine's JSON writes `12.30`, and the adapter reads a
+    `Decimal` column's numbers by the digits written, as the lite adapter does; an `ARROW_IPC` sum of integers (utf8)
+    is read back as its integer.
+  - **Q2, Query and Studio on the typed result, the cleanest spelling:** both apps read the typed result through either
+    adapter and spell each cell as DataCube's grid does (its formatter): exact digits, a decimal at its own scale, a
+    timestamp as stored; the three apps alike ("use whatever is best").
+  - **Q3, lite's own Arrow, clean conventions:** a `FLOAT` its own digits as float64, a `DateTime` timestamp[ns, UTC]
+    (a frame's zone kept), each field's full metadata; an Integer column always int64 -- never decimal128 -- a value
+    past 64 bits refused by name, never wrapped or rounded (Arrow's integers stop at 64 bits; DuckDB's decimal128(38, 0)
+    for a 128-bit integer is its workaround, and a type that changes with the data, Python's `_integer` today, is not
+    clean).
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
 
@@ -1022,7 +1037,8 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
     and the literal a filter from the cell writes. Proposed (posted to the user, not built): the engine adapter reads a
     `Decimal` column's numbers by their digits as written, so both adapters hold `"12.30"`; on the engine plane a
     decimal then shows and filters with its scale, as on every other plane. Eight cases, both servers: `typesAll`,
-    `typesSelect`, `filterDecimal`, `extendArith`, `literals`, `groupSum`, `groupMinMax`, `limit`.
+    `typesSelect`, `filterDecimal`, `extendArith`, `literals`, `groupSum`, `groupMinMax`, `limit`. *Ruled D21 Q1 and
+    built 2026-11-03 (§8): both adapters hold `"12.30"`.*
   - *A pivot whose columns its data names* (`pivotDynamic`): the engine adapter reads it; the lite adapter refuses it by
     name (`recordPlan`: a host's plan is one typed result). DataCube plans its pivots static, so none of its queries is
     one; Query and Studio run whatever a person writes, so their move onto the adapters (step 3) reads it, each column
@@ -1243,4 +1259,16 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   of numbers) and a nested list refused; six more DuckDB spellings; the metadata in the order of Arrow's copy;
   upstream's two recorded answers compared (equal but for H2's own reported precision: lite pins H2 2.2.224, upstream
   2.1.214). Register: S28 and S134 removed, S136 added. The conformance ledger 23 -> 22.
-
+- 2026-11-03: D21 recorded (§1.2) and Q1 built: the legend-engine adapter keeps a `Decimal`'s digits as the engine
+  wrote them. Its JSON is read keeping each fraction's digits (`values.ts` `parseKeepingDigits`, a `WrittenNumber` the
+  value and its text), and each column reads them by its type (`engine-remote.ts` `toResultTable`): a `Decimal` its
+  digits (`12.30`, `0.00`, `-0.01` as written; a decimal written with an exponent refused by name), any other number
+  as `parseExact` reads it. From `ARROW_IPC`, an Integer column that arrives as utf8 (a sum of integers DuckDB reports
+  as `HUGEINT`, which JDBC reports `OTHER` and upstream writes as its text, §1.3 A) is read back as its integer. The
+  conformance suite's `adapters` check now reads the engine adapter from `ARROW_IPC` as well as JSON: every column,
+  type and value equal to the lite adapter's on both servers, but for the one class already ledgered (a pivot whose
+  columns its data names, which the lite adapter refuses until Q2 reads keyed answers). The ledger 22 -> 10: the 14
+  `Decimal` entries gone, the pivot's two `arrow` twins added (a check new with this step). The grid page's script
+  budget 433,500 -> 434,000 bytes (measured 433,597: the adapter's new reader is in every remote grid's path; dated
+  in `datacube/test/bundle-budget.test.ts`). What a person sees: on DataCube's engine plane, a `Decimal` cell now shows
+  and filters with its scale (`12.30`, was `12.3`), as on every other plane. Next: Q3, then Q2.

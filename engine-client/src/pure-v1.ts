@@ -25,7 +25,7 @@
 // upstream has.
 
 import { element, fn, lambda, readLambda, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
-import { parseExact as parseExactValues } from './values.ts';
+import { parseExact as parseExactValues, parseKeepingDigits } from './values.ts';
 
 /** A server's JSON answer with its numbers exact (values.ts): a SyntaxError names the answer. */
 function parseExact(raw: string): unknown {
@@ -192,14 +192,21 @@ export class PureV1Client {
     return this.#options.protocol ?? 'engine';
   }
 
-  /** E8 `execution/execute`: the rows for a query, run by the server, as the TDS JSON (an engine read as JSON). */
+  /** E8 `execution/execute`: the rows for a query, run by the server, as the TDS JSON (an engine read as JSON), each
+   *  number with a fraction kept with its digits (`parseKeepingDigits`: what it means is its column's type). */
   async execute(query: Lambda, signal?: AbortSignal): Promise<unknown> {
     if (this.protocol === 'lite') throw this.#fail('this engine is talked to as lite: its rows come from executeLite', query);
     if (this.#options.serializationFormat !== undefined) {
       throw this.#fail(`this engine is read as ${this.#options.serializationFormat}: its rows come from executeArrow`, query);
     }
     const response = await this.#send('/execution/execute', this.#executeInput(query), query, signal, 'json');
-    return parseExact(await response.text());
+    const raw = await response.text();
+    try {
+      return parseKeepingDigits(raw);
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(`the server's answer was not JSON: ${raw.slice(0, 200)}`);
+      throw e;
+    }
   }
 
   /**

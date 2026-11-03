@@ -506,8 +506,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  432,500 -> 433,500 (2026-11-02, the host executors' R2, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: every host path on the
  *  one plan record -- engine-client/src/plan-record.ts's reader of a host's result and the decimal rule, and
  *  relation-type.ts recordPlan, which every grid's plan is read by in place of the old {sql, type}; no startup file
- *  added). Measured 433,105. */
-const BUDGET = 433_500;
+ *  added). Measured 433,105.
+ *  433,500 -> 434,000 (2026-11-03, the host executors' D21 Q1, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the
+ *  legend-engine adapter keeps a Decimal's digits as the engine wrote them -- engine-client/src/values.ts
+ *  parseKeepingDigits and WrittenNumber, and engine-remote.ts's reads of them and of an ARROW_IPC sum's digits, which a
+ *  remote grid's rows are read by; no startup file added). Measured 433,597. */
+const BUDGET = 434_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
