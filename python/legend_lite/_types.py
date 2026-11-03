@@ -25,6 +25,18 @@ def plain_type(name: str) -> str:
     return fact[0]
 
 
+def record_type(name: str) -> str:
+    """A plan record's column type as legend-engine's relation type names it, by the record's one rule
+    (``ExecutionPlan.Column.plainType``; engine-client's plan-record.ts ``plainType``): a precision decimal, which the
+    typer spells ``Decimal(p,s)``, is ``Decimal`` (its precision and scale are its SQL type's); any other type is its
+    own name, unread (a class's, an enumeration's)."""
+    if name.startswith('Decimal(') and name.endswith(')'):
+        precision, comma, scale = name[len('Decimal('):-1].partition(',')
+        if comma and precision.isdigit() and scale.isdigit() and precision.isascii() and scale.isascii():
+            return 'Decimal'
+    return name
+
+
 def is_integer(name: str) -> bool:
     """An Integer, by either compiler's name for one (``precisePrimitives::BigInt`` too)."""
     return plain_type(name) == 'Integer'

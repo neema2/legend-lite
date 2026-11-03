@@ -68,7 +68,7 @@ public interface DatabaseConnector {
      *  statement that fails before its columns are known with none (its error on the first read: a result with no
      *  columns is then no claim to check), and whether the database's JSON writes a double that is not finite as a
      *  bare token ({@code NaN}, {@code Infinity}, {@code -Infinity}: read as that double, written back as read,
-     *  {@link NonFiniteJson}). Default: re-fetches, keeps the zeros, reports its columns, writes JSON alone. */
+     *  {@link com.legend.result.NonFiniteJson}). Default: re-fetches, keeps the zeros, reports its columns, writes JSON alone. */
     default Decoding decoding() {
         return new Decoding(true, false, false, false);
     }

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.result;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,7 +13,8 @@ import java.util.Map;
  * ({@code NaN}, {@code Infinity}, {@code -Infinity}: a dialect says so, {@code DatabaseConnector.decoding().nonFiniteJson}), which
  * JSON has no number for (a float divided by a zero inside a list, the study's §12.79); every other value read as
  * {@link com.legend.json.Json} reads it, the non-finite number a {@link com.legend.json.Json.Num} of that double
- * carrying the token, which {@code Json.toCompact} writes back as read. The typed reader ({@link JdbcDecode}) reads
+ * carrying the token, which {@code Json.toCompact} writes back as read. The typed readers ({@code exec.JdbcDecode}, and
+ * {@link ArrowRows} over a host's Arrow: moved here from {@code exec} 2026-11-03, R3's audit) read
  * such a database's JSON cell by it -- moved here from the parity harnesses' test sources on 2026-10-27 (the result
  * boundary program's phase 5), when the old executor that handed them the driver's own JSON object was deleted --
  * and the parity grid and the Cypher judge read a Variant's text by it.

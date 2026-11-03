@@ -1154,10 +1154,8 @@ class JavaEvalLedgerTest {
                     // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
-                    // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
-                    // the result boundary program's phase 5; DatabaseConnector.decoding().nonFiniteJson): the typed
-                    // reader's parse of such a cell, the token kept to be written back; nothing computed
-                    "NonFiniteJson.java",
+                    // NonFiniteJson.java (2026-10-27) left the register 2026-11-03 for the result package's (R3's
+                    // audit: the Arrow decode reads a DuckDB JSON cell by it too, and cannot reach exec)
                     "Statements.java", "JdbcStatements.java",
                     // ExecutionResult.java renamed TypedSide.java 2026-10-29 (the result boundary program's track D: the
                     // judges' collected side, its old-door role gone); Executor.java left 2026-10-27: deleted (phase 5)
@@ -1440,6 +1438,11 @@ class JavaEvalLedgerTest {
                     // SQL type, then the JDBC session decode's arms, one carrier conversion each; nothing computed, a
                     // value no arm reads refused by name. HostRows's twin over bytes, no text between
                     "ArrowRows.java",
+                    // the JSON a database writes with a bare token for a double that is not finite (2026-10-27, the
+                    // result boundary program's phase 5; DatabaseConnector.decoding().nonFiniteJson; moved from exec
+                    // 2026-11-03 by R3's audit, so the JDBC and the Arrow decodes read such a cell alike): a parse, the
+                    // token kept to be written back; nothing computed
+                    "NonFiniteJson.java",
                     // the cell texts (phase 2, 12b89c7d, R3): every spelling of a typed cell -- Pure's print forms,
                     // legend-engine's tokens, lite's -- each a function of the carrier and the column's facts alone (its
                     // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,

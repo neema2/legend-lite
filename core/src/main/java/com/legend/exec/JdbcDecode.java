@@ -5,6 +5,7 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
+import com.legend.result.NonFiniteJson;
 import com.legend.result.RowDecode.Kind;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;

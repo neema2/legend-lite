@@ -204,6 +204,10 @@ test_suite(
         # its Python bindings: the planner differential corpus, the bindings' own suite, the frames and the engine
         "//python:bindings_test",
         "//python:engine_test",
+        # the Arrow handoff (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3's exit): the conformance corpus's rows handed to
+        # the core as DuckDB's Arrow and as JSON text, the answers alike (added 2026-11-03 by R3's audit: it ran by name
+        # only, in no lane)
+        "//python:arrow_handoff_test",
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
         "//python:frames_test",
@@ -343,6 +347,10 @@ test_suite(
         # hand at its two heaps, in no per-push lane
         "//core:seam_benchmark",
         "//core:seam_benchmark_small_heap",
+        # the host executors' benchmarks (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md H0, 2026-11-02): measurements, run by
+        # hand; laned here 2026-11-03 by R3's audit (in no suite until then, which the lane guard refuses)
+        "//engine-client:executor_bench",
+        "//python:executor_bench",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",

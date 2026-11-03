@@ -198,7 +198,13 @@ public final class ArrowReader {
             Cursor cursor = new Cursor(in, rb.vector(1), rb.vector(2), m.body);
             List<Array> columns = new ArrayList<>(schema.fields().size());
             for (ArrowField f : schema.fields()) {
-                columns.add(array(cursor, f));
+                Array column = array(cursor, f);
+                if (column.length() != rows) {
+                    // a column shorter than its batch would read past its values (R3's audit)
+                    throw new IllegalArgumentException("an Arrow record batch of " + rows + " rows whose column '"
+                            + f.name() + "' has " + column.length());
+                }
+                columns.add(column);
             }
             return new Batch(rows, columns);
         }

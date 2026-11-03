@@ -24,6 +24,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
+from legend_lite import compiler
 from legend_lite.engine import Engine, NativePlanner, WebServer
 from legend_lite.keeper import page_hash
 from legend_lite._home import THIS_USER, locked
@@ -390,7 +391,8 @@ class PlanAndRunRoutes(Served):
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         plan = rows.schema.metadata[b'legend.plan'].decode()
         self.assertTrue(plan.startswith('OK\n'), plan[:200])
-        self.assertEqual(json.loads(plan[3:])['sql'], self.table.plan(GROUP).sql)
+        # the plan record (R2.4): its one statement the grid's own plan's
+        self.assertEqual(compiler.answer_statement(plan[3:]), self.table.plan(GROUP).sql)
         self.assertEqual({f.name: f.metadata[b'legend.type'] for f in rows.schema}, {'desk': b'String', 'q': b'Float'})
         kept = self.df[self.df.qty > 5]
         self.assertEqual(rows.to_pylist(), [{'desk': d, 'q': q} for d, q in kept.groupby('desk')['qty'].sum().sort_index().items()])

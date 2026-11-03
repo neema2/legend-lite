@@ -134,14 +134,10 @@ def read_plan(answer: str) -> Plan:
 
 def plain_type(type_name: str) -> str:
     """A plan record's column type as legend-engine's relation type names it, by the record's one rule
-    (``ExecutionPlan.Column.plainType``; engine-client's plan-record.ts ``plainType``): a precision decimal, which the
-    typer spells ``Decimal(p,s)``, is ``Decimal`` (its precision and scale are its SQL type's); any other type is its
-    own name."""
-    if type_name.startswith('Decimal(') and type_name.endswith(')'):
-        precision, comma, scale = type_name[len('Decimal('):-1].partition(',')
-        if comma and precision.isdigit() and scale.isdigit() and precision.isascii() and scale.isascii():
-            return 'Decimal'
-    return type_name
+    (``ExecutionPlan.Column.plainType``; engine-client's plan-record.ts ``plainType``), read where every type name is
+    (:func:`legend_lite._types.record_type`)."""
+    from ._types import record_type
+    return record_type(type_name)
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:

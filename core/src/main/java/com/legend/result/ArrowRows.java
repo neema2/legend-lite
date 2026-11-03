@@ -45,10 +45,19 @@ import java.util.Map;
  * The stream's columns are the statement's, in order (as a JDBC result's are): the plan's i-th column is the stream's
  * i-th field, a tagged column's slots found beside them by name; a stream of another width is refused by name.
  *
- * <p>Where a JDBC driver's facts change a decode (a driver that drops a decimal's trailing zeros, one that writes a
- * non-finite JSON number, one that re-reads no timestamp), Arrow carries the value whole -- a decimal at its type's
- * scale, a timestamp at its unit -- so no such fact arises; a JSON text with a non-finite number is refused, as the
- * DuckDB session's decode refuses it.
+ * <p>Where a JDBC driver's facts change a decode, DuckDB's are read (the hosts' database; another database's facts
+ * travel with it when a host reaches one, R7): a decimal and a timestamp arrive whole in Arrow, at the type's scale and
+ * unit, so the trailing-zeros and re-read facts do not arise; a JSON cell's double that is not finite is DuckDB's bare
+ * token, read by the JDBC decode's own parse ({@link NonFiniteJson}).
+ *
+ * <p>A text slot's cell is the driver's own text, as the JDBC session reads it ({@code getString}): a number's, a
+ * boolean's or a day's text is its value object's {@code toString}, as DuckDB's driver hands it; a time of day's and a
+ * timestamp's (DuckDB's own spelling) are refused by name. Where the two decodes are known to part (R3's audit,
+ * docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7): a zoned time and an unsigned 128-bit integer, which DuckDB's Arrow
+ * cannot carry whole, are refused by name, once per column; a HUGEINT under a column with no slot and a Pure type of
+ * {@code Number} or {@code Any} is the decimal it arrives as (JDBC: the integer); a TINYINT under a Boolean, Decimal or
+ * Number column and a UUID under a String one are read (JDBC's decode refuses the driver's {@code Byte} and
+ * {@code UUID} there).
  */
 public final class ArrowRows {
 
@@ -162,6 +171,19 @@ public final class ArrowRows {
             throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with its row (its slot"
                     + " columns stand beside it), never alone");
         }
+        String word = RowDecode.slotWord(c.slot());
+        String slot = c.slot() == null ? "" : c.slot().toUpperCase(java.util.Locale.ROOT);
+        if (word.equals("UHUGEINT")) {
+            // DuckDB's Arrow carries an unsigned 128-bit integer as a signed 128-bit decimal, its values past 2^127
+            // wrapped (R3's audit): read whole only through the JDBC session
+            throw new IllegalArgumentException("column '" + c.name() + "' is an unsigned 128-bit integer (" + c.slot()
+                    + "), which the host's Arrow carries as " + f.type() + " with its largest values wrapped: refused");
+        }
+        if ((word.equals("TIMETZ") || slot.startsWith("TIME WITH TIME ZONE")) && f.type() instanceof ArrowType.Time) {
+            // a zoned time's offset is dropped by DuckDB's Arrow (R3's audit); the JDBC session refuses its OffsetTime
+            throw new IllegalArgumentException("column '" + c.name() + "' is a time with a zone (" + c.slot()
+                    + "), whose offset the host's Arrow drops: refused");
+        }
         Wire wire = wire(f);
         return (a, row) -> a.isNull(row) ? null : decode(wire.at(a, row), c, kind);
     }
@@ -204,7 +226,15 @@ public final class ArrowRows {
             case ArrowType.LargeBinary t -> (a, i) -> bytes(a, i, true);
             case ArrowType.Date t -> t.unit() == ArrowType.DateUnit.DAY
                     ? (a, i) -> LocalDate.ofEpochDay(a.buffer(0).getInt(4 * i))
-                    : (a, i) -> LocalDate.ofEpochDay(Math.floorDiv(a.buffer(0).getLong(8 * i), 86_400_000L));
+                    : (a, i) -> {
+                        // a day of milliseconds: a whole number of days, never a time of day dropped (R3's audit)
+                        long ms = a.buffer(0).getLong(8 * i);
+                        if (Math.floorMod(ms, 86_400_000L) != 0) {
+                            throw new IllegalStateException("the Arrow date column '" + f.name() + "' holds " + ms
+                                    + " milliseconds, not a whole day");
+                        }
+                        return LocalDate.ofEpochDay(Math.floorDiv(ms, 86_400_000L));
+                    };
             case ArrowType.Time t -> {
                 long nanosPer = nanosPer(t.unit());
                 yield t.bits() == 32
@@ -343,11 +373,12 @@ public final class ArrowRows {
         switch (kind) {
             case TAGGED -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
                     + " its row (its slot columns stand beside it), never alone");
+            // the slots whose cells the JDBC session reads as the driver's own text (getString): that text
             case DECIMAL_TEXT -> {
-                return RowDecode.decimalText(text(v, c));
+                return RowDecode.decimalText(driverText(v, c));
             }
             case TEMPORAL_TEXT -> {
-                return RowDecode.temporalText(text(v, c), c);
+                return RowDecode.temporalText(driverText(v, c), c);
             }
             case TEMPORAL -> {
                 return temporal(v, c);
@@ -369,10 +400,12 @@ public final class ArrowRows {
                 return bool(v, c);
             }
             case TEXT -> {
-                return text(v, c);
+                return driverText(v, c);
             }
             case JSON -> {
-                Json.Node node = Json.parse(jsonText(v, c));
+                // as DuckDB writes it (its session's decoding fact, nonFiniteJson): a double that is not finite a bare
+                // token, read by the JDBC decode's own parse (R3's audit)
+                Json.Node node = NonFiniteJson.parse(jsonText(v, c));
                 // a Variant's cell is its JSON text, a JSON null included (the SQL cell is not NULL)
                 return type.equals(RowDecode.VARIANT) ? Json.toCompact(node) : RowDecode.cell(node, c);
             }
@@ -474,6 +507,28 @@ public final class ArrowRows {
             case BigInteger b -> b.toString();
             case Double d -> Double.toString(d);
             case Float f -> Float.toString(f);
+            default -> throw refused(v, c);
+        };
+    }
+
+    /**
+     * A text slot's cell as the JDBC session reads it, the driver's own text ({@code getString}; R3's audit): a text
+     * as it is; a number's, a boolean's or a day's the text DuckDB's JDBC driver hands, which is its value object's
+     * {@code toString} (measured 2026-11-03 on duckdb_jdbc 1.5.6.0: a decimal's {@code 1E-10}, a double's
+     * {@code 1.0E-10}, a REAL's {@code 0.1}); any other value (a time of day, a timestamp, whose text is DuckDB's own)
+     * refused by name.
+     */
+    private static String driverText(Object v, ExecutionPlan.Column c) {
+        return switch (v) {
+            case String s -> s;
+            case Integer n -> n.toString();
+            case Long n -> n.toString();
+            case BigInteger n -> n.toString();
+            case BigDecimal d -> d.toString();
+            case Double d -> d.toString();
+            case Float f -> f.toString();
+            case Boolean b -> b.toString();
+            case LocalDate d -> d.toString();
             default -> throw refused(v, c);
         };
     }

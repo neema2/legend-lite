@@ -1,7 +1,7 @@
 package planner;
 
 /**
- * The text encoding both strings-only hosts use for the boundary's answers -- the tab through TeaVM
+ * The text encoding both hosts use for the boundary's answers -- the tab through TeaVM
  * ({@link TabExports}) and Python through the C library (native/'s {@code nativelib.Compiler}) -- written once
  * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5): {@code "OK\n<answer>"}, a refusal as
  * {@code "ERR\n<kind>\n<message>"}, and a {@code pure/v1} answer as {@code "OK\n<status>\n<media type>\n<body>"}.
@@ -33,7 +33,7 @@ public final class Folded {
 
     /** A {@code pure/v1} answer -- its status, media type and body -- or the refusal it threw. A BINARY body (the
      *  ARROW_IPC execute's bytes, track A, 2026-10-29) travels as base64 under its media type with the
-     *  {@link #BASE64} suffix: both hosts speak strings. */
+     *  {@link #BASE64} suffix, for a host that asks in strings; {@link #httpBytes} answers the same in bytes (R3). */
     public static String http(java.util.function.Supplier<com.legend.server.PureV1Api.Answer> answer) {
         try {
             com.legend.server.PureV1Api.Answer a = answer.get();

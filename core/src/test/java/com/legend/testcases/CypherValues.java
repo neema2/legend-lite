@@ -379,7 +379,7 @@ public final class CypherValues {
      *  value it holds, a float's spelling kept; any other cell by {@link #ofCell(Object)}. */
     public static Value ofCell(@com.legend.base.Nullable Object cell, com.legend.testing.Lean.Column column) {
         if (cell instanceof String json && column.type().equals(com.legend.result.RowDecode.VARIANT)) {
-            return ofJson(com.legend.exec.NonFiniteJson.parse(json));
+            return ofJson(com.legend.result.NonFiniteJson.parse(json));
         }
         return ofCell(cell);
     }
@@ -484,7 +484,7 @@ public final class CypherValues {
         // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
         String cls = cell.getClass().getName();
         if (cls.equals("org.duckdb.JsonNode")) {
-            return ofJson(com.legend.exec.NonFiniteJson.parse(cell.toString()));
+            return ofJson(com.legend.result.NonFiniteJson.parse(cell.toString()));
         }
         if (cls.equals("org.postgresql.util.PGobject")) {
             try {

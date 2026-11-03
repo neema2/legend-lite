@@ -7,9 +7,9 @@ DECIMAL(18,2), a timestamp, a nullable integer) queried at 10 to 1,000,000 rows,
     arrow    -- the engine's execute in upstream's Arrow format (``serializationFormat=ARROW_IPC``), as DataCube asks;
     json     -- the engine's execute in legend-engine's JSON: the rows fetched as Python objects, written as JSON text
                 (compiler.host_rows) and spelled by the native planner (execute_json_answer);
-    handoff  -- the same answer from the same plan with the rows handed over as DuckDB's Arrow (R3: the IPC stream's
-                buffer read where it lies by the core, compiler.execute_json_answer_arrow): what the JSON execute takes
-                once it hands Arrow (R4). Its answer is checked equal to json's, the trace masked.
+    handoff  -- the same answer, planned on each call as json's is, with the rows handed over as DuckDB's Arrow (R3:
+                the IPC stream's buffer read where it lies by the core, compiler.execute_json_answer_arrow): what the
+                JSON execute takes once it hands Arrow (R4). Its answer is checked equal to json's, the trace masked.
 
 Each size: one cold call, then calls timed one by one until BENCH_MEASURE_MS has passed (after BENCH_WARM_MS of warm-up);
 the median and p90 printed, with a digest of each answer so a change is checked to answer the same bytes. Run:
@@ -105,12 +105,11 @@ class ExecutorBench(unittest.TestCase):
             def rows_json():
                 answers['json'] = engine.answer('POST', EXECUTE, '', body)
 
-            with frames.serving() as served:
-                planned = engine.planner.execute_json_plan(body, list(served.values())).body
-            statement = compiler.answer_statement(planned)
-
             def handoff():
-                arrow = frames.connection.execute(statement).to_arrow_table()
+                # planned on every call, as the json path's engine.answer plans (R3's audit: like for like)
+                with frames.serving() as served:
+                    planned = engine.planner.execute_json_plan(body, list(served.values())).body
+                arrow = frames.connection.execute(compiler.answer_statement(planned)).to_arrow_table()
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, arrow.schema) as writer:
                     writer.write_table(arrow)

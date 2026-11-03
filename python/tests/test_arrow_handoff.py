@@ -5,6 +5,7 @@ and run as Python's engine plans and runs it (its project database, its DuckDB).
 (``compiler.execute_json_answer_arrow``: a pointer and a length, read where pyarrow holds it).
 """
 
+import datetime
 import io
 import json
 import os
@@ -98,16 +99,19 @@ class ArrowHandoff(unittest.TestCase):
                 with self.subTest(case=name):
                     text = compiler.execute_json_answer(planned.body, rows)
                     from_arrow = compiler.execute_json_answer_arrow(planned.body, arrow)
-                    self.assertEqual((text.status, text.content_type), (from_arrow.status, from_arrow.content_type))
+                    # a case with rows answers them: the two handoffs alike, and an answer (never two like refusals)
+                    self.assertEqual((200, 200), (text.status, from_arrow.status), from_arrow.body[:300])
+                    self.assertEqual(text.content_type, from_arrow.content_type)
                     self.assertEqual(TRACE.sub('executionTraceID', text.body),
                                      TRACE.sub('executionTraceID', from_arrow.body))
                     folded = _answer_bytes(compiler.library().call('lite_execute_arrow_answer', planned.body, rows))
-                    status, content_type, arrow_body = compiler.execute_arrow_answer_arrow(planned.body, arrow)
-                    self.assertEqual((folded[0], folded[1]), (status, content_type))
-                    if status == 200:
-                        expected, actual = arrow_answer(folded[2]), arrow_answer(arrow_body)
-                        self.assertEqual(expected.schema.metadata, actual.schema.metadata)
-                        self.assertTrue(expected.equals(actual, check_metadata=True), name)
+                    # the bytes as Python's bytes too (the library reads either where it lies)
+                    status, content_type, arrow_body = compiler.execute_arrow_answer_arrow(planned.body,
+                                                                                         arrow.to_pybytes())
+                    self.assertEqual((200, folded[0], folded[1]), (status, status, content_type))
+                    expected, actual = arrow_answer(folded[2]), arrow_answer(arrow_body)
+                    self.assertEqual(expected.schema.metadata, actual.schema.metadata)
+                    self.assertTrue(expected.equals(actual, check_metadata=True), name)
                     compared += 1
         finally:
             frames.close()
@@ -119,8 +123,8 @@ class ArrowHandoff(unittest.TestCase):
 
     def test_a_real_is_its_own_digits_from_arrow_as_on_the_jvm(self):
         # a FLOAT (DuckDB's four-byte REAL): the JVM's session reads Float.toString's digits (0.1), and so does the
-        # Arrow handoff; the JSON text handoff hands the widened double (0.10000000149011612) -- the one difference
-        # this handoff makes, measured here and posted (the note's §7)
+        # Arrow handoff; the JSON text handoff hands the widened double (0.10000000149011612) -- one of the differences
+        # this handoff makes, each toward the JVM's answer (the note's §7)
         frames = ll.Frames()
         try:
             table = frames.register('reals', pa.table({'ID': pa.array([1, 2], pa.int64()),
@@ -136,6 +140,35 @@ class ArrowHandoff(unittest.TestCase):
             self.assertIn('0.10000000149011612', text)
             self.assertNotIn('0.10000000149011612', from_arrow)
             self.assertIn('0.1', from_arrow)
+        finally:
+            frames.close()
+
+    def test_extreme_days_and_instants_are_the_databases_from_arrow(self):
+        # an infinite DATE and TIMESTAMP and a BC date: the Arrow handoff answers the values DuckDB holds, as the JVM's
+        # JDBC session reads them; the text handoff answered what duckdb-python's objects could hold (an infinity as
+        # 9999-12-31) or refused (a BC date) -- R3's audit, the note's §7
+        frames = ll.Frames()
+        try:
+            table = frames.register('days', pa.table({
+                'ID': pa.array([1], pa.int64()), 'D': pa.array([datetime.date(2024, 1, 1)], pa.date32()),
+                'TS': pa.array([datetime.datetime(2024, 1, 1)], pa.timestamp('us'))}))
+            plan = planned_frame(Engine(frames), frames, table)
+            query = ("SELECT 1::BIGINT AS ID, 'infinity'::DATE AS D, 'infinity'::TIMESTAMP AS TS UNION ALL "
+                     "SELECT 2, '-infinity'::DATE, '-infinity'::TIMESTAMP UNION ALL "
+                     "SELECT 3, '0054-05-07 (BC)'::DATE, '0054-05-07 (BC) 01:02:03'::TIMESTAMP ORDER BY ID")
+            answer = compiler.execute_json_answer_arrow(plan, arrow_bytes(frames.connection.execute(query)
+                                                                          .to_arrow_table()))
+            self.assertEqual(200, answer.status, answer.body[:300])
+            self.assertEqual([row['values'] for row in json.loads(answer.body)['result']['rows']], [
+                [1, '5881580-07-11', '294247-01-10T04:00:54.775807000+0000'],
+                [2, '-5877641-06-24', '-290308-12-21T19:59:05.224193000+0000'],
+                [3, '-53-05-07', '-53-05-07T01:02:03.000000000+0000']])
+            # the text handoff (measured 2026-11-03): the BC date's text duckdb-python spells is no date the core reads
+            cursor = frames.connection.execute(query)
+            text = compiler.execute_json_answer(plan, compiler.host_rows([d[0] for d in cursor.description],
+                                                                         cursor.fetchall()))
+            self.assertEqual(500, text.status)
+            self.assertIn("'0054-05-07T(BC)'", text.body)
         finally:
             frames.close()
 

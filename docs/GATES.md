@@ -17211,3 +17211,36 @@ product) and the audit's fold after it.
    `//python:{bindings,host_sql,arrow_handoff}_test`, `//engine-client:plan_runner_test`,
    `//datacube:{conformance,lite_planner,bundle_budget,python_runner,typecheck}_test`, the Query and Studio typechecks,
    `//tools/guards:host_sql_test`, `//tools/deps:all`, `bazel build //native:compiler //warehouse/...` green.
+
+## 2026-11-03 — R3's independent audit folded
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 R3 ("R3's audit") and §7. The audit (an agent that wrote none of R3,
+read-only, probing DuckDB 1.5.5 in Python, the product DuckDB JDBC 1.5.6 and the built library) found no defect in the
+reader against the Arrow format, the boundary's memory handling, the guards' counts or the conformance check; it found:
+
+1. **CI would have gone red:** `//python:arrow_handoff_test` was in no lane (the product job's lane guard refuses that).
+   Laned in `//gates:warehouse`; the same query found H0's two benchmarks and H1a's `//engine-client:column_decode_test`
+   in none either (since 2026-11-02): the benchmarks in `//gates:heavy`, the decode test in `//engine-client:tests`. The
+   guard's query now answers nothing.
+2. **A product-path defect, latent until R4/R5:** a DuckDB JSON cell's `Infinity` refused by the Arrow decode where the
+   JVM reads it (DuckDB's `nonFiniteJson` fact). `NonFiniteJson` moved from `exec` to `result` (both registers moved,
+   dated); the Arrow decode reads JSON by it.
+3. **Silent divergences from the JDBC decode,** fixed: a text slot's cell is the driver's own text (`getString`, measured:
+   the value object's `toString`, a decimal's `1E-10`), a temporal value there refused; an unsigned 128-bit integer
+   (DuckDB's Arrow wraps it) and a zoned time (its offset dropped) refused by name; a day of milliseconds checked whole;
+   a column shorter than its batch refused. Recorded, not changed: a HUGEINT under `Number`/`Any` with no slot, and
+   values JDBC's decode refuses that Arrow reads (§7). `WriterCarriageGuardTest`'s `ArrowRows.java` `Math.` 5 -> 6, dated.
+4. **False records,** corrected: "the one difference" (an infinite date or timestamp and a BC date differ too, now
+   pinned); the benchmark's small sizes (planning now timed in both paths: 1,000 rows 35.0 -> 22.6 ms, 1,000,000 rows
+   23,626 -> 1,899 ms); the test's and the note's stale claims; the exit test now asserts an answer for every case with
+   rows and passes Python `bytes` too.
+5. **Found while checking the fold** (suites this container cannot run whole: the V8 crash in `//python:engine_test`,
+   recorded at R2, depends on what ran before it; split three ways the suite passes, 68 + 12 + 252):
+   `test_engine.PlanAndRunRoutes` read plan-and-run's old plan shape since R2.4 (fixed: the record's statement), and
+   `compiler.plain_type` spelled `'Decimal'` outside `_types.py` since `1aa8e7d1` (`//python:frames_test`'s guard; the
+   rule moved to `_types.record_type`). `//python:notebook_test` meets the same V8 crash (18 tests pass before it).
+6. **Checks:** `ArrowRowsTest` (eleven tests: several batches, the pre-1.0 framing, a 32-bit time, a day of
+   milliseconds, a fixed-size list, a text slot's text, the refusals, a JSON infinity, a short column),
+   `//core:core_tests_{root,exec,architecture}`, `//core:guardrails`, `//python:{arrow_handoff,bindings,frames,
+   host_sql,markets,model,wheel}_test`, `//engine-client:column_decode_test`, the lane guard's query, the native
+   library and the tab's module rebuilt.

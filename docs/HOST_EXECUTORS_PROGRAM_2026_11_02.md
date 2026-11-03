@@ -29,7 +29,7 @@ facts read from the code settled it:
   and the JSON, PureV1, CSV and Arrow writers) depends on no JDBC, no session and no planner; `//core:exec` depends on it,
   not the reverse. `//core:plan_side` includes it, so the tab's WebAssembly module and Python's native library carry it
   (the tab's JSON answer is `PureV1Api.jsonAnswer`, `wasm/src/main/java/planner/Boundary.java`).
-- **The slow part is the handoff, not where the writer lives.** The embedded boundary carries strings only, so each host
+- **The slow part is the handoff, not where the writer lives.** The embedded boundary carried strings only (until R3), so each host
   spells every cell as text, and Java reads the text back and spells it again: Python's JSON execute takes 23.2 s at
   1,000,000 rows against its Arrow execute's 188 ms (GATES, H0).
 
@@ -367,6 +367,8 @@ Arrow IPC stream per chunk), and holds a bearer token refreshed at 80% of its li
   Python's planner for plans; a page's `flow.run` writes run on the tab's `runPlan`, from `lite_execution_plan_json_held`.
 - **The warehouse** (`warehouse.py`): HTTP through urllib, the same binding (`lite_warehouse_call`), its chunks as Arrow.
 - `lite_execute_arrow_answer` is declared and called nowhere (`_library.py:37-39`: "wired ... when the user rules").
+  *Since R3 its one caller is `//python:arrow_handoff_test` (the text handoff's Arrow answer, compared with the Arrow
+  handoff's).*
 
 ### 2.3 What is missing
 
@@ -456,7 +458,7 @@ cases.
 
 ### 3.6 The handoff into the writers: Arrow bytes
 
-The boundary carries strings only today (`wasm/src/main/java/planner/Folded.java`): a binary answer travels as base64,
+The boundary carried strings only before R3 (`wasm/src/main/java/planner/Folded.java`): a binary answer travels as base64,
 and rows go in as JSON text. The new boundary carries bytes:
 
 - **Native (Python):** a pointer and a length, so the library reads Python's Arrow buffer where it lies, with no copy.
@@ -774,7 +776,18 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
   - **The JVM** (`ArrowRowsTest`): DuckDB's encodings built with the framer decode to the cells the same rows decode to
     as JSON text; lite's own Arrow round-trips; a tagged column; the file format; the refusals.
 - **End to end** (`//python:executor_bench`, a new path `handoff`, its answer asserted equal to `json`'s, the trace
-  masked): 1,000 rows 35.0 -> 15.0 ms; 100,000 rows 1,855 -> 211 ms; 1,000,000 rows 23,626 -> 1,861 ms (12.7 times).
+  masked; planned on every call as `json` is, corrected by R3's audit -- the first figures planned once, outside the
+  timer): 1,000 rows 35.0 -> 22.6 ms; 100,000 rows 1,855 -> 230 ms; 1,000,000 rows 23,626 -> 1,899 ms (12.4 times).
+- **R3's audit** (an agent that wrote none of it), folded: the exit test laned (`//gates:warehouse`; it ran by name only)
+  with H0's and H1a's unlaned targets (CI's lane guard refuses a test in no lane); a DuckDB JSON cell's non-finite token
+  read as the JDBC decode reads it (`NonFiniteJson`, moved from `exec` to `result`); a text slot's cell the driver's own
+  text, as JDBC's `getString` hands it (a decimal's `1E-10`), a temporal one there refused; what DuckDB's Arrow cannot
+  carry whole refused by name (an unsigned 128-bit integer, wrapped; a zoned time, its offset dropped); a day of
+  milliseconds checked whole and a column checked as long as its batch; the exit test asserting an answer for every case
+  with rows and passing `bytes` too; "the carriers are the JVM's" scoped (§7 names where the two decodes part); the
+  benchmark's planning made like for like. Found while checking the fold: two defects of R2's own commits that suites
+  this container cannot run whole had hidden -- plan-and-run's test read the old plan shape (`test_engine.py`), and
+  `compiler.plain_type` spelled a type name outside `_types.py` (`//python:frames_test`'s guard); both fixed.
 - **Not in R3, by design:** no product path switched (Python's `_execute_json` and the tab's `executeText` keep the
   text handoff until R4 and R5); the tab's planner protocol has no bytes kind yet (R5: Python's headless host must
   answer every kind, and a kind's bytes do not cross its JSON channel as they are); a keyed pivot's answer from Arrow.
@@ -785,6 +798,44 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
   headless page's writes.
 - **The outputs:** JSON through the writers from Arrow (R3); the Arrow answer in the plan's types (D7, its cases posted
   first).
+
+*R4's design (2026-11-03, after R3; D17 and D18 read onto it).* Its steps, in order:
+1. **Dictionaries read** (R3's finding): `ArrowReader` reads a dictionary-encoded column (DuckDB answers an `ENUM` so;
+   a dictionary pyarrow registers comes back plain), a replacement dictionary taking the place of the one before, a
+   delta refused by name.
+2. **Python's JSON execute hands Arrow** (`engine.py` `_execute_json`: DuckDB's record batches written as one IPC
+   stream, read by the core where it lies). Its one change of text: a `FLOAT` column's digits, the JVM's and
+   legend-engine's (`0.1`) where Python's answered the widened double (§7). A keyed pivot keeps the text handoff until
+   `keyedAnswer` takes Arrow.
+3. **legend-engine's `ARROW_IPC` answer as legend-engine writes it** (D17: an edge writer; upstream read in the pinned
+   sources: `RelationalResultToArrowIPCSerializer`, `RelationalResult.getValue`, `SQLResultDBColumnsMetaData`):
+   - **each column typed from the database's JDBC report alone** (its type code, precision, scale): `BIT`/`BOOLEAN`
+     bool; `TINYINT` int8; `SMALLINT` int16; `INTEGER` int32; `BIGINT` int64; `FLOAT`/`REAL` float32; `DOUBLE`
+     float64; `NUMERIC`/`DECIMAL` decimal128(p, s) (p 38 where reported 0 or less, capped at 38; s at least 0, at
+     most p); `DATE` date32; `TIME` time32[ms]; `TIMESTAMP` and `TIMESTAMP_WITH_TIMEZONE` timestamp[us, "UTC"];
+     anything else utf8; every field nullable, with no metadata;
+   - **each value as upstream writes it**: a decimal `setScale(s, HALF_UP)`; a timestamp's microseconds (finer digits
+     dropped); a time's milliseconds; a utf8 cell the text of the driver's value (an array or a JSON or map value its
+     JSON text, a binary value its hex);
+   - **the schema's metadata** `legend.builder`, `legend.activities`, `legend.generationInfo` (when present),
+     `legend.columns`, in the order Java's `HashMap` gives them; batches of 1,024 rows; one zstd frame;
+   - **the report:** on the JVM the result's `ResultSetMetaData` (the session already reads it for a dynamic pivot);
+     on a host DuckDB's own type name (duckdb-python's `description`, DuckDB-WASM's `DESCRIBE`) read as DuckDB's JDBC
+     driver reports it -- measured for every DuckDB type (2026-11-03, `duckdb_jdbc` 1.5.6.0): a `HUGEINT` (a sum of
+     integers) `OTHER` and so utf8, `UTINYINT` `SMALLINT`, `USMALLINT` `INTEGER`, `UINTEGER` `BIGINT`, `UBIGINT`,
+     `UHUGEINT`, `INTERVAL`, `UUID`, `JSON`, `MAP` and `ENUM` `OTHER`, `FLOAT` `FLOAT`, every `TIMESTAMP_*`
+     `TIMESTAMP`, `TIMESTAMPTZ` `TIMESTAMP_WITH_TIMEZONE`, `TIMETZ` `TIME_WITH_TIMEZONE`, a list `ARRAY`, a struct
+     `STRUCT`, `BLOB` `BLOB`, `DECIMAL(p,s)` its p and s;
+   - **where upstream fails, lite answers** (D18: an extension, a register row): upstream reads a `TIMESTAMPTZ`
+     column's value as DuckDB's `OffsetDateTime` and casts it to a `Timestamp` (a `ClassCastException`); lite writes
+     its microseconds at UTC.
+   It changes the JVM's `ARROW_IPC` answer (today lite's own Arrow, the plan's types) column kind by column kind, each
+   listed in its commit and posted.
+4. **Python's Arrow execute onto the record and the edge writer**: `arrowPlan`, `lite_execute_plan` and Python's own
+   Arrow writer (`engine.py` `_arrow_ipc`) retired, the census at zero; the fourteen schema entries of the ledger gone
+   (Java and Python both upstream's).
+5. **Python's own Arrow in the plan's types** (`Table.execute`, plan-and-run; D7, D17): each change posted.
+6. **Python's runner**, the tab's twin, for the headless page's writes.
 
 **R5. The tab's shell.**
 - **The runner** over its connectors: DuckDB-WASM, the warehouse, a remote engine's Arrow.
@@ -844,6 +895,21 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   the same but for a database's message that counts lines (DuckDB's `LINE 4` on the JVM, `LINE 3` on a host): two
   ledger entries. The fix is the hosts' runners' (R4/R5): the statement stamped by the core, its id the answer's
   activity's, so a host's statement and its answer carry one id as the JVM's do.
+- **The text handoff and the Arrow handoff answer differently in these cases, each toward the JVM's answer** (R3 and
+  its audit, 2026-11-03; pinned in `//python:arrow_handoff_test`), so switching a host's JSON execute to Arrow (R4, R5)
+  changes that host's text there:
+  - a `FLOAT` (next item);
+  - an infinite `DATE` or `TIMESTAMP`: the text handoff answered duckdb-python's stand-in (`9999-12-31`), the Arrow
+    handoff DuckDB's own value (`5881580-07-11`, `294247-01-10T04:00:54.775807000+0000`; `-5877641-06-24` and
+    `-290308-12-21T19:59:05.224193000+0000` for minus infinity), as the JVM's JDBC read gives them;
+  - a BC date: the text handoff refused the whole answer (500: duckdb-python spells `0054-05-07 (BC)`, no date the core
+    reads), the Arrow handoff answers it (`-53-05-07`).
+- **Where the Arrow decode and the JDBC decode part** (R3's audit, measured on DuckDB 1.5.5/1.5.6): a HUGEINT under a
+  column with no slot and a Pure type of `Number` or `Any` is a decimal from Arrow and an integer from JDBC (DuckDB's
+  Arrow carries a HUGEINT as a decimal of scale 0, indistinguishable from a `DECIMAL(38,0)`); a TINYINT under a Boolean,
+  Decimal or Number column, and a UUID under a String column with no slot, are read from Arrow where JDBC's decode
+  refuses the driver's `Byte` and `UUID` (gaps in the JDBC decode's arms). Recorded, not changed. (Fixed instead: a text
+  slot reads the driver's own text; an unsigned 128-bit integer and a zoned time are refused.)
 - **A REAL's digits differ between the hosts and the JVM** (found 2026-11-03, R3). A DuckDB `FLOAT` (four bytes):
   the JVM's session reads `Float.toString`'s digits (`0.1`), as legend-engine's JDBC read does; Python's JSON execute
   hands the widened double (`0.10000000149011612`, duckdb-python's `fetchall`), and the tab's by the same mechanism (a
@@ -855,7 +921,11 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   as its strings. R4's switch of Python's JSON execute needs the reader to read dictionaries first.
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
-  answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
+  answer correctly (§3.6). R3 gives them callers, or R6 deletes them. *After R3 (its audit): `lite_execute_arrow_answer`
+  has a test caller (`//python:arrow_handoff_test`), `executeArrowAnswerOrError` still none; R3's four new exports
+  (`executeJsonAnswerFromArrowOrError`, `executeArrowAnswerFromArrowOrError`, `lite_execute_json_answer_arrow`,
+  `lite_execute_arrow_answer_arrow`) have test callers only until R4 (Python) and R5 (the tab) give them product
+  ones; R6 deletes whichever text handoff export is left without one.*
 
 ## 8. Status
 
@@ -960,3 +1030,6 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
 - 2026-11-03: R3 built: the core reads a host's Arrow (`ArrowReader`, `ArrowRows`) and the boundary carries bytes both
   ways; the exit met on the suite for Python and the tab (§5 R3 "as built"); Python's JSON answer at 1,000,000 rows
   23.6 s -> 1.9 s through it. Two findings (§7): a REAL's digits, and dictionaries refused. No product path switched.
+- 2026-11-03: R3's independent audit folded (§5 R3 "as built", its last items; §7): the exit test laned, the JSON
+  decode's non-finite tokens, a text slot's text, two refusals, two reader checks, the claims scoped, the benchmark like
+  for like; two R2 test defects the container had hidden found and fixed.

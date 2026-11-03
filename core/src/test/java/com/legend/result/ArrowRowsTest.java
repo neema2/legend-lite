@@ -32,11 +32,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * THE CORE'S ARROW READER (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3): a host's rows handed over as the Arrow its
  * database answered decode to the cells the same rows decode to as JSON text ({@link HostRows}, the handoff the hosts
- * use today) and as a JDBC session reads them -- so the writers' answers are the same bytes. Its streams are built with
- * the repository's own framer ({@link ArrowIpc}) in the encodings DuckDB answers (an INTEGER an Int32, a HUGEINT a
- * 128-bit decimal of scale 0, a TIMESTAMP microseconds with no zone, a TIMESTAMPTZ with one, a TIME a Time64 of
- * microseconds), and in lite's own Arrow writer's (a round trip). The real databases' Arrow is judged in the hosts'
- * own suites (//python:bindings_test, //engine-client:plan_runner_test).
+ * used before), by the JDBC session decode's arms over the values a driver hands -- so the writers' answers are the
+ * same bytes. (No JDBC session runs here: the JDBC decode's own tests hold it; its arms' twins are named in
+ * {@link ArrowRows}.) Its streams are built with the repository's own framer ({@link ArrowIpc}) in the encodings
+ * DuckDB answers (an INTEGER an Int32, a HUGEINT a 128-bit decimal of scale 0, a TIMESTAMP microseconds with no zone, a
+ * TIMESTAMPTZ with one, a TIME a Time64 of microseconds), and in lite's own Arrow writer's (a round trip). The real
+ * databases' Arrow is judged by //python:arrow_handoff_test (duckdb-python) and //datacube:conformance_test's handoff
+ * check (DuckDB-WASM).
  */
 class ArrowRowsTest {
 
@@ -373,6 +375,120 @@ class ArrowRowsTest {
         assertEquals(Arrays.asList(1L, null, 3L), decoded(file.toByteArray(), columns).stream().map(r -> r.get(0)).toList());
     }
 
+    /** One framed batch of {@code rows} rows of one column. */
+    private static byte[] batchOf(int rows, Col col) {
+        ArrowIpc.Layout layout = new ArrowIpc.Layout();
+        col.layout().accept(layout);
+        return ArrowIpc.recordBatch(rows, layout, Map.of());
+    }
+
+    @Test
+    void aStreamOfSeveralBatchesIsReadInOrder() throws IOException {
+        List<ExecutionPlan.Column> columns = List.of(col("i", "Integer", "BIGINT"));
+        Col first = fixed("i", new ArrowType.Int(64, true), le(8, 1, 0, 3));
+        Col second = new Col(first.field(), l -> {
+            l.node(2, 0);
+            l.buffer(new byte[0]);
+            l.buffer(le(8, 4, 5));
+        });
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.writeBytes(ArrowIpc.schema(List.of(first.field()), Map.of()));
+        out.writeBytes(batchOf(3, first));
+        out.writeBytes(batchOf(2, second));
+        out.writeBytes(ArrowIpc.END);
+        assertEquals(Arrays.asList(1L, null, 3L, 4L, 5L),
+                decoded(out.toByteArray(), columns).stream().map(r -> r.get(0)).toList());
+    }
+
+    @Test
+    void theFormatBeforeOneZeroIsRead() throws IOException {
+        // the framing before Arrow 1.0: each message's length with no continuation marker before it
+        List<ExecutionPlan.Column> columns = List.of(col("i", "Integer", "INTEGER"));
+        Col one = fixed("i", new ArrowType.Int(32, true), le(4, 7, 0, 9));
+        byte[] schema = ArrowIpc.schema(List.of(one.field()), Map.of());
+        byte[] batch = batchOf(3, one);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(schema, 4, schema.length - 4);
+        out.write(batch, 4, batch.length - 4);
+        out.writeBytes(new byte[4]);
+        assertEquals(Arrays.asList(7L, null, 9L), decoded(out.toByteArray(), columns).stream().map(r -> r.get(0)).toList());
+    }
+
+    @Test
+    void theOtherWidthsOfATimeADayAndAListAreRead() throws IOException {
+        // a TIME of 32-bit milliseconds, a DATE of 64-bit milliseconds, a list of a fixed size
+        List<ExecutionPlan.Column> columns = List.of(col("t", "StrictTime", "TIME"), col("d", "StrictDate", "DATE"),
+                col("l", "Integer", "ARRAY<INTEGER>"));
+        ArrowField item = new ArrowField("item", new ArrowType.Int(32, true), true);
+        byte[] arrow = stream(3, List.of(
+                fixed("t", new ArrowType.Time(ArrowType.TimeUnit.MILLISECOND, 32), le(4, 47_655_500, 0, 0)),
+                fixed("d", new ArrowType.Date(ArrowType.DateUnit.MILLISECOND), le(8, 19782L * 86_400_000L, 0, 0)),
+                new Col(new ArrowField("l", new ArrowType.FixedSizeList(2), true, List.of(item), Map.of()), l -> {
+                    l.node(3, 1);
+                    l.buffer(ArrowIpc.validity(3, i -> i == 1));
+                    l.node(6, 0);
+                    l.buffer(new byte[0]);
+                    l.buffer(le(4, 1, 2, 0, 0, 5, 6));
+                })));
+        List<List<Object>> rows = decoded(arrow, columns);
+        assertEquals(PureTimeLiteral.parse("13:14:15.5"), rows.get(0).get(0));
+        assertEquals(PureDateLiteral.parse("2024-02-29"), rows.get(0).get(1));
+        assertEquals(List.of(1L, 2L), rows.get(0).get(2));
+        assertEquals(List.of(5L, 6L), rows.get(2).get(2));
+        // a day of milliseconds that is not a whole day: refused, never its time of day dropped
+        byte[] partial = stream(3, List.of(fixed("d", new ArrowType.Date(ArrowType.DateUnit.MILLISECOND),
+                le(8, 19782L * 86_400_000L + 1, 0, 0))));
+        IllegalStateException day = assertThrows(IllegalStateException.class,
+                () -> decoded(partial, List.of(col("d", "StrictDate", "DATE"))));
+        assertTrue(day.getMessage().contains("not a whole day"), day.getMessage());
+    }
+
+    @Test
+    void aTextSlotReadsTheDriversOwnText() throws IOException {
+        // a number under a text slot: the text DuckDB's JDBC driver hands (getString: the value object's toString),
+        // a decimal's 1E-10 and not its plain digits; a timestamp's text (DuckDB's own) refused
+        List<ExecutionPlan.Column> columns = List.of(col("d", "String", "VARCHAR"), col("f", "String", "VARCHAR"),
+                col("i", "String", "VARCHAR"));
+        byte[] arrow = stream(3, List.of(
+                fixed("d", new ArrowType.Decimal(18, 10, 128), ArrowIpc.int128s(
+                        new BigInteger[] {BigInteger.ONE, null, BigInteger.valueOf(123_000_000_000L)}, 3)),
+                fixed("f", new ArrowType.FloatingPoint(ArrowType.FloatPrecision.DOUBLE),
+                        ArrowIpc.float64s(new double[] {1e-10, 0, 0.1}, 3)),
+                fixed("i", new ArrowType.Int(32, true), le(4, -5, 0, 42))));
+        List<List<Object>> rows = decoded(arrow, columns);
+        assertEquals(row("1E-10", "1.0E-10", "-5"), rows.get(0));
+        assertEquals(row("12.3000000000", "0.1", "42"), rows.get(2));
+        byte[] ts = stream(3, List.of(fixed("t", new ArrowType.Timestamp(ArrowType.TimeUnit.MICROSECOND, null),
+                le(8, 0, 0, 0))));
+        assertThrows(IllegalStateException.class, () -> decoded(ts, List.of(col("t", "String", "VARCHAR"))));
+    }
+
+    @Test
+    void whatDuckDbsArrowCannotCarryWholeIsRefusedByName() {
+        // an unsigned 128-bit integer (a signed decimal in DuckDB's Arrow, its largest values wrapped) and a zoned time
+        // (its offset dropped): refused, never read wrong
+        byte[] huge = stream(3, List.of(fixed("u", new ArrowType.Decimal(38, 0, 128), ArrowIpc.int128s(
+                new BigInteger[] {BigInteger.ONE, null, BigInteger.TWO}, 3))));
+        IllegalArgumentException u = assertThrows(IllegalArgumentException.class,
+                () -> decoded(huge, List.of(col("u", "Integer", "UHUGEINT"))));
+        assertTrue(u.getMessage().contains("unsigned 128-bit"), u.getMessage());
+        byte[] time = stream(3, List.of(fixed("t", new ArrowType.Time(ArrowType.TimeUnit.MICROSECOND, 64),
+                le(8, 0, 0, 0))));
+        IllegalArgumentException z = assertThrows(IllegalArgumentException.class,
+                () -> decoded(time, List.of(col("t", "StrictTime", "TIME WITH TIME ZONE"))));
+        assertTrue(z.getMessage().contains("zone"), z.getMessage());
+    }
+
+    @Test
+    void aJsonCellsInfinityIsReadAsDuckDbWritesIt() throws IOException {
+        // DuckDB writes a double that is not finite as a bare token (its session's decoding fact): read, kept
+        List<ExecutionPlan.Column> columns = List.of(col("v", RowDecode.VARIANT, "JSON"));
+        byte[] arrow = stream(3, List.of(text("v", new ArrowType.Utf8(), "[Infinity,1]", "{\"a\":NaN}")));
+        List<List<Object>> rows = decoded(arrow, columns);
+        assertEquals("[Infinity,1]", rows.get(0).get(0));
+        assertEquals("{\"a\":NaN}", rows.get(2).get(0));
+    }
+
     @Test
     void whatTheReaderDoesNotReadIsRefusedByName() {
         List<ExecutionPlan.Column> one = List.of(col("d", "DateTime", "TIMESTAMP"));
@@ -394,6 +510,11 @@ class ArrowRowsTest {
                 le(4, 1, 2, 3))));
         IllegalArgumentException unread = assertThrows(IllegalArgumentException.class, () -> decoded(interval, one));
         assertTrue(unread.getMessage().contains("not read"), unread.getMessage());
+        // a column shorter than its batch (it would read past its values)
+        byte[] shortColumn = stream(4, List.of(fixed("d", new ArrowType.Int(64, true), le(8, 1, 2, 3))));
+        IllegalArgumentException length = assertThrows(IllegalArgumentException.class,
+                () -> decoded(shortColumn, List.of(col("d", "Integer", "BIGINT"))));
+        assertTrue(length.getMessage().contains("has 3"), length.getMessage());
         // not a stream at all
         IllegalArgumentException empty = assertThrows(IllegalArgumentException.class,
                 () -> decoded(new byte[0], one));

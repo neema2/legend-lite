@@ -579,9 +579,9 @@ public final class SqlParity {
         }
 
         /** A JSON text that may hold a double that is not finite as a bare token, as DuckDB's JSON writes one
-         *  ({@link com.legend.exec.NonFiniteJson}). */
+         *  ({@link com.legend.result.NonFiniteJson}). */
         static JsonValue ofNonFinite(String text) {
-            return new JsonValue(canonical(com.legend.exec.NonFiniteJson.parse(text)));
+            return new JsonValue(canonical(com.legend.result.NonFiniteJson.parse(text)));
         }
 
         private static String canonical(Json.Node n) {

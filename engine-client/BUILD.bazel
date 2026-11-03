@@ -294,6 +294,8 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        # H1a's column decode (2026-11-02), laned 2026-11-03 by R3's audit: it ran by name only, in no lane
+        ":column_decode_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",

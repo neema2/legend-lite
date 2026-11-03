@@ -150,7 +150,8 @@ class WriterCarriageGuardTest {
                     // value it is -- a decimal's unscaled two's-complement bytes at its type's scale (new BigInteger,
                     // new BigDecimal, the Arrow type's scale), an unsigned 64-bit integer past 63 bits as the
                     // BigInteger it is (new BigInteger of its unsigned digits), a day of milliseconds and an instant
-                    // of its unit as its day and its UTC wall clock (Math.floorDiv, floorMod), a large text's 64-bit
+                    // of its unit as its day and its UTC wall clock (Math.floorDiv, floorMod; 5 -> 6 the same day,
+                    // 2026-11-03 by R3's audit: a day of milliseconds checked whole, floorMod), a large text's 64-bit
                     // offsets as indices (Math.toIntExact: exact, an overflow refused) -- then each carrier
                     // conversion the JDBC decode makes, one each: an Integer past a long as a BigInteger, the long
                     // otherwise (bitLength, longValue); an integral decimal (DuckDB's HUGEINT) as the integer it
@@ -162,7 +163,7 @@ class WriterCarriageGuardTest {
                     Map.entry("new BigInteger", 3),
                     Map.entry("new BigDecimal", 5),
                     Map.entry("scale", 2),
-                    Map.entry("Math.", 5),
+                    Map.entry("Math.", 6),
                     Map.entry("bitLength", 3),
                     Map.entry("longValue", 3),
                     Map.entry("stripTrailingZeros", 1),
