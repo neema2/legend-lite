@@ -268,6 +268,12 @@ final class JudgePlans {
         }
 
         @Override
+        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+                throws java.io.IOException {
+            sink.columns(columns, reported);
+        }
+
+        @Override
         public void batch(com.legend.result.Batch batch) throws java.io.IOException {
             rows += batch.size();
             if (atMostOne && rows > 1) {

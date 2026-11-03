@@ -488,7 +488,7 @@ public final class PureV1Api {
                 // program changes anything -- made from the plan's own facts, as every host's is (D18 F, the user
                 // 2026-11-03); made from the announced columns only where the plan states none (a dynamic pivot's)
                 yield stated == null ? new com.legend.result.ArrowWriter(out,
-                        columns -> metadata.apply(envelope(query.resultType(), sql, columns)))
+                        (columns, reported) -> metadata.apply(dynamicEnvelope(sql, columns, reported)))
                         : new com.legend.result.ArrowWriter(out, metadata.apply(planEnvelope(sql, stated)));
             }
             case VALUE -> throw unprobed(query);
@@ -566,8 +566,10 @@ public final class PureV1Api {
             case RELATION -> {
                 List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
                 if (stated == null) {
-                    yield com.legend.result.PureV1Writer.relation(out,
-                            columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
+                    // a dynamic result: its header the database's report, as legend-engine makes one (D18 F)
+                    String sql = plan.answerSql().statement();
+                    yield com.legend.result.PureV1Writer.dynamicRelation(out,
+                            (columns, reported) -> dynamicEnvelope(sql, columns, reported));
                 }
                 // the plan's own facts make the header, as every host's answer is made (planEnvelope; D18 F, the user
                 // 2026-11-03): one maker of legend-engine's header for a plan that states its columns
@@ -657,6 +659,78 @@ public final class PureV1Api {
         builder.put("columns", builderColumns);
         return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder),
                 Json.toCompact(List.of(activity(sql, true))), names);
+    }
+
+    /**
+     * A DYNAMIC result's envelope (a pivot whose columns its data names), as legend-engine makes one
+     * ({@code RelationalResult.buildTransformersAndBuilder} with {@code isResultColumnsDynamic}; D18 F, the user
+     * 2026-11-03): EVERY column rebuilt from the database's report -- its label, and the type
+     * {@code ResultColumn.labelTypePair} reads from the type name the driver reported ({@link #reportedType}), with no
+     * relational spelling ({@code TDSColumn(name, type)}: its {@code relationalType} null, dropped) -- the relational
+     * activity carrying {@code sql}, and the columns' names as the engine labels them. A database that reports no type
+     * names (MongoDB's documents; legend-engine answers no MongoDB pivot to copy) has the plan's own facts
+     * ({@link #planEnvelope}; register S132).
+     */
+    static com.legend.result.PureV1Writer.Envelope dynamicEnvelope(String sql,
+            List<com.legend.executionplan.ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported) {
+        if (reported == null) {
+            return planEnvelope(sql, columns);
+        }
+        if (reported.size() != columns.size()) {
+            throw new IllegalStateException("the database reports " + reported.size() + " columns, and the answer has "
+                    + columns.size());
+        }
+        List<Map<String, Object>> builderColumns = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < columns.size(); i++) {
+            String name = com.legend.result.CellText.presentedName(columns.get(i).name());
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("name", name);
+            col.put("type", reportedType(reported.get(i)));
+            builderColumns.add(col);
+            names.add(name);
+        }
+        Map<String, Object> builder = new LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", builderColumns);
+        return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder),
+                Json.toCompact(List.of(activity(sql, true))), names);
+    }
+
+    /**
+     * The Pure type legend-engine gives a dynamic result's column by the type name its driver reported
+     * ({@code ResultColumn.labelTypePair}, upper-cased, by its prefix): {@code VARCHAR}, {@code CHAR} a String;
+     * {@code FLOAT}, {@code DOUBLE}, {@code DECIMAL}, {@code NUMERIC}, {@code REAL} a Float; {@code INTEGER},
+     * {@code BIGINT}, {@code SMALLINT}, {@code TINYINT}, {@code HUGEINT} an Integer; {@code BIT} a Boolean;
+     * {@code TIMESTAMP} a DateTime; {@code DATE} a StrictDate; any other -- and none reported -- a String, as
+     * legend-engine's own last line answers it (so a DuckDB {@code BOOLEAN} is a String there, copied as it is).
+     */
+    static String reportedType(@com.legend.base.Nullable String reported) {
+        if (reported == null) {
+            return "String";
+        }
+        String type = reported.toUpperCase(java.util.Locale.ROOT);
+        if (type.startsWith("VARCHAR") || type.startsWith("CHAR")) {
+            return "String";
+        }
+        if (type.startsWith("FLOAT") || type.startsWith("DOUBLE") || type.startsWith("DECIMAL")
+                || type.startsWith("NUMERIC") || type.startsWith("REAL")) {
+            return "Float";
+        }
+        if (type.startsWith("INTEGER") || type.startsWith("BIGINT") || type.startsWith("SMALLINT")
+                || type.startsWith("TINYINT") || type.startsWith("HUGEINT")) {
+            return "Integer";
+        }
+        if (type.startsWith("BIT")) {
+            return "Boolean";
+        }
+        if (type.startsWith("TIMESTAMP")) {
+            return "DateTime";
+        }
+        if (type.startsWith("DATE")) {
+            return "StrictDate";
+        }
+        return "String";
     }
 
     /**

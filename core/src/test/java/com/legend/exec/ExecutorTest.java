@@ -135,6 +135,36 @@ class ExecutorTest {
         assertEquals(2, t.rowCount());
     }
 
+    /**
+     * D18 F (the user, 2026-11-03): legend-engine's answer to a dynamic pivot rebuilds EVERY column of its header from
+     * the database's report (RelationalResult with isResultColumnsDynamic: TDSColumn(label, labelTypePair's type), no
+     * relationalType), so the JVM's writer does too -- DuckDB reports YR an INTEGER, a sum of INTEGERs a HUGEINT (an
+     * Integer) and an average a DOUBLE (a Float), and no column carries a relational spelling. The values are the
+     * database's, unchanged.
+     */
+    @Test
+    @DisplayName("PIVOT: the engine's answer types a dynamic result's columns from the database's report")
+    void pivotDynamicHeaderIsTheDatabasesReport() throws Exception {
+        String query = "#>{test::DB.T_TREES}#->pivot(~CITY, ~[total : x|$x.TREES : y|$y->sum(), "
+                + "mean : x|$x.TREES : y|$y->average()])";
+        com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), query);
+        java.io.StringWriter json = new java.io.StringWriter();
+        com.legend.Execution.run(com.legend.testing.LaneFloor.model(MODEL, conn), query, RUNTIME,
+                com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)),
+                PlanSessions.of(com.legend.testbackend.TestSessions.over(conn)),
+                p -> com.legend.server.PureV1Api.engineWriter(typed, p, json));
+        com.legend.json.Json.Obj answer = com.legend.json.Json.parseObject(json.toString());
+        java.util.Map<String, String> types = new java.util.LinkedHashMap<>();
+        for (com.legend.json.Json.Node c : ((com.legend.json.Json.Arr) ((com.legend.json.Json.Obj) answer.get("builder"))
+                .get("columns")).items()) {
+            com.legend.json.Json.Obj column = (com.legend.json.Json.Obj) c;
+            assertEquals(java.util.Set.of("name", "type"), column.fields().keySet(), json.toString());
+            types.put(column.getString("name"), column.getString("type"));
+        }
+        assertEquals(java.util.Map.of("YR", "Integer", "'NYC__|__total'", "Integer", "'NYC__|__mean'", "Float",
+                "'SF__|__total'", "Integer", "'SF__|__mean'", "Float"), types, json.toString());
+    }
+
     @Test
     @DisplayName("shape classification is a closed switch over the type system")
     void shapeClassification() {

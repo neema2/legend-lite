@@ -158,6 +158,16 @@ final class MongoDbStatements implements Statements {
         }
     }
 
+    /** {@inheritDoc} A MongoDB result reports no column types (its documents carry fields, not a typed result's
+     *  columns): {@code reported} is handed null before the cursor is opened, and the rows read as {@link #rows} reads
+     *  them. legend-engine runs no MongoDB pivot, so no answer of its is copied. */
+    @Override
+    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Reports reported, Cells cells) throws IOException {
+        reported.columns(null);
+        rows(statement, slots, values, columns, cells);
+    }
+
     /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
     private MongoCursor<BsonDocument> cursor(String statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {

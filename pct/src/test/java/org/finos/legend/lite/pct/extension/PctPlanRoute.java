@@ -54,6 +54,14 @@ final class PctPlanRoute {
                 }
 
                 @Override
+                public void columns(java.util.List<ExecutionPlan.Column> columns,
+                        java.util.@com.legend.base.Nullable List<String> reported) throws IOException {
+                    // a dynamic pivot's: the engine's header typed by the database's report (D18 F)
+                    collector.columns(columns);
+                    engine.columns(columns, reported);
+                }
+
+                @Override
                 public void batch(com.legend.result.Batch batch) throws IOException {
                     collector.batch(batch);
                     engine.batch(batch);

@@ -739,6 +739,33 @@ class PureV1ApiTest {
         assertEquals("{\"code\":-1,\"message\":\"ConversionException: no\",\"status\":\"error\"}", a.json());
     }
 
+    /** legend-engine's type of a dynamic result's column by the type name its driver reported
+     *  (ResultColumn.labelTypePair), its own last line included: a DuckDB BOOLEAN is a String there, copied. */
+    @Test
+    void aDynamicColumnIsTypedByTheReportAsLegendEngineTypesIt() {
+        java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
+        expected.put("VARCHAR", "String");
+        expected.put("char(3)", "String");
+        expected.put("DOUBLE", "Float");
+        expected.put("DECIMAL(38,2)", "Float");
+        expected.put("NUMERIC", "Float");
+        expected.put("REAL", "Float");
+        expected.put("FLOAT", "Float");
+        expected.put("INTEGER", "Integer");
+        expected.put("BIGINT", "Integer");
+        expected.put("HUGEINT", "Integer");
+        expected.put("SMALLINT", "Integer");
+        expected.put("TINYINT", "Integer");
+        expected.put("BIT", "Boolean");
+        expected.put("TIMESTAMP", "DateTime");
+        expected.put("TIMESTAMP WITH TIME ZONE", "DateTime");
+        expected.put("DATE", "StrictDate");
+        expected.put("BOOLEAN", "String");
+        expected.put("UUID", "String");
+        expected.forEach((reported, type) -> assertEquals(type, PureV1Api.reportedType(reported), reported));
+        assertEquals("String", PureV1Api.reportedType(null));
+    }
+
     /**
      * D18 B (the user, 2026-11-03): a database's refusal at run time answered as legend-engine answers one
      * ({@code ExceptionError}) -- by the server, named by its root cause, the driver's own failure all the way down, its

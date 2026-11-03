@@ -832,3 +832,19 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   the compiler's types; every output the same (`PureV1ApiTest`'s differential of the two makers; the PCT lanes that read
   the JVM's answer as legend-engine's adapter does, `//pct:pct_duckdb_essential`, `pct_duckdb_relation`, `pct_h2`,
   green). A dynamic pivot's header is part 2.
+- 2026-11-03: F, part 2: a dynamic pivot's answer header on the JVM made as legend-engine makes it
+  (`RelationalResult.buildTransformersAndBuilder` with `isResultColumnsDynamic`): EVERY column rebuilt from the
+  database's report, its label and the type `ResultColumn.labelTypePair` reads from the driver's type name, with no
+  relational spelling. The report travels with the columns: `Statements.rows` hands the result's reported columns over
+  once it opens (JDBC's `getColumnTypeName`; MongoDB reports none, S132), the keyed run announces its columns with them
+  (`ResultSink.columns(columns, reported)`, through `Batcher.start(reported)`), and the JSON and Arrow writers make
+  their header from them (`PureV1Writer.dynamicRelation`, `ArrowWriter`'s report-taking constructor,
+  `PureV1Api.dynamicEnvelope`). Measured (`ExecutorTest.pivotDynamicHeaderIsTheDatabasesReport`),
+  `T_TREES->pivot(~CITY, ~[total: sum, mean: average])` on DuckDB: every builder column was `{"name", "type",
+  "relationalType"}` (the old maker, `builderColumn`) and is `{"name", "type"}`; `YR` `Integer` (DuckDB's `INTEGER`),
+  the sums `Integer` (`HUGEINT`), the averages `Float` (`DOUBLE`). By the rule, not yet measured on a run: a column
+  DuckDB reports `DECIMAL(p,s)` is `Float` where the plan said `Decimal`, and one it reports `BOOLEAN` is `String`
+  (none of legend-engine's prefixes matches it; its own last line answers String, copied as it is). The values are the
+  database's, unchanged. A pivot whose template is a precision decimal, refused by the old maker ("is no primitive"),
+  is answered. The compiler-types maker (`PureV1Api.envelope`) is now used by the differential test alone; it goes
+  with R2's census.

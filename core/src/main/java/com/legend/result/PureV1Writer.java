@@ -32,39 +32,69 @@ public final class PureV1Writer implements ResultSink {
     private final Writer out;
     private final ExecutionPlan.TdsResult.Shape shape;
     private final java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope;
+    private final java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
+            @com.legend.base.Nullable List<String>, Envelope> dynamic;
     private List<ExecutionPlan.Column> columns = List.of();
     private int[] order = new int[0];
     private long rows;
     private @com.legend.base.Nullable String firstObject;
 
     private PureV1Writer(Writer out, ExecutionPlan.TdsResult.Shape shape,
-            java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope) {
+            java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope,
+            java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
+                    @com.legend.base.Nullable List<String>, Envelope> dynamic) {
         this.out = out;
         this.shape = shape;
         this.envelope = envelope;
+        this.dynamic = dynamic;
     }
 
     /** A relation's answer, its envelope made from the columns the stream announces (a dynamic pivot's columns are
      *  known only once its keys are read). */
     public static PureV1Writer relation(Writer out,
             java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope) {
-        return new PureV1Writer(out, ExecutionPlan.TdsResult.Shape.RELATION, envelope);
+        return new PureV1Writer(out, ExecutionPlan.TdsResult.Shape.RELATION, envelope, null);
+    }
+
+    /** A DYNAMIC relation's answer (a pivot whose columns its data names): its envelope made from the columns the run
+     *  announces and the database's report of each ({@link ResultSink#columns(List, List)}; D18 F). */
+    public static PureV1Writer dynamicRelation(Writer out, java.util.function.BiFunction<List<ExecutionPlan.Column>,
+            @com.legend.base.Nullable List<String>, Envelope> envelope) {
+        return new PureV1Writer(out, ExecutionPlan.TdsResult.Shape.RELATION, columns -> {
+            throw new IllegalStateException("a dynamic relation's header is made from the database's report: the run "
+                    + "announced its columns without one");
+        }, envelope);
     }
 
     /** A graph fetch's answer: the objects, no builder of columns. */
     public static PureV1Writer objects(Writer out) {
         return new PureV1Writer(out, ExecutionPlan.TdsResult.Shape.OBJECTS, columns -> {
             throw new IllegalStateException("not reached: a graph fetch's answer has no envelope of columns");
-        });
+        }, null);
+    }
+
+    @Override
+    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+            throws IOException {
+        if (dynamic == null) {
+            columns(columns);
+            return;
+        }
+        header(columns, dynamic.apply(List.copyOf(columns), reported));
     }
 
     @Override
     public void columns(List<ExecutionPlan.Column> columns) throws IOException {
-        this.columns = List.copyOf(columns);
         if (shape == ExecutionPlan.TdsResult.Shape.OBJECTS) {
+            this.columns = List.copyOf(columns);
             return;
         }
-        Envelope e = envelope.apply(this.columns);
+        header(columns, envelope.apply(List.copyOf(columns)));
+    }
+
+    /** The answer's head: {@code e}'s builder and activities, then the columns' names, the rows' array opened. */
+    private void header(List<ExecutionPlan.Column> columns, Envelope e) throws IOException {
+        this.columns = List.copyOf(columns);
         // each row's values in the engine's column order, read from the plan's columns by the name the engine labels
         // each with (CellText.presentedName: a pivot's generated column quoted)
         List<String> names = e.names();

@@ -92,7 +92,11 @@ class DialectBoundaryTest {
     // Sessions.java 0 -> 1 (2026-10-04, C3b): the execution side's one session owner names the in-process
     // databases it keeps a connection for (an in-memory DuckDB; SQLite, which this census does not count)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
-            "Databases.java", 2,            // PLATFORM (S27), REPLAY_REFEREE
+            // 2 -> 3 (2026-11-03, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D18 B): jdbcFailureClass, the class the JDBC
+            // driver legend-engine runs a database with throws a statement's failure as -- DuckDB's, the one database a
+            // host runs. A planning-side fact (a host's boundary carries no connector, and D72 keeps driver facts out of
+            // the dialect), so the declared type's owner holds it
+            "Databases.java", 3,            // PLATFORM (S27), REPLAY_REFEREE, jdbcFailureClass's DuckDB
             // Sessions.java: 1 -> 3 (2026-10-13, the dialect program's Phase 0): not new lines -- the census counts
             // every declared type now, and Sessions also named the in-memory SQLite and, on one line, MariaDB and
             // MySQL (raisedMessage's product check); 3 -> 0, row deleted (2026-10-16, the program's Phase 5): each is

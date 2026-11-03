@@ -189,29 +189,45 @@ public final class PlanRunner {
     }
 
     /** A typed answer on its way to a sink: the columns once the statement has answered (its first row, or its
-     *  end), so a statement the database refuses has written nothing to the sink. */
+     *  end), so a statement the database refuses has written nothing to the sink. A DYNAMIC answer's (a keyed plan's)
+     *  columns go with the database's report of each ({@link com.legend.result.ResultSink#columns(List, List)}). */
     private static final class Streamed {
         private final com.legend.result.Batcher batcher;
+        private final boolean dynamic;
+        private final @com.legend.base.Nullable List<String> reported;
         private boolean started;
 
         Streamed(List<ExecutionPlan.Column> columns, com.legend.result.ResultSink sink, int capacity) {
+            this(columns, sink, capacity, false, null);
+        }
+
+        Streamed(List<ExecutionPlan.Column> columns, com.legend.result.ResultSink sink, int capacity, boolean dynamic,
+                @com.legend.base.Nullable List<String> reported) {
             this.batcher = new com.legend.result.Batcher(columns, sink, capacity);
+            this.dynamic = dynamic;
+            this.reported = reported;
         }
 
         void row(List<Object> cells) throws IOException {
-            if (!started) {
-                started = true;
-                batcher.start();
-            }
+            start();
             batcher.row(cells);
         }
 
         void end() throws IOException {
-            if (!started) {
-                started = true;
+            start();
+            batcher.end();
+        }
+
+        private void start() throws IOException {
+            if (started) {
+                return;
+            }
+            started = true;
+            if (dynamic) {
+                batcher.start(reported);
+            } else {
                 batcher.start();
             }
-            batcher.end();
         }
     }
 
@@ -228,8 +244,8 @@ public final class PlanRunner {
         }
 
         @Override
-        public void columns(List<ExecutionPlan.Column> columns) {
-            streamed = new Streamed(columns, sink, capacity);
+        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported) {
+            streamed = new Streamed(columns, sink, capacity, true, reported);
         }
 
         @Override
@@ -251,9 +267,11 @@ public final class PlanRunner {
 
     // ---- a keyed plan (a dynamic pivot's probe plan, 2026-10-20; docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) ----------
 
-    /** Where a keyed plan's answer goes, once its keys are known: its columns, then each row's cells. */
+    /** Where a keyed plan's answer goes, once its keys are known: its columns with the database's report of each (null
+     *  where the database reports none), then each row's cells. */
     private interface KeyedSink {
-        void columns(List<ExecutionPlan.Column> columns) throws IOException;
+        void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+                throws IOException;
 
         void row(List<Object> cells) throws IOException;
 
@@ -457,9 +475,24 @@ public final class PlanRunner {
                     inOrder.set(place[i], answered.get(i));
                 }
                 Expanded body = expand(keyed.body(), keys, checked);
-                sink.columns(inOrder);
                 StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
+                // the columns announced once the body's result opens, with the database's report of each in the
+                // answer's order: legend-engine types a dynamic result's header by it (D18 F)
+                st.rows(body.statement(), body.slots(), body.values(), read, reported -> {
+                    if (reported == null) {
+                        sink.columns(inOrder, null);
+                        return;
+                    }
+                    if (reported.size() != columns) {
+                        throw new IllegalStateException("the keyed body reports " + reported.size() + " columns, and "
+                                + "its answer has " + columns);
+                    }
+                    List<String> types = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, (String) null));
+                    for (int i = 0; i < columns; i++) {
+                        types.set(place[i], reported.get(i).driverType());
+                    }
+                    sink.columns(inOrder, types);
+                }, cells -> {
                     List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
                     for (int i = 0; i < columns; i++) {
                         placed.set(place[i], cells.get(i));

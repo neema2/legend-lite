@@ -221,6 +221,14 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+        rows(statement, slots, values, columns, reported -> { }, cells);
+    }
+
+    /** {@inheritDoc} The report is the result set's metadata ({@link #reported}: each column's label and the driver's
+     *  own type name), read once the statement has run and its column count checked. */
+    @Override
+    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Reports reports, Cells cells) throws IOException {
         try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -245,6 +253,7 @@ final class JdbcStatements implements Statements {
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
                 JdbcDecode.Reader reader = new JdbcDecode.Reader(columns, driver);
+                reports.columns(reported(rs.getMetaData()));
                 while (rs.next()) {
                     cells.row(reader.row(rs));
                 }

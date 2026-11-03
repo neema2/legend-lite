@@ -43,24 +43,48 @@ import java.util.function.IntFunction;
 public final class ArrowWriter implements ResultSink {
 
     private final OutputStream out;
-    private final java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> metadata;
+    private final @com.legend.base.Nullable Map<String, String> fixed;
+    private final java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
+            @com.legend.base.Nullable List<String>, Map<String, String>> dynamic;
     private List<Enc> encoders = List.of();
 
-    /** Onto {@code out}; {@code schemaMetadata} the stream's custom metadata (key to value), in order, made from the
-     *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). */
-    public ArrowWriter(OutputStream out,
-            java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata) {
+    /** Onto {@code out}, a DYNAMIC result's (a pivot whose columns its data names): {@code schemaMetadata} the stream's
+     *  custom metadata (key to value), in order, made from the columns the result announces and the database's report
+     *  of each ({@link ResultSink#columns(List, List)}; D18 F). */
+    public ArrowWriter(OutputStream out, java.util.function.BiFunction<List<ExecutionPlan.Column>,
+            @com.legend.base.Nullable List<String>, Map<String, String>> schemaMetadata) {
         this.out = out;
-        this.metadata = schemaMetadata;
+        this.fixed = null;
+        this.dynamic = schemaMetadata;
     }
 
     /** Onto {@code out} with a fixed metadata. */
     public ArrowWriter(OutputStream out, Map<String, String> schemaMetadata) {
-        this(out, columns -> schemaMetadata);
+        this.out = out;
+        this.fixed = schemaMetadata;
+        this.dynamic = null;
+    }
+
+    @Override
+    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+            throws IOException {
+        if (dynamic == null) {
+            columns(columns);
+            return;
+        }
+        schema(columns, dynamic.apply(columns, reported));
     }
 
     @Override
     public void columns(List<ExecutionPlan.Column> columns) throws IOException {
+        if (fixed == null) {
+            throw new IllegalStateException("a dynamic result's metadata is made from the database's report: the run "
+                    + "announced its columns without one");
+        }
+        schema(columns, fixed);
+    }
+
+    private void schema(List<ExecutionPlan.Column> columns, Map<String, String> metadata) throws IOException {
         List<Enc> encs = new ArrayList<>(columns.size());
         List<ArrowField> fields = new ArrayList<>(columns.size());
         for (ExecutionPlan.Column c : columns) {
@@ -69,7 +93,7 @@ public final class ArrowWriter implements ResultSink {
             fields.add(e.field());
         }
         encoders = encs;
-        out.write(ArrowIpc.schema(fields, new LinkedHashMap<>(metadata.apply(columns))));
+        out.write(ArrowIpc.schema(fields, new LinkedHashMap<>(metadata)));
     }
 
     @Override

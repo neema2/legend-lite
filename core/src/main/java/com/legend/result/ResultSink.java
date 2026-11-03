@@ -20,6 +20,18 @@ public interface ResultSink {
     /** The result's columns, in order, before any batch. */
     void columns(List<ExecutionPlan.Column> columns) throws IOException;
 
+    /**
+     * A DYNAMIC result's columns (a pivot whose columns its data names: its keys read first), in order, before any
+     * batch, with each one's type as the database reported it once the result opened ({@code reported}, in the columns'
+     * order: the driver's own type name, JDBC's {@code getColumnTypeName}; null where the database reports none,
+     * MongoDB's documents) -- what legend-engine types a dynamic result's header by (D18 F, the user 2026-11-03). A sink
+     * that writes no such header takes the columns alone.
+     */
+    default void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+            throws IOException {
+        columns(columns);
+    }
+
     /** The next rows of the result, in its order; a batch holds at least one row. */
     void batch(Batch batch) throws IOException;
 

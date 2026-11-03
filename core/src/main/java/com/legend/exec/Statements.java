@@ -97,6 +97,18 @@ public interface Statements {
     void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
 
+    /** {@link #rows}, the columns the database reports for the statement's result handed to {@code reported} once the
+     *  result opens, before any row is read (a keyed answer's header is typed from that report, as legend-engine types a
+     *  dynamic result's: D18 F); null where the database reports no column types (MongoDB). */
+    void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Reports reported, Cells cells) throws IOException;
+
+    /** Where a result's reported columns go. */
+    @FunctionalInterface
+    interface Reports {
+        void columns(@com.legend.base.Nullable List<Reported> reported) throws IOException;
+    }
+
     /**
      * {@code work} with every statement it sends seeing one state of the data, as {@code snapshot} says (a keyed plan's
      * keys probe and its body: the keys are the body's; 2026-10-20): a transaction at that isolation, committed when

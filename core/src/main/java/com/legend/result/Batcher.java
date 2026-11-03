@@ -43,6 +43,16 @@ public final class Batcher {
         sink.columns(columns);
     }
 
+    /** A DYNAMIC result's columns, to the sink with the database's report of each ({@code reported}; null where the
+     *  database reports none), before any row ({@link ResultSink#columns(List, List)}). */
+    public void start(@com.legend.base.Nullable List<String> reported) throws IOException {
+        if (started) {
+            throw new IllegalStateException("a result is started once");
+        }
+        started = true;
+        sink.columns(columns, reported);
+    }
+
     /** One row, its cells in column order. */
     public void row(List<?> cells) throws IOException {
         if (!started || ended) {
