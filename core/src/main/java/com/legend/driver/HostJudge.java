@@ -677,7 +677,19 @@ final class HostJudge {
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.CellPool c -> cellPoolOf(c, sides);
+            case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides);
         };
+    }
+
+    /**
+     * {@code j} judged over its sides AS THE RUNNER READ THEM (the walker-deletion program, 2026-11-03): {@code sides}
+     * hands their rows, or raises the error reading them raised -- every judgment's one entry at its verdict step. The
+     * judgment decides what an error is: the answer of the one that asks for an error ({@link HostJudgment.AssertError}:
+     * the error its function raises), every other's failure, raised as it was.
+     */
+    static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
+            java.util.function.Supplier<List<TypedSide>> sides) {
+        return j instanceof HostJudgment.AssertError a ? AssertErrorNative.judge(a, sides) : judge(j, sides.get());
     }
 
     /** The static facts of one side, read once at planning. */

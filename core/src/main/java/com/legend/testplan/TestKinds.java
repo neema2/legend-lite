@@ -130,9 +130,11 @@ final class TestKinds implements ProgramKinds {
             frame(program, index, (TypedLet) statement);
             return true;
         }
-        if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)) {
-            // a statement-root assert its judge planned (M6): its verdict step(s) at its turn -- none where the judge
-            // absorbed it into a later statement's groups (the database judge's segment, M7)
+        if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)
+                || QueryDoor.assertErrorRoot(statement, program.query().specs())) {
+            // a statement-root assert its judge planned (M6), or an assertError (its function's body the step's side,
+            // 2026-11-03): its verdict step(s) at its turn -- none where the judge absorbed it into a later statement's
+            // groups (the database judge's segment, M7)
             List<ExecutionPlan.Verdicts> steps = asserts.at(index);
             if (steps != null) {
                 steps.forEach(program::add);

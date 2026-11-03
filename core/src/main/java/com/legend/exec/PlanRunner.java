@@ -165,10 +165,11 @@ public final class PlanRunner {
 
         /** The HOST judge's sides for {@code verdict} could not be read: the database refused one of them, or the
          *  read raised ({@code failure}: a data error, or any other; an I/O failure unchecked) (the test-is-the-product
-         *  plan's M6). The sink's accounting -- the walk counts the assert and reports its failure as it does an assert
-         *  whose side raised -- and the error the program raises is the one returned. */
-        default RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
-            return failure;
+         *  plan's M6). The sink judges the verdict over that error as over rows ({@link #sides}), and raises where it
+         *  does not hold: an error is every verdict's failure but the one whose answer it is (an {@code assertError}'s,
+         *  the walker-deletion program, 2026-11-03), and the program goes on where it returns. */
+        default void sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
+            throw failure;
         }
 
         /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
@@ -539,14 +540,32 @@ public final class PlanRunner {
             Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
             throws IOException {
         if (judging == Judging.HOST || judging == Judging.BOTH) {
+            // F11 for the host's reads: inside the program's transaction a side whose failure the program may survive
+            // (an assertError's) is read under the group's savepoint, so the transaction stays live for the steps after
+            // it; the program's transaction is its own target's
+            ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
             for (ExecutionPlan.Verdict each : group.verdicts()) {
                 List<Rows> sides;
+                if (guard != null) {
+                    sendStatement(guard.set(), st.home());
+                }
                 try {
                     sides = hostSides(each, values, st);
                 } catch (RuntimeException e) {
-                    throw sink.sidesFailed(each, e);
+                    if (guard != null) {
+                        sendStatement(guard.rollbackTo(), st.home());
+                    }
+                    sink.sidesFailed(each, e);
+                    continue;
                 } catch (IOException e) {
-                    throw sink.sidesFailed(each, new UncheckedIOException(e));
+                    if (guard != null) {
+                        sendStatement(guard.rollbackTo(), st.home());
+                    }
+                    sink.sidesFailed(each, new UncheckedIOException(e));
+                    continue;
+                }
+                if (guard != null) {
+                    sendStatement(guard.release(), st.home());
                 }
                 sink.sides(each, sides);
             }

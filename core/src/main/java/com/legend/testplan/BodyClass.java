@@ -560,8 +560,9 @@ public enum BodyClass {
                 lets.add(let);
                 continue;
             }
-            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
-                    && !(statement instanceof TypedLet);
+            // an assert at a statement's root, or an assertError (its function's body the step's side, 2026-11-03)
+            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)
+                    || QueryDoor.assertErrorRoot(statement, query.specs());
             if (!assertRoot && !kinds.isEmpty() || storesOf(statement, query, i) == Stores.BOTH
                     || StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx) != null, query.specs(), sideKindMemo)) {
@@ -580,7 +581,7 @@ public enum BodyClass {
             return false;
         }
         TypedSpec last = body.get(body.size() - 1);
-        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT)
+        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
 
@@ -669,8 +670,9 @@ public enum BodyClass {
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
-            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
-                    && !(statement instanceof TypedLet);
+            // an assert at a statement's root, or an assertError (its function's body the step's side, 2026-11-03)
+            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)
+                    || QueryDoor.assertErrorRoot(statement, query.specs());
             // a let binding system elements the body never reads as a value (consumed by toSQLString, by
             // executionPlan, by an execute's runtime argument): a value let the program splices, no system read (M10b;
             // the same test routes the body; through helpers, constructions and chains: items 7, 7b)
@@ -697,7 +699,7 @@ public enum BodyClass {
         // an assert as the last statement answers its verdict, as the walk answers it; any other last statement sends
         // nothing (a literal, a handle, an inert print): a query planned after the asserts could fail planning before
         // they ran and reported, where the walk fails it at its turn
-        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT)
+        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
 

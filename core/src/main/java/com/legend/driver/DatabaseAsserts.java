@@ -95,6 +95,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
+        if (typed.body().stream().anyMatch(st -> scan.kinds(st).contains(QueryDoor.TestOnly.ASSERT_ERROR))) {
+            // an assertError beside the database judge's segments: the walk runs it at its segment's close, before the
+            // flush -- the walk's under this judge, by name, until its step is placed among the segment's groups
+            com.legend.exec.Census.unplannedAssert("database: an assertError beside the segment's verdicts");
+            return null;
+        }
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>();
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();

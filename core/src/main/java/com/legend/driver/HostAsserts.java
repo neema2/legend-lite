@@ -144,6 +144,21 @@ final class HostAsserts implements TestDoor.Asserts {
                 }
                 continue;
             }
+            if (QueryDoor.assertErrorRoot(statement, specs)) {
+                // assertError (the walker-deletion program, 2026-11-03): its function's body the step's side, the
+                // error it raises the answer
+                TypedSpec bare = Lets.bare(statement);
+                Planned p = pendingLet != null
+                        ? planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
+                                pendingLet), HostSides.Planned.NONE)
+                        : planAssertError(statement, bare, letPrefix, frames, specs, env);
+                if (p == null) {
+                    return null;
+                }
+                raisedByAnAssert |= pendingLet != null;
+                planned.put(i, p);
+                continue;
+            }
             if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
                 continue;
             }
@@ -247,11 +262,92 @@ final class HostAsserts implements TestDoor.Asserts {
         return planned(assertion, sides);
     }
 
+    /**
+     * {@code statement}, an {@code assertError(f, expected[, line, column])} root ({@code bare} its call), planned: f's
+     * lets after the body's lets before it, f's last statement its one side (never folded: the database evaluates it,
+     * so its raise carries its position, as the walk's arm runs it), the judgment the arm's
+     * ({@link HostJudgment.AssertError}). An error f raises while it is planned -- a deferred guard's, the arm's catch --
+     * is the judgment's own; a shape the arm refuses, and an error no arm takes (a wall), raise at the assert's turn, as
+     * the walk's arm raises them. The side is the one statement whose failure the program survives: its step carries
+     * the dialect's savepoint, which the runner sends only inside a transaction (F11), so the expected error leaves the
+     * transaction live for the steps after it. A database that aborts the transaction and has no savepoint (DuckDB,
+     * as F11's rung) fails the steps after it loudly -- a named limit: a program that writes a store and then expects
+     * an error. Null where f holds a statement before its last that is no let, or its side is on a session the body
+     * cannot reach: the walk.
+     */
+    private static @Nullable Planned planAssertError(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
+            Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
+        String name = AssertVerdicts.listenerName(bare);
+        if (!(bare instanceof com.legend.compiler.spec.typed.TypedNativeCall ae)) {
+            return null;
+        }
+        ExecutionPlan.Verdicts.@Nullable Savepoint savepoint = savepointOf(env);
+        AssertErrorNative.Args args;
+        try {
+            args = AssertErrorNative.args(ae);
+        } catch (com.legend.error.NotImplementedException e) {
+            // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
+            return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE);
+        }
+        List<TypedSpec> body = args.f().body();
+        if (body.isEmpty()) {
+            return null;
+        }
+        List<TypedSpec> before = new ArrayList<>(letPrefix);
+        for (TypedSpec st : body.subList(0, body.size() - 1)) {
+            if (!(st instanceof TypedLet)) {
+                return null;
+            }
+            before.add(st);
+        }
+        TypedSpec side = Lets.bare(body.get(body.size() - 1));
+        BodyDriver.ExecEnv at;
+        AssertVerdicts.SpliceHook hook;
+        try {
+            at = BodyDriver.frameReplaceEnv(statement, frames, env, before, specs);
+            hook = BodyDriver.spliceHook(frames, before, specs, env)::apply;
+        } catch (RuntimeException e) {
+            return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE);
+        }
+        List<HostSides.Ask> asks = List.of(new HostSides.Ask(side, false, false, hook));
+        HostSides.Planned sides;
+        RuntimeException caught = null;
+        try {
+            sides = HostSides.plan(name, asks, before, specs, at);
+        } catch (RuntimeException e) {
+            caught = AssertErrorNative.caught(e);
+            if (caught == null) {
+                // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
+                return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE);
+            }
+            sides = HostSides.Planned.NONE;
+        }
+        if (sides.on() != null && sides.on() != env.session()
+                && SystemDatabase.of(env.ctx()).engineOf(sides.on()) == null) {
+            return null;
+        }
+        AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
+                new HostSides.Check(caught == null ? asks : List.of(),
+                        new HostJudgment.AssertError(args.expected(), args.line(), args.column(), caught)));
+        return planned(assertion, sides, savepoint);
+    }
+
+    /** The dialect's savepoint texts for a statement whose failure the program survives, or null where it has none. */
+    private static ExecutionPlan.Verdicts.@Nullable Savepoint savepointOf(BodyDriver.ExecEnv env) {
+        com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
+        return s == null ? null : new ExecutionPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
+    }
+
     /** {@code assertion}'s verdict step over {@code sides}' base: one verdict, its wrapper none (the host judges). */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides) {
+        return planned(assertion, sides, null);
+    }
+
+    private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
+            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint) {
         ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(assertion.listenerName(), assertion.name(),
                 sides.base(), null);
-        return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null));
+        return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint));
     }
 
     @Override

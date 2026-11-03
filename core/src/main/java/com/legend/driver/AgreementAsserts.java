@@ -145,17 +145,21 @@ final class AgreementAsserts implements TestDoor.Asserts {
         return one;
     }
 
-    /** The host half's sides for {@code verdict}, judged and HELD ({@link AssertVerdicts#heldAtItsStep}): the
+    /** The host half's sides for {@code verdict} as the runner read them ({@code rows}: their rows, or the error
+     *  reading them raised, the judgment deciding it), judged and HELD ({@link AssertVerdicts#heldAtItsStep}): the
      *  verdict of record is decided once the database half's rows are in ({@link #received}); a database member's
-     *  (no base) is nothing to the host. */
-    void hostSides(ExecutionPlan.Verdict verdict, List<com.legend.exec.PlanRunner.Rows> rows,
+     *  (no base, so nothing read) is nothing to the host, but an error reading it is raised, never dropped. */
+    void hostSides(ExecutionPlan.Verdict verdict,
+            java.util.function.Supplier<List<com.legend.exec.PlanRunner.Rows>> rows,
             @Nullable AssertListener listener) {
         One one = of(verdict);
         if (verdict != one.hostVerdict) {
+            rows.get();
             return;
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
-        one.held = AssertVerdicts.heldAtItsStep(a, listener, () -> HostSides.shaped(a.name(), one.host.sides(), rows));
+        one.held = AssertVerdicts.heldAtItsStep(a, listener,
+                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get()));
     }
 
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.
@@ -179,13 +183,6 @@ final class AgreementAsserts implements TestDoor.Asserts {
         One one = of(group.verdicts().get(0));
         java.util.Objects.requireNonNull(one.database, "a fused statement for an assert the database declined")
                 .planned().fused(group, rejected);
-    }
-
-    /** A host side of {@code verdict}'s that could not be read: counted and reported as the walk counts and reports an
-     *  assert whose side raised. */
-    RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure,
-            @Nullable AssertListener listener) {
-        return AssertVerdicts.sideRefused(of(verdict).host.assertion(), listener, failure);
     }
 
     private static TypedSide decided(One one, @Nullable AssertListener listener) {

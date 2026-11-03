@@ -179,23 +179,23 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
             }
-            if (savepoint != null && fused == null) {
-                throw new IllegalArgumentException("a savepoint guards a fused verdict statement: this group has none");
-            }
         }
 
-        /** A group with no savepoint: its database's transaction survives a failing statement, or the group runs
-         *  outside any transaction. */
+        /** A group with no savepoint: its database's transaction survives a failing statement, the group runs
+         *  outside any transaction, or no failure of its statements is one the program survives but the fused
+         *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
             this(verdicts, fused, null);
         }
 
         /**
          * F11 (the test-is-the-product plan's B12): on a database that ABORTS a transaction on a failing statement,
-         * the fused statement sent inside a transaction is guarded by a savepoint -- {@code set} before it,
-         * {@code rollbackTo} when the database rejects it (so the verdicts' own wrappers, the split rung, can run),
-         * {@code release} otherwise. The texts are the dialect's ({@code SqlDialect.verdictSavepoint}); the runner
-         * sends them only inside a transaction.
+         * each statement of the group whose failure the program survives, sent inside a transaction, is guarded by a
+         * savepoint -- {@code set} before it, {@code rollbackTo} when the database rejects it, {@code release}
+         * otherwise: the fused statement (so the verdicts' own wrappers, the split rung, can run) and each verdict's
+         * host side read (an {@code assertError}'s side, whose error is its verdict's answer; the walker-deletion
+         * program, 2026-11-03). The texts are the dialect's ({@code SqlDialect.verdictSavepoint}); the runner sends
+         * them only inside a transaction.
          */
         public record Savepoint(String set, String rollbackTo, String release) {
             public Savepoint {
