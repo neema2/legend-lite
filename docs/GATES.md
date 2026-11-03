@@ -17506,3 +17506,28 @@ written). No guard moved (the new comment and message do not name the JDBC packa
 
 Checks: `//core:{core_tests_root,core_tests_server,arrow_writer_test,guardrails}`.
 
+## 2026-11-03 — D21 Q3, part two: Python's Table.execute on lite's own Arrow; a Variant tagged arrow.json; TeaVM's heap 3g
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D21 (the user's rulings of 2026-11-03: Q3's five cases, and a Variant as
+Arrow's canonical JSON type) and §8.
+- **`Table.execute`** (`frames.py`): the plan record (`HeldModel.plan_record`) run on the frames' database, its Arrow
+  handed to the core (`compiler.execute_lite_answer_arrow`), which writes lite's own Arrow; a refusal raised
+  (`compiler.refused_by`, factored from `_engine`). `ipc_stream` moved to `frames.py`. Measured before and after (a
+  scratch probe, deleted): the five ruled changes and the Variant's compact text, nothing else.
+- **A Variant** (`result/ArrowWriter`): its compact JSON text, the field tagged `ARROW:extension:name` `arrow.json`
+  (metadata empty) whatever its slot; pyarrow reads it as `pa.json_()`; the core's reader, arrow-js and DuckDB read it
+  (`ArrowRowsTest.aVariantIsItsCompactJsonTaggedArrowJson`, the conformance suite, DataCube's suites).
+- **`EngineArrowWriter`**: the pre-1582 refusal's message spelled without `String.format`.
+
+Build ceiling moved, with its measurement in place: `tools/teavm/BUILD.bazel` `-Xmx2g` -> `-Xmx3g` and
+`tools/teavm/defs.bzl` scheduling memory 2048 -> 3072. The planner's live set after marking measured about 1.8 GB at
+2g (`-Xlog:gc`; 889 MB on 2026-10-04); the Bazel action failed with `OutOfMemoryError` four times in a row here and
+passed once by hand. CI builds it at the same heap, and has not yet run on this branch (it runs on `main` and PRs).
+
+Checks: `//core:{core_tests_root,core_tests_server,arrow_writer_test,guardrails}`, `//wasm:planner`,
+`//datacube:{conformance,python_engine,python_execute}_test`, `//datacube:tests`, `//query:tests`, `//studio:tests`
+(227), `//engine-client:tests`, `//engine-client:lite_adapter_test`, `//python:{frames,bindings,model,host_sql,
+arrow_handoff}_test`, `//python:engine_test` in four parts (68, 35, 12, 217), `//python:headless_test` in three (46, 7,
+2), `//python:notebook_test` in parts (21, and `InMarimo` one test per process: 7 of 8, the eighth the container's
+segfault with HEAD's code too).
+

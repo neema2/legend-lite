@@ -260,6 +260,13 @@ R2's (the user, 2026-11-02):
     past 64 bits refused by name, never wrapped or rounded (Arrow's integers stop at 64 bits; DuckDB's decimal128(38, 0)
     for a 128-bit integer is its workaround, and a type that changes with the data, Python's `_integer` today, is not
     clean).
+  - **A Variant in lite's own Arrow is `arrow.json`** (the user, 2026-11-03, after "why not use the new variant for
+    arrow?"): its compact JSON text (the decoders' carrier on every path; digits as written, `2.50`), the field tagged
+    with Arrow's canonical JSON type (`ARROW:extension:name` `arrow.json`) beside the plan's facts, on every host. Arrow's
+    binary Parquet variant (`arrow.parquet.variant`, canonical, the shape and number types kept per row) once the
+    readers read it: measured on the pins, pyarrow 23.0.1 has no type for it and DuckDB 1.5.5 exports none of its own
+    `VARIANT` ("Unsupported Arrow type VARIANT"), so a Python user would get two binary blobs today. One encoder writes
+    the Variant, so that move stays contained.
   - **legend-engine's `ARROW_IPC` route frozen** (the user, 2026-11-03, asked "are we over indexing on engine Arrow?",
     then "Sounds good" to freezing it): what is built stays and is kept green; no more R4 work on it. What it answers
     is upstream's byte for byte; everything else is refused by name (register S136: a map, a struct, a binary value, a
@@ -1290,3 +1297,11 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
 - 2026-11-03: legend-engine's `ARROW_IPC` route frozen (D21, §1.2): a timestamp before 1582-10-15 is now refused by
   name (`EngineArrowWriter`), so everything the route answers is upstream's and S136 is a list of refusals, closed on
   a real client's need. Q3's second part (Python's `Table.execute`) still held for the Variant ruling.
+- 2026-11-03: D21 Q3 done. Python's `Table.execute` answers lite's own Arrow (the plan record's statement run, its Arrow
+  handed to the core's writer), as the JVM's and the tab's lite routes do: measured before and after on a frame of
+  every kind of column, the changes are the five ruled (a `FLOAT` float64 of its own digits, a `DateTime`
+  timestamp[ns, UTC], a frame's zone kept, an Integer sum int64 with one past 64 bits refused by name, each field's full
+  metadata) and the Variant (`arrow.json`, its compact text: `{"a": [1, 2.50]}` read back as `{"a":[1,2.50]}`).
+  Every other column the same, type and value. `typed_by_plan` remains for plan-and-run (DataCube talking to Python),
+  the next step, its cases posted first. The TeaVM build's heap 2g -> 3g: the tab's planner has grown and its live set
+  measured about 1.8 GB, so the action failed for memory at 2g (CI runs it at the same heap).

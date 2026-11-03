@@ -829,7 +829,7 @@ class Joins(unittest.TestCase):
         self.assertEqual(cube['source']['left']['source'], {'_type': 'frame', 'name': 'join_trades', 'columns': cube['source']['left']['source']['columns']})
         # its rows, planned by Python's own compiler over the join's model and run on the frames' database
         with ll.HeldModel(said['model']) as held:
-            rows = datacube._session.frames.run(held.plan(said['relation'], said['runtime'])).to_pylist()
+            rows = datacube._session.frames.run(held.plan_record(said['relation'], said['runtime'])).to_pylist()
         pairs = sorted((r['trade_id'], r['region']) for r in rows)
         self.assertEqual(pairs, [(1, 'EMEA'), (2, 'EMEA'), (3, 'AMER'), (3, 'APAC'), (4, None), (5, None)])
         # a page takes it as it takes every grid: the page command addGrid, as given

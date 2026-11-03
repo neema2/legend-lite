@@ -481,6 +481,30 @@ class ArrowRowsTest {
     }
 
     @Test
+    void aVariantIsItsCompactJsonTaggedArrowJson() throws IOException {
+        // lite's own Arrow writes a Variant as its compact JSON text, tagged as Arrow's canonical JSON type whatever its
+        // slot (the user's ruling D21, 2026-11-03), beside the plan's facts; the reader reads it back as the same text
+        List<ExecutionPlan.Column> columns = List.of(col("v", RowDecode.VARIANT, "JSON"),
+                col("w", RowDecode.VARIANT, "VARCHAR"));
+        List<List<Object>> rows = new ArrayList<>(List.of(row("{\"a\":[1,2.50]}", "7"), row("[]", "\"x\"")));
+        rows.add(Arrays.asList(new Object[2]));
+        ByteArrayOutputStream arrow = new ByteArrayOutputStream();
+        ArrowWriter w = new ArrowWriter(arrow, Map.of());
+        w.columns(columns);
+        Batch.Builder b = Batch.builder(columns, rows.size());
+        rows.forEach(b::add);
+        w.batch(b.build());
+        w.end();
+        for (ArrowField f : com.legend.arrowipc.ArrowReader.open(ByteBuffer.wrap(arrow.toByteArray())).schema().fields()) {
+            assertEquals(new ArrowType.Utf8(), f.type(), f.name());
+            assertEquals("arrow.json", f.metadata().get("ARROW:extension:name"), f.name());
+            assertEquals("", f.metadata().get("ARROW:extension:metadata"), f.name());
+            assertEquals(RowDecode.VARIANT, f.metadata().get("legend.type"), f.name());
+        }
+        assertEquals(rows, decoded(arrow.toByteArray(), columns));
+    }
+
+    @Test
     void aJsonCellsInfinityIsReadAsDuckDbWritesIt() throws IOException {
         // DuckDB writes a double that is not finite as a bare token (its session's decoding fact): read, kept
         List<ExecutionPlan.Column> columns = List.of(col("v", RowDecode.VARIANT, "JSON"));

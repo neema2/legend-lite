@@ -3,7 +3,7 @@ queries the compiler plans run by DuckDB, answered as Arrow.
 
     frames = Frames()
     trades = frames.register('trades', df)              # every query reads df as it is then
-    trades.execute("->filter(x|$x.desk == 'FX')")       # a pyarrow.Table, typed by the plan
+    trades.execute("->filter(x|$x.desk == 'FX')")       # a pyarrow.Table, lite's own Arrow (the plan's types)
 
 A frame is anything Arrow reads: a pandas or polars DataFrame, a pyarrow Table, any object that exports
 Arrow -- or a function returning one, so its table follows a frame you rebuild. It is handed to DuckDB
@@ -42,6 +42,7 @@ require_datacube()
 
 import duckdb
 import pyarrow as pa
+import pyarrow.ipc
 
 from . import _host, compiler
 from ._types import UnknownType, is_integer
@@ -106,6 +107,15 @@ def typed_by_plan(rows: pa.Table, plan: compiler.Plan) -> pa.Table:
         fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
         columns.append(column)
     return pa.Table.from_arrays(columns, schema=pa.schema(fields, rows.schema.metadata))
+
+
+def ipc_stream(reader: pa.RecordBatchReader) -> pa.Buffer:
+    """A result's batches as one Arrow IPC stream, in a buffer the native library reads where it lies (R3)."""
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, reader.schema) as writer:
+        for batch in reader:
+            writer.write_batch(batch)
+    return sink.getvalue()
 
 
 def to_pandas(rows: pa.Table) -> Any:
@@ -246,10 +256,11 @@ class Table:
             return self._model().plan(self._tree(query), self.runtime)
 
     def execute(self, query: str | dict[str, Any]) -> pa.Table:
-        """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan."""
+        """Runs a query over this table (as ``plan`` takes it) and answers lite's own Arrow (``Frames.run``): the rows
+        in the plan's types, each field's facts its metadata."""
         with self._frames._lock:
             self._ready()
-            return self._frames.run(self._model().plan(self._tree(query), self.runtime))
+            return self._frames.run(self._model().plan_record(self._tree(query), self.runtime))
 
 
 @dataclass
@@ -387,12 +398,21 @@ class Frames:
             self._tables[key] = table
             return table
 
-    def run(self, plan: compiler.Plan) -> pa.Table:
-        """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
-        a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
-        Only SQL a planner wrote for this database comes here."""
+    def run(self, record: str) -> pa.Table:
+        """PYTHON'S EXECUTOR, a table's query: a plan record's statement run on this database, and its Arrow handed to
+        the core, which answers LITE'S OWN ARROW (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D19, D21 Q3) -- the rows
+        in the plan's types, as every host and legend-lite's server write them: an Integer int64 (one past 64 bits
+        refused by name), a Float float64 of its own digits, a Decimal at its scale, a DateTime timestamp[ns, UTC],
+        each field's facts its metadata (``legend.type``, ``legend.multiplicity``, ``legend.slot``,
+        ``legend.precision``) and the plan record the schema's (``legend.plan``). What the core refuses is raised
+        (``LegendError``); a database's own refusal as the database raised it. Only a plan a planner wrote for this
+        database comes here."""
         with self._lock:
-            return typed_by_plan(self.connection.execute(plan.sql).to_arrow_table(), plan)
+            arrow = ipc_stream(self.connection.execute(compiler.answer_statement(record)).fetch_record_batch())
+        status, _, body = compiler.execute_lite_answer_arrow(record, arrow)
+        if status != 200:
+            raise compiler.refused_by(status, body.decode('utf-8'))
+        return pa.ipc.open_stream(body).read_all()
 
     @contextlib.contextmanager
     def serving(self) -> Iterator[dict[str, str]]:

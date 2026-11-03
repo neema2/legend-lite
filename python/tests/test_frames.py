@@ -229,12 +229,15 @@ class Conversions(unittest.TestCase):
         for given in (pd.DataFrame({'at': [at]}), streamed(pd.DataFrame({'at': [at]}))):
             table = ll.Frames().register('t', given)
             self.assertEqual([(c.name, c.type) for c in table.columns], [('at', 'DateTime')])
-            self.assertEqual(table.execute('->select(~[at])').to_pylist(), [{'at': datetime.datetime(2026, 10, 8, 13, 30)}])
+            # lite's own Arrow (D21 Q3, 2026-11-03): a DateTime timestamp[ns, UTC], so the instant keeps its zone
+            self.assertEqual(table.execute('->select(~[at])').to_pylist(),
+                             [{'at': datetime.datetime(2026, 10, 8, 13, 30, tzinfo=datetime.timezone.utc)}])
 
 
 class TypedByPlan(unittest.TestCase):
-    """An answer typed by its plan (frames.typed_by_plan; docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a), as the
-    tab's executor types its own: each column the compiler's type, each value exact."""
+    """An answer typed by its plan: a table's query as lite's own Arrow (``Table.execute``, the core's writer, as every
+    host writes it: docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D21 Q3), a plan-and-run's rows by ``frames.typed_by_plan``
+    (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a): each column the compiler's type, each value exact."""
 
     def test_each_column_carries_the_compilers_type_and_its_value_exact(self):
         frame = pa.table({
@@ -249,14 +252,22 @@ class TypedByPlan(unittest.TestCase):
         })
         table = ll.Frames().register('t', frame)
         rows = table.execute('->select()')
+        # each field the plan's facts (lite's own Arrow, D21 Q3): its type as the typer spells it (a precision decimal's
+        # with its precision and scale), its multiplicity and its slot
         self.assertEqual({f.name: f.metadata[b'legend.type'].decode() for f in rows.schema},
-                         {'i': 'Integer', 'f': 'Float', 'd': 'Decimal', 's': 'String', 'b': 'Boolean', 'day': 'StrictDate',
-                          'at': 'DateTime', 'v': 'meta::pure::metamodel::variant::Variant'})
-        self.assertEqual(rows.schema.field('i').type, pa.int64())
-        # a Decimal exact, a DateTime as stored (UTC) to the microsecond, a Variant its JSON text
+                         {'i': 'Integer', 'f': 'Float', 'd': 'Decimal(10,2)', 's': 'String', 'b': 'Boolean',
+                          'day': 'StrictDate', 'at': 'DateTime', 'v': 'meta::pure::metamodel::variant::Variant'})
+        self.assertEqual(rows.schema.field('d').metadata[b'legend.multiplicity'], b'[0..1]')
+        self.assertEqual(rows.schema.field('d').metadata[b'legend.slot'], b'DECIMAL(10,2)')
+        # a Variant Arrow's canonical JSON type (D21: arrow.json, its compact text; Arrow's Parquet variant once the
+        # readers read it)
+        self.assertEqual([rows.schema.field(n).type for n in ('i', 'f', 'd', 'at', 'v')],
+                         [pa.int64(), pa.float64(), pa.decimal128(10, 2), pa.timestamp('ns', tz='UTC'), pa.json_()])
+        # a Decimal exact, a DateTime the stored instant at UTC to the microsecond, a Variant its compact JSON text
+        # (the digits as written: 2.50)
         self.assertEqual(rows.to_pylist()[0], {
             'i': 1, 'f': 1.5, 'd': Decimal('300.75'), 's': 'a', 'b': True, 'day': datetime.date(2024, 1, 2),
-            'at': datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), 'v': '{"a": [1, 2.50]}'})
+            'at': datetime.datetime(2024, 1, 2, 3, 4, 5, 123456, tzinfo=datetime.timezone.utc), 'v': '{"a":[1,2.50]}'})
         self.assertEqual(set(rows.to_pylist()[1].values()), {None})
 
     def test_a_variant_stored_as_a_struct_is_its_json_whatever_the_shape_of_the_query(self):
@@ -271,14 +282,19 @@ class TypedByPlan(unittest.TestCase):
                                  b'meta::pure::metamodel::variant::Variant')
                 self.assertEqual(rows.to_pylist()[0]['customer'], '{"name":"A","tier":2}')
 
-    def test_a_sum_of_integers_is_an_integer_and_past_64_bits_exact(self):
-        # DuckDB answers a SUM of integers as an exact decimal(38, 0): an Integer, so an int64; past 64 bits, the
-        # database's exact decimal, never wrapped
-        frame = pa.table({'k': ['a', 'a'], 'n': pa.array([2 ** 63 - 1, 2 ** 63 - 1]), 'm': pa.array([1, None], pa.int32())})
-        rows = ll.Frames().register('t', frame).execute('->groupBy(~[k], ~[s: x|$x.n : y|$y->sum(), t: x|$x.m : y|$y->sum()])')
-        self.assertEqual(rows.schema.field('t').type, pa.int64())
+    def test_a_sum_of_integers_is_an_int64_and_one_past_64_bits_refused_by_name(self):
+        # DuckDB answers a SUM of integers as a HUGEINT: an Integer, so an int64 (D21 Q3, 2026-11-03: an Integer is never
+        # decimal128); one past 64 bits is refused by name, never wrapped or rounded (until then the database's decimal)
+        frame = pa.table({'k': ['a', 'a'], 'n': pa.array([2 ** 62, 2 ** 62 - 1]), 'm': pa.array([1, None], pa.int32())})
+        group = '->groupBy(~[k], ~[s: x|$x.n : y|$y->sum(), t: x|$x.m : y|$y->sum()])'
+        rows = ll.Frames().register('t', frame).execute(group)
+        self.assertEqual([rows.schema.field(n).type for n in ('s', 't')], [pa.int64(), pa.int64()])
         self.assertEqual(rows.schema.field('s').metadata[b'legend.type'], b'Integer')
-        self.assertEqual(rows.to_pylist(), [{'k': 'a', 's': 2 * (2 ** 63 - 1), 't': 1}])
+        self.assertEqual(rows.to_pylist(), [{'k': 'a', 's': 2 ** 63 - 1, 't': 1}])
+        past = pa.table({'k': ['a', 'a'], 'n': pa.array([2 ** 63 - 1, 2 ** 63 - 1]), 'm': pa.array([1, None], pa.int32())})
+        with self.assertRaises(ll.LegendError) as e:
+            ll.Frames().register('t', past).execute(group)
+        self.assertIn(f"column 's' (Integer, slot HUGEINT): the value {2 * (2 ** 63 - 1)} is past 64 bits", str(e.exception))
 
     def test_a_column_the_plan_does_not_type_is_refused(self):
         from legend_lite.frames import typed_by_plan

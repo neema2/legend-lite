@@ -37,7 +37,8 @@ import java.util.function.IntFunction;
  * text, a StrictDate date32, a time-bearing column timestamp[ns, UTC] (lite's DateTime holds nine digits:
  * {@link ExecutionPlan.Precision#INSTANT}), a WRITTEN temporal (a literal, a partial date) Pure's text, a time
  * time64[ns], a list a List, a struct a Struct, a map a Map, a tagged column a dense Union of its slots, a JSON-carried
- * value its text. The plan's facts per column ride as the field's metadata ({@code legend.type}, {@code legend.slot},
+ * value its text, a Variant its compact JSON text tagged {@code arrow.json} (Arrow's canonical JSON type, D21). The
+ * plan's facts per column ride as the field's metadata ({@code legend.type}, {@code legend.slot},
  * {@code legend.precision}, {@code legend.multiplicity}); the stream's own metadata is the caller's (the engine's
  * {@code legend.builder} and the rest for the {@code ARROW_IPC} answer). A cell that is not its column's carrier is
  * refused by name; nothing here converts a value: an epoch day, epoch nanoseconds and a decimal's unscaled digits at
@@ -154,6 +155,16 @@ public final class ArrowWriter implements ResultSink {
             "TINYINT", "HUGEINT", "DOUBLE", "FLOAT", "REAL", "DECIMAL", "NUMERIC");
 
     private static Enc encoder(ExecutionPlan.Column c, String name, Map<String, String> metadata) {
+        if (c.type().equals(RowDecode.VARIANT)) {
+            // a Variant: its compact JSON text (the decoders' carrier on every path, RowDecode.cell), tagged as Arrow's
+            // canonical JSON type so a reader knows it is JSON, whatever its slot (the user's ruling D21, 2026-11-03,
+            // docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2: Arrow's binary Parquet variant once the readers read it --
+            // pyarrow 23.0.1 has no type for it and DuckDB 1.5.5 exports none)
+            Map<String, String> tagged = new LinkedHashMap<>(metadata);
+            tagged.put("ARROW:extension:name", "arrow.json");
+            tagged.put("ARROW:extension:metadata", "");
+            return new Text(name, tagged, c, Text.Form.TEXT);
+        }
         String word = RowDecode.slotWord(c.slot());
         if (NUMERIC_SLOTS.contains(word) && !RowDecode.numericPure(c.type())) {
             // the decoders' rule (RowDecode.cell, JdbcDecode.cell): a non-numeric Pure type over a numeric slot (a
@@ -232,9 +243,6 @@ public final class ArrowWriter implements ResultSink {
         }
         if (type.equals("StrictTime")) {
             return new Time64(name, metadata, c);
-        }
-        if (type.equals(RowDecode.VARIANT)) {
-            return new Text(name, metadata, c, Text.Form.TEXT);
         }
         if (type.contains("::")) {
             return new Text(name, metadata, c, Text.Form.JSON);

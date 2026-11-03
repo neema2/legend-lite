@@ -521,10 +521,10 @@ public final class EngineArrowWriter implements ResultSink {
                 // upstream reads it through JDBC's Timestamp, on its Julian-hybrid calendar (1500-01-01 nine days
                 // from the stored day): refused by name, never written on another calendar (register S136; the route
                 // frozen, the user's D21, 2026-11-03)
-                throw new IllegalStateException(String.format(java.util.Locale.ROOT, "column '%s': the timestamp"
-                        + " %04d-%02d-%02d is before 1582-10-15, which legend-engine's Arrow answer writes through"
-                        + " JDBC's Timestamp, on its Julian-hybrid calendar (days from the stored date); not written another"
-                        + " way", column.label(), year, month, day));
+                throw new IllegalStateException("column '" + column.label() + "': the timestamp " + padded(year, 4)
+                        + "-" + padded(month, 2) + "-" + padded(day, 2) + " is before 1582-10-15, which legend-engine's"
+                        + " Arrow answer writes through JDBC's Timestamp, on its Julian-hybrid calendar (days from the"
+                        + " stored date); not written another way");
             }
             long seconds = java.time.LocalDateTime.of(year, month, day, hour, minute, second)
                     .toEpochSecond(java.time.ZoneOffset.UTC);
@@ -535,6 +535,13 @@ public final class EngineArrowWriter implements ResultSink {
                         + " microsecond timestamp holds");
             }
         }
+    }
+
+    /** {@code value}'s digits, zeros before them to {@code width} (a date's parts in a message; no Formatter: the tab's
+     *  planner compiles this class to WebAssembly). */
+    private static String padded(int value, int width) {
+        String digits = Integer.toString(value);
+        return digits.length() >= width ? digits : "0".repeat(width - digits.length()) + digits;
     }
 
     /** The first {@code digits} digits of a written subsecond as a whole number (fewer stand for zeros after them;

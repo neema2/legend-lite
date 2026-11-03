@@ -7,10 +7,14 @@ load("//tools/guards:defs.bzl", "guards_package")
 # HEAP: compiling //wasm:planner peaks at 889 MB live (-Xlog:gc, macOS arm64, 2026-10-04); 2 GB is its heap
 # here and its scheduling memory in defs.bzl (_teavm_memory), the same on every machine (Bazel workplan
 # P1-22: it ran under the global --host_jvmopt=-Xmx3g before; the JVM default is a quarter of the RAM).
+# 2g -> 3g (2026-11-03, the host executors program, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the planner grew --
+# the result writers, the Arrow reader, the edge writers -- and its live set after marking measured about 1.8 GB at
+# -Xmx2g (-Xlog:gc, linux x86_64, a cloud session); under 2g the action failed with OutOfMemoryError four times in a
+# row there and passed by hand once: no headroom. 3g, the heap it had before P1-22, gives it back.)
 legend_java_binary(
     name = "compile",
     srcs = ["TeaVmCompile.java"],
-    jvm_flags = ["-Xmx2g"],
+    jvm_flags = ["-Xmx3g"],
     main_class = "com.legend.tools.teavm.TeaVmCompile",
     visibility = ["//visibility:public"],
     deps = [

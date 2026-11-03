@@ -62,6 +62,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, typed_by_plan
+from .frames import ipc_stream as _ipc_stream
 from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -327,15 +328,6 @@ def _model_home(path: str) -> bool:
 
 def _arrow_requested(query: str) -> bool:
     return any(pair == 'serializationFormat=ARROW_IPC' for pair in query.split('&'))
-
-
-def _ipc_stream(reader: pa.RecordBatchReader) -> pa.Buffer:
-    """A result's batches as one Arrow IPC stream, in a buffer the native library reads where it lies (R3)."""
-    sink = pa.BufferOutputStream()
-    with pyarrow.ipc.new_stream(sink, reader.schema) as writer:
-        for batch in reader:
-            writer.write_batch(batch)
-    return sink.getvalue()
 
 
 class NativePlanner:

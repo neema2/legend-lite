@@ -89,13 +89,19 @@ def _engine(path: str, query: str, body: str) -> str:
     answer = pure_v1(path, query, body)
     if answer.status == 200:
         return answer.body
+    raise refused_by(answer.status, answer.body)
+
+
+def refused_by(status: int, body: str) -> LegendError:
+    """A refusal answer (its status, and its JSON as legend-lite's server writes one) as the error it is: its kind the
+    engine's ``errorType``, else the answer's status."""
     try:
-        refusal = _json.loads(answer.body)
+        said = _json.loads(body)
     except ValueError:
-        raise LegendError(answer.body or 'the compiler refused it', str(answer.status)) from None
-    message = refusal.get('message') if isinstance(refusal, dict) else None
-    kind = refusal.get('errorType') if isinstance(refusal, dict) else None
-    raise LegendError(message or 'the compiler refused it', kind or str(answer.status))
+        return LegendError(body or 'the compiler refused it', str(status))
+    message = said.get('message') if isinstance(said, dict) else None
+    kind = said.get('errorType') if isinstance(said, dict) else None
+    return LegendError(message or 'the compiler refused it', kind or str(status))
 
 
 def parse(text: str) -> Tree:
@@ -172,7 +178,12 @@ class HeldModel:
 
     def plan(self, tree: Tree, runtime: str) -> Plan:
         """A relation query planned against the model held, through ``runtime``: its SQL and its columns."""
-        return read_plan(_answer(library().call('lite_plan_json_held', self._held(), _json.dumps(tree), runtime)))
+        return read_plan(self.plan_record(tree, runtime))
+
+    def plan_record(self, tree: Tree, runtime: str) -> str:
+        """The same plan as its record (the plan record's text, the one plan every host path runs: what
+        :func:`execute_lite_answer_arrow` writes lite's own answer from)."""
+        return _answer(library().call('lite_plan_json_held', self._held(), _json.dumps(tree), runtime))
 
     def relation_type(self, tree: Tree) -> tuple[Column, ...]:
         """The columns a relation query returns, typed against the model held, compile-only."""
