@@ -224,6 +224,26 @@ R2's (the user, 2026-11-02):
     table), for upstream's tools and users alone;
   - both are fast: a measurement decides where either is slow (the 1,000,000-row JSON answer's breakdown, posted with
     this ruling).
+- **D20. One UI over one typed result; two thin adapters; each connection talks lite or legend-engine** (the user,
+  2026-11-03: "this is awesome! Exactly what I want", with the tweak "UIs should be able to talk to remote as either
+  full lite arrow OR as backwards compatible engine"). It answers the question D19 left: lite's apps (Query, Studio,
+  DataCube) must still work against an upstream legend-engine, and lite itself answers upstream's protocol, without
+  that protocol being the path lite's own work takes.
+  - **One UI code path:** every app works on one typed result model (the plan's types, Arrow columns; D9), as
+    DataCube's grid does; nothing above the adapters knows which backend answered. A branch on the backend in UI code
+    is a defect.
+  - **Two thin adapters, each only a decode into that model:** *lite* (the plan record and Arrow in the plan's types;
+    planned and run by whoever holds the data) and *engine* (legend-engine's TDS JSON or `ARROW_IPC`, its cells typed by
+    the query's relation type where upstream's answer is lossier, a sum as text read back as its integer).
+  - **The mode is the connection's:** a remote lite server is talked to as full lite Arrow or as a backwards-compatible
+    legend-engine, either one, chosen per connection; an upstream legend-engine only as an engine; the tab's own
+    in-process engine is lite. What a backend cannot do is a capability it declares, so the engine mode refuses or hides
+    lite's extras (a dynamic pivot on H2) by name, never silently.
+  - **Lite's servers always answer upstream's routes** exactly as upstream does (the core's edge writers, shared by the
+    JVM, Python and the tab), beside lite's own route. No server mode is needed for compatibility; a switch that turns
+    lite's own routes off proves, in CI, that the engine mode never leans on them.
+  - **The judges:** the conformance suite holds the edge answers to upstream's; the apps' suites run in both modes and
+    show the same text where upstream's types allow, and name the cells where they do not.
 
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
@@ -810,6 +830,12 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
 - **The outputs:** JSON through the writers from Arrow (R3); the Arrow answer in the plan's types (D7, its cases posted
   first).
 
+*The order after D19 and D20 (2026-11-03), which reorders what follows:* (a) lite's own route on the three servers
+(the plan record and Arrow in the plan's types; Python's plan-and-run its start); (b) the core's columnar decode (both
+paths read it); (c) the apps' two adapters, Query's and Studio's results onto the typed model (R5's ground, done for
+the three servers at once), DataCube's remote reads onto the lite adapter; (d) the edge writers exactly as upstream (step
+3 below) with the CI switch; (e) then the edge's speed (the JSON writer's bytes, the copies), the rest of R4 and R5.
+
 *R4's design (2026-11-03, after R3; D17 and D18 read onto it).* Its steps, in order:
 1. **Dictionaries read** (R3's finding): `ArrowReader` reads a dictionary-encoded column (DuckDB answers an `ENUM` so;
    a dictionary pyarrow registers comes back plain), a replacement dictionary taking the place of the one before, a
@@ -1104,3 +1130,5 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   edge for upstream's tools and users. R4 step 3 builds the edge writer exactly as upstream (its table) and moves lite's
   own consumers of `ARROW_IPC` to lite's own Arrow. The 1,000,000-row JSON answer's time measured and its fixes posted
   (§7).
+- 2026-11-03: D20 ratified (§1.2): one UI over one typed result, two thin adapters, each connection talking lite or
+  legend-engine; the order of the remaining work rewritten before R4's design (§5).
