@@ -17321,3 +17321,27 @@ lite's own 625 ms; Python's whole lite execute 842 ms, its JSON execute 1,733 ms
 Checks: `//core:core_tests_{root,server,exec,architecture}`, `//core:guardrails`, `//core:arrow_writer_test`,
 `//wasm:{differential,round_trip}_test`, `//python:{bindings,arrow_handoff,frames}_test`,
 `//datacube:{conformance,python_execute}_test`.
+
+## 2026-11-03 — D20 (c), step 1: the lite adapter, and both adapters judged on the servers' own answers
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8. engine-client's remote connection is declared per connection
+(`PureV1Options.protocol`: absent or `engine`, legend-engine's execute; `lite`, lite's own). A lite connection asks
+`POST /api/lite/v1/execution/execute` with legend-engine's request (`PureV1Client.executeLite`) and reads the answer into
+the apps' typed result (`liteResultTable`: the values as the stream holds them, `toRawTable`; each column typed by the
+plan record, `recordPlan`, as the tab's planned rows are, `typedByPlan`); the SQL reported is the plan's statement. What it
+cannot read is refused by name: a stream without its plan record, a plan of another shape (a pivot whose columns its data
+names), a body that is no Arrow stream, a lite connection naming a serialization format. No product path switched yet.
+
+The judge: the conformance suite's new `adapters` check asks every case of both adapters on both servers (Java's,
+Python's) and compares the typed results -- each column's name and Pure type, each value's kind and text. Found, and
+ledgered (18 entries, 19 -> 37): every `Decimal` cell in six cases on both servers -- the engine adapter reads
+legend-engine's JSON number `12.30` as the JavaScript number `12.3` (`values.ts` `parseExact`: its scale dropped; the
+JSON carries it, `CellText.writeEngine` writes `toPlainString`), the lite adapter keeps `"12.30"` -- §3.6a's first
+finding, its change posted to the user before any is built; and `pivotDynamic` on both servers, refused by the lite
+adapter by name. Every other column, type and value of every case is the same through both.
+
+Also fixed: `conformance.test.ts`'s `liteOf` read each field's metadata through a type that lacks it, so
+`//datacube:typecheck_test` was red since D20 (a) (`0142d027`), unnoticed because that commit's checks did not include it.
+
+Checks: `//engine-client:tests` (the new `lite_adapter_test` laned there), `//datacube:{conformance,typecheck,
+engine_remote,engine_remote_http}_test`, `//query:typecheck_test`, `//studio:typecheck_test`.

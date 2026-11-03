@@ -12,7 +12,10 @@
 //          metadata, the values, the plan record;
 //   handoff  the tab's rows handed to the planner's writers as DuckDB-WASM's own Arrow IPC (R3: the module's
 //          `...FromArrowOrError` exports) against the same rows handed as JSON text: legend-engine's JSON byte for
-//          byte, and the Arrow answer, its schema and its values, against Java's.
+//          byte, and the Arrow answer, its schema and its values, against Java's;
+//   adapters the apps' two adapters (D20: engine-client's LegendEngineExecutor, a connection talked to as legend-engine
+//          and one talked to as lite) on each server, Java's and Python's: the typed results they give the apps --
+//          each column's name and Pure type, each value's kind and text -- the same, or the cells that differ named.
 // Every difference found is an entry of the ledger (conformance/ledger.json) or the suite fails; an entry that no longer
 // differs fails it too, so the ledger only shrinks (D10). A failure prints the differences as the ledger writes them.
 
@@ -34,6 +37,7 @@ import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { ExecuteInput } from '../../../engine-client/src/legend/wire.ts';
 import { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
+import { LegendEngineExecutor } from '../../../engine-client/src/engine-remote.ts';
 import { answerStatement, keyedStatement } from '../../../engine-client/src/plan-record.ts';
 import { recordPlan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -208,7 +212,9 @@ async function liteOf(url: string, input: ExecuteInput, headers: Record<string, 
   const r = await post(url, body(input), headers);
   if (!r.ok) return { status: r.status, schema: '', rows: '', plan: '', text: refusalOf(await r.text()).message };
   const { table, metadata } = arrowIpcAnswer(new Uint8Array(await r.arrayBuffer()));
-  const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)} ${JSON.stringify([...f.metadata.entries()].sort())}`)
+  // each field's metadata too (apache-arrow's Field has it; the reader's narrow type names the fields' name and type)
+  const fields = table.schema.fields as readonly { readonly name: string; readonly type: unknown; readonly metadata: ReadonlyMap<string, string> }[];
+  const schema = fields.map((f) => `${f.name}: ${String(f.type)} ${JSON.stringify([...f.metadata.entries()].sort())}`)
     .join(', ') + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
   return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)), plan: metadata.get('legend.plan') ?? '' };
 }
@@ -279,6 +285,21 @@ function javaMeanings(text: string, types: readonly string[]): string {
   return answer.result.rows.map((row) => row.values.map((v, i) => meaning(v, types[i]!)).join(',')).join('\n');
 }
 
+/** A typed result as the apps read it: each column's name and Pure type, then its rows' values (cellsText). */
+function typedText(t: ResultTable): { readonly columns: string; readonly rows: string } {
+  return { columns: t.columns.map((c) => `${c.name}: ${c.type}`).join(', '), rows: cellsText(t) };
+}
+
+/** A query's typed result through an adapter, or why it refused. */
+async function adapted(executor: LegendEngineExecutor, query: string): Promise<{ readonly columns: string; readonly rows: string } | { readonly refused: string }> {
+  try {
+    return typedText((await executor.execute(await grammar.lambda(`{| ${query}}`), 0)).rows);
+  } catch (e) {
+    // the server's address (its port drawn afresh each run) masked: the words are what is compared
+    return { refused: (e instanceof Error ? e.message : String(e)).replace(/http:\/\/127\.0\.0\.1:\d+/g, '<server>') };
+  }
+}
+
 function gridMeanings(t: ResultTable): string {
   const rows: string[] = [];
   for (let r = 0; r < t.rowCount; r++) rows.push(t.columns.map((c) => meaning(c.values[r], c.type)).join(','));
@@ -292,6 +313,16 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       found.push({ case: c, check, hosts, detail });
     };
     const auth = { Authorization: pythonAt.authorization };
+    // the apps' two adapters on each server (D20)
+    const servers = [
+      ['java', { baseUrl: java.api().replace(/\/api$/, '') }],
+      ['python', { baseUrl: pythonAt.url, authorization: pythonAt.authorization }],
+    ] as const;
+    const adapters = servers.map(([server, at]) => ({
+      server,
+      engine: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME }),
+      lite: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, protocol: 'lite' }),
+    }));
     let handoffs = 0;
     for (const { name, query } of CASES) {
       const lambda = await grammar.lambda(`{| ${query}->from(${RUNTIME})}`);
@@ -344,6 +375,17 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       } else if (jl.schema !== pl.schema) differ(name, 'lite-schema', 'java/python', `${jl.schema} vs ${pl.schema}`);
       else if (jl.rows !== pl.rows) differ(name, 'lite-values', 'java/python', firstDifference(jl.rows, pl.rows));
       else if (jl.plan !== pl.plan) differ(name, 'lite-plan', 'java/python', firstDifference(jl.plan, pl.plan));
+      // adapters: on each server, the typed result as legend-engine's adapter reads it against lite's (D20)
+      for (const { server, engine, lite } of adapters) {
+        const e = await adapted(engine, query);
+        const l = await adapted(lite, query);
+        if ('refused' in e || 'refused' in l) {
+          const mine = 'refused' in e ? e.refused : '(answered)';
+          const theirs = 'refused' in l ? l.refused : '(answered)';
+          if (mine !== theirs) differ(name, 'adapters-refused', server, firstDifference(mine, theirs));
+        } else if (e.columns !== l.columns) differ(name, 'adapters-columns', server, `${e.columns} vs ${l.columns}`);
+        else if (e.rows !== l.rows) differ(name, 'adapters-values', server, firstDifference(e.rows, l.rows));
+      }
       // arrow: Java's against Python's
       const ja = await arrowOf(javaExecute(), input);
       const pa = await arrowOf(pythonExecute(), input, auth);

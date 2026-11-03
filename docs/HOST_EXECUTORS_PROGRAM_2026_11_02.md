@@ -1011,6 +1011,22 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   (`executeJsonAnswerFromArrowOrError`, `executeArrowAnswerFromArrowOrError`, `lite_execute_json_answer_arrow`,
   `lite_execute_arrow_answer_arrow`) have test callers only until R4 (Python) and R5 (the tab) give them product
   ones; R6 deletes whichever text handoff export is left without one.*
+- **The two adapters differ in two classes, and no other** (found 2026-11-03 by the conformance suite's `adapters`
+  check, D20 (c) step 1; both ledgered):
+  - *A `Decimal` cell's scale.* Expression: `#>{conf::DB.TYPES}#->select(~[ID, D, DL])` (`D` a `DECIMAL(10,2)` holding
+    `12.30`). Upstream's answer: legend-engine's JSON writes the number with its scale, `12.30` (lite's edge writer
+    copies it: `CellText.writeEngine`, `toPlainString`). The engine adapter today: the JavaScript number `12.3`
+    (`values.ts` `parseExact` keeps a number's text only where a double would change its value, so the scale goes);
+    `0.00` reads `0`, `-0.01` a number. The lite adapter: the text `"12.30"`, as the tab's Arrow planes have it. So the
+    same cell differs by connection on DataCube's engine plane today -- what the grid shows (`12.3` against `12.30`),
+    and the literal a filter from the cell writes. Proposed (posted to the user, not built): the engine adapter reads a
+    `Decimal` column's numbers by their digits as written, so both adapters hold `"12.30"`; on the engine plane a
+    decimal then shows and filters with its scale, as on every other plane. Six cases, both servers: `typesAll`,
+    `typesSelect`, `filterDecimal`, `extendArith`, `literals`, `groupSum`, `groupMinMax`, `limit`.
+  - *A pivot whose columns its data names* (`pivotDynamic`): the engine adapter reads it; the lite adapter refuses it by
+    name (`recordPlan`: a host's plan is one typed result). DataCube plans its pivots static, so none of its queries is
+    one; Query and Studio run whatever a person writes, so their move onto the adapters (step 3) reads it, each column
+    typed by its field's `legend.type` (the plan's type, which lite's writer writes beside every field).
 
 ## 8. Status
 
@@ -1159,3 +1175,11 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   changes nothing (579 and 1,323 ms), so the collector is not the gap: the image's code is (no JIT, Community Edition).
   The lever left is less work per cell, which every host gains -- lite's own answer written from the host's Arrow column
   by column, without a carrier per cell; the JSON writer writing bytes. `-O3` is not adopted (the wheel's build, for 10%).
+- 2026-11-03: D20 (c), step 1 built: the lite adapter. engine-client's remote connection is declared per connection
+  (`protocol`: `engine` or `lite`); a lite connection asks lite's own execute with legend-engine's request and reads the
+  rows into the apps' typed result, each column typed by the plan record (`liteResultTable`), refusing by name what it
+  cannot read. Judged by the conformance suite's `adapters` check: both adapters on both servers give the same typed
+  result -- every column, type and value -- but for two named classes, ledgered (§7): a `Decimal` cell's scale, which the
+  engine adapter's parse drops (`12.30` read as `12.3`; the JSON carries it), and a pivot whose columns its data names,
+  which the lite adapter refuses. Next: DataCube's remote reads and Query's and Studio's results onto the adapters.
+

@@ -211,6 +211,16 @@ node_test(
     entry_point = "test/column-decode.test.ts",
 )
 
+# The lite adapter (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20): lite's own execute asked and its Arrow read into the
+# apps' typed result, each column typed by the plan record; what it cannot read refused by name. Both adapters over the
+# servers' own answers: //datacube:conformance_test's `adapters` check.
+node_test(
+    name = "lite_adapter_test",
+    size = "small",
+    data = [":engine_client"],
+    entry_point = "test/lite-adapter.test.ts",
+)
+
 # The host executor's benchmark (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, H0): the tab's engine over DuckDB-WASM at 10
 # to 1,000,000 rows, each path's median and the decoded values' digest. Manual: a measurement, never a gate.
 node_test(
@@ -296,6 +306,7 @@ test_suite(
         ":arrow_ipc_test",
         # H1a's column decode (2026-11-02), laned 2026-11-03 by R3's audit: it ran by name only, in no lane
         ":column_decode_test",
+        ":lite_adapter_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",

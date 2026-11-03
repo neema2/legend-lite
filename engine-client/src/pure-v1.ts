@@ -1,9 +1,11 @@
 // legend-engine's `pure/v1` API: the ONE client every server call goes
 // through (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md, U4).
 //
-// legend-lite serves these calls exactly and nothing of its own, so the
-// same requests go to either server and only the base URL differs. Two
-// callers, one transport:
+// legend-lite serves these calls exactly, so the same requests go to either
+// server and only the base URL differs; a connection talked to as lite asks
+// one call of lite's own besides (D20: `executeLite`, the same request, lite's
+// own Arrow back), declared per connection (`protocol`). Two callers, one
+// transport:
 //
 //   - `UpstreamPlanner` (planner.ts): E9, `generatePlan`, and the tab runs the plan's SQL --
 //     upstream's cached path;
@@ -57,6 +59,14 @@ export interface PureV1Options {
    */
   readonly serializationFormat?: 'ARROW_IPC';
   /**
+   * How this connection is talked to (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20): DECLARED, never tried and fallen
+   * back from. Absent or `engine`, as legend-engine -- `execute`'s TDS JSON, or its `ARROW_IPC` (`serializationFormat`),
+   * which any server answers, an upstream legend-engine among them. `lite`, as a legend-lite server: lite's own execute
+   * (`/api/lite/v1/execution/execute`, the same request), its rows one Arrow IPC stream in the plan's types and the plan
+   * record beside them (`executeLite`). A `lite` connection names no `serializationFormat`: lite's answer has one form.
+   */
+  readonly protocol?: 'engine' | 'lite';
+  /**
    * The `Authorization` header every call carries, when the engine asks for one: Python's engine answers only a page
    * holding its one-time token (`Bearer <token>`).
    */
@@ -64,6 +74,10 @@ export interface PureV1Options {
   /** Defaults to the global fetch; injectable for tests. */
   readonly fetch?: typeof fetch;
 }
+
+/** legend-engine's API, which every server answers, and legend-lite's own (D20), which a lite connection asks. */
+const PURE_API = '/api/pure/v1';
+const LITE_API = '/api/lite/v1';
 
 /** The first four bytes of a zstd frame (RFC 8878 §3.1.1): how an ARROW_IPC answer begins. */
 const ZSTD_MAGIC = [0x28, 0xb5, 0x2f, 0xfd];
@@ -101,6 +115,9 @@ export class PureV1Client {
   readonly #fail: Failure;
 
   constructor(options: PureV1Options, fail: Failure) {
+    if (options.protocol === 'lite' && options.serializationFormat !== undefined) {
+      throw new Error(`a connection talked to as lite answers lite's own Arrow: it names no serializationFormat (${options.serializationFormat})`);
+    }
     this.#options = options;
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.#fail = fail;
@@ -170,8 +187,14 @@ export class PureV1Client {
     return this.#options.serializationFormat;
   }
 
+  /** How this connection is talked to: as legend-engine, or as legend-lite (`protocol`). */
+  get protocol(): 'engine' | 'lite' {
+    return this.#options.protocol ?? 'engine';
+  }
+
   /** E8 `execution/execute`: the rows for a query, run by the server, as the TDS JSON (an engine read as JSON). */
   async execute(query: Lambda, signal?: AbortSignal): Promise<unknown> {
+    if (this.protocol === 'lite') throw this.#fail('this engine is talked to as lite: its rows come from executeLite', query);
     if (this.#options.serializationFormat !== undefined) {
       throw this.#fail(`this engine is read as ${this.#options.serializationFormat}: its rows come from executeArrow`, query);
     }
@@ -184,6 +207,7 @@ export class PureV1Client {
    * stream, out of its zstd frame (arrowIpcStream).
    */
   async executeArrow(query: Lambda, signal?: AbortSignal): Promise<Uint8Array> {
+    if (this.protocol === 'lite') throw this.#fail('this engine is talked to as lite: its rows come from executeLite', query);
     if (this.#options.serializationFormat !== 'ARROW_IPC') {
       throw this.#fail('this engine is read as JSON: its rows come from execute', query);
     }
@@ -196,6 +220,24 @@ export class PureV1Client {
     } catch (e) {
       throw this.#fail(`the server at ${this.baseUrl}: ${e instanceof Error ? e.message : String(e)}`, query);
     }
+  }
+
+  /**
+   * LITE'S OWN EXECUTE (D20; a connection talked to as lite): `POST /api/lite/v1/execution/execute` with legend-engine's
+   * request, its answer one uncompressed Arrow IPC stream in the plan's types, the plan record in its schema's metadata
+   * (`legend.plan`; read by engine-remote.ts liteResultTable). A body that is no Arrow stream -- what a server without
+   * the route answers -- is refused, naming what came instead; it is never read in its place.
+   */
+  async executeLite(query: Lambda, signal?: AbortSignal): Promise<Uint8Array> {
+    if (this.protocol !== 'lite') throw this.#fail('this engine is talked to as legend-engine: its rows come from execute', query);
+    const response = await this.#send('/execution/execute', this.#executeInput(query), query, signal, 'json', LITE_API);
+    const body = new Uint8Array(await response.arrayBuffer());
+    // an Arrow IPC stream opens with its schema's message: the continuation marker (0xFFFFFFFF), then its length
+    if (!(body[0] === 0xff && body[1] === 0xff && body[2] === 0xff && body[3] === 0xff)) {
+      throw this.#fail(`the server at ${this.baseUrl} answered lite's execute with no Arrow stream; it begins: `
+        + new TextDecoder().decode(body.subarray(0, 120)), query);
+    }
+    return body;
   }
 
   #executeInput(query: Lambda): object {
@@ -241,8 +283,9 @@ export class PureV1Client {
     subject: Lambda | string,
     signal: AbortSignal | undefined,
     as: 'text' | 'json',
+    api: string = PURE_API,
   ): Promise<Response> {
-    const url = `${this.baseUrl}/api/pure/v1${path}`;
+    const url = `${this.baseUrl}${api}${path}`;
     const { authorization } = this.#options;
     let response: Response;
     try {

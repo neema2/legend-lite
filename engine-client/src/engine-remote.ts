@@ -16,12 +16,14 @@
 
 import { tableFromIPC } from 'apache-arrow';
 
+import { arrowIpcAnswer } from './arrow-ipc.ts';
+import { typedByPlan } from './engine.ts';
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf } from './receipt.ts';
 import { PureV1Client, type PrintStyle, type PureV1Options } from './pure-v1.ts';
-import { pureType, relationColumns, type PlanColumn } from './relation-type.ts';
+import { pureType, recordPlan, relationColumns, type Plan, type PlanColumn } from './relation-type.ts';
 import { hasTimeOfDay } from './types.ts';
 import { timestampFromText } from './values.ts';
 
@@ -157,9 +159,30 @@ export function arrowResultTable(
   return { rows: { columns, rowCount: raw.rowCount, epoch, elapsedMs }, activities };
 }
 
+/** The schema metadata key of lite's own answer: the plan record its rows are the answer of (core's PureV1Api.PLAN_KEY). */
+export const LITE_PLAN_KEY = 'legend.plan';
+
 /**
- * A query in, rows out, through a running server's `pure/v1` API: the query's protocol tree to
- * `execution/execute`, its rows read in the format the engine is declared to serve (`serializationFormat`).
+ * LITE'S OWN ANSWER as a ResultTable (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20, the lite adapter): one Arrow IPC
+ * stream in the plan's types (core's ArrowWriter, every server alike), the plan record in its schema's metadata
+ * (`legend.plan`). The values decoded exactly from the stream (toRawTable, as every Arrow plane's are); each column typed
+ * by the plan record, as the tab's own planned rows are (typedByPlan): lite's answer is its plan's, so nothing is read
+ * back from a builder or a database's report. A stream without its plan record, a plan record of another format or
+ * version, or one that is not one typed result over a statement (a pivot whose columns its data names) is refused by
+ * name (recordPlan), never typed some other way.
+ */
+export function liteResultTable(stream: Uint8Array, epoch: number, elapsedMs: number): { readonly plan: Plan; readonly rows: ResultTable } {
+  const { table, metadata } = arrowIpcAnswer(stream);
+  const record = metadata.get(LITE_PLAN_KEY);
+  if (record === undefined) throw new Error(`the engine answered lite's Arrow without its ${LITE_PLAN_KEY}: its columns have no types`);
+  const plan = recordPlan(record);
+  return { plan, rows: typedByPlan(toRawTable(table, epoch, elapsedMs), plan) };
+}
+
+/**
+ * A query in, rows out, through a running server: the query's protocol tree to `execution/execute`, its rows read in
+ * the form the connection is declared to be talked to in (D20) -- as legend-engine, its TDS JSON or its `ARROW_IPC`
+ * (`serializationFormat`), typed by the answer's builder; as lite, lite's own execute, typed by the plan record.
  */
 export class LegendEngineExecutor implements RemoteExecutor {
   readonly #client: PureV1Client;
@@ -176,7 +199,17 @@ export class LegendEngineExecutor implements RemoteExecutor {
     const started = Date.now();
     let rows: ResultTable;
     let activities: readonly { readonly sql?: string; readonly comment?: string }[];
-    if (this.#client.serializationFormat === 'ARROW_IPC') {
+    if (this.#client.protocol === 'lite') {
+      const stream = await this.#client.executeLite(query, signal);
+      let plan: Plan;
+      try {
+        ({ plan, rows } = liteResultTable(stream, epoch, Date.now() - started));
+      } catch (e) {
+        throw new RemoteExecutionError(`the server at ${this.#client.baseUrl}: ${e instanceof Error ? e.message : String(e)}`, query);
+      }
+      // the SQL lite reports is its plan's statement: what it ran, read from the plan the rows are the answer of
+      activities = [{ sql: plan.sql }];
+    } else if (this.#client.serializationFormat === 'ARROW_IPC') {
       const stream = await this.#client.executeArrow(query, signal);
       ({ rows, activities } = arrowResultTable(stream, epoch, Date.now() - started));
     } else {
