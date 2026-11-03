@@ -113,20 +113,14 @@ public final class TsShow {
 
     /** Whether {@code f} binds a grid: {@code let name = relation}. */
     private static boolean binds(AppliedFunction f) {
-        return switch (f.function()) {
-            case "letFunction" -> f.parameters().size() == 2;
-            default -> false;
-        };
+        return Fn.of(f.function()) == Fn.LET && f.parameters().size() == 2;
     }
 
     /** The class {@code v} reads every instance of ({@code C.all()}), or null. */
     private static @com.legend.base.Nullable PackageableElementPtr everyOf(ValueSpecification v) {
         if (v instanceof AppliedFunction f && f.parameters().size() == 1
                 && f.parameters().get(0) instanceof PackageableElementPtr cls) {
-            return switch (f.function()) {
-                case "getAll" -> cls;
-                default -> null;
-            };
+            return Fn.of(f.function()) == Fn.GET_ALL ? cls : null;
         }
         return null;
     }
@@ -163,8 +157,8 @@ public final class TsShow {
      */
     private static TsAst.Source flat(ValueSpecification relation, Types types) {
         if (relation instanceof AppliedFunction f) {
-            switch (f.function()) {
-                case "project" -> {
+            switch (Fn.of(f.function())) {
+                case PROJECT -> {
                     PackageableElementPtr cls = f.parameters().size() == 2 ? everyOf(f.parameters().get(0)) : null;
                     if (cls != null && f.parameters().get(1) instanceof ColSpecArray cols) {
                         List<TsAst.Item> items = new ArrayList<>();
@@ -175,14 +169,14 @@ public final class TsShow {
                     }
                     throw new Refused("projects what is no class's paths");
                 }
-                case "tableReference" -> {
+                case TABLE_REFERENCE -> {
                     if (f.parameters().size() == 2 && f.parameters().get(0) instanceof PackageableElementPtr db
                             && f.parameters().get(1) instanceof CString table) {
                         return new TsAst.Named(db.fullPath() + "." + table.value(), NONE);
                     }
                     throw new Refused("reads a table it does not name");
                 }
-                case "filter" -> {
+                case FILTER -> {
                     if (f.parameters().size() == 2 && f.parameters().get(1) instanceof LambdaFunction l
                             && l.parameters().size() == 1 && l.body().size() == 1) {
                         TsAst.Source of = flat(f.parameters().get(0), types);
@@ -202,7 +196,7 @@ public final class TsShow {
                     }
                     throw new Refused("filters by what is no condition of a row");
                 }
-                case "extend" -> {
+                case EXTEND -> {
                     return calculated(f, types);
                 }
                 default -> throw new Refused("is a " + f.function() + " of its rows: the flat form says a grid's paths"
@@ -267,35 +261,70 @@ public final class TsShow {
     }
 
     /**
-     * The functions a calculated column writes beside a condition's, each by its protocol name, and so its Postgres
-     * spelling: a table, not name arms (docs/TS_V1_PROGRAM_2026_11_01.md A8). One native at a time (A6), each spelled
+     * THE PROTOCOL FUNCTIONS SHOW #TS READS, each by its protocol name: a grid's relation's ({@code let},
+     * {@code getAll}, {@code project}, ...), a condition's (each comparison with its Postgres operator) and a calculated
+     * column's. A table, not name arms (docs/TS_V1_PROGRAM_2026_11_01.md A8: the 19 arms of 2026-11-01 folded here,
+     * 2026-11-03); a function none of them is {@link #OTHER}, refused by name. One native at a time (A6), each spelled
      * as the #SQL reader reads it back to Pure's meaning.
      */
-    private enum Calc {
+    private enum Fn {
+        LET("letFunction"),
+        GET_ALL("getAll"),
+        PROJECT("project"),
+        TABLE_REFERENCE("tableReference"),
+        FILTER("filter"),
+        EXTEND("extend"),
+        /** An enumeration read as its values' names: its cast to text, {@code CAST(side AS text)}. */
+        TO_STRING("toString"),
+        AND("and", SqlAst.BinaryOp.AND),
+        OR("or", SqlAst.BinaryOp.OR),
+        NOT("not"),
+        EQUAL("equal", SqlAst.BinaryOp.EQ),
+        LESS_THAN("lessThan", SqlAst.BinaryOp.LT),
+        LESS_THAN_EQUAL("lessThanEqual", SqlAst.BinaryOp.LE),
+        GREATER_THAN("greaterThan", SqlAst.BinaryOp.GT),
+        GREATER_THAN_EQUAL("greaterThanEqual", SqlAst.BinaryOp.GE),
+        IS_EMPTY("isEmpty"),
+        IS_NOT_EMPTY("isNotEmpty"),
+        IN("in"),
         /** {@code +}: numbers' sum, Postgres's {@code +}; text joined, its {@code ||} -- by the compiler's type. */
         PLUS("plus"),
         /** {@code -}: a difference, or one value negated. */
         MINUS("minus"),
         TIMES("times"),
         /** {@code /}: always a Float in Pure ({@code divide(Number[1], Number[1]):Float[1]}), where Postgres divides
-         *  two integers as integers: its left a double, {@code CAST(a AS double precision) / b}. */
+         *  two integers as integers: its left a double, {@code CAST(a AS DOUBLE PRECISION) / b}. */
         DIVIDE("divide"),
         /** {@code if(c, |a, |b)}: {@code CASE WHEN c THEN a ELSE b END}, an else's if a further WHEN. */
         IF("if"),
         /** {@code toOne}: the value itself, as a WHERE's operand is read. */
-        TO_ONE("toOne");
+        TO_ONE("toOne"),
+        /** None of these. */
+        OTHER(null);
 
-        private final String protocol;
+        private final @com.legend.base.Nullable String protocol;
+        private final @com.legend.base.Nullable SqlAst.BinaryOp op;
 
-        Calc(String protocol) {
-            this.protocol = protocol;
+        Fn(@com.legend.base.Nullable String protocol) {
+            this(protocol, null);
         }
 
-        private static final Map<String, Calc> BY_NAME = Map.copyOf(java.util.Arrays.stream(values())
-                .collect(java.util.stream.Collectors.toMap(c -> c.protocol, c -> c)));
+        Fn(@com.legend.base.Nullable String protocol, @com.legend.base.Nullable SqlAst.BinaryOp op) {
+            this.protocol = protocol;
+            this.op = op;
+        }
 
-        static @com.legend.base.Nullable Calc of(String protocol) {
-            return BY_NAME.get(protocol);
+        private static final Map<String, Fn> BY_NAME = Map.copyOf(java.util.Arrays.stream(values())
+                .filter(f -> f.protocol != null).collect(java.util.stream.Collectors.toMap(
+                        f -> java.util.Objects.requireNonNull(f.protocol), f -> f)));
+
+        static Fn of(String protocol) {
+            return BY_NAME.getOrDefault(protocol, OTHER);
+        }
+
+        /** A condition's Postgres operator (AND, OR, a comparison's). */
+        SqlAst.BinaryOp op() {
+            return java.util.Objects.requireNonNull(op, () -> name() + " is no operator");
         }
     }
 
@@ -355,14 +384,10 @@ public final class TsShow {
         if (!(v instanceof AppliedFunction f)) {
             return literal(v, "calculates by");
         }
-        Calc op = Calc.of(f.function());
-        if (op == null) {
-            return condition(v, x -> compared(x, row), "calculates by");
-        }
         List<ValueSpecification> ps = f.parameters();
         // an operator run, a + b + c, is one collection (AppliedFunction.infixRun); unary minus its operand alone
         List<ValueSpecification> run = ps.size() == 1 && ps.get(0) instanceof PureCollection c ? c.values() : ps;
-        return switch (op) {
+        return switch (Fn.of(f.function())) {
             case TO_ONE -> {
                 if (ps.size() != 1) {
                     throw new Refused("calculates by a toOne of " + ps.size() + " values");
@@ -393,7 +418,7 @@ public final class TsShow {
             case IF -> {
                 List<SqlAst.When> whens = new ArrayList<>();
                 ValueSpecification at = f;
-                while (at instanceof AppliedFunction g && Calc.of(g.function()) == Calc.IF
+                while (at instanceof AppliedFunction g && Fn.of(g.function()) == Fn.IF
                         && g.parameters().size() == 3) {
                     whens.add(new SqlAst.When(condition(g.parameters().get(0), x -> compared(x, row),
                             "calculates by"), calc(branch(g.parameters().get(1)), row)));
@@ -404,6 +429,7 @@ public final class TsShow {
                 }
                 yield new SqlAst.Case(null, whens, calc(at, row), NONE);
             }
+            default -> condition(v, x -> compared(x, row), "calculates by");
         };
     }
 
@@ -448,17 +474,9 @@ public final class TsShow {
             throw new Refused("projects " + c.name() + " by what is no path");
         }
         ValueSpecification body = l.body().get(0);
-        if (body instanceof AppliedFunction f) {
-            switch (f.function()) {
-                case "toString" -> {
-                    if (f.parameters().size() == 1) {
-                        return new SqlAst.Cast(path(c.name(), f.parameters().get(0), l), new SqlAst.TypeName("text",
-                                List.of(), NONE), NONE);
-                    }
-                }
-                default -> {
-                }
-            }
+        if (body instanceof AppliedFunction f && Fn.of(f.function()) == Fn.TO_STRING && f.parameters().size() == 1) {
+            return new SqlAst.Cast(path(c.name(), f.parameters().get(0), l), new SqlAst.TypeName("text", List.of(),
+                    NONE), NONE);
         }
         return path(c.name(), body, l);
     }
@@ -483,44 +501,30 @@ public final class TsShow {
             java.util.function.Function<ValueSpecification, SqlAst.Expr> operand, String verb) {
         if (v instanceof AppliedFunction f) {
             List<ValueSpecification> ps = f.parameters();
-            switch (f.function()) {
-                case "and", "or" -> {
+            Fn fn = Fn.of(f.function());
+            switch (fn) {
+                case AND, OR -> {
                     if (ps.size() == 2) {
-                        SqlAst.BinaryOp op = switch (f.function()) {
-                            case "and" -> SqlAst.BinaryOp.AND;
-                            default -> SqlAst.BinaryOp.OR;
-                        };
-                        return new SqlAst.Binary(op, condition(ps.get(0), operand, verb), condition(ps.get(1), operand,
-                                verb), NONE);
+                        return new SqlAst.Binary(fn.op(), condition(ps.get(0), operand, verb), condition(ps.get(1),
+                                operand, verb), NONE);
                     }
                 }
-                case "not" -> {
+                case NOT -> {
                     if (ps.size() == 1) {
                         return new SqlAst.Unary(SqlAst.UnaryOp.NOT, condition(ps.get(0), operand, verb), NONE);
                     }
                 }
-                case "equal", "lessThan", "lessThanEqual", "greaterThan", "greaterThanEqual" -> {
+                case EQUAL, LESS_THAN, LESS_THAN_EQUAL, GREATER_THAN, GREATER_THAN_EQUAL -> {
                     if (ps.size() == 2) {
-                        SqlAst.BinaryOp op = switch (f.function()) {
-                            case "equal" -> SqlAst.BinaryOp.EQ;
-                            case "lessThan" -> SqlAst.BinaryOp.LT;
-                            case "lessThanEqual" -> SqlAst.BinaryOp.LE;
-                            case "greaterThan" -> SqlAst.BinaryOp.GT;
-                            default -> SqlAst.BinaryOp.GE;
-                        };
-                        return new SqlAst.Binary(op, operand.apply(ps.get(0)), operand.apply(ps.get(1)), NONE);
+                        return new SqlAst.Binary(fn.op(), operand.apply(ps.get(0)), operand.apply(ps.get(1)), NONE);
                     }
                 }
-                case "isEmpty", "isNotEmpty" -> {
+                case IS_EMPTY, IS_NOT_EMPTY -> {
                     if (ps.size() == 1) {
-                        boolean some = switch (f.function()) {
-                            case "isNotEmpty" -> true;
-                            default -> false;
-                        };
-                        return new SqlAst.IsNull(operand.apply(ps.get(0)), some, NONE);
+                        return new SqlAst.IsNull(operand.apply(ps.get(0)), fn == Fn.IS_NOT_EMPTY, NONE);
                     }
                 }
-                case "in" -> {
+                case IN -> {
                     if (ps.size() == 2 && ps.get(1) instanceof PureCollection c) {
                         List<SqlAst.Expr> values = new ArrayList<>();
                         for (ValueSpecification e : c.values()) {
@@ -543,14 +547,8 @@ public final class TsShow {
         if (v instanceof AppliedProperty p && p.receiver() instanceof Variable x && x.name().equals(row)) {
             return new SqlAst.ColumnRef(List.of(ident(p.property())), NONE);
         }
-        if (v instanceof AppliedFunction f && f.parameters().size() == 1) {
-            switch (f.function()) {
-                case "toOne" -> {
-                    return value(f.parameters().get(0), row);
-                }
-                default -> {
-                }
-            }
+        if (v instanceof AppliedFunction f && f.parameters().size() == 1 && Fn.of(f.function()) == Fn.TO_ONE) {
+            return value(f.parameters().get(0), row);
         }
         return literal(v, "filters by");
     }

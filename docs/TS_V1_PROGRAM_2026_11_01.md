@@ -675,7 +675,7 @@ Update this table in the same commit as the work.
 | A5 the library's text off the wire | | |
 | A6 Show #TS complete | done 2026-11-03. An enumeration read as its values' names prints as `CAST(side AS text)`, which the #SQL reader reads back, and the flat source's reader keeps an item's name apart from the path it reads. A calculated column is its flat source's item, the Postgres the reader reads back to Pure's meaning: `+` as `+` or `||` by the compiler's type (the route takes the model), `/` a Float's (`CAST(a AS DOUBLE PRECISION) / b`), a Float literal a double, `if` a `CASE`, `[]` a `NULL`. The class page's refused count is 0; the core test and a markets grid of three calculated columns print exactly and answer the same rows. A window's column, an exploded column and the other functions are refused by name, one native at a time | 4d162d06, e9e080cc |
 | A7 H2's deep plans | moved to v1.1 (P4) | |
-| A8 the ratchets | | |
+| A8 the ratchets | started 2026-11-03: `BARE_NAME_ARMS_MAX` 190 -> 171, Show #TS's 19 arms one table (`TsShow.Fn`), so the 194 -> 197 raise is reverted and more. The rest to review: `NAME_COMPARE` 204 -> 205 and `NAME_AFFIX_TEST` 53 -> 55 (TsIslands, SignatureMangle), the bundle budgets (the timeseries tile 102,000 -> 118,500; A5 shrinks it), `SqlTextRatchetTest`'s TsPrinter entry | |
 | A9 the documents | | |
 | A10 close Part A | | |
 | B1 to B8 | after Part A; B6 in v1.1 (P6, P1b) | |
