@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -312,6 +313,20 @@ class TsIslandTest {
                   ->extend(~dev: r|if($r.px->isEmpty() || $r.ma3->isEmpty(), |[], |$r.px->toOne() / $r.ma3->toOne() - 1))
                   ->select(~[day, sym, ma3, dev])
                   ->sort([~day->ascending(), ~sym->ascending()])""", 2);
+    }
+
+    @Test
+    void aFlatItemMayTakeTheNameOfThePathItReads() throws Exception {
+        // as SQL means it: an item's name is its output's, its expression reads the source's path (Show #TS A6 prints
+        // an enumeration as CAST(side AS text) AS side, 2026-11-03)
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> same = rows(backend, "|#TS{WITH q AS (SELECT instrument.ticker AS sym, day,"
+                    + " close * 2 AS close FROM Quote) SELECT close AS c FROM q ON day BY sym}#");
+            List<Map<String, String>> want = rows(backend, "|#TS{WITH q AS (SELECT instrument.ticker AS sym, day,"
+                    + " close AS px FROM Quote) SELECT px * 2 AS c FROM q ON day BY sym}#");
+            assertFalse(want.isEmpty(), backend + ": the rows to compare");
+            assertEquals(want, same, backend + ": close * 2 AS close is the path close doubled");
+        }
     }
 
     @Test

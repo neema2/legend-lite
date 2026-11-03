@@ -686,6 +686,7 @@ public final class TsToPure {
                         outputs.add(as.text());
                     }
                 }
+                paths.take(computed.keySet());
                 if (flat.where() != null) {
                     collect(perPoint(flat.where()), null, paths, Set.of(), Set.of());
                 }
@@ -1352,6 +1353,10 @@ public final class TsToPure {
             private final String cls;
             /** Each path read, by its dotted text: its column and its properties' names. */
             private final Map<String, Path> read = new LinkedHashMap<>();
+            /** The names a flat source's computed items take: a path read only by an item or the condition, its last
+             *  step one of them, is read under a name of the translator's ({@code CAST(side AS text) AS side} reads
+             *  the property side and names its own column side, as SQL means). */
+            private final Set<String> taken = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
             Paths(String cls) {
                 this.cls = cls;
@@ -1361,10 +1366,20 @@ public final class TsToPure {
                 return read.containsKey(key(c));
             }
 
-            /** The column of path {@code c}, read as its last step's name. */
+            /** The names a flat source's computed items take ({@link #taken}). */
+            void take(Set<String> names) {
+                taken.addAll(names);
+            }
+
+            /** The column of path {@code c}, read as its last step's name -- or, that name a computed item's, a name
+             *  of the translator's. */
             String add(SqlAst.ColumnRef c) {
                 Path known = read.get(key(c));
-                return known != null ? known.column() : add(c, c.parts().get(c.parts().size() - 1).text());
+                if (known != null) {
+                    return known.column();
+                }
+                String last = c.parts().get(c.parts().size() - 1).text();
+                return add(c, taken.contains(last) ? "__ts_read_" + last : last);
             }
 
             /** The column of path {@code c}, read as {@code name} (a flat source's). */
