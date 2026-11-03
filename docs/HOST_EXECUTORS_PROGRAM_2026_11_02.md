@@ -176,6 +176,20 @@ R2's (the user, 2026-11-02):
   `Decimal`) is read from its Pure type by one rule: `Decimal(p,s)` is `Decimal`, its precision and scale the SQL
   type's (`ExecutionPlan.Column.plainType`). A first cut that added the plain name as a second field repeated the Pure
   type and was withdrawn at the user's word.
+- **D17. Lite's own Arrow is the plan's types; legend-engine's formats are written at the edge, exactly as
+  legend-engine writes them** (the user, 2026-11-03: "arrow for us should be super clean and then legend
+  arrow/json/csv for engine at the edges for compatibility"). Two kinds of output, each implemented once, in the core:
+  - **lite's own:** the Arrow the pieces pass inside every host and lite's own answers (Python's `Table.execute`,
+    plan-and-run, the grid) carry the plan's types (P3): lossless, the same on every database;
+  - **legend-engine's, for its clients:** the TDS JSON (as today), the `ARROW_IPC` execute and the CSV are
+    compatibility writers that reproduce legend-engine's answer exactly. The `ARROW_IPC` writer types each column as
+    legend-engine does, from the database's reported type (§1.3 A), which travels with each column as a carried fact
+    (JDBC's metadata on the JVM, the connector's own Arrow schema on a host).
+
+  It settles §1.3 A and register S125 toward convergence: the JVM's `ARROW_IPC` answer changes to legend-engine's
+  schema, Python's barely moves, and Python's own dataframes move to the plan's types; each concrete change is posted
+  to the user case by case before it lands (D7). Open: whether the edge writer also copies legend-engine's data loss
+  where a driver misreports a precision (H2's computed sum as `decimal(27,0)`), recommended copied with a register row.
 
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
@@ -187,6 +201,8 @@ RelationalResultToArrowIPCSerializer.java`, `RR` and `MD` are `RelationalResult.
 `SQLResultDBColumnsMetaData.java` in that module's `relational/result/`.
 
 - **A. The Arrow answer's schema (S125, D7): gates Python's Arrow execute, the last host path off the plan record.**
+  *Ruled 2026-11-03 (D17): neither A1 nor A2 alone -- lite's own Arrow the plan's types (A2), legend-engine's
+  `ARROW_IPC` answer an edge writer exactly as upstream's (A1 for that one output).*
   - *Upstream:* one class answers `ARROW_IPC` (RR:690-691 to SER). Each column's Arrow type comes from JDBC's
     `ResultSetMetaData` alone (SER:117-121), never the plan's TDS types (SER:126):
     - BIT/BOOLEAN bool; TINYINT int8; SMALLINT int16; INTEGER int32; BIGINT int64 (SER:144-154);
