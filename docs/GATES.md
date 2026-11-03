@@ -17274,3 +17274,12 @@ its dictionary; a delta, an encoded field inside another, and a dictionary the s
 Judged in `//python:arrow_handoff_test`: DuckDB's own `ENUM` answer, and pyarrow's stream of two batches each with its
 own dictionary, one value null. Checks: `//core:core_tests_{root,architecture}`, `//core:guardrails`,
 `//wasm:differential_test`, `//datacube:{conformance,python_execute}_test`, `//python:{arrow_handoff,bindings,frames}_test`.
+
+## 2026-11-03 — D19 ruled; the 1,000,000-row JSON answer's time, measured
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D19 and §7. No code changed. Scratch probes (a profiling test of
+Python's stages, and the same bytes replayed through the same core code on the JVM; both deleted): of Python's ~2 s,
+DuckDB and its Arrow take 100-150 ms and the native library 1,640-1,800 ms (decode 5,000,000 cells, write 84 MB of
+legend-engine's JSON, copy it out); the JVM does the same core work in 690 ms (decode 190 ms). The native image runs
+it about 2.5 times slower (GraalVM CE 25: serial GC, no PGO); the decode boxes every cell; the JSON writer spells
+characters before UTF-8; the answer is copied about five times on its way out. Fixes proposed in §7, none built.

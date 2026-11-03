@@ -213,6 +213,17 @@ R2's (the user, 2026-11-02):
   - **F:** the JVM's answer header made from the plan's facts by the one maker hosts use; a dynamic pivot's
     generated columns typed as legend-engine types them, from the database's report;
   - **G:** the tab's own display, the clean thing (R5).
+- **D19. Everything lite builds and uses runs on lite's own pieces; legend-engine's formats exist only at the edge**
+  (the user, 2026-11-03, answering R4 step 3's question: "Everything we build should use our internal stuff, the engine
+  stuff is only at the edges for backwards compatibility for upstream tools or users - everything we build and use
+  should be fast and clean"). So:
+  - lite's own consumers -- DataCube, Query, Studio, the notebooks, Python's dataframes -- read lite's own Arrow, in the
+    plan's types, never the `ARROW_IPC` answer; DataCube asking Python's engine for `ARROW_IPC` moves to lite's own
+    Arrow route;
+  - legend-engine's `ARROW_IPC`, TDS JSON and CSV answers are written exactly as upstream writes them (R4 step 3's
+    table), for upstream's tools and users alone;
+  - both are fast: a measurement decides where either is slow (the 1,000,000-row JSON answer's breakdown, posted with
+    this ruling).
 
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
@@ -944,6 +955,29 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   measured.) *Settled by R4 step 1 (2026-11-03): the reader reads a top-level dictionary-encoded column through its
   dictionary, a replacement dictionary taking the place of the one before; a delta and an encoded field inside another
   are refused by name.*
+- **Python's 1,000,000-row JSON answer takes about 2 s, and most of it is the core's own work** (measured 2026-11-03,
+  scratch probes, reverted; H0's five columns; the answer 84 MB of legend-engine's JSON, the rows 50 MB of Arrow):
+
+  | Stage | Native library (Python) | Same code on the JVM |
+  |---|---|---|
+  | plan | 5 ms | |
+  | DuckDB runs the statement, its Arrow (one IPC stream) | 100-150 ms | |
+  | the core reads the stream's batches (views only) | | 0.06 ms |
+  | the core decodes 5,000,000 cells into batches | | 190 ms |
+  | ... and writes legend-engine's JSON, then copies it out | 1,640-1,800 ms | 690 ms |
+  | ... or writes lite's own Arrow and zstd instead | 870-900 ms | 454 ms |
+  | Python: the answer's bytes to a `str` and back to bytes | 67 ms | |
+
+  So: "zero copy" is the input alone; the time is (a) the native image running the core about 2.5 times slower than
+  the JVM's JIT (GraalVM Community Edition: serial GC only, no profile-guided optimization, `-march=compatibility`),
+  (b) the decode boxing every cell into an object and a list per row that the batch then splits back into columns, (c)
+  the JSON writer spelling 84 MB as characters (~170 MB/s on the JVM) before UTF-8, and (d) the answer copied about
+  five times on its way out (Java string, UTF-8 bytes, the folded array, the native buffer, Python's bytes, `str`, bytes
+  again). Under D19 lite's own consumers take lite's Arrow (DuckDB's own 100 ms is the floor there), and the JSON
+  answer is the edge's -- both to be made fast. Posted to the user with the fixes proposed, in order: a columnar decode
+  straight into the batch's typed arrays; the writers writing UTF-8 bytes into one buffer; the answer written into the
+  host's buffer once, kept as bytes in Python; then the native image's own settings (its young generation, the CPU
+  baseline), each measured.
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them. *After R3 (its audit): `lite_execute_arrow_answer`
@@ -1066,3 +1100,7 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   dictionaries), judged in `//python:arrow_handoff_test`.
 - 2026-11-03: R4 step 3's cases posted to the user (§5 R4, the table under step 3) with the question of lite's own
   consumers of `ARROW_IPC`; step 3 and step 4 wait on the ruling (D7). Steps 5 and 6 do not depend on it.
+- 2026-11-03: D19 ruled (§1.2): everything lite builds runs on lite's own pieces, legend-engine's formats only at the
+  edge for upstream's tools and users. R4 step 3 builds the edge writer exactly as upstream (its table) and moves lite's
+  own consumers of `ARROW_IPC` to lite's own Arrow. The 1,000,000-row JSON answer's time measured and its fixes posted
+  (§7).
