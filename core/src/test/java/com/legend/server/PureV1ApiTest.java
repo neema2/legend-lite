@@ -813,10 +813,10 @@ class PureV1ApiTest {
         assertEquals("{\"code\":-1,\"message\":\"SQLException: Conversion Error: Could not convert string 'x' to INT32\","
                 + "\"status\":\"error\",\"trace\":\"ConversionException: Conversion Error\"}", host.json());
         // a database no host runs (this H2 one): refused by name
-        PureV1Api.Answer h2 = PureV1Api.jsonPlan(asked, List.of(model));
-        assertEquals(200, h2.status(), h2.json());
+        PureV1Api.Answer other = PureV1Api.jsonPlan(asked, List.of(model));
+        assertEquals(200, other.status(), other.json());
         IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> PureV1Api.databaseRefused(h2.json(), "no", "no"));
+                () -> PureV1Api.databaseRefused(other.json(), "no", "no"));
         assertTrue(refused.getMessage().contains("this plan's database is H2's"), refused.getMessage());
     }
 
