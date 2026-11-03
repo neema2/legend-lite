@@ -646,7 +646,7 @@ class PureV1ApiTest {
             String sql = plan.answerSql().statement();
             com.legend.result.PureV1Writer.Envelope fromTypes;
             try {
-                fromTypes = PureV1Api.envelope(query.resultType(), sql, columns);
+                fromTypes = compilerTypedEnvelope(query.resultType(), columns);
             } catch (RuntimeException refused) {
                 RuntimeException byFacts = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                         () -> PureV1Api.planEnvelope(sql, columns), c.query());
@@ -667,6 +667,40 @@ class PureV1ApiTest {
                 + "; the first not planned: " + firstNotPlanned);
         assertTrue(enumeration, "the enumeration column compared");
         assertTrue(decimal, "a precision decimal column compared, its plain type Decimal");
+    }
+
+    /**
+     * legend-engine's TDS builder made from the COMPILER's types (the maker the server used until D18 F, 2026-11-03,
+     * kept here as the differential's other side): each column's builder entry by the type the compiler gave it, under
+     * its name as the plan spells it or as a cast presents it; a column the compiler did not type refused. The plan's
+     * own facts ({@code PureV1Api.planEnvelope}) are held to it, case by case.
+     */
+    private static com.legend.result.PureV1Writer.Envelope compilerTypedEnvelope(
+            com.legend.compiler.element.type.ExprType rootType, List<com.legend.executionplan.ExecutionPlan.Column> columns) {
+        Map<String, com.legend.compiler.element.type.Type> declared = new java.util.LinkedHashMap<>();
+        for (var c : com.legend.plan.UpstreamRelationType.columns(rootType)) {
+            declared.put(c.name(), c.type());
+        }
+        List<Map<String, Object>> builderColumns = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (var c : columns) {
+            String name = com.legend.result.CellText.presentedName(c.name());
+            com.legend.compiler.element.type.Type t = declared.containsKey(c.name()) ? declared.get(c.name())
+                    : declared.get(name);
+            if (t == null) {
+                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: " + declared.keySet());
+            }
+            Map<String, Object> col = new java.util.LinkedHashMap<>();
+            col.put("name", name);
+            col.put("type", com.legend.plan.UpstreamRelationType.tdsTypePath(t));
+            col.put("relationalType", com.legend.plan.UpstreamRelationType.relationalSpelling(t));
+            builderColumns.add(col);
+            names.add(name);
+        }
+        Map<String, Object> builder = new java.util.LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", builderColumns);
+        return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder), "[]", names);
     }
 
     /**

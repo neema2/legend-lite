@@ -586,47 +586,6 @@ public final class PureV1Api {
                 + com.legend.plan.ResultShape.of(query.resultType()) + " result's serialization is unprobed");
     }
 
-    /** A relation's envelope for the columns the run announced: each column's builder entry by the type the compiler
-     *  gave it (a column only the data names -- a dynamic pivot's -- by its plan type, a primitive), the relational
-     *  activity carrying {@code sql}, and the columns' names as the engine labels them. */
-    static com.legend.result.PureV1Writer.Envelope envelope(com.legend.compiler.element.type.ExprType rootType,
-            String sql, List<com.legend.executionplan.ExecutionPlan.Column> columns) {
-        Map<String, com.legend.compiler.element.type.Type> declared = new LinkedHashMap<>();
-        for (var c : UpstreamRelationType.columns(rootType)) {
-            declared.put(c.name(), c.type());
-        }
-        List<Map<String, Object>> builderColumns = new ArrayList<>();
-        List<String> names = new ArrayList<>();
-        for (var c : columns) {
-            // a column's type is the compiler's, under its name as the plan spells it or as a cast presents it (a
-            // pivot's generated name quoted); a column only the data names -- a dynamic pivot's generated one -- has
-            // none, and is typed by its plan type, a primitive; any other column the compiler did not type is refused
-            String name = com.legend.result.CellText.presentedName(c.name());
-            com.legend.compiler.element.type.Type t = declared.containsKey(c.name()) ? declared.get(c.name())
-                    : declared.containsKey(name) ? declared.get(name)
-                    : c.name().contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
-                            // (the plan names a primitive by its short name, the table by its path: every dynamic
-                            // pivot's engine answer was refused until 2026-10-27, found by the PCT read as the engine's
-                            // adapter reads it, the result boundary program's stage 1, step 3)
-                            ? com.legend.compiler.element.type.Type.Primitive.findByFqn(
-                                    "meta::pure::metamodel::type::" + c.type()).orElseThrow(() ->
-                                    new IllegalStateException("the generated column '" + c.name() + "' of type "
-                                            + c.type() + " is no primitive"))
-                            : null;
-            if (t == null) {
-                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: "
-                        + declared.keySet());
-            }
-            builderColumns.add(builderColumn(name, t));
-            names.add(name);
-        }
-        Map<String, Object> builder = new LinkedHashMap<>();
-        builder.put("_type", "tdsBuilder");
-        builder.put("columns", builderColumns);
-        return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder),
-                Json.toCompact(List.of(activity(sql, true))), names);
-    }
-
     /**
      * A relation's envelope from the plan alone (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2: a host's writer reads
      * the plan, never the compiler): each column's builder entry by the plan's own facts -- its type by the one rule
