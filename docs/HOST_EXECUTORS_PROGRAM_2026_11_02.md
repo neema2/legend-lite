@@ -1051,6 +1051,19 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   applied to the exact digits (`9,007,199,254,740,993`, `12,345,678,901,234,567.89`), a decimal with the scale the result
   holds (3, after the previous finding's fix the same on both adapters), a timestamp as the stored text (4), Studio
   ungrouped as today.
+- **R4 step 5's cases: Python's `Table.execute` on lite's own Arrow** (measured 2026-11-03 by a scratch probe, deleted:
+  one frame of every kind of column, three queries, `Table.execute` today -- DuckDB's Arrow typed by the plan,
+  `frames.typed_by_plan` -- against lite's own execute for the same query; posted to the user, not built). Every other
+  column the same, type and value:
+  1. *A `FLOAT` (DuckDB `REAL`) column:* float32 today (its four-byte value, `0.10000000149011612` in Python), lite's
+     float64 of its own digits (`0.1`), as the JSON answer has had since R4.2.
+  2. *A `DateTime` column:* timestamp[us] with no zone today, lite's timestamp[ns, UTC]: Python's values zone-aware
+     (`datetime(..., tzinfo=UTC)`), pandas' `datetime64[ns, UTC]`.
+  3. *A frame's zoned timestamp* (timestamp[us, UTC] in): `Table.execute` drops its zone today; lite keeps UTC.
+  4. *A sum of integers* (DuckDB's `HUGEINT`): int64 today (`typed_by_plan` narrows it), lite's decimal128(38, 0) (its
+     `HUGEINT` slot: a Pure Integer is unbounded): Python's values `Decimal`, pandas' `object`.
+  5. *Each field's metadata:* `legend.type` alone today; lite's adds `legend.multiplicity`, `legend.slot` and
+     `legend.precision`, and spells a precision decimal's type as the typer does (`Decimal(10,2)`, today `Decimal`).
 
 ## 8. Status
 
