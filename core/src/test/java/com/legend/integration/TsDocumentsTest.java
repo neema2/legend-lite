@@ -287,9 +287,6 @@ class TsDocumentsTest {
     /** The examples that do not run yet, by id, each why. Only allowed to shrink: an example listed here that runs
      *  fails the test until its row is deleted. */
     private static final Map<String, String> NOT_YET = Map.ofEntries(
-            // spec §6's rank(x [DESC]): no word of the library yet, nor DESC inside a call in the parser
-            Map.entry("spec-14", "rank(risk_adj DESC): rank is no word yet"),
-            Map.entry("guide-14", "rank(risk_adj DESC): rank is no word yet"),
             // spec §6's rebase(x, date): rebase's base by a date, and latest's arithmetic as a word's argument
             Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"),
             // spec §8's other views: plain SQL over a series query (FROM s, no ON) is not read yet

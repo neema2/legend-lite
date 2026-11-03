@@ -45,6 +45,14 @@ public final class TsParser {
     /** The function an option by name is read as (R10): {@code type => 'log'} is {@code __ts_option('type', 'log')}. */
     public static final String OPTION = "__ts_option";
 
+    /** The option a call's last argument's order is (spec §6: {@code rank(x DESC)}, {@code order => 'descending'}). */
+    static final String ORDER = "order";
+
+    /** The keywords a parenthesis follows that make it no call: a window's, a list's, a subquery's, a type's. */
+    private static final Set<String> NOT_A_CALL = Set.of("over", "in", "exists", "any", "all", "some", "values", "from",
+            "join", "as", "on", "using", "filter", "within", "lateral", "select", "where", "and", "or", "not", "when",
+            "then", "else", "by", "with", "union", "except", "intersect");
+
     /** The clauses that end the FROM clause: the language's own, and SQL's that it refuses with their fix. */
     private static final Set<String> AFTER_FROM = Set.of("where", "filter", "sample", "fill", "group", "order",
             "limit", "offset", "having", "window", "union", "except", "intersect", "fetch");
@@ -125,8 +133,21 @@ public final class TsParser {
         }
         Set<SqlAst.Pos> alls = new java.util.LinkedHashSet<>();
         List<Token> tokens = new ArrayList<>(lexed.size());
+        // each open parenthesis: whether it is a word's call (a name before it, not a keyword: OVER, IN, ...), and
+        // whether an ORDER BY of its own is in it (array_agg(x ORDER BY y DESC), a subquery's, a window's)
+        java.util.Deque<boolean[]> parens = new java.util.ArrayDeque<>();
         for (int i = 0; i < lexed.size(); i++) {
             Token t = lexed.get(i);
+            if (t.kind() == Kind.LPAREN) {
+                Token before = i > 0 ? lexed.get(i - 1) : null;
+                boolean call = before != null && (before.kind() == Kind.QUOTED_IDENT
+                        || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
+                parens.push(new boolean[] {call, false});
+            } else if (t.kind() == Kind.RPAREN && !parens.isEmpty()) {
+                parens.pop();
+            } else if (t.is("order") && i + 1 < lexed.size() && lexed.get(i + 1).is("by") && !parens.isEmpty()) {
+                parens.peek()[1] = true;
+            }
             if ((t.is("all") || t.is("whole")) && i > 0
                     && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
                     && i + 1 < lexed.size()
@@ -135,6 +156,16 @@ public final class TsParser {
                 // by its place
                 tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : WHOLE, t.pos()));
                 alls.add(t.pos());
+            } else if ((t.is("desc") || t.is("asc")) && i > 0 && i + 1 < lexed.size()
+                    && lexed.get(i + 1).kind() == Kind.RPAREN && lexed.get(i - 1).kind() != Kind.LPAREN
+                    && lexed.get(i - 1).kind() != Kind.COMMA && !parens.isEmpty() && parens.peek()[0]
+                    && !parens.peek()[1]) {
+                // a call's last argument in an order (spec §6: rank(x DESC)): the option order => 'descending' (or
+                // 'ascending') of the word, which declares it (the library's timeseries::Order)
+                tokens.add(new Token(Kind.COMMA, ",", t.pos()));
+                tokens.add(new Token(Kind.IDENT, ORDER, t.pos()));
+                tokens.add(new Token(Kind.OP, "=>", t.pos()));
+                tokens.add(new Token(Kind.STRING, t.is("desc") ? "descending" : "ascending", t.pos()));
             } else if (t.is("union") && i + 1 < lexed.size() && lexed.get(i + 1).kind() == Kind.LPAREN
                     && (i == 0 || lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).kind() == Kind.LPAREN
                             || lexed.get(i - 1).kind() == Kind.OP || lexed.get(i - 1).is("select"))) {

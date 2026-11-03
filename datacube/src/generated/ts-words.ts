@@ -664,6 +664,17 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     facts: { label: ['Rolling range'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.range_'], about: ['The most less the least over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['range_'] },
     marks: [],
   },
+  rank: {
+    params: [
+      { name: 'x', kind: 'line', takes: [], words: [], required: true },
+      { name: 'order', kind: 'word', takes: [], words: ['ascending', 'descending'], required: false },
+    ],
+    forms: ['rank(x: Line, order: Order (optional))'],
+    doc: 'Each instrument\'s place among the instruments on each date, by x: 1 the first in the order (ascending unless x DESC), those equal sharing a place (SQL\'s rank); an instrument with no value that date is not ranked.',
+    aliases: [],
+    facts: { label: ['Rank across instruments'], family: ['Relationships'], unit: ['number'], gsQuant: ['none (SQL\'s rank, each date\'s instruments)'], about: ['Where each instrument stands among the others on each date: 1 the first.'], param: ['order: ascending, or descending (x DESC)'] },
+    marks: [],
+  },
   rebase: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },

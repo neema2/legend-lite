@@ -1113,8 +1113,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  same date). Measured 446,209.
  *  446,500 -> 447,000 (2026-10-30, main -- PR #80, the plan path -- merged into the timeseries platform branch: main's
  *  module and the branch's together, the library enumerations among the branch's, src/generated/library-enums.ts;
- *  neither measured alone). Measured 446,637. */
-const WIDGET_BUDGET = 447_000;
+ *  neither measured alone). Measured 446,637.
+ *  447,000 -> 447,600 (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A3 step 1 and A9: the timeseries library's text,
+ *  src/pure-library-text.ts, carries each word's facts as tags, and the word rank with its enumeration Order; A5 takes
+ *  the library's text off the wire). Measured 447,016. */
+const WIDGET_BUDGET = 447_600;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -645,6 +645,17 @@ The range of x's values (greatest less least) over a window -- w observations to
 
 Forms: `range(x: Line)`, `range(x: Line, w: Integer)`, `range(x: Line, w: Scope)`, `range(x: Line, w: Integer, unit: DurationUnit)`.
 
+## `rank`
+
+Each instrument's place among the instruments on each date, by x: 1 the first in the order (ascending unless x DESC), those equal sharing a place (SQL's rank); an instrument with no value that date is not ranked.
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `x` | line |  | yes |
+| `order` | word | ascending, descending | no |
+
+Forms: `rank(x: Line, order: Order (optional))`.
+
 ## `rebase`
 
 Each value over the line's first (or its value as of from), times base (100 unless given).

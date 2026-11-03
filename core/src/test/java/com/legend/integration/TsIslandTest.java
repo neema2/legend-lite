@@ -1206,8 +1206,10 @@ class TsIslandTest {
         refusals.put("SELECT avg(CLOSE, 0) AS m FROM PRICES ON DAY BY SYMBOL", "a window counts observations");
         // no word of the library: Postgres's window function, refused as the per-point SQL refuses it (S1e: no list of
         // words still to come is kept in core)
-        refusals.put("SELECT rank(CLOSE) AS v FROM PRICES ON DAY BY SYMBOL",
-                "window function rank requires an OVER clause");
+        refusals.put("SELECT dense_rank(CLOSE) AS v FROM PRICES ON DAY BY SYMBOL",
+                "window function dense_rank requires an OVER clause");
+        // an order is a call's last argument's, and only a word that declares one takes it (rank's)
+        refusals.put("SELECT avg(CLOSE DESC) AS v FROM PRICES ON DAY BY SYMBOL", "avg has no option order");
         refusals.put("SELECT value_at(CLOSE['AAA']) AS v FROM PRICES ON DAY BY SYMBOL",
                 "value_at reads a date: value_at(x, '2024-01-01') (R9)");
         refusals.put("SELECT value_at(CLOSE['AAA'], '2024-13-01') AS v FROM PRICES ON DAY BY SYMBOL",
@@ -1290,7 +1292,8 @@ class TsIslandTest {
                 Compiler.compileModel(library()));
         Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
         words.forEach(w -> byName.put(w.name(), w));
-        assertEquals(81, words.size(), "the words: " + byName.keySet());
+        // 81 -> 82 (2026-11-03, A9): rank, each date's place among its instruments (the spec's §6)
+        assertEquals(82, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         // a word's other spellings are the library's (timeseries::Words.alias, R15): mean's avg, Postgres's stddev and
         // variance; no word is named by one
@@ -1340,6 +1343,26 @@ class TsIslandTest {
             "WITH d AS TS (SELECT CLOSE['AAA'] AS a FROM PRICES ON DAY BY SYMBOL) SELECT last(a) AS w FROM d ON DAY"
                     + " SAMPLE BY 1w",
             "SELECT union(CLOSE['AAA'], CLOSE['BBB']) AS u, 3mo AS z FROM PRICES ON DAY BY SYMBOL");
+
+    @Test
+    void aRankIsEachDatesPlaceAmongItsInstruments() throws Exception {
+        // the spec's §6 rank(x [DESC]) (A9, 2026-11-03): each date's instruments by x, 1 the first, the parser reading
+        // x DESC as the option order => 'descending'; AAA's closes (about 100) are above BBB's (about 50) every day
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> down = rows(backend, "|#TS{SELECT rank(CLOSE DESC) AS r FROM PRICES ON DAY BY SYMBOL}#");
+            List<Map<String, String>> up = rows(backend, "|#TS{SELECT rank(CLOSE) AS r FROM PRICES ON DAY BY SYMBOL}#");
+            assertEquals(2 * AAA.length, down.size(), backend + ": " + down);
+            assertEquals(2 * AAA.length, up.size(), backend + ": " + up);
+            for (Map<String, String> row : down) {
+                assertEquals("AAA".equals(row.get("SYMBOL")) ? 1 : 2, (int) Double.parseDouble(row.get("r")),
+                        backend + ": " + row);
+            }
+            for (Map<String, String> row : up) {
+                assertEquals("AAA".equals(row.get("SYMBOL")) ? 2 : 1, (int) Double.parseDouble(row.get("r")),
+                        backend + ": " + row);
+            }
+        }
+    }
 
     @Test
     void aSeriesIsOneItemCoreReads() {
