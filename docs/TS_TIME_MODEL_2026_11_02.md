@@ -26,7 +26,7 @@ repository: the rules, the rulings, and what is built. The language spec's R2 an
 | D2 | The check skipped where uniqueness is known (a declared key, `SAMPLE BY`); else the database checks | agreed | the check is built; **the skip is not** (measured cost: only queries whose lines meet, `beta_63` 25 -> 53 ms, `ratio_step` 36 -> 72 ms) |
 | D3 | A daily value sits at the end of its day unless its source says otherwise | agreed | nothing reads it in v1 (prevailing pairing for moments is v1.1) |
 | D4 | In v1 a line of moments meeting a line of days is refused, naming the fix | agreed | 50ebe0bd: `lines::meet` and `lines::union` forms by the periods' types |
-| D5 | R7: words that keep their rows add columns to one table; each word's kind declared in the library | agreed | a00fc91b (one table per base), 5eb1ba92 (points carried), 485ba593 (the simple statistics); the others keep line forms (the program doc, A1) |
+| D5 | R7: words that keep their rows add columns to one table; each word's kind declared in the library | agreed | a00fc91b (one table per base), 5eb1ba92 (points carried), 485ba593 (the simple statistics), then zscores, drawdown, max_drawdown and lag (2026-11-03); the others keep line forms (the program doc, A1) |
 | D6 | Prevailing pairing for moments in v1.1 | agreed | -- |
 | D7 | These rules amend R2 and R6 in the language spec | agreed | the spec's R6 |
 

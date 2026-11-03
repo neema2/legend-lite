@@ -738,6 +738,29 @@ class TsIslandTest {
                             Double.parseDouble(r.get("rg")), 1e-9, backend + ": a row's range its high less its low");
                 }
             }
+            // R7 part 3 (2026-11-03): zscores, drawdown, max_drawdown and lag have rows forms too -- items of the same
+            // table, each row once, and each the same as the word asked alone
+            List<Map<String, String>> more = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, 3) AS z,"
+                    + " drawdown(CLOSE, 3) AS dd, max_drawdown(CLOSE, 3) AS md, lag(CLOSE, 1) AS l FROM PRICES ON DAY}#");
+            assertEquals(2 * AAA.length, more.size(), backend + ": the four words columns of the same table");
+            String by = " FROM PRICES ON DAY BY SYMBOL}#";
+            List<Map<String, String>> together = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, 3) AS z,"
+                    + " drawdown(CLOSE, 3) AS dd, max_drawdown(CLOSE, 3) AS md, lag(CLOSE, 1) AS l" + by);
+            for (String[] w : new String[][] {{"z", "zscores(CLOSE, 3)"}, {"dd", "drawdown(CLOSE, 3)"},
+                    {"md", "max_drawdown(CLOSE, 3)"}, {"l", "lag(CLOSE, 1)"}}) {
+                List<Map<String, String>> alone = rows(backend, "|#TS{SELECT " + w[1] + " AS " + w[0] + by);
+                Map<String, String> asked = new java.util.TreeMap<>();
+                alone.forEach(r -> asked.put(r.get("SYMBOL") + " " + r.get("DAY"), r.get(w[0])));
+                Map<String, String> beside = new java.util.TreeMap<>();
+                together.stream().filter(r -> r.get(w[0]) != null)
+                        .forEach(r -> beside.put(r.get("SYMBOL") + " " + r.get("DAY"), r.get(w[0])));
+                asked.values().removeIf(java.util.Objects::isNull);
+                assertEquals(asked.keySet(), beside.keySet(), backend + ": " + w[1] + "'s points beside the column");
+                for (String k : asked.keySet()) {
+                    assertEquals(Double.parseDouble(asked.get(k)), Double.parseDouble(beside.get(k)), 1e-9,
+                            backend + ": " + w[1] + " at " + k + ", beside the column as alone");
+                }
+            }
         }
     }
 

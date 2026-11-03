@@ -2213,7 +2213,8 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 // apply_ramp). Each written out whole, its aggregate the table function's (timeseries::mean and its kin): calling the
 // table function puts its rename between the two windows, so each item's ramp window is a subquery level of its own
 // -- twelve items nested twenty-four levels deep, which DuckDB ran twelve times slower (measured 2026-11-03); written
-// out, an item's two windows share one level. The words whose table functions call others keep their line forms.
+// out, an item's two windows share one level. zscores, drawdown, max_drawdown and lag have theirs (below); product,
+// vol_swap_volatility, dickey_fuller, half_life and the calendar windows keep their line forms.
 function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->average()))
@@ -2275,6 +2276,46 @@ function timeseries::rows::range<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
     ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
     ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+// The rows forms of the words over w observations whose table functions read a window over another (R7 part 3,
+// 2026-11-03): each its line form's windows, written out whole as the simple statistics' are, its answer a column of
+// the value's own table. zscores and max_drawdown ramp as their line forms do (gs-quant's apply_ramp: a point once the
+// value has had more than w points); drawdown and lag do not ramp, their points the value's.
+function timeseries::rows::zscores<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~[rows_m:{p,f,r|$r->read($value)}:y|$y->average(), rows_s:{p,f,r|$r->read($value)}:y|$y->stdDevSample(), rows_c:{p,f,r|$r->read($value)}:y|$y->count()])
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isEmpty() || ($x.rows_c->toOne() < $w) || ($x.rows_s->toOne() == 0), |[], |($x->read($value)->toOne() - $x.rows_m->toOne()) / $x.rows_s->toOne()))
+    ->without(~[rows_m, rows_s, rows_c, rows_n])->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~[rows_pk:{p,f,r|$r->read($value)}:y|$y->max(), rows_c:{p,f,r|$r->read($value)}:y|$y->count()])
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isEmpty() || ($x.rows_c->toOne() < $w) || ($x.rows_pk->toOne() == 0), |[], |$x->read($value)->toOne() / $x.rows_pk->toOne() - 1))
+    ->without(~[rows_pk, rows_c])->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::max_drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_pk:{p,f,r|$r->read($value)}:y|$y->max())
+    ->extend(~rows_dd:x|if($x->read($value)->isEmpty() || ($x.rows_pk->toOne() == 0), |[], |$x->read($value)->toOne() / $x.rows_pk->toOne() - 1))
+    ->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~[rows_md:{p,f,r|$r.rows_dd}:y|$y->min(), rows_c:{p,f,r|$r->read($value)}:y|$y->count()])
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isEmpty() || ($x.rows_c->toOne() < $w), |[], |$x.rows_md))
+    ->without(~[rows_pk, rows_dd, rows_md, rows_c, rows_n])->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], obs: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()]), ~rows_l:{p,f,r|$p->lag($r, $obs)->read($value)})
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isEmpty(), |[], |$x.rows_l))
+    ->without(~rows_l)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 // Where two values are both points (R6: a per-point figure of several values is a point where every one is): 1, else

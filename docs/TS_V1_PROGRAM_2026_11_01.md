@@ -275,6 +275,15 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       and the words whose table functions call others (`zscores`, `drawdown`, `max_drawdown`, `product`,
       `vol_swap_volatility`, `dickey_fuller`, `half_life`, the calendar windows, the lags) keep their line forms until
       the lowering keeps a renamed window's next window on its level (the cost to remove first).
+    - **Part 3, four more (2026-11-03).** The lowering did not need the fix: read in the SQL, a word's renames
+      already stay on their level, and each item costs one level because its answer reads its own windows (items +
+      1 levels, the floor without moving windows). The 24 levels were the table functions' renames alone. So
+      `zscores`, `drawdown`, `max_drawdown` and `lag` have rows forms written out as the statistics' are (their line
+      forms' windows and ramps). Five items over one column: 16,342 characters and 49 SELECTs -> 4,435 and 7, one
+      table. Every answer unchanged (the frozen answers, `timeseries_ts_parity_test`); the oracle unchanged (145
+      agree, 1 the ruled difference). `product`, `vol_swap_volatility`, `dickey_fuller`, `half_life` and the calendar
+      windows keep their line forms (rarely beside others; `product`'s table function is a window over a window).
+      Test: `TsIslandTest.theItemsOfOneColumnAreOneTableEachRowOnce` (each beside the column as asked alone).
   - **Duplicates where lines meet (the time model's D1, ruled 2026-11-03; its proof step 3). Done 2026-11-03.**
     - Two lines meeting where one has several rows on a date pair as a lookup (each row with the other's one); where
       both do, the database refuses while the query runs, naming the fix (`SAMPLE BY 1d` and how to take a date's
