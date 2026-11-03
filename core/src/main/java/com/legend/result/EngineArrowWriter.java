@@ -38,9 +38,10 @@ import java.util.function.IntFunction;
  * </ul>
  * Where upstream fails, lite answers (D18; register S133): a DuckDB {@code TIME} column, whose value upstream casts to
  * JDBC's {@code Time} and fails, is written as its milliseconds of the day. Where upstream fails on a list within a
- * list (Jackson cannot serialize the driver's nested array), lite refuses it. What this writer cannot yet write as
- * upstream does (a map's or a struct's text, a binary value's hex, a time with a zone; register S136) is refused by
- * name, never written some other way.
+ * list (Jackson cannot serialize the driver's nested array), lite refuses it. What this writer does not write as
+ * upstream does (a map's or a struct's text, a binary value's hex, a time with a zone, a timestamp before 1582-10-15;
+ * register S136) is refused by name, never written some other way. The route is FROZEN (the user's D21, 2026-11-03,
+ * docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2): each refusal is closed only when a real client needs it.
  */
 public final class EngineArrowWriter implements ResultSink {
 
@@ -516,6 +517,15 @@ public final class EngineArrowWriter implements ResultSink {
         }
 
         private long micros(int year, int month, int day, int hour, int minute, int second, String subsecond) {
+            if (year < 1582 || year == 1582 && (month < 10 || month == 10 && day < 15)) {
+                // upstream reads it through JDBC's Timestamp, on its Julian-hybrid calendar (1500-01-01 nine days
+                // from the stored day): refused by name, never written on another calendar (register S136; the route
+                // frozen, the user's D21, 2026-11-03)
+                throw new IllegalStateException(String.format(java.util.Locale.ROOT, "column '%s': the timestamp"
+                        + " %04d-%02d-%02d is before 1582-10-15, which legend-engine's Arrow answer writes through"
+                        + " JDBC's Timestamp, on its Julian-hybrid calendar (days from the stored date); not written another"
+                        + " way", column.label(), year, month, day));
+            }
             long seconds = java.time.LocalDateTime.of(year, month, day, hour, minute, second)
                     .toEpochSecond(java.time.ZoneOffset.UTC);
             try {

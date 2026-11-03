@@ -148,6 +148,23 @@ class EngineArrowWriterTest {
     }
 
     @Test
+    void aTimestampBefore1582IsRefusedByName() throws IOException {
+        // upstream writes it through JDBC's Timestamp, on its Julian-hybrid calendar (days from the stored date): the frozen
+        // route refuses it rather than write it on another calendar (register S136; D21, 2026-11-03)
+        List<ExecutionPlan.Column> columns = List.of(col("t", "DateTime"));
+        List<ColumnReport> report = List.of(report("T", ColumnReport.TIMESTAMP, 0, 0));
+        IllegalStateException before = assertThrows(IllegalStateException.class, () -> written(columns, report,
+                List.of(List.of(new PureDateLiteral.DateWithSecond(1582, 10, 14, 23, 59, 59)))));
+        assertTrue(before.getMessage().contains("column 'T': the timestamp 1582-10-14 is before 1582-10-15"),
+                before.getMessage());
+        // the first day of the Gregorian calendar is written as every later one
+        List<List<Object>> back = cells(ArrowReader.open(ByteBuffer.wrap(written(columns, report,
+                List.of(List.of(new PureDateLiteral.DateWithSecond(1582, 10, 15, 0, 0, 0)))))));
+        assertEquals(List.of(java.time.LocalDateTime.of(1582, 10, 15, 0, 0).toEpochSecond(java.time.ZoneOffset.UTC)
+                * 1_000_000L), back.get(0));
+    }
+
+    @Test
     void batchesOf1024RowsAndNoneForAnEmptyResult() throws IOException {
         List<ExecutionPlan.Column> columns = List.of(col("n", "Integer"));
         List<ColumnReport> report = List.of(report("n", ColumnReport.BIGINT, 19, 0));

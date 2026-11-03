@@ -260,6 +260,14 @@ R2's (the user, 2026-11-02):
     past 64 bits refused by name, never wrapped or rounded (Arrow's integers stop at 64 bits; DuckDB's decimal128(38, 0)
     for a 128-bit integer is its workaround, and a type that changes with the data, Python's `_integer` today, is not
     clean).
+  - **legend-engine's `ARROW_IPC` route frozen** (the user, 2026-11-03, asked "are we over indexing on engine Arrow?",
+    then "Sounds good" to freezing it): what is built stays and is kept green; no more R4 work on it. What it answers
+    is upstream's byte for byte; everything else is refused by name (register S136: a map, a struct, a binary value, a
+    time with a zone, and -- the one change with the freeze -- a timestamp before 1582-10-15, which it wrote on the
+    proleptic calendar where upstream's `java.sql.Timestamp` reads the Julian-hybrid one). A refusal is closed only
+    when a real client needs it. The reasons, measured: upstream's pinned 4.145.0 names `ARROW_IPC` in no test; none of
+    lite's apps asks for it (D20's rule that a lite server answers upstream's routes is why it is served); its writer
+    shares no code with lite's other writers (`CellText`), where upstream's shares only the row read.
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
 
@@ -1279,3 +1287,6 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   column: the five ruled cases and one more) and held: a Variant (JSON) column's text, DuckDB's text as stored
   (`{"a": [1, 2.50]}`) today against lite's compact JSON (`{"a":[1,2.50]}`), posted to the user, who asked why a
   Variant is text at all rather than a variant type; not landed until ruled.
+- 2026-11-03: legend-engine's `ARROW_IPC` route frozen (D21, §1.2): a timestamp before 1582-10-15 is now refused by
+  name (`EngineArrowWriter`), so everything the route answers is upstream's and S136 is a list of refusals, closed on
+  a real client's need. Q3's second part (Python's `Table.execute`) still held for the Variant ruling.

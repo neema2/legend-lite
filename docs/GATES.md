@@ -17494,3 +17494,15 @@ Checks: `//core:{arrow_writer_test,core_tests_root,core_tests_server,guardrails}
 217), `//python:headless_test` in three parts (46, 7, 2), `//python:notebook_test` in parts (21, and `InMarimo` one
 test per process: 7 of 8; `test_each_marimo_session_its_own_frames_and_names` segfaults in this container with HEAD's
 Python code too -- two V8 sessions in one process, the container's crash, as `engine_test`'s).
+
+## 2026-11-03 — legend-engine's ARROW_IPC route frozen; a timestamp before 1582-10-15 refused
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D21 (the user's go of 2026-11-03) and §8. `result/EngineArrowWriter`:
+a timestamp before 1582-10-15 -- which upstream writes through `java.sql.Timestamp`'s Julian-hybrid calendar, days from
+the stored date -- is refused by name (the column, the date) instead of written on the proleptic calendar; so the
+route answers only what upstream answers, byte for byte. Register S136 rewritten: frozen, refusals only, closed on a
+real client's need. Test: `EngineArrowWriterTest.aTimestampBefore1582IsRefusedByName` (1582-10-14 refused, 1582-10-15
+written). No guard moved (the new comment and message do not name the JDBC package, which `TenetRatchetTest` reads).
+
+Checks: `//core:{core_tests_root,core_tests_server,arrow_writer_test,guardrails}`.
+
