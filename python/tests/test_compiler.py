@@ -302,9 +302,9 @@ class Hosting(unittest.TestCase):
 
 class PlanDoors(unittest.TestCase):
     """Every plan door a host asks of the native library answers the one plan record (R2: one plan kind for every host
-    path, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D11), its root the one typed result a host runs. The one door not on
-    it, the Arrow execute's ``{"sql", "metadata"}`` (``lite_execute_plan``), is named here until it moves onto the
-    core's Arrow writer (R4)."""
+    path, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D11), its root the one typed result a host runs. The last door of
+    another shape, the Arrow execute's ``{"sql", "metadata"}`` (``lite_execute_plan``), was retired by R4 (2026-11-03):
+    the Arrow execute plans as the JSON execute does, and the core writes upstream's answer."""
 
     def test_every_plan_door_answers_the_plan_record(self):
         from legend_lite import compiler
@@ -328,9 +328,8 @@ class PlanDoors(unittest.TestCase):
                 self.assertEqual((read['format'], read['version']), ('legend-lite-plan', compiler.PLAN_VERSION), door)
                 self.assertEqual(read['root']['_type'], 'tdsResult', door)
                 self.assertEqual(compiler.read_plan(text).sql, read['root']['sql']['statement'], door)
-            # the one door still of another shape, named until R4 moves it
-            arrow = json.loads(compiler.execute_plan(body, [MODEL]).body)
-            self.assertEqual(sorted(arrow), ['metadata', 'sql'])
+            # the retired door is gone from the library's entry points
+            self.assertFalse(hasattr(compiler, 'execute_plan'))
         finally:
             library().call('lite_release_model', held)
 

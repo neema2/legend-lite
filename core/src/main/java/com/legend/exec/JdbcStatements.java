@@ -169,7 +169,8 @@ final class JdbcStatements implements Statements {
         for (int i = 1; i <= md.getColumnCount(); i++) {
             out.add(new Reported(md.getColumnLabel(i), md.getColumnTypeName(i),
                     WireTypes.sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
-                    md.isNullable(i) != java.sql.ResultSetMetaData.columnNoNulls));
+                    md.isNullable(i) != java.sql.ResultSetMetaData.columnNoNulls,
+                    md.getColumnType(i), md.getPrecision(i), md.getScale(i)));
         }
         return out;
     }

@@ -57,10 +57,11 @@ public final class TabExports {
     }
 
     /** {@link Boundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
-     *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
+     *  answered written as legend-engine writes them, each field typed from {@code reported} (the database's
+     *  {@code DESCRIBE}: {@code [label, type]} pairs), folded as base64 (track A, 2026-10-29; R4 step 3). */
     @JSExport
-    public static String executeArrowAnswerOrError(String plan, String rows) {
-        return Folded.http(() -> Boundary.executeArrowAnswer(plan, rows));
+    public static String executeArrowAnswerOrError(String plan, String reported, String rows) {
+        return Folded.http(() -> Boundary.executeArrowAnswer(plan, reported, rows));
     }
 
     /** {@link Boundary#executeJsonAnswer(String, java.nio.ByteBuffer)}: the answer from the Arrow stream the tab's
@@ -73,8 +74,8 @@ public final class TabExports {
     /** {@link Boundary#executeArrowAnswer(String, java.nio.ByteBuffer)}: upstream's Arrow answer from the tab's Arrow,
      *  folded as bytes, its body the zstd frame itself (R3). */
     @JSExport
-    public static byte[] executeArrowAnswerFromArrowOrError(String plan, byte[] arrow) {
-        return Folded.httpBytes(() -> Boundary.executeArrowAnswer(plan, java.nio.ByteBuffer.wrap(arrow)));
+    public static byte[] executeArrowAnswerFromArrowOrError(String plan, String reported, byte[] arrow) {
+        return Folded.httpBytes(() -> Boundary.executeArrowAnswer(plan, reported, java.nio.ByteBuffer.wrap(arrow)));
     }
 
     // ---- planning and typing

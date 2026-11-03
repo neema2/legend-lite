@@ -32,6 +32,19 @@ public interface ResultSink {
         columns(columns);
     }
 
+    /** Whether this sink is written from the database's report of the result's columns (legend-engine's ARROW_IPC
+     *  answer, typed from the JDBC report alone: {@link EngineArrowWriter}): a run then reads the report and hands it
+     *  over ({@link #reported}) before the columns. Every other sink is spared the read. */
+    default boolean wantsReport() {
+        return false;
+    }
+
+    /** The database's report of the result's columns ({@link ColumnReport}), in the result's order, once the result
+     *  has opened and before {@link #columns}, to a sink that {@link #wantsReport}; null where the database reports
+     *  none (MongoDB's documents). */
+    default void reported(@com.legend.base.Nullable List<ColumnReport> report) throws IOException {
+    }
+
     /** The next rows of the result, in its order; a batch holds at least one row. */
     void batch(Batch batch) throws IOException;
 

@@ -122,6 +122,11 @@ class CodeShapeGuardrailTest {
             // the Arrow writer's encoders, one per column, made when the columns are announced and read per batch
             // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
             "ArrowWriter.encoders",
+            // legend-engine's Arrow writer (2026-11-03, R4 step 3): the same sink protocol's state -- the database's
+            // report as the run handed it, whether it was handed, the encoders made from it, and the count of rows
+            // waiting for the next 1,024-row record batch (upstream's batch size), scoped to one result's stream
+            "EngineArrowWriter.report", "EngineArrowWriter.reportGiven", "EngineArrowWriter.encoders",
+            "EngineArrowWriter.pending",
             "PureV1Writer.order", "PureV1Writer.rows",
             // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
             // columns as announced, whether the one value column is to-one, the row count for the comma and the

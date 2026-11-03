@@ -144,6 +144,29 @@ class WriterCarriageGuardTest {
                     // precision, read
                     Map.entry("Integer.parseInt", 1),
                     Map.entry("presentedAt", 1)),
+            "EngineArrowWriter.java", Map.ofEntries(
+                    // legend-engine's ARROW_IPC answer as upstream writes it (2026-11-03, R4 step 3, D17: an edge
+                    // writer exactly as upstream's RelationalResultToArrowIPCSerializer): a number narrowed to its
+                    // field's width as upstream's setValue narrows it (Number.intValue, longValue, floatValue,
+                    // doubleValue; byteValue and shortValue beside them); a decimal at the REPORTED scale, HALF_UP
+                    // (setScale: D18 A, a misreported scale's loss copied at the edge), a value of another kind read
+                    // from its text as upstream reads it (new BigDecimal of toString); the report's precision and
+                    // scale bounded as upstream's jdbcToArrow bounds them (Math.min, Math.max; the report's scale read
+                    // there and to pick the encoder) and a whole decimal's scale read for its text; a day as days since
+                    // the epoch and an instant as microseconds (Math.toIntExact, multiplyExact, addExact: exact, an
+                    // overflow refused by name)
+                    Map.entry("intValue", 1),
+                    Map.entry("longValue", 1),
+                    Map.entry("floatValue", 1),
+                    Map.entry("doubleValue", 1),
+                    Map.entry("setScale", 1),
+                    Map.entry("new BigDecimal", 1),
+                    Map.entry("scale", 3),
+                    Map.entry("Math.", 5)),
+            "ColumnReport.java", Map.ofEntries(
+                    // a DuckDB type name's precision and scale (DECIMAL(p,s)) read as the numbers they spell, as the
+                    // JDBC driver reports them (2026-11-03, R4 step 3: a host's report of its database's columns)
+                    Map.entry("Integer.parseInt", 2)),
             "ArrowRows.java", Map.ofEntries(
                     // a decode's carrier reads, the JDBC session decode's arms over a host's Arrow (2026-11-03,
                     // docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, the core's Arrow reader): an Arrow value read as the

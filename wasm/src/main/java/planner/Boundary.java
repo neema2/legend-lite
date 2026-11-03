@@ -43,7 +43,7 @@ public final class Boundary {
     /**
      * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
      * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
-     * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
+     * run is the host's (its rows come from {@link #executeJsonPlan}), so one asked for here is refused, naming the
      * format that is served.
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
@@ -62,15 +62,6 @@ public final class Boundary {
             return MODELS.withText(text, use);
         }
     };
-
-    /**
-     * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema
-     * metadata, or the refusal to send. {@code modelsJson}: the only models the host runs, a JSON array of their
-     * texts.
-     */
-    public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
-        return com.legend.server.PureV1Api.arrowPlan(body, models(modelsJson));
-    }
 
     /**
      * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
@@ -95,12 +86,13 @@ public final class Boundary {
 
     /**
      * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
-     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
-     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
-     * (Folded.http).
+     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29; upstream's writer since R4 step 3, 2026-11-03): that
+     * plan's answer, the host's report of the result's columns ({@code reported}: {@code [label, type]} pairs, its
+     * database's own type names) and its rows, written as legend-engine writes them -- each field typed from the
+     * report -- as the one zstd frame upstream sends, folded as base64 (Folded.http).
      */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
+    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String reported, String rows) {
+        return com.legend.server.PureV1Api.arrowAnswer(plan, reported, rows);
     }
 
     /** {@link #executeJsonAnswer} from the host's rows as ARROW: the IPC stream its database answered the plan's
@@ -110,8 +102,9 @@ public final class Boundary {
     }
 
     /** {@link #executeArrowAnswer} from the host's rows as ARROW (PureV1Api.arrowAnswer; R3). */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, java.nio.ByteBuffer arrow) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, arrow);
+    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String reported,
+            java.nio.ByteBuffer arrow) {
+        return com.legend.server.PureV1Api.arrowAnswer(plan, reported, arrow);
     }
 
     /** Lite's own execute's answer from the host's rows as ARROW (PureV1Api.liteAnswer; D20): lite's own Arrow in the

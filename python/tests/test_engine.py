@@ -359,9 +359,9 @@ class Planes(Served):
                 asked.append(path)
                 return super().answer(path, query, body)
 
-            def execute_plan(self, body, models):
+            def execute_json_plan(self, body, models):
                 asked.append('execute')
-                return super().execute_plan(body, models)
+                return super().execute_json_plan(body, models)
 
         self.server.close()
         # the one place an engine makes its planner, patched for this engine alone

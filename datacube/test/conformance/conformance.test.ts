@@ -119,7 +119,14 @@ async function handedAsArrow(input: ExecuteInput): Promise<{ readonly json: stri
   }).useUnsafe((bindings, conn) => bindings.runQuery(conn, answerStatement(plan)));
   const arrow = new Int8Array(stream.buffer, stream.byteOffset, stream.byteLength);
   const json = unfoldBytes(planner.exports.executeJsonAnswerFromArrowOrError(plan, arrow));
-  const zipped = unfoldBytes(planner.exports.executeArrowAnswerFromArrowOrError(plan, arrow));
+  // upstream's Arrow answer is typed from the database's report of its columns: DuckDB-WASM's DESCRIBE (the planner's
+  // describe operation), its column_name and column_type
+  const [describe] = await grammar.hostOperations('DuckDB', [{ op: 'describe', statement: answerStatement(plan) }]);
+  if (describe?.length !== 1) throw new Error('the planner describes a statement in one statement');
+  const described = await grid.run(describe[0]!, 0);
+  const named = (n: string): readonly unknown[] => described.columns.find((c) => c.name === n)?.values ?? [];
+  const reported = JSON.stringify(named('column_name').map((label, i) => [String(label), String(named('column_type')[i])]));
+  const zipped = unfoldBytes(planner.exports.executeArrowAnswerFromArrowOrError(plan, reported, arrow));
   return { json: new TextDecoder().decode(json.body), arrow: zipped.body };
 }
 

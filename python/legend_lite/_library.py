@@ -31,7 +31,7 @@ _ARITY = {
     'lite_project_data': 2,
     # a host's named operations (D5)
     'lite_host_operations': 2,
-    'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
+    'lite_pure_v1': 3, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
     # that plan's statement refused by the host's database, as legend-engine answers one (D18 B)
@@ -42,7 +42,7 @@ _ARITY = {
     'lite_sql_json': 3,
     # the answer in upstream's Arrow format from the host's rows, folded as base64 (track A, 2026-10-29): wired to
     # the route when the user rules on the schema change (the decisions log D56)
-    'lite_execute_arrow_answer': 2,
+    'lite_execute_arrow_answer': 3,
     # the site's media types, the one table every host serving a site answers with (C4)
     'lite_site_types': 0,
     # the warehouse's SQL API, as the one binding speaks it (C3)
@@ -55,7 +55,7 @@ _ARITY = {
 # the entry points that take C strings, then bytes (a pointer and a length), and answer bytes (R3): how many strings
 _BYTES = {
     # a plan's answer from the host's rows as Arrow: legend-engine's JSON, and its Arrow format, folded as bytes
-    'lite_execute_json_answer_arrow': 1, 'lite_execute_arrow_answer_arrow': 1,
+    'lite_execute_json_answer_arrow': 1, 'lite_execute_arrow_answer_arrow': 2,
     # lite's own execute's answer from the host's rows as Arrow: lite's own Arrow, the plan record beside it (D20); a
     # keyed plan's from its keys rows and its body's Arrow
     'lite_execute_lite_answer_arrow': 1, 'lite_keyed_lite_answer_arrow': 2,

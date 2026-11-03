@@ -338,20 +338,6 @@ def _ipc_stream(reader: pa.RecordBatchReader) -> pa.Buffer:
     return sink.getvalue()
 
 
-def _arrow_ipc(rows: pa.Table, metadata: dict[str, str]) -> bytes:
-    """Rows as upstream's ARROW_IPC answer: an Arrow IPC stream, its schema carrying Legend's metadata, the whole
-    stream compressed as one zstd frame."""
-    declared = json.loads(metadata['legend.columns'])
-    if rows.column_names != declared:
-        raise RuntimeError(f'the database answered columns {rows.column_names}, the plan declared {declared}')
-    rows = rows.replace_schema_metadata(metadata)
-    sink = pa.BufferOutputStream()
-    with pa.CompressedOutputStream(sink, 'zstd') as compressed:
-        with pyarrow.ipc.new_stream(compressed, rows.schema) as writer:
-            writer.write_table(rows)
-    return sink.getvalue().to_pybytes()
-
-
 class NativePlanner:
     """WHERE THE ENGINE PLANS (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.1, R3): legend-lite's compiler in this
     process, the native library -- the one plane a Python host has (a host plans in process: the program's §1.1, the
@@ -366,9 +352,6 @@ class NativePlanner:
     def answer(self, path: str, query: str, body: str) -> compiler.Answer:
         return compiler.pure_v1(path, query, body)
 
-    def execute_plan(self, body: str, models: list[str]) -> compiler.Answer:
-        return compiler.execute_plan(body, models)
-
     def execute_json_plan(self, body: str, models: list[str]) -> compiler.Answer:
         return compiler.execute_json_plan(body, models)
 
@@ -377,6 +360,9 @@ class NativePlanner:
 
     def execute_json_answer_arrow(self, plan: str, arrow: pa.Buffer) -> compiler.Answer:
         return compiler.execute_json_answer_arrow(plan, arrow)
+
+    def execute_arrow_answer_arrow(self, plan: str, reported: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
+        return compiler.execute_arrow_answer_arrow(plan, reported, arrow)
 
     def execute_lite_answer_arrow(self, plan: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
         return compiler.execute_lite_answer_arrow(plan, arrow)
@@ -1663,20 +1649,40 @@ class Engine:
         return _planned({'plan': planned})
 
     def _execute(self, body: str) -> Answer:
-        """execute in upstream's Arrow format: the compiler plans over the frames' models, DuckDB runs its SQL,
-        and the rows go back as upstream writes them. One query at a time (the frames are held still while it
-        runs); the answer is compressed outside."""
+        """execute in upstream's Arrow format, written as legend-engine writes it (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md
+        R4 step 3, D17): planned as the JSON execute plans (the plan record, over the frames' models or a project's),
+        DuckDB describes its statement (the compiler's ``describe`` operation: DuckDB's own type names, the report
+        legend-engine types its Arrow answer's columns from) and runs it, and its Arrow is handed to the core, which
+        writes upstream's answer -- each field typed from the report, one zstd frame -- as legend-lite's server writes
+        it. One query at a time (the frames are held still while it runs). A pivot whose columns its data names is
+        refused by name here (its keys and body on this route are still to come)."""
         with self.frames.serving() as models:
             self._noted(models)
             with self._project_of(body, models) as (served, connection):
-                answer = self.planner.execute_plan(body, served)
-                if answer.status != 200:
+                planned = self.planner.execute_json_plan(body, served)
+                if planned.status != 200:
+                    return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
+                if compiler.keyed_statement(planned.body) is not None:
+                    refused = self.planner.execute_refusal(
+                        planned.body, "upstream's Arrow answer of a pivot whose columns its data names is not written"
+                        " by Python's engine yet", 'NotImplemented')
+                    return Answer(refused.status, refused.content_type, refused.body.encode('utf-8'))
+                statement = compiler.answer_statement(planned.body)
+                try:
+                    (describe,) = _host.statements({'op': 'describe', 'statement': statement})
+                    described = connection.execute(describe)
+                    names = [d[0] for d in described.description]
+                    reported = [[row[names.index('column_name')], row[names.index('column_type')]]
+                                for row in described.fetchall()]
+                    arrow = _ipc_stream(connection.execute(statement).fetch_record_batch())
+                except duckdb.Error as refused:
+                    # the database refusing the plan's statement: answered as legend-engine answers it (D18 B)
+                    answer = self.planner.execute_refusal(planned.body, str(refused),
+                                                          f'{type(refused).__name__}: {refused}')
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
-                planned = json.loads(answer.body)
-                rows = connection.execute(planned['sql']).to_arrow_table()
+        status, content_type, frame = self.planner.execute_arrow_answer_arrow(planned.body, json.dumps(reported), arrow)
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
-        return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
-                      {'x-legend-response-format': 'FormatNotSet'})
+        return Answer(status, content_type, frame, {'x-legend-response-format': 'FormatNotSet'} if status == 200 else {})
 
     def _execute_json(self, body: str) -> Answer:
         """execute in legend-engine's JSON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the compiler plans over the

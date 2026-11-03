@@ -390,37 +390,33 @@ class PureV1ApiTest {
     }
 
     /**
-     * E8 in upstream's Arrow format, its plan half ({@code arrowPlan}): the schema metadata is the engine's answer
-     * to the same request (recorded with its bytes, {@code e8-arrow-groupby-sort.json}), recorded difference 1
-     * applied to the builder; the activity's fields are the engine's (no {@code _type}); the SQL gives the engine's
-     * rows on H2.
+     * E8 in upstream's Arrow format, its metadata: the schema metadata of the JVM's answer is the engine's answer to the
+     * same request (recorded with its bytes, {@code e8-arrow-groupby-sort.json}) -- its keys in the engine's order,
+     * recorded difference 1 applied to the builder, the activity's fields the engine's (no {@code _type}), the column
+     * names the engine's; the builder the JSON answer's (the plan half {@code arrowPlan} that carried this check before
+     * R4 retired it, 2026-11-03: every host's answer is written by the core now).
      */
     @Test
-    void e8_arrowPlan_isTheEnginesMetadata_andItsSqlGivesTheEnginesRows() throws Exception {
+    void e8_arrowMetadata_isTheEngines() throws Exception {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.arrowPlan(request, List.of(model));
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                request, ConnectionResolver.RUNNER);
         assertEquals(200, a.status(), a.json());
-        Json.Obj lite = Json.parseObject(a.json());
-        Json.Obj liteMeta = lite.getObj("metadata");
+        Map<String, String> liteMeta = com.legend.arrowipc.ArrowReader.open(java.nio.ByteBuffer.wrap(rawBlocks(a.bytes())))
+                .schema().metadata();
         Json.Obj engineMeta = Json.parseObject(resource("upstream-api/e8-arrow-groupby-sort.json")).getObj("metadata");
-        assertEquals(new ArrayList<>(engineMeta.fields().keySet()), new ArrayList<>(liteMeta.fields().keySet()));
+        assertEquals(new ArrayList<>(engineMeta.fields().keySet()), new ArrayList<>(liteMeta.keySet()));
         assertEquals(Json.toCompact(inLitesVocabulary(Json.parse(engineMeta.getString("legend.builder")))),
-                liteMeta.getString("legend.builder"));
-        assertEquals(engineMeta.getString("legend.columns"), liteMeta.getString("legend.columns"));
+                liteMeta.get("legend.builder"));
+        assertEquals(engineMeta.getString("legend.columns"), liteMeta.get("legend.columns"));
         Json.Obj engineActivity = (Json.Obj) ((Json.Arr) Json.parse(engineMeta.getString("legend.activities"))).items().get(0);
-        Json.Obj liteActivity = (Json.Obj) ((Json.Arr) Json.parse(liteMeta.getString("legend.activities"))).items().get(0);
+        Json.Obj liteActivity = (Json.Obj) ((Json.Arr) Json.parse(liteMeta.get("legend.activities"))).items().get(0);
         assertEquals(new ArrayList<>(engineActivity.fields().keySet()), new ArrayList<>(liteActivity.fields().keySet()));
-        assertEquals(lite.getString("sql"), liteActivity.getString("sql"));
-        List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
-                .getObj("connection").getObj("datasourceSpecification")
-                .getStringArray("testDataSetupSqls");
-        assertEquals(rows(setup, engineActivity.getString("sql")), rows(setup, lite.getString("sql")));
-
         // the JSON answer's builder is the same, from the same writer
         assertEquals(Json.toCompact(Json.parseObject(execute(request).json()).getObj("builder")),
-                liteMeta.getString("legend.builder"));
+                liteMeta.get("legend.builder"));
     }
 
     /**
@@ -470,9 +466,9 @@ class PureV1ApiTest {
     /**
      * E8 in upstream's Arrow format, served (track A, 2026-10-29): one zstd frame (raw blocks, read back here by the
      * frame's own layout) around an Arrow IPC stream that begins with a schema message carrying the engine's metadata
-     * ({@code arrowPlan}'s keys, the same builder as the JSON answer's) and ends with the end marker; upstream's
-     * headers. The values are {@code ArrowWriterTest}'s (pyarrow reads them); a graph fetch is answered in JSON, as
-     * {@code arrowPlan} refuses it.
+     * (the engine's keys, the same builder as the JSON answer's) and upstream's schema (R4 step 3: each field typed from
+     * the database's report, nullable, no field metadata), and ends with the end marker; upstream's headers. A graph
+     * fetch under it is refused (it is answered in JSON).
      */
     @Test
     void e8_executeArrow_isOneZstdFrameAroundAnArrowStreamWithTheEnginesMetadata() throws Exception {
@@ -505,8 +501,18 @@ class PureV1ApiTest {
         assertTrue(text.contains(Json.toCompact(Json.parseObject(execute(request).json()).getObj("builder"))),
                 "the schema carries the JSON answer's builder");
         assertTrue(text.contains(engineMeta.getString("legend.columns")), "the engine's column names");
-        // the plan's facts ride as each field's metadata
-        assertTrue(text.contains("legend.type") && text.contains("legend.slot"), "the field metadata");
+        // upstream's schema (R4 step 3, D17): each field typed from the database's report of its column, nullable,
+        // with no field metadata; the stream's metadata in Java HashMap's order
+        com.legend.arrowipc.ArrowReader.Schema schema = com.legend.arrowipc.ArrowReader.open(java.nio.ByteBuffer.wrap(stream))
+                .schema();
+        assertEquals(List.of("region", "total"), schema.fields().stream().map(com.legend.arrowipc.ArrowField::name).toList());
+        assertEquals(new com.legend.arrowipc.ArrowType.Utf8(), schema.fields().get(0).type(), "a VARCHAR: utf8");
+        assertTrue(schema.fields().get(1).type() instanceof com.legend.arrowipc.ArrowType.Decimal
+                || schema.fields().get(1).type() instanceof com.legend.arrowipc.ArrowType.Int,
+                "a sum of integers, as H2 reports it: " + schema.fields().get(1).type());
+        assertTrue(schema.fields().stream().allMatch(f -> f.nullable() && f.metadata().isEmpty()), "nullable, no field metadata");
+        assertFalse(text.contains("legend.type"), "no plan facts beside the fields");
+        assertEquals(List.of("legend.builder", "legend.activities", "legend.columns"), List.copyOf(schema.metadata().keySet()));
 
         String trading = resource("upstream-api/query-app/trading.pure");
         String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
@@ -536,23 +542,6 @@ class PureV1ApiTest {
             }
         }
         return out.toByteArray();
-    }
-
-    /** The Arrow plan half runs only the models its host serves; a graph fetch has no Arrow answer. */
-    @Test
-    void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {
-        String request = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
-        PureV1Api.Answer other = PureV1Api.arrowPlan(request, List.of(model + "\n"));
-        assertEquals(500, other.status(), other.json());
-        assertTrue(Json.parseObject(other.json()).getString("message").contains("the models it serves"), other.json());
-
-        String trading = resource("upstream-api/query-app/trading.pure");
-        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
-                + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
-        PureV1Api.Answer graph = PureV1Api.arrowPlan("{\"function\":" + fetch + ",\"model\":"
-                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
-        assertEquals(500, graph.status(), graph.json());
-        assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
     }
 
     /**
@@ -588,19 +577,18 @@ class PureV1ApiTest {
         assertEquals(200, answered.status(), answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
-        // its host's models only, as the Arrow half
+        // its host's models only
         assertEquals(500, PureV1Api.jsonPlan(request, List.of(model + "\n")).status());
         // a plan that is not jsonPlan's: refused, never cast
         assertEquals(500, PureV1Api.jsonAnswer("{\"builder\":5}", "[]").status());
         PureV1Api.Answer old = PureV1Api.jsonAnswer("{\"format\":\"legend-lite-plan\",\"version\":19,\"root\":{}}", "[]");
         assertEquals(500, old.status(), old.json());
         assertTrue(old.json().contains("does not read as a plan"), old.json());
-        // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
-        // halves alike
+        // a value's answer (one value, or a list of them), which the server's execute refuses, is refused at planning
         for (String value : List.of("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)",
                 "|[1, 2]->from(trades::h2::RT)")) {
             String asked = "{\"function\":" + PureV1Api.grammarToJsonLambda(value, false).json() + ",\"model\":" + textModel() + "}";
-            for (PureV1Api.Answer refused : List.of(PureV1Api.jsonPlan(asked, List.of(model)), PureV1Api.arrowPlan(asked, List.of(model)))) {
+            for (PureV1Api.Answer refused : List.of(PureV1Api.jsonPlan(asked, List.of(model)))) {
                 assertEquals(500, refused.status(), refused.json());
                 assertTrue(refused.json().contains("result's serialization is unprobed"), value + ": " + refused.json());
             }

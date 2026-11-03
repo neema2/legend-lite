@@ -17372,3 +17372,40 @@ route of lite's. Its compile errors take legend-engine's `compilation/compile` t
 upstream legend-engine: `HttpEngine.compileErrors` asks lite's route first and reads its 404 as no such route.
 
 Checks: `//core:core_tests_server` (`PureV1HttpTest`), `//query:verify_test`.
+
+## 2026-11-03 — R4 steps 3 and 4 (D20 (d)): legend-engine's ARROW_IPC answer written as upstream writes it, on every host
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8, R4 step 3 (its table, posted 2026-11-03; D17, D19). A new edge writer,
+`result/EngineArrowWriter`, writes legend-engine's `ARROW_IPC` answer exactly as `RelationalResultToArrowIPCSerializer`
+does (read in the pinned 4.145.0 sources): each field typed from the DATABASE'S REPORT of its column alone (upstream's
+`jdbcToArrow`: BIT/BOOLEAN bool, TINYINT int8, SMALLINT int16, INTEGER int32, BIGINT int64, FLOAT/REAL float32, DOUBLE
+float64, DECIMAL/NUMERIC decimal128 with p and s bounded as upstream bounds them, DATE date32, TIME time32[ms], TIMESTAMP
+and TIMESTAMP_WITH_TIMEZONE timestamp[us, UTC], every other code utf8), named by the column's label, nullable, no field
+metadata; each value as upstream's `setValue` sets it (narrowed to its width, a decimal at the reported scale HALF_UP,
+a timestamp's microseconds, a whole number's digits as utf8, a list's JSON as Jackson writes it); the schema metadata
+in Java HashMap's order (`inHashMapOrder`, pinned against a real HashMap); record batches of 1,024 rows, none for an
+empty result. The report reaches it from the runner (`ResultSink.wantsReport`/`reported`; `Statements.Reported` now
+carries JDBC's type code, precision and scale; a plain result's and a keyed pivot's) on the JVM, and from the host on
+Python and the tab: the database's own type names (the compiler's `describe` operation: DuckDB's `DESCRIBE`), read as
+DuckDB's JDBC driver reports them (`ColumnReport.duckDb`, the measured table).
+
+The routes: the JVM's `?serializationFormat=ARROW_IPC` writes through it; the hosts' entry (`PureV1Api.arrowAnswer`,
+the tab's `executeArrowAnswer[FromArrow]OrError`, the native `lite_execute_arrow_answer[_arrow]`) takes the report;
+Python's `ARROW_IPC` execute (R4 step 4) plans the plan record as its JSON execute does, describes and runs the
+statement, and hands DuckDB's Arrow and the report to the core -- `arrowPlan`, `lite_execute_plan`, `Boundary.executePlan`,
+`compiler.execute_plan` and Python's own Arrow writer (`engine.py` `_arrow_ipc`) deleted (census: zero). A pivot whose
+columns its data names: the JVM answers it (the report placed in the answer's order); Python's route refuses it by name
+(it crashed before).
+
+The judge: the conformance suite's 14 `arrow-schema` entries (Java's answer in the plan's types against Python's in
+DuckDB's) are gone -- the JVM, Python and the tab's handoff now write the same answer, schema and values -- and no
+difference is new: the ledger 37 -> 23. Register: S125 removed (its difference is gone); S133 and S134 (a DuckDB `TIME`
+and a `TIMESTAMP WITH TIME ZONE`, where upstream's own writer fails: lite answers, D18) and S135 (a misreported scale's
+HALF_UP loss, upstream's defect copied at the edge, D18 A) added. Guards: `WriterCarriageGuardTest` registers the
+writer's spellings and `ColumnReport`'s, `CodeShapeGuardrailTest` its cursor fields, each with its dated reason.
+
+Checks: `//core:core_tests_{root,server,exec,architecture}` (`EngineArrowWriterTest` in root; `PureV1ApiTest` on
+upstream's schema and recorded metadata in server), `//core:guardrails`, `//core:arrow_writer_test`, `//datacube:{conformance,
+python_engine,python_execute,typecheck}_test`, `//python:{arrow_handoff,bindings}_test`, `//python:engine_test` in four
+parts (68, 35, 12, 217 tests; whole, it meets this container's V8 crash), `//wasm:differential_test`; the tab's and
+the native library's builds.

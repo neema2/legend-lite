@@ -259,6 +259,22 @@ public final class ArrowIpc {
         return bits;
     }
 
+    public static byte[] int8s(byte[] values, int n) {
+        return java.util.Arrays.copyOf(values, n);
+    }
+
+    public static byte[] int16s(short[] values, int n) {
+        ByteBuffer b = ByteBuffer.allocate(2 * n).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < n; i++) b.putShort(values[i]);
+        return b.array();
+    }
+
+    public static byte[] float32s(float[] values, int n) {
+        ByteBuffer b = ByteBuffer.allocate(4 * n).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < n; i++) b.putFloat(values[i]);
+        return b.array();
+    }
+
     public static byte[] int32s(int[] values, int n) {
         ByteBuffer b = ByteBuffer.allocate(4 * n).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < n; i++) b.putInt(values[i]);

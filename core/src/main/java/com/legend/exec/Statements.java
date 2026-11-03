@@ -69,7 +69,13 @@ public interface Statements {
      *  {@code SqlDialect.typingWireName}); the SQL vocabulary's type where JDBC's type code names one (null
      *  otherwise); whether it may be null. */
     record Reported(String name, String driverType, com.legend.sql.@com.legend.base.Nullable SqlType type,
-            boolean nullable) {
+            boolean nullable, int jdbcType, int precision, int scale) {
+
+        /** As a writer reads it ({@link com.legend.result.ColumnReport}: legend-engine's Arrow answer is typed from the
+         *  label, the JDBC type code, the precision and the scale alone). */
+        com.legend.result.ColumnReport report() {
+            return new com.legend.result.ColumnReport(name, driverType, jdbcType, precision, scale);
+        }
     }
 
     /** {@code rows} loaded through the session's database's bulk loader where it has one ({@link BulkLoad}): false

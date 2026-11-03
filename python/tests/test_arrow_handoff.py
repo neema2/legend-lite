@@ -17,7 +17,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import _json, compiler
+from legend_lite import _host as host, _json, compiler
 from legend_lite.engine import Engine
 
 RUNTIME = 'conf::RT'
@@ -96,6 +96,12 @@ class ArrowHandoff(unittest.TestCase):
                         continue
                     rows = compiler.host_rows([d[0] for d in cursor.description], cursor.fetchall())
                     arrow = arrow_bytes(connection.execute(statement).to_arrow_table())
+                    # upstream's Arrow answer is typed from the database's report: DuckDB's own type names
+                    (describe,) = host.statements({'op': 'describe', 'statement': statement})
+                    described = connection.execute(describe)
+                    at = [d[0] for d in described.description]
+                    reported = json.dumps([[r[at.index('column_name')], r[at.index('column_type')]]
+                                           for r in described.fetchall()])
                 with self.subTest(case=name):
                     text = compiler.execute_json_answer(planned.body, rows)
                     from_arrow = compiler.execute_json_answer_arrow(planned.body, arrow)
@@ -104,9 +110,10 @@ class ArrowHandoff(unittest.TestCase):
                     self.assertEqual(text.content_type, from_arrow.content_type)
                     self.assertEqual(TRACE.sub('executionTraceID', text.body),
                                      TRACE.sub('executionTraceID', from_arrow.body))
-                    folded = _answer_bytes(compiler.library().call('lite_execute_arrow_answer', planned.body, rows))
+                    folded = _answer_bytes(compiler.library().call('lite_execute_arrow_answer', planned.body, reported,
+                                                                    rows))
                     # the bytes as Python's bytes too (the library reads either where it lies)
-                    status, content_type, arrow_body = compiler.execute_arrow_answer_arrow(planned.body,
+                    status, content_type, arrow_body = compiler.execute_arrow_answer_arrow(planned.body, reported,
                                                                                          arrow.to_pybytes())
                     self.assertEqual((200, folded[0], folded[1]), (status, status, content_type))
                     expected, actual = arrow_answer(folded[2]), arrow_answer(arrow_body)

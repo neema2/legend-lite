@@ -1215,4 +1215,13 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   `/api/lite/v1/` unserved, 404), and Query's end-to-end server suite (`//query:verify_test`, its connection talked to as
   legend-engine; a CI Linux lane) runs against a server so started and passes whole. Still to come under (d): the
   `ARROW_IPC` answer written exactly as upstream writes it (R4 step 3's table), on the JVM and the hosts.
+- 2026-11-03: R4 steps 3 and 4 built (D20 (d)): legend-engine's `ARROW_IPC` answer is written as upstream writes it
+  (`result/EngineArrowWriter`: each field typed from the database's report of its column, every value as upstream sets
+  it, the metadata in Java HashMap's order, 1,024-row batches) on the JVM, Python and the tab alike; the report the
+  runner's (JDBC) or the host's (DuckDB's `DESCRIBE`, read as DuckDB's JDBC driver reports it). Python's Arrow execute
+  is on the plan record; `arrowPlan`, `lite_execute_plan` and Python's own Arrow writer are deleted. The conformance
+  ledger's 14 schema entries are gone (37 -> 23), none new. Register: S125 removed; S133-S135 added. Not yet as
+  upstream (each refused by name, never written another way): a struct's, a map's and a binary value's text, a list of
+  anything but text, whole numbers and booleans (upstream's text read before each lands), and on Python's route a pivot
+  whose columns its data names (the JVM answers it).
 

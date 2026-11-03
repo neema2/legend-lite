@@ -259,15 +259,6 @@ def pure_v1(path: str, query: str, body: str) -> Answer:
     return _http(library().call('lite_pure_v1', path, query, body))
 
 
-def execute_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models``
-    (the only models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and
-    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is. The one
-    host path not yet on the plan record (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): it moves in one step onto the
-    core's Arrow writer, once that writer takes Arrow (R3) and the user has ruled its schema's changes (D7, R4)."""
-    return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
-
-
 def execute_json_plan(body: str, models: list[str]) -> Answer:
     """The plan of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
     Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is the plan record (PlanJson's text, the
@@ -338,10 +329,11 @@ def execute_json_answer_arrow(plan: str, arrow: Any) -> Answer:
     return Answer(status, content_type, body.decode('utf-8'))
 
 
-def execute_arrow_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
-    """Execute's answer in upstream's Arrow format from the rows as ARROW (R3): its status, media type and body (the
-    zstd frame upstream sends, or a refusal's JSON)."""
-    return _http_bytes(library().call_bytes('lite_execute_arrow_answer_arrow', plan, arrow))
+def execute_arrow_answer_arrow(plan: str, reported: str, arrow: Any) -> tuple[int, str, bytes]:
+    """Execute's answer in upstream's Arrow format from the rows as ARROW (R3), written as legend-engine writes it
+    (R4 step 3: each field typed from ``reported``, the database's own ``[label, type]`` pairs, read as DuckDB's JDBC
+    driver reports them): its status, media type and body (the zstd frame upstream sends, or a refusal's JSON)."""
+    return _http_bytes(library().call_bytes('lite_execute_arrow_answer_arrow', (plan, reported), arrow))
 
 
 def execute_lite_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
