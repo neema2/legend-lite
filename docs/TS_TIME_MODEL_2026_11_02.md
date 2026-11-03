@@ -41,16 +41,3 @@ repository: the rules, the rulings, and what is built. The language spec's R2 an
 - **Points.** A word's answer is no point of its ramp's rows, and a point may have no value (a return's first): one
   column cannot say both, so a value that is not a point of every row carries its points as another column, the
   library's rules (`timeseries::rows::`) deciding what they are.
-</content>
-</invoke>
-<invoke name="Bash">
-<parameter name="command">cd /home/user/legend-lite && git add docs/TS_TIME_MODEL_2026_11_02.md && git commit -q -F - <<'EOF'
-Docs: the timeseries time model, ratified 2026-11-03, its record in the repository
-
-The five rules, the rulings D1 to D7 (all agreed, "Okay let's go"), what each built and where, and what the proofs
-found. The working note stays the shared doc; the spec's R2 and R6 carry the rules.
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01TvL7jAWxW8Ux7ygvg3UaE5
-EOF
-git push -u origin claude/timeseries-language 2>&1 | tail -1; git log --oneline -1

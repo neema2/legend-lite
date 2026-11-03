@@ -342,6 +342,31 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
 - **Done when** the review's findings are fixed or answered, the gate is green, and CI is green or every failure is
   explained.
 - **Size.** Medium.
+- **The review of 2026-11-03** (`e336c4d6` to `a3388b40`, by an agent that wrote none of it: no blocking finding,
+  five should-fix, four nits), each verified before it was fixed:
+  1. *D4 missed a word's own meetings.* A word that meets two lines (`interpolate`, `ohlc`, `compare`: the helpers
+     `meetOn`, `spreadOn`) met their periods as `Date`, so a line of moments beside a line of days found no row or
+     a wrong one, silently. Fixed: `helpers::grain`, by the dates' types, refuses as an expression's meeting does;
+     pinned by the D4 test's three words, and SAMPLE BY's fix answering.
+  2. *The column specification's ranking is lite's own.* Read in legend-pure: a `ColSpec<(?:All)⊆T>` and a
+     `ColSpec<L⊆T>` both match NON_CONCRETE there and tie ("Too many matches"); S131 had said lite ranks "as m3
+     binds T". S131 corrected; **the user rules** whether lite keeps the ranking (the library's broadcasts by a key's
+     type, `meet`, `periodsOf`, `onto`, `each`, and D4's forms rest on it).
+  3. *An ambiguous reference in legend-pure's spelling typed as an opaque function.* Fixed: refused, naming lite's
+     ids (`Typer`); pinned in `aColumnsTypePicksTheOverload`.
+  4. *R7 with D1 refuses parts of one table that FILL makes meet.* `CLOSE - avg(CLOSE, 2)` under FILL over a table
+     of several rows a date (no BY) meets the table with itself, refused by D1, where without FILL it answers; so
+     too a part of one table beside another source's line. Each was answered wrong before (multiplied); the right
+     answer needs a rows form of FILL (an expression's parts of one table filled in it), with R7 part 3.
+     Recorded, not built: **posted to the user.** So too an item of a word with no rows form beside its own column
+     (`CLOSE AS c, returns(CLOSE) AS r`, no BY): refused (D1) until the word has its rows form (R7 part 3).
+  5. *R7's branches in Java were not listed.* Listed with their reasons and guarded
+     (`TsTranslatorGuardrailTest.theTranslatorPicksATablesFormOnlyWhereNamed`); they move with item 4.
+  6. *A relation's columns matched by exact name, and not by multiplicity.* Names now matched as the unifier
+     matches them; multiplicity recorded in S131 (lite ranks a misfit lowest, as every parameter's).
+  7. *A transcript leaked into the time model's record.* Removed.
+  8. *This section's status table was stale.* Brought up to date.
+  9. *The guard admitted any callee named `rows`.* Narrowed to `rowsFqn`, pinned to the rows package's names.
 
 ### A3. One reader (S3, the plan's step 3)
 
@@ -629,8 +654,8 @@ Update this table in the same commit as the work.
 
 | Item | State | Last commit |
 |---|---|---|
-| A1 the last rules out of Java | moves 1 to 7 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`; move 7 by the §6a list of what stays in Java, with a guard). R7 one table per base: part 1 done, part 2 (a window word as a column) next; move 8 folds into it | 7b23e09f, c841d939, 69796cc5, 5dc88c85, 911c08fa, e336c4d6 |
-| A2 review and gate | waiting on A1. #86 was folded into #81 on 2026-11-02, with main (#85) merged. #81 waits on #83 before it lands, and the v1 work is stacked on it with no PR. #86's last CI was green on every OS | af758d34 |
+| A1 the last rules out of Java | moves 1 to 7 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`; move 7 by the §6a list of what stays in Java, with a guard). The time model's rulings of 2026-11-03 built: R7 one table per base (part 1; part 2, points carried; part 3, the simple statistics' rows forms -- the other words wait on a lowering fix), D1, D4, 2a (the All key; Keyed deleted). Move 8 folded into R7. D2's skip not built | 7b23e09f, c841d939, 69796cc5, 5dc88c85, 911c08fa, e336c4d6, a00fc91b, 5eb1ba92, 692016cb, 7fd31cf1, 474af0a8, 9a339e05, dd27c39a, 50ebe0bd, 485ba593, a3388b40 |
+| A2 review and gate | the independent review of 2026-11-03 done (no blocking finding; five should-fix, four nits), its findings being fixed; the local gate run (the Postgres targets need `tools/postgres/as_unprivileged.sh` in a root container; the first timeseries tile's bundle budget moved, 114,000 -> 118,500). Then a PR for this branch, asked first (ruled 2026-11-03). The v1 work is stacked on #81 (#86 folded into it on 2026-11-02, with main's #85), which waits on #83 before it lands | af758d34 |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |
 | A5 the library's text off the wire | | |
