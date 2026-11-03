@@ -1694,6 +1694,13 @@ class UserFunctionIntegrationTest {
             var generic = exec(modelWith(lib), base + "->extend(~key:r|'x')->select(~[key, v])->test::pick()");
             assertEquals("all", String.valueOf(all.rows().get(0).get(2)), "a key of All picks the All version");
             assertEquals("generic", String.valueOf(generic.rows().get(0).get(2)), "a text key picks the generic one");
+            // legend-pure's spelling names both overloads (a relation its raw type alone): a reference by it is
+            // ambiguous, refused naming lite's two ids (the A2 review, 2026-11-03)
+            var ex = assertThrows(RuntimeException.class, () -> exec(modelWith(lib),
+                    "|test::pick_Relation_1__Relation_1_->eval(" + base.substring(1)
+                            + "->extend(~key:r|'x')->select(~[key, v]))"));
+            assertTrue(ex.getMessage().contains("names 2 functions that differ only in a relation's column types"),
+                    ex.getMessage());
         }
 
         @Test

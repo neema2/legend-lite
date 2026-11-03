@@ -1048,6 +1048,13 @@ final class Typer {
                     TypedFunction::definition);
             if (res.exact().size() == 1) {
                 fns = res.exact();
+            } else if (res.exact().size() > 1) {
+                // legend-pure's spelling of overloads that differ only in a relation's column types (register S131):
+                // it names them all, so the reference is ambiguous and refused (the A2 review, 2026-11-03)
+                throw new com.legend.error.ResolutionException("'" + ref.fullPath() + "' names "
+                        + res.exact().size() + " functions that differ only in a relation's column types: name one by"
+                        + " its id that spells the columns (" + String.join(", ", res.exact().stream()
+                                .map(f -> f.id().toString()).toList()) + ")");
             } else if (res.baseExists()) {
                 // BASE-EXISTS is the safety property: a misspelled or
                 // absent base still fails the lookup and throws below.

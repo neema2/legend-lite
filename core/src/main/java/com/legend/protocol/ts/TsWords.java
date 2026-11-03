@@ -206,9 +206,9 @@ final class TsWords {
                 || !TsToPure.LINE.equals(o.params().get(0).type()) || !o.gives().equals(List.of("value"))) {
             return null;
         }
-        String rows = ROWS + fqn.substring(PACKAGE.length());
+        String rowsFqn = ROWS + fqn.substring(PACKAGE.length());
         List<String> own = o.params().subList(1, o.params().size()).stream().map(TsToPure.Parameter::type).toList();
-        for (TsToPure.Overload r : c.model().overloads(rows)) {
+        for (TsToPure.Overload r : c.model().overloads(rowsFqn)) {
             List<TsToPure.Parameter> p = r.params();
             if (p.size() != own.size() + 7 || !p.subList(5, p.size() - 2).stream().map(TsToPure.Parameter::type)
                     .toList().equals(own)) {
@@ -224,7 +224,7 @@ final class TsWords {
                 a.addAll(bound.subList(1, bound.size()));
                 a.add(new ColSpec(out));
                 a.add(new ColSpec(points));
-                return TsLines.call(rows, a);
+                return TsLines.call(rowsFqn, a);
             });
             c.present(out, points);
             return new TsLines.Valued(line, out);

@@ -1955,7 +1955,7 @@ function timeseries::lines::perPeriod<T,K,P,O>(t: Relation<T>[1], key: ColSpec<K
 function timeseries::lines::single(n: Integer[0..1], m: Integer[0..1]): Boolean[1]
 {
   if($n->isNotEmpty() && $m->isNotEmpty() && ($n->toOne() > 1) && ($m->toOne() > 1),
-    |fail('two lines meet where both have several rows on one date, and no pairing of them is right: add SAMPLE BY 1d and say how a date\'s rows are taken, such as last(close) (R6)'),
+    |fail('two lines meet where both have several rows on one date, and no pairing of them is right: name each line\'s instrument (BY, or a subscript such as close[\'AAA\']), or add SAMPLE BY 1d and say how a date\'s rows are taken, such as last(close) (R6; the time model\'s D1)'),
     |true)
 }
 
@@ -3379,7 +3379,7 @@ function timeseries::line::helpers::periods<K,D>(x: Relation<(key:K, date:D, val
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]
 {
-  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+  $a->timeseries::line::helpers::grain($b)->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
     ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
     ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
     ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~x)->rename(~to, ~xo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
@@ -3389,7 +3389,7 @@ function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, va
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer, z:Number, zo:Integer)>[1]
 {
-  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+  $a->timeseries::line::helpers::grain($b)->timeseries::line::helpers::grain($c)->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
     ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
     ->concatenate($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
     ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
@@ -3401,7 +3401,7 @@ function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, va
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1], d: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, open:Number, ho:Integer, high:Number, hh:Integer, low:Number, hl:Integer, close:Number, hc:Integer)>[1]
 {
-  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+  $a->timeseries::line::helpers::grain($b)->timeseries::line::helpers::grain($c)->timeseries::line::helpers::grain($d)->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
     ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
     ->concatenate($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
     ->concatenate($d->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
@@ -3413,15 +3413,34 @@ function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, va
     ->select(~[key, sd, so, open, ho, high, hh, low, hl, close, hc])->rename(~sd, ~date)->rename(~so, ~o)
 }
 
+// A WORD'S LINES OF TWO GRAINS (the time model's D4; the A2 review, 2026-11-03): a word's lines meet, or spread, on
+// their dates' periods, and a line of moments (its dates date-times) beside a line of days (dates) is refused as an
+// expression's are (timeseries::lines::meet), naming the fix; picked by the dates' types (2a): a's rows, refused while
+// the query runs where its grain is not b's. Under SAMPLE BY a line's dates are its periods' days, one grain.
+function timeseries::line::helpers::grain<K,L,D,E>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:L, date:E, value:Number, p:Date)>[1]): Relation<(key:K, date:D, value:Number, p:Date)>[1]
+{
+  $a
+}
+
+function timeseries::line::helpers::grain<K,L>(a: Relation<(key:K, date:StrictDate, value:Number, p:Date)>[1], b: Relation<(key:L, date:DateTime, value:Number, p:Date)>[1]): Relation<(key:K, date:StrictDate, value:Number, p:Date)>[1]
+{
+  $a->filter(r|timeseries::lines::oneGrain())
+}
+
+function timeseries::line::helpers::grain<K,L>(a: Relation<(key:K, date:DateTime, value:Number, p:Date)>[1], b: Relation<(key:L, date:StrictDate, value:Number, p:Date)>[1]): Relation<(key:K, date:DateTime, value:Number, p:Date)>[1]
+{
+  $a->filter(r|timeseries::lines::oneGrain())
+}
+
 function timeseries::line::helpers::meetOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, x:Number, y:Number)>[1]
 {
-  timeseries::lines::meet($a->rename(~value, ~x), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~y), ~bk, ~bp, ~bd, ~d1)
+  timeseries::lines::meet($a->timeseries::line::helpers::grain($b)->rename(~value, ~x), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~y), ~bk, ~bp, ~bd, ~d1)
     ->select(~[key, d1, x, y])->rename(~d1, ~date)
 }
 
 function timeseries::line::helpers::meetOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1], d: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]
 {
-  timeseries::lines::meet(timeseries::lines::meet(timeseries::lines::meet($a->rename(~value, ~open), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~high), ~bk, ~bp, ~bd, ~d1), ~key, ~p, ~d1, $c->rename(~key, ~ck)->rename(~p, ~cp)->rename(~date, ~cd)->rename(~value, ~low), ~ck, ~cp, ~cd, ~d2), ~key, ~p, ~d2, $d->rename(~key, ~dk)->rename(~p, ~dp)->rename(~date, ~dd)->rename(~value, ~close), ~dk, ~dp, ~dd, ~d3)
+  timeseries::lines::meet(timeseries::lines::meet(timeseries::lines::meet($a->timeseries::line::helpers::grain($b)->timeseries::line::helpers::grain($c)->timeseries::line::helpers::grain($d)->rename(~value, ~open), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~high), ~bk, ~bp, ~bd, ~d1), ~key, ~p, ~d1, $c->rename(~key, ~ck)->rename(~p, ~cp)->rename(~date, ~cd)->rename(~value, ~low), ~ck, ~cp, ~cd, ~d2), ~key, ~p, ~d2, $d->rename(~key, ~dk)->rename(~p, ~dp)->rename(~date, ~dd)->rename(~value, ~close), ~dk, ~dp, ~dd, ~d3)
     ->select(~[key, d3, open, high, low, close])->rename(~d3, ~date)
 }
 

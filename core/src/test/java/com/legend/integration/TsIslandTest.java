@@ -775,7 +775,11 @@ class TsIslandTest {
                     .size(), backend + ": a line of moments, a row a moment");
             for (String q : List.of("SELECT p.CLOSE['AAA'] - t.PRICE['AAA'] AS d",
                     "SELECT correlation(p.CLOSE['AAA'], t.PRICE['AAA'], 3) AS k",
-                    "SELECT p.CLOSE['AAA'] AS c, t.PRICE['AAA'] AS t")) {
+                    "SELECT p.CLOSE['AAA'] AS c, t.PRICE['AAA'] AS t",
+                    // a word's own meeting (helpers::meetOn) and spreading (spreadOn): the A2 review, 2026-11-03
+                    "SELECT interpolate(p.CLOSE['AAA'], t.PRICE['AAA'], 'intersect') AS i",
+                    "SELECT interpolate(p.CLOSE['AAA'], t.PRICE['AAA'], 'step') AS i",
+                    "SELECT ohlc(p.CLOSE['AAA'], t.PRICE['AAA'], p.CLOSE['AAA'], t.PRICE['AAA']) AS o")) {
                 Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{" + q
                         + " FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#"), backend + ": " + q);
                 assertTrue(String.valueOf(e.getMessage()).contains("a moment is no day: add SAMPLE BY 1d"),
@@ -789,6 +793,12 @@ class TsIslandTest {
                     + " AS d FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL SAMPLE BY 1d}#");
             assertClose(each(AAA.length, i -> 0.0), column(got, null, null, "d"), backend + ": a day's close less its"
                     + " last tick");
+            // ... and a word's: under SAMPLE BY a line's dates are its days, so the word's lines meet
+            List<Map<String, String>> met = rows(backend, "|#TS{SELECT interpolate(last(p.CLOSE['AAA']),"
+                    + " last(t.PRICE['AAA']), 'intersect') AS i FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL"
+                    + " SAMPLE BY 1d}#");
+            assertClose(each(AAA.length, i -> AAA[i]), column(met, null, null, "i"), backend + ": a day's close on"
+                    + " the days both have");
         }
     }
 

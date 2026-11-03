@@ -1473,7 +1473,8 @@ public final class InferenceKernel {
             return true;
         }
         for (Type.Column f : rf.columns()) {
-            Type.Column v = value.columns().stream().filter(c -> c.name().equals(f.name())).findFirst().orElse(null);
+            Type.Column v = value.columns().stream().filter(c -> sameColumn(c.name(), f.name())).findFirst()
+                    .orElse(null);
             if (v == null || paramTypeScore(f.type(), v.type()) < 0) {
                 return false;
             }
@@ -1500,7 +1501,8 @@ public final class InferenceKernel {
         List<Type.Column> sorted = formal.columns().stream()
                 .sorted(java.util.Comparator.comparing(Type.Column::name)).toList();
         for (Type.Column f : sorted) {
-            Type.Column v = value.columns().stream().filter(c -> c.name().equals(f.name())).findFirst().orElse(null);
+            Type.Column v = value.columns().stream().filter(c -> sameColumn(c.name(), f.name())).findFirst()
+                    .orElse(null);
             if (v == null) {
                 columns.add(FunctionMatch.TypeFit.NULL);
                 mults.add(FunctionMatch.MultFit.NULL);

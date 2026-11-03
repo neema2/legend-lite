@@ -43,9 +43,25 @@ class TsTranslatorGuardrailTest {
     /** A call's name that is the library's: a line's rule, a word, a word by its name as written ({@code fqn}: its
      *  path, resolved by {@code TsWords.fqn(model, word)}), a value's points or a word's rows form (2026-11-03, R7
      *  part 2: the library's {@code timeseries::rows::} package, {@code ROWS + "..."}, and a word's rows form by its
-     *  word's name, {@code rows}). */
+     *  word's name, {@code rowsFqn}, which is only ever the rows package's: {@link #aRowsFormIsTheRowsPackages}; the
+     *  A2 review, 2026-11-03, narrowed a bare {@code rows}, which any local of that name matched). */
     private static final Pattern LIBRARY = Pattern.compile("(TsLines\\.)?LINES \\+ \"[A-Za-z_]+\"|PACKAGE \\+ \"[A-Za-z_:]+\""
-            + "|(TsWords\\.)?ROWS \\+ \"[A-Za-z_]+\"|rows|fqn(\\([a-z().]+, [a-z]+\\))?");
+            + "|(TsWords\\.)?ROWS \\+ \"[A-Za-z_]+\"|rowsFqn|fqn(\\([a-z().]+, [a-z]+\\))?");
+
+    /** The one name of a word's rows form the translator calls by a variable: always the rows package's. */
+    @Test
+    void aRowsFormIsTheRowsPackages() throws IOException {
+        Pattern assigned = Pattern.compile("\\browsFqn\\s*=\\s*([^;]+);");
+        int seen = 0;
+        for (Path p : SourceFiles.under("core/src/main/java/com/legend/protocol/ts")) {
+            Matcher m = assigned.matcher(Files.readString(p));
+            while (m.find()) {
+                seen++;
+                assertTrue(m.group(1).strip().startsWith("ROWS + "), SourceFiles.path(p) + ": rowsFqn = " + m.group(1));
+            }
+        }
+        assertEquals(1, seen, "the rows form's name, assigned once");
+    }
 
     /** The forms of {@code call(} that write no relation call: the helpers' declarations, a word's dispatch. */
     private static final Pattern NOT_A_CALL = Pattern.compile("String fn|(TsFunctions\\.)?Ctx c|c|this");
@@ -140,6 +156,40 @@ class TsTranslatorGuardrailTest {
                 + " line's kind");
         assertEquals(1, found.get("TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {"),
                 "the accrued refusal alone (TsWords.timed): the broadcast is the library's each, by the keys' types");
+    }
+
+    /** R7's branches in Java (the A2 review's finding 5, 2026-11-03): where an expression's parts and a word's line
+     *  are a table's columns, Java picks the form -- the tenet's exceptions that remain, each with its reason, the list
+     *  only shrinking (docs/TENETS.md, the second tenet). They move with a rows form of FILL (docs/TS_V1_PROGRAM_2026_11_01.md
+     *  A2: an expression's parts of one table under FILL). */
+    private static final java.util.Map<String, String> R7_BRANCHES = java.util.Map.of(
+            "TsToPure.java: if (read.stream().allMatch(p -> p.line() == read.get(0).line()) && (fill == null || points.isEmpty())) {",
+            "an expression's parts of one table a column of it, else its lines met: the pairing by a row or by a date is"
+                    + " Java's, and under FILL with a part's points its lines meet, a table of several rows a date"
+                    + " meeting itself (refused, D1)",
+            "TsToPure.java: if (points.isEmpty()) {", "every part a point of every row (ORD): no rows::both, rows::masked",
+            "TsToPure.java: if (!TsLines.ORD.equals(lines.presence(v))) {", "an item's points its value's (bookkeeping)",
+            "TsWords.java: if (kept != null) {", "a word the library declares a rows form of (timeseries::rows::) on its"
+                    + " line's table, else its line form");
+
+    private static final Pattern R7_BRANCH = Pattern.compile("if \\(.*(\\.line\\(\\) ==|points\\.isEmpty\\(\\)|kept != null"
+            + "|presence\\()");
+
+    @Test
+    void theTranslatorPicksATablesFormOnlyWhereNamed() throws IOException {
+        java.util.Set<String> found = new java.util.TreeSet<>();
+        for (Path p : SourceFiles.under("core/src/main/java/com/legend/protocol/ts")) {
+            if (!p.toString().endsWith(".java")) {
+                continue;
+            }
+            for (String line : Files.readString(p).split("\n", -1)) {
+                if (R7_BRANCH.matcher(line).find()) {
+                    found.add(p.getFileName() + ": " + line.strip());
+                }
+            }
+        }
+        assertEquals(new java.util.TreeSet<>(R7_BRANCHES.keySet()), found, "the translator's branches on a table's"
+                + " form");
     }
 
     /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")};
