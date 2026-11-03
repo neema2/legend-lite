@@ -102,6 +102,48 @@ public final class TsIslands {
         }
     }
 
+    /**
+     * The library's words as the translator reads them, an index of the model built where it is first read (Knowledge,
+     * docs/TENETS.md): each function's overloads by path, each package's functions, and the function each alias names.
+     * Before it, a lookup of an alias (avg, mean's) walked every function of the package and read each one's overloads
+     * again, at each of a word's four lookups (the compile-time homework, 2026-11-03: 259 reads of 86 functions for a
+     * query of one item, 2,072 for eight).
+     */
+    private static final class Words {
+        private final ModelContext model;
+        private final java.util.concurrent.ConcurrentHashMap<String, List<TsToPure.Overload>> overloads =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        private final java.util.concurrent.ConcurrentHashMap<String, List<String>> packages =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        private final java.util.concurrent.ConcurrentHashMap<String, Map<String, String>> aliases =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
+        Words(ModelContext model) {
+            this.model = model;
+        }
+
+        List<TsToPure.Overload> overloads(String fqn) {
+            return overloads.computeIfAbsent(fqn, f -> Facts.read(model, f));
+        }
+
+        List<String> functionsIn(String pkg) {
+            return packages.computeIfAbsent(pkg, p -> model.functionFqns().stream().map(f -> memberOf(f, p))
+                    .filter(java.util.Objects::nonNull).distinct().sorted().toList());
+        }
+
+        @com.legend.base.Nullable String aliased(String pkg, String word) {
+            return aliases.computeIfAbsent(pkg, p -> {
+                Map<String, String> out = new TreeMap<>();
+                for (String fn : functionsIn(p)) {
+                    for (TsToPure.Overload o : overloads(p + "::" + fn)) {
+                        o.aliases().forEach(a -> out.putIfAbsent(a, fn));
+                    }
+                }
+                return java.util.Collections.unmodifiableMap(out);
+            }).get(word);
+        }
+    }
+
     /** What the translator asks: a relation's columns and the island's other facts ({@code sources}), and the
      *  model's classes, properties and enumerations. */
     private record Facts(SqlToPure.Sources sources, ModelContext model) implements TsToPure.Model {
@@ -182,6 +224,16 @@ public final class TsIslands {
 
         @Override
         public List<TsToPure.Overload> overloads(String fqn) {
+            return model.derived(Words.class, Words::new).overloads(fqn);
+        }
+
+        @Override
+        public @com.legend.base.Nullable String aliased(String pkg, String word) {
+            return model.derived(Words.class, Words::new).aliased(pkg, word);
+        }
+
+        /** {@code fqn}'s overloads as the words read them, from the model's functions. */
+        private static List<TsToPure.Overload> read(ModelContext model, String fqn) {
             List<TsToPure.Overload> out = new ArrayList<>();
             for (com.legend.compiler.element.TypedFunction f : model.findFunction(fqn)) {
                 List<TsToPure.Parameter> ps = new ArrayList<>();
@@ -204,7 +256,7 @@ public final class TsIslands {
                         .map(com.legend.model.TaggedValue::value).toList();
                 out.add(new TsToPure.Overload(ps, gives, doc, aliases));
             }
-            return out;
+            return List.copyOf(out);
         }
 
         /** A parameter's type as the words read it: a line ({@link TsToPure#LINE}), a long relation of weighted members
@@ -232,8 +284,7 @@ public final class TsIslands {
 
         @Override
         public List<String> functionsIn(String pkg) {
-            return model.functionFqns().stream().map(f -> memberOf(f, pkg)).filter(java.util.Objects::nonNull)
-                    .distinct().sorted().toList();
+            return model.derived(Words.class, Words::new).functionsIn(pkg);
         }
     }
 }

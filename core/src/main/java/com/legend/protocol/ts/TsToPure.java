@@ -72,6 +72,10 @@ public final class TsToPure {
 
         /** The names of the functions directly in the package {@code pkg} ({@code timeseries::line}: the words). */
         List<String> functionsIn(String pkg);
+
+        /** The name of the function of the package {@code pkg} that {@code word} is an alias of
+         *  ({@code timeseries::Words.alias}: avg is mean's), or null where none is. */
+        @com.legend.base.Nullable String aliased(String pkg, String word);
     }
 
     /** A function's overload as {@link Model#overloads} reports it: its parameters in order (a word's lines first), the
@@ -153,6 +157,11 @@ public final class TsToPure {
     private static final class Builder {
 
         private final Model model;
+        /** Each relation's columns as the model typed them, once (a node never changes): a source's when it is opened
+         *  (FROM), a per-point lambda's relation when its lambda is written -- a subscript's condition at each read, a
+         *  WHERE, an expression's -- read again, never typed again (the compile-time homework, 2026-11-03: the source
+         *  typed five times for a query of one item and thirty-three for eight, and each expression's table twice). */
+        private final java.util.IdentityHashMap<ValueSpecification, List<Held>> opened = new java.util.IdentityHashMap<>();
         private final SqlToPure.Sources sources;
         private final InputDialect dialect;
         private final TsAst.Query query;
@@ -160,7 +169,7 @@ public final class TsToPure {
 
         Builder(Model model, InputDialect dialect, TsAst.Query query) {
             this.model = model;
-            this.sources = model;
+            this.sources = new Opened(model, opened);
             this.dialect = dialect;
             this.query = query;
         }
@@ -370,11 +379,59 @@ public final class TsToPure {
                     : call(TsLines.LINES + "ordered", rel, new ColSpec(date), new ColSpec(instrument));
         }
 
-        /** The types of {@code relation}'s columns, by name, in order. */
+        /** The types of {@code relation}'s columns, by name, in order: a source opened, its columns held. */
         private Map<String, String> typed(ValueSpecification relation) {
             Map<String, String> out = new LinkedHashMap<>();
-            sources.columns(relation, (name, type, nullable, storeType) -> out.put(name, type));
+            List<Held> held = new ArrayList<>();
+            sources.columns(relation, (name, type, nullable, storeType) -> {
+                out.put(name, type);
+                held.add(new Held(name, type, nullable, storeType));
+            });
+            opened.put(relation, List.copyOf(held));
             return out;
+        }
+
+        /** A column of a source opened, as the model gave it. */
+        private record Held(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType) {
+        }
+
+        /** The model's facts, a source opened answering its columns as it was given them. */
+        private record Opened(SqlToPure.Sources of, java.util.IdentityHashMap<ValueSpecification, List<Held>> held)
+                implements SqlToPure.Sources {
+            @Override
+            public void columns(ValueSpecification source, SqlToPure.Column column) {
+                List<Held> cs = held.get(source);
+                if (cs == null) {
+                    of.columns(source, column);
+                    return;
+                }
+                cs.forEach(c -> column.column(c.name(), c.type(), c.nullable(), c.storeType()));
+            }
+
+            @Override
+            public @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+                return of.primaryKey(database, table);
+            }
+
+            @Override
+            public void tables(SqlToPure.Table table) {
+                of.tables(table);
+            }
+
+            @Override
+            public boolean variable(String name, SqlToPure.Scoped type) {
+                return of.variable(name, type);
+            }
+
+            @Override
+            public void variables(java.util.function.Consumer<String> names) {
+                of.variables(names);
+            }
+
+            @Override
+            public ValueSpecification inlineView(ValueSpecification relation) {
+                return of.inlineView(relation);
+            }
         }
 
         /** A source as it is opened: its key (the name its columns are read by, internally), its alias, what it reads,
@@ -725,6 +782,9 @@ public final class TsToPure {
 
         private LambdaFunction rowLambda(SqlAst.Expr e, ValueSpecification relation, SqlToPure.Sources sources,
                 boolean condition, String clause) {
+            if (!opened.containsKey(relation)) {
+                typed(relation);   // its columns typed once: the lambda's and its enumerations' read them
+            }
             LambdaFunction l = SqlToPure.rowLambda(e, relation, new Figures(sources), dialect, condition, clause);
             Map<String, List<String>> enums = new LinkedHashMap<>();
             Map<String, String> paths = new LinkedHashMap<>();

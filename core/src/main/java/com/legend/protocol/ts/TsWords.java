@@ -114,12 +114,8 @@ final class TsWords {
         if (!model.overloads(own).isEmpty()) {
             return own;
         }
-        for (String fn : model.functionsIn(PACKAGE.substring(0, PACKAGE.length() - 2))) {
-            if (model.overloads(PACKAGE + fn).stream().anyMatch(o -> o.aliases().contains(word))) {
-                return PACKAGE + fn;
-            }
-        }
-        return own;
+        String aliased = model.aliased(PACKAGE.substring(0, PACKAGE.length() - 2), word);
+        return aliased != null ? PACKAGE + aliased : own;
     }
 
     /** The language's name of the library's function {@code name} (its own, but a keyword's: {@code if_} is
