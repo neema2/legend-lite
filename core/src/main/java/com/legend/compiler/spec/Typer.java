@@ -258,7 +258,12 @@ final class Typer {
             case AppliedFunction af -> {
                 // a user call keeps the node it was read from: the copies of a lambda body's let are one
                 // evaluation (docs/OBJECT_IDENTITY_2026_10_20.md §3.2)
-                TypedSpec call = applyFunction(af, env);
+                TypedSpec call;
+                try {
+                    call = applyFunction(af, env);
+                } catch (CollectionElementRefusal refused) {
+                    throw refused.applying(af.function());
+                }
                 yield call instanceof TypedUserCall uc && uc.origin() == null ? uc.withOrigin(af) : call;
             }
             case AppliedProperty ap -> accessProperty(ap, env);
@@ -1108,8 +1113,8 @@ final class Typer {
             // what is meant. The 2026-09-11 loosening (MULTIPLICITY_AUDIT §4a) summed the bounds
             // instead and typed a possibly-NULL cell [1].
             if (coll.values().size() > 1 && !isExactlyOne(e.info().multiplicity())) {
-                throw new TypeInferenceException("Collection element must have a multiplicity [1], found "
-                        + e.info().multiplicity().text());
+                // in legend-engine's words, its context the call this literal is an argument of (CollectionElementRefusal)
+                throw new CollectionElementRefusal(e.info().multiplicity().text());
             }
             // pure has NO nested collections: [['a','b'],'c'] IS
             // ['a','b','c'] — a collection-valued element SPLICES into

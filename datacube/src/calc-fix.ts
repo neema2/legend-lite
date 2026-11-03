@@ -15,7 +15,7 @@ import {
 } from '../../pure-protocol/src/index.ts';
 import { isNumeric, plainType } from '../../engine-client/src/types.ts';
 
-/** The refusal, in each compiler's words (legend-lite's and legend-engine's begin alike). */
+/** The refusal, in each compiler's words (legend-lite's are legend-engine's since 2026-11-03, S128). */
 export function isEmptyOperandRefusal(message: string): boolean {
   return message.includes('Collection element must have a multiplicity [1]');
 }

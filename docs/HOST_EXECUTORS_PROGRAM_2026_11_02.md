@@ -155,8 +155,9 @@ Rev 3's, the clean-sheet design (ratified by the user, "Yes I love it"):
 - **D11. One plan kind (P2).** The tab's `Plan {sql, columns}` and `ExecutePlan`, and Python's `{sql, type}` and
   `{sql, metadata}`, retire into the plan record. legend-engine's own plan (`UpstreamPlanner`, read from an upstream
   server's `generatePlan`) is another planner's, and stays.
-- **D12. The runner is carriage.** Should a host ever need a step that depends on data, the core gains a stepper that
-  says what to send next and the host sends it (the core still does no input or output); no host grows logic of its own.
+- **D12. The runner is carriage.** A step that depends on data is expressed in the plan -- the `Keyed` node: a keys
+  statement whose rows the body statement's per-key regions are repeated for (D18 D, 2026-11-03: it is carriage
+  already, so no stepper beside it) -- and every runner carries it; no host grows logic of its own.
 - **D13. Connectors: SQL and its bound values in, Arrow batches out,** over each host's native driver: DuckDB in all
   three; ADBC for Snowflake in Python (D5); Snowflake's SQL API in the tab (D4), its text turned into the plan's Arrow at
   the connector; JDBC on the JVM.
@@ -190,6 +191,28 @@ R2's (the user, 2026-11-02):
   schema, Python's barely moves, and Python's own dataframes move to the plan's types; each concrete change is posted
   to the user case by case before it lands (D7). Open: whether the edge writer also copies legend-engine's data loss
   where a driver misreports a precision (H2's computed sum as `decimal(27,0)`), recommended copied with a register row.
+- **D18. Clean inside, legend-engine replicated at the edges, for every open decision** (the user, 2026-11-03: "in the
+  clean version we should do the clean thing, in the edges we should replicate engine"; then, on the refinements and
+  D below, "Yes do it, keep going don't stop"). §1.3's decisions settle so:
+  - **the edge is the shape and content of an answer to legend-engine's API** (its status, envelope, error kind, value
+    spellings, types and header), never text that describes legend-engine's own internals (its compiler's pass
+    names);
+  - **where legend-engine refuses what lite does** (an uncast dynamic pivot on H2), lite's answer is recorded as an
+    extension, not copied;
+  - **A:** D17; a misreported precision's data loss (H2's computed sum) copied at the edge, a register row naming it
+    upstream's defect;
+  - **B:** one error writer in the core answers a database's refusal at run time as legend-engine does -- 500,
+    `{"code":-1,"message":<the root cause's short class name>: <its message>,"status":"error","trace":...}`, the JVM
+    unwrapping to the root cause; `trace` carries lite's own stack (no host has legend-engine's), a register row;
+  - **C:** legend-engine's fixed words for the nullable-column refusal, its compile-pass context a register row;
+  - **D:** an uncast dynamic pivot answers on every host as legend-engine answers it on DuckDB: the hosts' runners
+    run the `Keyed` plan, which is already carriage (the keys statement answers each key's text and column name, the
+    body's per-key regions repeat mechanically, the key texts are bound values) -- so D12's stepper is the `Keyed`
+    node itself, carried by every runner; lite's two statements (keys, then the pivot) against legend-engine's one
+    `PIVOT` a representation register row;
+  - **F:** the JVM's answer header made from the plan's facts by the one maker hosts use; a dynamic pivot's
+    generated columns typed as legend-engine types them, from the database's report;
+  - **G:** the tab's own display, the clean thing (R5).
 
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
@@ -738,8 +761,9 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   survey): `extendArith`, `extendConcat`, `extendThenFilter`, `pipelineExtend`, `extendTwo`, `extendChained` and
   `deepPipeline` in `wasm/corpus/queries.tsv`, each with "Collection element must have a multiplicity [1], found
   [0..1]" (arithmetic or a concatenation over a nullable column). The differential test passes, since both builds
-  refuse alike. Whether legend-engine refuses them too is to be asked of the engine runner before anything changes;
-  recorded, not changed.
+  refuse alike. *Settled 2026-11-03:* legend-engine and legend-pure refuse the same queries (§1.3 C), so the refusals
+  are faithful and stay; their words are legend-engine's since D18 C (`Context:[Applying times], multiplicity:[0..1]`,
+  register S128).
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
@@ -778,3 +802,9 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   the tab's module and Python's native library. The local gate and the affected suites green but for the
   container's: the Postgres tests (initdb refuses root), the V8 crash two Python suites show at the commit before R2
   too. The open decisions A-G posted to the user with upstream's answers (§1.3).
+- 2026-11-03: D18 ruled (§1.2), and D12 rewritten (the `Keyed` node is the stepper). C built: the nullable-column
+  refusal in legend-engine's words, `Collection element must have a multiplicity [1] - Context:[Applying <the call>],
+  multiplicity:[0..1]` (`compiler/spec/CollectionElementRefusal`, raised by `Typer.collection` and given the innermost
+  call's name in `Typer`'s applied-function arm); its context a register row (S128). The tests that pinned lite's old
+  words follow (core's compiler and lowering lanes, DataCube's `column_editor`, `infer`, `calc_fix`); DataCube's fix
+  offer matches both words, as before. Rows S129-S131 record B's trace, D's two statements and H2's dynamic pivot.

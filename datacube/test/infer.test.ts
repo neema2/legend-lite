@@ -168,7 +168,7 @@ describe('a column the catalog says holds no NULL', () => {
     const uplift = (c: string) => from(m.source).extend([derive('u', lambda(['x'], times(col('x', c), lit.float(1.1))))]).lambda();
     const typed = await planner.relationType(uplift('n'));
     assert.equal(typed.find((c) => c.name === 'u')?.type, 'Float');
-    await assert.rejects(planner.relationType(uplift('maybe')), /Collection element must have a multiplicity \[1\], found \[0\.\.1\]/);
+    await assert.rejects(planner.relationType(uplift('maybe')), /Collection element must have a multiplicity \[1\] - Context:\[Applying times\], multiplicity:\[0\.\.1\]/);
   });
 });
 

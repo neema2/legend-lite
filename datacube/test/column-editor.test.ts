@@ -515,7 +515,8 @@ describe('a compile that FAILS (P2-152)', () => {
 describe('arithmetic over a possibly-empty column (src/calc-fix.ts)', () => {
   it('names the column, offers Empty or As if zero, and writes the chosen one into the box', async () => {
     open({});
-    refuse = 'Collection element must have a multiplicity [1], found [0..1]';
+    // lite's words since 2026-11-03 are legend-engine's, its context the call applied (S128)
+    refuse = 'Collection element must have a multiplicity [1] - Context:[Applying times], multiplicity:[0..1]';
     type('.dc-calc-input-expr', 'x|$x.notional * 1.1');
     await settle();
     assert.match($('.dc-calc-fix').textContent ?? '', /'notional' can be empty/);

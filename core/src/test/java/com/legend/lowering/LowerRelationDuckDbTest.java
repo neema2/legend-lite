@@ -505,7 +505,8 @@ class LowerRelationDuckDbTest {
         assertTrue(e.getMessage().contains("Collection element must have a multiplicity [1]"), e.getMessage());
         e = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
                 () -> sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|$r.FIRM + '!')"));
-        assertTrue(e.getMessage().contains("found [0..1]"), e.getMessage());
+        // in legend-engine's words (S128; the user, 2026-11-03)
+        assertTrue(e.getMessage().contains("Context:[Applying plus], multiplicity:[0..1]"), e.getMessage());
     }
 
     @Test

@@ -60,7 +60,9 @@ class MultiplicityStrictnessTest {
         // require each element [1] before any overload is matched. Accepting it (2026-09-11)
         // rested on "real pure accepts it", which legend-pure's source contradicts.
         Exception e = rejects("m::Person.all()->map(p|$p.middleName + '!')");
-        assertTrue(e.getMessage().contains("Collection element must have a multiplicity [1], found [0..1]"),
+        // in legend-engine's words, its context the call applied (S128; the user, 2026-11-03)
+        assertTrue(e.getMessage().contains(
+                "Collection element must have a multiplicity [1] - Context:[Applying plus], multiplicity:[0..1]"),
                 e.getMessage());
         // the toOne() spelling says what is meant
         TypedSpec ok = Compiler.query(Compiler.compileModel(MODEL), "m::Person.all()->map(p|$p.middleName->toOne() + '!')").expression();
