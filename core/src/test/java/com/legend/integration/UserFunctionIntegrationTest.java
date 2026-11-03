@@ -1697,8 +1697,7 @@ class UserFunctionIntegrationTest {
             // legend-pure's spelling names both overloads (a relation its raw type alone): a reference by it is
             // ambiguous, refused naming lite's two ids (the A2 review, 2026-11-03)
             var ex = assertThrows(RuntimeException.class, () -> exec(modelWith(lib),
-                    "|test::pick_Relation_1__Relation_1_->eval(" + base.substring(1)
-                            + "->extend(~key:r|'x')->select(~[key, v]))"));
+                    "|test::pick_Relation_1__Relation_1_"));
             assertTrue(ex.getMessage().contains("names 2 functions that differ only in a relation's column types"),
                     ex.getMessage());
         }
