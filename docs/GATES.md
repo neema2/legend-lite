@@ -17167,3 +17167,8 @@ audit's fold after them.
    typechecks, `//engine-client:plan_runner_test`, `//wasm:{differential,round_trip}_test`, `//pct:pct_duckdb_relation`
    and `//pct:pct_h2` green (the PCT lane was killed once by memory while 22 suites ran together, exit 137, and
    passed alone).
+5. **The local gate on the fold (`9108b8c1`):** 447 of 457 green, one skipped (`//tools/guards:classpath_test`), nine
+   red, all this container's (the eight Postgres tests and `//datacube:verify_app_test`'s Postgres: `initdb` refuses
+   root). Its first run lost the Bazel server to the container's memory limit at 250 tests (the kernel's OOM killer,
+   3.8 GB resident, no test failed); the rerun with `--local_test_jobs=2` finished.
+
