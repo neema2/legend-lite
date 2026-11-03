@@ -38,6 +38,35 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
+# THE #TS DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): their one source, which //core:ts_documents_test
+# runs, and the documents written from it (//datacube:ts_examples_doc) at their "<!-- example: <id> -->" markers. No diff
+# test: prose is never a test input (G17); the examples themselves are tested where they are run.
+exports_files(
+    ["timeseries/examples.sql"],
+    visibility = [
+        "//core:__pkg__",
+        "//datacube:__pkg__",
+    ],
+)
+
+exports_files(
+    [
+        "TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md",
+        "TIMESERIES_LANGUAGE_2026_10_29.md",
+    ],
+    visibility = ["//datacube:__pkg__"],
+)
+
+write_source_files(
+    name = "update_ts_examples",
+    diff_test = False,
+    files = {
+        "TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md": "//datacube:generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md",
+        "TIMESERIES_LANGUAGE_2026_10_29.md": "//datacube:generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md",
+    },
+    visibility = ["//visibility:public"],
+)
+
 # THE CAPABILITY MATRIX (//core:capability_matrix): what every dialect does with every function and aggregate,
 # generated from the dialects' own sources. Its measured reach (reach.tsv, //core:capability_reach) is its input.
 exports_files(

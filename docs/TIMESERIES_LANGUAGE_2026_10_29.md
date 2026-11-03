@@ -37,6 +37,7 @@ Every choice below follows from one of these.
 
 ## 3. A query
 
+<!-- example: spec-01 -->
 ```sql
 SELECT last(close['SPX'])                 AS wk_spx,
        last(close['QQQ'])                 AS wk_qqq,
@@ -71,11 +72,12 @@ A source is any of four things (the user, 2026-10-30, for Class models):
    table's columns. It means `MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, …])`, the projection a
    saved grid is. A `WHERE` inside it filters the objects, through the mapping. **`WITH` names one for the query:**
 
-   ```sql
-   WITH quotes AS (SELECT instrument.ticker AS ticker, quoteTime, closePrice AS close FROM MarketQuote)
+   <!-- example: spec-02 -->
+```sql
+WITH quotes AS (SELECT instrument.ticker AS ticker, quoteTime, closePrice AS close FROM MarketQuote)
    SELECT avg(close, 20) AS ma20, volatility(close['AAPL'], 63) AS aapl_vol
    FROM   quotes ON quoteTime BY ticker
-   ```
+```
 3. **A table**, `(table WHERE condition)`, or any SQL subquery over tables: `(SELECT *, price * qty AS value FROM
    trades)`. `(prices WHERE venue = 'NYSE')` means exactly `(SELECT * FROM prices WHERE venue = 'NYSE')`, and
    `(MarketQuote WHERE instrument.sector.name = 'Energy')` likewise over a class.
@@ -85,12 +87,13 @@ A source is any of four things (the user, 2026-10-30, for Class models):
    answer's rows (its date, its instrument, its items) read on as any relation's. A line computed day by day, then each
    week's candle of it:
 
-   ```sql
-   WITH daily AS TS (SELECT close['SPX'] / close['QQQ'] AS r FROM prices ON date BY symbol)
+   <!-- example: spec-03 -->
+```sql
+WITH daily AS TS (SELECT close['SPX'] / close['QQQ'] AS r FROM prices ON date BY symbol)
    SELECT ohlc(first(daily.r), max(daily.r), min(daily.r), last(daily.r)) AS ratio
    FROM   daily ON date
    SAMPLE BY 1w
-   ```
+```
 
    The mark sits in Postgres's own place between `AS` and the parenthesis (`AS MATERIALIZED (...)`; the user,
    2026-10-31). A subquery without it is SQL's (3), Postgres's meaning, joins and all (`JOIN instruments i ON ...` is a
@@ -168,14 +171,15 @@ date, that date included.
   value: `last(close['SPX'])`, `first(open['SPX'])`, `max(high['SPX'])`, `min(low['SPX'])`, `sum(volume['SPX'])`,
   `avg(close['SPX'])`. Name it as an item, and later items use the name:
 
-  ```sql
-  SELECT last(close['SPX'])  AS wk_close,
+  <!-- example: spec-04 -->
+```sql
+SELECT last(close['SPX'])  AS wk_close,
          sum(volume['SPX'])  AS wk_volume,
          avg(wk_close, 4)    AS ma_4w,
          sum(wk_volume, 4)   AS volume_4w
   FROM   prices ON date BY symbol
   SAMPLE BY 1w
-  ```
+```
 
 - **A line used bare under `SAMPLE BY` is refused**: "how is volume taken each week? write sum(volume['SPX']) AS
   wk_volume, then use wk_volume". Nothing is inferred from a column's name: a weekly volume, a month's P&L or a fund's
@@ -480,9 +484,10 @@ each mapping as above. Optionally `page.query("SELECT …")` returns a DataFrame
 
 **The tile's other views** are plain SQL over a series query, which `WITH` names like any CTE:
 
+<!-- example: spec-05 -->
 ```sql
-WITH s AS (SELECT returns(close['SPX']) AS spx, returns(close['QQQ']) AS qqq
-           FROM prices ON date BY symbol FILTER date > latest - 1y)
+WITH s AS TS (SELECT returns(close['SPX']) AS spx, returns(close['QQQ']) AS qqq
+              FROM prices ON date BY symbol FILTER date > latest - 1y)
 SELECT regr_slope(qqq, spx), regr_intercept(qqq, spx), regr_r2(qqq, spx), corr(qqq, spx) FROM s
 ```
 
@@ -515,6 +520,7 @@ grids' rows.
 
 ### Easy
 
+<!-- example: spec-06 -->
 ```sql
 -- a moving-average crossover, the last two years shown
 SELECT close['SPX']           AS spx,
@@ -526,6 +532,7 @@ FROM   prices ON date BY symbol
 FILTER date > latest - 2y
 ```
 
+<!-- example: spec-07 -->
 ```sql
 -- AAPL's weekly bars, with the week's range and change
 SELECT first(open['AAPL'])     AS wk_open,
@@ -539,6 +546,7 @@ FROM   prices ON date BY symbol
 SAMPLE BY 1w
 ```
 
+<!-- example: spec-08 -->
 ```sql
 -- every instrument's 3-month volatility, the last year shown
 SELECT volatility(close, 3mo) AS vol
@@ -548,6 +556,7 @@ FILTER date > latest - 1y
 
 ### Medium
 
+<!-- example: spec-09 -->
 ```sql
 -- the yield curve: two spreads in basis points, a month's change, and an inversion flag
 SELECT 100 * (yield['10Y'] - yield['2Y']) AS s2s10_bp,
@@ -558,6 +567,7 @@ FROM   rates ON date BY tenor
 FILTER date > latest - 5y
 ```
 
+<!-- example: spec-10 -->
 ```sql
 -- sector relative strength: each against SPX, its 3-month momentum, above its own 50-day trend?
 SELECT close / close['SPX']    AS rel,
@@ -568,17 +578,19 @@ FROM   prices ON date BY symbol
 FILTER symbol LIKE 'XL%' AND date > latest - 1y
 ```
 
+<!-- example: spec-11 -->
 ```sql
 -- order flow from individual trades: each day's buying, selling, imbalance and VWAP, dark trades left out
 SELECT sum(qty['AAPL', side = 'buy'])                      AS bought,
        sum(qty['AAPL', side = 'sell'])                     AS sold,
        (bought - sold) / (bought + sold)                   AS imbalance,
-       sum(price['AAPL'] * qty['AAPL']) / sum(qty['AAPL']) AS day_vwap,
+       sum(notional['AAPL']) / sum(qty['AAPL'])            AS day_vwap,
        avg(imbalance, 20)                                  AS imbalance_20d
-FROM   (trades WHERE venue <> 'DARK') ON trade_date BY ticker
+FROM   (SELECT *, price * qty AS notional FROM trades WHERE venue <> 'DARK') ON trade_date BY ticker
 SAMPLE BY 1d
 ```
 
+<!-- example: spec-12 -->
 ```sql
 -- inflation: CPI year on year, and its last 3 months annualized
 SELECT returns(value['CPI'], 1y)                    AS yoy,
@@ -588,6 +600,7 @@ FROM   macro ON date BY series
 
 ### Complex
 
+<!-- example: spec-13 -->
 ```sql
 -- a pairs trade, KO against PEP, with its P&L since 2023
 SELECT hedge_ratio(close['KO'], close['PEP'], 6mo)        AS hedge,
@@ -605,6 +618,7 @@ The spread is the regression's own residual (its intercept included). Yesterday'
 ratio, times today's moves is the day's P&L. The compiler reports: z first after 9 months; position and daily_pnl a day
 later.
 
+<!-- example: spec-14 -->
 ```sql
 -- risk-adjusted momentum: each month, the equities ranked by 12-1 momentum per unit of volatility; the top three
 SELECT last(close)                               AS mo_close,
@@ -612,11 +626,12 @@ SELECT last(close)                               AS mo_close,
        volatility(mo_close, 12)                  AS vol_1y,
        mom_12_1 / vol_1y                         AS risk_adj,
        rank(risk_adj DESC)                       AS rnk
-FROM   (prices WHERE asset_class = 'equity') ON date BY symbol
+FROM   (prices WHERE asset_class = 'Equity') ON date BY symbol
 SAMPLE BY 1mo
 FILTER rnk <= 3 AND date > latest - 2y
 ```
 
+<!-- example: spec-15 -->
 ```sql
 -- a 60/40 portfolio held in euros: weekly excess return over German 3-month rates, rolling Sharpe, worst drawdown
 SELECT last(px.close['SPX'])                 AS spx,
@@ -634,11 +649,12 @@ SAMPLE BY 1w FILL(PREV)
 FILTER date > latest - 3y
 ```
 
+<!-- example: spec-16 -->
 ```sql
 -- a snapshot table: every equity's 1-year beta to SPX and its idiosyncratic volatility, as of the latest date
 SELECT beta(close, close['SPX'], 1y)                                          AS beta,
        volatility(close, 3mo) * sqrt(1 - r_squared(close, close['SPX'], 3mo)) AS idio_vol
-FROM   (prices WHERE asset_class = 'equity' OR symbol = 'SPX') ON date BY symbol
+FROM   (prices WHERE asset_class = 'Equity' OR symbol = 'SPX') ON date BY symbol
 FILTER symbol <> 'SPX' AND date = latest
 ```
 

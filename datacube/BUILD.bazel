@@ -1009,6 +1009,37 @@ java_run(
     deps = [":ts_catalog_main"],
 )
 
+# THE #TS DOCUMENTS' EXAMPLES, WRITTEN FROM THEIR ONE SOURCE (docs/TS_V1_PROGRAM_2026_11_01.md A9): each marked sql
+# block of the spec and of the guide rewritten from docs/timeseries/examples.sql, which //core:ts_documents_test runs
+# (bazel run //docs:update_ts_examples writes them back)
+legend_java_library(
+    name = "ts_examples_doc_main",
+    srcs = ["tools/ts-catalog/TsExamplesDoc.java"],
+)
+
+java_run(
+    name = "ts_examples_doc",
+    srcs = [
+        "//docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md",
+        "//docs:TIMESERIES_LANGUAGE_2026_10_29.md",
+        "//docs:timeseries/examples.sql",
+    ],
+    outs = [
+        "generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md",
+        "generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md",
+    ],
+    arguments = [
+        "$(execpath //docs:timeseries/examples.sql)",
+        "$(execpath //docs:TIMESERIES_LANGUAGE_2026_10_29.md)",
+        "$(execpath generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md)",
+        "$(execpath //docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md)",
+        "$(execpath generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md)",
+    ],
+    main_class = "tscatalog.TsExamplesDoc",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_examples_doc_main"],
+)
+
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",

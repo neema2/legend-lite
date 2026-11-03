@@ -21,6 +21,7 @@ Send comments to the team; every one is read.
 
 This query gives SPX's and QQQ's weekly closes, SPX's 3-month volatility, and its spread over QQQ's, shown from 2024:
 
+<!-- example: spec-01 -->
 ```sql
 SELECT last(close['SPX'])                 AS wk_spx,
        last(close['QQQ'])                 AS wk_qqq,
@@ -104,6 +105,7 @@ The tables the examples read:
 
 *Where is the S&P 500 against its 50- and 200-day averages, over the last two years?*
 
+<!-- example: guide-02 -->
 ```sql
 SELECT close['SPX']           AS spx,
        avg(close['SPX'], 50)  AS ma50,
@@ -122,6 +124,7 @@ What to notice: the 200-day average has a value on the first date shown. `FILTER
 
 *How volatile has the S&P 500 been over a month, a quarter and a year?*
 
+<!-- example: guide-03 -->
 ```sql
 SELECT volatility(close['SPX'], 21)  AS vol_1m,
        volatility(close['SPX'], 63)  AS vol_3m,
@@ -139,6 +142,7 @@ What to notice: each line starts once its window is full, so the 1-year line sta
 
 *How far is Nvidia below its running peak, and what is the deepest drawdown so far?*
 
+<!-- example: guide-04 -->
 ```sql
 SELECT drawdown(close['NVDA'], all)     AS dd,
        max_drawdown(close['NVDA'], all) AS deepest
@@ -155,6 +159,7 @@ What to notice: the window is always written. `all` means since the first date; 
 
 *A candle a week for the S&P 500 over the last year.*
 
+<!-- example: guide-05 -->
 ```sql
 SELECT ohlc(first(open['SPX']), max(high['SPX']),
             min(low['SPX']),    last(close['SPX'])) AS spx
@@ -175,6 +180,7 @@ What to notice: under `SAMPLE BY` every line says how a week's rows become one v
 
 *How have four markets done from the same start, three years ago?*
 
+<!-- example: guide-06 -->
 ```sql
 SELECT rebase(close, latest - 3y) AS perf
 FROM   prices ON date BY symbol
@@ -192,6 +198,7 @@ What to notice: plain `close` is one line per instrument, so one item gives four
 
 *Each stock's 3-month volatility, one line per stock, over three years.*
 
+<!-- example: guide-07 -->
 ```sql
 SELECT volatility(close, 63) AS vol_3m
 FROM   (prices WHERE asset_class = 'Equity') ON date BY symbol
@@ -208,6 +215,7 @@ What to notice: here a `WHERE` on the data is right, because no figure needs ano
 
 *Gold within two standard deviations of its 20-day average, over six months.*
 
+<!-- example: guide-08 -->
 ```sql
 SELECT close['GLD']                         AS gold,
        bollinger_bands(close['GLD'], 20, 2) AS bands,
@@ -227,6 +235,7 @@ What to notice: `bollinger_bands` returns a struct (`lower`, `upper`, `width`), 
 
 *A 60/40 portfolio of stocks and long bonds from 100, rebalanced daily and monthly.*
 
+<!-- example: guide-09 -->
 ```sql
 SELECT basket(close['SPX'], 0.6, close['TLT'], 0.4)                         AS daily,
        basket(close['SPX'], 0.6, close['TLT'], 0.4, rebalance => 'monthly') AS monthly
@@ -243,6 +252,7 @@ What to notice: an option is a string, given by name with `=>` or by place, and 
 
 *The S&P 500, shaded while the yield curve is inverted (the 10-year yield below the 2-year).*
 
+<!-- example: guide-10 -->
 ```sql
 SELECT px.close['SPX']                  AS spx,
        rt.yield['10Y'] - rt.yield['2Y'] AS s2s10,
@@ -263,6 +273,7 @@ What to notice: two tables, each with its own date and instrument columns, separ
 
 *The S&P 500's daily close deflated by the monthly CPI, over five years.*
 
+<!-- example: guide-11 -->
 ```sql
 SELECT px.close['SPX']                         AS spx,
        px.close['SPX'] / mc.value['CPI'] * 100 AS spx_real
@@ -284,6 +295,7 @@ One trap no rule can catch: `FILL` trusts the date column. If CPI is stored agai
 
 *Nvidia's 6-month alpha and R² against the S&P 500; Microsoft against Apple as a pair, its hedge ratio and spread.*
 
+<!-- example: guide-12 -->
 ```sql
 SELECT alpha(close['NVDA'], close['SPX'], 126)        AS alpha_6m,
        r_squared(close['NVDA'], close['SPX'], 126)    AS r2_6m,
@@ -300,6 +312,7 @@ What to notice: `alpha` and `r_squared` are of returns, computed from the prices
 
 To trade the spread takes one query more:
 
+<!-- example: guide-13 -->
 ```sql
 SELECT hedge_ratio(close['MSFT'], close['AAPL'], 126) AS hedge,
        residual(close['MSFT'], close['AAPL'], 126)    AS spread,
@@ -320,6 +333,7 @@ Yesterday's position, hedged with yesterday's ratio, times today's moves is the 
 
 *Each month, the three stocks with the best 12-1 momentum per unit of volatility, over the last two years.*
 
+<!-- example: guide-14 -->
 ```sql
 SELECT last(close)                              AS mo_close,
        lag(mo_close, 1) / lag(mo_close, 12) - 1 AS mom_12_1,

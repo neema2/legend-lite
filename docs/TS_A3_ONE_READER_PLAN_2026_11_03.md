@@ -46,6 +46,10 @@ of a formula. The tile's own grammar (`datacube/src/timeseries-expr.ts`), its si
    Completions wait for step 3, with the formula box that shows them. The proof is a round trip: every example series'
    item (`tsItemText`) read by core prints back as itself (`timeseries-ts-parity.test.ts`); core's own test reads a
    span, a window of everything, a subscript and an option, and refuses two items.
+
+   *The keystroke's cost, measured (2026-11-03, the risk §4 names):* a read takes 0.51 ms at the median, 0.70 ms at the
+   90th percentile and 3.68 ms at the slowest of the 210 items, the first 1.69 ms -- in-thread WebAssembly in Node, as a
+   tab's module answers (the parity test prints it). The box can ask core on every keystroke.
 3. **The tile stores text.** `TsSeries.text` replaces `TsSeries.expr`. The page document becomes version 7 (§3,
    decision 1). Python's `Timeseries.series` returns text. Every walker moves to the answer of step 2, one module per
    commit:
@@ -85,6 +89,23 @@ the bundle and cold-start budgets. Each step re-measures the formula box's keyst
    - (b) Also the grid's columns and instruments, which the box reads from the grid already.
    - *Recommended: (b).* It costs little more than (a), because the columns are already on the screen.
 
+4. **What `/` gives where the divisor is 0** (step 3: the box's text is `#TS`, R10). The tile writes `a / nullif(b, 0)`:
+   nothing there. An item's per-point expression means what Postgres means (the spec, principle 2): an error, and the
+   whole chart fails. gs-quant (pandas) gives infinity.
+   - (a) The tile's: `#TS`'s `/` gives nothing at 0, on every database; a row of `docs/SEMANTICS_REGISTER.md`.
+   - (b) Postgres's: an error; a formula that can divide by 0 writes `nullif` itself.
+   - *Recommended: (a).* Under (b) a chart of `close / volume` fails whole wherever one instrument has no volume (the
+     sample's EURUSD), and nothing in a chart can show infinity.
+5. **What a comparison gives** (`ma50 > ma200`). The tile draws a condition as the periods it holds, and its value is
+   1 or 0, so `and`, `or` and arithmetic work on it. Postgres and gs-quant both give true or false.
+   - (a) True or false, as both upstreams: the tile draws true as held; arithmetic on a condition writes `CASE`.
+   - (b) 1 or 0, the tile's.
+   - *Recommended: (a).* Both upstreams agree, and the spec's examples already write `ma50 > ma200 AS golden_cross`.
+
+Two more questions about the text are already answered by the spec's §7 and §8, so they are not asked here: a series
+is named by its item's name (`AS ma50`, which another series reads as `ma50`; the tile's `$A`), and a column taken by
+its period is written as its aggregate (`sum(volume['AAPL'])`, the tile's `.sum`), a bare column taking its grid's.
+
 ## 4. Cost and risk
 
 - **Size: large.** About 40 walkers, the document version, Python, and about 40 test targets that import the two
@@ -99,6 +120,6 @@ the bundle and cold-start budgets. Each step re-measures the formula box's keyst
 |---|---|
 | 1. The facts in the library | Built 2026-11-03: the `timeseries::Words` profile's tags and stereotypes on each word; core's catalog reads them; a test requires the tile's table to say the same |
 | 2. Core reads one item | Built 2026-11-03: `TsParser.item`, `TsTree`, the route `/api/lite/v1/grammar/tsItem`, `LitePlanner.tsItem`; the round trip over every example series |
-| 3. The tile stores text | Next |
+| 3. The tile stores text | Waits on decisions 4 and 5 (§3): what the box's text means where it divides by 0 and where it compares |
 | 4. The problems from the compiler | After 3 |
 | 5. Delete and guard | After 4 |

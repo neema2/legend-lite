@@ -106,6 +106,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   // ONE READER (A3 step 2): each series' item, read by core alone, prints back as itself
   const itemsWrong: string[] = [];
   let items = 0;
+  // the keystroke's cost (the plan's riskiest unknown, measured in step 2): each read's time, in-thread as a tab's
+  const itemTimes: number[] = [];
   // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
   const oracle: Record<string, unknown> = {};
   let ran = 0;
@@ -187,7 +189,9 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
           if (itemText !== undefined) {
             items += 1;
             try {
+              const started = performance.now();
               const read = await plannerOf.tsItem(itemText);
+              itemTimes.push(performance.now() - started);
               if (read.text === undefined) {
                 itemsWrong.push(`${id}: ${itemText}\n    refused: ${read.error.message}`);
               } else {
@@ -220,7 +224,10 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   }
   console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
   if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));
-  console.log(`One reader: ${items} series' items read by core`);
+  const sorted = [...itemTimes].sort((a, b) => a - b);
+  const at = (q: number): string => (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0).toFixed(2);
+  console.log(`One reader: ${items} series' items read by core; a read takes ${at(0.5)} ms (median), ${at(0.9)} ms`
+    + ` (90th), ${at(1)} ms (slowest), the first ${(itemTimes[0] ?? 0).toFixed(2)} ms`);
   assert.deepEqual(statementsWrong, [], 'each series\' one statement reads back as itself and answers its rows');
   assert.deepEqual(itemsWrong, [], 'each series\' item, read by core alone, reads back as itself and as Show #TS prints it (A3 step 2)');
   assert.deepEqual(Object.fromEntries(unshown), UNSHOWN, 'the series not shown as one statement, by reason: only allowed to shrink');

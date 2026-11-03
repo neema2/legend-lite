@@ -482,6 +482,9 @@ legend_java_library(
             # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
             # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
             "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the documents' examples are :ts_documents_test's alone: they read the timeseries project's file and the
+            # examples (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A9)
+            "src/test/java/com/legend/integration/TsDocumentsTest.java",
             # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
             # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
             "src/test/java/com/legend/integration/TsLineSpikeTest.java",
@@ -1070,6 +1073,34 @@ junit_test(
     data = ["//projects:timeseries/model.pure"],
     jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
     select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
+# (docs/timeseries/examples.sql, their one source) runs on DuckDB over tables shaped as the documents name them, or is
+# listed with why (only allowed to shrink)
+junit_test(
+    name = "ts_documents_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsDocumentsTest.java"],
+    data = [
+        "//docs:timeseries/examples.sql",
+        "//projects:timeseries/model.pure",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+    ],
+    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",

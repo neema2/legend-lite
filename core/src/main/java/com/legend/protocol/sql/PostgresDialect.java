@@ -232,7 +232,11 @@ public final class PostgresDialect implements InputDialect {
             case "Number" -> Kind.NUMBER;
             case "String" -> Kind.STRING;
             case "Boolean" -> Kind.BOOLEAN;
-            case "StrictDate" -> Kind.DATE;
+            // Pure's Date, a column a Pure function computed (a period's date, firstDayOfWeek's): a date, as
+            // upstream's normalizeType reads StrictDate, DateTime and Date alike -- so a string compared with it is
+            // read as a date, as Postgres reads an untyped constant (A9, 2026-11-03: #TS's FILTER date >=
+            // '2024-01-01' under SAMPLE BY)
+            case "StrictDate", "Date" -> Kind.DATE;
             case "DateTime" -> Kind.DATETIME;
             // a Variant is Postgres's jsonb (register S49)
             case "Variant", SqlToPure.VARIANT -> Kind.JSON;

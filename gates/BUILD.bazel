@@ -52,6 +52,8 @@ test_suite(
         "//core:timeseries_library_test",
         # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
         "//core:ts_island_test",
+        # every example of the #TS spec and the guide for quants runs, or is listed with why (A9, 2026-11-03)
+        "//core:ts_documents_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
