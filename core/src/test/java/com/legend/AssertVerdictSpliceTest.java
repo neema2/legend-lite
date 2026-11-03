@@ -206,7 +206,8 @@ class AssertVerdictSpliceTest {
                 "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
-        assertTrue(String.valueOf(e.getMessage()).contains("assertEquals"),
+        // upstream's words under either judge (2026-11-03, the core parity program)
+        assertTrue(String.valueOf(e.getMessage()).contains("expected: [30, 41]"),
                 e.getMessage());
     }
 
@@ -258,7 +259,9 @@ class AssertVerdictSpliceTest {
                 com.legend.error.AssertFailed.class, () -> run(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
-        assertTrue(String.valueOf(e.getMessage()).contains("TDSRow.values"),
+        // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"
+        // prefix was lite's)
+        assertTrue(String.valueOf(e.getMessage()).contains("expected: ['p1', 40, 'p2', 30]"),
                 e.getMessage());
     }
 

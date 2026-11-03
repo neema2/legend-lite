@@ -443,6 +443,7 @@ public enum BodyClass {
         boolean anAssert = false;
         // a frame bound by a let, or an execute(...) read where it stands (M9b): what makes the body a frame program
         boolean aFrame = false;
+        boolean statementFrame = false;
         ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         boolean sentBefore = false;
         // the names the frames' query lambdas bind themselves (their parameters, their top-level lets), so far
@@ -574,13 +575,30 @@ public enum BodyClass {
                     && !check(statement, systemClasses, ctx, query, checkMemo)) {
                 return false;
             }
-            aFrame |= StatementEffects.reaches(statement, n -> n instanceof TypedNativeCall call
+            boolean runs = StatementEffects.reaches(statement, n -> n instanceof TypedNativeCall call
                     && NativeFn.Handle.runsAFrame(call.callee().id()), query.specs(), runsAFrameMemo);
+            aFrame |= runs;
+            // a frame run by a statement of its own (an unread frame let runs as its statement): a check step the
+            // program plans, which no-assert bodies may not hold (below)
+            statementFrame |= runs && !last;
         }
-        if (!anAssert || !aFrame) {
+        if (!aFrame) {
             return false;
         }
         TypedSpec last = body.get(body.size() - 1);
+        if (!anAssert) {
+            // a frame program with no assert (2026-11-03, the core program: ExecuteFrameTest's `let r = execute(...);
+            // $r.values`): its last statement is its answer, by the query program's answer rule -- the guard below (a
+            // query planned after the asserts could fail before they ran) has no assert to guard. Not a bare
+            // execute(...) answered whole: the test door plans no result envelope (ExecuteFrameTest's
+            // executeInResultPosition, the walk's)
+            // Only let-bound frames, no frame run as a statement of its own: the corpus's
+            // otherwiseTestQualifierPropertyConstantExpression (`let result = execute(|Product.all()->filter(...));
+            // true;`, its unread let a statement over an object query) the walk runs and the store resolver refuses
+            return !statementFrame && !frames.isEmpty()
+                    && !(Lets.bare(last) instanceof TypedNativeCall call && NativeFn.Handle.runsAFrame(call.callee().id()))
+                    && answered(query, Lets.bare(last));
+        }
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
@@ -703,7 +721,22 @@ public enum BodyClass {
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
 
+    /** Why the query program's rule last refused a body on this thread (a measurement for the walk's door message,
+     *  2026-11-03: the core program reads it to move the walking bodies); null where it admitted the body. */
+    private static final ThreadLocal<String> REFUSAL = new ThreadLocal<>();
+
+    /** The query program rule's last refusal on this thread, or null. */
+    public static @Nullable String lastRefusal() {
+        return REFUSAL.get();
+    }
+
+    private static boolean refused(String why) {
+        REFUSAL.set(why);
+        return false;
+    }
+
     private static boolean queryProgram(TypedQuery query, QueryDoor.Scan scan) {
+        REFUSAL.remove();
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> memo = new HashMap<>();
@@ -712,33 +745,89 @@ public enum BodyClass {
             TypedSpec statement = body.get(i);
             // a read of the system store is no kind planned another way: a statement reading it alone runs on the
             // graph's system database (per-statement routing, 2026-11-03); one reading both stores stays the walk's
-            if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
-                    || storesOf(statement, query, i) == Stores.BOTH
-                    || StatementEffects.reaches(statement, n -> {
-                        Kind kind = anotherWay(n, systemClasses, ctx);
-                        return kind != null && kind != Kind.SYSTEM_READ;
-                    }, query.specs(), memo)) {
-                return false;
+            if (!scan.kinds(statement).isEmpty()) {
+                return refused("statement " + i + " kinds " + scan.kinds(statement));
             }
-            if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)) {
-                return false;
+            if (StatementEffects.containsTdgGenerator(statement)) {
+                return refused("statement " + i + " tdg");
+            }
+            if (storesOf(statement, query, i) == Stores.BOTH) {
+                return refused("statement " + i + " reads both stores");
+            }
+            if (i < body.size() - 1 && statement instanceof TypedLet let
+                    && BodyPlanner.handleType(let.value(), ctx) != null) {
+                // an orchestration handle bound by a let (a connection for executeInDb, a runtime): the frame
+                // program's rule (M9b), a value both roads answer with no statement -- its constructor builds no object
+                // a statement reads (2026-11-03, the core program: Phase1AuditTest's `let c = ^TestDatabaseConnection`)
+                continue;
+            }
+            Kind[] found = new Kind[1];
+            if (StatementEffects.reaches(statement, n -> {
+                        Kind kind = anotherWay(n, systemClasses, ctx);
+                        // the product's statement plans these too (2026-11-03, the core program, each measured on the
+                        // program road by core's tests): a raw grid (executeInDb's rows, the product's keyed result,
+                        // ProductStatements), an object built inside the statement (InstanceIdentityTest's keyed
+                        // equality and membership in value position)
+                        if (kind != null && kind != Kind.SYSTEM_READ && kind != Kind.RAW_GRID && kind != Kind.OBJECT) {
+                            found[0] = kind;
+                            return true;
+                        }
+                        return false;
+                    }, query.specs(), memo)) {
+                return refused("statement " + i + " another way: " + found[0]);
+            }
+            if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
+                    && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
+                            new HashMap<>(), n -> false) == LetPlanner.Kind.VALUE
+                            && !StatementEffects.reaches(let.value(), ProductStatements::toOneReader, query.specs(),
+                                    new HashMap<>()))) {
+                // a VALUE let (read by a later statement: an unread one runs as its own statement before this rule,
+                // LetPlanner.unreadAsStatements) folds into its readers as the product planner folds a query's let
+                // (2026-11-03, the core program: `let r = executeInDb(...); $r.rows`); not one holding a to-one reader,
+                // whose exactly-one contract the walk holds at the answer's root alone (M5f's audit B4)
+                return refused("statement " + i + " plans a step before the last");
             }
         }
         if (body.isEmpty()) {
-            return false;
+            return refused("empty body");
         }
-        return answered(query, Lets.bare(body.get(body.size() - 1)));
+        return answered(query, Lets.bare(body.get(body.size() - 1))) || refused("the answer: " + answerRefusal(query,
+                Lets.bare(body.get(body.size() - 1))));
+    }
+
+    /** Why {@link #answered} refuses {@code answer} (the measurement's text). */
+    private static String answerRefusal(TypedQuery query, TypedSpec answer) {
+        Type type = answer.info().type();
+        if (type instanceof Type.ClassType ct) {
+            return "an object (" + ct.fqn() + ")";
+        }
+        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll, query.specs(),
+                new HashMap<>())) {
+            return "a value through a user class's extent";
+        }
+        return "a to-one reader below the root";
     }
 
     /** Whether {@code answer}, a program's last statement, is answered on the program road as the walk answers it:
      *  a relation or a value that reads no class's extent, not an object, a to-one reader only as its own root. */
     private static boolean answered(TypedQuery query, TypedSpec answer) {
         Type type = answer.info().type();
-        if (type instanceof Type.ClassType ct && !PlatformTypes.isVariant(ct) && !PlatformTypes.isNil(ct)) {
+        if (type instanceof Type.ClassType ct && !PlatformTypes.isVariant(ct) && !PlatformTypes.isNil(ct)
+                && !PlatformTypes.ANY.equals(ct.fqn())
+                && !(answer instanceof com.legend.compiler.spec.typed.TypedNewInstance)) {
+            // an Any-typed answer (a raw grid's cells) and a constructed instance are the product's answers too
+            // (2026-11-03, the core program: ExecuteInDbProbeCountTest, InstanceIdentityTest#plainLaneUnperturbed)
             return false;
         }
-        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll, query.specs(),
-                new HashMap<>())) {
+        // a value through a USER class's extent stays the walk's (M5f's audit B1: the corpus's
+        // otherwiseTestQualifierPropertyConstantExpression, a filter over an extent no mapping resolves, which the walk
+        // runs as a value statement and the store resolver refuses); one through the system metamodel store's
+        // (Class.all()->size(), a mapping's set implementations) is the product's statement, routed to the system
+        // database (2026-11-03, the core program: the metamodel stores' tests, measured on the program road)
+        Set<String> systemClasses = systemClasses(query.context());
+        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll all
+                && !systemClasses.contains(all.classFqn()) && !SystemMetamodel.isSystemElement(all.classFqn()),
+                query.specs(), new HashMap<>())) {
             return false;
         }
         // a to-one reader only as the answer's root: one reached through a let or a user function is not the walk's

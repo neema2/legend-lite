@@ -437,13 +437,21 @@ final class DatabaseJudge {
                     + (delta.why() != null ? delta.why() : timeDelta.why()));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
-                        delta.rows(false), timeDelta.rows(false)),
+                        delta.rows(false), timeDelta.rows(false), n1),
                 env.withSession(w1.storeFree() ? w2.session() : w1.session()));
     }
 
     static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, null);
+    }
+
+    /** {@code message}: the failure's text where the assert has its own (an {@code assert}'s), the host's words;
+     *  null, the condition's canons framed (an assert judged by a condition of its own making). */
+    static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, @com.legend.base.Nullable String message) {
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
             SideRows need = planSide(fc[0], false, letPrefix, specs, env, hook);
@@ -464,8 +472,8 @@ final class DatabaseJudge {
         if (side.why() != null) {
             return unjudged(name, side.why());
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue),
-                side.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue,
+                message), side.on(env));
     }
 
     static TypedSide databaseTolerance(String name, List<TypedSpec> args,
@@ -640,7 +648,7 @@ final class DatabaseJudge {
                 return unjudged(fqn, vector.why());
             }
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
-                    wantTrue), vector.on(env));
+                    wantTrue, message), vector.on(env));
         }
         @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
                 com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
@@ -649,8 +657,14 @@ final class DatabaseJudge {
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
             }
-            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true),
-                    vector.on(env));
+            // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), "Assert failed";
+            // another family's rows keep the count's frame
+            com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
+                    .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
+            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
+                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
+                    assertFamily ? "Assert failed" : null), vector.on(env));
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -683,6 +697,23 @@ final class DatabaseJudge {
             if (cond == null) {
                 return unjudged(name, "instanceOf: no two-argument native in the catalog");
             }
+            String type = AssertVerdicts.typeRefName(args.get(1));
+            if (cond instanceof com.legend.compiler.spec.typed.TypedCBoolean decided && type != null
+                    && args.get(0).info().type() instanceof com.legend.compiler.element.type.Type.Primitive p) {
+                // the value's static type decided it: the value read for upstream's message, the host's words
+                SideRows side = planSide(args.get(0), false, letPrefix, specs, env, hook);
+                if (side.why() != null) {
+                    return unjudged(name, side.why());
+                }
+                // a primitive type is named as upstream's elementToPath names it, by its name alone (the type's own
+                // declaration read, never its spelling)
+                String typePath = java.util.Arrays.stream(com.legend.compiler.element.type.Type.Primitive.values())
+                        .filter(q -> q.qualifiedName().equals(type)).findFirst()
+                        .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(type);
+                return runVerdict(name, true, com.legend.lowering.VerdictSql.instanceOfDecided(side.scalarRow(false),
+                        decided.value(), typePath, p.typeName(),
+                        p == com.legend.compiler.element.type.Type.Primitive.STRING), side.on(env));
+            }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }
         @Override public TypedSide eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
@@ -714,7 +745,8 @@ final class DatabaseJudge {
         }
         @Override public TypedSide condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook);
+            // the host's words (HostJudge.conditionOf): "Assert failed"
+            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, "Assert failed");
         }
         @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

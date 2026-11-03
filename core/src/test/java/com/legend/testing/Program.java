@@ -53,7 +53,15 @@ public final class Program {
     /** {@code body} (a lambda text: {@code |assertEquals(1, 1)} or {@code {|let x = 1; assert(...);}}) over
      *  {@code model}, on {@code runtime}, on the caller's connection {@code c}, with the platform's default options. */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c) {
-        return run(model, body, runtime, c, ExecuteOptions.NONE);
+        return run(model, body, runtime, c, ExecuteOptions.NONE.withJudgeMode(laneJudge()));
+    }
+
+    /** The lane's judge for a body whose test names none ({@code -Dlegend.test.judge=HOST|DATABASE|BOTH}; the host
+     *  with no property): core's tests of verdicts run under each judge alone and under both, as channel B's suites
+     *  do (the core parity program, 2026-11-03: the user's "100% parity on host+database on our core tests"). A test
+     *  that passes its own options keeps its own judge. */
+    public static ExecuteOptions.JudgeMode laneJudge() {
+        return ExecuteOptions.JudgeMode.valueOf(System.getProperty("legend.test.judge", "HOST"));
     }
 
     /** The last statement's side of {@code body} run through the program entry, read through the twin's reader: for

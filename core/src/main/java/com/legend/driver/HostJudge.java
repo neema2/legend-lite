@@ -169,12 +169,12 @@ final class HostJudge {
                 () -> PureAsserts.notEqualsMessage(e, a));
     }
 
-    /** The TDSRow.values failure narrative — the host lattice's text
-     * with the pure-API prefix; null iff the lattice held. */
+    /** The TDSRow.values failure narrative — the host lattice's text, upstream's own ('\nexpected: %r\nactual:   %r'),
+     * with no prefix of lite's (2026-11-03, the core parity program: the database judge writes upstream's words, and the
+     * "assertEquals (TDSRow.values)" prefix was lite's); null iff the lattice held. */
     static @com.legend.base.Nullable String tdsHostMessage(String name,
             @com.legend.base.Nullable String d) {
-        return d == null ? null
-                : name + " (TDSRow.values) " + d.replaceFirst("^\\n", "");
+        return d;
     }
 
     /** The MULTISET flat-cells verdict: loose CELL pool host lattice
@@ -811,10 +811,27 @@ final class HostJudge {
         boolean held = com.legend.judge.TdsCompare.grids(te, ta, j.sortedOrder());
         com.legend.judge.CanonicalDivergence.sqlRoute(j.name(), "grid-pair");
         if (held != j.wantEqual()) {
-            return AssertVerdicts.fail(j.name() + ":\n" + summarize(te)
-                    + "\n does not match:\n" + summarize(ta));
+            // upstream's words ('\nexpected: %r\nactual:   %r'; assertNotEquals.pure's '%r should not equal %r'), each
+            // grid's rows as the database judge frames them (VerdictSql: no row '[]', one row its cells, several in
+            // brackets) -- the two judges one text (2026-11-03, the core parity program: the summary
+            // '[age] (2 rows) does not match' was lite's)
+            String e = gridText(te);
+            String a = gridText(ta);
+            return AssertVerdicts.fail(j.wantEqual() ? "\nexpected: " + e + "\nactual:   " + a
+                    : e + " should not equal " + a);
         }
         return AssertVerdicts.ok();
+    }
+
+    /** A grid's rows framed as the database judge frames a side's canons: none {@code []}, one its cells, several in
+     *  brackets; a row's cells by {@code %r}, comma-separated. */
+    private static String gridText(TypedSide.Tabular t) {
+        List<String> rows = new ArrayList<>(t.rows().size());
+        for (com.legend.judge.Row r : t.rows()) {
+            rows.add(r.values().stream().map(com.legend.judge.PureAsserts::repr)
+                    .collect(java.util.stream.Collectors.joining(", ")));
+        }
+        return rows.isEmpty() ? "[]" : rows.size() == 1 ? rows.get(0) : "[" + String.join(", ", rows) + "]";
     }
 
     /** {@code assertSize(coll, n)}: the side executed, its size by result kind. */

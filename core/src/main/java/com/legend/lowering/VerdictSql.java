@@ -342,20 +342,42 @@ public final class VerdictSql {
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)}: the condition's one
-     * canon text is {@code true} / {@code false}. */
-    public static SqlQuery condition(SqlQuery condScalar, boolean wantTrue) {
+     * canon text is {@code true} / {@code false}; a failure raises {@code message}, the assert's own (upstream's
+     * {@code assert(condition, message)}, "Assert failed" with none), never the two canons (2026-11-03, the core
+     * parity program: the host's words); null, the canons' frame (a condition another assert is judged by). */
+    public static SqlQuery condition(SqlQuery condScalar, boolean wantTrue,
+            @com.legend.base.Nullable String message) {
         OneRow a = rowOf("a", condScalar);
         SqlExpr c = a.col(C);
         return predicateOver(List.of(), List.of(a),
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, c, new SqlExpr.StringLit(wantTrue ? "true" : "false")),
                 new SqlExpr.StringLit(wantTrue ? "true" : "false"),
-                SqlExpr.Call.of(SqlFn.COALESCE, c, new SqlExpr.StringLit("[]")), new SqlExpr.NullLit());
+                SqlExpr.Call.of(SqlFn.COALESCE, c, new SqlExpr.StringLit("[]")), new SqlExpr.NullLit(), message);
+    }
+
+    /** {@code assertInstanceOf(value, type)} where the value's static type decides it at planning ({@code holds}: a
+     *  concrete primitive is of that type alone): the value's row read for its text, and a failure raises upstream's
+     *  own words ({@code assertInstanceOf.pure}: 'expected %r to be an instance of %s, actual: %s') -- the value as
+     *  {@code %r} writes it ({@code quote}: a String's quotes), the type's name and the value's (2026-11-03, the core
+     *  parity program: the host's message, PureAsserts.assertInstanceOf). */
+    public static SqlQuery instanceOfDecided(SqlQuery valueScalar, boolean holds, String type, String actual,
+            boolean quote) {
+        OneRow a = rowOf("a", valueScalar);
+        SqlExpr text = asText(a.col(C));
+        SqlExpr repr = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(quote ? quoted(text) : text),
+                new SqlExpr.StringLit("[]"));
+        SqlExpr message = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("expected "), repr,
+                new SqlExpr.StringLit(" to be an instance of " + type + ", actual: " + actual));
+        return predicateOver(List.of(), List.of(a), new SqlExpr.BoolLit(holds), new SqlExpr.StringLit("true"),
+                new SqlExpr.StringLit(holds ? "true" : "false"), new SqlExpr.NullLit(), message);
     }
 
     /** {@code coll->map(x | assert(pred))} — the quantified assert (task #14 leg 2,
      * 2026-09-21): every element's condition canon is {@code true} / {@code false};
-     * the verdict is that NO row says otherwise (a NULL condition is otherwise). */
-    public static SqlQuery allOf(SqlQuery condRows, boolean wantTrue) {
+     * the verdict is that NO row says otherwise (a NULL condition is otherwise); a failure raises {@code message}, the
+     * assert's own at its first failing element, as upstream's map raises it. */
+    public static SqlQuery allOf(SqlQuery condRows, boolean wantTrue,
+            @com.legend.base.Nullable String message) {
         OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
         SqlExpr wanted = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C),
                 new SqlExpr.StringLit(wantTrue ? "true" : "false"));
@@ -368,7 +390,7 @@ public final class VerdictSql {
                 new SqlExpr.StringLit("every element " + (wantTrue ? "true" : "false")),
                 SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(otherwise.col("__n"), SqlType.Scalar.VARCHAR),
                         new SqlExpr.StringLit(" element(s) otherwise")),
-                new SqlExpr.NullLit());
+                new SqlExpr.NullLit(), message);
     }
 
     /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over the three sides' canon texts, computed
@@ -450,7 +472,7 @@ public final class VerdictSql {
      * cell counts must match. {@code kinds} = the columns' declared kinds
      * (both grids share the schema — the names were checked statically). */
     public static SqlQuery gridTolerance(GridSide one, GridSide two, List<Type> kinds,
-            SqlQuery deltaRows, SqlQuery timeDeltaRows) {
+            SqlQuery deltaRows, SqlQuery timeDeltaRows, List<String> columns) {
         SqlQuery e = toleranceCells(one, kinds, GRID_E);
         SqlQuery a = toleranceCells(two, kinds, GRID_A);
         SqlExpr delta = new SqlExpr.Cast(scalarOver("__d", col("__d", C), "__one",
@@ -478,20 +500,46 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__e", C), col("__a", C)));
         // the BAD pairs: cells joined by position that are not within
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        SqlSelect bad = new SqlSelect(List.of(new SqlSelect.Projection(col("__e", RN), RN, rnOut)),
+        OutputCol ecOut = new OutputCol("__ec", SqlType.Scalar.VARCHAR, true);
+        OutputCol acOut = new OutputCol("__ac", SqlType.Scalar.VARCHAR, true);
+        SqlSelect bad = new SqlSelect(List.of(new SqlSelect.Projection(col("__e", RN), RN, rnOut),
+                        new SqlSelect.Projection(asText(col("__e", C)), "__ec", ecOut),
+                        new SqlSelect.Projection(asText(col("__a", C)), "__ac", acOut)),
                 false, new SqlSource.Join(cte("__e"), cte("__a"), SqlSource.Join.Kind.INNER,
                         SqlExpr.Call.of(SqlFn.EQUAL, col("__e", RN), col("__a", RN))),
                 SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.COALESCE, within, new SqlExpr.BoolLit(false))),
-                List.of(), null, null, List.of(), null, null, List.of(rnOut));
+                List.of(), null, null, List.of(), null, null, List.of(rnOut, ecOut, acOut));
         SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL, count("__e"), count("__a"));
         SqlExpr noBad = SqlExpr.Call.of(SqlFn.EQUAL, count("__p"), new SqlExpr.IntLit(0));
+        // the host's words (HostJudge's tdsEquivalent: the two grids' columns and rows where their row counts differ,
+        // upstream's '... is not equivalent to: ...' shape; else TdsCompare's first cell not within, by its row-major
+        // index) -- the two judges one text (2026-11-03, the core parity program)
+        java.util.function.Function<String, SqlExpr> rows = side -> new SqlExpr.Cast(
+                SqlExpr.Call.of(SqlFn.INT_DIVIDE, count(side), new SqlExpr.IntLit(Math.max(1, one.width()))),
+                SqlType.Scalar.VARCHAR);
+        String cols = columns.toString();
+        SqlExpr cells = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\n" + cols + " ("), rows.apply("__e"),
+                new SqlExpr.StringLit(" rows)\n is not equivalent to:\n" + cols + " ("), rows.apply("__a"),
+                new SqlExpr.StringLit(" rows)"));
+        SqlExpr cell = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("assertTdsEquivalent: cell "),
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS,
+                        scalarOver("__p", col("__p", RN), "__fr", SqlType.Scalar.BIGINT, 1L), new SqlExpr.IntLit(1)),
+                        SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit(" expected "),
+                SqlExpr.Call.of(SqlFn.COALESCE, scalarOver("__p", SqlExpr.Column.of("__p", "__ec", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED), "__fe", SqlType.Scalar.VARCHAR,
+                        1L), new SqlExpr.StringLit("null")),
+                new SqlExpr.StringLit(", got "),
+                SqlExpr.Call.of(SqlFn.COALESCE, scalarOver("__p", SqlExpr.Column.of("__p", "__ac", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED), "__fa", SqlType.Scalar.VARCHAR,
+                        1L), new SqlExpr.StringLit("null")));
+        SqlExpr message = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT, sameCount),
+                cells)), cell);
         return predicate(List.of(new SqlWith.Cte(GRID_E, one.wrapped()), new SqlWith.Cte(GRID_A, two.wrapped()),
                         new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a),
                         new SqlWith.Cte("__d", deltaRows), new SqlWith.Cte("__t", timeDeltaRows),
                         new SqlWith.Cte("__p", bad)),
                 SqlExpr.Call.of(SqlFn.AND, sameCount, noBad),
                 new SqlExpr.Cast(count("__e"), SqlType.Scalar.VARCHAR),
-                new SqlExpr.Cast(count("__a"), SqlType.Scalar.VARCHAR));
+                new SqlExpr.Cast(count("__a"), SqlType.Scalar.VARCHAR), new SqlExpr.NullLit(), message);
     }
 
     /** A grid's cells row-major with a NUMERIC value ({@code __n}, any
@@ -617,6 +665,21 @@ public final class VerdictSql {
 
     private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
             SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
+        return predicateOver(ctes, ops, verdict, expected, actual, unjudged, (SqlExpr) null);
+    }
+
+    /** {@code message}: the failure's fixed text (an assert's own message), carried as the row's message column, which
+     *  {@link #selfContained} keeps in place of the two canons' frame; null, the frame. */
+    private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
+            SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged,
+            @com.legend.base.Nullable String message) {
+        return predicateOver(ctes, ops, verdict, expected, actual, unjudged,
+                message == null ? null : new SqlExpr.StringLit(message));
+    }
+
+    private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
+            SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged,
+            @com.legend.base.Nullable SqlExpr message) {
         List<SqlSelect.Projection> pps = new ArrayList<>();
         List<OutputCol> pOuts = new ArrayList<>();
         SqlSource from = null;
@@ -645,6 +708,11 @@ public final class VerdictSql {
                         new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
                         new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
+        if (message != null) {
+            ps = new ArrayList<>(ps);
+            ps.add(new SqlSelect.Projection(message, MESSAGE,
+                    new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+        }
         SqlSelect body = new SqlSelect(ps, false, new SqlSource.Table(P, "p", pOuts, false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null,
                 List.of(), null, null, List.of(), null, null, List.of());
         return new SqlWith(all, body);
@@ -724,7 +792,13 @@ public final class VerdictSql {
 
     private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
             SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
-        List<SqlSelect.Projection> ps = List.of(
+        return predicate(ctes, verdict, expected, actual, unjudged, null);
+    }
+
+    /** {@code message}: the failure's own text, kept by {@link #selfContained} in place of the canons' frame. */
+    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
+            SqlExpr expected, SqlExpr actual, SqlExpr unjudged, @com.legend.base.Nullable SqlExpr message) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
                 new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.COALESCE, verdict, new SqlExpr.BoolLit(false)), VERDICT,
                         new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
@@ -735,7 +809,10 @@ public final class VerdictSql {
                 new SqlSelect.Projection(unjudged, UNJUDGED,
                         new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
+                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false))));
+        if (message != null) {
+            ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+        }
         SqlSelect body = new SqlSelect(ps, false, new SqlSource.Dual(), null,
                 List.of(), null, null, List.of(), null, null, List.of());
         return ctes.isEmpty() ? body : new SqlWith(ctes, body);   // a WITH needs expressions
@@ -1222,16 +1299,34 @@ public final class VerdictSql {
     }
 
     public static SqlQuery selfContained(SqlQuery row, String name, boolean wantEqual) {
+        boolean cells = joinsCells(row);
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), withHoldsAndMessage(body, name, wantEqual));
+            return new SqlWith(w.ctes(), withHoldsAndMessage(body, name, wantEqual, cells));
         }
         if (row instanceof SqlSelect sel) {
-            return withHoldsAndMessage(sel, name, wantEqual);
+            return withHoldsAndMessage(sel, name, wantEqual, cells);
         }
         throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
     }
 
-    private static SqlSelect withHoldsAndMessage(SqlSelect sel, String name, boolean wantEqual) {
+    /** Whether {@code row} joins a row's cells by the canon's separator anywhere (a grid's row canons): the one case
+     *  its message must write the cells as a list ({@link #cellsAsList}); every other verdict's message carries no
+     *  such step (core's statements small: the user's order, 2026-11-03). */
+    private static boolean joinsCells(SqlQuery row) {
+        boolean[] found = new boolean[1];
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlExpr.StringLit lit && CanonicalRenderSql.TDS_CELL_SEP.equals(lit.value())) {
+                    found[0] = true;
+                }
+                return e;
+            }
+        }.rewrite(row);
+        return found[0];
+    }
+
+    private static SqlSelect withHoldsAndMessage(SqlSelect sel, String name, boolean wantEqual, boolean cells) {
         if (projectionOf(sel, HOLDS) != null) {
             throw new IllegalStateException("a verdict row is made self-contained once: " + name);
         }
@@ -1243,13 +1338,18 @@ public final class VerdictSql {
         // '%r should not equal %r'), the host judge's (PureAsserts): no family name before it, and a newline inside a
         // spelled value written as %r writes it, \n (2026-11-03: the database judge's failures read 'assertEquals
         // \nexpected: ...' on every lane, so a lane's ledger, built from the host's text, did not match them)
-        SqlExpr e = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(asText(expected)), new SqlExpr.StringLit("null"));
-        SqlExpr a = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(asText(actual)), new SqlExpr.StringLit("null"));
-        SqlExpr message = wantEqual
+        java.util.function.UnaryOperator<SqlExpr> list = t -> cells ? cellsAsList(t) : t;
+        SqlExpr e = SqlExpr.Call.of(SqlFn.COALESCE, list.apply(reprNewlines(asText(expected))),
+                new SqlExpr.StringLit("null"));
+        SqlExpr a = SqlExpr.Call.of(SqlFn.COALESCE, list.apply(reprNewlines(asText(actual))),
+                new SqlExpr.StringLit("null"));
+        SqlSelect.Projection fixed = projectionOf(sel, MESSAGE);
+        SqlExpr message = fixed != null ? fixed.expr() : wantEqual
                 ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "), e,
                         new SqlExpr.StringLit("\nactual:   "), a)
                 : SqlExpr.Call.of(SqlFn.CONCAT, e, new SqlExpr.StringLit(" should not equal "), a);
         List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
+        ps.remove(fixed);   // a fixed message (an assert's own) moves after the polarity, the schema's order
         ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
         ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
         // the select's outputs are rebuilt from its projections by its constructor
@@ -1301,6 +1401,14 @@ public final class VerdictSql {
 
     /** TEXT by contract: a cast to VARCHAR unless the expression is one already. */
     /** {@code text} with each newline written {@code \\n}, as Pure's {@code %r} writes one inside a String. */
+    /** A row canon's cells written as the list %r writes them: the canon joins a row's cells by its own separator
+     *  ({@link CanonicalRenderSql#TDS_CELL_SEP}, row cohesion), which a message never shows (2026-11-03, the core parity
+     *  program: {@code ['p1'<GS>40, ...]} under the database judge, upstream's {@code ['p1', 40, ...]}). */
+    private static SqlExpr cellsAsList(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP),
+                new SqlExpr.StringLit(", "));
+    }
+
     private static SqlExpr reprNewlines(SqlExpr text) {
         return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit("\n"), new SqlExpr.StringLit("\\n"));
     }

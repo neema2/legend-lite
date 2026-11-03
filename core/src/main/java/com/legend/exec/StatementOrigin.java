@@ -120,6 +120,10 @@ public enum StatementOrigin {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             System.err.println("[sql:" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
         }
+        if (com.legend.diagnostics.Diagnostics.on("sql-sizes")) {
+            System.err.println("[sql-size] " + sql.length() + " " + System.getProperty("legend.test.current", "?") + " "
+                    + current().name().toLowerCase(java.util.Locale.ROOT));
+        }
     }
 
     /** One statement sent under the mark in force — counted in the Census's

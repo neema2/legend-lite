@@ -25,6 +25,8 @@ import java.util.Map;
  *       the JVM's exit (the coverage map's input, judge/PrimitiveCensus)</li>
  *   <li>{@code plan-sizes}: record, for every plan the round-trip gate judges, its JSON's size with and without the
  *       typed tree and its statements' characters (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18)</li>
+ *   <li>{@code sql-sizes}: print each statement's characters and the running test's name before it is sent (the core
+ *       program's size measurement, 2026-11-03)</li>
  * </ul>
  */
 public final class Diagnostics {
@@ -37,7 +39,10 @@ public final class Diagnostics {
             "corpus-containing", "chb-only", "primitives", "plan-sizes",
             // the walker-deletion program's measurement (2026-11-02): a test body the router would hand to the walk
             // fails instead, naming why -- every lane run so lists what does not yet run as one plan
-            "forbid-walk");
+            "forbid-walk",
+            // the core program's SQL size (2026-11-03, the user's "core test SQL much smaller than PCT/corpus"): each
+            // statement sent, its characters and the test that sent it, before it is sent
+            "sql-sizes");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 

@@ -292,20 +292,26 @@ class BodyRouterParityTest {
         for (String body : List.of(
                 // an object answered (M5f's audit B2): a graph on the product's road
                 "{| my::P.all();}",
-                // a value through a class's chain (B1): the product's column facts
+                // a value through a user class's chain (B1): kept 2026-11-03 -- the corpus's
+                // otherwiseTestQualifierPropertyConstantExpression, which the store resolver refuses on the program road
                 "{| my::P.all()->map(p|$p.name);}",
                 // a value statement before the last (B3): a check the walk holds and labels
                 "{| 'abc'->toUpper(); 'end';}",
-                // a relation let before the last (S3): the walk spends an alias on it
-                "{| let t = #TDS\na\n1\n2\n#; $t->filter(r|$r.a > 1);}",
                 // a to-one reader through a let (B4)
                 "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}",
                 // a temporal class read (S2): the exists-join form
-                "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}",
-                // an object built and answered (MV6's ids; a construction the compiler folds away, as
-                // ^Pair(...).first, leaves none)
-                "{| ^my::P(name='x');}")) {
+                "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}")) {
             assertNull(BodyClass.of(typed(ctx, body), RT), body);
+        }
+        // MOVED 2026-11-03 (the core program: core's tests of these shapes -- executeInDb's let-bound grids,
+        // InstanceIdentityTest's constructed instances -- run on the program road with the walk closed and pass under
+        // both judges): the product's statement answers each
+        for (String body : List.of(
+                // a relation let before the last (S3): folded into its reader, as the product folds a query's let
+                "{| let t = #TDS\na\n1\n2\n#; $t->filter(r|$r.a > 1);}",
+                // an object built and answered (MV6's ids)
+                "{| ^my::P(name='x');}")) {
+            assertEquals(BodyClass.QUERY_PROGRAM, BodyClass.of(typed(ctx, body), RT), body);
         }
     }
 
@@ -322,8 +328,10 @@ class BodyRouterParityTest {
         assertWalked(backend, c + effect("insert into seed_t values (9)") + "true;}", true);
         // a computed effect argument (T9, M9)
         assertWalked(backend, c + EXEC + "'create table w3(i int)'->toUpper(), $c, 0, 1000);\ntrue;}", false);
-        // an executeInDb result read: a raw grid (T8, M9)
-        assertWalked(backend, c + "let r = " + EXEC + "'select 1', $c, 0, 1000);\n$r;}", false);
+        // MOVED 2026-11-03 (the core program): an executeInDb result read, a raw grid (T8, M9), is the product's keyed
+        // result (ExecuteInDbProbeCountTest, ProductStatementsTest on the program road)
+        assertEquals(BodyClass.QUERY_PROGRAM, BodyClass.of(typed(Compiler.compileModel(model(backend, false)),
+                c + "let r = " + EXEC + "'select 1', $c, 0, 1000);\n$r;}"), RT));
     }
 
     private static void assertWalked(TestBackend backend, String body, boolean seeded) {
@@ -582,6 +590,10 @@ class BodyRouterParityTest {
     void theFrameShapesTheRuleKeepsOnTheWalk() {
         TestBackend backend = TestBackends.platform();
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // MOVED 2026-11-03 (the core program: ExecuteFrameTest's frames read by their last statement, on the program
+        // road with the walk closed): a frame with no assert after it is a frame program answering its last statement
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, "{| let r = " + EXECUTE
+                + "; $r.values.rows->size();}"), "x::RT", true));
         for (String body : List.of(
                 // the one inline shape the splice runs at planning: size(execute(...))
                 "{| assertEquals(1, " + EXECUTE + "->size());}",
@@ -593,8 +605,6 @@ class BodyRouterParityTest {
                 // $r.values->at(k>0) over a relation frame: the walk raises it at the let (the M9a audit's S1), so
                 // the rule names the shape and leaves it
                 "{| let r = " + EXECUTE + "; let v = $r.values->at(1); assertSize($v.rows, 2);}",
-                // a frame with no assert after it is no assert program
-                "{| let r = " + EXECUTE + "; $r.values.rows->size();}",
                 // the M9a audit's N1: a frame's query reading an earlier frame by name (the walk's run chain is
                 // resolved with no splice, so the walk raises at the let where the program road would splice it)
                 "{| let r = " + EXECUTE + "; let s = meta::pure::router::execute(|x::Firm.all()->filter(f|$f.name"

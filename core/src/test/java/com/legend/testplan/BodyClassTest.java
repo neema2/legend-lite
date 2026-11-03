@@ -65,8 +65,10 @@ class BodyClassTest {
         assertNull(classOf(CONN + EXEC + "'Create Table t' + now()->toString() + '(i INT);', $c, 0, 1000);}"));
     }
 
+    /** MOVED 2026-11-03 (the core program): an executeInDb result read as the answer is the product's keyed result
+     *  (ExecuteInDbProbeCountTest and ProductStatementsTest on the program road, the walk closed). */
     @Test
-    void anEffectsResultReadAsAValueStaysOnTheWalk() {
-        assertNull(classOf(CONN + "let r = " + EXEC + "'select 1', $c, 0, 1000);\n$r;}"));
+    void anEffectsResultReadAsAValueIsAQueryProgram() {
+        assertEquals(BodyClass.QUERY_PROGRAM, classOf(CONN + "let r = " + EXEC + "'select 1', $c, 0, 1000);\n$r;}"));
     }
 }

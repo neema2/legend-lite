@@ -19433,3 +19433,59 @@ statements (37K chars where 30 were). The database judge alone differed from the
    SQLite channel A grammar, standard, unclassified and H2 channel A relation pass against their lists; SQLite channel B
    grammar 134, standard 205, unclassified 92 and DuckDB channel B grammar 137 pass against the ledger; the PCT
    discipline guard: 9 of 9. BigQuery, Databricks and MySQL, whose rows moved, re-measure in their lanes.
+
+## 2026-11-03 — Core, first batch: 54 walking tests on the program road; the database judge in the host's words
+
+The user's order (2026-11-03): "getting Core 100% no walker and 100% parity on host+database on our core tests -- and
+make sure that the Core test SQL is much much much smaller than these crazy PCT/corpus backwards compatibility tests".
+
+1. **Measured first.** Core's tests with the walk closed to every test (the allow list emptied): 61 still walked, of the
+   73 the list named (measured on `ff5e628c`); the twelve that no longer walk left it (AssertErrorNativeTest's eight,
+   BodyRouterParityTest's four). The database judge alone and both judges over core's verdict tests: a lane switch,
+   `-Dlegend.test.judge=HOST|DATABASE|BOTH` (`testing/Program.laneJudge`, test code; a test that names its judge keeps
+   it). Under BOTH every target passed but H2's (an OutOfMemoryError, item 6); under the database judge alone 15 tests
+   failed where the host passes -- BOTH hid them: their bodies walked, and the walk judged them.
+2. **The walk's door names why** (`BodyClass.lastRefusal`, the query rule's refusal in the door's message).
+3. **42 bodies moved** (61 -> 19 on the list): a frame program with no assert answers its last statement (the guard
+   against a query planned after the asserts has no assert to guard; a bare `execute(...)` answered whole stays);
+   a plain query program admits an orchestration handle let (the frame program's rule), a VALUE let read later (folded
+   into its readers; not one holding a to-one reader, M5f's audit B4), a raw grid, an object built inside the statement,
+   an Any-typed or constructed answer, and a value through the system metamodel store's extent (a user class's stays
+   the walk's: measured against a baseline corpus run at `8951f974`, the corpus's
+   `otherwiseTestQualifierPropertyConstantExpression` -- an unasserted value statement the walk runs and the store
+   resolver refuses on the program road -- was the one body the broader rule moved wrongly). Each measured: the tests of those shapes
+   (Phase1AuditTest, AuditTier1PipelineTest, ExecuteInDbProbeCountTest, ExecuteFrameTest, InstanceIdentityTest, the
+   metamodel stores' tests, DeclaredQuotedTableH2Test, ProductStatementsTest, TaggedListTest,
+   ResolveDeepEmptinessProbeTest) pass on the program road with the walk closed. The guard pins that held these shapes
+   on the walk move with dated reasons (BodyRouterParityTest's relation-let, constructed-object, frame and raw-grid
+   shapes -- its user-class value shape, B1, stays; BodyClassTest's
+   raw-grid read, renamed `anEffectsResultReadAsAValueIsAQueryProgram`).
+4. **The database judge writes the host's words** (15 -> 7 under the database judge alone): an `assert`'s failure is
+   "Assert failed" and a quantified assert's its own message (a verdict row may carry a fixed message,
+   `VerdictSql.predicateOver`; `selfContained` keeps it); `assertInstanceOf` decided by the value's static type raises
+   upstream's `'expected %r to be an instance of %s, actual: %s'` over the value's row (a primitive named as
+   elementToPath names it); `assertTdsEquivalent`'s failure is the host's text, the cell counts or the first cell not
+   within (both judges' text is lite's, not upstream's `'... is not equivalent to: ...'`: open); a row canon's cell
+   separator is never shown in a message (`cellsAsList`).
+5. **The grid compares in upstream's words under both judges**: the host's grid pair wrote "assertEquals: [age] (2
+   rows) does not match: ..." and its flat cells "assertEquals (TDSRow.values) ...", lite's own; both now write
+   `'\nexpected: %r\nactual:   %r'`, the rows framed as the database judge frames them (`HostJudge.gridText`).
+   AssertVerdictSpliceTest's two assertions read upstream's text.
+6. **Open**: 19 walkers (the host's and database's assert planners: zip rows, deferred text; runtimes declaring test
+   data; effects, staged rows, store writes; a statement over both stores; a bare execute answered); 7 database-judge
+   disagreements (QuantifiedRowsTest's zip-row messages and the host's argument refusal; InstanceIdentityTest's eq over
+   instances and its decline counter; MetamodelMappingStoreTest's instance message; H2's OutOfMemoryError on
+   `MetamodelMappingStoreTest#witnessMainTableForB1`, a 6K verdict statement whose two metamodel sides nest eight
+   derived tables each, which H2 2.1's parser cannot hold -- the core SQL-size item). A measurement switch,
+   `-Dlegend.diagnostics=sql-sizes` (each statement's characters and the test that sent it), for that item.
+7. **Guards**: `JavaEvalLedgerTest` -- `DatabaseJudge` 616 -> 639 and `HostJudge` 1170 -> 1179 with their reasons
+   (messages composed into the statement, or from rows already read; nothing evaluated); the walk's allow list 73 -> 61
+   -> 19, shrink only.
+8. **Checks**: `//core:core_tests`, `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`, the twelve lean
+   ladder pins (unchanged: a verdict's message writes a row canon's cells as a list only where the statement joins
+   them), PCT DuckDB both channels every suite, SQLite channel B every suite, H2 channel B relation, the discipline
+   guard: green. The corpora (`//gates:corpus_duckdb`, `//gates:corpus_h2`) against a baseline run at `8951f974`
+   (this change stashed): every test's status identical in all four passes (host and database, DuckDB and H2); their
+   verdict targets red at the baseline too (the corpus reconciliation since `de641baf`, open: DuckDB's three database
+   losses, H2's 31 host-compared). One witness text moved with the message (`testDateTimeInclusiveRangeQuery`'s, both
+   database registers: the host's own text now, `(2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)`).

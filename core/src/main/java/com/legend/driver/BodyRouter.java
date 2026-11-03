@@ -98,7 +98,9 @@ public final class BodyRouter {
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
             String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"
                     : mode.name().toLowerCase(java.util.Locale.ROOT) + " judge's planner refused an assert")
-                    + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]");
+                    + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]")
+                    + (bodyClass == null && BodyClass.lastRefusal() != null
+                            ? " {query rule: " + BodyClass.lastRefusal() + "}" : "");
             if (com.legend.diagnostics.Diagnostics.on("forbid-walk")) {
                 // the walker-deletion program's measurement: the body fails here, naming why it would walk
                 throw new IllegalStateException("forbid-walk: " + why + " test="
