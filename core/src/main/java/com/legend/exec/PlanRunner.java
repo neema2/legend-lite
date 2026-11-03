@@ -423,7 +423,12 @@ public final class PlanRunner {
             Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink)
             throws IOException {
         switch (step) {
-            case ExecutionPlan.Update u -> update(u, live, st);
+            case ExecutionPlan.Update u -> {
+                // a store write may change a seeded table: every seed establishes again after it, as after an effect
+                // (the design audit's H1, 2026-11-02: an update left the seeds marked in place)
+                session.state().markWriting();
+                update(u, live, st);
+            }
             case ExecutionPlan.Check k -> {
                 // a statement of the body run for what it raises, its rows dropped: a statement on its own, as the
                 // walk marks a value statement it runs (an unread let's, the user's ruling of 2026-11-02); a mark in

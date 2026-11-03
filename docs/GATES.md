@@ -19074,3 +19074,23 @@ divergence).
 5. **Guards:** `JavaEvalLedgerTest` LetPlanner 131 -> 191 with its reason.
 6. **Checks:** //core:core_tests and _integration, //core:census, //core:guardrails, //pct:pct_channel_b,
    //spec:corpus_duckdb //spec:corpus_h2 12 of 12, //spec:spec_tests.
+
+## 2026-11-03 — The seed record fixed (the design audit's H1): A, then B, then A seeds A again
+
+The design audit (2026-11-02) found three faults in how a session remembers its seeds, each able to skip a seed a
+body needs once the walk is gone and every body seeds through the runner:
+
+1. **A, B, A** (`exec/SessionState.establish`): establishing a key left every other key marked in place, so seeding A,
+   then B over the same table, then A again skipped the third seed and read B's rows. Now establishing a key forgets
+   the others: a seed drops and creates the tables it fills, and the record does not know which tables another key
+   filled. Two keys over disjoint tables re-seed in turn: a cost, never a wrong row. Witness
+   `SessionStateTest.aBThenAAgainSeedsAAgain`.
+2. **A store write marked nothing** (`PlanRunner`'s update step): an effect marked the session as written, an update
+   did not. Now an update marks it too.
+3. **An ambiguous key** (`testplan/Seeds.key`): the key hashed each step's record text, which joins fields with no
+   escape -- one cell `a, b` and two cells `a`, `b` printed alike. Now each field is length-prefixed and a cell's
+   absence marked. Witness `TestDoorTest.twoSeedsThatPrintAlikeHaveTwoKeys`.
+
+Measured: the corpus's four passes' outcomes unchanged, 12 of 12 green; seed statements per pass 109 -> 177 (DuckDB),
+102 -> 114 (H2 host), 109 -> 177 (H2 database) -- the re-seeds the first fault skipped. Checks: //core:core_tests and
+_integration, //core:census, //core:guardrails, //pct:pct_channel_b, //spec:corpus_duckdb //spec:corpus_h2.

@@ -443,4 +443,18 @@ class TestDoorTest {
         assertTrue(test.contains("FIRM_R"), test);
         assertEquals(test, query.executionPlan("x::RT").answerSql().statement(), "one road: the query door's own");
     }
+
+    /** A seed step's key spells its content unambiguously (the design audit's H1, 2026-11-02): one cell {@code "a, b"}
+     *  and two cells {@code "a"}, {@code "b"} printed one record text, so the second seed's key equalled the first's
+     *  and a session holding the first skipped it. */
+    @Test
+    void twoSeedsThatPrintAlikeHaveTwoKeys() {
+        ExecutionPlan.SetupStep one = new ExecutionPlan.SetupStep.Rows("t", "create", "copy", "drop",
+                java.util.List.of(java.util.List.of("a, b")));
+        ExecutionPlan.SetupStep two = new ExecutionPlan.SetupStep.Rows("t", "create", "copy", "drop",
+                java.util.List.of(java.util.List.of("a", "b")));
+        assertEquals(one.toString(), two.toString(), "the two steps print alike");
+        assertFalse(Seeds.key(java.util.List.of(one)).equals(Seeds.key(java.util.List.of(two))),
+                "and their keys differ");
+    }
 }

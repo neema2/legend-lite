@@ -37,8 +37,13 @@ public final class SessionState {
         return seeded.contains(key);
     }
 
-    /** The seeds {@code key} names were just run on this session. */
+    /** The seeds {@code key} names were just run on this session -- and no other key's are known to be in place: a
+     *  seed drops and creates the tables it fills, and this record does not know which tables another key filled, so
+     *  seeding A, then B over the same table, then A again must seed A again (the design audit's H1, 2026-11-02: the
+     *  third seed was skipped and read B's rows). Two keys over disjoint tables re-seed in turn: a cost, never a wrong
+     *  row. */
     public synchronized void establish(Record key) {
+        seeded.clear();
         seeded.add(key);
     }
 
