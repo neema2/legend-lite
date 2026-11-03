@@ -31,7 +31,7 @@ import java.util.function.IntFunction;
  * from the database's JDBC report as upstream types it, is {@link EngineArrowWriter}'s since 2026-11-03): an Integer
  * slot int64, a HUGEINT
  * decimal128(38, 0), a Float float64, {@code DECIMAL(p,s)} decimal128(p, s) at exactly that scale (a cell with more
- * digits is refused, never rounded: S28's defect is not copied), a Decimal of no declared scale its plain digits as
+ * digits is refused, never rounded: upstream's ARROW_IPC answer rounds, register S135, copied by EngineArrowWriter alone), a Decimal of no declared scale its plain digits as
  * text, a StrictDate date32, a time-bearing column timestamp[ns, UTC] (lite's DateTime holds nine digits:
  * {@link ExecutionPlan.Precision#INSTANT}), a WRITTEN temporal (a literal, a partial date) Pure's text, a time
  * time64[ns], a list a List, a struct a Struct, a map a Map, a tagged column a dense Union of its slots, a JSON-carried

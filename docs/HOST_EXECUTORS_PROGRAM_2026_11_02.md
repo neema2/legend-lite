@@ -1237,4 +1237,10 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   upstream (each refused by name, never written another way): a struct's, a map's and a binary value's text, a list of
   anything but text, whole numbers and booleans (upstream's text read before each lands), and on Python's route a pivot
   whose columns its data names (the JVM answers it).
+- 2026-11-03: R4's audit folded (fix forward, the user's go): a dynamic pivot's `ARROW_IPC` fields named as upstream
+  labels them, on every host (Python now answers the pivot as the JVM does); a plan of several steps answers again
+  (its result step's report handed over); Jackson's spellings copied (upper-case hex, a JSON column re-spelled, lists
+  of numbers) and a nested list refused; six more DuckDB spellings; the metadata in the order of Arrow's copy;
+  upstream's two recorded answers compared (equal but for H2's own reported precision: lite pins H2 2.2.224, upstream
+  2.1.214). Register: S28 and S134 removed, S136 added. The conformance ledger 23 -> 22.
 

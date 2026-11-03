@@ -124,7 +124,7 @@ interface ArrowAnswer {
  * An ARROW_IPC answer (upstream's Arrow: the stream out of its zstd frame) as a ResultTable. The values are decoded
  * exactly from what the database wrote (toRawTable, as the warehouse's chunks are); what they MEAN is the builder's
  * (`legend.builder`, the compiler's types), never the Arrow type -- legend-engine types its Arrow columns from the
- * JDBC metadata (docs/SEMANTICS_REGISTER.md S28). A column the builder does not type, or a builder that is missing,
+ * JDBC metadata (the database's report: core's EngineArrowWriter, docs/SEMANTICS_REGISTER.md S135). A column the builder does not type, or a builder that is missing,
  * is refused.
  */
 export function arrowResultTable(

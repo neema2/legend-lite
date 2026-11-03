@@ -58,7 +58,7 @@ _BYTES = {
     'lite_execute_json_answer_arrow': 1, 'lite_execute_arrow_answer_arrow': 2,
     # lite's own execute's answer from the host's rows as Arrow: lite's own Arrow, the plan record beside it (D20); a
     # keyed plan's from its keys rows and its body's Arrow
-    'lite_execute_lite_answer_arrow': 1, 'lite_keyed_lite_answer_arrow': 2,
+    'lite_execute_lite_answer_arrow': 1, 'lite_keyed_lite_answer_arrow': 2, 'lite_keyed_arrow_answer_arrow': 3,
 }
 
 

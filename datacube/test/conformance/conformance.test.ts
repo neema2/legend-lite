@@ -4,7 +4,8 @@
 // (BrowserEngine: the WebAssembly planner and DuckDB-WASM) -- and of the tab's grid path (DuckDbEngine.execute), and the
 // answers compared:
 //   json   legend-engine's JSON text, byte for byte, each trace id masked: Java's against Python's and the tab's;
-//   arrow  the ARROW_IPC answer, its schema and its values: Java's against Python's (the tab answers no Arrow execute);
+//   arrow  the ARROW_IPC answer, its schema and its values: Java's against Python's (the tab answers no Arrow execute),
+//          and each host's field names against its own legend.columns, as upstream labels them;
 //   grid   the tab's grid path's values against Java's JSON values, by their meaning (a number by its value, a decimal
 //          by its value whatever its scale, a timestamp by its instant), for the cases that are not refusals;
 //   lite   lite's own execute (D20: /api/lite/v1/execution/execute, legend-engine's request, lite's own Arrow in the
@@ -194,14 +195,18 @@ async function textOf(url: string, input: ExecuteInput, headers: Record<string, 
 
 /** An ARROW_IPC answer: its schema in words and its rows, or its refusal. */
 async function arrowOf(url: string, input: ExecuteInput, headers: Record<string, string> = {}):
-    Promise<{ readonly status: number; readonly schema: string; readonly rows: string; readonly text?: string }> {
+    Promise<{ readonly status: number; readonly schema: string; readonly rows: string; readonly named: string; readonly text?: string }> {
   const r = await post(`${url}?serializationFormat=ARROW_IPC`, body(input), headers);
-  if (!r.ok) return { status: r.status, schema: '', rows: '', text: await r.text() };
+  if (!r.ok) return { status: r.status, schema: '', rows: '', named: '', text: await r.text() };
   const stream = await arrowIpcStream(new Uint8Array(await r.arrayBuffer()));
   const { table, metadata } = arrowIpcAnswer(stream);
   const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)}`).join(', ')
     + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
-  return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)) };
+  // upstream labels each field as its legend.columns names the column: where they differ, said in words
+  const fields = JSON.stringify(table.schema.fields.map((f) => f.name));
+  const listed = metadata.get('legend.columns') ?? '';
+  const named = fields === JSON.stringify(JSON.parse(listed || '[]')) ? '' : `fields ${fields} vs legend.columns ${listed}`;
+  return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)), named };
 }
 
 /** An ARROW_IPC answer's stream as its schema in words and its rows (arrowOf's reading of a stream in hand). */
@@ -396,6 +401,9 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       // arrow: Java's against Python's
       const ja = await arrowOf(javaExecute(), input);
       const pa = await arrowOf(pythonExecute(), input, auth);
+      for (const [host, a] of [['java', ja], ['python', pa]] as const) {
+        if (a.named !== '') differ(name, 'arrow-names', host, a.named);
+      }
       if (ja.status !== pa.status) differ(name, 'arrow', 'java/python', `status ${ja.status} vs ${pa.status}`);
       else if (ja.schema !== pa.schema) differ(name, 'arrow-schema', 'java/python', `${ja.schema} vs ${pa.schema}`);
       else if (ja.rows !== pa.rows) differ(name, 'arrow-values', 'java/python', firstDifference(ja.rows, pa.rows));

@@ -154,15 +154,23 @@ class WriterCarriageGuardTest {
                     // scale bounded as upstream's jdbcToArrow bounds them (Math.min, Math.max; the report's scale read
                     // there and to pick the encoder) and a whole decimal's scale read for its text; a day as days since
                     // the epoch and an instant as microseconds (Math.toIntExact, multiplyExact, addExact: exact, an
-                    // overflow refused by name)
+                    // overflow refused by name). 2026-11-03, R4's audit fold: a JSON column's text re-spelled as
+                    // upstream's Jackson writes the tree it reads (readTree(text).toString()) -- a whole number within
+                    // a long its value's digits (longValue 1 -> 2), one past it its BigInteger's (new BigInteger), a
+                    // fraction or an exponent the double Jackson reads (Double.parseDouble), a list's double element
+                    // written only when finite (Double.isFinite); and the size of Arrow's copy of the metadata map
+                    // (Math.max, 5 -> 6)
                     Map.entry("intValue", 1),
-                    Map.entry("longValue", 1),
+                    Map.entry("longValue", 2),
                     Map.entry("floatValue", 1),
                     Map.entry("doubleValue", 1),
                     Map.entry("setScale", 1),
                     Map.entry("new BigDecimal", 1),
+                    Map.entry("new BigInteger", 1),
+                    Map.entry("Double.parseDouble", 1),
+                    Map.entry("Double.isFinite", 1),
                     Map.entry("scale", 3),
-                    Map.entry("Math.", 5)),
+                    Map.entry("Math.", 6)),
             "ColumnReport.java", Map.ofEntries(
                     // a DuckDB type name's precision and scale (DECIMAL(p,s)) read as the numbers they spell, as the
                     // JDBC driver reports them (2026-11-03, R4 step 3: a host's report of its database's columns)

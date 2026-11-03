@@ -30,14 +30,16 @@ import java.util.function.IntFunction;
  *   <li>each value as upstream sets it: an integer narrowed to its width ({@code Number.byteValue} and kin), a float
  *       to 32 bits, a decimal at the reported scale, HALF_UP (D18 A: a misreported scale's loss copied at the edge),
  *       a date its day, a time its milliseconds, a timestamp its microseconds (finer digits dropped), every other
- *       column its value's text (a list its JSON, as Jackson writes it);</li>
- *   <li>the schema's metadata in the order Java's {@code HashMap} iterates it ({@link #inHashMapOrder}); record
- *       batches of {@value #BATCH} rows, none for an empty result. The caller frames the stream (one zstd frame).</li>
+ *       column its value's text (a list its JSON as Jackson writes an array, a JSON column's text as Jackson writes
+ *       the tree it reads);</li>
+ *   <li>the schema's metadata in the order upstream's answer carries it ({@link #inHashMapOrder}: Java's HashMap,
+ *       copied as Arrow copies it); record batches of {@value #BATCH} rows, none for an empty result. The caller
+ *       frames the stream (one zstd frame).</li>
  * </ul>
- * Where upstream fails, lite answers (D18; register rows): a {@code TIME} and a {@code TIMESTAMP WITH TIME ZONE} column,
- * whose DuckDB values upstream casts to JDBC's {@code Time} and {@code Timestamp} and fails, are written
- * as their milliseconds of the day and their microseconds at UTC. What this writer cannot yet write as upstream does
- * (a struct's or a map's text, a list of anything but text, whole numbers and booleans, a binary value) is refused by
+ * Where upstream fails, lite answers (D18; register S133): a DuckDB {@code TIME} column, whose value upstream casts to
+ * JDBC's {@code Time} and fails, is written as its milliseconds of the day. Where upstream fails on a list within a
+ * list (Jackson cannot serialize the driver's nested array), lite refuses it. What this writer cannot yet write as
+ * upstream does (a map's or a struct's text, a binary value's hex, a time with a zone; register S136) is refused by
  * name, never written some other way.
  */
 public final class EngineArrowWriter implements ResultSink {
@@ -108,8 +110,8 @@ public final class EngineArrowWriter implements ResultSink {
         List<ColumnReport> r = report;
         if (!reportGiven || r == null) {
             throw new IllegalStateException("legend-engine's Arrow answer is typed from the database's report of the"
-                    + " result's columns (their JDBC types), and this run gave none"
-                    + (reportGiven ? " (the database reports no column types)" : " (a plan of several steps)"));
+                    + " result's columns (their JDBC types), and "
+                    + (reportGiven ? "the database reports no column types" : "this run handed none"));
         }
         if (r.size() != columns.size()) {
             throw new IllegalStateException("the database reports " + r.size() + " columns for the " + columns.size()
@@ -198,28 +200,41 @@ public final class EngineArrowWriter implements ResultSink {
     }
 
     /**
-     * {@code metadata} in the order Java's {@code HashMap} iterates it (upstream builds the schema's metadata in a
-     * {@code new HashMap<>()}): the default sixteen buckets, each key's by its hash spread as {@code HashMap.hash}
-     * spreads it, a bucket's keys in their insertion order. Written out here rather than read from a map of the
-     * host's, so every host's answer is the JVM's (a class library's own map need not iterate as OpenJDK's does).
+     * {@code metadata} in the order upstream's answer carries it on the wire: upstream builds it in a
+     * {@code new HashMap<>()} (sixteen buckets), and Arrow's {@code Schema} and its stream writer each copy it with
+     * {@code new HashMap<>(m)} ({@code Collections2.immutableMapCopy}: a table sized to the map,
+     * {@code tableSizeFor(size / 0.75 + 1)} buckets), whose order the writer serializes. Each map iterates its buckets
+     * in turn, a key's bucket its hash spread as {@code HashMap.hash} spreads it, a bucket's keys in the order they
+     * came; a copy of a copy into a table of the same size keeps the order. Written out here rather than read from a
+     * map of the host's, so every host's answer is the JVM's (a class library's own map need not iterate as
+     * OpenJDK's does). Up to seven keys: no bucket can reach the eight that make a HashMap rebuild itself.
      */
     public static Map<String, String> inHashMapOrder(Map<String, String> metadata) {
-        if (metadata.size() > 12) {
-            throw new IllegalArgumentException("more than twelve metadata keys resize a HashMap: not written here");
+        if (metadata.size() > 7) {
+            throw new IllegalArgumentException("more than seven metadata keys can rebuild a HashMap: not written here");
         }
-        List<List<Map.Entry<String, String>>> buckets = new ArrayList<>(16);
-        for (int b = 0; b < 16; b++) {
-            buckets.add(new ArrayList<>());
-        }
-        for (Map.Entry<String, String> e : metadata.entrySet()) {
-            int h = e.getKey().hashCode();
-            buckets.get((h ^ (h >>> 16)) & 15).add(e);
-        }
+        List<Map.Entry<String, String>> upstream = bucketOrder(new ArrayList<>(metadata.entrySet()), 16);
+        int copy = Integer.highestOneBit(Math.max(1, (int) (metadata.size() / 0.75f + 1.0f) - 1)) << 1;
         Map<String, String> out = new LinkedHashMap<>();
-        for (List<Map.Entry<String, String>> bucket : buckets) {
-            for (Map.Entry<String, String> e : bucket) {
-                out.put(e.getKey(), e.getValue());
-            }
+        for (Map.Entry<String, String> e : bucketOrder(upstream, copy)) {
+            out.put(e.getKey(), e.getValue());
+        }
+        return out;
+    }
+
+    /** {@code entries}, put in their order into a HashMap of {@code buckets} buckets, in its iteration order. */
+    private static List<Map.Entry<String, String>> bucketOrder(List<Map.Entry<String, String>> entries, int buckets) {
+        List<List<Map.Entry<String, String>>> table = new ArrayList<>(buckets);
+        for (int b = 0; b < buckets; b++) {
+            table.add(new ArrayList<>());
+        }
+        for (Map.Entry<String, String> e : entries) {
+            int h = e.getKey().hashCode();
+            table.get((h ^ (h >>> 16)) & (buckets - 1)).add(e);
+        }
+        List<Map.Entry<String, String>> out = new ArrayList<>(entries.size());
+        for (List<Map.Entry<String, String>> bucket : table) {
+            out.addAll(bucket);
         }
         return out;
     }
@@ -551,6 +566,13 @@ public final class EngineArrowWriter implements ResultSink {
 
         private String text(Object cell) {
             return switch (cell) {
+                // a JSON column (DuckDB's JSON, a MAP, Snowflake's VARIANT: upstream's variant columns) re-spelled as
+                // Jackson spells the tree it reads (RelationalResult.getValue: readTree(text).toString())
+                case String s when variant(column) -> {
+                    StringBuilder b = new StringBuilder();
+                    jacksonTree(com.legend.json.Json.parse(s), b);
+                    yield b.toString();
+                }
                 case String s -> s;
                 case Long l -> l.toString();
                 case Integer x -> x.toString();
@@ -566,8 +588,18 @@ public final class EngineArrowWriter implements ResultSink {
             };
         }
 
-        /** An array's elements as Jackson writes them: a text quoted and escaped, a whole number its digits, a
-         *  boolean, null, a list within a list. */
+        /** Upstream's variant columns (SQLResultDBColumnsMetaData: a type name that begins JSON, MAP or VARIANT). */
+        private static boolean variant(ColumnReport c) {
+            String t = c.driverType().toUpperCase(java.util.Locale.ROOT);
+            return t.startsWith("JSON") || t.startsWith("MAP") || t.startsWith("VARIANT");
+        }
+
+        /**
+         * An array's elements as Jackson writes them (upstream: {@code writeValueAsString(array.getArray())}): a text
+         * quoted and escaped, a whole number its digits, a double {@code Double.toString}'s, a decimal
+         * {@code BigDecimal.toString}'s, a boolean, null. A list within a list is refused by name, as upstream fails on
+         * it (Jackson cannot serialize the driver's nested array object).
+         */
         private void jackson(Object value, StringBuilder b) {
             switch (value) {
                 case List<?> list -> {
@@ -579,6 +611,9 @@ public final class EngineArrowWriter implements ResultSink {
                         Object e = list.get(i);
                         if (e == null) {
                             b.append("null");
+                        } else if (e instanceof List<?>) {
+                            throw refused(column, e, "upstream's JSON of an array's element (upstream fails on a list"
+                                    + " within a list: Jackson cannot serialize the driver's nested array)");
                         } else {
                             jackson(e, b);
                         }
@@ -590,10 +625,65 @@ public final class EngineArrowWriter implements ResultSink {
                 case Integer x -> b.append(x);
                 case BigInteger x -> b.append(x);
                 case Boolean x -> b.append(x);
-                default -> throw refused(column, value, "upstream's JSON of an array's element (only a text, a whole"
-                        + " number and a boolean are read in upstream's sources so far)");
+                case Double x when Double.isFinite(x) -> b.append(x);
+                case BigDecimal x -> b.append(x);
+                default -> throw refused(column, value, "upstream's JSON of an array's element (only a text, a number"
+                        + " and a boolean are read in upstream's sources so far)");
             }
         }
+
+        /** A JSON document as Jackson writes the tree it reads ({@code readTree(text).toString()}): compact, an
+         *  object's keys in their order, a whole number its digits, a number with a fraction or an exponent the
+         *  double it reads ({@code Double.toString}), a text escaped as Jackson escapes it. */
+        private void jacksonTree(com.legend.json.Json.Node node, StringBuilder b) {
+            switch (node) {
+                case com.legend.json.Json.Obj o -> {
+                    b.append('{');
+                    boolean first = true;
+                    for (Map.Entry<String, com.legend.json.Json.Node> e : o.fields().entrySet()) {
+                        if (!first) {
+                            b.append(',');
+                        }
+                        first = false;
+                        quoted(e.getKey(), b);
+                        b.append(':');
+                        jacksonTree(e.getValue(), b);
+                    }
+                    b.append('}');
+                }
+                case com.legend.json.Json.Arr a -> {
+                    b.append('[');
+                    for (int i = 0; i < a.items().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        jacksonTree(a.items().get(i), b);
+                    }
+                    b.append(']');
+                }
+                case com.legend.json.Json.Str x -> quoted(x.value(), b);
+                case com.legend.json.Json.Bool x -> b.append(x.value());
+                case com.legend.json.Json.Null x -> b.append("null");
+                case com.legend.json.Json.Num x -> {
+                    String token = x.token();
+                    if (token == null && x.isInteger()) {
+                        // a whole number within a long (the parser keeps no text for one): Jackson's int or long node,
+                        // its digits ("-0" is the int 0)
+                        b.append(x.longValue());
+                    } else if (token == null) {
+                        throw refused(column, x, "a JSON number read without its text");
+                    } else if (token.indexOf('.') < 0 && token.indexOf('e') < 0 && token.indexOf('E') < 0) {
+                        // a whole number past a long: Jackson's BigInteger node, its digits
+                        b.append(new BigInteger(token));
+                    } else {
+                        // a fraction or an exponent: the double Jackson reads, as it writes one
+                        b.append(Double.toString(Double.parseDouble(token)));
+                    }
+                }
+            }
+        }
+
+        private static final String HEX = "0123456789ABCDEF";
 
         /** Jackson's default string escaping: the quote and the backslash, the five short escapes, every other
          *  control character as {@code \\u00XX}; nothing else escaped. */
@@ -611,7 +701,8 @@ public final class EngineArrowWriter implements ResultSink {
                     case '\t' -> b.append("\\t");
                     default -> {
                         if (ch < 0x20) {
-                            b.append("\\u00").append(Character.forDigit(ch >> 4, 16)).append(Character.forDigit(ch & 15, 16));
+                            // upper-case hex digits, as Jackson writes them (CharTypes.HC)
+                            b.append("\\u00").append(HEX.charAt(ch >> 4)).append(HEX.charAt(ch & 15));
                         } else {
                             b.append(ch);
                         }

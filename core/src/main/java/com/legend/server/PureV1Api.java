@@ -589,13 +589,7 @@ public final class PureV1Api {
             case RELATION -> {
                 String sql = plan.answerSql().statement();
                 java.util.function.Function<com.legend.result.PureV1Writer.Envelope, Map<String, String>> metadata =
-                        e -> {
-                            Map<String, String> m = new LinkedHashMap<>();
-                            m.put("legend.builder", e.builder());
-                            m.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
-                            m.put("legend.columns", Json.toCompact(e.names()));
-                            return m;
-                        };
+                        e -> engineArrowMetadata(sql, e);
                 List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
                 // the JSON route's rule (engineWriter; the phase 3 audit, 2026-10-27): the envelope from the plan's
                 // stated columns BEFORE any statement runs, so a column with no builder entry refuses before a write
@@ -633,6 +627,116 @@ public final class PureV1Api {
         return arrowAnswer(plan, reported, (columns, sink) -> com.legend.result.ArrowRows.stream(arrow, columns, sink));
     }
 
+    /** The schema metadata legend-engine's Arrow answer carries, as upstream puts it ({@code legend.builder}, the
+     *  JSON answer's; {@code legend.activities}, the activity without its {@code _type}; {@code legend.columns}, the
+     *  column names), in upstream's insertion order (the writer lays it out in HashMap's). */
+    private static Map<String, String> engineArrowMetadata(String sql, com.legend.result.PureV1Writer.Envelope e) {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("legend.builder", e.builder());
+        m.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
+        m.put("legend.columns", Json.toCompact(e.names()));
+        return m;
+    }
+
+    /**
+     * {@link #arrowAnswer(String, String, java.nio.ByteBuffer)} for a KEYED plan (a pivot whose columns its data names,
+     * D18 D) a host ran: its keys' rows (as {@link #keyedBody} took them), the host's report of the body's result
+     * ({@code reported}: {@code [label, type]} pairs in the body's order, its database's own type names) and the Arrow
+     * the database answered the body with -- the answer's columns the plan record's own steps make
+     * ({@link com.legend.executionplan.KeyedRun#answer}), each field typed from its report and named as the answer
+     * names it (upstream's pivot labels its columns so), the header made from the report as legend-engine makes a
+     * dynamic result's ({@link #dynamicEnvelope}): the JVM's answer. One zstd frame.
+     */
+    public static Answer keyedArrowAnswer(String plan, String keys, String reported, java.nio.ByteBuffer arrow) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
+            if (keyed.body().target().database().type() != com.legend.database.Databases.named("DuckDB")) {
+                throw new IllegalArgumentException("legend-engine's Arrow answer is typed from the database's JDBC report"
+                        + " of its columns; a host's report is read as DuckDB's driver reports it, and a "
+                        + keyed.body().target().database().type() + " host's is not measured");
+            }
+            com.legend.executionplan.KeyedRun.Answer answer =
+                    com.legend.executionplan.KeyedRun.answer(keyed, keyRows(keys));
+            List<com.legend.executionplan.ExecutionPlan.Column> columns = answer.columns();
+            int n = columns.size();
+            List<String> labels = new ArrayList<>();
+            List<String> types = new ArrayList<>();
+            readPairs(reported, labels, types);
+            if (types.size() != n || com.legend.result.RowDecode.physicalColumns(answer.read()) != n) {
+                throw new IllegalStateException("the body's report names " + types.size() + " columns for the " + n
+                        + " the answer has: a column of several slots (a mixed column) has no legend-engine Arrow type");
+            }
+            // each body column's report placed in the answer's order, named as the answer names it
+            List<com.legend.result.ColumnReport> body = com.legend.result.ColumnReport.duckDb(labels, types);
+            List<com.legend.result.ColumnReport> placedReports =
+                    new ArrayList<>(java.util.Collections.nCopies(n, (com.legend.result.ColumnReport) null));
+            List<@com.legend.base.Nullable String> reportedInOrder = new ArrayList<>(java.util.Collections.nCopies(n, (String) null));
+            for (int i = 0; i < n; i++) {
+                int at = answer.place().get(i);
+                com.legend.result.ColumnReport r = body.get(i);
+                placedReports.set(at, new com.legend.result.ColumnReport(
+                        com.legend.result.CellText.presentedName(columns.get(at).name()), r.driverType(), r.jdbcType(),
+                        r.precision(), r.scale()));
+                reportedInOrder.set(at, types.get(i));
+            }
+            String sql = keyed.body().statement();
+            com.legend.result.EngineArrowWriter writer = new com.legend.result.EngineArrowWriter(out,
+                    (cols, report) -> engineArrowMetadata(sql, dynamicEnvelope(sql, cols, report)));
+            writer.reported(placedReports);
+            try {
+                com.legend.result.ArrowRows.stream(arrow, answer.read(), new com.legend.result.ResultSink() {
+                    @Override
+                    public void columns(List<com.legend.executionplan.ExecutionPlan.Column> read)
+                            throws java.io.IOException {
+                        writer.columns(columns, reportedInOrder);
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+                        com.legend.result.Batch.Builder placed = com.legend.result.Batch.builder(columns, batch.size());
+                        for (int r = 0; r < batch.size(); r++) {
+                            List<Object> cells = new ArrayList<>(java.util.Collections.nCopies(n, null));
+                            for (int i = 0; i < n; i++) {
+                                cells.set(answer.place().get(i), batch.get(r, i));
+                            }
+                            placed.add(cells);
+                        }
+                        writer.batch(placed.build());
+                    }
+
+                    @Override
+                    public void end() throws java.io.IOException {
+                        writer.end();
+                    }
+                });
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return "";
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
+                Map.of("x-legend-response-format", "FormatNotSet"));
+    }
+
+    /** A host's report ({@code [label, type]} pairs) read into {@code labels} and {@code types}; anything else refused. */
+    private static void readPairs(String reported, List<String> labels, List<String> types) {
+        if (!(Json.parse(reported) instanceof Json.Arr pairs)) {
+            throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
+        }
+        for (Json.Node pair : pairs.items()) {
+            if (!(pair instanceof Json.Arr lt) || lt.items().size() != 2
+                    || !(lt.items().get(0) instanceof Json.Str label) || !(lt.items().get(1) instanceof Json.Str type)) {
+                throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
+            }
+            labels.add(label.value());
+            types.add(type.value());
+        }
+    }
+
     /** A host's rows of a statement whose result columns are {@code columns}, streamed to a sink: as JSON text
      *  ({@link com.legend.result.HostRows}) or as Arrow ({@link com.legend.result.ArrowRows}). */
     @FunctionalInterface
@@ -655,23 +759,9 @@ public final class PureV1Api {
             }
             List<String> labels = new ArrayList<>();
             List<String> types = new ArrayList<>();
-            if (!(Json.parse(reported) instanceof Json.Arr pairs)) {
-                throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
-            }
-            for (Json.Node pair : pairs.items()) {
-                if (!(pair instanceof Json.Arr lt) || lt.items().size() != 2
-                        || !(lt.items().get(0) instanceof Json.Str label) || !(lt.items().get(1) instanceof Json.Str type)) {
-                    throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
-                }
-                labels.add(label.value());
-                types.add(type.value());
-            }
+            readPairs(reported, labels, types);
             String sql = result.sql().statement();
-            com.legend.result.PureV1Writer.Envelope e = planEnvelope(sql, result.columns());
-            Map<String, String> metadata = new LinkedHashMap<>();
-            metadata.put("legend.builder", e.builder());
-            metadata.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
-            metadata.put("legend.columns", Json.toCompact(e.names()));
+            Map<String, String> metadata = engineArrowMetadata(sql, planEnvelope(sql, result.columns()));
             try {
                 com.legend.result.EngineArrowWriter writer = new com.legend.result.EngineArrowWriter(out, metadata);
                 writer.reported(com.legend.result.ColumnReport.duckDb(labels, types));

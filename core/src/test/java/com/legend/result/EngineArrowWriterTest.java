@@ -72,21 +72,45 @@ class EngineArrowWriterTest {
     }
 
     @Test
-    void theMetadataIsInJavaHashMapsOrder() {
+    void theMetadataIsInTheOrderUpstreamsArrowWritesIt() {
+        // upstream builds a new HashMap<>(); Arrow's Schema and its stream writer each copy it (new HashMap<>(m)),
+        // and the stream carries the copy's order
         List<List<String>> keySets = List.of(
                 List.of("legend.builder", "legend.activities", "legend.columns"),
                 List.of("legend.builder", "legend.activities", "legend.generationInfo", "legend.columns"),
-                List.of("a", "b", "q", "legend.x", "zz", "legend.columns", "x1", "x17"));
+                List.of("a", "b", "q", "legend.x", "zz", "legend.columns", "x1"),
+                List.of("x17", "legend.columns"));
         for (List<String> keys : keySets) {
             Map<String, String> inserted = new LinkedHashMap<>();
-            Map<String, String> hashed = new HashMap<>();
+            Map<String, String> upstream = new HashMap<>();
             for (String k : keys) {
                 inserted.put(k, "v" + k);
-                hashed.put(k, "v" + k);
+                upstream.put(k, "v" + k);
             }
-            assertEquals(List.copyOf(hashed.keySet()), List.copyOf(EngineArrowWriter.inHashMapOrder(inserted).keySet()),
+            Map<String, String> wire = new HashMap<>(new HashMap<>(upstream));
+            assertEquals(List.copyOf(wire.keySet()), List.copyOf(EngineArrowWriter.inHashMapOrder(inserted).keySet()),
                     keys.toString());
         }
+    }
+
+    @Test
+    void aTextColumnIsWrittenAsUpstreamWritesIt() throws IOException {
+        List<ExecutionPlan.Column> columns = List.of(col("l", "String"), col("j", "Variant"));
+        List<ColumnReport> report = List.of(new ColumnReport("l", "INTEGER[]", ColumnReport.ARRAY, 0, 0),
+                new ColumnReport("j", "JSON", ColumnReport.OTHER, 0, 0));
+        List<List<Object>> rows = List.of(
+                java.util.Arrays.asList(java.util.Arrays.asList("a\u001f\"", 1L, null, true), "{ \"a\" : 1.50, \"b\": [1e2, -0, \"\\u001f\"] }"),
+                java.util.Arrays.asList(java.util.Arrays.asList(1.5, new BigDecimal("1.50")), "[]"));
+        List<List<Object>> back = cells(ArrowReader.open(ByteBuffer.wrap(written(columns, report, rows))));
+        // a list as Jackson writes an array: upper-case hex for a control character, numbers as Jackson spells them
+        assertEquals(List.of("[\"a\\u001F\\\"\",1,null,true]", "[1.5,1.50]"), back.get(0));
+        // a JSON column re-spelled as Jackson writes the tree it reads: compact, a double Double.toString's
+        assertEquals(List.of("{\"a\":1.5,\"b\":[100.0,0,\"\\u001F\"]}", "[]"), back.get(1));
+        // a list within a list: upstream fails on it (Jackson cannot serialize the driver's nested array), so lite refuses
+        IllegalStateException nested = assertThrows(IllegalStateException.class, () -> written(List.of(col("l", "String")),
+                List.of(new ColumnReport("l", "INTEGER[][]", ColumnReport.ARRAY, 0, 0)),
+                List.of(List.of(List.of(List.of(1L))))));
+        assertTrue(nested.getMessage().contains("a list within a list"), nested.getMessage());
     }
 
     @Test

@@ -46,9 +46,10 @@ public class LegendHttpServer {
     private final @com.legend.base.Nullable SavedQueries queryStore;
     /** DataCube's saved pages, beside the queries ({@code DIR/dataCube}; the program's B6), or null. */
     private final @com.legend.base.Nullable SavedCubes cubeStore;
-    /** Whether lite's own routes ({@code /api/lite/v1/}) are served beside legend-engine's: off under
+    /** Whether lite's own API routes ({@code /api/lite/v1/}) are served beside legend-engine's: off under
      *  {@code --engine-only}, the switch that proves an app talking to this server as legend-engine never leans on
-     *  them (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20). */
+     *  them (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20). The server's own tooling routes ({@code /lsp}, the diagram
+     *  service), which no app's engine connection asks, are served either way. */
     private final boolean liteRoutes;
 
     /** On the loopback interface, loopback origins only: the development server. */

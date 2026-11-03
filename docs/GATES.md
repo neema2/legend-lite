@@ -17395,7 +17395,7 @@ Python's `ARROW_IPC` execute (R4 step 4) plans the plan record as its JSON execu
 statement, and hands DuckDB's Arrow and the report to the core -- `arrowPlan`, `lite_execute_plan`, `Boundary.executePlan`,
 `compiler.execute_plan` and Python's own Arrow writer (`engine.py` `_arrow_ipc`) deleted (census: zero). A pivot whose
 columns its data names: the JVM answers it (the report placed in the answer's order); Python's route refuses it by name
-(it crashed before).
+(it answered a 500 before, its own writer raising a RuntimeError; R4's audit fold makes it answer as the JVM does).
 
 The judge: the conformance suite's 14 `arrow-schema` entries (Java's answer in the plan's types against Python's in
 DuckDB's) are gone -- the JVM, Python and the tab's handoff now write the same answer, schema and values -- and no
@@ -17409,3 +17409,46 @@ upstream's schema and recorded metadata in server), `//core:guardrails`, `//core
 python_engine,python_execute,typecheck}_test`, `//python:{arrow_handoff,bindings}_test`, `//python:engine_test` in four
 parts (68, 35, 12, 217 tests; whole, it meets this container's V8 crash), `//wasm:differential_test`; the tab's and
 the native library's builds.
+
+## 2026-11-03 — R4's audit folded (legend-engine's ARROW_IPC answer: five defects, the gaps, the records)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8. An independent, read-only audit of `0b035c08..5f07e513` (upstream
+read in the pinned sources; duckdb_jdbc 1.5.6.0, Jackson 2.10.5 and arrow-vector 18.0.0 measured) found five defects
+and seven gaps; folded, the user's go of 2026-11-03 (fix forward):
+- **A dynamic pivot's fields were named with lite's SQL aliases** (`_pk0__u0`): its report is now named as the answer
+  names each column (`CellText.presentedName`, as `legend.columns` lists it and upstream's PIVOT labels it), on the JVM
+  (`PlanRunner.placed`) and the hosts (`PureV1Api.keyedArrowAnswer`). The conformance suite's new `arrow-names` check
+  holds every host's field names to its own `legend.columns`: no case differs.
+- **A plan of several steps (a staged `let`) was refused** under `ARROW_IPC` -- a regression of `5f07e513`: the result
+  step's report is read and handed over (`PlanRunner` `Held`); `PureV1ApiTest.e8_execute_aProgramThatWrites_runsFromItsPlan`
+  answers it again, the row the JSON route answers.
+- **Jackson's escape is upper-case hex** (`\u001F`), now copied; **a list within a list**, on which upstream fails, is
+  refused by name; **a JSON column** (DuckDB's JSON or MAP, Snowflake's VARIANT: upstream's variant columns) is
+  re-spelled as Jackson writes the tree it reads (`readTree(text).toString()`: compact, a fraction or an exponent the
+  double it reads); **a list of doubles or decimals** written as Jackson writes them.
+- **Python's dynamic pivot** now answers as the JVM's (`_execute_arrow_keyed`, the native `lite_keyed_arrow_answer_arrow`)
+  instead of a refusal dressed as a database error: the conformance ledger's `pivotDynamic` `arrow` entry is gone.
+- **DuckDB spellings `DESCRIBE` answers** and the hosts refused: `BIGNUM`, `VARIANT`, `TYPE` (OTHER), `BIT`, `GEOMETRY`
+  (BLOB), `TIME_NS` (TIME), as measured.
+- **The metadata's order** is now the order of Arrow's copy of upstream's HashMap (`inHashMapOrder`, tested against
+  `new HashMap<>(new HashMap<>(m))`; the four legend keys' order unchanged).
+- **Upstream's two recorded answers** are compared at last (`PureV1ApiTest.e8_arrowAnswer_isUpstreamsRecordedAnswer`):
+  the group-by's fields, types and rows exactly; the fractional sum's rows exactly (their digits lost as upstream loses
+  them) and its decimal's precision H2's own report -- lite pins H2 2.2.224, legend-engine 4.145.0 pins 2.1.214, which
+  reports decimal(27, 0) where 2.2.224 reports decimal(20, 0).
+- **Records:** S28 removed (its difference, Python's own unrounded Arrow, is gone; S135 carries its evidence); S134
+  removed (its premise was false: upstream reads a `TIMESTAMP WITH TIME ZONE` column whose relational type is
+  `TIMESTAMP` with `getTimestamp`, `SQLResultDBColumnsMetaData.columnIsOfType`, and answers it as lite does); S136 added
+  (what the writer still refuses where upstream answers -- a map, a struct, a binary value, a time with a zone -- and a
+  timestamp before 1582-10-15 written on the proleptic calendar, upstream's through `java.sql.Timestamp`'s hybrid one);
+  the 18 adapters ledger entries given their reasons; the ledger 23 -> 22; stale mentions of `arrowPlan` corrected;
+  `--engine-only`'s scope said exactly (lite's own API routes off; the server's tooling routes, `/lsp` and the diagram
+  service, which no engine connection asks, served either way).
+
+Guards re-pinned with their reasons (`WriterCarriageGuardTest`: the JSON re-spelling's `new BigInteger`,
+`Double.parseDouble`, `Double.isFinite`, `longValue` 1 -> 2, `Math.` 5 -> 6).
+
+Checks: `//core:core_tests_{root,server,exec,architecture}`, `//core:guardrails`, `//core:arrow_writer_test`,
+`//datacube:{conformance,python_engine,python_execute,typecheck}_test`, `//python:{arrow_handoff,bindings}_test`,
+`//python:engine_test` in four parts (68, 35, 12, 217), `//engine-client:tests`; the tab's and the native library's
+builds.

@@ -420,6 +420,87 @@ class PureV1ApiTest {
     }
 
     /**
+     * E8 in upstream's Arrow format against upstream's own answers to the same requests (recorded, legend-engine
+     * 4.145.0 over H2: {@code e8-arrow-groupby-sort.json}, {@code e8-arrow-fractional-sum.json}): the same fields --
+     * each name and Arrow type -- and the same rows; the fractional sum's digits lost as upstream loses them (H2
+     * reports the sum decimal(27, 0) and the answer rounds to that scale: register S135, upstream's defect copied at
+     * the edge).
+     */
+    @Test
+    void e8_arrowAnswer_isUpstreamsRecordedAnswer() throws Exception {
+        Json.Obj grouped = Json.parseObject(resource("upstream-api/e8-arrow-groupby-sort.json"));
+        assertEquals(recordedArrow(grouped), arrowOf(lambda));
+        Json.Obj fractional = Json.parseObject(resource("upstream-api/e8-arrow-fractional-sum.json"));
+        String query = PureV1Api.grammarToJsonLambda(fractional.getString("query"), false).json();
+        // the one difference, the database's own: lite pins H2 2.2.224, legend-engine 4.145.0 pins 2.1.214
+        // (pom.xml h2.version), which reports this sum decimal(27, 0) where 2.2.224 reports decimal(20, 0); the
+        // writer types the column from the report either way, and the rows -- their digits lost the same way -- agree
+        List<String> upstream = new ArrayList<>(recordedArrow(fractional.getObj("arrow")));
+        upstream.set(1, upstream.get(1).replace("decimal128(27, 0)", "decimal128(20, 0)"));
+        assertEquals(upstream, arrowOf(query));
+    }
+
+    /** A recorded Arrow answer's fields (name and pyarrow's spelling of its type) and rows, in words. */
+    private static List<String> recordedArrow(Json.Obj recorded) {
+        List<String> out = new ArrayList<>();
+        for (Json.Node f : ((Json.Arr) recorded.fields().get("fields")).items()) {
+            Json.Obj field = (Json.Obj) f;
+            out.add(field.getString("name") + ": " + field.getString("type"));
+        }
+        for (Json.Node r : ((Json.Arr) recorded.fields().get("rows")).items()) {
+            out.add(((Json.Arr) r).items().stream().map(v -> v instanceof Json.Str str ? str.value() : Json.toCompact(v))
+                    .collect(java.util.stream.Collectors.joining(",")));
+        }
+        return out;
+    }
+
+    /** The JVM's ARROW_IPC answer to {@code lambdaJson} over the test's model, as {@link #recordedArrow} spells one. */
+    private List<String> arrowOf(String lambdaJson) throws Exception {
+        String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambdaJson + ",\"model\":" + textModel()
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                request, ConnectionResolver.RUNNER);
+        assertEquals(200, a.status(), a.json());
+        com.legend.arrowipc.ArrowReader.Stream read = com.legend.arrowipc.ArrowReader.open(
+                java.nio.ByteBuffer.wrap(rawBlocks(a.bytes())));
+        List<String> out = new ArrayList<>();
+        for (com.legend.arrowipc.ArrowField f : read.schema().fields()) {
+            out.add(f.name() + ": " + switch (f.type()) {
+                case com.legend.arrowipc.ArrowType.Utf8 u -> "string";
+                case com.legend.arrowipc.ArrowType.Decimal d -> "decimal128(" + d.precision() + ", " + d.scale() + ")";
+                case com.legend.arrowipc.ArrowType.Int i -> "int" + i.bits();
+                case com.legend.arrowipc.ArrowType.FloatingPoint fp -> fp.precision() == com.legend.arrowipc.ArrowType.FloatPrecision.SINGLE
+                        ? "float" : "double";
+                default -> String.valueOf(f.type());
+            });
+        }
+        for (com.legend.arrowipc.ArrowReader.Batch b = read.next(); b != null; b = read.next()) {
+            for (int r = 0; r < b.rows(); r++) {
+                List<String> cells = new ArrayList<>();
+                for (com.legend.arrowipc.ArrowReader.Array col : b.columns()) {
+                    java.nio.ByteBuffer v = col.buffer(0);
+                    cells.add(col.isNull(r) ? "null" : switch (col.field().type()) {
+                        case com.legend.arrowipc.ArrowType.Utf8 u -> {
+                            int start = v.getInt(4 * r);
+                            byte[] bytes = new byte[v.getInt(4 * r + 4) - start];
+                            col.buffer(1).duplicate().position(start).get(bytes);
+                            yield new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                        }
+                        case com.legend.arrowipc.ArrowType.Decimal d -> new java.math.BigDecimal(
+                                java.math.BigInteger.valueOf(v.getLong(16 * r + 8)).shiftLeft(64)
+                                        .add(new java.math.BigInteger(Long.toUnsignedString(v.getLong(16 * r)))), d.scale())
+                                .toPlainString();
+                        case com.legend.arrowipc.ArrowType.Int i -> String.valueOf(i.bits() == 32 ? v.getInt(4 * r) : v.getLong(8 * r));
+                        default -> throw new IllegalStateException("not read here: " + col.field().type());
+                    });
+                }
+                out.add(String.join(",", cells));
+            }
+        }
+        return out;
+    }
+
+    /**
      * LITE'S OWN EXECUTE (D20, 2026-11-03): legend-engine's execute request at {@code /api/lite/v1/execution/execute},
      * answered with lite's own Arrow -- one uncompressed IPC stream in the plan's types, the plan record in its
      * schema's metadata -- whose rows are the JSON execute's rows, cell for cell (read back by the core's own reader).
@@ -941,6 +1022,17 @@ class PureV1ApiTest {
         Json.Arr rows = Json.parseObject(a.json()).getObj("result").getArr("rows");
         assertEquals(1, rows.items().size(), a.json());
         assertEquals("a", ((Json.Str) ((Json.Obj) rows.items().get(0)).getArr("values").items().get(0)).value());
+        // the same program in legend-engine's Arrow format (a plan of several steps: its result step's report types
+        // the answer, R4's audit fold, 2026-11-03): the same one row, the field as the database reports it
+        PureV1Api.Answer arrow = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                "{\"function\":" + write + ",\"model\":" + modelContext + "}", ConnectionResolver.RUNNER);
+        assertEquals(200, arrow.status(), arrow.json());
+        com.legend.arrowipc.ArrowReader.Stream staged = com.legend.arrowipc.ArrowReader.open(
+                java.nio.ByteBuffer.wrap(rawBlocks(arrow.bytes())));
+        assertEquals("NAME", staged.schema().fields().get(0).name());
+        assertEquals(new com.legend.arrowipc.ArrowType.Utf8(), staged.schema().fields().get(0).type());
+        com.legend.arrowipc.ArrowReader.Batch one = staged.next();
+        assertEquals(1, one == null ? 0 : one.rows(), "the staged row, read before the delete");
         String read = PureV1Api.grammarToJsonLambda("|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())"
                 + "->from(w::RT)", false).json();
         PureV1Api.Answer after = execute("{\"function\":" + read + ",\"model\":" + modelContext + "}");

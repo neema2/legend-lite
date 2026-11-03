@@ -9,8 +9,8 @@ import java.util.List;
  * {@link EngineArrowWriter}; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R4 step 3, D17, D19).
  *
  * <p>A host has no JDBC driver: its database's own type names (duckdb-python's {@code description}, DuckDB-WASM's
- * {@code DESCRIBE}) are read as DuckDB's JDBC driver reports them ({@link #duckDb}; measured for every DuckDB type
- * against {@code duckdb_jdbc} 1.5.6.0, 2026-11-03), so a host's answer is the JVM's.
+ * {@code DESCRIBE}) are read as DuckDB's JDBC driver reports them ({@link #duckDb}; each spelling measured against
+ * {@code duckdb_jdbc} 1.5.6.0, 2026-11-03, the last six by R4's audit), so a host's answer is the JVM's.
  */
 public record ColumnReport(String label, String driverType, int jdbcType, int precision, int scale) {
 
@@ -43,8 +43,9 @@ public record ColumnReport(String label, String driverType, int jdbcType, int pr
      * DuckDB's JDBC driver reports it: a {@code HUGEINT} (a sum of integers) {@code OTHER}; {@code UTINYINT}
      * {@code SMALLINT}, {@code USMALLINT} {@code INTEGER}, {@code UINTEGER} {@code BIGINT}; {@code UBIGINT},
      * {@code UHUGEINT}, {@code INTERVAL}, {@code UUID}, {@code JSON}, a map and an enumeration {@code OTHER}; every
-     * {@code TIMESTAMP_*} {@code TIMESTAMP}; a list {@code ARRAY}, a struct {@code STRUCT}. A name not measured is
-     * refused by name, never guessed.
+     * {@code TIMESTAMP_*} {@code TIMESTAMP}; a list {@code ARRAY}, a struct {@code STRUCT}; {@code BIGNUM},
+     * {@code VARIANT} and {@code TYPE} {@code OTHER}, {@code BIT} {@code BIT}, {@code GEOMETRY} {@code BLOB},
+     * {@code TIME_NS} {@code TIME}. A name not measured is refused by name, never guessed.
      */
     public static ColumnReport duckDb(String label, String type) {
         String t = type.strip();
@@ -72,13 +73,14 @@ public record ColumnReport(String label, String driverType, int jdbcType, int pr
             case "SMALLINT", "UTINYINT" -> SMALLINT;
             case "INTEGER", "USMALLINT" -> INTEGER;
             case "BIGINT", "UINTEGER" -> BIGINT;
-            case "HUGEINT", "UBIGINT", "UHUGEINT", "INTERVAL", "UUID", "JSON" -> OTHER;
+            case "HUGEINT", "UBIGINT", "UHUGEINT", "INTERVAL", "UUID", "JSON", "BIGNUM", "VARIANT", "TYPE" -> OTHER;
+            case "BIT" -> BIT;
             case "FLOAT" -> FLOAT;
             case "DOUBLE" -> DOUBLE;
             case "VARCHAR" -> VARCHAR;
-            case "BLOB" -> BLOB;
+            case "BLOB", "GEOMETRY" -> BLOB;
             case "DATE" -> DATE;
-            case "TIME" -> TIME;
+            case "TIME", "TIME_NS" -> TIME;
             case "TIME WITH TIME ZONE" -> TIME_WITH_TIMEZONE;
             case "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS" -> TIMESTAMP;
             case "TIMESTAMP WITH TIME ZONE" -> TIMESTAMP_WITH_TIMEZONE;

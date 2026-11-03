@@ -422,6 +422,23 @@ public final class Compiler {
         return answerBytes(a, answerLength);
     }
 
+    /** {@code lite_execute_arrow_answer_arrow} for a keyed plan a host ran ({@code Boundary.keyedArrowAnswer}; R4): its
+     *  keys rows (JSON text), the database's report of the body's result ({@code [label, type]} pairs) and the Arrow of
+     *  the body written for the keys, read in place. */
+    @CEntryPoint(name = "lite_keyed_arrow_answer_arrow")
+    static CCharPointer keyedArrowAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer keys,
+            CCharPointer reported, CCharPointer arrow, long length, CLongPointer answerLength) {
+        byte[] a;
+        try {
+            String p = text(plan), k = text(keys), r = text(reported);
+            java.nio.ByteBuffer rows = bytes(arrow, length);
+            a = Folded.httpBytes(() -> Boundary.keyedArrowAnswer(p, k, r, rows));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
+        }
+        return answerBytes(a, answerLength);
+    }
+
     /** That plan's answer in upstream's Arrow format from the rows the host's database answered
      *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
     @CEntryPoint(name = "lite_execute_arrow_answer")

@@ -85,8 +85,12 @@ public final class PlanRunner {
             }
             case ExecutionPlan.Keyed keyed -> keyed(keyed, checked, sessions, new KeyedStream(sink, capacity));
             case ExecutionPlan.Sequence sequence -> {
-                Held held = new Held();
+                Held held = new Held(sink.wantsReport());
                 sequence(sequence, checked, sessions, held);
+                if (sink.wantsReport()) {
+                    // the result step's report, read as its result opened (legend-engine's Arrow answer is typed from it)
+                    sink.reported(held.report);
+                }
                 Streamed streamed = new Streamed(held.columns, sink, capacity);
                 for (List<Object> row : held.rows) {
                     streamed.row(row);
@@ -257,7 +261,7 @@ public final class PlanRunner {
         }
 
         @Override
-        public void reported(List<com.legend.result.ColumnReport> report) throws IOException {
+        public void reported(@com.legend.base.Nullable List<com.legend.result.ColumnReport> report) throws IOException {
             sink.reported(report);
         }
 
@@ -283,18 +287,24 @@ public final class PlanRunner {
         return reported == null ? null : reported.stream().map(Statements.Reported::report).toList();
     }
 
-    /** A keyed body's report (its columns in the body's order) placed in the answer's order ({@code place}); a body
-     *  with a column of several slots (a tagged one) hands its report as the database gave it, slot by slot, for the
-     *  writer to read or refuse. */
+    /** A keyed body's report (its columns in the body's order) placed in the answer's order ({@code place}), each
+     *  column named as the answer names it ({@link com.legend.result.CellText#presentedName}, as legend-engine's
+     *  pivot labels its columns and its {@code legend.columns} lists them) -- the body's own labels are lite's aliases
+     *  ({@code KeyedRun}'s per-key columns), a representation of upstream's one PIVOT whose labels are the names. A
+     *  body with a column of several slots (a tagged one) hands its report as the database gave it, slot by slot, for
+     *  the writer to refuse. */
     private static List<com.legend.result.ColumnReport> placed(List<com.legend.result.ColumnReport> report,
-            int[] place, List<ExecutionPlan.Column> read) {
+            int[] place, List<ExecutionPlan.Column> read, List<ExecutionPlan.Column> answer) {
         if (report.size() != read.size() || place.length != read.size()) {
             return report;
         }
         List<com.legend.result.ColumnReport> out = new java.util.ArrayList<>(java.util.Collections.nCopies(
                 report.size(), (com.legend.result.ColumnReport) null));
         for (int i = 0; i < report.size(); i++) {
-            out.set(place[i], report.get(i));
+            com.legend.result.ColumnReport r = report.get(i);
+            out.set(place[i], new com.legend.result.ColumnReport(
+                    com.legend.result.CellText.presentedName(answer.get(place[i]).name()), r.driverType(), r.jdbcType(),
+                    r.precision(), r.scale()));
         }
         return out;
     }
@@ -303,6 +313,14 @@ public final class PlanRunner {
     private static final class Held {
         private List<ExecutionPlan.Column> columns = List.of();
         private final List<List<Object>> rows = new java.util.ArrayList<>();
+        /** Whether the sink is written from the database's report of the result step's columns. */
+        private final boolean wantsReport;
+        /** That report, read once the result step's result opened (null where the database reports none). */
+        private @com.legend.base.Nullable List<com.legend.result.ColumnReport> report;
+
+        Held(boolean wantsReport) {
+            this.wantsReport = wantsReport;
+        }
     }
 
     // ---- a keyed plan (a dynamic pivot's probe plan, 2026-10-20; docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) ----------
@@ -313,8 +331,9 @@ public final class PlanRunner {
         /** Whether the database's report of the body's result is to be handed over first ({@link #reported}). */
         boolean wantsReport();
 
-        /** The database's report of the answer's columns, in the answer's order, before its columns. */
-        void reported(List<com.legend.result.ColumnReport> report) throws IOException;
+        /** The database's report of the answer's columns, in the answer's order, before its columns (null where
+         *  the database reports none). */
+        void reported(@com.legend.base.Nullable List<com.legend.result.ColumnReport> report) throws IOException;
 
         void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
                 throws IOException;
@@ -420,7 +439,12 @@ public final class PlanRunner {
                     String statement = statement(t.sql(), values);
                     StatementOrigin.sent(statement);
                     held.columns = t.columns();
-                    st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
+                    if (held.wantsReport) {
+                        st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(),
+                                reported -> held.report = reports(reported), held.rows::add);
+                    } else {
+                        st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
+                    }
                 }
                 case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
                         + " inside a plan of several steps is not run yet");
@@ -495,8 +519,9 @@ public final class PlanRunner {
                 // the columns announced once the body's result opens, with the database's report of each in the
                 // answer's order: legend-engine types a dynamic result's header by it (D18 F)
                 st.rows(body.statement(), body.slots(), body.values(), read, reported -> {
-                    if (reported != null && sink.wantsReport()) {
-                        sink.reported(placed(reported.stream().map(Statements.Reported::report).toList(), place, read));
+                    if (sink.wantsReport()) {
+                        sink.reported(reported == null ? null
+                                : placed(reported.stream().map(Statements.Reported::report).toList(), place, read, inOrder));
                     }
                     if (reported == null) {
                         sink.columns(inOrder, null);

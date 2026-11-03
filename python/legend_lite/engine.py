@@ -370,6 +370,9 @@ class NativePlanner:
     def keyed_lite_answer_arrow(self, plan: str, keys: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
         return compiler.keyed_lite_answer_arrow(plan, keys, arrow)
 
+    def keyed_arrow_answer_arrow(self, plan: str, keys: str, reported: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
+        return compiler.keyed_arrow_answer_arrow(plan, keys, reported, arrow)
+
     def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
         return compiler.execute_refusal(plan, message, trace)
 
@@ -1654,19 +1657,17 @@ class Engine:
         DuckDB describes its statement (the compiler's ``describe`` operation: DuckDB's own type names, the report
         legend-engine types its Arrow answer's columns from) and runs it, and its Arrow is handed to the core, which
         writes upstream's answer -- each field typed from the report, one zstd frame -- as legend-lite's server writes
-        it. One query at a time (the frames are held still while it runs). A pivot whose columns its data names is
-        refused by name here (its keys and body on this route are still to come)."""
+        it. One query at a time (the frames are held still while it runs). A pivot whose columns its data names runs as
+        its keyed plan says (``_execute_arrow_keyed``)."""
         with self.frames.serving() as models:
             self._noted(models)
             with self._project_of(body, models) as (served, connection):
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                if compiler.keyed_statement(planned.body) is not None:
-                    refused = self.planner.execute_refusal(
-                        planned.body, "upstream's Arrow answer of a pivot whose columns its data names is not written"
-                        " by Python's engine yet", 'NotImplemented')
-                    return Answer(refused.status, refused.content_type, refused.body.encode('utf-8'))
+                keys_statement = compiler.keyed_statement(planned.body)
+                if keys_statement is not None:
+                    return self._execute_arrow_keyed(planned.body, keys_statement, connection)
                 statement = compiler.answer_statement(planned.body)
                 try:
                     (describe,) = _host.statements({'op': 'describe', 'statement': statement})
@@ -1682,6 +1683,38 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
         status, content_type, frame = self.planner.execute_arrow_answer_arrow(planned.body, json.dumps(reported), arrow)
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
+        return Answer(status, content_type, frame, {'x-legend-response-format': 'FormatNotSet'} if status == 200 else {})
+
+    def _execute_arrow_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
+        """A pivot whose columns its data names, in upstream's Arrow format: its keys, then the body the compiler writes
+        for them, described (DuckDB's own type names: the report) and run with the keys bound, in one transaction, as
+        ``_execute_keyed`` runs it -- the body's Arrow and the report handed to the core, which writes upstream's
+        answer as legend-lite's server writes it."""
+        try:
+            _host.run(connection, {'op': 'transaction', 'step': 'begin'})
+            try:
+                keys = [[None if c is None else str(c) for c in row]
+                        for row in connection.execute(keys_statement).fetchall()]
+                written = self.planner.keyed_body(plan, json.dumps(keys))
+                if written.status == 200:
+                    body = json.loads(written.body)
+                    (describe,) = _host.statements({'op': 'describe', 'statement': body['statement']})
+                    described = connection.execute(describe, body['parameters'])
+                    names = [d[0] for d in described.description]
+                    reported = [[row[names.index('column_name')], row[names.index('column_type')]]
+                                for row in described.fetchall()]
+                    arrow = _ipc_stream(connection.execute(body['statement'], body['parameters']).fetch_record_batch())
+            except BaseException:
+                _host.run(connection, {'op': 'transaction', 'step': 'rollback'})
+                raise
+            _host.run(connection, {'op': 'transaction', 'step': 'commit'})
+        except duckdb.Error as refused:
+            answer = self.planner.execute_refusal(plan, str(refused), f'{type(refused).__name__}: {refused}')
+            return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+        if written.status != 200:
+            return Answer(written.status, written.content_type, written.body.encode('utf-8'))
+        status, content_type, frame = self.planner.keyed_arrow_answer_arrow(plan, json.dumps(keys), json.dumps(reported),
+                                                                           arrow)
         return Answer(status, content_type, frame, {'x-legend-response-format': 'FormatNotSet'} if status == 200 else {})
 
     def _execute_json(self, body: str) -> Answer:

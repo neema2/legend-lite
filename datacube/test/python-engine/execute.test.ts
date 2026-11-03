@@ -6,7 +6,7 @@
 // them: the answer's TEXT, byte for byte (each trace id its own), a whole Float, a Decimal, a DateTime and a value of
 // the session's zone (`now()->hour()`) among its columns. The tab's DuckDB starts in a zone that is not UTC (as a
 // browser in Kathmandu would: +05:45), so a tab whose session was not set up as the server's answers otherwise.
-// Python's ARROW_IPC answer (its plan PureV1Api.arrowPlan) carries the same builder.
+// Python's ARROW_IPC answer (written by the core's EngineArrowWriter since R4, 2026-11-03) carries the same builder.
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

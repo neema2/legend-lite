@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream;
  * ONE ZSTANDARD FRAME OF RAW BLOCKS (RFC 8878 §3.1): the bytes stored as they are, in blocks of at most 128 KiB,
  * each flagged raw -- a frame any zstd decoder reads (pyarrow's, the browser's fzstd, libzstd), written with no
  * compressor and no library. legend-engine's Arrow answer to execute ({@code ?serializationFormat=ARROW_IPC}) is one
- * zstd frame around an Arrow IPC stream (docs/SEMANTICS_REGISTER.md S28; measured 2026-10-08), so legend-lite's is
+ * zstd frame around an Arrow IPC stream (its recorded answer, `upstream-api/e8-arrow-groupby-sort.json`; measured 2026-10-08), so legend-lite's is
  * the same frame, uncompressed: the format is upstream's, the bytes inside are the writer's own (track A, 2026-10-29).
  */
 public final class ZstdFrame {

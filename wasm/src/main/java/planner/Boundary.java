@@ -119,6 +119,14 @@ public final class Boundary {
         return com.legend.server.PureV1Api.keyedLiteAnswer(plan, keys, arrow);
     }
 
+    /** {@link #executeArrowAnswer(String, String, java.nio.ByteBuffer)} for a keyed plan a host ran
+     *  (PureV1Api.keyedArrowAnswer; R4): its keys rows, the database's report of the body's result, and the Arrow of
+     *  the body written for the keys. */
+    public static com.legend.server.PureV1Api.Answer keyedArrowAnswer(String plan, String keys, String reported,
+            java.nio.ByteBuffer arrow) {
+        return com.legend.server.PureV1Api.keyedArrowAnswer(plan, keys, reported, arrow);
+    }
+
     /** The models a host runs, from their JSON array of texts. */
     private static java.util.List<String> models(String modelsJson) {
         java.util.List<String> models = new java.util.ArrayList<>();

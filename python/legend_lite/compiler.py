@@ -343,6 +343,13 @@ def execute_lite_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
     return _http_bytes(library().call_bytes('lite_execute_lite_answer_arrow', plan, arrow))
 
 
+def keyed_arrow_answer_arrow(plan: str, keys: str, reported: str, arrow: Any) -> tuple[int, str, bytes]:
+    """``execute_arrow_answer_arrow`` for a pivot whose columns its data names (a keyed plan, D18 D): its keys rows (JSON
+    text), the database's report of the body's result (``[label, type]`` pairs, DuckDB's own type names) and the Arrow
+    of the body written for the keys -- upstream's Arrow answer, as legend-lite's server writes it."""
+    return _http_bytes(library().call_bytes('lite_keyed_arrow_answer_arrow', (plan, keys, reported), arrow))
+
+
 def keyed_lite_answer_arrow(plan: str, keys: str, arrow: Any) -> tuple[int, str, bytes]:
     """:func:`execute_lite_answer_arrow` for a keyed plan (a pivot whose columns its data names): ``keys`` the keys
     statement's rows (as :func:`keyed_answer` takes them), ``arrow`` the Arrow the body written for them answered."""

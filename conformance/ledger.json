@@ -22,13 +22,6 @@
   },
   {
     "case": "pivotDynamic",
-    "check": "arrow",
-    "hosts": "java/python",
-    "detail": "status 200 vs 500",
-    "why": "Python's Arrow execute still runs the old plan shape ({sql, metadata}: PureV1Api.arrowPlan), which plans one statement and refuses a pivot whose columns its data names; it moves onto the plan record with the Arrow writers (R3/R4), and runs a keyed plan as its JSON execute does then."
-  },
-  {
-    "case": "pivotDynamic",
     "check": "grid-refused",
     "hosts": "java/tab",
     "detail": "IllegalArgumentException: a host runs one statement, and this query's plan is not one (Keyed: a pivot whose columns the data names, or a program that writes); legend-lite's server runs it",
@@ -38,108 +31,126 @@
     "case": "typesAll",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 24: \"1,9007199254740993n,1.5,12.3,\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-01-\" vs \"1,9007199254740993n,1.5,\\\"12.30\\\",\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-\""
+    "detail": "at 24: \"1,9007199254740993n,1.5,12.3,\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-01-\" vs \"1,9007199254740993n,1.5,\\\"12.30\\\",\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "typesAll",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 24: \"1,9007199254740993n,1.5,12.3,\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-01-\" vs \"1,9007199254740993n,1.5,\\\"12.30\\\",\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-\""
+    "detail": "at 24: \"1,9007199254740993n,1.5,12.3,\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-01-\" vs \"1,9007199254740993n,1.5,\\\"12.30\\\",\\\"12345678901234567.89\\\",\\\"plain\\\",true,\\\"2024-\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "typesSelect",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 2: \"1,12.3,\\\"12345678901234567.89\\\"\\n2,-12.5,-0.01\\n3,0,0\\n4,\" vs \"1,\\\"12.30\\\",\\\"12345678901234567.89\\\"\\n2,\\\"-12.50\\\",\\\"-0.01\\\"\\n\""
+    "detail": "at 2: \"1,12.3,\\\"12345678901234567.89\\\"\\n2,-12.5,-0.01\\n3,0,0\\n4,\" vs \"1,\\\"12.30\\\",\\\"12345678901234567.89\\\"\\n2,\\\"-12.50\\\",\\\"-0.01\\\"\\n\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "typesSelect",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 2: \"1,12.3,\\\"12345678901234567.89\\\"\\n2,-12.5,-0.01\\n3,0,0\\n4,\" vs \"1,\\\"12.30\\\",\\\"12345678901234567.89\\\"\\n2,\\\"-12.50\\\",\\\"-0.01\\\"\\n\""
+    "detail": "at 2: \"1,12.3,\\\"12345678901234567.89\\\"\\n2,-12.5,-0.01\\n3,0,0\\n4,\" vs \"1,\\\"12.30\\\",\\\"12345678901234567.89\\\"\\n2,\\\"-12.50\\\",\\\"-0.01\\\"\\n\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "filterDecimal",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 2: \"1,12.3\\n5,99999999.99\" vs \"1,\\\"12.30\\\"\\n5,\\\"99999999.99\\\"\""
+    "detail": "at 2: \"1,12.3\\n5,99999999.99\" vs \"1,\\\"12.30\\\"\\n5,\\\"99999999.99\\\"\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "filterDecimal",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 2: \"1,12.3\\n5,99999999.99\" vs \"1,\\\"12.30\\\"\\n5,\\\"99999999.99\\\"\""
+    "detail": "at 2: \"1,12.3\\n5,99999999.99\" vs \"1,\\\"12.30\\\"\\n5,\\\"99999999.99\\\"\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "extendArith",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 20: \"1,9007199254740994n,24.6,0.5\\n2,-9007199254740992n,-25,-0.0833333333333\" vs \"1,9007199254740994n,\\\"24.60\\\",0.5\\n2,-9007199254740992n,\\\"-25.00\\\",-0.08333\""
+    "detail": "at 20: \"1,9007199254740994n,24.6,0.5\\n2,-9007199254740992n,-25,-0.0833333333333\" vs \"1,9007199254740994n,\\\"24.60\\\",0.5\\n2,-9007199254740992n,\\\"-25.00\\\",-0.08333\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "extendArith",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 20: \"1,9007199254740994n,24.6,0.5\\n2,-9007199254740992n,-25,-0.0833333333333\" vs \"1,9007199254740994n,\\\"24.60\\\",0.5\\n2,-9007199254740992n,\\\"-25.00\\\",-0.08333\""
+    "detail": "at 20: \"1,9007199254740994n,24.6,0.5\\n2,-9007199254740992n,-25,-0.0833333333333\" vs \"1,9007199254740994n,\\\"24.60\\\",0.5\\n2,-9007199254740992n,\\\"-25.00\\\",-0.08333\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "literals",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 24: \"1,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024\" vs \"1,\\\"2024-03-10T03:00:00\\\",\\\"5.00\\\",3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",\\\"5.0\""
+    "detail": "at 24: \"1,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024\" vs \"1,\\\"2024-03-10T03:00:00\\\",\\\"5.00\\\",3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",\\\"5.0\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "literals",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 24: \"1,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024\" vs \"1,\\\"2024-03-10T03:00:00\\\",\\\"5.00\\\",3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",\\\"5.0\""
+    "detail": "at 24: \"1,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",5,3,\\\"2024\" vs \"1,\\\"2024-03-10T03:00:00\\\",\\\"5.00\\\",3,\\\"2024-01-31\\\"\\n2,\\\"2024-03-10T03:00:00\\\",\\\"5.0\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "groupSum",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 12: \"\\\"Credit\\\",55,-500.25,2.75\\n\\\"FX\\\",65,1262.8,0.5611111111111111\\n\\\"Ra\" vs \"\\\"Credit\\\",55,\\\"-500.25\\\",2.75\\n\\\"FX\\\",65,\\\"1262.80\\\",0.561111111111111\""
+    "detail": "at 12: \"\\\"Credit\\\",55,-500.25,2.75\\n\\\"FX\\\",65,1262.8,0.5611111111111111\\n\\\"Ra\" vs \"\\\"Credit\\\",55,\\\"-500.25\\\",2.75\\n\\\"FX\\\",65,\\\"1262.80\\\",0.561111111111111\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "groupSum",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 12: \"\\\"Credit\\\",55,-500.25,2.75\\n\\\"FX\\\",65,1262.8,0.5611111111111111\\n\\\"Ra\" vs \"\\\"Credit\\\",55,\\\"-500.25\\\",2.75\\n\\\"FX\\\",65,\\\"1262.80\\\",0.561111111111111\""
+    "detail": "at 12: \"\\\"Credit\\\",55,-500.25,2.75\\n\\\"FX\\\",65,1262.8,0.5611111111111111\\n\\\"Ra\" vs \"\\\"Credit\\\",55,\\\"-500.25\\\",2.75\\n\\\"FX\\\",65,\\\"1262.80\\\",0.561111111111111\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "groupMinMax",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 36: \",\\\"2024-03-15T12:00:00.000001\\\",12.3\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",250\\n\\\"EMEA\\\",\\\"20\" vs \",\\\"2024-03-15T12:00:00.000001\\\",\\\"12.30\\\"\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",\\\"250.00\\\"\\n\\\"E\""
+    "detail": "at 36: \",\\\"2024-03-15T12:00:00.000001\\\",12.3\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",250\\n\\\"EMEA\\\",\\\"20\" vs \",\\\"2024-03-15T12:00:00.000001\\\",\\\"12.30\\\"\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",\\\"250.00\\\"\\n\\\"E\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "groupMinMax",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 36: \",\\\"2024-03-15T12:00:00.000001\\\",12.3\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",250\\n\\\"EMEA\\\",\\\"20\" vs \",\\\"2024-03-15T12:00:00.000001\\\",\\\"12.30\\\"\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",\\\"250.00\\\"\\n\\\"E\""
+    "detail": "at 36: \",\\\"2024-03-15T12:00:00.000001\\\",12.3\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",250\\n\\\"EMEA\\\",\\\"20\" vs \",\\\"2024-03-15T12:00:00.000001\\\",\\\"12.30\\\"\\n\\\"APAC\\\",\\\"2024-01-03T09:15:30.5\\\",\\\"250.00\\\"\\n\\\"E\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "limit",
     "check": "adapters-values",
     "hosts": "java",
-    "detail": "at 17: \"1,\\\"FX\\\",\\\"EMEA\\\",10,1000.5,1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n2,\\\"\" vs \"1,\\\"FX\\\",\\\"EMEA\\\",10,\\\"1000.50\\\",1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n\""
+    "detail": "at 17: \"1,\\\"FX\\\",\\\"EMEA\\\",10,1000.5,1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n2,\\\"\" vs \"1,\\\"FX\\\",\\\"EMEA\\\",10,\\\"1000.50\\\",1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "limit",
     "check": "adapters-values",
     "hosts": "python",
-    "detail": "at 17: \"1,\\\"FX\\\",\\\"EMEA\\\",10,1000.5,1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n2,\\\"\" vs \"1,\\\"FX\\\",\\\"EMEA\\\",10,\\\"1000.50\\\",1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n\""
+    "detail": "at 17: \"1,\\\"FX\\\",\\\"EMEA\\\",10,1000.5,1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n2,\\\"\" vs \"1,\\\"FX\\\",\\\"EMEA\\\",10,\\\"1000.50\\\",1.25,\\\"2024-01-02\\\",\\\"2024-01-02T08:30:00\\\"\\n\"",
+    "why": "The engine adapter (engine-client's LegendEngineExecutor talked to as legend-engine) reads legend-engine's JSON with values.ts parseExact, which drops a Decimal number's scale (12.30 read as the number 12.3; the JSON carries 12.30); the lite adapter keeps the digits. The user ruled 2026-11-03 (D21, Q1) that the engine adapter keep them; this entry goes when that is built (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "pivotDynamic",
     "check": "adapters-refused",
     "hosts": "java",
-    "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\""
+    "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\"",
+    "why": "The lite adapter reads one typed result over a statement (recordPlan); a pivot whose columns its data names is a keyed plan, refused by name. DataCube plans its pivots static, so none of its queries is one; Query's and Studio's move onto the adapters (D20 (c) step 3) reads it, each column typed by its field's legend.type."
   },
   {
     "case": "pivotDynamic",
     "check": "adapters-refused",
     "hosts": "python",
-    "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\""
+    "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\"",
+    "why": "The lite adapter reads one typed result over a statement (recordPlan); a pivot whose columns its data names is a keyed plan, refused by name. DataCube plans its pivots static, so none of its queries is one; Query's and Studio's move onto the adapters (D20 (c) step 3) reads it, each column typed by its field's legend.type."
   }
 ]
