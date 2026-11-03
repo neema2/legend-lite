@@ -52,6 +52,13 @@ _ARITY = {
 }
 
 
+# the entry points that take a C string and bytes (a pointer and a length) and answer bytes (R3)
+_BYTES = {
+    # a plan's answer from the host's rows as Arrow: legend-engine's JSON, and its Arrow format, folded as bytes
+    'lite_execute_json_answer_arrow', 'lite_execute_arrow_answer_arrow',
+}
+
+
 def _find() -> Path:
     """The library: LEGEND_LITE_LIBRARY, else the one shipped inside this package."""
     explicit = os.environ.get('LEGEND_LITE_LIBRARY')
@@ -111,6 +118,43 @@ class Library:
             return ctypes.string_at(p).decode('utf-8')
         finally:
             self._lib.lite_free(t, p)
+
+    def call_bytes(self, name: str, text: str, data: Any) -> bytes:
+        """One entry point taking a C string and BYTES (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3): ``data`` a
+        pyarrow ``Buffer`` or ``bytes``, handed as a pointer and a length and read in place by the library -- never
+        copied, and held alive here for the call. Its answer's bytes (the fold's lines,
+        then the body's own bytes), the native buffer freed."""
+        if '\0' in text:
+            raise ValueError(f'{name}: an argument contains a NUL character')
+        f = self._ready.get(name)
+        if f is None:
+            if name not in _BYTES:
+                raise ValueError(f'{name} is not one of the native library\'s bytes entry points')
+            f = getattr(self._lib, name)
+            f.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int64,
+                          ctypes.POINTER(ctypes.c_int64)]
+            f.restype = ctypes.c_void_p
+            self._ready[name] = f
+        if hasattr(data, 'address') and hasattr(data, 'size'):
+            # a pyarrow Buffer: the memory Arrow holds, at its own address
+            keep: Any = data
+            address, size = int(data.address), int(data.size)
+        elif isinstance(data, bytes):
+            # bytes: ctypes hands the object's own storage, no copy
+            keep = ctypes.c_char_p(data)
+            address, size = ctypes.cast(keep, ctypes.c_void_p).value or 0, len(data)
+        else:
+            raise TypeError(f'{name}: the bytes are a pyarrow Buffer or bytes, not {type(data).__name__}')
+        t = self._thread()
+        length = ctypes.c_int64()
+        p = f(t, text.encode('utf-8'), address, size, ctypes.byref(length))
+        if not p:
+            raise OSError(f'{name} returned no answer (the library could not allocate one)')
+        try:
+            return ctypes.string_at(p, length.value)
+        finally:
+            self._lib.lite_free(t, p)
+            del keep
 
     def _function(self, name: str) -> Any:
         f = self._ready.get(name)

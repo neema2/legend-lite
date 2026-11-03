@@ -6,7 +6,10 @@
 //   json   legend-engine's JSON text, byte for byte, each trace id masked: Java's against Python's and the tab's;
 //   arrow  the ARROW_IPC answer, its schema and its values: Java's against Python's (the tab answers no Arrow execute);
 //   grid   the tab's grid path's values against Java's JSON values, by their meaning (a number by its value, a decimal
-//          by its value whatever its scale, a timestamp by its instant), for the cases that are not refusals.
+//          by its value whatever its scale, a timestamp by its instant), for the cases that are not refusals;
+//   handoff  the tab's rows handed to the planner's writers as DuckDB-WASM's own Arrow IPC (R3: the module's
+//          `...FromArrowOrError` exports) against the same rows handed as JSON text: legend-engine's JSON byte for
+//          byte, and the Arrow answer, its schema and its values, against Java's.
 // Every difference found is an entry of the ledger (conformance/ledger.json) or the suite fails; an entry that no longer
 // differs fails it too, so the ledger only shrinks (D10). A failure prints the differences as the ledger writes them.
 
@@ -28,6 +31,7 @@ import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { ExecuteInput } from '../../../engine-client/src/legend/wire.ts';
 import { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
+import { answerStatement, keyedStatement } from '../../../engine-client/src/plan-record.ts';
 import { recordPlan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
@@ -63,6 +67,10 @@ const python = spawn(runfileFromEnv('CONFORMANCE_PYTHON_ENGINE'), [], {
 
 let pythonAt: { readonly url: string; readonly authorization: string };
 let grammar: WasmGrammar;
+/** The planner's module itself, for the exports no protocol kind asks yet (R3's Arrow handoff). */
+let planner: PlannerModule;
+/** The project database's own connection (the grid's), for its Arrow. */
+let projectConnection: ArrowishConnection;
 let tab: BrowserEngine;
 let grid: QueryEngine;
 
@@ -78,7 +86,34 @@ async function loadPlanner(): Promise<WasmGrammar> {
       i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
     },
   });
+  planner = m;
   return new WasmGrammar({ async ask(r: RequestBody): Promise<string> { return answer(m, r); } });
+}
+
+/** A bytes answer (`Folded.httpBytes`): its status, media type and body, or the refusal it folds. */
+function unfoldBytes(folded: Int8Array): { readonly status: number; readonly type: string; readonly body: Uint8Array } {
+  const bytes = new Uint8Array(folded.buffer, folded.byteOffset, folded.byteLength);
+  const lines: number[] = [];
+  for (let i = 0; i < bytes.length && lines.length < 3; i++) if (bytes[i] === 10) lines.push(i);
+  const text = (from: number, to: number): string => new TextDecoder().decode(bytes.subarray(from, to));
+  if (text(0, lines[0] ?? 0) !== 'OK' || lines.length < 3) {
+    throw new Error(`the planner refused the Arrow handoff: ${text(0, bytes.length)}`);
+  }
+  return { status: Number(text(lines[0]! + 1, lines[1]!)), type: text(lines[1]! + 1, lines[2]!), body: bytes.subarray(lines[2]! + 1) };
+}
+
+/** The tab's statement run on its database, its Arrow handed to the planner's writers (R3): both answers. */
+async function handedAsArrow(input: ExecuteInput): Promise<{ readonly json: string; readonly arrow: Uint8Array } | undefined> {
+  const plan = await grammar.executePlan(input);
+  if (keyedStatement(plan) !== undefined) return undefined;
+  // DuckDB's own Arrow IPC stream (the bindings' runQuery: the database's bytes, no JavaScript re-encoding)
+  const stream = (projectConnection as unknown as {
+    useUnsafe<R>(f: (bindings: { runQuery(conn: number, text: string): Uint8Array }, conn: number) => R): R;
+  }).useUnsafe((bindings, conn) => bindings.runQuery(conn, answerStatement(plan)));
+  const arrow = new Int8Array(stream.buffer, stream.byteOffset, stream.byteLength);
+  const json = unfoldBytes(planner.exports.executeJsonAnswerFromArrowOrError(plan, arrow));
+  const zipped = unfoldBytes(planner.exports.executeArrowAnswerFromArrowOrError(plan, arrow));
+  return { json: new TextDecoder().decode(json.body), arrow: zipped.body };
 }
 
 before(async () => {
@@ -90,8 +125,10 @@ before(async () => {
   });
   grammar = await loadPlanner();
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+  let made: ArrowishConnection | undefined;
   const connected = async (): Promise<DuckDbEngine> => {
-    const e = new DuckDbEngine(db.connect() as ArrowishConnection);
+    made = db.connect() as ArrowishConnection;
+    const e = new DuckDbEngine(made);
     await setUpSession(e, (t) => grammar.sessionSetup(t));
     return e;
   };
@@ -101,6 +138,8 @@ before(async () => {
   const projects = new ProjectDatabases({ databaseType: 'DuckDB', run: (sql) => host.run(sql, 0), connect: connected },
     grammar);
   grid = (await projects.engineFor(MODEL, host)).engine;
+  // the project's connection: the last made (engineFor connects once for the model's database)
+  projectConnection = made!;
   tab = new BrowserEngine(grammar, grid, 'the conformance suite');
 });
 
@@ -147,6 +186,14 @@ async function arrowOf(url: string, input: ExecuteInput, headers: Record<string,
   const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)}`).join(', ')
     + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
   return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)) };
+}
+
+/** An ARROW_IPC answer's stream as its schema in words and its rows (arrowOf's reading of a stream in hand). */
+function answerOfArrow(stream: Uint8Array): { readonly schema: string; readonly rows: string } {
+  const { table, metadata } = arrowIpcAnswer(stream);
+  const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)}`).join(', ')
+    + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
+  return { schema, rows: cellsText(toRawTable(table, 0, 0)) };
 }
 
 /** A decoded table's values, each as its kind and text (a bigint marked), row by row. */
@@ -228,6 +275,7 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       found.push({ case: c, check, hosts, detail });
     };
     const auth = { Authorization: pythonAt.authorization };
+    let handoffs = 0;
     for (const { name, query } of CASES) {
       const lambda = await grammar.lambda(`{| ${query}->from(${RUNTIME})}`);
       const input: ExecuteInput = { function: lambda, model: { _type: 'text', code: MODEL } };
@@ -258,6 +306,18 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
           differ(name, 'json', hosts, firstDifference(traced(j.text), traced(other.text)));
         }
       }
+      // handoff: the tab's rows as Arrow, against its rows as text (its JSON) and against Java's (its Arrow answer)
+      if (t.refusal === undefined) {
+        const handed = await handedAsArrow(input);
+        if (handed !== undefined) {
+          handoffs++;
+          if (traced(handed.json) !== traced(t.text)) differ(name, 'handoff', 'tab', firstDifference(traced(t.text), traced(handed.json)));
+          const mine = answerOfArrow(await arrowIpcStream(handed.arrow));
+          const javas = await arrowOf(javaExecute(), input);
+          if (javas.schema !== mine.schema) differ(name, 'handoff-arrow-schema', 'java/tab', `${javas.schema} vs ${mine.schema}`);
+          else if (javas.rows !== mine.rows) differ(name, 'handoff-arrow-values', 'java/tab', firstDifference(javas.rows, mine.rows));
+        }
+      }
       // arrow: Java's against Python's
       const ja = await arrowOf(javaExecute(), input);
       const pa = await arrowOf(pythonExecute(), input, auth);
@@ -283,6 +343,9 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
         if (mine !== theirs) differ(name, 'grid', 'java/tab', firstDifference(theirs, mine));
       }
     }
+    // every case the tab answers with rows was handed over as Arrow too: all but the refusals and the one pivot whose
+    // columns its data names (a run of its own, D18 D)
+    assert.equal(handoffs, CASES.filter((c) => !c.name.startsWith('err')).length - 1, 'the cases handed over as Arrow');
     const key = (d: Difference): string => JSON.stringify([d.case, d.check, d.hosts, d.detail]);
     const expected = new Set(LEDGER.map(key));
     const seen = new Set(found.map(key));

@@ -45,6 +45,12 @@ public sealed interface ArrowType {
     /** Bytes: 32-bit offsets and bytes. */
     record Binary() implements ArrowType { }
 
+    /** UTF-8 text with 64-bit offsets (pyarrow's {@code large_string}). */
+    record LargeUtf8() implements ArrowType { }
+
+    /** Bytes with 64-bit offsets. */
+    record LargeBinary() implements ArrowType { }
+
     record Date(DateUnit unit) implements ArrowType { }
 
     /** A time of day in {@code unit}, {@code bits} wide (32 for seconds and milliseconds, 64 for finer). */

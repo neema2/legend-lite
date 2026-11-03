@@ -325,6 +325,29 @@ def execute_json_answer(plan: str, rows: str) -> Answer:
     return _http(library().call('lite_execute_json_answer', plan, rows))
 
 
+def _http_bytes(data: bytes) -> tuple[int, str, bytes]:
+    """A bytes answer (``planner.Folded.httpBytes``): its status, media type and body bytes; a refusal raised."""
+    if data.startswith(b'OK\n'):
+        status, content_type, body = data[3:].split(b'\n', 2)
+        return int(status), content_type.decode('utf-8'), body
+    _answer(data.decode('utf-8'))
+    raise OSError(f'the native library answered something unrecognised: {data[:120]!r}')
+
+
+def execute_json_answer_arrow(plan: str, arrow: Any) -> Answer:
+    """:func:`execute_json_answer` from the rows as ARROW (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3): ``arrow`` the
+    Arrow IPC stream the database answered the plan's statement with (a pyarrow ``Buffer`` or ``bytes``), handed to
+    the library where it lies and read there -- no row becomes a Python object or text on the way."""
+    status, content_type, body = _http_bytes(library().call_bytes('lite_execute_json_answer_arrow', plan, arrow))
+    return Answer(status, content_type, body.decode('utf-8'))
+
+
+def execute_arrow_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
+    """Execute's answer in upstream's Arrow format from the rows as ARROW (R3): its status, media type and body (the
+    zstd frame upstream sends, or a refusal's JSON)."""
+    return _http_bytes(library().call_bytes('lite_execute_arrow_answer_arrow', plan, arrow))
+
+
 def execute_refusal(plan: str, message: str, trace: str) -> Answer:
     """:func:`execute_json_plan`'s statement refused by the host's database, answered as legend-engine answers a
     database's refusal at run time (D18 B: ``PureV1Api.databaseRefused``): ``message`` the database's words, ``trace``

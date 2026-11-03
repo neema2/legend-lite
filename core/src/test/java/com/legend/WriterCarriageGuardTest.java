@@ -143,7 +143,35 @@ class WriterCarriageGuardTest {
                     // instant (presentedAt; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) -- the data carrying a
                     // precision, read
                     Map.entry("Integer.parseInt", 1),
-                    Map.entry("presentedAt", 1)));
+                    Map.entry("presentedAt", 1)),
+            "ArrowRows.java", Map.ofEntries(
+                    // a decode's carrier reads, the JDBC session decode's arms over a host's Arrow (2026-11-03,
+                    // docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, the core's Arrow reader): an Arrow value read as the
+                    // value it is -- a decimal's unscaled two's-complement bytes at its type's scale (new BigInteger,
+                    // new BigDecimal, the Arrow type's scale), an unsigned 64-bit integer past 63 bits as the
+                    // BigInteger it is (new BigInteger of its unsigned digits), a day of milliseconds and an instant
+                    // of its unit as its day and its UTC wall clock (Math.floorDiv, floorMod), a large text's 64-bit
+                    // offsets as indices (Math.toIntExact: exact, an overflow refused) -- then each carrier
+                    // conversion the JDBC decode makes, one each: an Integer past a long as a BigInteger, the long
+                    // otherwise (bitLength, longValue); an integral decimal (DuckDB's HUGEINT) as the integer it
+                    // spells (stripTrailingZeros, scale, toBigIntegerExact); a Float from a decimal or a BigInteger
+                    // (doubleValue); a REAL's own four-byte digits (Double.parseDouble of Float.toString); a Decimal
+                    // from an integer or a double (BigDecimal.valueOf, new BigDecimal); a text's digits read as the
+                    // number a numeric Pure type says (Double.valueOf, new BigDecimal, new BigInteger); a tag as the
+                    // int it is (intValue)
+                    Map.entry("new BigInteger", 3),
+                    Map.entry("new BigDecimal", 5),
+                    Map.entry("scale", 2),
+                    Map.entry("Math.", 5),
+                    Map.entry("bitLength", 3),
+                    Map.entry("longValue", 3),
+                    Map.entry("stripTrailingZeros", 1),
+                    Map.entry("toBigIntegerExact", 1),
+                    Map.entry("doubleValue", 2),
+                    Map.entry("Double.parseDouble", 3),
+                    Map.entry("BigDecimal.valueOf", 3),
+                    Map.entry("Double.valueOf", 1),
+                    Map.entry("intValue", 1)));
 
     @Test
     void theWritersCarryAndDecideNothing() throws IOException {

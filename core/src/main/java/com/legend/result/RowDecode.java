@@ -360,6 +360,43 @@ public final class RowDecode {
         return slot.substring(0, end);
     }
 
+    /**
+     * A column's decode kind, read once from its slot's word ({@link #slotWord}): the slot labels that ARE the decode
+     * instruction, the SQL kinds grouped by the carrier they decode to, and a column with no slot (a late-bound grid's
+     * column, a pivot's generated column), which its Pure type decides. A decode switches on it, never on the word
+     * (the review of PR #85's tier 1, 2026-11-01: a string compared per cell). One table for the decodes that read a
+     * driver's values: the JDBC session's ({@code exec.JdbcDecode}, where it was born) and a host's Arrow
+     * ({@link ArrowRows}; moved here 2026-11-03, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, so the two read one
+     * table).
+     */
+    public enum Kind {
+        TAGGED, DECIMAL_TEXT, TEMPORAL_TEXT, TEMPORAL, TIME, INTEGRAL, FLOATING, DECIMAL, BOOLEAN, TEXT, JSON, ARRAY,
+        STRUCT, MAP, BY_PURE_TYPE;
+
+        /** The kind of a slot whose leading word is {@code slotWord}. */
+        public static Kind of(String slotWord) {
+            return switch (slotWord) {
+                case "TAGGED" -> TAGGED;
+                case "DECIMAL_TEXT" -> DECIMAL_TEXT;
+                case "TEMPORAL_TEXT" -> TEMPORAL_TEXT;
+                case "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> TEMPORAL;
+                case "TIME" -> TIME;
+                case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> INTEGRAL;
+                case "DOUBLE", "FLOAT", "REAL" -> FLOATING;
+                case "DECIMAL", "NUMERIC" -> DECIMAL;
+                case "BOOLEAN" -> BOOLEAN;
+                case "VARCHAR", "CHAR", "TEXT" -> TEXT;
+                case "JSON" -> JSON;
+                case "ARRAY" -> ARRAY;
+                case "STRUCT" -> STRUCT;
+                case "MAP" -> MAP;
+                // no slot word a decode names: the Pure type decides (a late-bound grid's column, a pivot's
+                // generated column), as the word switch's default did
+                default -> BY_PURE_TYPE;
+            };
+        }
+    }
+
     // ------------------------------------------------------------------
     // the structured slots' spelling (ColumnFacts.slot writes it; both decodes read it back here)
     // ------------------------------------------------------------------

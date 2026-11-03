@@ -404,6 +404,35 @@ py_test(
     ],
 )
 
+# THE ARROW HANDOFF (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, its exit): every case of the conformance corpus
+# planned and run as the engine plans and runs it, its rows handed to the core as DuckDB's Arrow and as JSON text --
+# legend-engine's JSON answers byte for byte, the Arrow answers value for value; the one measured difference (a REAL's
+# digits) pinned.
+py_test(
+    name = "arrow_handoff_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_arrow_handoff.py",
+    ],
+    args = ["test_arrow_handoff"],
+    data = [
+        "//conformance:model.pure",
+        "//conformance:queries.tsv",
+        "//native:compiler",
+    ],
+    env = _ENV | {
+        "LEGEND_LITE_CONFORMANCE_MODEL": "$(rlocationpath //conformance:model.pure)",
+        "LEGEND_LITE_CONFORMANCE_QUERIES": "$(rlocationpath //conformance:queries.tsv)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # A notebook's cube (legend_lite/notebook.py): the widget's calls over its channel answered by the engine, its version
 # following the frame, close; show() in a notebook's kernel (stood in for: no kernel runs) -- the cube under the cell,
 # once -- or in a tab when asked; and the import without anywidget saying how to install it. Over the site as the

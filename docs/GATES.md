@@ -17187,3 +17187,27 @@ product) and the audit's fold after it.
    SQL's door), `//python:{bindings,host_sql}_test`, `//datacube:{typecheck,lite_planner,python_runner,bundle_budget,
    conformance}_test`, the Query and Studio typechecks, `//wasm:{differential,round_trip}_test`,
    `//tools/guards:host_sql_test` green.
+
+## 2026-11-03 — R3: the core reads a host's Arrow; the boundary carries bytes; the exit met on the suite
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 R3 ("as built") and §7. No product path switched; no output changed.
+
+1. **Measured first** (scratch probes in both embedded builds, reverted): the tab hands bytes in at 1.4 ms/MB and out at
+   1.0 ms/MB (a string 7 ms/MB in; out 36 ms at 1 MB, 2.7 s at 30 MB); the native library takes a pointer and a length
+   at no cost, where Python spends 10.4 s making 1,000,000 rows' JSON text and the library 441 ms reading it.
+2. **Built:** `//arrow_ipc` `ArrowReader` (the stream and file formats, views over the bytes; `ArrowType` gains the large
+   text and binary types); `//core:result` `ArrowRows` (the JDBC session decode's arms over Arrow values; the slot-word
+   table moved to `RowDecode.Kind`, read by both decodes); `PureV1Api.jsonAnswer`/`arrowAnswer` over Arrow;
+   `Folded.httpBytes`; the tab's two `...FromArrowOrError` exports; the native library's two `..._arrow` entries;
+   Python's `call_bytes` and `compiler.execute_json_answer_arrow`/`execute_arrow_answer_arrow`.
+3. **Guards moved, each with its reason:** `JavaEvalLedgerTest`'s result register gains `ArrowRows.java`;
+   `WriterCarriageGuardTest` registers its carrier reads spelling by spelling (dated 2026-11-03).
+4. **The exit:** `//python:arrow_handoff_test` (new: 17 cases JSON byte for byte, Arrow value for value; a REAL's
+   digits pinned; a stream of another width refused); `//datacube:conformance_test`'s new `handoff` check (the tab's
+   17 cases from DuckDB-WASM's own Arrow: JSON as its text handoff's, Arrow as Java's; no ledger entry added);
+   `ArrowRowsTest` (new). End to end, `//python:executor_bench`'s new `handoff` path: 1,000,000 rows 23,626 -> 1,861 ms.
+5. **Checks:** `//core:core_tests_{root,exec,server,architecture,driver,judge}`, `//core:guardrails`,
+   `//core:arrow_writer_test`, `//pct:pct_duckdb_essential`, `//wasm:{differential,round_trip}_test`,
+   `//python:{bindings,host_sql,arrow_handoff}_test`, `//engine-client:plan_runner_test`,
+   `//datacube:{conformance,lite_planner,bundle_budget,python_runner,typecheck}_test`, the Query and Studio typechecks,
+   `//tools/guards:host_sql_test`, `//tools/deps:all`, `bazel build //native:compiler //warehouse/...` green.

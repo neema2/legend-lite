@@ -47,6 +47,28 @@ public final class Folded {
         }
     }
 
+    /**
+     * {@link #http}'s answer as BYTES (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, measured: a string handed out of
+     * the tab's module costs 36 ms a megabyte and grows past linear, its bytes 1 ms): the same lines in UTF-8 --
+     * {@code OK\n<status>\n<media type>\n} then the body's own bytes (a binary body as it is, never base64; a JSON
+     * body its UTF-8), or the refusal {@code ERR\n<kind>\n<message>}.
+     */
+    public static byte[] httpBytes(java.util.function.Supplier<com.legend.server.PureV1Api.Answer> answer) {
+        byte[] head;
+        byte[] body;
+        try {
+            com.legend.server.PureV1Api.Answer a = answer.get();
+            head = ("OK\n" + a.status() + "\n" + a.contentType() + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            body = a.bytes() != null ? a.bytes() : a.json().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        } catch (RuntimeException | StackOverflowError e) {
+            return failure(e).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        byte[] out = new byte[head.length + body.length];
+        System.arraycopy(head, 0, out, 0, head.length);
+        System.arraycopy(body, 0, out, head.length, body.length);
+        return out;
+    }
+
     /** A failure as a refusal: its kind and its message, as the server's routes name them. */
     public static String failure(Throwable e) {
         com.legend.server.PureV1Api.Refusal r = com.legend.server.PureV1Api.refusal(e);

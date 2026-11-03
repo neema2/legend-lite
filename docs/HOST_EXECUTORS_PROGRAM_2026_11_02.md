@@ -732,6 +732,53 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
 - **The writer fed a batch at a time:** begin, each batch, end.
 - **The exit:** on the suite, the JSON and Arrow answers the writers give from Arrow equal today's, byte for byte.
 
+*R3 as built (2026-11-03).*
+- **The measurement first (scratch probes in both embedded builds, reverted; this container, 4 vCPU):**
+  - **The tab** (TeaVM 0.15, WebAssembly GC, Node 22.16): a `byte[]` handed in (a typed array copied into the module)
+    costs 1.4 ms a megabyte, a string 7 ms; a `byte[]` handed out 1.0 ms a megabyte, a string 36 ms at 1 MB, 625 ms at
+    10 MB and 2.7 s at 30 MB (past linear). So the answers go out as bytes too, never base64 or a long string.
+  - **The native library** (from duckdb-python, H0's five columns, 1,000,000 rows): the rows' JSON text takes 10.4 s
+    to make in Python (94 MB) and 441 ms to hand in; DuckDB's Arrow IPC takes 106 ms to make (50 MB), and a pointer and
+    a length cost nothing to hand in (75 ms is the probe reading every byte through a view: an upper bound on a read).
+- **The reader**, in two layers:
+  - `//arrow_ipc` `ArrowReader`: the format alone -- the schema, then each record batch, each column an array of views
+    over the bytes (never copied); the stream format and the FILE format (DuckDB-WASM's `runQuery` answers a file:
+    found by the tab's check); a dictionary, a compressed batch, a big-endian stream, a union, a view, an interval, a
+    large list refused by name. `ArrowType` gains `LargeUtf8` and `LargeBinary` (pyarrow's large strings).
+  - `//core:result` `ArrowRows`: the plan's columns over the stream, the twin of `HostRows` (the rows as JSON text) and
+    of the JDBC session's decode (`exec.JdbcDecode`). Each Arrow value is read as the value a JDBC driver hands for its
+    SQL type, then decoded by that decode's arms, so the carriers are the JVM's: a REAL its own four-byte digits, a
+    HUGEINT (DuckDB's Arrow: a 128-bit decimal of scale 0) an exact integer, a timestamp nine subsecond digits. Each
+    column's decode kind and wire reader are decided once. The slot-word table moved from `JdbcDecode.Kind` to
+    `RowDecode.Kind` so the two decodes read one table (behaviour unchanged). Registered in the result package's closed
+    register and, spelling by spelling, in `WriterCarriageGuardTest`.
+- **The boundary carries bytes:** `Folded.httpBytes` (the fold's lines in UTF-8, then the body's own bytes);
+  `Boundary.executeJsonAnswer(plan, ByteBuffer)` and `executeArrowAnswer(plan, ByteBuffer)`
+  (`PureV1Api.jsonAnswer`/`arrowAnswer` over one body for either source); the tab's
+  `executeJsonAnswerFromArrowOrError` and `executeArrowAnswerFromArrowOrError` (`byte[]` in and out); the native
+  library's `lite_execute_json_answer_arrow` and `lite_execute_arrow_answer_arrow` (a pointer and a length in, read in
+  place; the answer's bytes out, their length through an out-parameter, copied in bulk); Python's
+  `Library.call_bytes` and `compiler.execute_json_answer_arrow` / `execute_arrow_answer_arrow` (a pyarrow `Buffer` at
+  its own address, or `bytes`).
+- **The writer fed a batch at a time** was already the writers' contract (`ResultSink`: columns, each batch, end); the
+  reader feeds it a stream's batches in order. A host hands one whole stream per call; handing it across calls waits
+  for a measurement that needs it (R8).
+- **The exit, met:**
+  - **Python** (`//python:arrow_handoff_test`): every case of the conformance corpus planned and run as the engine
+    plans and runs it, its rows handed over both ways: the 17 cases with rows answer byte for byte alike in
+    legend-engine's JSON and value for value in the Arrow answer (the two refusals and the one keyed pivot counted).
+  - **The tab** (`//datacube:conformance_test`, a new check, `handoff`): DuckDB-WASM's own Arrow (its bindings'
+    `runQuery`, no JavaScript re-encoding) handed to the module: the same 17 cases' JSON byte for byte as the tab's
+    text handoff, and their Arrow answer equal to Java's in schema and values (lite's Arrow writer in the plan's types:
+    the answer D7 asks of Python, which Python's own Arrow execute does not give yet).
+  - **The JVM** (`ArrowRowsTest`): DuckDB's encodings built with the framer decode to the cells the same rows decode to
+    as JSON text; lite's own Arrow round-trips; a tagged column; the file format; the refusals.
+- **End to end** (`//python:executor_bench`, a new path `handoff`, its answer asserted equal to `json`'s, the trace
+  masked): 1,000 rows 35.0 -> 15.0 ms; 100,000 rows 1,855 -> 211 ms; 1,000,000 rows 23,626 -> 1,861 ms (12.7 times).
+- **Not in R3, by design:** no product path switched (Python's `_execute_json` and the tab's `executeText` keep the
+  text handoff until R4 and R5); the tab's planner protocol has no bytes kind yet (R5: Python's headless host must
+  answer every kind, and a kind's bytes do not cross its JSON channel as they are); a keyed pivot's answer from Arrow.
+
 **R4. Python's shell.**
 - **The runner:** the twin of the tab's (§3.3), over duckdb-python.
 - **The consumers:** `Table.execute` (a `pyarrow.Table`), the engine's Arrow and JSON executes, plan-and-run, and the
@@ -797,6 +844,15 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   the same but for a database's message that counts lines (DuckDB's `LINE 4` on the JVM, `LINE 3` on a host): two
   ledger entries. The fix is the hosts' runners' (R4/R5): the statement stamped by the core, its id the answer's
   activity's, so a host's statement and its answer carry one id as the JVM's do.
+- **A REAL's digits differ between the hosts and the JVM** (found 2026-11-03, R3). A DuckDB `FLOAT` (four bytes):
+  the JVM's session reads `Float.toString`'s digits (`0.1`), as legend-engine's JDBC read does; Python's JSON execute
+  hands the widened double (`0.10000000149011612`, duckdb-python's `fetchall`), and the tab's by the same mechanism (a
+  JavaScript number is the widened double; not measured). The conformance corpus has no `FLOAT` column, so R1 did not
+  see it. The Arrow handoff answers the JVM's digits (`//python:arrow_handoff_test` pins both); so switching a host's
+  JSON execute to it (R4, R5) changes that host's text for a `FLOAT` column. Posted to the user before the switch.
+- **A dictionary-encoded column is refused by the reader** (2026-11-03, R3): DuckDB answers an `ENUM` (a pandas
+  categorical a frame registers) as an Arrow dictionary, which `ArrowReader` refuses by name; the text handoff reads it
+  as its strings. R4's switch of Python's JSON execute needs the reader to read dictionaries first.
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
@@ -901,3 +957,6 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
     (`plan-runner.ts`, `plan-record.ts`, `compiler.py`, `lite-planner.ts`, the native library's comments).
   - **Left as found:** commit `1aa8e7d1` does not compile on its own (restored in `62a86074`): bisection only.
   Python's Arrow execute keeps the old shape until R3/R4, as ruled.
+- 2026-11-03: R3 built: the core reads a host's Arrow (`ArrowReader`, `ArrowRows`) and the boundary carries bytes both
+  ways; the exit met on the suite for Python and the tab (§5 R3 "as built"); Python's JSON answer at 1,000,000 rows
+  23.6 s -> 1.9 s through it. Two findings (§7): a REAL's digits, and dictionaries refused. No product path switched.

@@ -63,6 +63,20 @@ public final class TabExports {
         return Folded.http(() -> Boundary.executeArrowAnswer(plan, rows));
     }
 
+    /** {@link Boundary#executeJsonAnswer(String, java.nio.ByteBuffer)}: the answer from the Arrow stream the tab's
+     *  database answered (copied into the module), folded as bytes ({@link Folded#httpBytes}; R3). */
+    @JSExport
+    public static byte[] executeJsonAnswerFromArrowOrError(String plan, byte[] arrow) {
+        return Folded.httpBytes(() -> Boundary.executeJsonAnswer(plan, java.nio.ByteBuffer.wrap(arrow)));
+    }
+
+    /** {@link Boundary#executeArrowAnswer(String, java.nio.ByteBuffer)}: upstream's Arrow answer from the tab's Arrow,
+     *  folded as bytes, its body the zstd frame itself (R3). */
+    @JSExport
+    public static byte[] executeArrowAnswerFromArrowOrError(String plan, byte[] arrow) {
+        return Folded.httpBytes(() -> Boundary.executeArrowAnswer(plan, java.nio.ByteBuffer.wrap(arrow)));
+    }
+
     // ---- planning and typing
 
     /** {@link Boundary#planSql}: the SQL alone, unfolded (a refusal is thrown). */

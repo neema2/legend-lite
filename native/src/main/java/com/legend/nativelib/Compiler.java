@@ -7,6 +7,7 @@ import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.UnmanagedMemory;
 import org.graalvm.nativeimage.c.function.CEntryPoint;
 import org.graalvm.nativeimage.c.type.CCharPointer;
+import org.graalvm.nativeimage.c.type.CLongPointer;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.WordFactory;
 
@@ -349,6 +350,56 @@ public final class Compiler {
             a = Folded.failure(failure);
         }
         return answer(a);
+    }
+
+    /** A new buffer holding {@code b}, its length written to {@code length}: the caller's to free with
+     *  {@code lite_free} (a bytes answer, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3: copied in bulk, never a
+     *  byte at a time, and never read back to a NUL). */
+    static CCharPointer answerBytes(byte[] b, CLongPointer length) {
+        CCharPointer p = UnmanagedMemory.malloc(WordFactory.unsigned(Math.max(1, b.length)));
+        CTypeConversion.asByteBuffer(p, b.length).put(b);
+        length.write(b.length);
+        UNFREED.incrementAndGet();
+        return p;
+    }
+
+    /** {@code length} bytes at {@code data}, read in place: no copy, valid while the call lasts (the host holds its
+     *  buffer until the call returns). */
+    static java.nio.ByteBuffer bytes(CCharPointer data, long length) {
+        return CTypeConversion.asByteBuffer(data, Math.toIntExact(length));
+    }
+
+    /** That plan's answer from the host's rows as ARROW: the IPC stream its database answered, {@code length} bytes
+     *  at {@code arrow}, read where it lies ({@code Boundary.executeJsonAnswer}; R3). The answer is folded as bytes
+     *  ({@code Folded.httpBytes}), its length written to {@code answerLength}. */
+    @CEntryPoint(name = "lite_execute_json_answer_arrow")
+    static CCharPointer executeJsonAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer arrow,
+            long length, CLongPointer answerLength) {
+        byte[] a;
+        try {
+            String p = text(plan);
+            java.nio.ByteBuffer rows = bytes(arrow, length);
+            a = Folded.httpBytes(() -> Boundary.executeJsonAnswer(p, rows));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
+        }
+        return answerBytes(a, answerLength);
+    }
+
+    /** That plan's answer in upstream's Arrow format from the host's rows as ARROW ({@code Boundary.executeArrowAnswer};
+     *  R3): the zstd frame itself after the fold's lines, never base64. */
+    @CEntryPoint(name = "lite_execute_arrow_answer_arrow")
+    static CCharPointer executeArrowAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer arrow,
+            long length, CLongPointer answerLength) {
+        byte[] a;
+        try {
+            String p = text(plan);
+            java.nio.ByteBuffer rows = bytes(arrow, length);
+            a = Folded.httpBytes(() -> Boundary.executeArrowAnswer(p, rows));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
+        }
+        return answerBytes(a, answerLength);
     }
 
     /** That plan's answer in upstream's Arrow format from the rows the host's database answered

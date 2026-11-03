@@ -503,6 +503,25 @@ public final class PureV1Api {
      * ({@link #planEnvelope}), as one zstd frame. A graph fetch's plan is refused: ARROW_IPC answers relations.
      */
     public static Answer arrowAnswer(String plan, String rows) {
+        return arrowAnswer(plan, (columns, sink) -> com.legend.result.HostRows.stream(rows, columns, sink));
+    }
+
+    /** {@link #arrowAnswer(String, String)} from the host's rows as ARROW: the IPC stream its database answered the
+     *  plan's statement with ({@link com.legend.result.ArrowRows}; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3),
+     *  read in place. */
+    public static Answer arrowAnswer(String plan, java.nio.ByteBuffer arrow) {
+        return arrowAnswer(plan, (columns, sink) -> com.legend.result.ArrowRows.stream(arrow, columns, sink));
+    }
+
+    /** A host's rows of a statement whose result columns are {@code columns}, streamed to a sink: as JSON text
+     *  ({@link com.legend.result.HostRows}) or as Arrow ({@link com.legend.result.ArrowRows}). */
+    @FunctionalInterface
+    private interface HostRowsSource {
+        void stream(List<com.legend.executionplan.ExecutionPlan.Column> columns, com.legend.result.ResultSink sink)
+                throws java.io.IOException;
+    }
+
+    private static Answer arrowAnswer(String plan, HostRowsSource rows) {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         Answer run = answer(500, "COMPILATION", () -> {
             com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
@@ -516,7 +535,7 @@ public final class PureV1Api {
             metadata.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
             metadata.put("legend.columns", Json.toCompact(e.names()));
             try {
-                com.legend.result.HostRows.stream(rows, result.columns(), new com.legend.result.ArrowWriter(out, metadata));
+                rows.stream(result.columns(), new com.legend.result.ArrowWriter(out, metadata));
             } catch (java.io.IOException ex) {
                 throw new java.io.UncheckedIOException(ex);
             }
@@ -772,6 +791,17 @@ public final class PureV1Api {
      * writer spells them.
      */
     public static Answer jsonAnswer(String plan, String rows) {
+        return jsonAnswer(plan, (columns, sink) -> com.legend.result.HostRows.stream(rows, columns, sink));
+    }
+
+    /** {@link #jsonAnswer(String, String)} from the host's rows as ARROW: the IPC stream its database answered the
+     *  plan's statement with ({@link com.legend.result.ArrowRows}; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3),
+     *  read in place. */
+    public static Answer jsonAnswer(String plan, java.nio.ByteBuffer arrow) {
+        return jsonAnswer(plan, (columns, sink) -> com.legend.result.ArrowRows.stream(arrow, columns, sink));
+    }
+
+    private static Answer jsonAnswer(String plan, HostRowsSource rows) {
         return answer(500, "COMPILATION", () -> {
             com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
             java.io.StringWriter out = new java.io.StringWriter();
@@ -786,7 +816,7 @@ public final class PureV1Api {
                         + "is not jsonPlan's");
             };
             try {
-                com.legend.result.HostRows.stream(rows, result.columns(), sink);
+                rows.stream(result.columns(), sink);
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }

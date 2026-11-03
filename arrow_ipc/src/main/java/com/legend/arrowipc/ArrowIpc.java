@@ -144,6 +144,8 @@ public final class ArrowIpc {
             case ArrowType.Binary x -> empty(b, 4);
             case ArrowType.Utf8 x -> empty(b, 5);
             case ArrowType.Bool x -> empty(b, 6);
+            case ArrowType.LargeBinary x -> empty(b, 19);
+            case ArrowType.LargeUtf8 x -> empty(b, 20);
             case ArrowType.Decimal d -> {
                 b.startTable(3);
                 b.fieldInt(0, d.precision());

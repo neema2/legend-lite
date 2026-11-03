@@ -5,6 +5,7 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
+import com.legend.result.RowDecode.Kind;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
@@ -118,43 +119,10 @@ final class JdbcDecode {
         }
     }
 
-    /**
-     * A column's decode kind, read once from its slot's word ({@link com.legend.result.RowDecode#slotWord}): the slot
-     * labels that ARE the decode instruction, the SQL kinds grouped by the carrier they decode to, and a column with
-     * no slot (a late-bound grid's column, a pivot's generated column), which its Pure type decides. A cell's decode
-     * switches on it ({@link #decode}), never on the word (the review of PR #85's tier 1, 2026-11-01: a string
-     * compared per cell).
-     */
-    enum Kind {
-        TAGGED, DECIMAL_TEXT, TEMPORAL_TEXT, TEMPORAL, TIME, INTEGRAL, FLOATING, DECIMAL, BOOLEAN, TEXT, JSON, ARRAY,
-        STRUCT, MAP, BY_PURE_TYPE;
-
-        static Kind of(String slotWord) {
-            return switch (slotWord) {
-                case "TAGGED" -> TAGGED;
-                case "DECIMAL_TEXT" -> DECIMAL_TEXT;
-                case "TEMPORAL_TEXT" -> TEMPORAL_TEXT;
-                case "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> TEMPORAL;
-                case "TIME" -> TIME;
-                case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> INTEGRAL;
-                case "DOUBLE", "FLOAT", "REAL" -> FLOATING;
-                case "DECIMAL", "NUMERIC" -> DECIMAL;
-                case "BOOLEAN" -> BOOLEAN;
-                case "VARCHAR", "CHAR", "TEXT" -> TEXT;
-                case "JSON" -> JSON;
-                case "ARRAY" -> ARRAY;
-                case "STRUCT" -> STRUCT;
-                case "MAP" -> MAP;
-                // no slot word this decode names: the Pure type decides (a late-bound grid's column, a pivot's
-                // generated column), as the word switch's default did
-                default -> BY_PURE_TYPE;
-            };
-        }
-
-        /** Whether its cells read the driver's object ({@link #answered}), not its text. */
-        boolean readsObject() {
-            return this != DECIMAL_TEXT && this != TEMPORAL_TEXT && this != TEXT;
-        }
+    /** Whether a column of decode kind {@code kind} reads the driver's object ({@link #answered}), not its text: a
+     *  text-carried label and a text slot read the text. */
+    private static boolean readsObject(Kind kind) {
+        return kind != Kind.DECIMAL_TEXT && kind != Kind.TEMPORAL_TEXT && kind != Kind.TEXT;
     }
 
     /** The cells of the one row {@code rs} stands on, read as a statement's {@link Reader} reads a row (one read
@@ -195,7 +163,7 @@ final class JdbcDecode {
      *  a text slot (a label whose text carries its own kind, and a text slot: a number the database holds under a
      *  text slot keeps its digits, as its JSON token did), else the driver's object. */
     private static @com.legend.base.Nullable Object answered(ResultSet rs, int i, Kind kind) throws SQLException {
-        return kind.readsObject() ? rs.getObject(i) : rs.getString(i);
+        return readsObject(kind) ? rs.getObject(i) : rs.getString(i);
     }
 
     /** {@code v}, result column {@code i}'s answered object, re-read where the driver's object loses what java.time

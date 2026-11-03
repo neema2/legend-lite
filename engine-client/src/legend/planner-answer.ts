@@ -27,6 +27,10 @@ export interface PlannerModule {
     executeRefusalOrError(plan: string, message: string, trace: string): string;
     keyedBodyOrError(plan: string, keys: string): string;
     keyedAnswerOrError(plan: string, keys: string, rows: string, reported: string): string;
+    // execute's answer from the rows as the Arrow the tab's database answered (R3): the fold's lines and the body, as
+    // bytes (`Folded.httpBytes`)
+    executeJsonAnswerFromArrowOrError(plan: string, arrow: Int8Array): Int8Array;
+    executeArrowAnswerFromArrowOrError(plan: string, arrow: Int8Array): Int8Array;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;

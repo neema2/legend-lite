@@ -2958,7 +2958,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   or output (the planner and `//core:result`'s writers), Arrow between the pieces, thin host shells; the roadmap R2-R8.
   R1 (the conformance suite, `//conformance`, `//datacube:conformance_test`) is built. R2 (one plan kind) adds to
   these files `core/.../executionplan/` (the record's host facts), `core/.../server/PureV1Api.java`,
-  `wasm/src/main/java/planner/` and `native/src/main/java/com/legend/nativelib/` (the boundary's exports).
+  `wasm/src/main/java/planner/` and `native/src/main/java/com/legend/nativelib/` (the boundary's exports). R3 (the
+  writers take Arrow, 2026-11-03) adds `arrow_ipc/`, `core/.../result/` (`ArrowRows`, `RowDecode`), `exec/JdbcDecode.java`
+  and the result guards (`JavaEvalLedgerTest`, `WriterCarriageGuardTest`).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

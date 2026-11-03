@@ -1435,6 +1435,11 @@ class JavaEvalLedgerTest {
                     // column -- one carrier conversion each, by the slot then the Pure type; nothing computed, a token no
                     // arm reads refused by name. HostRows streams the rows a host's own database ran through it
                     "RowDecode.java", "HostRows.java",
+                    // the decode of a host's rows handed over as ARROW (2026-11-03, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md
+                    // R3, D8: the core's Arrow reader): each Arrow value read as the value a JDBC driver hands for its
+                    // SQL type, then the JDBC session decode's arms, one carrier conversion each; nothing computed, a
+                    // value no arm reads refused by name. HostRows's twin over bytes, no text between
+                    "ArrowRows.java",
                     // the cell texts (phase 2, 12b89c7d, R3): every spelling of a typed cell -- Pure's print forms,
                     // legend-engine's tokens, lite's -- each a function of the carrier and the column's facts alone (its
                     // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,
