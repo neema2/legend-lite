@@ -13,7 +13,6 @@ import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer 
 import type { SeedTable, TableSeed } from '../model-data.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
-import { answerStatement } from '../plan-record.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -204,8 +203,11 @@ export class WasmGrammar implements Grammar {
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan's statement, shown to a person ("Show SQL"). */
+  /** The SQL a query plans to, shown and not run (Query's Show SQL): the planner's statement, a query that takes
+   *  parameters showing their placeholders -- not through the grid's door, which refuses a statement that binds values
+   *  (the R2 audit, 2026-11-03). */
   async sql(model: PureModelContext, lambda: Lambda, runtime: string): Promise<string> {
-    return answerStatement(await this.plan(model, lambda, runtime));
+    return unfold(await this.#port.ask({ kind: 'sqlModel', model: model.code, lambda: toJson(lambda), runtime }));
   }
 
   /**

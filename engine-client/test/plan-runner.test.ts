@@ -120,8 +120,8 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
 
 describe('every plan door a host asks answers the one plan record (R2: docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, D11)', () => {
   const query = '|#>{w::DB.SRC}#->select(~[id, amount])->from(w::RT)';
-  const record = (tagged: string): { format: string; version: number; root: { _type: string } } =>
-    JSON.parse(ok(tagged)) as { format: string; version: number; root: { _type: string } };
+  const record = (tagged: string): { format: string; version: number; root: { _type: string; sql: { statement: string } } } =>
+    JSON.parse(ok(tagged)) as { format: string; version: number; root: { _type: string; sql: { statement: string } } };
 
   it('a query\'s rows, planned over a model held or given as text, as Pure text or a tree; a write; an execute', async () => {
     const tree = toJson(await grammar.lambda(query));
@@ -139,5 +139,39 @@ describe('every plan door a host asks answers the one plan record (R2: docs/HOST
       assert.deepEqual([read.format, read.version], ['legend-lite-plan', 20], door);
       assert.match(read.root._type, door === 'executionPlan' ? /^sequence$/ : /^tdsResult$/, door);
     }
+  });
+
+  it('the census: every export of the planner whose name says it plans is one of these, each answering the record or named here', () => {
+    // a new plan door fails here until it is listed: the record (the doors above), or why it answers something else
+    const doors: Record<string, string> = {
+      planOrError: 'the record (the plan door)',
+      planHeldOrError: 'the record (the plan door)',
+      planJsonOrError: 'the record (the planModel door)',
+      planJsonHeldOrError: 'the record (the planJson door)',
+      executionPlanJsonHeldOrError: 'the record (the executionPlan door)',
+      executeJsonPlanOrError: 'the record (the executePlan door)',
+      plan: 'the SQL alone, shown (Boundary.planSql: a Pure text query\'s statement)',
+    };
+    // the module's export object keeps its names off its own enumerable keys: every name along its chain
+    const names = new Set<string>();
+    for (let o: object | null = m.exports as object; o !== null && o !== Object.prototype; o = Object.getPrototypeOf(o) as object | null) {
+      for (const name of Object.getOwnPropertyNames(o)) names.add(name);
+    }
+    const planning = [...names].filter((name) => /plan/i.test(name)).sort();
+    assert.deepEqual(planning, Object.keys(doors).sort());
+  });
+
+  it('the grid\'s doors refuse what a host does not run, by name; Show SQL shows the planner\'s statement, as before R2', async () => {
+    // a plain query: Show SQL's statement is the plan record's
+    const tree = toJson(await grammar.lambda(query));
+    const shown = ok(answer(m, { kind: 'sqlModel', model: MODEL, lambda: tree, runtime: 'w::RT' }));
+    assert.equal(shown, record(answer(m, { kind: 'planModel', model: MODEL, lambda: tree, runtime: 'w::RT' })).root.sql.statement);
+    // a pivot whose columns its data names: no grid's (refused at planning), and its SQL still shown
+    const pivot = toJson(await grammar.lambda('|#>{w::DB.SRC}#->select(~[name, amount])->pivot(~[name], ~[t: x|$x.amount: y|$y->sum()])->from(w::RT)'));
+    assert.match(answer(m, { kind: 'planModel', model: MODEL, lambda: pivot, runtime: 'w::RT' }), /^ERR\n[^\n]*\n.*Keyed/s);
+    assert.match(ok(answer(m, { kind: 'sqlModel', model: MODEL, lambda: pivot, runtime: 'w::RT' })), /select/i);
+    // a plan's write is no grid's: the grid's door refuses it at planning
+    const write = answer(m, { kind: 'planJson', handle, lambda: toJson(lambda([], fn('write', src(), target()))), runtime: 'w::RT' });
+    assert.match(write, /^ERR\n/);
   });
 });

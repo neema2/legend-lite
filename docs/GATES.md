@@ -17172,3 +17172,18 @@ audit's fold after them.
    root). Its first run lost the Bazel server to the container's memory limit at 250 tests (the kernel's OOM killer,
    3.8 GB resident, no test failed); the rerun with `--local_test_jobs=2` finished.
 
+## 2026-11-03 — R2 closed: one plan kind for every host path but Python's Arrow execute; its independent audit folded
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 R2 and §8. Commits `5bb0f492` (the compiler-types maker out of the
+product) and the audit's fold after it.
+
+1. **The audit** (an agent that wrote none of R2, read-only) found no defect in the product paths. Its findings, folded:
+   Query's Show SQL refused an uncast dynamic pivot since R2 (its own door again, `sqlModel`); the census R2 claimed did
+   not exist (built: every planning export named in `plan-runner.test.ts`); two moved refusals had lost their only
+   tests (`HostPlansTest`, every refusal now); D6's host profile was claimed and not built (the record corrected: the
+   database check stays in the tab's runner); Python's plan reader was weaker than the tab's (made equal); stale
+   version notes; the header differential's claims narrower than said (asserted by name now).
+2. **Checks:** `//core:core_tests_{root,server}`, `//engine-client:plan_runner_test` (the census, the refusals, Show
+   SQL's door), `//python:{bindings,host_sql}_test`, `//datacube:{typecheck,lite_planner,python_runner,bundle_budget,
+   conformance}_test`, the Query and Studio typechecks, `//wasm:{differential,round_trip}_test`,
+   `//tools/guards:host_sql_test` green.

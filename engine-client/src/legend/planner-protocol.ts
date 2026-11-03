@@ -17,6 +17,7 @@ export const REQUEST_KINDS = [
   'planJson',
   'executionPlan',
   'planModel',
+  'sqlModel',
   'pureV1',
   'executePlan',
   'executeAnswer',
@@ -48,6 +49,9 @@ export type RequestBody =
   | { readonly kind: 'executionPlan'; readonly handle: number; readonly lambda: string; readonly runtime: string }
   // a query's protocol JSON planned against a model's text, none held (Query's and Studio's: each request its model)
   | { readonly kind: 'planModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
+  // the SQL a query's protocol JSON plans to, shown and not run (Query's Show SQL): a query that takes parameters
+  // shows their placeholders
+  | { readonly kind: 'sqlModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
   // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
   | { readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
   // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that

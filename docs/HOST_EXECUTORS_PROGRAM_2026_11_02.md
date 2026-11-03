@@ -691,6 +691,10 @@ step runs under the conformance suite (§3.7).
   F; §2.2), and what the writers need for each output (legend-engine's builder, its activities, the trace id).
 - **The host's profile (D6):** the database types a host reaches and the outputs it writes, as the planner's input; what
   a host cannot run refused at planning, by name.
+  *As built (the R2 audit, 2026-11-03): no profile is a planner input. What a host cannot run is refused at
+  planning by kind (`HostPlans.read`, `program`, `query`); that the plan's database is the host's own is still checked
+  by the tab's runner at run time (`plan-runner.ts`), as before R2. A profile carrying the host's database waits for a
+  host that reaches more than one (R7, Snowflake).*
 - **The tab:** the callers of `Plan {sql, columns}` and `ExecutePlan` move to the record, and the runner reads the
   answer's step.
 - **Python:** `Table.execute`, the engine's executes and plan-and-run move to it.
@@ -881,3 +885,19 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   the JVM's text but for the trace id), and the conformance suite's new `pivotDynamic` case, whose JSON answer is the
   same text on the JVM, Python and the tab. Its two ledger entries: Python's Arrow execute (the old shape until R3/R4)
   and the grid's refusal (DataCube plans its pivots static). Ledger 16 -> 18.
+- 2026-11-03: R2 closed. The compiler-types header maker left the product (`5bb0f492`). An independent audit of R2's own
+  commits found no defect in the product paths and these, folded:
+  - **A regression, fixed:** Query's Show SQL went through the grid's door, which refuses a plan the grid does not run,
+    so an uncast dynamic pivot's SQL could no longer be shown (it was before R2). Show SQL has its own door again
+    (`sqlModel`: `Boundary.sqlJson`, the same `Compiler.plan` the server's `generatePlan` uses; exported by the tab's
+    module and the native library).
+  - **The census, built:** `plan-runner.test.ts` names every export of the planner whose name says it plans, each
+    answering the record or named (a new one fails until it is listed), beside the door tests on both hosts.
+  - **Tests for every refusal moved to planning** (`HostPlansTest`: per-key regions, a key's cell, a keyed root and
+    step, a nested sequence, an effect; `query`'s keyed profile); the door test now checks refusals too.
+  - **Python's reader as strict as the tab's** (each column's name, type and enumeration fact; slots a list).
+  - **Corrected claims:** D6's profile (above); `HostPlans`' refusals are the runner's, six of their words reworded; the
+    header differential asserts its Boolean and date columns by name and has a Variant case; stale version notes
+    (`plan-runner.ts`, `plan-record.ts`, `compiler.py`, `lite-planner.ts`, the native library's comments).
+  - **Left as found:** commit `1aa8e7d1` does not compile on its own (restored in `62a86074`): bisection only.
+  Python's Arrow execute keeps the old shape until R3/R4, as ruled.

@@ -1,5 +1,5 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 19, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 20 (plan-record.ts), as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
@@ -8,9 +8,11 @@
 // is TYPED rows (the result boundary program, 2026-10-27: a plan names no output format), and this runner writes them
 // as lite's JSON rows, one object per row keyed by the plan's column names, for the cells a host's write answers (a
 // count, a text, a boolean); a richer answer is the planner's to write (executeAnswer), refused here by name. What a
-// host's program never plans is refused by name, never run some other way: a plan that takes parameters, a type hole,
-// a list or a key's cell bound, a statement of per-key regions, a step of another database or of several, a database set
-// up first.
+// host's program never plans is refused by name at planning, before it reaches this runner (core's HostPlans.program,
+// since R2: a plan that takes parameters, a type hole, a list or a key's cell bound, a statement of per-key regions, a
+// step of several databases, a database set up first); this runner keeps the format and version check, the refusal of
+// a step it does not know, and that the plan's database is its session's (a check no planning profile makes yet: the
+// host's database is the host's).
 //
 // PURE: no DOM, no planner; a host gives its session.
 

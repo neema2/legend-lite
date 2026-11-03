@@ -38,6 +38,8 @@ _ARITY = {
     'lite_execute_refusal': 3,
     # a pivot's body for the keys a host read, and its answer from the host's rows and report (D18 D)
     'lite_keyed_body': 2, 'lite_keyed_answer': 4,
+    # the SQL a lambda plans to, shown (Query's Show SQL; the R2 audit)
+    'lite_sql_json': 3,
     # the answer in upstream's Arrow format from the host's rows, folded as base64 (track A, 2026-10-29): wired to
     # the route when the user rules on the schema change (the decisions log D56)
     'lite_execute_arrow_answer': 2,

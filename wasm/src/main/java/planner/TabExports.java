@@ -89,6 +89,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.planJson(model, lambdaJson, runtime));
     }
 
+    /** {@link Boundary#sqlJson}: the SQL a lambda plans to, shown (Query's Show SQL). */
+    @JSExport
+    public static String sqlJsonOrError(String model, String lambdaJson, String runtime) {
+        return Folded.of(() -> Boundary.sqlJson(model, lambdaJson, runtime));
+    }
+
     /** {@link Boundary#holdModel}: the handle, or the refusal of a model that does not compile. */
     @JSExport
     public static String holdModelOrError(String model) {

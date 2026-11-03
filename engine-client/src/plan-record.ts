@@ -5,8 +5,8 @@
 //
 // PURE: no DOM, no planner.
 
-/** The execution plan's format a host reads (core/.../executionplan/PlanJson.java VERSION): 20 since 2026-11-02, a
- *  column's declared type (R2); 19 since 2026-10-29, the LITERAL slot word retired (track L's L2). */
+/** The execution plan's format a host reads (core/.../executionplan/PlanJson.java VERSION): 20 since 2026-11-02, each
+ *  column's enumeration fact (R2, D16); 19 since 2026-10-29, the LITERAL slot word retired (track L's L2). */
 export const PLAN_VERSION = 20;
 
 /** A plan record whose format or version this host does not read, or whose shape it does not run: refused by name,

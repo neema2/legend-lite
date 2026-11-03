@@ -24,6 +24,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'planJson': ('lite_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),
     'executionPlan': ('lite_execution_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),
     'planModel': ('lite_plan_json', lambda m: (m['model'], m['lambda'], m['runtime'])),
+    'sqlModel': ('lite_sql_json', lambda m: (m['model'], m['lambda'], m['runtime'])),
     'pureV1': ('lite_pure_v1', lambda m: (m['path'], m['query'], m['body'])),
     'executePlan': ('lite_execute_json_plan', lambda m: (m['body'], m['models'])),
     'executeAnswer': ('lite_execute_json_answer', lambda m: (m['plan'], m['rows'])),

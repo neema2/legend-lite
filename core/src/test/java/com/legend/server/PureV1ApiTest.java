@@ -608,7 +608,8 @@ class PureV1ApiTest {
                 t + "->extend(~[d2: r|$r.D * 2, f2: r|$r.F + 1.0, s2: r|$r.S->toOne()->toUpper(), y: r|$r.DT->toOne()->year()])",
                 t + "->groupBy(~[B], ~[total: r|$r.D : y|$y->sum(), n: r|$r.ID : y|$y->count(), hi: r|$r.TS : y|$y->max()])",
                 t + "->extend(~[lit: r|%2024-01-31, ts: r|%2024-01-31T09:00:00, flag: r|$r.I > 3, dec: r|1.25d])",
-                t + "->extend(~t: r|$r.TS->toOne()->timeBucket(1, DurationUnit.DAYS))", t + "->extend(~tm: r|%10:30:00)")) {
+                t + "->extend(~t: r|$r.TS->toOne()->timeBucket(1, DurationUnit.DAYS))", t + "->extend(~tm: r|%10:30:00)",
+                t + "->extend(~v: r|$r.S->toOne()->toVariant())")) {
             cases.add(new Case(types, "|" + q + "->from(t::RT)", "t::RT"));
         }
         for (String q : List.of(tradesTable, tradesTable + "->select(~[region, notional])",
@@ -625,6 +626,8 @@ class PureV1ApiTest {
         int refusedByBoth = 0;
         boolean enumeration = false;
         boolean decimal = false;
+        boolean bool = false;
+        boolean dates = false;
         java.util.Map<String, com.legend.compiler.element.ModelContext> compiled = new java.util.HashMap<>();
         String firstNotPlanned = null;
         for (Case c : cases) {
@@ -659,6 +662,8 @@ class PureV1ApiTest {
             assertEquals(fromTypes.names(), fromFacts.names(), c.query());
             enumeration |= fromFacts.builder().contains(
                     "{\"name\":\"side\",\"type\":\"String\",\"relationalType\":\"VARCHAR(1024)\"}");
+            bool |= fromFacts.builder().contains("\"type\":\"Boolean\"");
+            dates |= fromFacts.builder().contains("\"type\":\"StrictDate\"") && fromFacts.builder().contains("\"type\":\"DateTime\"");
             decimal |= columns.stream().anyMatch(col -> col.type().startsWith("Decimal(")
                     && col.plainType().equals("Decimal") && Boolean.FALSE.equals(col.enumeration()));
             compared++;
@@ -667,6 +672,9 @@ class PureV1ApiTest {
                 + "; the first not planned: " + firstNotPlanned);
         assertTrue(enumeration, "the enumeration column compared");
         assertTrue(decimal, "a precision decimal column compared, its plain type Decimal");
+        // the kinds the differential claims beyond those two (the R2 audit, 2026-11-03: they were the floor's arithmetic)
+        assertTrue(bool, "a Boolean column compared");
+        assertTrue(dates, "a StrictDate and a DateTime column compared in one answer");
     }
 
     /**

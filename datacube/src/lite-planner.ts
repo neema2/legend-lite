@@ -505,7 +505,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /**
    * A PROGRAM THAT WRITES planned (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output into a table): `program` as an
-   * execution plan, PlanJson's text (version 19) -- its writes' `Update`s and its answer's `TdsResult` of typed columns
+   * execution plan, PlanJson's text (version 20) -- its writes' `Update`s and its answer's `TdsResult` of typed columns
    * in one `Sequence`, which the host's plan runner runs in one transaction and whose rows it writes as lite's JSON
    * rows (engine-client/src/plan-runner.ts; a plan names no output format since the result boundary program's phase
    * 4). Never cached: a write is planned for the one run that asks it.

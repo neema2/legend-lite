@@ -22,9 +22,10 @@ import java.util.List;
  *       typed result read once the transaction has committed: no parameters; a typed result, or a sequence of updates
  *       and checks with one typed result; every statement on one database, for every server version, set up by
  *       nothing first (it runs on the host's own); no per-key regions; every bound value one value, typed by its
- *       statement. The words are the ones the tab's runner refused with at run time until 2026-11-02
- *       ({@code engine-client/src/plan-runner.ts}), which keeps only its format and version check, the refusal of a
- *       step it does not know, and that the plan's database is its session's.</li>
+ *       statement. The refusals are the ones the tab's runner made at run time until 2026-11-02
+ *       ({@code engine-client/src/plan-runner.ts}), their words close to its (six reworded, the R2 audit found), which
+ *       keeps only its format and version check, the refusal of a step it does not know, and that the plan's database
+ *       is its session's -- no planning profile carries the host's database yet (the program's §8, R2's close).</li>
  * </ul>
  *
  * <p>The execute route's own plan ({@code PureV1Api.jsonPlan}) makes the {@link #query} check in the engine's error

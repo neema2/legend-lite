@@ -298,8 +298,6 @@ class Hosting(unittest.TestCase):
         self.assertEqual(lib.unfreed(), before)
 
 
-if __name__ == '__main__':
-    unittest.main()
 
 
 class PlanDoors(unittest.TestCase):
@@ -335,3 +333,7 @@ class PlanDoors(unittest.TestCase):
             self.assertEqual(sorted(arrow), ['metadata', 'sql'])
         finally:
             library().call('lite_release_model', held)
+
+
+if __name__ == '__main__':
+    unittest.main()

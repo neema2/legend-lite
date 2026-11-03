@@ -282,7 +282,7 @@ def execute_json_plan(body: str, models: list[str]) -> Answer:
 
 
 # The execution plan's format a host reads (core/.../executionplan/PlanJson.java VERSION, its one owner; the tab's twin
-# engine-client/src/plan-record.ts): 20 since 2026-11-02, a column's declared type (R2).
+# engine-client/src/plan-record.ts): 20 since 2026-11-02, each column's enumeration fact (R2, D16).
 PLAN_VERSION = 20
 
 
@@ -297,14 +297,23 @@ def _record_root(plan: str) -> dict[str, Any]:
     """A plan record's one typed result over a statement of text, its format and version this host's; anything else
     refused by name (``ValueError``)."""
     read = _json.loads(plan)
-    if read.get('format') != 'legend-lite-plan' or read.get('version') != PLAN_VERSION:
-        raise ValueError(f"not a legend-lite execution plan of version {PLAN_VERSION}: "
-                         f"{_json.dumps({'format': read.get('format'), 'version': read.get('version')})}")
-    root = read.get('root') or {}
-    sql = root.get('sql') or {}
-    if root.get('_type') != 'tdsResult' or not isinstance(sql.get('statement'), str) or sql.get('slots') \
+    if not isinstance(read, dict) or read.get('format') != 'legend-lite-plan' or read.get('version') != PLAN_VERSION:
+        said = read if not isinstance(read, dict) else {'format': read.get('format'), 'version': read.get('version')}
+        raise ValueError(f"not a legend-lite execution plan of version {PLAN_VERSION}: {_json.dumps(said)}")
+    root = read.get('root')
+    sql = root.get('sql') if isinstance(root, dict) else None
+    # as the tab reads it (plan-record.ts hostResult, relation-type.ts recordColumn; the R2 audit, 2026-11-03): one
+    # typed result over a statement of text, its slots an empty list, each column a name, a type and its enumeration
+    # fact stated (null: none the compiler typed, which a host's reader refuses)
+    if not isinstance(root, dict) or root.get('_type') != 'tdsResult' or not isinstance(sql, dict) \
+            or not isinstance(sql.get('statement'), str) or sql.get('slots') != [] \
             or not isinstance(root.get('columns'), list):
-        raise ValueError(f"a host's plan is one typed result over a statement of text, not a {root.get('_type')}")
+        kind = root.get('_type') if isinstance(root, dict) else root
+        raise ValueError(f"a host's plan is one typed result over a statement of text, not a {kind}")
+    for c in root['columns']:
+        if not isinstance(c, dict) or not isinstance(c.get('name'), str) or not isinstance(c.get('type'), str) \
+                or not isinstance(c.get('enumeration'), bool):
+            raise ValueError(f"a plan's column without a name, a type and its enumeration fact: {_json.dumps(c)}")
     return root
 
 

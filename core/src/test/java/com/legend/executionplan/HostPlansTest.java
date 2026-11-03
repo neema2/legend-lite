@@ -89,5 +89,47 @@ class HostPlansTest {
                 List.of(new Slot("t", new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(7,
                         java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
                                 ExecutionPlan.Digits.NONE)), ExecutionPlan.ValueKind.DATE_TIME))))))));
+        // the rest of the runner's refusals, each here (the R2 audit, 2026-11-03: two had lost their only test)
+        refused("binds a key's cell", () -> HostPlans.program(write(UnaryOperator.identity(), result(HOSTS,
+                List.of(new Slot("k", new ExecutionPlan.Binding.Key(1)))))));
+        refused("a statement of per-key regions", () -> HostPlans.program(new ExecutionPlan(List.of(),
+                new TdsResult(TdsResult.Shape.RELATION, List.of(COUNT), regioned(List.of())))));
+        refused("a plan whose columns its data names", () -> HostPlans.program(new ExecutionPlan(List.of(), keyed(
+                List.of(new Slot("k", new ExecutionPlan.Binding.Key(1)))))));
+        refused("not a keyed result", () -> HostPlans.program(new ExecutionPlan(List.of(), new Sequence(List.of(
+                keyed(List.of(new Slot("k", new ExecutionPlan.Binding.Key(1)))), result(HOSTS, List.of()))))));
+        refused("a sequence inside a sequence", () -> HostPlans.program(new ExecutionPlan(List.of(), new Sequence(List.of(
+                new Sequence(List.of(result(HOSTS, List.of()))))))));
+        refused("not an effect", () -> HostPlans.program(new ExecutionPlan(List.of(), new Sequence(List.of(
+                new ExecutionPlan.Effect(new Sql("set x = 1", List.of(), HOSTS, null)), result(HOSTS, List.of()))))));
+        refused("not an effect", () -> HostPlans.program(new ExecutionPlan(List.of(),
+                new ExecutionPlan.Effect(new Sql("set x = 1", List.of(), HOSTS, null)))));
+    }
+
+    /** The execute route's profile (D18 D): the grid's, or a keyed result whose statements bind its keys alone; the
+     *  grid's own refuses the keyed result. */
+    @Test
+    void aKeyedResultIsTheExecuteRoutesAndNoGrids() {
+        ExecutionPlan pivot = new ExecutionPlan(List.of(), keyed(List.of(new Slot("k", new ExecutionPlan.Binding.Key(1)))));
+        assertSame(pivot, HostPlans.query(pivot));
+        refused("this query's plan is not one (Keyed", () -> HostPlans.read(pivot));
+        refused("binds '", () -> HostPlans.query(new ExecutionPlan(List.of(), keyed(List.of(
+                new Slot("p", new ExecutionPlan.Binding.One("VARCHAR", null)))))));
+        ExecutionPlan rows = new ExecutionPlan(List.of(), result(HOSTS, List.of()));
+        assertSame(rows, HostPlans.query(rows));
+    }
+
+    /** A body of one per-key region (its text the region's), binding {@code slots} inside it. */
+    private static Sql regioned(List<Slot> slots) {
+        return new Sql("select x", slots, HOSTS, null,
+                List.of(new ExecutionPlan.Region(7, 8, "", ", ", null, 0, slots.size(), List.of())));
+    }
+
+    /** A keyed result: a keys statement of text, a body of one region binding {@code slots}, one per-key column. */
+    private static ExecutionPlan.Keyed keyed(List<Slot> slots) {
+        Column perKey = new Column("v", "Integer", new Multiplicity(0, 1), "BIGINT", null, null, false);
+        return new ExecutionPlan.Keyed(new Sql("select k, n from K", List.of(), HOSTS, null), List.of("k", "n"),
+                List.of(new ExecutionPlan.Keyed.PerKey(perKey, 1, "v")), 0, regioned(slots),
+                ExecutionPlan.Keyed.Snapshot.TRANSACTION, null);
     }
 }

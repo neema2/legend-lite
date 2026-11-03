@@ -151,6 +151,17 @@ public final class Boundary {
     }
 
     /**
+     * A lambda's protocol JSON planned, its SQL alone ({@link #planSql}'s for a protocol lambda): what Query's "Show SQL"
+     * shows. It runs nothing, so no host's profile applies -- a query that takes parameters shows its statement with
+     * their placeholders, as it did before R2 (the R2 audit, 2026-11-03: Show SQL went through the grid's door, which
+     * refuses a statement that binds values, so a parameterized query's SQL could not be shown).
+     */
+    public static String sqlJson(String model, String lambdaJson, String runtime) {
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime).sql();
+    }
+
+    /**
      * A query written as Pure TEXT planned for a host that runs it itself: the plan record (PlanJson's text), the one
      * plan every host path runs (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2, D11; until 2026-11-02 a
      * {@code {"sql", "type"}} of its own) -- its one typed result the statement the host runs, its columns' facts what

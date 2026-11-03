@@ -62,7 +62,8 @@ public final class Compiler {
     // process. (One helper cannot do this for all: native-image cannot capture a C pointer in a lambda, so each reads
     // its arguments first.)
 
-    /** A lambda's protocol JSON planned -- {@code {"sql","type"}} ({@code Boundary.planJson}). */
+    /** A lambda's protocol JSON planned -- the plan record, its one typed result over a statement of text
+     *  ({@code Boundary.planJson}: HostPlans.read). */
     @CEntryPoint(name = "lite_plan_json")
     static CCharPointer planJson(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson, CCharPointer runtime) {
         String a;
@@ -75,7 +76,20 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** Pure TEXT planned (the differential corpus's entry): {@code {"sql","type"}} ({@code Boundary.plan}). */
+    /** The SQL a lambda's protocol JSON plans to, shown, not run ({@code Boundary.sqlJson}: Query's Show SQL). */
+    @CEntryPoint(name = "lite_sql_json")
+    static CCharPointer sqlJson(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson, CCharPointer runtime) {
+        String a;
+        try {
+            String m = text(model), l = text(lambdaJson), r = text(runtime);
+            a = Folded.of(() -> Boundary.sqlJson(m, l, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** Pure TEXT planned (the differential corpus's entry): the plan record ({@code Boundary.plan}: HostPlans.read). */
     @CEntryPoint(name = "lite_plan_text")
     static CCharPointer planText(IsolateThread thread, CCharPointer model, CCharPointer query, CCharPointer runtime) {
         String a;
