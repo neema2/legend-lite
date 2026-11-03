@@ -8,8 +8,9 @@ import { describe, it } from 'node:test';
 import { tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
 import {
   aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
-  levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
+  levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
 } from '../src/timeseries-expr.ts';
+import { TS_WORDS } from '../src/generated/ts-words.ts';
 
 const ROUND_TRIPS = [
   'close',
@@ -172,6 +173,39 @@ describe('the expression language', () => {
       // a weighted sum's series each with its weight
       const args = f.series === 'many' ? 'close, 0.6, close, 0.4' : Array.from({ length: f.series }, () => 'close').join(', ');
       assert.equal(exprText(parseExpr(`${f.name}(${args})`)), `${f.name}(${args})`, f.name);
+    }
+  });
+
+  it('every word\'s facts are the library\'s: the catalog says what the tile\'s own table says (A3 step 1)', () => {
+    // the scalars become words in A4; not is the language's own form (if is the library's if_, read as if)
+    const notWords = new Set(['abs', 'ceil', 'exp', 'floor', 'log', 'not', 'power', 'sqrt']);
+    for (const [name, tile] of Object.entries(WORDS)) {
+      const lib = TS_WORDS[name];
+      if (notWords.has(name)) {
+        assert.equal(lib, undefined, `${name} is no word of the library yet`);
+        continue;
+      }
+      assert.ok(lib !== undefined, `${name} is the library's`);
+      const facts = lib.facts;
+      const one = (tag: string): string | undefined => {
+        const values = facts[tag];
+        if (values !== undefined && values.length !== 1) assert.fail(`${name}'s ${tag} said ${values.length} times`);
+        return values?.[0];
+      };
+      const said = {
+        label: one('label'), family: one('family'), unit: one('unit'), level: one('level'),
+        bounds: one('bounds')?.split(', ').map(Number), gsQuant: one('gsQuant'), about: one('about'), differs: one('differs'),
+        params: facts['param'] === undefined ? undefined
+          : Object.fromEntries(facts['param'].map((p) => [p.slice(0, p.indexOf(': ')), p.slice(p.indexOf(': ') + 2)])),
+        aliases: facts['search'], band: lib.marks.includes('band') || undefined,
+        candles: lib.marks.includes('candles') || undefined, anchored: lib.marks.includes('anchored') || undefined,
+      };
+      const told = {
+        label: tile.label, family: tile.family, unit: tile.unit, level: tile.level, bounds: tile.bounds, gsQuant: tile.gsQuant,
+        about: tile.about, differs: tile.differs, params: tile.params, aliases: tile.aliases, band: tile.band,
+        candles: tile.candles, anchored: tile.anchored,
+      };
+      assert.deepEqual(said, told, name);
     }
   });
 });

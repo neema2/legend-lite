@@ -72,7 +72,7 @@ export interface TsFunction {
 }
 
 /** A function's words: all of it but its signature, and what each parameter is (`w` and `obs`, `type` said once). */
-type TsWords = Omit<TsFunction, 'name' | 'series' | 'params'> & { readonly params?: Readonly<Record<string, string>> };
+export type TsWords = Omit<TsFunction, 'name' | 'series' | 'params'> & { readonly params?: Readonly<Record<string, string>> };
 
 const PARAM_ABOUT: Readonly<Record<string, string>> = {
   w: 'observations in the window, or a calendar period (3m, 1y: the dates after one that far back, to this one); 0 from the start',
@@ -96,7 +96,9 @@ const BETA_DIFFERS = 'on two calendars, over the dates both have (gs-quant takes
  * THE FUNCTIONS' WORDS, gs-quant's names first (PlotTool Pro's words), each with what it computes -- and, where
  * DataCube's differs, how. Every one is written by timeseries-query.ts as columns the database computes.
  */
-const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
+// exported for the one test that holds the library's facts to it (A3 step 1: timeseries-spec.test.ts), until the tile
+// reads the catalog and this table is deleted (A3 step 5)
+export const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // returns
   returns: { label: 'Returns', family: 'Returns', unit: 'input', about: 'The return over obs observations.', gsQuant: 'econometrics.returns' },
   prices: { level: 'makes',

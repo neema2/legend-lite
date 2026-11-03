@@ -259,7 +259,22 @@ public final class TsIslands {
                 List<String> aliases = f.definition() == null ? List.of() : f.definition().taggedValues().stream()
                         .filter(t -> t.tagName().equals("alias") && t.profileName().equals(TsToPure.LIBRARY + "Words"))
                         .map(com.legend.model.TaggedValue::value).toList();
-                out.add(new TsToPure.Overload(ps, gives, doc, aliases));
+                // a word's facts: the profile's other tags by name, in the order written, and its stereotypes (A3)
+                java.util.Map<String, List<String>> facts = new java.util.LinkedHashMap<>();
+                List<String> marks = new ArrayList<>();
+                if (f.definition() != null) {
+                    for (com.legend.model.TaggedValue t : f.definition().taggedValues()) {
+                        if (t.profileName().equals(TsToPure.LIBRARY + "Words") && !t.tagName().equals("alias")) {
+                            facts.computeIfAbsent(t.tagName(), k -> new ArrayList<>()).add(t.value());
+                        }
+                    }
+                    for (com.legend.model.StereotypeApplication s : f.definition().stereotypes()) {
+                        if (s.profileName().equals(TsToPure.LIBRARY + "Words")) {
+                            marks.add(s.stereotypeName());
+                        }
+                    }
+                }
+                out.add(new TsToPure.Overload(ps, gives, doc, aliases, facts, marks));
             }
             return List.copyOf(out);
         }

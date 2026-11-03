@@ -89,13 +89,17 @@ public final class TsCatalogExport {
                 "  readonly required: boolean;",
                 "}",
                 "",
-                "/** A word: its parameters by place, its forms (each overload as written), its description, and its other",
-                " *  spellings (the library's timeseries::Words.alias: mean's avg). */",
+                "/** A word: its parameters by place, its forms (each overload as written), its description, its other",
+                " *  spellings (the library's timeseries::Words.alias: mean's avg), and its facts -- the library's other",
+                " *  timeseries::Words tags by name (label, family, unit, level, bounds, gsQuant, about, differs, param, search)",
+                " *  and its stereotypes (band, candles, anchored): what a drawing and a formula box know of it. */",
                 "export interface TsWord {",
                 "  readonly params: readonly TsWordParam[];",
                 "  readonly forms: readonly string[];",
                 "  readonly doc: string | null;",
                 "  readonly aliases: readonly string[];",
+                "  readonly facts: Readonly<Record<string, readonly string[]>>;",
+                "  readonly marks: readonly string[];",
                 "}",
                 "",
                 "/** Every word, by its name. */",
@@ -111,6 +115,9 @@ public final class TsCatalogExport {
             out.add("    forms: " + list(w.forms()) + ",");
             out.add("    doc: " + (w.doc() == null ? "null" : quote(w.doc())) + ",");
             out.add("    aliases: " + list(w.aliases()) + ",");
+            out.add("    facts: {" + w.facts().entrySet().stream().map(e -> " " + e.getKey() + ": " + list(e.getValue()))
+                    .collect(Collectors.joining(",")) + (w.facts().isEmpty() ? "}," : " },"));
+            out.add("    marks: " + list(w.marks()) + ",");
             out.add("  },");
         }
         out.addAll(List.of("};", ""));

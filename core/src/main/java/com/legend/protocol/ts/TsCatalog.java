@@ -31,12 +31,17 @@ public final class TsCatalog {
     }
 
     /** A word of the catalog: its name, its parameters by place (its lines first), its forms (each overload as
-     *  written: {@code volatility(x: Line, w: Integer, type: Returns (optional), ...)}), and its documentation (none:
-     *  null). */
+     *  written: {@code volatility(x: Line, w: Integer, type: Returns (optional), ...)}), its documentation (none:
+     *  null), its other spellings, and its facts -- the {@code timeseries::Words} tags on its first overload
+     *  ({@code label}, {@code family}, {@code unit}, {@code level}, {@code bounds}, {@code gsQuant}, {@code about},
+     *  {@code differs}, {@code param}, {@code search}) and its stereotypes ({@code band}, {@code candles},
+     *  {@code anchored}): what a drawing and a formula box know of it (A3 step 1). */
     public record Word(String name, List<Param> params, List<String> forms, @com.legend.base.Nullable String doc,
-            List<String> aliases) {
+            List<String> aliases, Map<String, List<String>> facts, List<String> marks) {
         public Word {
             aliases = List.copyOf(aliases);
+            facts = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(facts));
+            marks = List.copyOf(marks);
         }
     }
 
@@ -65,9 +70,13 @@ public final class TsCatalog {
             signature(model, overloads).params().forEach(p -> params.add(new Param(p.name(),
                     p.kind().name().toLowerCase(java.util.Locale.ROOT), takes(model, overloads, p), p.words(),
                     required(overloads, p.name()))));
+            // a word's facts are its first overload's that declares any (the library writes them once, A3 step 1)
+            TsToPure.Overload stated = overloads.stream().filter(o -> !o.facts().isEmpty() || !o.marks().isEmpty())
+                    .findFirst().orElse(null);
             out.add(new Word(name, List.copyOf(params), overloads.stream().map(o -> TsWords.form(name, o.params()))
                     .toList(), overloads.stream().map(TsToPure.Overload::doc).filter(java.util.Objects::nonNull)
-                    .findFirst().orElse(null), overloads.stream().flatMap(o -> o.aliases().stream()).distinct().toList()));
+                    .findFirst().orElse(null), overloads.stream().flatMap(o -> o.aliases().stream()).distinct().toList(),
+                    stated == null ? Map.of() : stated.facts(), stated == null ? List.of() : stated.marks()));
         }
         return out;
     }

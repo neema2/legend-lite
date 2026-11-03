@@ -81,11 +81,15 @@ public final class TsToPure {
     /** A function's overload as {@link Model#overloads} reports it: its parameters in order (a word's lines first), the
      *  columns of the relation it answers after its key and its date (a word's value, or a struct's fields: a band's
      *  lower, upper and width), its documentation ({@code doc.doc}; none: null), and the other names #TS reads it by
-     *  ({@code timeseries::Words.alias}: mean's avg). */
+     *  ({@code timeseries::Words.alias}: mean's avg); and its facts, the {@code timeseries::Words} profile's other
+     *  tags by name in the order written ({@code unit}, {@code level}, {@code param}, ...), and its stereotypes
+     *  ({@code band}, {@code candles}, {@code anchored}) -- what a drawing and a formula box know of a word (A3 step 1). */
     public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc,
-            List<String> aliases) {
+            List<String> aliases, Map<String, List<String>> facts, List<String> marks) {
         public Overload {
             aliases = List.copyOf(aliases);
+            facts = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(facts));
+            marks = List.copyOf(marks);
         }
     }
 

@@ -9463,6 +9463,7 @@ TEST_IMPORTS = {
         "src/format.ts",
         "src/generated/library-enums.ts",
         "src/generated/offer-facts.ts",
+        "src/generated/ts-words.ts",
         "src/grid-commands.ts",
         "src/grid-edits.ts",
         "src/grid/columns.ts",

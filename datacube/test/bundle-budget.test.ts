@@ -857,8 +857,13 @@ const CHART_BUDGET = 303_500;
  *  and today's D1 (lines with several rows on a date: perPeriod, single, most), D4 (moments meeting days refused: the
  *  meet and union forms by the periods' types), 2a (the All key's overloads of meet, periodsOf, onto and each) and R7
  *  (the rows forms, timeseries::rows::), about 2.7 KB; the viewer and the generated words 0.3 KB -- found by the local
- *  gate of the A2 review, the headroom ~2%). Measured 116,279. Still falls by the text's size with S4 (#130). */
-const TIMESERIES_BUDGET = 118_500;
+ *  gate of the A2 review, the headroom ~2%). Measured 116,279. Still falls by the text's size with S4 (#130).
+ *  118,500 -> 126,500 (2026-11-03, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 1: each word's facts -- its label,
+ *  family, unit, level, bounds, gs-quant's name and how lite's differs, a sentence on it and on its parameters, the
+ *  words a picker finds it by -- moved from the tile's table into the library as timeseries::Words tags, about 7.6 KB of
+ *  the library's text gzipped; the tile's own copy is deleted with its grammar, A3 step 5, and the text leaves the wire
+ *  with A5). Measured 123,986. */
+const TIMESERIES_BUDGET = 126_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
