@@ -1902,6 +1902,46 @@ function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColS
     ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
+// LINES OF TWO GRAINS MEETING (the time model's D4, ruled 2026-11-03): a line of moments (its period a date-time)
+// meeting a line of days (a date) pairs on no period -- a moment is no day -- and the two ways to pair them answer
+// different questions (the same day's value, or the one prevailing at the moment: v1.1), so v1 refuses, naming the
+// fix. Picked by the periods' types (2a), beside the meetings of one grain; refused while the query runs, on x's first
+// row (a line with no row meets nothing either way).
+function timeseries::lines::meet<T,U,K,A,L,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<(?:DateTime)⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+{
+  $x->filter(r|timeseries::lines::oneGrain())->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($key) == $b->read($yKey)})
+    ->extend(~o:r|$r->read($at))->rename(~o, $out)
+}
+
+function timeseries::lines::meet<T,U,K,A,L,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:DateTime)⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<(?:StrictDate)⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+{
+  $x->filter(r|timeseries::lines::oneGrain())->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($key) == $b->read($yKey)})
+    ->extend(~o:r|$r->read($at))->rename(~o, $out)
+}
+
+// The refusal of lines of two grains meeting (D4).
+function timeseries::lines::oneGrain(): Boolean[1]
+{
+  fail('a line of moments (a date-time) meets a line of days (a date), and a moment is no day: add SAMPLE BY 1d and say how a day\'s moments are taken, such as last(price) (R6; the time model\'s D4)')
+}
+
+// THE ANSWER'S PERIODS OF SEVERAL LINES TOGETHER (R6): a's and b's, of one grain; lines of two grains refused (D4), as
+// where they meet.
+function timeseries::lines::union<T,U,P,Q>(a: Relation<T>[1], aPeriod: ColSpec<P⊆T>[1], b: Relation<U>[1], bPeriod: ColSpec<Q⊆U>[1]): Relation<T>[1]
+{
+  $a->concatenate($b)
+}
+
+function timeseries::lines::union<T,U>(a: Relation<T>[1], aPeriod: ColSpec<(?:StrictDate)⊆T>[1], b: Relation<U>[1], bPeriod: ColSpec<(?:DateTime)⊆U>[1]): Relation<T>[1]
+{
+  $a->filter(r|timeseries::lines::oneGrain())
+}
+
+function timeseries::lines::union<T,U>(a: Relation<T>[1], aPeriod: ColSpec<(?:DateTime)⊆T>[1], b: Relation<U>[1], bPeriod: ColSpec<(?:StrictDate)⊆U>[1]): Relation<T>[1]
+{
+  $a->filter(r|timeseries::lines::oneGrain())
+}
+
 // A line's rows on each of its keys' periods: under out, how many of t's rows share the row's key and period.
 function timeseries::lines::perPeriod<T,K,P,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {

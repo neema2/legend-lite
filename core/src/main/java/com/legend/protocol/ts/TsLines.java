@@ -194,7 +194,8 @@ final class TsLines {
                     new ColSpec(l.at()), new ColSpec(ORD),
                     instruments != null ? instruments : l.rel(), new ColSpec(instruments != null ? part : l.part()),
                     new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
-            keys = keys == null ? k : call("concatenate", keys, k);
+            // the lines' periods together, the library's (lines of two grains refused, D4)
+            keys = keys == null ? k : call(LINES + "union", keys, new ColSpec(PERIOD), k, new ColSpec(PERIOD));
         }
         // (seen: the most rows a line spread so far has on a period, the library's to keep and check -- D1)
         String seen0 = w.fresh("sp_seen");

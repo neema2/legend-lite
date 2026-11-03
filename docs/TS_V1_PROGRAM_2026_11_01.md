@@ -299,20 +299,20 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       library function): the instruments gathered for the spread (bookkeeping), the refusal of lines by two
       instrument columns, and the refusal of a line of no instrument accrued (`timed`). The `byInstrument` flag stays
       as a fact of the source for those and for the answer's instrument column.
-  - **Moments meeting days (the time model's D4; its proof steps 1 and 4). Today's answer recorded 2026-11-03; the
-    refusal waits on a construct.**
-    - Today (`TsIslandTest.aLineOfMomentsMeetingALineOfDaysAsItIsToday`, every in-process database, a `TICKS` table of
-      two moments a day): an expression of both and a word of both (`correlation`) find **no row, silently**; as two
-      items the type checker refuses ("cannot unite" a `StrictDate` period with a `DateTime` one) without naming the
-      fix. The fix D4's refusal will name, `SAMPLE BY 1d` and `last(...)`, answers right on DuckDB and SQLite; H2 has no
-      `ARG_MAX`, which a day's last moment reads (a gap of H2's dialect, for A7).
-    - Why it is not built: lite refuses nothing at plan time (a `fail()` the compiler can decide raises only when the
-      query runs, measured), and the meetings the library cannot see are the dangerous ones -- a word's own meeting of
-      its lines (`(key, date, value)`, no grain) and the answer's spreading (refused by the type checker before any
-      library call). The precise way: Pure picks a function by a column's type (a meeting of days, of moments, and a
-      refusal for the mix), the broadcast's overloads by column type (2a) carried to a column a `ColSpec` names. The
-      other way is the grain passed as data (as `Keyed` is) to every meeting, the words' own included, which changes
-      every word of two lines. To decide after 2a.
+  - **Moments meeting days (the time model's D4; its proof steps 1 and 4). Done 2026-11-03.**
+    - Before (recorded in 0fe15bb9, a `TICKS` table of two moments a day): an expression of a line of moments and a
+      line of days, and a word of both (`correlation`), found **no row, silently**; as two items the type checker
+      refused ("cannot unite") without naming the fix.
+    - Now the library refuses where they meet, naming the fix ("a moment is no day: add SAMPLE BY 1d and say how a
+      day's moments are taken, such as last(price)"): `lines::meet` has a form for a date period meeting a date-time
+      one and the reverse, picked by the periods' types (2a's column-specification overloads), so every meeting -- an
+      expression's, a word's own, a candle's -- is covered; the answer's periods go together through `lines::union`
+      (its two-grain forms refuse; the translator called `concatenate` before). The refusal is raised while the query
+      runs, on the line's first row (`fail()` is a Boolean, and lite refuses nothing at plan time): a line with no row
+      meets nothing either way.
+    - The fix answers right on DuckDB and SQLite; H2 has no `ARG_MAX`, which a day's last moment reads (A7).
+    - Test: `TsIslandTest.aLineOfMomentsMeetingALineOfDaysIsRefusedNamingTheFix` (every in-process database: the
+      three meetings refused by name; the fix on the platform's database).
 
 ### A2. Checkpoint: an independent review and the full gate
 

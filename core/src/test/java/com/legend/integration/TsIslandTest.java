@@ -754,24 +754,24 @@ class TsIslandTest {
     }
 
     @Test
-    void aLineOfMomentsMeetingALineOfDaysAsItIsToday() throws Exception {
-        // the time model's proof step 1 (2026-11-03): today's answer recorded, for D4's refusal to replace. TICKS has
-        // AAA's moments (10:00 and 15:00 each day), PRICES its days: lines meet on equal periods, and a moment is no
-        // day, so an expression of both, and a word of both, find nothing -- silently
+    void aLineOfMomentsMeetingALineOfDaysIsRefusedNamingTheFix() throws Exception {
+        // the time model's D4 (ruled 2026-11-03): TICKS has AAA's moments (10:00 and 15:00 each day), PRICES its days. A
+        // moment is no day, and the two ways to pair them answer different questions, so v1 refuses where they meet --
+        // an expression of both, a word of both, the two as items -- naming the fix (before, the first two found no
+        // row, silently, and the third was the type checker's "cannot unite")
         for (TestBackend backend : TestBackends.inProcess()) {
             assertEquals(2 * AAA.length, rows(backend, "|#TS{SELECT PRICE['AAA'] AS t FROM TICKS ON AT BY SYMBOL}#")
                     .size(), backend + ": a line of moments, a row a moment");
-            assertEquals(0, rows(backend, "|#TS{SELECT p.CLOSE['AAA'] - t.PRICE['AAA'] AS d FROM PRICES p ON DAY BY"
-                    + " SYMBOL, TICKS t ON AT BY SYMBOL}#").size(), backend + ": moments meeting days, no row (today)");
-            assertEquals(0, rows(backend, "|#TS{SELECT correlation(p.CLOSE['AAA'], t.PRICE['AAA'], 3) AS k"
-                    + " FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#").size(),
-                    backend + ": a word of both, no row (today)");
-            // as two items, the answer's periods of two types cannot be one list: refused by the type checker (today)
-            Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{SELECT p.CLOSE['AAA'] AS c,"
-                    + " t.PRICE['AAA'] AS t FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#"));
-            assertTrue(String.valueOf(e.getMessage()).contains("cannot unite"), backend + ": " + e.getMessage());
+            for (String q : List.of("SELECT p.CLOSE['AAA'] - t.PRICE['AAA'] AS d",
+                    "SELECT correlation(p.CLOSE['AAA'], t.PRICE['AAA'], 3) AS k",
+                    "SELECT p.CLOSE['AAA'] AS c, t.PRICE['AAA'] AS t")) {
+                Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{" + q
+                        + " FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#"), backend + ": " + q);
+                assertTrue(String.valueOf(e.getMessage()).contains("a moment is no day: add SAMPLE BY 1d"),
+                        backend + ": " + q + " refused by name: " + e.getMessage());
+            }
         }
-        // the fix D4's refusal will name: SAMPLE BY 1d, each day's last tick (15:00's, its close) -- on the platform's
+        // the fix the refusal names: SAMPLE BY 1d, each day's last tick (15:00's, its close) -- on the platform's
         // database (H2 has no ARG_MAX, which a day's last moment reads)
         for (TestBackend backend : deep()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT last(p.CLOSE['AAA']) - last(t.PRICE['AAA'])"

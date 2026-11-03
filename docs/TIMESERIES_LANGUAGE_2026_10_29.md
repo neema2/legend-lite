@@ -234,6 +234,12 @@ The check is the library's (`timeseries::lines::meet`, `onto`): the database cou
 the query runs and raises the error itself, as it does for a division by zero. A query over clean data answers as
 before.
 
+**Moments meeting days** (the time model's D4, ruled 2026-11-03). A line of moments (a date-time column) and a line of
+days (a date column) meet on no period -- a moment is no day -- and the two ways to pair them answer different
+questions: the same day's value (end-of-day marking), or the value prevailing at the moment (what the market knew).
+v1 refuses the meeting, naming the fix: "a moment is no day: add SAMPLE BY 1d and say how a day's moments are taken,
+such as last(price)". Choosing the pairing in the query comes in v1.1. Two lines of moments pair on equal timestamps.
+
 ### R7. Names
 
 - Each select item is `expression AS name`. A later item may use an earlier item's name.
