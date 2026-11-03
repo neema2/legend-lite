@@ -152,8 +152,11 @@ class OwnDialectCensusTest {
                     // enumeration, and test::digestsOf, an enumeration's value passed on whole (signatures 21 -> 23);
                     // 15 -> 16 (2026-10-28, REVIEWED, enumeration mappings): test::ofFamily, a mapped enumeration's
                     // column filtered by a generic body (signatures 23 -> 24); 16 -> 17 (2026-10-28, REVIEWED, the
-                    // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 17),
+                    // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20); 17 -> 19
+                    // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S131, the user's 2a): aColumnsTypePicksTheOverload
+                    // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
+                    // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect
