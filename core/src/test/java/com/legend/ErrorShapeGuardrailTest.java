@@ -148,7 +148,10 @@ class ErrorShapeGuardrailTest {
             // swallowed (HostAsserts: 4 sites; AssertVerdicts.planHost: 1); and the runner hands a host side's read
             // failure of any type to the program sink, which counts it as the walk counts it and returns the error
             // the runner then throws (PlanRunner.verdicts: 1)
-            Map.entry("HostAsserts.java", 4),
+            // 4 -> 6 (2026-11-03, the walker-deletion program): assertError planned as a verdict step -- its frame
+            // environment's failure raised before the arm at its turn (the walk's), and its side's planning failure:
+            // the error the arm takes is the judgment's answer, any other a wall raised at its turn, loud
+            Map.entry("HostAsserts.java", 6),
             // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
             // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
             // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts

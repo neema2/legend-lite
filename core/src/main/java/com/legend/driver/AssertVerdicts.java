@@ -379,8 +379,10 @@ final class AssertVerdicts {
                 && NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).isEmpty();
     }
 
+    /** The name an assert is reported under: its callee's full name ({@code assertError}'s too, which
+     *  {@link #calleeFqn} keeps off the verdict routes), else its shape. */
     static String listenerName(TypedSpec bare) {
-        String fqn = calleeFqn(bare);
+        String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
         return fqn != null ? fqn
                 : bare instanceof com.legend.compiler.spec.typed.TypedMap
                         ? "quantified-assert" : bare.getClass().getSimpleName();
@@ -757,6 +759,12 @@ final class AssertVerdicts {
          *  engine-text equality's census route counted once the arm answered, as {@link #adjudicate} counts it
          *  (M10b: never on a failed one, which raises before). */
         @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides) {
+            return judge(() -> sides);
+        }
+
+        /** The verdict over its sides as the runner read them: their rows, or the error the reading raised, which
+         *  the judgment decides (an assertError's answer, any other's failure: {@code HostJudge.judge}). */
+        @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides) {
             TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides));
             if (v != null && check.judgment() instanceof HostJudgment.EngineText e && e.routed()) {
                 sqlTextRouted(name());
@@ -812,10 +820,13 @@ final class AssertVerdicts {
 
     /**
      * THE PROGRAM ROAD'S VERDICT SEAM (the test-is-the-product plan's M6): {@code a}, planned before the program ran,
-     * judged at its verdict step over the sides the runner read ({@code sides} shapes them) -- counted and reported to
+     * judged at its verdict step over the sides the runner read ({@code sides} shapes them, or raises the error
+     * reading them raised: the judgment decides it, {@code HostJudge.judge}) -- counted and reported to
      * {@code listener} exactly as {@link #tryAdjudicate} counts and reports an assert the walk adjudicates in place:
      * entered, its verdict reported, a failure (an assert that does not hold, a side's data error) counted as raised
-     * and reported, any other exit counted as raised. Null where the judgment declined the sides it read.
+     * and reported, any other exit counted as raised. A side the database refused is thus counted and reported as an
+     * assert whose side raised inside the arm (M6's audit, S2; one path since 2026-11-03). Null where the judgment
+     * declined the sides it read.
      */
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(HostAssert a,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
@@ -826,13 +837,13 @@ final class AssertVerdicts {
         }
         if (listener == null) {
             a.enter();
-            return a.judge(sides.get());
+            return a.judge(sides);
         }
         com.legend.judge.CanonicalDivergence.sqlEnter();
         boolean settled = false;
         try {
             a.enter();
-            TypedSide v = a.judge(sides.get());
+            TypedSide v = a.judge(sides);
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -879,7 +890,7 @@ final class AssertVerdicts {
             TypedSide v = null;
             com.legend.error.AssertFailed failed = null;
             try {
-                v = a.judge(sides.get());
+                v = a.judge(sides);
             } catch (com.legend.error.AssertFailed e) {
                 failed = e;
             }
@@ -928,29 +939,6 @@ final class AssertVerdicts {
             }
             throw e;
         }
-    }
-
-    /** A side of {@code a}'s that could not be read before it was judged -- the database refused it ({@code failure}
-     *  a data error), or the read itself raised (a reader's state error, a decoding error, an I/O failure unchecked):
-     *  counted and reported as {@link #tryAdjudicate} counts and reports an assert whose side raised inside the arm --
-     *  entered, its family, raised; a verdict reported for a data error alone (the walk's catch is a failed assertion
-     *  or a data error; any other exit is counted and surfaces unreported). M6's audit, S2. */
-    static RuntimeException sideRefused(HostAssert a,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener, RuntimeException failure) {
-        if (a.beforeTheArm() != null) {
-            return a.beforeTheArm();
-        }
-        if (listener != null) {
-            com.legend.judge.CanonicalDivergence.sqlEnter();
-        }
-        a.enter();
-        if (listener != null) {
-            com.legend.judge.CanonicalDivergence.sqlRaised();
-            if (failure instanceof com.legend.error.DataError) {
-                listener.verdict(a.listenerName(), false, failure.getMessage());
-            }
-        }
-        return failure;
     }
 
     /**

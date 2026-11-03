@@ -100,13 +100,16 @@ public final class BodyRouter {
         }
         TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
+            String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"
+                    : mode.name().toLowerCase(java.util.Locale.ROOT) + " judge's planner refused an assert")
+                    + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]");
             if (com.legend.diagnostics.Diagnostics.on("forbid-walk")) {
                 // the walker-deletion program's measurement: the body fails here, naming why it would walk
-                throw new IllegalStateException("forbid-walk: " + (runtimeFqn == null ? "no runtime"
-                        : bodyClass == null ? "no class admits the body"
-                        : mode.name().toLowerCase(java.util.Locale.ROOT) + " judge's planner refused an assert")
-                        + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]"));
+                throw new IllegalStateException("forbid-walk: " + why + " test="
+                        + System.getProperty("legend.test.current"));
             }
+            // the walk's door: a lane that lists the tests still allowed to walk refuses every other (2026-11-03)
+            WalkDoor.check(why);
             if (runtimeFqn != null) {
                 // the kinds that kept the body on the walk, for the lanes' census (M9); nothing decided by them
                 Census.STAYED_KINDS.add(BodyKinds.of(typed, runtimeFqn, bodyClass == null ? null
@@ -267,34 +270,43 @@ public final class BodyRouter {
 
         /** The assert {@code verdict} planned, judged over the rows the runner read for it -- counted and reported
          *  as the walk's {@code AssertVerdicts.tryAdjudicate} does: the assert entered, a verdict reported, a
-         *  failure (an assert that does not hold, a side the database refused) counted as raised and reported. */
+         *  failure (an assert that does not hold) counted as raised and reported; a side the runner could not read
+         *  comes to {@link #sidesFailed}, judged by the same path. */
         @Override
         public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
             if (agreement != null) {
                 // the host's verdict held until the database half's rows are in
-                agreement.hostSides(verdict, rows, listener);
+                agreement.hostSides(verdict, () -> rows, listener);
                 return;
             }
             HostAsserts.Planned p = assertOf(verdict);
+            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows));
+        }
+
+        /** A side of {@code verdict}'s that could not be read (the database refused it, or the read raised): judged as
+         *  rows are, the judgment deciding the error (an assertError's answer; any other assert's failure, entered,
+         *  counted and reported as the walk counts and reports an assert whose side raised). */
+        @Override
+        public void sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
+            if (agreement != null) {
+                agreement.hostSides(verdict, () -> {
+                    throw failure;
+                }, listener);
+                return;
+            }
+            judged(assertOf(verdict), () -> {
+                throw failure;
+            });
+        }
+
+        private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides) {
             AssertVerdicts.HostAssert a = p.assertion();
-            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener,
-                    () -> HostSides.shaped(a.name(), p.sides(), rows));
+            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");
             }
             lastVerdict = v;
-        }
-
-        /** A side of {@code verdict}'s that could not be read (the database refused it, or the read raised): the
-         *  assert entered and counted, a data error reported, as the walk counts and reports an assert whose side
-         *  raised. */
-        @Override
-        public RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
-            if (agreement != null) {
-                return agreement.sidesFailed(verdict, failure, listener);
-            }
-            return AssertVerdicts.sideRefused(assertOf(verdict).assertion(), listener, failure);
         }
 
         /** A frame let's eager run is sent under the walk's origin for it, LET (M9); the database judge's fused

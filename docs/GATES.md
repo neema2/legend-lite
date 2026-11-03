@@ -19128,3 +19128,38 @@ metamodel row needs inlining.
    assert, and a query over the system store alone; a frame whose query reads both stores stays the walk's.
 7. **Checks:** //core:core_tests and _integration, //core:census, //core:guardrails, //pct:pct_channel_b,
    //spec:corpus_duckdb //spec:corpus_h2 12 of 12, `corpus_one duckdb both`.
+
+## 2026-11-03 — The walk's door; channel B's walk closed on DuckDB; `assertError` an ordinary verdict
+
+The user's direction (2026-11-03): "burn it all to zero" -- delete the walkers so they cannot hide or come back -- and
+"why are we special casing assertError?".
+
+1. **The walk's door** (`driver/WalkDoor`): a lane names the tests still allowed to walk
+   (`-Dlegend.walk.allowed=classpath:<list>`, shrink-only), or closes the walk outright (`=none`); every other body
+   that would walk is refused by name. The JUnit launcher (`tools/junit/JUnitMain`) and channel B name the running test
+   (`legend.test.current`). Core's targets hold a list of 73 tests (`core/src/test/resources/com/legend/walk-allowed.txt`);
+   channel B on DuckDB holds `none`.
+2. **`assertError` an ordinary verdict.** Its function's last statement is the verdict step's side; the runner hands
+   every verdict its side's rows OR the error reading them raised (`PlanRunner.ProgramSink.sidesFailed`, no null), and
+   the judgment decides what an error is (`HostJudge.judge(j, sides)`: `assertError`'s answer, every other judgment's
+   failure). `AssertVerdicts.sideRefused` deleted -- one judging path. Reported and counted like any assert, under its
+   callee's name. A side read whose failure the program survives is guarded by the group's savepoint inside a
+   transaction (F11 widened: `ExecutionPlan.Verdicts.savepoint` guards a host side read too); DuckDB has none -- a
+   named limit, a program that writes a store and then expects an error fails its later steps loudly.
+3. **The let rule reaches the last statement** (register S129): a body's last `let x = e` is the statement `e`
+   (channel B's last walker, `testVariantColumn_modelOutputNotSupported`).
+4. **Channel B's floors tightened to the measured counts** (Essential 336 / AGREE-PASS 324 / B-FIXES-A 12 / WIRE-BUG 0,
+   Grammar 137 / WIRE-BUG 0, Standard 205): a body the closed walk refuses is an ERROR row, so slack would hide it.
+5. **The audit (three independent reads, 2026-11-03)** found what this entry fixes (the listener name, the
+   transaction, a member verdict's dropped failure, a duplicate scan, stale javadoc) and what the next steps fix, in the
+   user's order (2026-11-03, "need to fix everything above now"): the type census has no caller since 2026-10-27 (its
+   gates cannot fail); channel B matches failures by name only; the other databases' channel B lanes hold no door; the
+   judges' leniencies (the user: sort strict, an unsorted query never a multiset); assert messages not upstream's and
+   message arguments dropped; `assertError` as ruling N3 under both judges; planning that sends (the eager inline
+   execute, the system seed); channel A outside `Execution.run`; S119 (refuse NaN as legend-pure).
+6. **Measured:** PCT DuckDB (channel A) 1,222 pass + 27 expected failures of 1,249; channel B 1,240 of 1,249, its 9
+   failures all in channel A's ledger, zero bodies refused by the closed walk.
+7. **Checks:** //gates:local (448 pass; the nine Postgres targets refuse root here and pass unprivileged, 9 of 9;
+   one skipped by its platform), //pct:pct_duckdb, //pct:pct_channel_b (five suites, walk closed), //spec:corpus_duckdb
+   //spec:corpus_h2 (rosters unchanged). The type census is known-dead (no caller since 2026-10-27): the user's ruling,
+   2026-11-03 -- it becomes a planning check after the walk's deletion.

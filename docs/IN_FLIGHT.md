@@ -3080,7 +3080,14 @@ register S129). Next, the user's order: the seed-record fix (A, B, A), the state
 routing (the system database a read-only second target: the first step to a real cross-store join), then the
 generator (T8) and the system catalog's stage 1. **2026-11-03, built:** the seed record (A, B, A), the statement-level
 store census (no statement names both stores), per-statement routing (`PlanRunner`'s `Routes`, `ProgramKinds.targetOf`,
-`JudgePlans.plannedOf`, `BodyClass.storesOf`): the host pass's walked bodies 120 -> 105, none held by a system read.
+`JudgePlans.plannedOf`, `BodyClass.storesOf`): the host pass's walked bodies 120 -> 105, none held by a system read. **2026-11-03, built:** the walk's door (`driver/WalkDoor`, `-Dlegend.walk.allowed`, shrink-only lists; core's 73
+tests, channel B on DuckDB `none`: zero bodies walk), `assertError` an ordinary verdict (the runner hands every verdict
+its side's rows or error; `sideRefused` deleted), the let rule on the last statement (S129), channel B's floors exact.
+The audit of PCT A and B (2026-11-03) and the user's order of fixes ("need to fix everything above now"): 1 the gauges
+(the type census rewired, channel B's own ledger by message, the walk closed on every channel B lane), 2 the judges
+strict (the user: sort strict, an unsorted query never a multiset), 3 assert messages upstream's, 4 `assertError` as
+N3 under both judges, 5 planning sends nothing, 6 channel A through `Execution.run`, S119 refuse NaN, 7 re-measure
+every lane; then core, the corpus, the deletion.
   **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
   path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
   `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests

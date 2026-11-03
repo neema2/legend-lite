@@ -132,6 +132,18 @@ public final class QueryDoor {
         }
     }
 
+    /** Whether {@code statement} is an {@code assertError(f, ...)} at its root -- not a let -- whose function's body
+     *  holds no assert of its own (the scan names such a statement both an assertError and an assert, the call being a
+     *  verdict call): the program road plans it as one verdict step, f's body its side (the walker-deletion program,
+     *  2026-11-03). */
+    public static boolean assertErrorRoot(TypedSpec statement, SpecCompiler specs) {
+        if (!(statement instanceof TypedNativeCall call)
+                || NativeFn.ContextOwner.of(call.callee().id()).isEmpty() || call.args().isEmpty()) {
+            return false;
+        }
+        return !StatementEffects.reaches(call.args().get(0), QueryDoor::isAssert, specs, new HashMap<>());
+    }
+
     /** An assert's call: a verdict function, {@code fail} aside (a raise; by its declarations). */
     private static boolean isAssert(TypedSpec n) {
         return StatementEffects.isVerdictCall(n) && !(n instanceof TypedNativeCall nc

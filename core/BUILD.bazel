@@ -665,9 +665,14 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
+# THE WALK'S DOOR (the walker-deletion program, 2026-11-03): a core test's body reaches the walk only where the allow
+# list names the test (driver/WalkDoor); the list only shrinks
+_WALK_DOOR = ["-Dlegend.walk.allowed=classpath:com/legend/walk-allowed.txt"]
+
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
@@ -716,6 +721,7 @@ junit_test(
 junit_test(
     name = "core_tests_root",
     memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR,
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -751,7 +757,7 @@ _CORE_LANES = {
     select = ["--select-package=com.legend.integration", "--exclude-classname=.*CorpusDifferentialTest"],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     data = data,
-    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags + _WALK_DOOR,
     tags = tags,
     target_compatible_with = compatible,
     runtime_deps = [

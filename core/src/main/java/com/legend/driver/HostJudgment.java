@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.CellPool {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.CellPool, HostJudgment.AssertError {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -263,6 +263,16 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it. */
     record Raise(RuntimeException failure) implements HostJudgment {
+    }
+
+    /** {@code assertError(f, expected[, line, column])} (the walker-deletion program, 2026-11-03): an ordinary verdict
+     *  whose answer is an error -- its function's last statement is the step's side, and the error reading it raises
+     *  is judged at the step by the arm's own rule ({@code AssertErrorNative.judge}), counted and reported as any
+     *  assert is; {@code caught} the error {@code f} raised while it was PLANNED (a deferred guard's, as the walk's arm
+     *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
+     *  error was thrown". */
+    record AssertError(String expected, @Nullable Long line, @Nullable Long column,
+            @Nullable RuntimeException caught) implements HostJudgment {
     }
 
     /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned ({@link SqlTextVerdicts.Collected}: the

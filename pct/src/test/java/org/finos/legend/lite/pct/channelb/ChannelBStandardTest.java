@@ -98,7 +98,10 @@ class ChannelBStandardTest {
         assertEquals(PctRatchets.measured("channel_b.standard.discovered"), out.size(), "standard discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         // 100% (2026-08-19): the columns() compile-time fold burned the
         // reflection pair
-        assertTrue(c.pass() >= 204, "standard PASS fell: " + c.pass());
+        // 2026-11-03 (the walker-deletion program, channel B's walk closed: -Dlegend.walk.allowed=none): the floors
+        // TIGHTENED to the measured counts. A body the closed walk refuses is an ERROR row, so any slack here would let
+        // it, or a regression of a test channel A's ledger lists, pass silently (the channel B audit, 2026-11-03)
+        assertTrue(c.pass() >= 205, "standard PASS fell: " + c.pass());
         // 24→20→17→5→2 (slice 5: the ONE-OWNER print-form unification
         // restored the DateTime arm the tdsCell/pctCell drift had
         // dropped). Remaining: the columns() reflection pair only.

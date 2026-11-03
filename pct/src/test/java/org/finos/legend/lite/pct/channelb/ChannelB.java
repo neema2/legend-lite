@@ -265,6 +265,8 @@ public final class ChannelB {
         } catch (Declined d) {
             return new Outcome(fqn, Status.DECLINED, d.getMessage());
         }
+        // the running test, by its function's full name: the walk's door names the bodies still allowed to walk by it
+        System.setProperty("legend.test.current", fqn);
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             var lambda = new LambdaFunction(List.of(), body);
             var imports = module.model().elementImports().get(com.legend.model.FunctionId.of(fd).qualified());

@@ -81,10 +81,12 @@ public final class LetPlanner {
 
     /**
      * {@code body} with each UNREAD let as the statement it binds (the user's ruling, 2026-11-02, the walker-deletion
-     * program): a {@code let x = e} before the body's last statement that no later statement reads -- by name, through
-     * the trees it carries, shadowing respected ({@code FreeVars.ofBodyReadingTrees}) -- is the statement {@code e},
-     * at the same place. Pure evaluates a let at its turn, so {@code let x = e;} with {@code x} unread IS {@code e;}:
-     * it runs, and what it raises fails the test (legend-pure; until this rule lite sent nothing for such a let).
+     * program): a {@code let x = e} that no later statement reads -- by name, through the trees it carries, shadowing
+     * respected ({@code FreeVars.ofBodyReadingTrees}) -- is the statement {@code e}, at the same place. Pure evaluates
+     * a let at its turn, so {@code let x = e;} with {@code x} unread IS {@code e;}: it runs, and what it raises fails
+     * the test (legend-pure; until this rule lite sent nothing for such a let). The body's LAST let is one (the user's
+     * "let at the end just runs as normal statement", 2026-11-02; applied to the last statement 2026-11-03): nothing
+     * reads it, and a body's last {@code let x = e} answers {@code e}, the value it binds.
      * Kept as lets: a staged let ({@code rows->stage()}: its rows made at its turn already) and an alias of a frame's
      * values ({@code $r.values->at(0)}: the same frame, nothing to run). A read let is evaluated where it is read
      * ({@code docs/SEMANTICS_REGISTER.md}).
@@ -95,7 +97,7 @@ public final class LetPlanner {
         Map<String, List<Boolean>> readInSource = readInSource(source);
         Map<String, Integer> seen = new java.util.HashMap<>();
         List<TypedSpec> out = null;
-        for (int i = 0; i < body.size() - 1; i++) {
+        for (int i = 0; i < body.size(); i++) {
             if (!(body.get(i) instanceof TypedLet let)) {
                 continue;
             }
