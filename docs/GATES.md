@@ -17303,3 +17303,21 @@ plan record as the schema's `legend.plan`). The JVM: `PureV1Api.executeLite` thr
    `//python:{bindings,arrow_handoff,frames,host_sql}_test`, `//tools/guards:host_sql_test`,
    `//datacube:{conformance,python_execute,python_engine,lite_planner}_test`, `//engine-client:plan_runner_test`, and
    `//python:engine_test` in three parts (70, 12, 252: OK).
+
+## 2026-11-03 — D20 (b): the core's Arrow decode fills a column at a time
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8. `ArrowRows` chooses each column's fill once and fills the batch by column
+(`Batch.Builder.rows`, `set`, `setLong`, `setDouble`, `setBoolean`, `setNull`): integers straight into the batch's
+`long[]` (no `BigInteger` per cell), doubles, booleans, a 128-bit decimal that fits 64 bits from its long (the wider
+read otherwise), text from its buffer; every other column the cell decode, which the fast fills each equal for the
+kinds and types they take. No output changed: `ArrowRowsTest` (DuckDB's encodings against the JSON-text decode),
+`//python:arrow_handoff_test` and the conformance suite's handoff and lite checks hold the cells. `WriterCarriageGuardTest`
+re-pinned with the fills' reasons, dated.
+
+Measured (1,000,000 rows, H0's five columns; scratch probes, deleted): the JVM's decode 190 -> 105 ms, decode and
+legend-engine's JSON 691 -> 507 ms, lite's own answer 229 ms; the native library's JSON answer 1,640-1,800 -> 1,460 ms,
+lite's own 625 ms; Python's whole lite execute 842 ms, its JSON execute 1,733 ms.
+
+Checks: `//core:core_tests_{root,server,exec,architecture}`, `//core:guardrails`, `//core:arrow_writer_test`,
+`//wasm:{differential,round_trip}_test`, `//python:{bindings,arrow_handoff,frames}_test`,
+`//datacube:{conformance,python_execute}_test`.

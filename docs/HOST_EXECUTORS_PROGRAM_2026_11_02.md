@@ -1147,3 +1147,10 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   Judged by the conformance suite's new `lite` check: Java's and Python's answers alike on every case -- schema with
   each field's metadata, values, plan record -- but the one line DuckDB's refusal counts (the hosts' missing trace line,
   §7: one ledger entry, 18 -> 19). The tab's lite path is in-process (no route): the apps' adapters, item (c).
+- 2026-11-03: D20 (b) built: the core's Arrow decode fills a column at a time (`ArrowRows`: each column's fill chosen
+  once -- an integer read as longs straight into the batch's array, a double, a boolean, a 128-bit decimal that fits 64
+  bits from its long, a text from the buffer it lies in -- every other column the cell decode, the definition the fast
+  fills equal; `Batch.Builder` filled by column and row). 1,000,000 rows, H0's five columns: on the JVM, decode 190 ->
+  105 ms, decode and legend-engine's JSON 691 -> 507 ms, lite's own answer 229 ms; in the native library from Python,
+  the JSON answer 1,640-1,800 -> 1,460 ms, lite's own 625 ms; Python's whole lite execute 842 ms. The native image still
+  runs the core about 2.7 times slower than the JVM: the next measurement.

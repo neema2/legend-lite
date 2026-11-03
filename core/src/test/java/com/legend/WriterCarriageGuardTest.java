@@ -159,18 +159,22 @@ class WriterCarriageGuardTest {
                     // (doubleValue); a REAL's own four-byte digits (Double.parseDouble of Float.toString); a Decimal
                     // from an integer or a double (BigDecimal.valueOf, new BigDecimal); a text's digits read as the
                     // number a numeric Pure type says (Double.valueOf, new BigDecimal, new BigInteger); a tag as the
-                    // int it is (intValue)
-                    Map.entry("new BigInteger", 3),
+                    // int it is (intValue). 2026-11-03, D20 (b), the columnar fills, each the same read again in the
+                    // column's own loop: an unsigned 64-bit value past 63 bits (new BigInteger 3 -> 4), a 128-bit
+                    // decimal that fits 64 bits as the BigDecimal of its long at the type's scale (BigDecimal.valueOf
+                    // 3 -> 4; the type's scale read to choose the fill, scale 2 -> 4), a text's 64-bit offsets as
+                    // indices and the batch's cut (Math.toIntExact twice, Math.min: Math. 6 -> 9)
+                    Map.entry("new BigInteger", 4),
                     Map.entry("new BigDecimal", 5),
-                    Map.entry("scale", 2),
-                    Map.entry("Math.", 6),
+                    Map.entry("scale", 4),
+                    Map.entry("Math.", 9),
                     Map.entry("bitLength", 3),
                     Map.entry("longValue", 3),
                     Map.entry("stripTrailingZeros", 1),
                     Map.entry("toBigIntegerExact", 1),
                     Map.entry("doubleValue", 2),
                     Map.entry("Double.parseDouble", 3),
-                    Map.entry("BigDecimal.valueOf", 3),
+                    Map.entry("BigDecimal.valueOf", 4),
                     Map.entry("Double.valueOf", 1),
                     Map.entry("intValue", 1)));
 

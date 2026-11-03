@@ -80,35 +80,191 @@ public final class ArrowRows {
         for (int i = 0; i < readers.length; i++) {
             ExecutionPlan.Column c = columns.get(i);
             readers[i] = RowDecode.slotWord(c.slot()).equals("TAGGED") ? tagged(c, i, fields, encodings)
-                    : new Plain(i, decoder(c, fields.get(i), encodings.get(i)));
+                    : column(c, i, fields.get(i), encodings.get(i));
         }
-        Batcher batcher = new Batcher(columns, sink, Batcher.DEFAULT_CAPACITY);
-        batcher.start();
+        // a column at a time (D20 (b)): each Arrow batch cut into batches of the writers' size, each column of each
+        // filled by its reader straight into the batch's own arrays
+        sink.columns(columns);
         for (ArrowReader.Batch b = in.next(); b != null; b = in.next()) {
-            for (int r = 0; r < b.rows(); r++) {
-                List<Object> cells = new ArrayList<>(readers.length);
-                for (Column reader : readers) {
-                    cells.add(reader.cell(b, r));
+            for (int from = 0; from < b.rows(); from += Batcher.DEFAULT_CAPACITY) {
+                int n = Math.min(Batcher.DEFAULT_CAPACITY, b.rows() - from);
+                Batch.Builder out = Batch.builder(columns, n);
+                out.rows(n);
+                for (int i = 0; i < readers.length; i++) {
+                    readers[i].fill(b, from, n, out, i);
                 }
-                batcher.row(cells);
+                sink.batch(out.build());
             }
         }
-        batcher.end();
+        sink.end();
     }
 
     // -- a column's reader, decided once -----------------------------------------------
 
-    /** One plan column's cell of a batch's row. */
-    private sealed interface Column permits Plain, Tagged {
-        @com.legend.base.Nullable Object cell(ArrowReader.Batch b, int row);
+    /** One plan column's cells of a batch's rows {@code [from, from + n)}, filled into column {@code column} of
+     *  {@code out} (its row 0 the batch's row {@code from}). */
+    private sealed interface Column permits Plain, Tagged, Longs, Doubles, Booleans, Decimals, Texts {
+        void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column);
     }
 
-    /** A column read from the stream's field {@code at}. */
+    /** A column read from the stream's field {@code at} a cell at a time: every arm of the decode (the definition the
+     *  fast fills below each equal for the kinds and types they take). */
     private record Plain(int at, Decoder decoder) implements Column {
         @Override
-        public @com.legend.base.Nullable Object cell(ArrowReader.Batch b, int row) {
-            return decoder.read(b.columns().get(at), row);
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            for (int r = 0; r < n; r++) {
+                out.set(column, r, decoder.read(a, from + r));
+            }
         }
+    }
+
+    /** An integer column read as {@code long}s: the decode's integral arm over an Arrow integer (an Integer, or a Number
+     *  or a class with no slot, a long either way); an unsigned 64-bit value past 63 bits the BigInteger it is. */
+    private record Longs(int at, ArrowType.Int t) implements Column {
+        @Override
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            ByteBuffer v = a.buffer(0);
+            boolean signed = t.signed();
+            for (int r = 0; r < n; r++) {
+                int i = from + r;
+                if (a.isNull(i)) {
+                    out.setNull(column, r);
+                    continue;
+                }
+                long x = switch (t.bits()) {
+                    case 8 -> signed ? v.get(i) : v.get(i) & 0xff;
+                    case 16 -> signed ? v.getShort(2 * i) : v.getShort(2 * i) & 0xffff;
+                    case 32 -> signed ? v.getInt(4 * i) : v.getInt(4 * i) & 0xffff_ffffL;
+                    default -> v.getLong(8 * i);
+                };
+                if (!signed && t.bits() == 64 && x < 0) {
+                    out.set(column, r, new BigInteger(Long.toUnsignedString(x)));
+                } else {
+                    out.setLong(column, r, x);
+                }
+            }
+        }
+    }
+
+    /** A double column: the decode's floating arm over an Arrow double, the double as it is. */
+    private record Doubles(int at) implements Column {
+        @Override
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            ByteBuffer v = a.buffer(0);
+            for (int r = 0; r < n; r++) {
+                int i = from + r;
+                if (a.isNull(i)) {
+                    out.setNull(column, r);
+                } else {
+                    out.setDouble(column, r, v.getDouble(8 * i));
+                }
+            }
+        }
+    }
+
+    /** A boolean column: the decode's boolean arm over an Arrow bit. */
+    private record Booleans(int at) implements Column {
+        @Override
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            ByteBuffer v = a.buffer(0);
+            for (int r = 0; r < n; r++) {
+                int i = from + r;
+                if (a.isNull(i)) {
+                    out.setNull(column, r);
+                } else {
+                    out.setBoolean(column, r, (v.get(i >>> 3) & (1 << (i & 7))) != 0);
+                }
+            }
+        }
+    }
+
+    /** A 128-bit decimal column: a value that fits 64 bits read as the long it is (its high word the sign of its low
+     *  one) -- a Decimal its BigDecimal at the type's scale, an integral one (DuckDB's HUGEINT, scale 0) its long --
+     *  every other value by the decode's own arm, the wider read. */
+    private record Decimals(int at, int scale, boolean integral, Decoder wide) implements Column {
+        @Override
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            ByteBuffer v = a.buffer(0);
+            for (int r = 0; r < n; r++) {
+                int i = from + r;
+                if (a.isNull(i)) {
+                    out.setNull(column, r);
+                    continue;
+                }
+                long low = v.getLong(16 * i);
+                long high = v.getLong(16 * i + 8);
+                if (high != (low >> 63)) {
+                    out.set(column, r, wide.read(a, i));
+                } else if (integral) {
+                    out.setLong(column, r, low);
+                } else {
+                    out.set(column, r, BigDecimal.valueOf(low, scale));
+                }
+            }
+        }
+    }
+
+    /** A text column: the decode's text arms over Arrow UTF-8, each cell its string, read from the buffer it lies in. */
+    private record Texts(int at, boolean large) implements Column {
+        @Override
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int column) {
+            ArrowReader.Array a = b.columns().get(at);
+            ByteBuffer offsets = a.buffer(0);
+            ByteBuffer data = a.buffer(1);
+            byte[] array = data.hasArray() ? data.array() : null;
+            int base = data.hasArray() ? data.arrayOffset() : 0;
+            for (int r = 0; r < n; r++) {
+                int i = from + r;
+                if (a.isNull(i)) {
+                    out.setNull(column, r);
+                    continue;
+                }
+                int start = large ? Math.toIntExact(offsets.getLong(8 * i)) : offsets.getInt(4 * i);
+                int end = large ? Math.toIntExact(offsets.getLong(8 * i + 8)) : offsets.getInt(4 * i + 4);
+                if (array != null) {
+                    out.set(column, r, new String(array, base + start, end - start, StandardCharsets.UTF_8));
+                } else {
+                    byte[] bytes = new byte[end - start];
+                    data.get(start, bytes);
+                    out.set(column, r, new String(bytes, StandardCharsets.UTF_8));
+                }
+            }
+        }
+    }
+
+    /**
+     * Column {@code c}'s reader of the field {@code f} at {@code at}, decided once: a fast fill where the column's decode
+     * kind and Arrow type have one (an integer read as longs, a double, a boolean, a 128-bit decimal, a text), the cell
+     * decode otherwise -- each fast fill the decode's own arm for those kinds and types, nothing else.
+     */
+    private static Column column(ExecutionPlan.Column c, int at, ArrowField f,
+            ArrowReader.@com.legend.base.Nullable Encoding encoding) {
+        Decoder each = decoder(c, f, encoding);
+        if (encoding != null) {
+            return new Plain(at, each);
+        }
+        Kind kind = Kind.of(RowDecode.slotWord(c.slot()));
+        String type = c.type();
+        boolean byType = kind == Kind.BY_PURE_TYPE;
+        return switch (f.type()) {
+            case ArrowType.Int t when (kind == Kind.INTEGRAL || byType && (type.equals("Integer") || type.equals("Number")))
+                    && (t.signed() || t.bits() <= 64) -> new Longs(at, t);
+            case ArrowType.FloatingPoint t when t.precision() == ArrowType.FloatPrecision.DOUBLE
+                    && (kind == Kind.FLOATING || byType && type.equals("Float")) -> new Doubles(at);
+            case ArrowType.Bool t when kind == Kind.BOOLEAN || byType && type.equals("Boolean") -> new Booleans(at);
+            case ArrowType.Decimal t when t.bits() == 128 && (kind == Kind.DECIMAL
+                    || byType && (type.equals("Decimal") || type.startsWith("Decimal("))) -> new Decimals(at, t.scale(), false, each);
+            case ArrowType.Decimal t when t.bits() == 128 && t.scale() == 0
+                    && (kind == Kind.INTEGRAL || byType && type.equals("Integer")) -> new Decimals(at, 0, true, each);
+            case ArrowType.Utf8 t when kind == Kind.TEXT || byType && type.equals("String") -> new Texts(at, false);
+            case ArrowType.LargeUtf8 t when kind == Kind.TEXT || byType && type.equals("String") -> new Texts(at, true);
+            default -> new Plain(at, each);
+        };
     }
 
     /** A tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its field the tag, the slot index, read as the
@@ -117,7 +273,13 @@ public final class ArrowRows {
     private record Tagged(ExecutionPlan.Column column, int at, Decoder tag, List<ExecutionPlan.Column> slots,
             int[] slotAt, List<Decoder> slotDecoders) implements Column {
         @Override
-        public @com.legend.base.Nullable Object cell(ArrowReader.Batch b, int row) {
+        public void fill(ArrowReader.Batch b, int from, int n, Batch.Builder out, int c) {
+            for (int r = 0; r < n; r++) {
+                out.set(c, r, cell(b, from + r));
+            }
+        }
+
+        @com.legend.base.Nullable Object cell(ArrowReader.Batch b, int row) {
             Object t = tag.read(b.columns().get(at), row);
             if (t == null) {
                 return null;

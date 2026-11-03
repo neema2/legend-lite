@@ -136,6 +136,58 @@ public final class Batch {
             return size == capacity;
         }
 
+        // -- filled a column at a time (a decode that reads columns: ArrowRows; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md
+        // D20 (b)): the rows' count first, then each cell by its column and row -- the same carriers add() takes, a
+        // long, a double or a boolean written into its column's array without a box where the column holds them so
+
+        /** Sets the batch's size to {@code rows}, each of whose cells is set by its column and row before it is built. */
+        public void rows(int rows) {
+            if (built || size != 0) {
+                throw new IllegalStateException("a batch is sized once, before any row is added");
+            }
+            if (rows < 1 || rows > capacity) {
+                throw new IllegalArgumentException("a batch of " + rows + " rows, its capacity " + capacity);
+            }
+            size = rows;
+        }
+
+        /** Row {@code row}'s cell of column {@code column} is null. */
+        public void setNull(int column, int row) {
+            vectors[column].nulls[row] = true;
+        }
+
+        /** Row {@code row}'s cell of column {@code column}: a carrier, as {@link #add} takes one. */
+        public void set(int column, int row, @com.legend.base.Nullable Object cell) {
+            vectors[column].set(row, cell, columns.get(column));
+        }
+
+        /** Row {@code row}'s cell of an Integer column {@code column}: a long. */
+        public void setLong(int column, int row, long value) {
+            if (vectors[column] instanceof Longs longs) {
+                longs.values[row] = value;
+            } else {
+                set(column, row, value);
+            }
+        }
+
+        /** Row {@code row}'s cell of a Float column {@code column}: a double. */
+        public void setDouble(int column, int row, double value) {
+            if (vectors[column] instanceof Doubles doubles) {
+                doubles.values[row] = value;
+            } else {
+                set(column, row, value);
+            }
+        }
+
+        /** Row {@code row}'s cell of a Boolean column {@code column}. */
+        public void setBoolean(int column, int row, boolean value) {
+            if (vectors[column] instanceof Booleans booleans) {
+                booleans.values[row] = value;
+            } else {
+                set(column, row, value);
+            }
+        }
+
         public Batch build() {
             if (built) {
                 throw new IllegalStateException("a batch is built once");
