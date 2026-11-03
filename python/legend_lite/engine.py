@@ -326,6 +326,15 @@ def _arrow_requested(query: str) -> bool:
     return any(pair == 'serializationFormat=ARROW_IPC' for pair in query.split('&'))
 
 
+def _ipc_stream(reader: pa.RecordBatchReader) -> pa.Buffer:
+    """A result's batches as one Arrow IPC stream, in a buffer the native library reads where it lies (R3)."""
+    sink = pa.BufferOutputStream()
+    with pyarrow.ipc.new_stream(sink, reader.schema) as writer:
+        for batch in reader:
+            writer.write_batch(batch)
+    return sink.getvalue()
+
+
 def _arrow_ipc(rows: pa.Table, metadata: dict[str, str]) -> bytes:
     """Rows as upstream's ARROW_IPC answer: an Arrow IPC stream, its schema carrying Legend's metadata, the whole
     stream compressed as one zstd frame."""
@@ -362,6 +371,9 @@ class NativePlanner:
 
     def execute_json_answer(self, plan: str, rows: str) -> compiler.Answer:
         return compiler.execute_json_answer(plan, rows)
+
+    def execute_json_answer_arrow(self, plan: str, arrow: pa.Buffer) -> compiler.Answer:
+        return compiler.execute_json_answer_arrow(plan, arrow)
 
     def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
         return compiler.execute_refusal(plan, message, trace)
@@ -1657,9 +1669,10 @@ class Engine:
 
     def _execute_json(self, body: str) -> Answer:
         """execute in legend-engine's JSON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the compiler plans over the
-        frames' models (the plan record), DuckDB runs its one statement, and its rows, handed back as the driver read
-        them, are decoded by the plan's columns and written by the server's own writer -- the server's answer text, as
-        the tab's is. One query at a time (the frames are held still while it runs)."""
+        frames' models (the plan record), DuckDB runs its one statement, and its rows, handed to the compiler as the
+        Arrow DuckDB answered (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R4: no row becomes a Python object or text on
+        the way), are decoded by the plan's columns and written by the server's own writer -- the server's answer text,
+        as the tab's is. One query at a time (the frames are held still while it runs)."""
         with self.frames.serving() as models:
             self._noted(models)
             with self._project_of(body, models) as (served, connection):
@@ -1670,17 +1683,14 @@ class Engine:
                 if keys_statement is not None:
                     return self._execute_keyed(planned.body, keys_statement, connection)
                 try:
-                    cursor = connection.execute(compiler.answer_statement(planned.body))
-                    names = [d[0] for d in cursor.description]
-                    fetched = cursor.fetchall()
+                    arrow = _ipc_stream(connection.execute(compiler.answer_statement(planned.body)).fetch_record_batch())
                 except duckdb.Error as refused:
                     # the database refusing the plan's statement: answered as legend-engine answers it, by the core
                     # (D18 B), from DuckDB's own words; the trace this host's account of it
                     answer = self.planner.execute_refusal(planned.body, str(refused),
                                                           f'{type(refused).__name__}: {refused}')
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
-                rows = compiler.host_rows(names, fetched)
-        answer = self.planner.execute_json_answer(planned.body, rows)
+        answer = self.planner.execute_json_answer_arrow(planned.body, arrow)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
     def _execute_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:

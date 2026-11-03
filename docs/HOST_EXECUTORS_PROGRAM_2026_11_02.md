@@ -1033,3 +1033,7 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
 - 2026-11-03: R3's independent audit folded (§5 R3 "as built", its last items; §7): the exit test laned, the JSON
   decode's non-finite tokens, a text slot's text, two refusals, two reader checks, the claims scoped, the benchmark like
   for like; two R2 test defects the container had hidden found and fixed.
+- 2026-11-03: R4 step 2 built: Python's JSON execute hands DuckDB's Arrow to the core (`engine.py` `_execute_json`;
+  a keyed pivot keeps the text handoff). `//python:executor_bench`'s `json`: 1,000 rows 35.0 -> 21.2 ms, 100,000
+  rows 1,855 -> 228 ms, 1,000,000 rows 23,626 -> 1,958 ms. Python's answer changes where the two handoffs part (§7):
+  a `FLOAT`'s digits, an infinite date or timestamp, a BC date (500 -> its rows), each now the JVM's.

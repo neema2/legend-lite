@@ -5,11 +5,9 @@ DECIMAL(18,2), a timestamp, a nullable integer) queried at 10 to 1,000,000 rows,
     duckdb   -- the planned SQL run on the frames' connection, its Arrow table and nothing else: the ceiling here;
     frames   -- Table.execute, the dataframe API: planned, run, typed by the plan (a pyarrow.Table);
     arrow    -- the engine's execute in upstream's Arrow format (``serializationFormat=ARROW_IPC``), as DataCube asks;
-    json     -- the engine's execute in legend-engine's JSON: the rows fetched as Python objects, written as JSON text
-                (compiler.host_rows) and spelled by the native planner (execute_json_answer);
-    handoff  -- the same answer, planned on each call as json's is, with the rows handed over as DuckDB's Arrow (R3:
-                the IPC stream's buffer read where it lies by the core, compiler.execute_json_answer_arrow): what the
-                JSON execute takes once it hands Arrow (R4). Its answer is checked equal to json's, the trace masked.
+    json     -- the engine's execute in legend-engine's JSON: its rows handed to the native planner as DuckDB's Arrow
+                (R4, 2026-11-03: the IPC stream's buffer read where it lies) and spelled by its writer. Until R4 the
+                rows crossed as Python objects and JSON text (compiler.host_rows): 23.6 s at 1,000,000 rows (H0, R3).
 
 Each size: one cold call, then calls timed one by one until BENCH_MEASURE_MS has passed (after BENCH_WARM_MS of warm-up);
 the median and p90 printed, with a digest of each answer so a change is checked to answer the same bytes. Run:
@@ -21,7 +19,6 @@ the median and p90 printed, with a digest of each answer so a change is checked 
 import hashlib
 import json
 import os
-import re
 import time
 import unittest
 
@@ -30,7 +27,6 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import compiler
 from legend_lite.engine import Engine
 
 SIZES = [int(s) for s in os.environ.get('BENCH_SIZES', '10,100,1000,10000,100000,1000000').split(',')]
@@ -105,31 +101,16 @@ class ExecutorBench(unittest.TestCase):
             def rows_json():
                 answers['json'] = engine.answer('POST', EXECUTE, '', body)
 
-            def handoff():
-                # planned on every call, as the json path's engine.answer plans (R3's audit: like for like)
-                with frames.serving() as served:
-                    planned = engine.planner.execute_json_plan(body, list(served.values())).body
-                arrow = frames.connection.execute(compiler.answer_statement(planned)).to_arrow_table()
-                sink = pa.BufferOutputStream()
-                with pyarrow.ipc.new_stream(sink, arrow.schema) as writer:
-                    writer.write_table(arrow)
-                answers['handoff'] = compiler.execute_json_answer_arrow(planned, sink.getvalue())
-
             results = {name: timed(work) for name, work in
-                       (('duckdb', raw), ('frames', dataframe), ('arrow', arrow), ('json', rows_json),
-                        ('handoff', handoff))}
+                       (('duckdb', raw), ('frames', dataframe), ('arrow', arrow), ('json', rows_json))}
             self.assertEqual(answers['duckdb'].num_rows, rows)
             self.assertEqual(answers['frames'].num_rows, rows)
             for name in ('arrow', 'json'):
                 self.assertEqual(answers[name].status, 200, answers[name].body[:300])
-            trace = re.compile(rb'executionTraceID\\" : \\"[0-9a-f-]{36}')
-            self.assertEqual(trace.sub(b'', answers['json'].body),
-                             trace.sub(b'', answers['handoff'].body.encode('utf-8')))
             digests = {
                 'duckdb': digest_table(answers['duckdb']), 'frames': digest_table(answers['frames']),
                 'arrow': hashlib.sha256(answers['arrow'].body).hexdigest()[:16],
                 'json': hashlib.sha256(answers['json'].body).hexdigest()[:16],
-                'handoff': hashlib.sha256(answers['handoff'].body.encode('utf-8')).hexdigest()[:16],
             }
             line = ' | '.join(f'{name} {ms(m)} ms (p90 {ms(p)}, {n} runs, {digests[name]})'
                               for name, (m, p, n) in results.items())

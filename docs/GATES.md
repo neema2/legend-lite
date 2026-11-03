@@ -17244,3 +17244,22 @@ reader against the Arrow format, the boundary's memory handling, the guards' cou
    `//core:core_tests_{root,exec,architecture}`, `//core:guardrails`, `//python:{arrow_handoff,bindings,frames,
    host_sql,markets,model,wheel}_test`, `//engine-client:column_decode_test`, the lane guard's query, the native
    library and the tab's module rebuilt.
+
+## 2026-11-03 — R4 step 2: Python's JSON execute hands DuckDB's Arrow to the core
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 R4 (its design, step 2) and §7. `python/legend_lite/engine.py`
+`_execute_json`: the statement's record batches written as one IPC stream, read by the core where pyarrow holds them
+(`compiler.execute_json_answer_arrow`, R3); a database's refusal answered as before; a keyed pivot keeps the text
+handoff until `keyedAnswer` takes Arrow.
+
+1. **What Python's answer changes** (each toward the JVM's answer, which reads the database through JDBC as
+   legend-engine does; measured and pinned in `//python:arrow_handoff_test`): a DuckDB `FLOAT` column's cells
+   `0.10000000149011612` -> `0.1`; an infinite `DATE` `9999-12-31` -> `5881580-07-11` (minus infinity `-5877641-06-24`);
+   an infinite `TIMESTAMP` likewise DuckDB's own value; a BC date, refused before (500, `expected digits for hour ...
+   '0054-05-07T(BC)'`), now answered (`-53-05-07`). Every case of the conformance suite answers as before (its JSON
+   check, byte for byte against Java's).
+2. **Speed** (`//python:executor_bench`, `json`, planning included): 1,000 rows 35.0 -> 21.2 ms; 100,000 rows 1,855 ->
+   228 ms; 1,000,000 rows 23,626 -> 1,958 ms. The bench's separate `handoff` path (R3) is gone: it is the product path.
+3. **Checks:** `//datacube:{conformance,python_execute,python_engine,python_saved_queries}_test`,
+   `//python:{arrow_handoff,frames,markets}_test`, and `//python:engine_test` in three parts (the container's V8 crash,
+   R3's audit entry): 70, 12 and 252 tests, OK.
