@@ -345,15 +345,16 @@ bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarit
 bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
 
 # databricks: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# 2026-11-03, round 18: each statement failure's row is Spark's own words (the text after "Error Message:"), which both judges' failures contain -- the statement each judge writes differs; the detail now keeps its tail, where they are
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 databricks	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-databricks	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	SELECT DATE '800002016-02-29' AS `value` ⏎ FAILED. Error Message:  ⏎ [INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '800002016-02-29'
-databricks	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	SELECT DATE '236611261-10-03' AS `value` ⏎ FAILED. Error Message:  ⏎ [INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '236611261-10-03'
-databricks	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	SELECT DATE '33803336-12-17' AS `value` ⏎ FAILED. Error Message:  ⏎ [INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '33803336-12-17'.
-databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	SELECT TIMESTAMP '1410404-07-12T00:00:00' AS `value` ⏎ FAILED. Error Message:  ⏎ [INVALID_TYPED_LITERAL] The value of the typed literal "TIMESTAMP" is invalid:
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '800002016-02-29'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '236611261-10-03'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '33803336-12-17'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "TIMESTAMP" is invalid: '1410404-07-12T00:00:00'. SQLSTATE: 42604
 # a decimal literal past Databricks' DECIMAL (38 digits of precision)
-databricks	Essential	meta::pure::functions::math::tests::pow::testComplexPow	SELECT 182.88729271224377725957310758531093597412109375 AS `value` ⏎ FAILED. Error Message: [DECIMAL_PRECISION_EXCEEDS_MAX_PRECISION] Decimal precision 47 excee
+databricks	Essential	meta::pure::functions::math::tests::pow::testComplexPow	[DECIMAL_PRECISION_EXCEEDS_MAX_PRECISION] Decimal precision 47 exceeds max precision 38. SQLSTATE: 22003
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
@@ -361,13 +362,13 @@ databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSi
 databricks	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 databricks	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
 # a DISTINCT relation's sort key Spark cannot resolve after the DISTINCT (an unresolved column, sqlState 42703) -- channel A and the engine's Databricks manifest both pass it (true wire bugs pinned since 2026-10-12)
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	SELECT (SELECT concat_ws('', '#TDS ⏎    val ⏎ ', coalesce(listagg(`t2_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t2_a`.`_ord0` ASC NULLS LAST), ''), ' ⏎ #')
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	SELECT (SELECT concat_ws('', '#TDS ⏎    val ⏎ ', coalesce(listagg(`t5_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t5_a`.`_ord0` ASC NULLS LAST), ''), ' ⏎ #')
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	SELECT (SELECT concat_ws('', '#TDS ⏎    val,str ⏎ ', coalesce(listagg(`t8_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t8_a`.`_ord0` ASC NULLS LAST, `t8_a`.`_
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	SELECT (SELECT concat_ws('', '#TDS ⏎    val,str ⏎ ', coalesce(listagg(`t8_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t8_a`.`_ord0` ASC NULLS LAST, `t8_a`.`_
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	SELECT (SELECT concat_ws('', '#TDS ⏎    val,str ⏎ ', coalesce(listagg(`t8_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t8_a`.`_ord0` ASC NULLS LAST, `t8_a`.`_
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	SELECT (SELECT concat_ws('', '#TDS ⏎    val,str ⏎ ', coalesce(listagg(`t8_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t8_a`.`_ord0` ASC NULLS LAST, `t8_a`.`_
-databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	SELECT (SELECT concat_ws('', '#TDS ⏎    str ⏎ ', coalesce(listagg(`t2_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t2_a`.`_ord0` ASC NULLS LAST), ''), ' ⏎ #')
-databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	SELECT (SELECT concat_ws('', '#TDS ⏎    id,name ⏎ ', coalesce(listagg(`t12_a`.`_tds_line`, ' ⏎ ') WITHIN GROUP (ORDER BY `t12_a`.`_ord0` ASC NULLS LAST, `t12_a`
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`str` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds3`.`id` cannot be resolved.
 # a coalesce over a list of structs: Spark's datatype mismatch (sqlState 42K09) -- channel A and the engine's Databricks manifest both pass it (a true wire bug pinned since 2026-10-12)
-databricks	Relation	meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	SELECT coalesce(array_size(array_compact(filter(array((CASE WHEN 1L = 0 THEN NULL ELSE try_element_at(transform(array(named_struct('firstName', 'Peter', 'lastNa
+databricks	Relation	meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	To convert values from "STRUCT<firstName: VOID, lastName: STRING NOT NULL, __id: STRING NOT NULL, __type: STRING NOT NULL, __canon: VARIANT NOT NULL>"

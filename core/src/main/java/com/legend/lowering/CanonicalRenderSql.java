@@ -632,11 +632,17 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
-                new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("_type"),
-                        new SqlExpr.StringLit(fqn),
-                        new SqlExpr.StringLit("_id"),
-                        trackedId(v))));
+                identityText(trackedId(v), new SqlExpr.StringLit(fqn)));
+    }
+
+    /** An identity as Pure's {@code %r} prints an object, {@code <id instanceOf T>}: the canon of a keyless
+     *  instance at every site (a struct's value, a construction, a JSON slot), so two identities compare as before
+     *  -- one text against another -- and a failing assert's message reads upstream's (2026-11-03, the database judge
+     *  on par with the host: the canon was the JSON {@code {"_type", "_id"}}, which the message printed). */
+    static SqlExpr identityText(SqlExpr id, SqlExpr type) {
+        return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("<"),
+                new SqlExpr.Cast(id, SqlType.Scalar.VARCHAR), new SqlExpr.StringLit(" instanceOf "), type,
+                new SqlExpr.StringLit(">"));
     }
 
     /** An object's identity where it is read (compared, printed): an object whose evaluations the product does not
@@ -887,10 +893,8 @@ public final class CanonicalRenderSql {
         if (keys == null) {
             SqlExpr.StructLit.Field idF = byName.get(
                     com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID);
-            return new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("_type"), new SqlExpr.StringLit(classFqn),
-                    new SqlExpr.StringLit("_id"),
-                    idF == null ? new SqlExpr.NullLit() : idF.value()));
+            return identityText(idF == null ? new SqlExpr.StringLit("null") : idF.value(),
+                    new SqlExpr.StringLit(classFqn));
         }
         List<SqlExpr> kv = new java.util.ArrayList<>();
         kv.add(new SqlExpr.StringLit("_type"));
@@ -971,9 +975,7 @@ public final class CanonicalRenderSql {
         SqlExpr id = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)),
                 SqlType.Scalar.VARCHAR);
-        SqlExpr identity = new SqlExpr.JsonObject(List.of(
-                new SqlExpr.StringLit("_type"), type,
-                new SqlExpr.StringLit("_id"), tracked(id)));
+        SqlExpr identity = identityText(tracked(id), type);
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),

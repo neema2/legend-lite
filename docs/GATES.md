@@ -19337,3 +19337,41 @@ statement was past SQLite's 1 MB (SQLite essential's held-out item) and lost MyS
    DuckDB and SQLite channel A essential, channel B essential, grammar and relation on DuckDB and SQLite -- SQLite
    channel B essential passes its ledger with the held-out item passing (its 333, main's floor). The server lanes and
    Snowflake's time are round 18's.
+
+## 2026-11-03 — Round 18 folded: upstream's text for an instance and a raw String, a relation's cells sorted, Databricks' rows by Spark's words
+
+Round 18 at `9259f2ba` (each lane's session, measure only): channel A passes on Postgres, MariaDB, MySQL, ClickHouse,
+Trino, Databricks (all five suites each) and Snowflake (essential); BigQuery's channel A essential adds
+`removeDuplicatesBy::testRemoveDuplicatesByPrimitive` (below). Channel B under BOTH and under the database judge alone:
+the same census on every lane; Trino's ten targets pass. **Snowflake's channel B essential: 1,059 s -> 588 s** (625 s
+with the dump), under its 900 s timeout: the four `removeDuplicates` windows ~481 s -> ~31 s, the largest statement
+722K -> 37K chars, 6.90M -> 4.21M chars in all; its residue over `e8c341d0`'s 494 s is the float-tolerance compare
+statements (37K chars where 30 were). The database judge alone differed from the ledger in text only, each folded here:
+
+1. **Two single Strings compared by their raw text** (a TDS's `toString` against its golden: the Variant key
+   extractions on Postgres, MariaDB, MySQL and ClickHouse, the windows and laterals on MySQL) print as upstream's `%r`
+   prints a String (`DatabaseJudge`: the equality arm frames them by `VerdictSql.messageAsStrings`; the Postgres lane's
+   dump of the verdict statement named the arm). A LIST of Strings still prints its elements bare (no PCT test fails one).
+2. **An instance's identity** is spelled `<id instanceOf T>`, upstream's `%r` of an object, at every site its canon is
+   built (a struct's value, a construction, a JSON slot: `CanonicalRenderSql.identityText`), so two identities compare
+   as before and a failing instance assert reads the host's text (BigQuery's `testFilterInstance`).
+3. **Databricks' 14 rows** carry Spark's own words (the text after `Error Message:`), which both judges' failures contain;
+   the statement each judge writes differs.
+4. **A relation's cells sorted** (`$t.rows.values->sort()`, the corpus's `strictdate::testProject`; the DuckDB corpus's
+   regression since `ffef9991`, whose deletion of the host judge's cell pool -- the user's ruling -- left the sort to the
+   relation pipeline): typed as the cells it sorts, the columns' least upper bound many, as upstream's `TDSRow.values`
+   (`TdsDesugars`); the scalar sort rule's at-most-one identity never applies to a relation's cells, whose `[1]` is the
+   relation value's (`Scalars`). The corpus's other movements since `de641baf` (the database judge's witness texts moved
+   by the message's upstream wording, H2's host-compared and lost registers, H2's `testProject` -- a tagged list needs a
+   list encoding H2 has not) are the corpus phase's, measured there.
+5. **Open:** a mixed list's root unnests its positions with no order, so a database that does not keep an unnest's
+   arrival order returns its elements out of order: BigQuery's `testRemoveDuplicatesByPrimitive` (channel A and B, new
+   since the element reads changed shape) and MySQL's mixed-kind `removeDuplicates` (its statement no longer too large,
+   its order wrong). An order key over the positions (`LIST_POSITION`) was measured and withdrawn: H2 has no list,
+   MySQL's statement doubled, and the carrier ratchet bans the new list call -- the root's order is the tagged list's
+   own (by position, by comparable), the next change.
+6. **Checks:** core's sql, lowering, judge, driver, planner, compiler, integration (DuckDB, SQLite, H2) targets, the
+   census, the guardrails, the lean ladder, the capability matrix; PCT DuckDB (both channels, every suite), SQLite
+   (channel A essential and relation, channel B essential, grammar, relation), H2 channel B relation; channel B under the
+   database judge alone on DuckDB, SQLite essential and H2 relation; the DuckDB corpus's `strictdate::testProject` under
+   both judges (`corpus_one`). `JavaEvalLedgerTest`: `DatabaseJudge` 612 -> 616 with its reason.

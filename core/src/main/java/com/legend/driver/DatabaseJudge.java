@@ -215,7 +215,15 @@ final class DatabaseJudge {
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT));
-        return runVerdict(name, wantEqual, message.apply(vq), runOn);
+        // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
+        // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
+        // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
+        // ClickHouse -- the host quotes it)
+        boolean rawStrings = ie != re.literalIndex() && ia != ra.literalIndex() && !re.many() && !ra.many()
+                && re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.STRING
+                && ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.STRING;
+        return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
+                : message.apply(vq), runOn);
     }
 
     /** Execute a verdict statement on {@code on} and read its one row:

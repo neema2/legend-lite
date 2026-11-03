@@ -1087,8 +1087,13 @@ final class Scalars {
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_SORT, Pure.AT_TDS_SORT, Pure.AT_COLLECTION_SORT)) {
             RULES.put(f, (n, args) -> {
                 // STAMP-READ identity: sort over <=1 values IS the
-                // operand ([0..0] included: sort([]) is []).
-                if (Stamps.atMostOne(n.args().get(0))) {
+                // operand ([0..0] included: sort([]) is []) -- never a
+                // relation's cells ($t.rows.values->sort()), whose [1] is the
+                // relation value's multiplicity, not its cell count
+                // (2026-11-03, the corpus's strictdate::testProject)
+                if (Stamps.atMostOne(n.args().get(0))
+                        && !(com.legend.compiler.element.type.Type.schemaView(n.args().get(0).info().type())
+                                instanceof com.legend.compiler.element.type.Type.RelationType)) {
                     return args.get(0);
                 }
                 if (n.args().size() == 1) {
