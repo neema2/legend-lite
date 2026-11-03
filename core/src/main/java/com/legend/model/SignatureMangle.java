@@ -42,9 +42,11 @@ public final class SignatureMangle {
     /** The engine id of {@code def}. */
     public static String mangle(Function def) {
         // a user function's relation parameter spells its columns (register S131, the user's 2a, 2026-11-03), so two
-        // overloads that differ only in a column's type are two functions, ranked by m3's RelationTypeMatch; a native
-        // keeps upstream's id, which spells a relation's raw type alone
-        return mangle(def, !(def instanceof NativeFunctionDefinition));
+        // overloads that differ only in a column's type are two functions, ranked by m3's RelationTypeMatch. A native
+        // keeps upstream's id, which spells a relation's raw type alone, and so does every function of upstream's own
+        // namespace, meta::, bodied or native: its id is legend-pure's (the catalog and the census compare it with the
+        // pinned sources; the A2 gate found average, zScore and joinStrings spelled with their columns, 2026-11-03)
+        return mangle(def, !(def instanceof NativeFunctionDefinition) && !def.qualifiedName().startsWith("meta::"));
     }
 
     /** {@code def}'s tail as legend-pure spells it ({@code FunctionDescriptor}: a relation its raw type alone) --
