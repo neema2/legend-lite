@@ -314,14 +314,13 @@ public final class PureV1Api {
     }
 
     /**
-     * Show #TS's types over {@code ctx} ({@link com.legend.protocol.ts.TsShow.Types}): a column of a relation typed as
-     * the compiler types it, the relation the query ({@code |relation}) and the column's type read off its result --
-     * the compiler's answer, never the printer's.
+     * Show #TS's types over {@code ctx} ({@link com.legend.protocol.ts.TsShow.Types}): a column of a query's relation
+     * typed as the compiler types it, read off the query's result -- the compiler's answer, never the printer's.
      */
     public static com.legend.protocol.ts.TsShow.Types tsTypes(com.legend.compiler.element.ModelContext ctx) {
-        return (relation, column) -> {
+        return (query, column) -> {
             for (com.legend.compiler.element.type.Type.Column c : UpstreamRelationType.columns(com.legend.Compiler
-                    .query(ctx, new LambdaFunction(List.of(), List.of(relation))).resultType())) {
+                    .query(ctx, query).resultType())) {
                 if (c.name().equals(column)) {
                     return UpstreamRelationType.typePath(c.type());
                 }

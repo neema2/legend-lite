@@ -54,13 +54,13 @@ public final class TsShow {
     /**
      * The compiler's answer to a value's type, asked where Postgres spells by it what Pure spells one way: {@code +}
      * adds numbers and joins text in Pure, {@code +} and {@code ||} in Postgres (A6). The path ({@code String},
-     * {@code Integer}, ...) of {@code relation}'s column {@code column}, as the compiler types it; the printer never
-     * works a type out itself (AGENTS.md invariant 1). The relation is the grid's own {@code extend}, its column the
-     * value asked.
+     * {@code Integer}, ...) of the column {@code column} of the relation {@code query} answers, as the compiler types
+     * it; the printer never works a type out itself (AGENTS.md invariant 1). The query is the grid's own relation
+     * extended by the value asked.
      */
     @FunctionalInterface
     public interface Types {
-        String of(ValueSpecification relation, String column);
+        String of(LambdaFunction query, String column);
     }
 
     /** No position: what the statement writes that its island's text did not. */
@@ -141,6 +141,12 @@ public final class TsShow {
     }
 
     // ------------------------------------------------------------------ a grid's relation as a flat source
+
+    /** A relation call, as the #TS translator writes one ({@code TsTranslatorGuardrailTest}: by its helper, so the
+     *  guard reads its name -- here only {@code extend}, the type question's, bookkeeping). */
+    private static AppliedFunction call(String fn, ValueSpecification... parameters) {
+        return new AppliedFunction(fn, List.of(parameters));
+    }
 
     /** Why a grid has no flat form yet, in words. */
     private static final class Refused extends RuntimeException {
@@ -254,9 +260,9 @@ public final class TsShow {
         /** {@code value}'s type, the compiler's: the grid's own extend, its column {@code value} ({@link Types}). */
         String typeOf(ValueSpecification value) {
             String asked = "__ts_show_type";
-            return types.of(new AppliedFunction(extend.function(), List.of(extend.parameters().get(0),
+            return types.of(new LambdaFunction(List.of(), List.of(call("extend", extend.parameters().get(0),
                     new ColSpecArray(List.of(new ColSpec(asked, new LambdaFunction(List.of(variable),
-                            List.of(value))))))), asked);
+                            List.of(value)))))))), asked);
         }
     }
 
@@ -314,9 +320,18 @@ public final class TsShow {
             this.op = op;
         }
 
-        private static final Map<String, Fn> BY_NAME = Map.copyOf(java.util.Arrays.stream(values())
-                .filter(f -> f.protocol != null).collect(java.util.stream.Collectors.toMap(
-                        f -> java.util.Objects.requireNonNull(f.protocol), f -> f)));
+        private static final Map<String, Fn> BY_NAME = byName();
+
+        /** Each function by its protocol name, in declaration order. */
+        private static Map<String, Fn> byName() {
+            Map<String, Fn> out = new LinkedHashMap<>();
+            for (Fn f : values()) {
+                if (f.protocol != null) {
+                    out.put(f.protocol, f);
+                }
+            }
+            return java.util.Collections.unmodifiableMap(out);
+        }
 
         static Fn of(String protocol) {
             return BY_NAME.getOrDefault(protocol, OTHER);
