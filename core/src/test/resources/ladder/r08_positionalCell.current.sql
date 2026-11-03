@@ -13,10 +13,10 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.ID AS id, frame_r__t0.NAME AS n
   LEFT OUTER JOIN (
     SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
   ) AS side ON TRUE)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('
-expected: ', coalesce(replace(CAST(e.__text AS VARCHAR), '
+SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, concat('''', replace(replace(CAST(e.__text AS VARCHAR), '\', '\\'), '''', '\'''), '''') AS __expected, concat('''', replace(replace(CAST(a.__text AS VARCHAR), '\', '\\'), '''', '\'''), '''') AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('
+expected: ', coalesce(replace(CAST(concat('''', replace(replace(CAST(e.__text AS VARCHAR), '\', '\\'), '''', '\'''), '''') AS VARCHAR), '
 ', '\n'), 'null'), '
-actual:   ', coalesce(replace(CAST(a.__text AS VARCHAR), '
+actual:   ', coalesce(replace(CAST(concat('''', replace(replace(CAST(a.__text AS VARCHAR), '\', '\\'), '''', '\'''), '''') AS VARCHAR), '
 ', '\n'), 'null')) AS __message
 FROM __se_0 AS e
 CROSS JOIN __sa_0 AS a

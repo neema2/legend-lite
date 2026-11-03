@@ -217,7 +217,7 @@ final class TaggedLists {
 
     /** The list reversed. */
     static SqlExpr.TaggedList reverse(SqlExpr.TaggedList tl) {
-        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions()));
+        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions())).withOrder(tl.order().reversed());
     }
 
     /**
@@ -234,7 +234,7 @@ final class TaggedLists {
                 new SqlExpr.OrderedListAgg(p, tl.comparableAt(p)), "s", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
-        return tl.withPositions(new SqlExpr.ScalarSubquery(outer));
+        return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
     }
 
     /**
@@ -500,21 +500,27 @@ final class TaggedLists {
                 new OutputCol("__p", SqlType.Scalar.INTEGER, false))),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "__p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
-        SqlExpr tag = tl.tagAt(p);
-        List<SqlExpr.Case.When> index = new ArrayList<>();
-        for (int k = 0; k < slots.size(); k++) {
-            index.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
-                    new SqlExpr.IntLit(k)));
-        }
+        // the slot index is the tag less one (the tags are 1..K), read once: a database that writes the unnested
+        // position at each read of it (Snowflake, SQLite, MariaDB, MySQL) wrote the position list per channel in a CASE
+        SqlExpr index = SqlExpr.Call.of(SqlFn.MINUS, tl.tagAt(p), new SqlExpr.IntLit(1));
         List<SqlSelect.Projection> out = new ArrayList<>();
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int k = 0; k < slots.size(); k++) {
             String name = SqlType.Tagged.slotColumn("value", k);
             out.add(new SqlSelect.Projection(tl.channelAt(k, p), name,
                     new OutputCol(name, slots.get(k).type(), true)));
         }
+        // the rows in the list's own order (an unnest promises none: round 18's BigQuery and MySQL): by position, or by
+        // comparable with the position after it (a stable sort's ties), either way
+        boolean desc = tl.order() == SqlExpr.TaggedList.Order.POSITION_DESC
+                || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC;
+        List<SqlSelect.SortKey> order = new ArrayList<>();
+        if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
+            order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
+        }
+        order.add(new SqlSelect.SortKey(p, !desc, null, null));
         return new SqlSelect(out, false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null,
-                List.of(), null, null, List.of());
+                order, null, null, List.of());
     }
 }

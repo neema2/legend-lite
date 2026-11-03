@@ -19375,3 +19375,26 @@ statements (37K chars where 30 were). The database judge alone differed from the
    (channel A essential and relation, channel B essential, grammar, relation), H2 channel B relation; channel B under the
    database judge alone on DuckDB, SQLite essential and H2 relation; the DuckDB corpus's `strictdate::testProject` under
    both judges (`corpus_one`). `JavaEvalLedgerTest`: `DatabaseJudge` 612 -> 616 with its reason.
+
+## 2026-11-03 — A mixed list's root in its own order; Snowflake's BigNumber rows by the shared text; the ladder's three stale pins
+
+1. **A mixed list's root returns its elements in the list's own order.** Round 18 found BigQuery's
+   `removeDuplicatesBy::testRemoveDuplicatesByPrimitive` (channel A and B) and MySQL's mixed-kind `removeDuplicates`
+   returning their elements out of order: the root unnests its positions, and an unnest promises no order. The tagged
+   list now carries its order (`SqlExpr.TaggedList.Order`: by position as built, kept by a dedup or a filter; by
+   comparable after a sort, ties by position, a stable sort's; either way after a reverse) and the root sorts by it,
+   with no new list call (`TaggedLists.root`). An order key over the positions (`LIST_POSITION`) was measured first and
+   withdrawn (H2 has no list; MySQL's statement doubled; the carrier ratchet bans the call). The root's slot index is the
+   tag less one, read once.
+2. **`TaggedListStatementSizeTest`'s ceiling 150K -> 250K** (its dated reason): the order keys read the unnested position
+   twice more, which Snowflake, SQLite, MariaDB and MySQL write as the position list each time -- MySQL's mixed
+   `removeDuplicates()->sort()` 84K -> 170K, linear (6.94 MB before Track L's fix).
+3. **Snowflake's weeks and days BigNumber rows** carry `is out of range`, which both judges' failures contain (round 18,
+   the database judge alone on Snowflake: all five suites' census as BOTH's, these two the only text differences; the
+   database judge ran each suite about twice as fast as BOTH).
+4. **The lean ladder's three String rungs re-pinned**: `c9e2c4c2` quoted two raw Strings in the database judge's message
+   and was committed without re-running the ladder's pins (r03, r08, r09 stale there) -- a check missed, now run.
+5. **Checks:** core's sql, lowering, judge, driver, planner, compiler, integration (DuckDB, SQLite, H2), the census, the
+   guardrails, the lean ladder (twelve rungs), the capability matrix; PCT DuckDB both channels every suite, SQLite channel
+   A essential and relation, channel B essential, grammar, relation; H2 channel B relation; channel B under the database
+   judge alone on DuckDB (every suite), SQLite essential, H2 relation: 41 of 41, 7 of 7.

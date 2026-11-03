@@ -23,8 +23,12 @@ import org.junit.jupiter.api.Test;
  */
 class TaggedListStatementSizeTest {
 
-    /** The ceiling, in chars: 84K measured at the fix (MySQL), with room for a channel, not for a multiplication. */
-    private static final int CEILING = 150_000;
+    /** The ceiling, in chars: 84K measured at the fix (MySQL), with room for a channel, not for a multiplication.
+     *  150K -> 250K (2026-11-03, round 18: the root's rows in the list's own order -- by comparable, then position --
+     *  read the unnested position twice more, and a database that writes the position list at each read of it
+     *  (Snowflake's GET(list, INDEX), SQLite's, MariaDB's and MySQL's JSON paths) writes it twice more: MySQL 84K ->
+     *  170K, linear; the order is correctness, BigQuery's and MySQL's roots returned the elements out of order). */
+    private static final int CEILING = 250_000;
 
     private static final java.util.List<String> QUERIES = java.util.List.of(
             "|[1, 2, '1', '3', 1, 3, '3', 2]->removeDuplicates()",
