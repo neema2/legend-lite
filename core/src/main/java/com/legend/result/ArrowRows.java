@@ -75,11 +75,12 @@ public final class ArrowRows {
                     + fields.stream().map(ArrowField::name).toList() + "; the plan's statement answers " + physical
                     + " (" + columns.stream().map(ExecutionPlan.Column::name).toList() + ")");
         }
+        List<ArrowReader.@com.legend.base.Nullable Encoding> encodings = in.schema().encodings();
         Column[] readers = new Column[columns.size()];
         for (int i = 0; i < readers.length; i++) {
             ExecutionPlan.Column c = columns.get(i);
-            readers[i] = RowDecode.slotWord(c.slot()).equals("TAGGED") ? tagged(c, i, fields)
-                    : new Plain(i, decoder(c, fields.get(i)));
+            readers[i] = RowDecode.slotWord(c.slot()).equals("TAGGED") ? tagged(c, i, fields, encodings)
+                    : new Plain(i, decoder(c, fields.get(i), encodings.get(i)));
         }
         Batcher batcher = new Batcher(columns, sink, Batcher.DEFAULT_CAPACITY);
         batcher.start();
@@ -136,7 +137,8 @@ public final class ArrowRows {
         }
     }
 
-    private static Tagged tagged(ExecutionPlan.Column c, int at, List<ArrowField> fields) {
+    private static Tagged tagged(ExecutionPlan.Column c, int at, List<ArrowField> fields,
+            List<ArrowReader.@com.legend.base.Nullable Encoding> encodings) {
         List<ExecutionPlan.Column> slots = RowDecode.taggedSlots(c);
         int[] slotAt = new int[slots.size()];
         List<Decoder> decoders = new ArrayList<>(slots.size());
@@ -154,9 +156,10 @@ public final class ArrowRows {
                         + " column '" + c.name() + "'");
             }
             slotAt[s] = found;
-            decoders.add(decoder(slots.get(s), fields.get(found)));
+            decoders.add(decoder(slots.get(s), fields.get(found), encodings.get(found)));
         }
-        return new Tagged(c, at, decoder(RowDecode.tagOf(c), fields.get(at)), slots, slotAt, decoders);
+        return new Tagged(c, at, decoder(RowDecode.tagOf(c), fields.get(at), encodings.get(at)), slots, slotAt,
+                decoders);
     }
 
     /** A column's non-null cells, decoded; a null cell is null. */
@@ -165,7 +168,9 @@ public final class ArrowRows {
         @com.legend.base.Nullable Object read(ArrowReader.Array a, int row);
     }
 
-    private static Decoder decoder(ExecutionPlan.Column c, ArrowField f) {
+    /** {@code c}'s cells read from the field {@code f}; through its dictionary where {@code encoding} names one (a
+     *  dictionary's null value a null cell, as a null index is). */
+    private static Decoder decoder(ExecutionPlan.Column c, ArrowField f, ArrowReader.@com.legend.base.Nullable Encoding encoding) {
         Kind kind = Kind.of(RowDecode.slotWord(c.slot()));
         if (kind == Kind.TAGGED) {
             throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with its row (its slot"
@@ -185,6 +190,16 @@ public final class ArrowRows {
                     + "), whose offset the host's Arrow drops: refused");
         }
         Wire wire = wire(f);
+        if (encoding != null) {
+            return (a, row) -> {
+                if (a.isNull(row)) {
+                    return null;
+                }
+                ArrowReader.Array values = java.util.Objects.requireNonNull(a.dictionary());
+                int k = a.index(row);
+                return values.isNull(k) ? null : decode(wire.at(values, k), c, kind);
+            };
+        }
         return (a, row) -> a.isNull(row) ? null : decode(wire.at(a, row), c, kind);
     }
 

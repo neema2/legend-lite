@@ -916,9 +916,12 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   JavaScript number is the widened double; not measured). The conformance corpus has no `FLOAT` column, so R1 did not
   see it. The Arrow handoff answers the JVM's digits (`//python:arrow_handoff_test` pins both); so switching a host's
   JSON execute to it (R4, R5) changes that host's text for a `FLOAT` column. Posted to the user before the switch.
-- **A dictionary-encoded column is refused by the reader** (2026-11-03, R3): DuckDB answers an `ENUM` (a pandas
-  categorical a frame registers) as an Arrow dictionary, which `ArrowReader` refuses by name; the text handoff reads it
-  as its strings. R4's switch of Python's JSON execute needs the reader to read dictionaries first.
+- **A dictionary-encoded column is refused by the reader** (2026-11-03, R3): DuckDB answers an `ENUM` as an Arrow
+  dictionary, which `ArrowReader` refused by name; the text handoff read it as its strings. (A pandas categorical a frame
+  registers does not reach it: frames hand DuckDB Arrow, and DuckDB reads an Arrow dictionary back as plain text,
+  measured.) *Settled by R4 step 1 (2026-11-03): the reader reads a top-level dictionary-encoded column through its
+  dictionary, a replacement dictionary taking the place of the one before; a delta and an encoded field inside another
+  are refused by name.*
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them. *After R3 (its audit): `lite_execute_arrow_answer`
@@ -1037,3 +1040,5 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   a keyed pivot keeps the text handoff). `//python:executor_bench`'s `json`: 1,000 rows 35.0 -> 21.2 ms, 100,000
   rows 1,855 -> 228 ms, 1,000,000 rows 23,626 -> 1,958 ms. Python's answer changes where the two handoffs part (§7):
   a `FLOAT`'s digits, an infinite date or timestamp, a BC date (500 -> its rows), each now the JVM's.
+- 2026-11-03: R4 step 1 built: `ArrowReader` reads a dictionary-encoded column (DuckDB's `ENUM`; pyarrow's replacement
+  dictionaries), judged in `//python:arrow_handoff_test`.

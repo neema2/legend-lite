@@ -22,21 +22,31 @@ import java.util.Map;
  * bytes, never copied (a native host hands the library its buffer where it lies). It knows the format and nothing of a
  * plan: what a column's values MEAN is read by the plan's columns, in {@code com.legend.result.ArrowRows}.
  *
- * <p>What it does not read is refused by name, never skipped (AGENTS.md invariant 4): a dictionary-encoded field, a
- * compressed batch, a big-endian stream, and the types whose layouts it does not lay out (a union,
- * a view, a run-end encoding, a half float, a large list).
+ * <p>A dictionary-encoded column (DuckDB answers its {@code ENUM}s so) is read through its dictionary: the stream's
+ * dictionary batches are kept by id, a later one with the same id taking the place of the one before, and the column's
+ * array carries its indices and that dictionary ({@link Array#dictionary}, {@link Array#index}).
+ *
+ * <p>What it does not read is refused by name, never skipped (AGENTS.md invariant 4): a dictionary-encoded field inside
+ * another, a dictionary delta, a compressed batch, a big-endian stream, and the types whose layouts it does not lay out
+ * (a union, a view, a run-end encoding, a half float, a large list).
  */
 public final class ArrowReader {
 
     private ArrowReader() {
     }
 
-    /** A stream's schema: its fields, in order, and its custom metadata. */
-    public record Schema(List<ArrowField> fields, Map<String, String> metadata) {
+    /** A stream's schema: its fields, in order (a dictionary-encoded field typed by its values), its custom metadata,
+     *  and each field's dictionary encoding (null for a field that has none). */
+    public record Schema(List<ArrowField> fields, Map<String, String> metadata, List<@Nullable Encoding> encodings) {
         public Schema {
             fields = List.copyOf(fields);
             metadata = Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
+            encodings = Collections.unmodifiableList(new ArrayList<>(encodings));
         }
+    }
+
+    /** A field's dictionary encoding: the id of the dictionary its indices point into, and the indices' integer type. */
+    public record Encoding(long id, ArrowType.Int index) {
     }
 
     /**
@@ -52,15 +62,51 @@ public final class ArrowReader {
         private final @Nullable ByteBuffer validity;
         private final List<ByteBuffer> buffers;
         private final List<Array> children;
+        private final @Nullable Array dictionary;
+        private final ArrowType.@Nullable Int index;
 
         Array(ArrowField field, int length, int nulls, @Nullable ByteBuffer validity, List<ByteBuffer> buffers,
                 List<Array> children) {
+            this(field, length, nulls, validity, buffers, children, null, null);
+        }
+
+        Array(ArrowField field, int length, int nulls, @Nullable ByteBuffer validity, List<ByteBuffer> buffers,
+                List<Array> children, @Nullable Array dictionary, ArrowType.@Nullable Int index) {
             this.field = field;
             this.length = length;
             this.nulls = nulls;
             this.validity = validity;
             this.buffers = List.copyOf(buffers);
             this.children = List.copyOf(children);
+            this.dictionary = dictionary;
+            this.index = index;
+        }
+
+        /** A dictionary-encoded column's dictionary: the values its indices point into (null for a column that is not
+         *  encoded). */
+        public @Nullable Array dictionary() {
+            return dictionary;
+        }
+
+        /** A dictionary-encoded column's index at {@code i}: the position of its value in {@link #dictionary}. */
+        public int index(int i) {
+            ArrowType.Int t = index;
+            if (t == null) {
+                throw new IllegalStateException("the Arrow column '" + field.name() + "' is not dictionary-encoded");
+            }
+            ByteBuffer b = buffers.get(0);
+            long k = switch (t.bits()) {
+                case 8 -> t.signed() ? b.get(i) : b.get(i) & 0xff;
+                case 16 -> t.signed() ? b.getShort(2 * i) : b.getShort(2 * i) & 0xffff;
+                case 32 -> t.signed() ? b.getInt(4 * i) : b.getInt(4 * i) & 0xffff_ffffL;
+                default -> b.getLong(8 * i);
+            };
+            Array d = dictionary;
+            if (d == null || k < 0 || k >= d.length()) {
+                throw new IllegalStateException("the Arrow column '" + field.name() + "' has index " + k
+                        + " past its dictionary of " + (d == null ? 0 : d.length()));
+            }
+            return (int) k;
         }
 
         public ArrowField field() {
@@ -109,6 +155,8 @@ public final class ArrowReader {
     public static final class Stream {
         private final ByteBuffer in;
         private final Schema schema;
+        /** The dictionaries the stream has sent, by id. */
+        private final Map<Long, Array> dictionaries = new java.util.HashMap<>();
         private int pos;
         private boolean ended;
 
@@ -130,24 +178,58 @@ public final class ArrowReader {
             return schema;
         }
 
-        /** The next record batch, or null at the stream's end. */
+        /** The next record batch, or null at the stream's end; a dictionary batch before it is kept. */
         public @Nullable Batch next() {
-            if (ended) {
-                return null;
+            while (!ended) {
+                Message m = message();
+                if (m == null) {
+                    ended = true;
+                    return null;
+                }
+                switch (m.type) {
+                    case RECORD_BATCH -> {
+                        return batch(m);
+                    }
+                    case DICTIONARY_BATCH -> dictionary(m);
+                    case SCHEMA -> throw new IllegalArgumentException("an Arrow stream with a second schema message");
+                    default -> throw new IllegalArgumentException("an Arrow stream with a message of type " + m.type
+                            + " (a tensor), which a result does not carry");
+                }
             }
-            Message m = message();
-            if (m == null) {
-                ended = true;
-                return null;
+            return null;
+        }
+
+        /** A dictionary batch: its values kept under its id, taking the place of the dictionary before it. */
+        private void dictionary(Message m) {
+            Table db = m.header;
+            long id = db.longField(0, 0);
+            if (db.boolField(2, false)) {
+                throw new IllegalArgumentException("an Arrow dictionary delta (dictionary " + id + "): a dictionary "
+                        + "sent whole is read, a delta to one is not");
             }
-            return switch (m.type) {
-                case RECORD_BATCH -> batch(m);
-                case DICTIONARY_BATCH -> throw new IllegalArgumentException("an Arrow stream with a dictionary batch: "
-                        + "a dictionary-encoded column is not read (its field names a dictionary)");
-                case SCHEMA -> throw new IllegalArgumentException("an Arrow stream with a second schema message");
-                default -> throw new IllegalArgumentException("an Arrow stream with a message of type " + m.type
-                        + " (a tensor), which a result does not carry");
-            };
+            int at = -1;
+            for (int i = 0; i < schema.encodings().size(); i++) {
+                Encoding e = schema.encodings().get(i);
+                if (e != null && e.id() == id) {
+                    at = i;
+                    break;
+                }
+            }
+            if (at < 0) {
+                throw new IllegalArgumentException("an Arrow dictionary batch for dictionary " + id
+                        + ", which no field of the schema names");
+            }
+            Table data = db.table(1);
+            if (data.has(3)) {
+                throw new IllegalArgumentException("a compressed Arrow dictionary batch: its buffers are not read");
+            }
+            Cursor cursor = new Cursor(in, data.vector(1), data.vector(2), m.body);
+            Array values = array(cursor, schema.fields().get(at));
+            if (values.length() != data.longField(0, 0)) {
+                throw new IllegalArgumentException("an Arrow dictionary batch of " + data.longField(0, 0)
+                        + " values whose array has " + values.length());
+            }
+            dictionaries.put(id, values);
         }
 
         /** The next encapsulated message, or null at the end marker (or the bytes' end). */
@@ -197,8 +279,10 @@ public final class ArrowReader {
             int rows = Math.toIntExact(rb.longField(0, 0));
             Cursor cursor = new Cursor(in, rb.vector(1), rb.vector(2), m.body);
             List<Array> columns = new ArrayList<>(schema.fields().size());
-            for (ArrowField f : schema.fields()) {
-                Array column = array(cursor, f);
+            for (int i = 0; i < schema.fields().size(); i++) {
+                ArrowField f = schema.fields().get(i);
+                Encoding e = schema.encodings().get(i);
+                Array column = e == null ? array(cursor, f) : encoded(cursor, f, e);
                 if (column.length() != rows) {
                     // a column shorter than its batch would read past its values (R3's audit)
                     throw new IllegalArgumentException("an Arrow record batch of " + rows + " rows whose column '"
@@ -207,6 +291,22 @@ public final class ArrowReader {
                 columns.add(column);
             }
             return new Batch(rows, columns);
+        }
+
+        /** A dictionary-encoded column: its node, its validity and its indices, over the dictionary of its id. */
+        private Array encoded(Cursor cursor, ArrowField f, Encoding e) {
+            Array dictionary = dictionaries.get(e.id());
+            if (dictionary == null) {
+                throw new IllegalArgumentException("the Arrow column '" + f.name() + "' is encoded with dictionary "
+                        + e.id() + ", which the stream has not sent before it");
+            }
+            long[] node = cursor.node(f);
+            int length = Math.toIntExact(node[0]);
+            int nulls = Math.toIntExact(node[1]);
+            ByteBuffer validity = cursor.buffer(f);
+            ByteBuffer indices = cursor.buffer(f);
+            return new Array(f, length, nulls, nulls == 0 || validity.limit() == 0 ? null : validity, List.of(indices),
+                    List.of(), dictionary, e.index());
         }
     }
 
@@ -269,22 +369,34 @@ public final class ArrowReader {
             throw new IllegalArgumentException("a big-endian Arrow stream: its values are not read");
         }
         List<ArrowField> fields = new ArrayList<>();
+        List<@Nullable Encoding> encodings = new ArrayList<>();
         int fv = s.vector(1);
         if (fv >= 0) {
             int n = s.in.getInt(fv);
             for (int i = 0; i < n; i++) {
-                fields.add(field(Table.at(s.in, fv + 4 + 4 * i + s.in.getInt(fv + 4 + 4 * i))));
+                Table f = Table.at(s.in, fv + 4 + 4 * i + s.in.getInt(fv + 4 + 4 * i));
+                encodings.add(f.has(4) ? encoding(f) : null);
+                fields.add(field(f, true));
             }
         }
-        return new Schema(fields, keyValues(s, 2));
+        return new Schema(fields, keyValues(s, 2), encodings);
     }
 
-    private static ArrowField field(Table f) {
+    /** A field's {@code DictionaryEncoding} table: its id, and its index type (a signed 32-bit integer when absent). */
+    private static Encoding encoding(Table f) {
+        Table e = f.table(4);
+        Table index = e.has(1) ? e.table(1) : null;
+        return new Encoding(e.longField(0, 0), index == null ? new ArrowType.Int(32, true)
+                : new ArrowType.Int(index.intField(0, 0), index.boolField(1, false)));
+    }
+
+    /** A field; {@code top} whether it is one of the schema's own (the only place a dictionary-encoded one is read). */
+    private static ArrowField field(Table f, boolean top) {
         String name = f.string(0);
         boolean nullable = f.boolField(1, false);
-        if (f.has(4)) {
-            throw new IllegalArgumentException("the Arrow field '" + name + "' is dictionary-encoded: its values are "
-                    + "not read");
+        if (f.has(4) && !top) {
+            throw new IllegalArgumentException("the Arrow field '" + name + "' is dictionary-encoded inside another "
+                    + "field: its values are not read");
         }
         int typeId = Byte.toUnsignedInt(f.byteField(2, (byte) 0));
         Table type = f.has(3) ? f.table(3) : null;
@@ -293,7 +405,7 @@ public final class ArrowReader {
         if (cv >= 0) {
             int n = f.in.getInt(cv);
             for (int i = 0; i < n; i++) {
-                children.add(field(Table.at(f.in, cv + 4 + 4 * i + f.in.getInt(cv + 4 + 4 * i))));
+                children.add(field(Table.at(f.in, cv + 4 + 4 * i + f.in.getInt(cv + 4 + 4 * i)), false));
             }
         }
         return new ArrowField(name, type(name, typeId, type), nullable, children, keyValues(f, 6));

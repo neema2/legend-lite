@@ -17263,3 +17263,14 @@ handoff until `keyedAnswer` takes Arrow.
 3. **Checks:** `//datacube:{conformance,python_execute,python_engine,python_saved_queries}_test`,
    `//python:{arrow_handoff,frames,markets}_test`, and `//python:engine_test` in three parts (the container's V8 crash,
    R3's audit entry): 70, 12 and 252 tests, OK.
+
+## 2026-11-03 — R4 step 1: the Arrow reader reads dictionary-encoded columns
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 R4 (step 1) and §7. `ArrowReader`: a top-level field's
+`DictionaryEncoding` read (its id; its index type, a signed 32-bit integer when absent), the stream's dictionary batches
+kept by id (a later one with the same id replacing the one before), an encoded column's array carrying its indices and
+its dictionary; a delta, an encoded field inside another, and a dictionary the stream has not sent refused by name.
+`ArrowRows` reads such a column's cells through the dictionary (a null index or a null dictionary value a null cell).
+Judged in `//python:arrow_handoff_test`: DuckDB's own `ENUM` answer, and pyarrow's stream of two batches each with its
+own dictionary, one value null. Checks: `//core:core_tests_{root,architecture}`, `//core:guardrails`,
+`//wasm:differential_test`, `//datacube:{conformance,python_execute}_test`, `//python:{arrow_handoff,bindings,frames}_test`.

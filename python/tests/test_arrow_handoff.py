@@ -172,6 +172,37 @@ class ArrowHandoff(unittest.TestCase):
         finally:
             frames.close()
 
+    def test_a_dictionary_encoded_column_is_read_through_its_dictionary(self):
+        # DuckDB answers an ENUM as an Arrow dictionary (R4 step 1); pyarrow's stream replaces a dictionary between
+        # batches when the next batch's differs: each read through the dictionary it was sent with
+        frames = ll.Frames()
+        try:
+            table = frames.register('moods', pa.table({'ID': pa.array([1], pa.int64()), 'M': pa.array(['x'])}))
+            plan = planned_frame(Engine(frames), frames, table)
+            frames.connection.execute("CREATE TYPE IF NOT EXISTS mood AS ENUM ('sad', 'ok')")
+            enum = frames.connection.execute("SELECT ID::BIGINT AS ID, M::mood AS M FROM (VALUES (2, 'sad'), "
+                                             "(1, 'ok'), (3, NULL)) t(ID, M) ORDER BY ID").to_arrow_table()
+            self.assertTrue(pa.types.is_dictionary(enum.schema.field('M').type), enum.schema)
+            answer = compiler.execute_json_answer_arrow(plan, arrow_bytes(enum))
+            self.assertEqual(200, answer.status, answer.body[:300])
+            self.assertEqual([row['values'] for row in json.loads(answer.body)['result']['rows']],
+                             [[1, 'ok'], [2, 'sad'], [3, None]])
+            # two batches, each with a dictionary of its own (the second a replacement), one value null in it
+            first = pa.record_batch([pa.array([1, 2], pa.int64()), pa.DictionaryArray.from_arrays(
+                pa.array([0, 1], pa.int32()), pa.array(['a', 'b']))], names=['ID', 'M'])
+            second = pa.record_batch([pa.array([3, 4], pa.int64()), pa.DictionaryArray.from_arrays(
+                pa.array([1, 0], pa.int32()), pa.array(['c', None]))], names=['ID', 'M'])
+            sink = pa.BufferOutputStream()
+            with pyarrow.ipc.new_stream(sink, first.schema) as writer:
+                writer.write_batch(first)
+                writer.write_batch(second)
+            answer = compiler.execute_json_answer_arrow(plan, sink.getvalue())
+            self.assertEqual(200, answer.status, answer.body[:300])
+            self.assertEqual([row['values'] for row in json.loads(answer.body)['result']['rows']],
+                             [[1, 'a'], [2, 'b'], [3, None], [4, 'c']])
+        finally:
+            frames.close()
+
     def test_a_stream_that_is_not_the_plans_is_refused_by_name(self):
         frames = ll.Frames()
         try:
