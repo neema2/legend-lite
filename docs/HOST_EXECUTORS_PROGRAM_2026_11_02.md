@@ -1154,3 +1154,8 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   105 ms, decode and legend-engine's JSON 691 -> 507 ms, lite's own answer 229 ms; in the native library from Python,
   the JSON answer 1,640-1,800 -> 1,460 ms, lite's own 625 ms; Python's whole lite execute 842 ms. The native image still
   runs the core about 2.7 times slower than the JVM: the next measurement.
+- 2026-11-03: the native library's gap to the JVM, measured (scratch rebuilds, reverted; 1,000,000 rows): `-O3` takes
+  lite's own answer 625 -> 565 ms and the JSON answer 1,460 -> 1,315 ms (about 10%); a 1 GB young generation on top
+  changes nothing (579 and 1,323 ms), so the collector is not the gap: the image's code is (no JIT, Community Edition).
+  The lever left is less work per cell, which every host gains -- lite's own answer written from the host's Arrow column
+  by column, without a carrier per cell; the JSON writer writing bytes. `-O3` is not adopted (the wheel's build, for 10%).
