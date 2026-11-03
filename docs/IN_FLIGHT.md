@@ -3074,7 +3074,11 @@ back")**: the inventory measured with the walk forbidden
 (`driver/AgreementAsserts.java`, `DatabaseAsserts.planEach`, `AssertVerdicts`' agreement step, `BodyRouter`'s BOTH
 branch, `PlanEnv.stamp`): channel B's residue 23 bodies. Next: core's 104 by group (system-routed query programs, raw
 grids and objects, frames ending in a query, `assertError`, seeded runtimes), channel B's 23, the corpus residue, then
-the deletion and the guards that keep it deleted.
+the deletion and the guards that keep it deleted. **2026-11-03:** the user's let rule built (`LetPlanner.unreadAsStatements`,
+`Execution.runProgram`, `BodyClass.check`, `PlanRunner`'s check origin, `DatabaseAsserts`' frame-check refusal;
+register S129). Next, the user's order: the seed-record fix (A, B, A), the statement-level store census, per-statement
+routing (the system database a read-only second target: the first step to a real cross-store join), then the
+generator (T8) and the system catalog's stage 1.
   **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
   path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
   `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests

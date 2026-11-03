@@ -332,6 +332,7 @@ public enum BodyClass {
         Map<FunctionId, Boolean> taintMemo = new HashMap<>();
         Map<FunctionId, Boolean> runsAFrameMemo = new HashMap<>();
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
+        Map<FunctionId, Boolean> checkMemo = new HashMap<>();
         List<TypedSpec> body = query.body();
         // the frames bound so far, each whether relation-rooted (the planner's own fact, FramePlanner.relationRooted:
         // the alias test and the splice read it); the value lets before, as the walk's prefix; the value lets TAINTED
@@ -466,7 +467,8 @@ public enum BodyClass {
             }
             if (assertRoot) {
                 anAssert = true;
-            } else if (!last && !plansNoStep(statement, body.subList(0, i), ctx)) {
+            } else if (!last && !plansNoStep(statement, body.subList(0, i), ctx)
+                    && !check(statement, systemClasses, ctx, query, checkMemo)) {
                 return false;
             }
             aFrame |= StatementEffects.reaches(statement, n -> n instanceof TypedNativeCall call
@@ -557,6 +559,7 @@ public enum BodyClass {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> memo = new HashMap<>();
+        Map<FunctionId, Boolean> checkMemo = new HashMap<>();
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
         List<TypedSpec> body = query.body();
         boolean anAssert = false;
@@ -579,7 +582,8 @@ public enum BodyClass {
                 anAssert = true;
             } else if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
-                            effectMemo, name -> false) == LetPlanner.Kind.VALUE)) {
+                            effectMemo, name -> false) == LetPlanner.Kind.VALUE)
+                    && !check(statement, systemClasses, ctx, query, checkMemo)) {
                 return false;
             }
         }
@@ -637,6 +641,17 @@ public enum BodyClass {
             }
         }
         return true;
+    }
+
+    /** Whether {@code statement}, before a body's last, is a CHECK: a value statement run for what it raises, its rows
+     *  dropped -- the program road's check step, the walk's value statement (an unread let's value is one, the user's
+     *  ruling of 2026-11-02): not a let, holding no kind the program road plans another way ({@link #anotherWay}). The
+     *  caller has refused a test kind already. */
+    private static boolean check(TypedSpec statement, Set<String> systemClasses, ModelContext ctx, TypedQuery query,
+            Map<FunctionId, Boolean> memo) {
+        return !(statement instanceof TypedLet)
+                && !StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
+                        n -> anotherWay(n, systemClasses, ctx) != null, query.specs(), memo);
     }
 
     /** Whether {@code statement}, before a body's last, plans no step on the program road and sends nothing on the
@@ -843,19 +858,11 @@ public enum BodyClass {
                 // the map after it spells) -- value lets the program splices
                 continue;
             }
-            if (statement instanceof TypedLet let && i < body.size() - 1
-                    && LetPlanner.rhs(let) instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
-                    && LetPlanner.kind(let, body, i, query.specs(), new HashMap<>(), n -> false)
-                            == LetPlanner.Kind.VALUE
-                    && !com.legend.compiler.spec.typed.FreeVars.ofBodyReadingTrees(body.subList(i + 1, body.size()))
-                            .contains(let.name())) {
-                // a RAW READ bound by a let no later statement reads (the corpus's setup `let dataInTable =
-                // executeInDb('select * from ...', $connection)`: M10c item 13): a VALUE let (LetPlanner's own kind --
-                // a raw read is staged only where something reads it after an effect) the walk splices into no reader
-                // and the door rides; it has no children, so reducing it in a later statement's prefix does nothing:
-                // neither road sends or does anything for it. Any other dead value stays a computed value (below):
-                // a generator or census carrier the walk folds, a reduction that could raise at another turn (the
-                // item's audit F1-F3). Upstream runs the read at the let: a divergence posted to the user
+            if (!(statement instanceof TypedLet) && i < body.size() - 1
+                    && statement instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation) {
+                // a RAW READ as a statement (executeInDb('select ...', $c): what an unread let of one is, the user's
+                // ruling of 2026-11-02, LetPlanner.unreadAsStatements) -- a check at its turn on both roads, its rows
+                // dropped: upstream runs it there, and what it raises fails the test
                 continue;
             }
             boolean inert = value instanceof TypedNativeCall call

@@ -19044,3 +19044,33 @@ corpus passes' own `corpus2-body-stayed.tsv`.
    (`docs/CLOUD_SESSIONS.md`), with `update_ratchets_test` after the regeneration. Channel B's five lanes and
    `corpus_one duckdb both` green; `//spec:corpus_duckdb //spec:corpus_h2` 12 of 12 on the final tree, the rosters
    byte-identical, moved 3,067 / 2,992 (DuckDB host / database) and 3,067 / 2,879 (H2), as before.
+
+## 2026-11-03 — The walker-deletion program: an unread let is the statement it binds (the user's ruling)
+
+The user's ruling of 2026-11-02 ("let at the end just runs as normal statement"): legend-pure evaluates every `let` at
+its turn, so `let x = e;` with `x` unread IS `e;` -- it runs, and what it raises fails the test. Until now lite sent
+nothing for such a let on either road (M10c item 13 admitted an unread raw read on that basis; its audit posted the
+divergence).
+
+1. **The rule** (`LetPlanner.unreadAsStatements`, applied by `Execution.runProgram` before routing, so the walk and
+   the program road see one body): each let before the body's last that no later statement reads becomes its value at
+   the same place. A read is asked of the SOURCE body (`SourceSubst.freeVarsOfBody`, by name and occurrence: the typer
+   substitutes a let into the lambdas that read it, and the generator's and census's carriers capture their arguments
+   as protocol specs) and of the typed tree. Kept as lets: a staged let, a frame alias, a value that does no work (a
+   lambda, an element, a variable, a constant, a handle, the census carrier: running it changes nothing) and the
+   generator's carrier until T8 plans it. Item 13's skip rule is deleted.
+2. **The classes** admit what such a statement is: an effect program a raw read as a statement; an assert or frame
+   program a CHECK (a value statement before the last, no test kind, nothing planned another way: `BodyClass.check`),
+   which the program road runs as a check step under the walk's origin for a value statement (`PlanRunner`: a check
+   step is a STATEMENT where nothing marks it). The database judge refuses a check over a frame by name (it runs no
+   frame at its let), so those bodies stay on the walk under that judge until the check carries the frame's chain.
+3. **Measured:** all four corpus passes' outcomes unchanged (2,471 / 108, 2,473 / 108, 2,289 / 295, 2,233 / 353), the
+   rosters byte-identical; moved: host 3,067 -> 3,069 on both lanes, database 2,992 -> 2,980 (DuckDB) and 2,879 ->
+   2,867 (H2) -- the 12 bodies whose unread let reads a frame. Channel B: every outcome equal to the walked baseline.
+   The outside-body registers gain 8 rows on each lane (`duckdb-` and `h2-database-outside-body-register.txt`): the
+   walked bodies under the database judge that now send their unread let's statement, as upstream runs it.
+4. **Register:** `docs/SEMANTICS_REGISTER.md` S129 -- a READ let is evaluated where it is read (once per reader,
+   staged where an effect intervenes), the user's ruling.
+5. **Guards:** `JavaEvalLedgerTest` LetPlanner 131 -> 191 with its reason.
+6. **Checks:** //core:core_tests and _integration, //core:census, //core:guardrails, //pct:pct_channel_b,
+   //spec:corpus_duckdb //spec:corpus_h2 12 of 12, //spec:spec_tests.

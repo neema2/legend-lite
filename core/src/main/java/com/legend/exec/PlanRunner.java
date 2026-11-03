@@ -424,7 +424,14 @@ public final class PlanRunner {
             throws IOException {
         switch (step) {
             case ExecutionPlan.Update u -> update(u, live, st);
-            case ExecutionPlan.Check k -> check(k, live, st);
+            case ExecutionPlan.Check k -> {
+                // a statement of the body run for what it raises, its rows dropped: a statement on its own, as the
+                // walk marks a value statement it runs (an unread let's, the user's ruling of 2026-11-02); a mark in
+                // force (a frame's eager run, LET) stands
+                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                    check(k, live, st);
+                }
+            }
             case ExecutionPlan.Effect e -> {
                 // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
                 // the session's seeds to establish again (the M3 audit's B5)

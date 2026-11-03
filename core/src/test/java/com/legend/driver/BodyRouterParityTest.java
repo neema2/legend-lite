@@ -113,14 +113,15 @@ class BodyRouterParityTest {
         String rawRead = connection(backend) + effect("create table p9(i int)") + "let dead = " + EXEC
                 + "'select * from p9', $c, 0, 1000);\n" + effect("insert into p9 values (9)") + "true;}";
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(ctx, rawRead), RT), rawRead);
+        // the let is unread, so it is the statement it binds (the user's ruling, 2026-11-02): the read runs at its turn
+        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(unreadAsStatements(typed(ctx, rawRead)), RT), rawRead);
         assertParity(backend, rawRead, "select i from p9");
         for (String stays : List.of(
                 connection(backend) + effect("create table p8(i int)") + "let dead = 'abc'->toUpper();\n"
                         + effect("insert into p8 values (8)") + "true;}",
                 connection(backend) + "let dead = " + EXEC + "'select 1', $c, 0, 1000);\n"
                         + effect("create table p10(i int)") + "let other = [1, 2]->map(dead | $dead + 1);\ntrue;}")) {
-            assertNull(BodyClass.of(typed(ctx, stays), RT), "the walk's: " + stays);
+            assertNull(BodyClass.of(unreadAsStatements(typed(ctx, stays)), RT), "the walk's: " + stays);
         }
     }
 
@@ -1636,6 +1637,11 @@ class BodyRouterParityTest {
                         + " 'delete from seed_t', 'insert into seed_t values (1)' ]; };\n  auth: DefaultH2");
     }
 
+    /** {@code q} as the execution door hands it to the router: each unread let the statement it binds. */
+    private static TypedQuery unreadAsStatements(TypedQuery q) {
+        return q.withBody(com.legend.planner.LetPlanner.unreadAsStatements(q.body(), q.resolved(), q.context()));
+    }
+
     private static TypedQuery typed(ModelContext ctx, String body) {
         com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
         List<com.legend.protocol.spec.ValueSpecification> statements =
@@ -1662,7 +1668,7 @@ class BodyRouterParityTest {
      *  database: every boundary observed the same. */
     private static Run assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
             List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
-        assertNotNull(BodyClass.of(typed(ctx, body), runtime, true),
+        assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
         Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
         Run moved = run(backend, ctx, runtime, body, true, check, setup, mode);
@@ -1770,7 +1776,7 @@ class BodyRouterParityTest {
                     Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
                             capture::of);
                 } else {
-                    BodyDriver.execute(q, runtime, backend.dialect().forServer(session.version()), session, listener,
+                    BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect().forServer(session.version()), session, listener,
                             referee, options, capture::of);
                 }
             } catch (RuntimeException e) {

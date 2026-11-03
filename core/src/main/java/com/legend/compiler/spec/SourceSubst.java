@@ -325,8 +325,9 @@ public final class SourceSubst {
         return out;
     }
 
-    /** The free variables of a statement sequence. */
-    static java.util.Set<String> freeVarsOfBody(java.util.List<ValueSpecification> statements) {
+    /** The free variables of a statement sequence (public for the planner's unread-let rule, which reads a body's
+     *  reads off its SOURCE: the typer substitutes a let into the lambdas that read it). */
+    public static java.util.Set<String> freeVarsOfBody(java.util.List<ValueSpecification> statements) {
         java.util.Set<String> out = new java.util.LinkedHashSet<>();
         freeVarsOfBody(statements, java.util.Set.of(), out);
         return out;

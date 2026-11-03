@@ -153,6 +153,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 }
                 continue;
             }
+            if (!last && kinds.isEmpty() && !(statement instanceof TypedLet) && !frames.isEmpty()
+                    && !java.util.Collections.disjoint(com.legend.compiler.spec.typed.FreeVars.of(statement),
+                            frames.keySet())) {
+                // a CHECK statement over a frame (an unread let's value, the user's ruling of 2026-11-02): the database
+                // judge runs no frame at its let, so the check has no frame to read -- the walk's, by name, until the
+                // check carries the frame's chain as its readers' statements do
+                com.legend.exec.Census.unplannedAssert("database: a check over a frame not run at its let");
+                return null;
+            }
             if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
                 continue;
             }

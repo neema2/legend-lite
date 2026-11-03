@@ -32,6 +32,21 @@ public final class TypedQuery {
         this.specs = new SpecCompiler(ctx);
     }
 
+    /** This query with {@code body} as its typed statements (a body the test door rewrote statement for statement, the
+     *  places kept: {@code LetPlanner.unreadAsStatements}); the model, the resolved query and the spec compiler shared.
+     *  An internal of the execution door's, public for the driver's tests as {@link #specs} is. */
+    public TypedQuery withBody(List<TypedSpec> body) {
+        TypedQuery q = new TypedQuery(ctx, resolved, specs);
+        q.body = List.copyOf(body);
+        return q;
+    }
+
+    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs) {
+        this.ctx = ctx;
+        this.resolved = resolved;
+        this.specs = specs;
+    }
+
     /** The compiled model this query is typed against. */
     public ModelContext context() {
         return ctx;

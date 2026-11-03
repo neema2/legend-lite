@@ -185,6 +185,13 @@ public final class Execution {
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
+        // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+        if (program != body) {
+            typed = typed.withBody(program);
+        }
         // the test door's router (the test-is-the-product plan's M5, R16): a body of a moved class runs whole as one plan,
         // every other is walked
         BodyRouter.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
