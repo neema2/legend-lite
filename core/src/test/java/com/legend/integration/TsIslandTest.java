@@ -727,6 +727,17 @@ class TsIslandTest {
             assertEquals(2 * AAA.length, word.size(), backend + ": a row a point, the word's answer a column");
             assertEquals(2 * AAA.length - 2, word.stream().filter(r -> r.get("m") != null).count(),
                     backend + ": none on the ramp's two rows, a value on every other");
+            // each simple statistic's rows form likewise (sum, min, max, std, var, range)
+            List<Map<String, String>> stats = rows(backend, "|#TS{SELECT CLOSE AS c, sum(CLOSE, 2) AS s,"
+                    + " min(CLOSE, 2) AS lo, max(CLOSE, 2) AS hi, std(CLOSE, 3) AS sd, var(CLOSE, 3) AS va,"
+                    + " range(CLOSE, 2) AS rg FROM PRICES ON DAY}#");
+            assertEquals(2 * AAA.length, stats.size(), backend + ": the statistics columns of the same table");
+            for (Map<String, String> r : stats) {
+                if (r.get("hi") != null) {
+                    assertEquals(Double.parseDouble(r.get("hi")) - Double.parseDouble(r.get("lo")),
+                            Double.parseDouble(r.get("rg")), 1e-9, backend + ": a row's range its high less its low");
+                }
+            }
         }
     }
 

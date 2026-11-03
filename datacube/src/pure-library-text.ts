@@ -2222,9 +2222,68 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 // form's. #TS calls a word's rows form where the library has one. mean: the line form's window and ramp, the ramp
 // counting the value's points to date (a word of a word counts from its first point, as the line form's own line
 // does).
+// The rows forms of the simple statistics over w observations, each its line form's window, aggregate and ramp
+// (R7, D5): the answer a point where the value has had more than w points to date and is one itself (gs-quant's
+// apply_ramp). Each written out whole, its aggregate the table function's (timeseries::mean and its kin): a generic
+// call inside a rows form, expanded over the line's growing table at each item, made a query of twelve items type
+// twelve times slower (measured 2026-11-03). The words whose table functions call others keep their line forms.
 function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->average()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::sum<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->sum()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::min<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->min()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::max<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->max()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::std<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < if($w < 2, |2, |$w), |[], |$y->stdDevSample()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::var<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < if($w < 2, |2, |$w), |[], |$y->varianceSample()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::range<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->max()->toOne() - $y->min()->toOne()))
     ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
     ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))

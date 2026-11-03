@@ -264,8 +264,15 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       - Tests: `TsIslandTest.theItemsOfOneColumnAreOneTableEachRowOnce` (the word), and
         `aWordOfAWordCountsFromTheFirstPointOfWhatItReads` (a mean of means, a figure of a word, a word of that figure,
         each against gs-quant's ramp).
-    - **Part 3, next: every word that keeps its rows gets a rows form,** each held to the frozen answers and the
-      oracle. Then the line forms of those words are written through their rows forms, so each has one body.
+    - **Part 3, the simple statistics (2026-11-03).** `sum`, `min`, `max`, `std`, `var` and `range` over w
+      observations have rows forms beside `mean`'s, each its line form's window, aggregate and ramp written out whole.
+      Every answer unchanged; the oracle unchanged. A rows form that called its generic table function
+      (`timeseries::sum`, ...) inside -- one body for the aggregate -- made a query of twelve items over one table
+      type twelve times slower (5.2 s -> 63 s for `aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue`, measured):
+      a generic call inside a generic rows form re-types the growing table under it at each item. So each is written
+      out, and the words whose table functions call others (`zscores`, `drawdown`, `max_drawdown`, `product`,
+      `vol_swap_volatility`, `dickey_fuller`, `half_life`, the calendar windows, the lags) keep their line forms until
+      the typer reuses a typed argument (the cost to remove first).
   - **Duplicates where lines meet (the time model's D1, ruled 2026-11-03; its proof step 3). Done 2026-11-03.**
     - Two lines meeting where one has several rows on a date pair as a lookup (each row with the other's one); where
       both do, the database refuses while the query runs, naming the fix (`SAMPLE BY 1d` and how to take a date's

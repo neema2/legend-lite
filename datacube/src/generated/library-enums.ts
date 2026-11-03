@@ -5,6 +5,7 @@
 /** Each enumeration of timeseries by its name, its values in their declared order: the one source of an option's
  *  values, which the catalog's words and the writer's check both read. */
 export const LIBRARY_ENUMS = {
+  All: ['all'],
   Compare: ['none', 'rebase', 'percent'],
   Cycle: ['week', 'month', 'quarter', 'year'],
   Dated: ['last', 'start', 'end'],
@@ -13,7 +14,6 @@ export const LIBRARY_ENUMS = {
   FilterOperator: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'],
   Grain: ['day', 'week', 'month', 'quarter'],
   Interpolation: ['intersect', 'nan', 'zero', 'step'],
-  Keyed: ['own', 'every'],
   PairStatistic: ['corr', 'cov'],
   Rebalance: ['daily', 'weekly', 'monthly'],
   Returns: ['simple', 'log', 'absolute'],
