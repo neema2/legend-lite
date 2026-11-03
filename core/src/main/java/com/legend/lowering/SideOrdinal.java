@@ -68,7 +68,7 @@ final class SideOrdinal {
         if (!s.orderBy().isEmpty()) {
             // a key that is a window's answer takes no place in another window's order: numbered outside, as a DISTINCT
             // select is (it would count the ordinal among its distinct columns), by its keys where they are outputs
-            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(k.expr()))) {
+            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(windowKey(s, k)))) {
                 return numberedInside(s);
             }
             List<SqlSelect.SortKey> keys = outputKeys(s);
@@ -154,7 +154,7 @@ final class SideOrdinal {
     private static @com.legend.base.Nullable SqlQuery numberedInside(SqlSelect s) {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.orderBy().size());
         for (SqlSelect.SortKey k : s.orderBy()) {
-            keys.add(new SqlSelect.SortKey(k.expr(), k.ascending(), k.nullOrder(), null));
+            keys.add(new SqlSelect.SortKey(windowKey(s, k), k.ascending(), k.nullOrder(), null));
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (s.projections().isEmpty()) {
@@ -171,6 +171,23 @@ final class SideOrdinal {
         ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
         return s.withProjections(ps);
+    }
+
+    /** A sort key of {@code s} as a window's order: a key that names one of the select's own outputs (its output name,
+     *  or a bare column of that name) is that output's expression, since a window's ORDER BY takes no select-list alias
+     *  (H2 refuses one: "Column not found"; the select's own ORDER BY resolves it, measured 2026-11-03 on the corpus's
+     *  testFilterProjectBooleanInFilter). Any other key as written. */
+    private static SqlExpr windowKey(SqlSelect s, SqlSelect.SortKey k) {
+        String named = k.outputName() != null ? k.outputName()
+                : k.expr() instanceof SqlExpr.Column c && c.table() == null ? c.name() : null;
+        if (named != null) {
+            for (SqlSelect.Projection p : s.projections()) {
+                if (named.equals(p.alias())) {
+                    return p.expr();
+                }
+            }
+        }
+        return k.expr();
     }
 
     /** Whether {@code e} holds a window function. */

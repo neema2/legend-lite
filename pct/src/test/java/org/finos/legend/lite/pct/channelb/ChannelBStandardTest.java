@@ -186,5 +186,9 @@ class ChannelBStandardTest {
 
 
 
+        // the EXACT gate (2026-11-03): no failure on the reference lane -- every test passes; a failure joins a
+        // ledger only with a dated reason (ChannelBLedger)
+        ChannelBLedger.judge("Standard", out, ChannelBLedger.of(
+                org.finos.legend.lite.pct.extension.PctBackend.name(), "Standard"));
     }
 }

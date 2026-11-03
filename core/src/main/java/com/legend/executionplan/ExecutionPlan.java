@@ -370,6 +370,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * door, B6).
      */
     public record Setup(String key, List<SetupStep> steps, Target target) implements Node {
+        /** The key of the graph's SYSTEM metamodel store's seed step (the planner's {@code SystemRoutes.seeds}, the
+         *  walker-deletion program, 2026-11-03: planning sends nothing, the plan seeds the store): the one seed step a
+         *  plan may name the graph's system database for. That database holds the store and nothing else, one per
+         *  graph per engine, so the one key names its seeds unambiguously; the runner refuses any other seed there. */
+        public static final String SYSTEM_STORE = "the graph's system metamodel store";
+
         public Setup {
             Objects.requireNonNull(target, "target");
             Objects.requireNonNull(key, "key");

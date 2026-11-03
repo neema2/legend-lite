@@ -201,7 +201,8 @@ final class ProgramRunnerTest {
     }
 
     @Test
-    @DisplayName("no fused statement: each verdict's wrapper runs; a verdict without one hands the sink no row")
+    @DisplayName("no fused statement: each verdict's wrapper runs; a verdict without one is the host judge's: its sides"
+            + " read, no row")
     void noFusedStatementRunsEachWrapper() throws IOException {
         ExecutionPlan.Verdicts g = group(null);
         ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict("assertIs@4", "assertIs",
@@ -211,9 +212,13 @@ final class ProgramRunnerTest {
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), withUnjudged), Map.of(), sessions(),
                 PlanRunner.Judging.DATABASE, sink);
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertIs@4", "verdict assertEquals@3"), sink.events);
+        // 2026-11-03 (assertError an ordinary verdict under the database judge, ruling N3): a verdict with sides and no
+        // wrapper is the HOST judge's in a database-judged program -- its sides read (and only its: no fused statement
+        // and no other verdict's sides are sent for it), then every verdict in the group's order, its own with no row
+        assertEquals(List.of("sides assertIs@4", "verdict assertEquals@2", "verdict assertIs@4",
+                "verdict assertEquals@3"), sink.events);
         assertEquals(java.util.Arrays.asList(true, "x", "x", null, false), cells(sink.verdictRows.get(0)));
-        assertNull(sink.verdictRows.get(1), "a verdict with no wrapper: the database judges nothing");
+        assertNull(sink.verdictRows.get(1), "a verdict with no wrapper: the database judges nothing, the host its sides");
         assertEquals(java.util.Arrays.asList(false, "a", "b", null, false), cells(sink.verdictRows.get(2)));
     }
 

@@ -19154,7 +19154,7 @@ The user's direction (2026-11-03): "burn it all to zero" -- delete the walkers s
    transaction, a member verdict's dropped failure, a duplicate scan, stale javadoc) and what the next steps fix, in the
    user's order (2026-11-03, "need to fix everything above now"): the type census has no caller since 2026-10-27 (its
    gates cannot fail); channel B matches failures by name only; the other databases' channel B lanes hold no door; the
-   judges' leniencies (the user: sort strict, an unsorted query never a multiset); assert messages not upstream's and
+   judges' leniencies (the user: sort strict, an unsorted query a multiset -- "no sort can be multiset compare"; corrected 2026-11-03, the first record misread it); assert messages not upstream's and
    message arguments dropped; `assertError` as ruling N3 under both judges; planning that sends (the eager inline
    execute, the system seed); channel A outside `Execution.run`; S119 (refuse NaN as legend-pure).
 6. **Measured:** PCT DuckDB (channel A) 1,222 pass + 27 expected failures of 1,249; channel B 1,240 of 1,249, its 9
@@ -19163,3 +19163,77 @@ The user's direction (2026-11-03): "burn it all to zero" -- delete the walkers s
    one skipped by its platform), //pct:pct_duckdb, //pct:pct_channel_b (five suites, walk closed), //spec:corpus_duckdb
    //spec:corpus_h2 (rosters unchanged). The type census is known-dead (no caller since 2026-10-27): the user's ruling,
    2026-11-03 -- it becomes a planning check after the walk's deletion.
+
+## 2026-11-03 — PCT closed out on the program road: channel A through `Execution.run`, the judges strict, channel B's ledgers by message on every lane, the system store seeded by the plan
+
+The user's order (2026-11-03: "need to fix everything above now", "speed up the pace significantly"): PCT fully
+correct first, then core, then the corpus, then the deletion. This entry is PCT's.
+
+1. **Channel A through the product door.** `PctPlanRoute` runs each `execute(...)` through `Execution.run` (a new
+   overload taking the plan's features); the PCT substring flag is a plan feature, `CORRECT_SQL_SUBSTRING_INDEXING`
+   (register S130, the user's ruling of 2026-09-12, kept 2026-11-03). The lane's session is chosen per plan as the
+   plan route chose it (`PctBackend.executionSource`): round 14 measured why -- a plain lane session lost
+   `getAll::testBasic` on ClickHouse, Snowflake and BigQuery (a session's own temporary tables). The door asks no
+   server version of a connector's own session (MongoDB: its plan names none; round 15 measured the door refusing all
+   1,249).
+2. **`assertError` under the database judge** is its own verdict step at its turn (`HostAsserts.planAssertError`):
+   the open segment closes before it, so no fused statement spans it.
+3. **The judges strict.** The order rule (S131): a sorted query's rows compare in order, an unsorted query's as a
+   multiset (the user: "sort strict, no sort can be multiset compare"). JSON (the user: "the right clean thing in lite,
+   the backward-compatible thing in compatibility mode"): no `[x] ≡ x` in any judge; lite's own serialize answers its
+   array; the value of an engine `execute(...)` follows the engine JsonBuilder's cardinality rule (one object bare),
+   a mark set by the result-envelope splice alone (`TypedSerialize.engineExecuteCardinality`). The database judge's
+   unsorted-root multiset (bucket 9) restored under the host's own gate (`OrderView` INCIDENTAL), so the two judges
+   decide the same documents alike. The cell pool deleted.
+4. **Float tolerance** (S132, the user: "allow float tolerance"): within 2 ULP in every judge; in a string, float
+   tokens within 2 ULP, the text between exact, and two DIFFERENT doubles only -- two spellings of one value
+   (`30.20`, `30.2`) fail as text (H2's `testGroupByPercentile` had passed on the host judge alone by it).
+5. **IEEE Float** (S119, the user: "IEEE it is then"): lite's Float is an IEEE double; lite's JSON writes `"NaN"`,
+   `"Infinity"`, `"-Infinity"`; the compatibility writer writes `null` as the engine does.
+6. **Upstream's assert messages** (`assertNotEquals`, `assertContains`, `assertEmpty`), read from the pinned `.pure`
+   sources.
+7. **Channel B's expected failures by message, every lane** (`pct/.../channelb/ledger.tsv`, `ChannelBLedger.of`):
+   each failure a row with the text its detail contains (legend-pure's own rule), every row's test failing; the
+   reference lane's rows moved there, every other lane's count pins (a floor, two ceilings) deleted. Each lane prints
+   its failures (`OUTCOME` lines) and its rows are generated from them, a run's own identifiers (a Trino query id, a
+   trace id) cut out.
+8. **The system store seeded by the plan** ("planning sends nothing"): the store's tables and rows are ONE seed step
+   (`SystemRoutes.seeds`, keyed `ExecutionPlan.Setup.SYSTEM_STORE`), planned ahead of the first statement that reads
+   the system database; the runner runs it on that database's session once (the seeds' memo) and refuses any other
+   seed there. `SystemDatabase` only opens (`sessionFor`); the walk, until its deletion, runs the same step through
+   `PlanRunner.seedSystemStore`, so whichever road comes first writes it once.
+9. **The database judge covers channel B** (measured 2026-11-03 by running channel B under one judge alone on DuckDB:
+   host 1,240 of 1,240, database 1,231 -- nine bodies whose asserts its planner refused, which BOTH had left to the host):
+   a segment whose roots are all decided at planning (a statically identified `assertIs`) is a step of its own
+   (`DatabaseAsserts.close`); `instanceOf` over a value of a concrete primitive static type is the compiler's subtype
+   decision (`VerdictQueries.instanceOfCondition`); `assertEq` is refused only for a pair of class-kind sides (D43's
+   identity), one primitive side judged by the database. Database alone 1,239 of 1,240; the last,
+   `testVariantMapColumn_values_LateralFlatten`, compares Variant cells the canon cannot spell without a canonical JSON
+   text per dialect -- the next change.
+10. **H2: a sorted side's ordinal** orders its window by the output's expression where a key names an output (a
+   window takes no select-list alias; `SideOrdinal.windowKey`).
+11. **Measured, by lane (channel A, then channel B with the walk closed):** round 15 at `0294494d` (each lane's session, measure only): channel A exact
+    on DuckDB, Postgres, SQLite, H2, Trino, MariaDB, MySQL, ClickHouse, Databricks, BigQuery (but the Track L item
+    below), Snowflake (all 10; `getAll::testBasic` back), MongoDB at `f73defad` (all 5, round 16); channel B exact against every lane's ledger, but SQLite essential's held-out item.
+    Round 16 at `f73defad` (this commit's code): channel B under BOTH exact on every lane but SQLite essential's
+    held-out item; BigQuery grammar's `testFilterInstance` read its two judges' rows in different orders (a literal
+    list's order lost through `filter` on BigQuery, channel A fails it too: open). Channel B on DuckDB: 1,240 of 1,249
+    under BOTH and under the host alone, 1,239 under the database alone (item 9). Under the database judge alone the
+    server lanes show what is left for it (task: the database judge on every lane): the Variant cell; an assert whose
+    side raises at planning refused rather than carried as a raising step; a system-routed body on a server engine;
+    its failure text not upstream's (the assert's name prefixed, a TDS unquoted); and MySQL's null-safe JSON read,
+    which writes its argument twice -- exponential on nested instances, a 7.3 MB statement that kills mysqld (found
+    by the MySQL lane).
+    Open: the mixed-kind sort regressed at `63ddd3f4` (Track L (1), bisected by the SQLite lane: the tagged list
+    carrier's statement past SQLite's 1 MB, a list of lists BigQuery refuses on channel A); Snowflake channel B
+    essential 494 s -> 1,093 s alone since `e8c341d0`, past its 900 s timeout (to measure: statements per body).
+12. **Found by measurement, not PCT's:** message arguments are dropped by the judges -- no PCT assert passes one (0 of
+    2,733 asserts in legend-pure's and legend-engine's PCT sources); an element-identity `assertIs` fails with lite's
+    text, not upstream's `\nexpected: %r\nactual:   %r` -- no PCT test fails one; the `'TDSNull'` string folded into a
+    null cell on both judges -- no PCT body names it (the corpus phase). Each is the corpus phase's, or completeness.
+13. **Checks:** `//gates:local` at this commit's code: 447 of 458 pass here, the nine Postgres-backed
+    targets pass unprivileged (`tools/postgres/as_unprivileged.sh`; this container runs as root), and the
+    parser-equivalence ratchet regenerated (own corpus 3,054 -> 3,059 matched: the new
+    `EngineExecuteCardinalityTest`'s model, read alike by the referee). PCT DuckDB channel A and channel B pass;
+    channel B under each judge alone measured here (above). The corpora were not re-measured on this batch: their
+    roster moves are the corpus phase's, next.

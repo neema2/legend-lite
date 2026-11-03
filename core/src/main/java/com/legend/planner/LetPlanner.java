@@ -155,7 +155,7 @@ public final class LetPlanner {
      *  touches no database, so running it as a statement changes nothing: a function value (a lambda), an element
      *  reference, a variable, a constant ({@code Literals.fold}), an orchestration handle (a connection, a runtime:
      *  {@link BodyPlanner#handleType}), or the census carrier the checker captured from the model. */
-    private static boolean doesNoWork(TypedSpec value, List<TypedSpec> lets,
+    public static boolean doesNoWork(TypedSpec value, List<TypedSpec> lets,
             com.legend.compiler.element.ModelContext ctx) {
         return value instanceof com.legend.compiler.spec.typed.TypedLambda
                 || value instanceof com.legend.compiler.spec.typed.TypedPackageableRef

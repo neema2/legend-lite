@@ -453,8 +453,23 @@ final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false), t.scalarRow(false)),
-                a.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false),
+                t.scalarRow(false), toleranceArithmetic(args)), a.on(env));
+    }
+
+    /** The kind {@code assertEqWithinTolerance}'s three sides compute in: BIGINT where all three are Integers, DOUBLE
+     *  where one is a Float (the database's Float), else DECIMAL (a Decimal, or a Number the database holds exactly)
+     *  -- never DOUBLE for exact kinds (the user's ruling, 2026-11-03). */
+    private static com.legend.sql.SqlType toleranceArithmetic(List<TypedSpec> args) {
+        boolean allInteger = true;
+        for (TypedSpec s : args.subList(0, 3)) {
+            com.legend.compiler.element.type.Type t = s.info().type();
+            if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                return com.legend.sql.SqlType.Scalar.DOUBLE;
+            }
+            allInteger &= t == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+        }
+        return allInteger ? com.legend.sql.SqlType.Scalar.BIGINT : new com.legend.sql.SqlType.Decimal(38, 18);
     }
 
     /** A side the pipeline ANSWERED as a host constant (a TDG seed string, a
@@ -590,10 +605,6 @@ final class DatabaseJudge {
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
                     false);
         }
-        @Override public TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);
-        }
         @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
@@ -652,8 +663,9 @@ final class DatabaseJudge {
         @Override public TypedSide eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the database
-            // verdict decides; a class-instance pair keeps the host's LOUD identity wall
-            if (!AssertVerdicts.classKind(args.get(0)) && !AssertVerdicts.classKind(args.get(1))) {
+            // verdict decides; a class-instance pair keeps the host's LOUD identity wall. One side a primitive: the
+            // kind and the value, the database's kind-faithful canon decides (2026-11-03, the static gate's own rule)
+            if (!(AssertVerdicts.classKind(args.get(0)) && AssertVerdicts.classKind(args.get(1)))) {
                 return databaseVerdict(name, true, args.get(0), args.get(1),
                         letPrefix, specs, env, hook, false, false);
             }
@@ -712,18 +724,14 @@ final class DatabaseJudge {
         TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
                 .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
-        // the engine's bare-object print applies to a serialize DOCUMENT
-        // whose root is many-valued — never to a RESULT ENVELOPE
-        // ({"builder":…,"values":…}, executeLegendQuery's contract:
-        // always one object; the many-ness lives inside "values") —
-        // read off the planned side's root object
-        boolean rootMany = ja.side() != null && !AssertVerdicts.planIsEnvelope(ja.side().plan())
-                && AssertVerdicts.serializedRootMany(actualJson, letPrefix, hook);
-        // bucket 9: an unsorted many-valued root is a MULTISET of root objects
-        if (rootMany && ja.why() == null
-                && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
-            TypedSpec elements = com.legend.compiler.spec.VerdictQueries
-                    .jsonRootElements(goldenText);
+        // bucket 9: a root the query does not order is a MULTISET of root objects -- the golden's root elements against
+        // the document's -- under the host's own test (HostJudge.jsonOf: the actual's OrderView INCIDENTAL), so the two
+        // judges decide the same documents the same way (2026-11-03: the deleted rootMany sniff had gated it, and its
+        // deletion left these unjudged here while the host judged them). A dialect that cannot place the element rows
+        // falls to the byte compare below, which equal sequences pass and others fail
+        if (ja.why() == null && com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                == com.legend.compiler.spec.OrderView.INCIDENTAL) {
+            TypedSpec elements = com.legend.compiler.spec.VerdictQueries.jsonRootElements(goldenText);
             if (elements != null) {
                 SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
                 if (jr.why() == null) {
@@ -743,8 +751,9 @@ final class DatabaseJudge {
                 }
             }
         }
-        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
-                goldenText, rootMany);
+        // the golden as written otherwise (the user's ruling, 2026-11-03: no [x] for x -- a document serialized
+        // otherwise than the engine serializes it is the serializer's to fix)
+        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenText);
         if (golden == null) {
             return unjudged(name, "json golden does not parse");
         }

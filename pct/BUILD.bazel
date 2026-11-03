@@ -459,7 +459,8 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
         "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
         # the walk's door CLOSED on DuckDB (the walker-deletion program, 2026-11-03): channel B's allow list burned to
         # zero, so every body runs on the program road and a body that would walk is refused by name (driver/WalkDoor);
-        # the other databases' channel B lanes (below) hold no door yet: not measured with the walk closed
+        # every other database's channel B lane (below) runs closed too (ChannelB.run sets it), measured so on
+        # 2026-11-03 (round 14): no body refused on any lane
         "-Dlegend.walk.allowed=none",
     ],
     select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
@@ -478,7 +479,7 @@ test_suite(
 # CHANNEL B ON EVERY LANE (2026-10-11, the user's ask): the same runner on each database a channel A lane runs on
 # (LEGENDLITE_PCT_BACKEND, PctBackend), diffed against THAT lane's channel A ledger and, where legend-engine publishes
 # one, its PCT manifest for the same database (none for SQLite, MariaDB, MySQL or BigQuery). Each lane is judged by its
-# own measured numbers (channelb.ChannelBLane). Each target carries what its channel A lane carries: the server Bazel
+# own ledger, exact (channelb/ledger.tsv: every failure with its text, ChannelBLedger; 2026-11-03). Each target carries what its channel A lane carries: the server Bazel
 # unpacked, the driver, the cloud's properties file. Manual, as their channel A lanes: the server lanes in
 # //gates:heavy, the cloud lanes outside every gate (a run needs the account and costs money).
 _LANE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-%s/legend-engine-xt-relationalStore-%s-PCT/src/main/resources/pct-manifests/relational-%s/%sFunctions_manifest.json"

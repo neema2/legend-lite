@@ -268,7 +268,10 @@ public final class VerdictSql {
         OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
         SqlSelect.Projection countStar = new SqlSelect.Projection(
                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__n", n);
-        if (top instanceof SqlExpr.JsonArrayAgg) {
+        // an engine execute()'s graph value is the aggregate under the
+        // singleton fold (SnapshotEnvelope.foldedAggregate): the same rows,
+        // counted the same way (one object bare is one, the host rule's 1)
+        if (top instanceof SqlExpr.JsonArrayAgg || SnapshotEnvelope.foldedAggregate(top) != null) {
             return new SqlExpr.ScalarSubquery(ps.withProjections(List.of(countStar)));
         }
         OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
@@ -368,15 +371,17 @@ public final class VerdictSql {
                 new SqlExpr.NullLit());
     }
 
-    /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over
-     * the three sides' canon texts as DOUBLEs. */
-    public static SqlQuery tolerance(SqlQuery eScalar, SqlQuery aScalar, SqlQuery tolScalar) {
+    /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over the three sides' canon texts, computed
+     *  in {@code arithmetic} -- the sides' own kind (the user's ruling, 2026-11-03: never more lenient than upstream's
+     *  exact {@code abs($e-$a) <= abs($delta)}): BIGINT for Integers, DECIMAL for Decimals, DOUBLE where a side is a
+     *  Float (the database's Float). */
+    public static SqlQuery tolerance(SqlQuery eScalar, SqlQuery aScalar, SqlQuery tolScalar, SqlType arithmetic) {
         OneRow eo = rowOf("e", eScalar);
         OneRow ao = rowOf("a", aScalar);
         OneRow to = rowOf("t", tolScalar);
-        SqlExpr e = new SqlExpr.Cast(eo.col(C), SqlType.Scalar.DOUBLE);
-        SqlExpr a = new SqlExpr.Cast(ao.col(C), SqlType.Scalar.DOUBLE);
-        SqlExpr t = new SqlExpr.Cast(to.col(C), SqlType.Scalar.DOUBLE);
+        SqlExpr e = new SqlExpr.Cast(eo.col(C), arithmetic);
+        SqlExpr a = new SqlExpr.Cast(ao.col(C), arithmetic);
+        SqlExpr t = new SqlExpr.Cast(to.col(C), arithmetic);
         SqlExpr within = SqlExpr.Call.of(SqlFn.LESS_EQUAL,
                 SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, e, a)), t);
         return predicateOver(List.of(), List.of(eo, ao, to),

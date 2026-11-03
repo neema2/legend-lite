@@ -116,6 +116,33 @@ public final class PureAsserts {
                 + collection.size();
     }
 
+    /** {@code assertNotEquals(notExpected, actual)}'s message (assertNotEquals.pure:17-21): each side's
+     *  representation where both are one value, else both as lists -- upstream's spelling (2026-11-03). */
+    public static String notEqualsMessage(List<Object> notExpected, List<Object> actual) {
+        return notExpected.size() == 1 && actual.size() == 1
+                ? repr(notExpected.get(0)) + " should not equal " + repr(actual.get(0))
+                : joined(notExpected) + " should not equal " + joined(actual);
+    }
+
+    /** {@code assertContains(collection, value)}'s message (assertContains.pure:17-20): the collection as a list of
+     *  representations, the value's representation (2026-11-03). */
+    public static String containsMessage(List<Object> collection, @com.legend.base.Nullable Object value) {
+        return joined(collection) + " does not contain " + repr(value);
+    }
+
+    /** {@code assertEmpty(collection)}'s message (assertEmpty.pure:17-20, its own test: {@code '[1, 2] is not
+     *  empty'}): the collection as a List's {@code %s} (2026-11-03). */
+    public static String notEmptyMessage(List<Object> collection) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < collection.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(collection.get(i) instanceof String s ? s : repr(collection.get(i)));
+        }
+        return sb.append("] is not empty").toString();
+    }
+
     /** {@code assertEqWithinTolerance(expected, actual, delta)}
      * (assertEqWithinTolerance.pure): {@code abs(e - a) <= abs(delta)},
      * message in the spec's {@code %r} form. EXACT kinds (Integer,

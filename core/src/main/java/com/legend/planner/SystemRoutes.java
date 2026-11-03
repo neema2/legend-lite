@@ -12,8 +12,9 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * names on a database the platform runs in process (its dialect's {@code inProcess}, which
  * {@code ConnectorsTest.aDatabaseRunsInProcessOnBothSidesAlike} holds equal to the connector's), else the system
  * session's temporary tables ({@code Ddl.systemTable}). A body reading the system store AND a user store has no single
- * session: refused by name. The session itself -- opened and seeded once per graph -- is the driver's
- * ({@code SystemDatabase}), which checks that it names the tables as planned here.
+ * session: refused by name. The session itself -- one per graph per engine -- is the driver's ({@code SystemDatabase}),
+ * which only opens it: the store's tables and rows are the plan's own seed step ({@link #seeds}; the walker-deletion
+ * program, 2026-11-03: until then the holder wrote them when it opened the session, a send outside every plan).
  */
 public final class SystemRoutes {
 
@@ -68,6 +69,53 @@ public final class SystemRoutes {
             }
         }
         return java.util.Collections.unmodifiableMap(renames);
+    }
+
+    /** The graph's system metamodel store as ONE seed step on {@code system} (a target naming the graph's system
+     *  database), written in {@code dialect} (the program's, for the session's server): every table of the store, its
+     *  DDL and the graph's rows ({@code MetamodelSeeds}) -- under its own name on a database the platform runs in
+     *  process ({@code Ddl.metamodelSteps}), else as the session's temporary table read by its system name
+     *  ({@code Ddl.metamodelTemporary}, {@link #renames}). The runner runs it on the system database's session and
+     *  records its key there (the seeds' memo), so the session holds the store once, whichever plan reaches it first.
+     *  Knowledge, derived once per graph and engine. */
+    public static com.legend.executionplan.ExecutionPlan.Setup seeds(com.legend.compiler.element.ModelContext ctx,
+            com.legend.executionplan.ExecutionPlan.Target system, com.legend.sql.dialect.SqlDialect dialect) {
+        if (!(system.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System s)) {
+            throw new IllegalArgumentException("the system store's seeds go to the graph's system database, not "
+                    + system.database());
+        }
+        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> steps = ctx.derived(SeedMemo.class,
+                c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> seedSteps(ctx, dialect));
+        return new com.legend.executionplan.ExecutionPlan.Setup(
+                com.legend.executionplan.ExecutionPlan.Setup.SYSTEM_STORE, steps, system);
+    }
+
+    /** The store's seed steps, per engine, of one graph ({@code ModelContext.derived}). */
+    private static final class SeedMemo {
+        private final java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
+                java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep>> steps =
+                new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    private static java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> seedSteps(
+            com.legend.compiler.element.ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
+                new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
+        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> out = new java.util.ArrayList<>();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                java.util.List<java.util.List<String>> rows = MetamodelSeeds.rows(def.name(), ctx);
+                if (dialect.inProcess()) {
+                    out.addAll(com.legend.setup.Ddl.metamodelSteps(def, schema.name(), rows, dialect));
+                } else {
+                    for (String statement : com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), rows,
+                            dialect)) {
+                        out.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(statement));
+                    }
+                }
+            }
+        }
+        return java.util.List.copyOf(out);
     }
 
     /** {@code env} with {@code systemRenames} (a route's {@link #renames}) added to its table renames (a conflicting

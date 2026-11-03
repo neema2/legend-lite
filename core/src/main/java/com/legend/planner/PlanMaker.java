@@ -314,7 +314,8 @@ public final class PlanMaker {
         Decided decided = decide(query.context(), runtime, serverVersion);
         // a product program reads no system metamodel table (Class.all() inside a write program is not designed); the
         // test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads the
-        // metamodel store (M10a: the system tables keep their names in process; the opener seeds them once per graph)
+        // metamodel store (M10a: the system tables keep their names in process; the program's own seed step writes
+        // them, once per graph, below)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? new ExecutionPlan.Target(systemRouted
                         ? new ExecutionPlan.Database.System(decided.target().type()) : database(decided.target()),
@@ -330,6 +331,14 @@ public final class PlanMaker {
                 slots, features);
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
+        // the graph's system store, seeded by the plan's own step ahead of the first statement that reads it (the
+        // walker-deletion program, 2026-11-03: planning sends nothing) -- the program's own target, or the system
+        // database beside it (per-statement routing); the runner runs it once per system session
+        boolean systemSeeded = false;
+        if (target.database() instanceof ExecutionPlan.Database.System) {
+            state.add(SystemRoutes.seeds(query.context(), target, decided.dialect()));
+            systemSeeded = true;
+        }
         for (int i = 0; i < body.size(); i++) {
             TypedSpec stmt = body.get(i);
             boolean last = i == body.size() - 1;
@@ -340,7 +349,12 @@ public final class PlanMaker {
             if (stmt instanceof TypedLet let && !last) {
                 planLet(state, body, i, let, effectMemo);
             } else {
-                planStatement(state, i, stmt, last, door, kinds.targetOf(state, i, stmt));
+                ExecutionPlan.Target on = kinds.targetOf(state, i, stmt);
+                if (!systemSeeded && on != null && on.database() instanceof ExecutionPlan.Database.System) {
+                    state.add(SystemRoutes.seeds(query.context(), on, decided.dialect()));
+                    systemSeeded = true;
+                }
+                planStatement(state, i, stmt, last, door, on);
             }
         }
         return new ExecutionPlan.Sequence(finished(state));

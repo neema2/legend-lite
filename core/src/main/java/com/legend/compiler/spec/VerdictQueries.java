@@ -584,7 +584,7 @@ public final class VerdictQueries {
      * root rule, decided at compile time. Null when the text does not
      * parse (the golden itself is defective — named, never guessed). */
     public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedCString
-            canonicalJsonGolden(String text, boolean rootMany) {
+            canonicalJsonGolden(String text) {
         Object parsed;
         try {
             parsed = com.legend.sql.Json.parseOne(text);
@@ -592,9 +592,6 @@ public final class VerdictQueries {
             return null;   // the parser's own refusal; anything else stays loud
         }
         String canon = com.legend.sql.Json.canonical(parsed);
-        if (rootMany && parsed instanceof java.util.Map) {
-            canon = "[" + canon + "]";
-        }
         return new com.legend.compiler.spec.typed.TypedCString(canon,
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
     }
@@ -627,12 +624,41 @@ public final class VerdictQueries {
      * has no two-argument instanceOf. */
     public static @com.legend.base.Nullable TypedSpec instanceOfCondition(TypedSpec value,
             TypedSpec typeArg, SpecCompiler specs) {
+        // a value of a CONCRETE primitive static type is of that type and no other at run time (no primitive but Number
+        // and Date has a subtype), so instanceOf is the type system's own subtype relation, decided here by the
+        // compiler -- legend-pure's answer for any value of that type (2026-11-03: the lowering's fold decides a class
+        // type alone, so assertInstanceOf($dt, DateTime) and testHashCode's Integer walled under the database judge)
+        String target = typeTarget(typeArg);
+        if (target != null && value.info().multiplicity().equals(Multiplicity.Bounded.ONE)
+                && value.info().type() instanceof Type.Primitive p && CONCRETE_PRIMITIVES.contains(p)) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(
+                    specs.ctx().isSubtype(p.qualifiedName(), target),
+                    new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+        }
         return specs.ctx().findFunction(
                         com.legend.compiler.element.type.PlatformTypes.INSTANCE_OF)
                 .stream().filter(f -> f.parameters().size() == 2).findFirst()
                 .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(value, typeArg),
                         new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)))
                 .orElse(null);
+    }
+
+    /** The primitives no other primitive specializes: a value typed one of them is of exactly it at run time. Number
+     *  and Date are abstract (Integer, Float, Decimal; StrictDate, DateTime), and LatestDate is a date's marker. */
+    private static final java.util.Set<Type.Primitive> CONCRETE_PRIMITIVES = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT, Type.Primitive.DECIMAL,
+                    Type.Primitive.STRING, Type.Primitive.BOOLEAN, Type.Primitive.BYTE, Type.Primitive.STRICT_DATE,
+                    Type.Primitive.DATE_TIME, Type.Primitive.STRICT_TIME));
+
+    /** The type an {@code instanceOf}'s type argument names: a class or primitive {@code @Type}, or a bare type
+     *  reference; null for any other argument. */
+    private static @com.legend.base.Nullable String typeTarget(TypedSpec typeArg) {
+        return switch (typeArg) {
+            case com.legend.compiler.spec.typed.TypedTypeRef tr -> tr.target() instanceof Type.ClassType c ? c.fqn()
+                    : tr.target() instanceof Type.Primitive p ? p.qualifiedName() : null;
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr -> pr.fullPath();
+            default -> null;
+        };
     }
 
     /** A VERDICT FUNCTION CALL AS THE PREDICATE IT MEANS (2026-09-22): inside a

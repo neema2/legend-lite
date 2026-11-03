@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.CellPool, HostJudgment.AssertError {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -173,12 +173,6 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
     record TdsEquivalent(boolean hasTimeDelta) implements HostJudgment {
     }
 
-    /** The CELL POOL of the sorted flat-cells idiom ({@code assertEquals([...], $grid.rows.values->sort())}; M10c
-     *  item 9): planned where at least one of its two sides is planned as a grid, so the step's sides are the pool's
-     *  and the cell multiset judges them. */
-    record CellPool(String name) implements HostJudgment {
-    }
-
     /** The grid pair ({@code assertEquals}/{@code assertNotEquals} over two relation-stamped sides, D3);
      *  {@code sortedOrder} whether the actual side's order view is SORTED (rows compared in order). */
     record GridPair(String name, boolean wantEqual, boolean sortedOrder) implements HostJudgment {
@@ -266,9 +260,10 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
     }
 
     /** {@code assertError(f, expected[, line, column])} (the walker-deletion program, 2026-11-03): an ordinary verdict
-     *  whose answer is an error -- its function's last statement is the step's side, and the error reading it raises
-     *  is judged at the step by the arm's own rule ({@code AssertErrorNative.judge}), counted and reported as any
-     *  assert is; {@code caught} the error {@code f} raised while it was PLANNED (a deferred guard's, as the walk's arm
+     *  whose answer is an error -- its function's whole body is the step's sub-plan (ruling N3): each let that does
+     *  work and the last statement are the step's sides, read in the body's order, and the first error reading them
+     *  raises is judged at the step by the arm's own rule ({@code AssertErrorNative.judge}), counted and reported as
+     *  any assert is; {@code caught} the error {@code f} raised while it was PLANNED (a deferred guard's, as the walk's arm
      *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
      *  error was thrown". */
     record AssertError(String expected, @Nullable Long line, @Nullable Long column,

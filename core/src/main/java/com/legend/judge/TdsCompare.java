@@ -58,18 +58,21 @@ public final class TdsCompare {
         }
         // the grid's DECLARED column types decide each cell (step 2b);
         // the rows are the judge's, ordered or as a multiset
-        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
-        expected.columns().forEach(c -> kinds.add(c.pureType()));
+        // each grid's cells typed by its own declared columns (the user's ruling, 2026-11-03: never the peer's)
+        List<com.legend.compiler.element.type.Type> eKinds = new ArrayList<>();
+        expected.columns().forEach(c -> eKinds.add(c.pureType()));
+        List<com.legend.compiler.element.type.Type> aKinds = new ArrayList<>();
+        actual.columns().forEach(c -> aKinds.add(c.pureType()));
         List<Object> ef = new ArrayList<>();
         e.forEach(ef::addAll);
         List<Object> af = new ArrayList<>();
         a.forEach(af::addAll);
-        List<Equality.Typed> te = Equality.grid(ef, kinds);
-        List<Equality.Typed> ta = Equality.grid(af, kinds);
+        List<Equality.Typed> te = Equality.grid(ef, eKinds);
+        List<Equality.Typed> ta = Equality.grid(af, aKinds);
         if (ordered) {
             return Equality.ordered(te, ta) == null;
         }
-        if (!Equality.rowMultiset(te, ta, Math.max(1, kinds.size()))) {
+        if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()))) {
             return false;
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a

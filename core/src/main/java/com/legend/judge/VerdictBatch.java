@@ -458,6 +458,13 @@ public final class VerdictBatch {
             }
         }
 
+        /** Whether every root of the batch was decided at planning (a static decision, an unjudged decline, a planned
+         *  raise): no root has a statement for the database to read, so the batch has no group and its root loop
+         *  needs no row (the database judge's own planner carries such a segment as a step with no statement). */
+        public boolean decidedAtPlanning() {
+            return batch.stream().allMatch(r -> r.steps.stream().noneMatch(s -> s instanceof Pending));
+        }
+
         /** The verdict groups, in the order they run: a session's keyed group, then its fused group, per session. */
         public List<Group> groups() {
             return java.util.Collections.unmodifiableList(groups);

@@ -67,16 +67,34 @@ public final class Execution {
             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
+        return run(typed, runtimeFqn, sessions, planSessions, establish, java.util.Set.of(), sinkOf, batchRows);
+    }
+
+    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source, Establish,
+     *  java.util.function.Function, int)} under the query's FEATURE FLAGS: upstream's execution context carries them
+     *  per query (its {@code ExecutionOptionContext}'s {@code FeatureFlagOption}), and the lowering reads them (2026-11-03:
+     *  the one door's own parameter, so a caller that sets a flag -- the PCT, the user's ruling of 2026-09-12 -- runs
+     *  through the door, never around it). */
+    public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
+            com.legend.exec.PlanSessions.Source planSessions, Establish establish,
+            java.util.Set<com.legend.platform.Feature> features,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
+            int batchRows) throws java.io.IOException {
         if (typed.writes()) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn);
+            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features, null);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
             return plan;
         }
         ModelContext ctx = typed.context();
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, java.util.Set.of(),
-                    session.version());
+        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
+        try (com.legend.exec.Sessions.Session session = sessions.open(decided, ctx)) {
+            // a connector whose sessions are its own (MongoDB) writes its commands for every server version it speaks:
+            // its plan names no version, and its session states none (2026-11-03: the door asked it, and refused
+            // every MongoDB query -- channel A's MongoDB lane, 0 of 1,249)
+            String version = com.legend.exec.Connectors.of(decided.type()).ownSessions() ? null : session.version();
+            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features, version);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
                 // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
