@@ -365,7 +365,7 @@ describe('the example page over the classes, opened the page\'s way', () => {
     for (const series of ts.series) {
       const sent = tsSeriesQuery(inputs, ts, series);
       const shown = await corpus.tsStatement(sent);
-      assert.ok(shown.statement !== undefined, shown.refused);
+      if (shown.statement === undefined) assert.fail(`${series.id}: ${shown.refused}`);
       assert.match(shown.statement, / \|\| '@' \|\| .* AS listing, CASE WHEN /, shown.statement);
       const alone = lambda([], tsIsland(shown.statement));
       assert.equal((await corpus.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
