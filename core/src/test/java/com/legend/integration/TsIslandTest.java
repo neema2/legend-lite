@@ -1342,6 +1342,39 @@ class TsIslandTest {
             "SELECT union(CLOSE['AAA'], CLOSE['BBB']) AS u, 3mo AS z FROM PRICES ON DAY BY SYMBOL");
 
     @Test
+    void aSeriesIsOneItemCoreReads() {
+        // A3 step 2: the one reader -- a formula box's series is one #TS item, read by the query's own parser, printed
+        // back as itself, its tree as data (TsTree) for a drawing to walk
+        for (String text : List.of("avg(close, 20) AS ma20", "CLOSE['AAA'] / CLOSE['BBB'] - 1 AS r",
+                "returns(close, type => 'log') AS g", "sum(volume, 3mo) AS v", "first(close, all) AS f",
+                "CASE WHEN close > 100 THEN 1 ELSE -1 END AS c", "px.close AS p",
+                "union(close['AAA'], close['BBB']) AS u")) {
+            com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
+            assertEquals(text, com.legend.protocol.ts.TsPrinter.print(line), "printed as read");
+            assertEquals(text, com.legend.protocol.ts.TsPrinter.print(com.legend.protocol.ts.TsParser.item(
+                    com.legend.protocol.ts.TsPrinter.print(line))), "and read back the same");
+        }
+        Map<String, Object> tree = com.legend.server.TsTree.of(com.legend.protocol.ts.TsParser.item(
+                "avg(close['AAA'], 3mo) AS m"));
+        assertEquals("m", tree.get("alias"));
+        assertEquals("{k=call, name=[avg], args=[{k=pick, of={k=column, parts=[close], at=[1, 5]}, keys=[{k=string,"
+                + " value=AAA, at=[1, 11]}], at=[1, 5]}, {k=span, n=3, unit=mo, at=[1, 19]}], star=false, at=[1, 1]}",
+                String.valueOf(tree.get("expr")), "the call, its subscript and its span, each in place");
+        assertEquals("{k=all, at=[1, 14]}", String.valueOf(((List<?>) ((Map<?, ?>) com.legend.server.TsTree.of(
+                com.legend.protocol.ts.TsParser.item("first(close, all)")).get("expr")).get("args")).get(1)),
+                "a window of everything marked as the parser marks it");
+        com.legend.protocol.sql.SqlTranslationException error = assertThrows(
+                com.legend.protocol.sql.SqlTranslationException.class,
+                () -> com.legend.protocol.ts.TsParser.item("avg(close, 20) AS a, sum(close) AS b"));
+        assertTrue(error.getMessage().contains("one item"), error.getMessage());
+        assertEquals(1, error.line());
+        com.legend.protocol.sql.SqlTranslationException broken = assertThrows(
+                com.legend.protocol.sql.SqlTranslationException.class,
+                () -> com.legend.protocol.ts.TsParser.item("avg(close, "));
+        assertEquals(1, broken.line(), "an error placed in the text: " + broken.getMessage());
+    }
+
+    @Test
     void aQueryPrintedReadsBackAsTheSameText() {
         // D12's exactness: the printed statement, parsed and printed again, is the same text (a fixpoint)
         for (String text : PRINTED) {

@@ -57,6 +57,15 @@ public final class TsAst {
             SqlAst.Pos pos) {
     }
 
+    /** One item read alone, as a formula box holds a series ({@link TsParser#item}): the item, and the windows of
+     *  everything and the spans it marks, by their places, as a query's ({@link Query#alls}, {@link Query#spans}). */
+    public record Line(Item item, Set<SqlAst.Pos> alls, Map<SqlAst.Pos, Span> spans) {
+        public Line {
+            alls = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(alls));
+            spans = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(spans));
+        }
+    }
+
     /** A FROM source: what it reads, its alias (none: null), its date column ({@code ON}) and its instrument column
      *  ({@code BY}; none: null), each a column or a class's dotted path. */
     public record From(Source source, SqlAst.@com.legend.base.Nullable Ident alias, SqlAst.ColumnRef on,

@@ -161,6 +161,7 @@ public final class PureV1Api {
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body, models);
+            case "/api/lite/v1/grammar/tsItem" -> tsItem(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -310,6 +311,32 @@ public final class PureV1Api {
                     lambda, tsTypes(ctx)));
             return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
                     : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
+        });
+    }
+
+    /**
+     * {@code /api/lite/v1/grammar/tsItem} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md; upstream has no #TS):
+     * {@code {text}}, one #TS item as a formula box holds a series, read by core's parser -- the one reader
+     * ({@link com.legend.protocol.ts.TsParser#item}): {@code {"text": canonical, "item": {alias, expr}}}, the item's
+     * tree as data ({@link TsTree}), or {@code {"error": {message, line, column}}} where the text
+     * is no item. An error is the box's answer, never a failed request: 200 either way.
+     */
+    public static Answer tsItem(String body) {
+        return answer(400, "COMPILATION", () -> {
+            String text = request(body).getString("text");
+            Map<String, Object> out = new LinkedHashMap<>();
+            try {
+                com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
+                out.put("text", com.legend.protocol.ts.TsPrinter.print(line));
+                out.put("item", TsTree.of(line));
+            } catch (com.legend.protocol.sql.SqlTranslationException e) {
+                Map<String, Object> error = new LinkedHashMap<>();
+                error.put("message", e.getMessage());
+                error.put("line", e.line());
+                error.put("column", e.column());
+                out.put("error", error);
+            }
+            return Json.toCompact(out);
         });
     }
 

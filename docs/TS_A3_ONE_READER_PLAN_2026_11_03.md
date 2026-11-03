@@ -38,6 +38,14 @@ of a formula. The tile's own grammar (`datacube/src/timeseries-expr.ts`), its si
    - or its error, with a range and the words that could come next (completions).
    The tile keeps its grammar meanwhile. A test runs every example series both ways and requires the same answers
    (the frozen answers, and the same facts).
+
+   *As built (2026-11-03):* the route answers the item's canonical text and core's own tree as data (`TsTree`: each
+   node its kind `k`, its place `at`, its parts), or the error placed at a line and column. The facts are not in the
+   answer: step 1 put them in the catalog the tile already reads (`ts-words.ts`), keyed by the word, so a node's
+   `call` name finds them. The sources, columns and `$` references are the tree's `column` nodes, read by the tile.
+   Completions wait for step 3, with the formula box that shows them. The proof is a round trip: every example series'
+   item (`tsItemText`) read by core prints back as itself (`timeseries-ts-parity.test.ts`); core's own test reads a
+   span, a window of everything, a subscript and an option, and refuses two items.
 3. **The tile stores text.** `TsSeries.text` replaces `TsSeries.expr`. The page document becomes version 7 (§3,
    decision 1). Python's `Timeseries.series` returns text. Every walker moves to the answer of step 2, one module per
    commit:
@@ -48,6 +56,9 @@ of a formula. The tile's own grammar (`datacube/src/timeseries-expr.ts`), its si
    - the view.
 
    The formula box asks core on each keystroke, debounced, and shows the error's range and the completions.
+
+   *The way in (2026-11-03):* the tile maps core's tree to its own `TsExpr` first, so the about 40 walkers move
+   unchanged and the tile's parser is the first thing deleted; each walker then moves to the facts in the catalog.
 4. **The problems from the compiler.** `timeseriesProblems` (a column missing, not a number, a date that is no date)
    becomes the compiler's own messages: the series' query typed through `relationType`, which the tile already calls.
    Only what is the tile's own stays in TypeScript: a series with no plot, and a split that differs.
@@ -81,3 +92,13 @@ the bundle and cold-start budgets. Each step re-measures the formula box's keyst
 - **Riskiest: the keystroke cost.** Each keystroke becomes a call into the planner. It is measured in step 2 before
   anything depends on it. If it is slow, the box parses on a pause, not on every key.
 - **The order is safe.** Steps 1 and 2 change no behaviour and can land alone. Step 3 is where the document changes.
+
+## 5. Status
+
+| Step | State |
+|---|---|
+| 1. The facts in the library | Built 2026-11-03: the `timeseries::Words` profile's tags and stereotypes on each word; core's catalog reads them; a test requires the tile's table to say the same |
+| 2. Core reads one item | Built 2026-11-03: `TsParser.item`, `TsTree`, the route `/api/lite/v1/grammar/tsItem`, `LitePlanner.tsItem`; the round trip over every example series |
+| 3. The tile stores text | Next |
+| 4. The problems from the compiler | After 3 |
+| 5. Delete and guard | After 4 |

@@ -89,6 +89,31 @@ public final class TsParser {
 
     /** The query {@code text} holds; a {@link SqlTranslationException} for text that is not one, placed in it. */
     public static TsAst.Query parse(String text) {
+        TsParser p = prepared(text);
+        TsAst.Query q = p.query();
+        p.noVariableRead();
+        return q;
+    }
+
+    /**
+     * ONE ITEM of a SELECT list, {@code expression [AS name]}, as a formula box holds a series (A3 step 2,
+     * docs/TS_A3_ONE_READER_PLAN_2026_11_03.md): the item, with the windows of everything ({@code all},
+     * {@code whole}) and the spans ({@code 3mo}) it marks, as a query's are. A {@link SqlTranslationException} for text
+     * that is not one item, placed in it. The reader is the query's own: an item reads as it does in a SELECT list.
+     */
+    public static TsAst.Line item(String text) {
+        TsParser p = prepared(text);
+        List<TsAst.Item> items = p.items(0, p.tokens.size() - 1, false);
+        if (items.size() != 1) {
+            throw invalid("a series is one item: avg(close, 20) AS ma20, not " + items.size(), items.get(1).pos());
+        }
+        p.noVariableRead();
+        return new TsAst.Line(items.get(0), p.alls, p.spans);
+    }
+
+    /** A parser over {@code text}'s tokens, its marks made: a variable's, a span's, a window of everything's, and
+     *  gs-quant's {@code union(} read as a call. */
+    private static TsParser prepared(String text) {
         Set<SqlAst.Pos> variables = new java.util.LinkedHashSet<>();
         Map<SqlAst.Pos, TsAst.Span> spans = new java.util.LinkedHashMap<>();
         String marked = marked(text, variables, spans);
@@ -110,25 +135,28 @@ public final class TsParser {
                 // by its place
                 tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : WHOLE, t.pos()));
                 alls.add(t.pos());
-            } else if (t.is("union") && i > 0 && i + 1 < lexed.size() && lexed.get(i + 1).kind() == Kind.LPAREN
-                    && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).kind() == Kind.LPAREN
+            } else if (t.is("union") && i + 1 < lexed.size() && lexed.get(i + 1).kind() == Kind.LPAREN
+                    && (i == 0 || lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).kind() == Kind.LPAREN
                             || lexed.get(i - 1).kind() == Kind.OP || lexed.get(i - 1).is("select"))) {
                 // gs-quant's union(x, y) (R3: the language takes gs-quant's names, D2), a word SQL reserves: read as a
-                // call where an expression starts, never a set operation's UNION (which follows a query)
+                // call where an expression starts -- an item's first word too (A3 step 2: a query's is SELECT or WITH)
+                // -- never a set operation's UNION (which follows a query)
                 tokens.add(new Token(Kind.QUOTED_IDENT, "union", t.pos()));
             } else {
                 tokens.add(t);
             }
         }
-        TsParser p = new TsParser(tokens, variables, alls, spans);
-        TsAst.Query q = p.query();
+        return new TsParser(tokens, variables, alls, spans);
+    }
+
+    /** Every variable of the enclosing Pure read as a source (R1.4); one in an expression refused, v1's. */
+    private void noVariableRead() {
         for (SqlAst.Pos v : variables) {
-            if (!p.read.contains(v)) {
+            if (!read.contains(v)) {
                 throw unsupported("a variable of the enclosing Pure is read as a source, FROM $quotes ON date"
                         + " BY symbol; in an expression it is v1's", v);
             }
         }
-        return q;
     }
 
     // ------------------------------------------------------------------ the marks, in place

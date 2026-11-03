@@ -18,7 +18,7 @@ import {
   type TsInput, type TsInputs,
 } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
-import { readsBase, TS_ITEM, tsIsland, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import { readsBase, TS_ITEM, tsIsland, tsItemText, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 import { exprText, inlined } from '../src/timeseries-expr.ts';
 import { writeFileSync } from 'node:fs';
@@ -103,6 +103,9 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const statements: string[] = [];
   const statementsWrong: string[] = [];
   const unshown = new Map<string, number>();
+  // ONE READER (A3 step 2): each series' item, read by core alone, prints back as itself
+  const itemsWrong: string[] = [];
+  let items = 0;
   // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
   const oracle: Record<string, unknown> = {};
   let ran = 0;
@@ -139,6 +142,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
             : [new Map([[aliases[0]!, grids.get(cubeOf(aliases[0]!))!.input]]), grids.get(cubeOf(aliases[0]!))!.planner];
           ran += 1;
           let said: string;
+          let shownOf: string | undefined;
           try {
             const q = seriesQuery(inputsOf, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
             const tile = await local.execute(await plannerOf.plan(q.query), 0);
@@ -162,6 +166,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               const off = difference(keyed(mine, date, split, names), keyed(read, date, split, names));
               if (off !== undefined) statementsWrong.push(`${id}: ${off}\n    ${shown.statement}`);
               statements.push(`${id}: ${shown.statement}`);
+              shownOf = shown.statement;
             }
             oracle[id] = {
               formula: exprText(inlined(series.expr, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
@@ -175,6 +180,24 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
             said = d === undefined ? 'same' : `DIFFERS: ${d}`;
           } catch (e) {
             said = `FAILS: ${(e as Error).message.split('\n')[0]!.slice(0, 300)}`;
+          }
+          // ONE READER (A3 step 2): core reads the item alone; its text reads back as itself, and is the item Show #TS
+          // prints of the whole query
+          const itemText = tsItemText(ts, series, anchor);
+          if (itemText !== undefined) {
+            items += 1;
+            try {
+              const read = await plannerOf.tsItem(itemText);
+              if (read.text === undefined) {
+                itemsWrong.push(`${id}: ${itemText}\n    refused: ${read.error.message}`);
+              } else {
+                const again = await plannerOf.tsItem(read.text);
+                if (again.text !== read.text) itemsWrong.push(`${id}: ${read.text}\n    read again as ${again.text ?? again.error?.message}`);
+                if (shownOf !== undefined && !shownOf.includes(read.text)) itemsWrong.push(`${id}: ${read.text}\n    not in ${shownOf}`);
+              }
+            } catch (e) {
+              itemsWrong.push(`${id}: ${itemText}\n    ${(e as Error).message.split('\n')[0]}`);
+            }
           }
           const expected = DIFFERS[id];
           if (said === 'same' && expected !== undefined) agreed.push(id);
@@ -197,7 +220,9 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   }
   console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
   if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));
+  console.log(`One reader: ${items} series' items read by core`);
   assert.deepEqual(statementsWrong, [], 'each series\' one statement reads back as itself and answers its rows');
+  assert.deepEqual(itemsWrong, [], 'each series\' item, read by core alone, reads back as itself and as Show #TS prints it (A3 step 2)');
   assert.deepEqual(Object.fromEntries(unshown), UNSHOWN, 'the series not shown as one statement, by reason: only allowed to shrink');
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');

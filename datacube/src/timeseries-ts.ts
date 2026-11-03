@@ -168,6 +168,19 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
   return `SELECT ${w.text(expr)} AS ${TS_ITEM}${also} FROM ${w.from}${grain === undefined ? '' : ` SAMPLE BY ${SAMPLE[grain]}`}${filled}`;
 }
 
+/** The #TS item of `series` as `tsQueryText` writes it, `<expression> AS ts_value` -- what a formula box holds of it
+ *  (A3 step 2: core reads it back, the one reader). Undefined where the series is a query of its own (a candle or a
+ *  technical of computed series under the tile's frequency, a VWAP's): its item reads that query's columns. */
+export function tsItemText(ts: TimeseriesSpec, series: TsSeries, anchor?: string): string | undefined {
+  const expr = inlined(series.expr, ts.series);
+  const grain = seriesGrain(ts, expr);
+  if (grain !== undefined && expr.kind === 'call' && ROLLED.has(expr.fn)
+    && (expr.fn === 'vwap' || expr.args.some((a) => a.kind !== 'column'))) {
+    return undefined;
+  }
+  return `${writer(ts, expr, series.split, grain, anchor).text(expr)} AS ${TS_ITEM}`;
+}
+
 /**
  * THE PERIODS A SERIES IS READ BY: the tile's frequency; else, where a column says how a date takes its rows
  * (`volume.sum`, a sector's day of volume: the tile's own `.sum`, `.first`, `.max`), a day -- one value a date, as the

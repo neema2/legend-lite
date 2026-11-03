@@ -33,6 +33,13 @@ public final class TsPrinter {
         return new TsPrinter(q).query(q);
     }
 
+    /** One item's text, as a formula box shows a series ({@link TsParser#item}, A3 step 2): read back, the same item. */
+    public static String print(TsAst.Line line) {
+        TsAst.Query alone = new TsAst.Query(List.of(), List.of(line.item()), List.of(), null, "LAST", null, null,
+                line.alls(), line.spans());
+        return new TsPrinter(alone).item(line.item());
+    }
+
     private String query(TsAst.Query q) {
         StringBuilder b = new StringBuilder();
         if (!q.withs().isEmpty()) {

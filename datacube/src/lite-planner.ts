@@ -121,6 +121,27 @@ interface Transport {
   generation: number;
 }
 
+/** One #TS item as core reads it ({@link LitePlanner.tsItem}): its canonical text and its tree, or its error placed in
+ *  the text (1-based line and column). */
+export type TsItemAnswer =
+  | { readonly text: string; readonly item: TsItemTree; readonly error?: undefined }
+  | { readonly text?: undefined; readonly item?: undefined; readonly error: { readonly message: string; readonly line: number; readonly column: number } };
+
+/** An item's tree as core writes it (protocol/ts TsTree): its alias, and its expression, each node its kind (`k`),
+ *  its place (`at`) and its parts. */
+export interface TsItemTree {
+  readonly alias: string | null;
+  readonly expr: TsNode | null;
+}
+
+/** A node of an item's tree: its kind (`column`, `number`, `call`, `binary`, `pick`, `option`, `span`, `all`, ...), its
+ *  place, and its parts by name. */
+export interface TsNode {
+  readonly k: string;
+  readonly at: readonly [number, number];
+  readonly [part: string]: unknown;
+}
+
 /**
  * legend-lite's own planner, in-process: named for what it is, not for how a tab delivers its module (WebAssembly). Its
  * module answers on a worker, or in-thread (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3).
@@ -611,6 +632,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** E4 (`grammar/jsonToGrammar/lambda`): a query as Pure text, as upstream prints it. */
   async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
     return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/lambda', `renderStyle=${style}`, toJson(query), query);
+  }
+
+  /** ONE #TS ITEM, read by core (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md: the one reader): a series'
+   *  text as a formula box holds it, answered as its canonical text and its tree (core's, as data), or why it is no
+   *  item, placed in the text. */
+  async tsItem(text: string): Promise<TsItemAnswer> {
+    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/tsItem', '', JSON.stringify({ text }), text)) as TsItemAnswer;
   }
 
   /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
