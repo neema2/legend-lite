@@ -1796,8 +1796,17 @@ function timeseries::periodIndex<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[
 // THE LANGUAGE'S LINES (docs/TIMESERIES_LANGUAGE_2026_10_29.md R2, R5, R6; docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md
 // S1): what a line of a #TS query is, how a period's rows become one value, how lines meet -- the rules the translator
 // (protocol/ts/TsLines) calls, naming the columns; the words over several lines meet theirs by the same rules. A line
-// here is a relation of a row per line and period: its key (an instrument's; a line of no instrument's, 'all'), its
-// period (the column lines meet on), its number in time (since 1970), its date (the one its value is of), its values.
+// here is a relation of a row per line and period: its key (an instrument's; a line of no instrument's,
+// timeseries::All.all), its period (the column lines meet on), its number in time (since 1970), its date (the one its
+// value is of), its values.
+
+// THE KEY OF A LINE OF NO INSTRUMENT (2a, the user, 2026-11-03): its own type, so a rule over lines is picked by the
+// key's type -- a line of no instrument beside lines per instrument is every instrument's (R2's broadcast) by an
+// overload over a key of All, never by a choice the translator makes.
+Enum timeseries::All
+{
+  all
+}
 
 // A SAMPLE BY's period (R5).
 Enum timeseries::Sample

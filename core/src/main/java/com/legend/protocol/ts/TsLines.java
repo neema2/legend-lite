@@ -5,7 +5,6 @@ package com.legend.protocol.ts;
 
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.EnumValue;
@@ -96,7 +95,7 @@ final class TsLines {
         String instrument = split ? java.util.Objects.requireNonNull(s.instrument(),
                 "a line per instrument of a source of none") : ONE_LINE;
         if (!split) {
-            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
+            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new EnumValue(TsToPure.LIBRARY + "All", "all"))));
         }
         ValueSpecification rows = rel;
         return w.read(List.of(LINES + "line", rows, instrument, s.date(), column), () -> {
@@ -140,7 +139,7 @@ final class TsLines {
         String instrument = split ? java.util.Objects.requireNonNull(s.instrument(),
                 "a line per instrument of a source of none") : ONE_LINE;
         if (!split) {
-            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
+            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new EnumValue(TsToPure.LIBRARY + "All", "all"))));
         }
         ValueSpecification rows = rel;
         return w.read(List.of(LINES + "sample", rows, instrument, s.date(), column, unit, taken, dated), () -> {
