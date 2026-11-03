@@ -1272,3 +1272,10 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   budget 433,500 -> 434,000 bytes (measured 433,597: the adapter's new reader is in every remote grid's path; dated
   in `datacube/test/bundle-budget.test.ts`). What a person sees: on DataCube's engine plane, a `Decimal` cell now shows
   and filters with its scale (`12.30`, was `12.3`), as on every other plane. Next: Q3, then Q2.
+- 2026-11-03: D21 Q3, its first part: lite's own Arrow writes an Integer as int64 whatever its slot -- a `HUGEINT` (a
+  sum of integers) too, which wrote decimal128(38, 0) -- and a value past 64 bits is refused by name, never wrapped or
+  rounded (`result/ArrowWriter`), on the JVM's lite route, Python's and the tab's alike (one core). Its second part,
+  Python's `Table.execute` onto lite's own Arrow, is built and measured (a scratch probe over a frame of every kind of
+  column: the five ruled cases and one more) and held: a Variant (JSON) column's text, DuckDB's text as stored
+  (`{"a": [1, 2.50]}`) today against lite's compact JSON (`{"a":[1,2.50]}`), posted to the user, who asked why a
+  Variant is text at all rather than a variant type; not landed until ruled.

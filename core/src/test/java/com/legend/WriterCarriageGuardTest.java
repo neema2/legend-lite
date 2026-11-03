@@ -107,10 +107,13 @@ class WriterCarriageGuardTest {
                     // is refused, never rounded: scale read twice to decide), the 128-bit fit (bitLength); a day as
                     // days since the epoch and an instant as nanoseconds since it (Math.toIntExact, multiplyExact,
                     // addExact: exact, an overflow refused by name); the written subsecond digits and a slot's (p, s)
-                    // read as the numbers they spell (Long.parseLong, Integer.parseInt)
+                    // read as the numbers they spell (Long.parseLong, Integer.parseInt). bitLength 1 -> 2 (2026-11-03,
+                    // the user's ruling D21 Q3, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2: an Integer is int64
+                    // whatever its slot, a HUGEINT's too, and a value past 64 bits refused by name -- the check reads
+                    // whether the BigInteger is one, nothing converted)
                     Map.entry("setScale", 1),
                     Map.entry("scale", 2),
-                    Map.entry("bitLength", 1),
+                    Map.entry("bitLength", 2),
                     Map.entry("Math.", 3),
                     Map.entry("Long.parseLong", 2),
                     Map.entry("Integer.parseInt", 2),

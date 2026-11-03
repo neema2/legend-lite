@@ -29,8 +29,10 @@ import java.util.function.IntFunction;
  * Arrow library. A column's Arrow type is its SLOT's (the database type the plan declares): lite's own types (D19:
  * lite's own consumers read this, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md; legend-engine's ARROW_IPC answer, typed
  * from the database's JDBC report as upstream types it, is {@link EngineArrowWriter}'s since 2026-11-03): an Integer
- * slot int64, a HUGEINT
- * decimal128(38, 0), a Float float64, {@code DECIMAL(p,s)} decimal128(p, s) at exactly that scale (a cell with more
+ * int64 whatever its integral slot -- a HUGEINT (a sum of integers) too, never decimal128: Arrow's integers stop at 64
+ * bits, and a value past them is refused by name, never wrapped or rounded (the user's ruling D21 Q3, 2026-11-03,
+ * docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2; until then decimal128(38, 0), a type that is not an integer's) --
+ * a Float float64, {@code DECIMAL(p,s)} decimal128(p, s) at exactly that scale (a cell with more
  * digits is refused, never rounded: upstream's ARROW_IPC answer rounds, register S135, copied by EngineArrowWriter alone), a Decimal of no declared scale its plain digits as
  * text, a StrictDate date32, a time-bearing column timestamp[ns, UTC] (lite's DateTime holds nine digits:
  * {@link ExecutionPlan.Precision#INSTANT}), a WRITTEN temporal (a literal, a partial date) Pure's text, a time
@@ -160,8 +162,7 @@ public final class ArrowWriter implements ResultSink {
             return new Text(name, metadata, c, Text.Form.TEXT);
         }
         return switch (word) {
-            case "BIGINT", "INTEGER", "SMALLINT", "TINYINT" -> new Int64(name, metadata, c);
-            case "HUGEINT" -> new Decimal128(name, metadata, c, 38, 0);
+            case "BIGINT", "INTEGER", "SMALLINT", "TINYINT", "HUGEINT" -> new Int64(name, metadata, c);
             case "DOUBLE", "FLOAT", "REAL" -> new Float64(name, metadata, c);
             case "DECIMAL", "NUMERIC" -> {
                 int[] ps = precisionAndScale(c.slot());
@@ -308,6 +309,12 @@ public final class ArrowWriter implements ResultSink {
                 Object cell = cells.apply(i);
                 if (cell instanceof Long l) {
                     v[i] = l;
+                } else if (cell instanceof BigInteger b && b.bitLength() > 63) {
+                    // the decoders carry a whole number a long holds as a Long (RowDecode.integer), so a BigInteger is
+                    // one past 64 bits: refused by name, never wrapped or rounded (D21 Q3)
+                    throw new IllegalStateException("column '" + column.name() + "' (" + column.type() + ", slot "
+                            + column.slot() + "): the value " + b + " is past 64 bits, and lite's Arrow writes an"
+                            + " Integer as int64 (Arrow's integers stop at 64 bits): a value is never wrapped or rounded");
                 } else if (cell != null) {
                     throw refused(column, cell, "an int64");
                 }

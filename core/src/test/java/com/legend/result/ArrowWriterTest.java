@@ -100,7 +100,7 @@ class ArrowWriterTest {
                 col("l", "Integer", "ARRAY<BIGINT>", null),
                 col("st", "Any", "STRUCT<x BIGINT, y VARCHAR>", null),
                 col("m", "Any", "MAP<VARCHAR,BIGINT>", null));
-        List<Object> first = row(1L, new BigInteger("99999999999999999999999999999999999999"), 1.5, new BigDecimal("12.3"),
+        List<Object> first = row(1L, 9223372036854775807L, 1.5, new BigDecimal("12.3"),
                 new BigDecimal("0.000001"), true, "héllo, \"quoted\"", PureDateLiteral.parse("2024-02-29"),
                 PureDateLiteral.parse("2024-02-29T13:14:15.123456789"), PureDateLiteral.parse("2024-02"),
                 PureTimeLiteral.parse("13:14:15.5"), List.of(1L, 2L, 3L), structOf(7L, "y"), mapOf("k", 9L));
@@ -108,7 +108,7 @@ class ArrowWriterTest {
         for (int i = 0; i < columns.size(); i++) {
             nulls.add(null);
         }
-        List<Object> third = row(-9223372036854775808L, BigInteger.valueOf(-5), -0.0, new BigDecimal("-0.01"),
+        List<Object> third = row(-9223372036854775808L, -5L, -0.0, new BigDecimal("-0.01"),
                 new BigDecimal("123456789012345678901234567890.5"), false, "", PureDateLiteral.parse("1969-12-31"),
                 PureDateLiteral.parse("1969-12-31T23:59:59"), PureDateLiteral.parse("2024-02-29T10:00+0000"),
                 PureTimeLiteral.parse("00:00"), List.of(), structOf(null, null), mapOf());
@@ -133,13 +133,15 @@ class ArrowWriterTest {
         IllegalStateException more = assertThrows(IllegalStateException.class,
                 () -> w.batch(batch(decimal, List.of(row(new BigDecimal("1.234"))))));
         assertTrue(more.getMessage().contains("never rounded"), more.getMessage());
-        // a HUGEINT past decimal128(38, 0)'s 38 digits (DuckDB's HUGEINT reaches 39): refused by name, never truncated
+        // an Integer is int64 whatever its slot (D21 Q3, 2026-11-03): a HUGEINT (a sum of integers) past 64 bits is
+        // refused by name, never wrapped or rounded -- 2^63 the first whole number a long does not hold
         List<ExecutionPlan.Column> huge = List.of(col("h", "Integer", "HUGEINT", null));
         ArrowWriter w4 = new ArrowWriter(new ByteArrayOutputStream(), Map.of());
         w4.columns(huge);
-        IllegalStateException digits = assertThrows(IllegalStateException.class,
-                () -> w4.batch(batch(huge, List.of(row(new BigInteger("170141183460469231731687303715884105727"))))));
-        assertTrue(digits.getMessage().contains("more digits"), digits.getMessage());
+        IllegalStateException past = assertThrows(IllegalStateException.class,
+                () -> w4.batch(batch(huge, List.of(row(new BigInteger("9223372036854775808"))))));
+        assertTrue(past.getMessage().contains("the value 9223372036854775808 is past 64 bits"), past.getMessage());
+        assertTrue(past.getMessage().contains("never wrapped or rounded"), past.getMessage());
 
         List<ExecutionPlan.Column> instant = List.of(col("at", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.INSTANT));
         ArrowWriter w2 = new ArrowWriter(new ByteArrayOutputStream(), Map.of());

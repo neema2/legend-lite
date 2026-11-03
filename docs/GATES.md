@@ -17472,3 +17472,25 @@ Guard moved, with its reason in place: `datacube/test/bundle-budget.test.ts` the
 Checks: `//datacube:{conformance,engine_remote,engine_remote_http,python_engine,python_execute,bundle_budget,typecheck}_test`,
 `//datacube:tests` (203), `//engine-client:tests`, `//engine-client:lite_adapter_test`, `//query:tests`,
 `//studio:tests`, `//query:typecheck_test`, `//studio:typecheck_test`.
+
+## 2026-11-03 — D21 Q3, part one: lite's own Arrow writes an Integer as int64 (a value past 64 bits refused)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D21 (the user's ruling of 2026-11-03: an Integer is never decimal128)
+and §8. `result/ArrowWriter`: the `HUGEINT` slot (a sum of integers) is written int64, as every other integral slot;
+a cell past 64 bits (a `BigInteger`: the decoders carry every whole number a long holds as a `Long`) is refused by
+name -- the column, its type and slot, the value -- never wrapped or rounded. One core writes lite's own Arrow on the
+JVM's lite route, Python's and the tab's, so all three move together. Tests: `ArrowWriterTest` (the every-kind round
+trip with a `HUGEINT` at the bounds of a long; the refusal at 2^63), `ArrowRowsTest` (lite's Arrow read back).
+
+Guard moved, with its reason in place: `WriterCarriageGuardTest` `ArrowWriter.java` `bitLength` 1 -> 2 (the refusal's
+check reads whether a BigInteger is past 63 bits; nothing converted).
+
+Part two (Python's `Table.execute` onto lite's own Arrow) is built and held for a ruling (§8): not in this commit.
+
+Checks: `//core:{arrow_writer_test,core_tests_root,core_tests_server,guardrails}`, `//datacube:conformance_test`
+(ledger 10, unchanged), `//datacube:tests` with `//query:tests` and `//studio:tests` (215),
+`//datacube:{python_engine,python_execute}_test`, `//engine-client:tests`, `//engine-client:lite_adapter_test`,
+`//python:{bindings,model,host_sql,arrow_handoff,markets}_test`, `//python:engine_test` in four parts (68, 35, 12,
+217), `//python:headless_test` in three parts (46, 7, 2), `//python:notebook_test` in parts (21, and `InMarimo` one
+test per process: 7 of 8; `test_each_marimo_session_its_own_frames_and_names` segfaults in this container with HEAD's
+Python code too -- two V8 sessions in one process, the container's crash, as `engine_test`'s).

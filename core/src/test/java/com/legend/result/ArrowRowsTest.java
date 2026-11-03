@@ -286,18 +286,19 @@ class ArrowRowsTest {
     @Test
     void liteArrowRoundTripsThroughTheReader() throws IOException {
         // lite's own Arrow writer's stream read back: the same cells, so the same answers (the writer's clean types:
-        // an Int64, a decimal at the column's scale, a timestamp of nanoseconds at UTC, a Time64 of nanoseconds)
+        // an Int64 -- a HUGEINT's too (D21 Q3) --, a decimal at the column's scale, a timestamp of nanoseconds at UTC,
+        // a Time64 of nanoseconds)
         List<ExecutionPlan.Column> columns = List.of(
                 col("i", "Integer", "BIGINT"), col("h", "Integer", "HUGEINT"), col("f", "Float", "DOUBLE"),
                 col("d", "Decimal", "DECIMAL(10,2)"), col("b", "Boolean", "BOOLEAN"), col("s", "String", "VARCHAR"),
                 col("day", "StrictDate", "DATE"), col("at", "DateTime", "TIMESTAMP"), col("t", "StrictTime", "TIME"),
                 col("l", "Integer", "ARRAY<BIGINT>"));
         List<List<Object>> rows = new ArrayList<>(List.of(
-                row(1L, new BigInteger("99999999999999999999999999999999999999"), 1.5, new BigDecimal("12.30"), true,
+                row(1L, 9223372036854775807L, 1.5, new BigDecimal("12.30"), true,
                         "héllo", PureDateLiteral.parse("2024-02-29"),
                         PureDateLiteral.parse("2024-02-29T13:14:15.123456789"), PureTimeLiteral.parse("13:14:15.5"),
                         List.of(1L, 2L)),
-                row(-9223372036854775808L, BigInteger.valueOf(-5), -0.0, new BigDecimal("-0.01"), false, "",
+                row(-9223372036854775808L, -5L, -0.0, new BigDecimal("-0.01"), false, "",
                         PureDateLiteral.parse("1969-12-31"), PureDateLiteral.parse("1969-12-31T23:59:59"),
                         PureTimeLiteral.parse("00:00:00"), List.of())));
         rows.add(Arrays.asList(new Object[columns.size()]));
