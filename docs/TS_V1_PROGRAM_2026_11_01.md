@@ -350,15 +350,16 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
      pinned by the D4 test's three words, and SAMPLE BY's fix answering.
   2. *The column specification's ranking is lite's own.* Read in legend-pure: a `ColSpec<(?:All)⊆T>` and a
      `ColSpec<L⊆T>` both match NON_CONCRETE there and tie ("Too many matches"); S131 had said lite ranks "as m3
-     binds T". S131 corrected; **the user rules** whether lite keeps the ranking (the library's broadcasts by a key's
-     type, `meet`, `periodsOf`, `onto`, `each`, and D4's forms rest on it).
+     binds T". S131 corrected; ruled by the user the same day ("Ruling 1 yes"): lite keeps the ranking, its own rule (the
+     library's broadcasts by a key's type, `meet`, `periodsOf`, `onto`, `each`, and D4's forms rest on it).
   3. *An ambiguous reference in legend-pure's spelling typed as an opaque function.* Fixed: refused, naming lite's
      ids (`Typer`); pinned in `aColumnsTypePicksTheOverload`.
   4. *R7 with D1 refuses parts of one table that FILL makes meet.* `CLOSE - avg(CLOSE, 2)` under FILL over a table
      of several rows a date (no BY) meets the table with itself, refused by D1, where without FILL it answers; so
      too a part of one table beside another source's line. Each was answered wrong before (multiplied); the right
      answer needs a rows form of FILL (an expression's parts of one table filled in it), with R7 part 3.
-     Recorded, not built: **posted to the user.** So too an item of a word with no rows form beside its own column
+     Recorded, not built: posted to the user, who agreed it waits for R7 part 3 (2026-11-03: "is that purely a
+     timing question?" -- it is). So too an item of a word with no rows form beside its own column
      (`CLOSE AS c, returns(CLOSE) AS r`, no BY): refused (D1) until the word has its rows form (R7 part 3).
   5. *R7's branches in Java were not listed.* Listed with their reasons and guarded
      (`TsTranslatorGuardrailTest.theTranslatorPicksATablesFormOnlyWhereNamed`); they move with item 4.
