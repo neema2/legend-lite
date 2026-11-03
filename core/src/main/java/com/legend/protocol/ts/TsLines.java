@@ -197,13 +197,16 @@ final class TsLines {
                     new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
             keys = keys == null ? k : call("concatenate", keys, k);
         }
+        // (seen: the most rows a line spread so far has on a period, the library's to keep and check -- D1)
+        String seen0 = w.fresh("sp_seen");
         ValueSpecification spine = call(LINES + "spine", java.util.Objects.requireNonNull(keys, "lines to spread"),
                 new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord), new ColSpec(part),
-                new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
+                new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord), new ColSpec(seen0));
         // each line's values onto them (the library's onto, by the line's kind beside the others)
         List<String> owns = new ArrayList<>();
         List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
                 new ColSpec(ord)));
+        String seen = seen0;
         for (int d = 0; d < distinct.size(); d++) {
             Line l = distinct.get(d);
             String p = w.fresh("sp_p");
@@ -215,12 +218,17 @@ final class TsLines {
                     new ColSpec(l.part()), new ColSpec(p));
             r = call("rename", call("rename", r, new ColSpec(PERIOD), new ColSpec(per)), new ColSpec(ORD),
                     new ColSpec(own));
+            String next = w.fresh("sp_seen");
             spine = call(LINES + "onto", spine, new ColSpec(part), new ColSpec(PERIOD), r,
-                    keyed(l, instruments != null), new ColSpec(p), new ColSpec(per));
+                    keyed(l, instruments != null), new ColSpec(p), new ColSpec(per), new ColSpec(seen),
+                    new ColSpec(next));
             kept.add(new ColSpec(own));
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
-            spine = call("select", spine, new ColSpecArray(List.copyOf(kept)));
+            List<ColSpec> carried = new ArrayList<>(kept);
+            carried.add(new ColSpec(next));
+            spine = call("select", spine, new ColSpecArray(List.copyOf(carried)));
             owns.add(own);
+            seen = next;
         }
         spine = call("rename", spine, new ColSpec(ord), new ColSpec(ORD));
         List<String> ords = nodes.stream().map(n -> owns.get(indexOf(distinct, n.line()))).toList();

@@ -717,6 +717,29 @@ class TsIslandTest {
     }
 
     @Test
+    void linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused() throws Exception {
+        // the time model's D1 (ruled 2026-11-03): PRICES read with no BY has two rows on each date (AAA's and BBB's).
+        // Met with a line of one row a date, each row pairs with that one (a lookup: each trade at its day's rate)
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> lookup = rows(backend, "|#TS{SELECT p.CLOSE - q.CLOSE['AAA'] AS d"
+                    + " FROM PRICES p ON DAY, PRICES q ON DAY BY SYMBOL}#");
+            assertEquals(2 * AAA.length, lookup.size(), backend + ": each of a date's rows paired once");
+            assertEquals(AAA.length, lookup.stream().filter(r -> Math.abs(Double.parseDouble(r.get("d"))) < 1e-9)
+                    .count(), backend + ": AAA's own rows less AAA's, nothing");
+            // both lines with several rows on a date: no pairing is right, refused while the query runs, naming the
+            // fix -- in an expression (lines meeting), and as two items (the answer's rows spread)
+            // (a column read twice is one line: p.CLOSE - q.CLOSE of one table is 0 on each row; a subscript's
+            // condition makes another line of the same rows)
+            for (String q : List.of("SELECT CLOSE - CLOSE[CLOSE > 0] AS d FROM PRICES ON DAY",
+                    "SELECT CLOSE AS a, CLOSE[CLOSE > 0] AS b FROM PRICES ON DAY")) {
+                Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{" + q + "}#"), backend + ": " + q);
+                assertTrue(String.valueOf(e.getMessage()).contains("both have several rows on one date"),
+                        backend + ": " + q + " refused by name: " + e.getMessage());
+            }
+        }
+    }
+
+    @Test
     void aWordOfAWordCountsFromTheFirstPointOfWhatItReads() throws Exception {
         // R7 (2026-11-03): a word's answer is a column of its line's own table, no point of its ramp's rows (gs-quant's
         // apply_ramp drops a word's first w points), and a figure of it no point where it is none -- so a word of

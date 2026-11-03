@@ -1881,11 +1881,33 @@ function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D�
 }
 
 // LINES MEETING (R6, without FILL; the tile's intersect): x's rows met by y's on their period and their key, each dated
-// at the later of their dates.
+// at the later of their dates. Several rows of one line on a period each pair with the other's one (a lookup: each
+// trade at its day's rate); where both have several, no pairing is right, and the meeting is refused while the query
+// runs (the time model's D1, ruled 2026-11-03: a join would multiply them, 3 against 2 giving 6).
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
-  $x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|($a->read($period) == $b->read($yPeriod)) && ($a->read($key) == $b->read($yKey))})
+  $x->timeseries::lines::perPeriod($key, $period, ~mx)
+    ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|($a->read($period) == $b->read($yPeriod)) && ($a->read($key) == $b->read($yKey))})
+    ->filter(r|timeseries::lines::single($r.mx, $r.my))
+    ->without(~[mx, my])
     ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+}
+
+// A line's rows on each of its keys' periods: under out, how many of t's rows share the row's key and period.
+function timeseries::lines::perPeriod<T,K,P,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[ck:r|$r->read($key), cp:r|$r->read($period)])
+    ->extend(over(~[ck, cp]), ~cn:{p,f,r|1}:y|$y->count())
+    ->without(~[ck, cp])->rename(~cn, $out)
+}
+
+// Two lines' rows meeting on a period, x's n and y's m of them (none: a line with no row there): true where at most
+// one has several; refused where both do (D1), naming the fix.
+function timeseries::lines::single(n: Integer[0..1], m: Integer[0..1]): Boolean[1]
+{
+  if($n->isNotEmpty() && $m->isNotEmpty() && ($n->toOne() > 1) && ($m->toOne() > 1),
+    |fail('two lines meet where both have several rows on one date, and no pairing of them is right: add SAMPLE BY 1d and say how a date\'s rows are taken, such as last(close) (R6)'),
+    |true)
 }
 
 // How a line is keyed among the lines it meets (R2): by its own key -- a line per instrument; a line of no instrument
@@ -1901,7 +1923,9 @@ Enum timeseries::Keyed
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], keyed: timeseries::Keyed[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
   if($keyed == timeseries::Keyed.every,
-    |$x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period) == $b->read($yPeriod)})
+    |$x->timeseries::lines::perPeriod($key, $period, ~mx)
+      ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period) == $b->read($yPeriod)})
+      ->filter(r|timeseries::lines::single($r.mx, $r.my))->without(~[mx, my])
       ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out),
     |timeseries::lines::meet($x, $key, $period, $at, $y, $yKey, $yPeriod, $yAt, $out))
 }
@@ -1973,20 +1997,35 @@ function timeseries::lines::periodsOf<T,I,K,P,A,O,J,OK,OP,OA,OO>(line: Relation<
 
 // THE ANSWER'S PERIODS (R5: one date for every line; R6: every period any line has): each key and period of periods,
 // dated at its latest line's date and number in time.
-function timeseries::lines::spine<T,K,P,A,O,OK,OP,OA,OO>(periods: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
+function timeseries::lines::spine<T,K,P,A,O,OK,OP,OA,OO,OS>(periods: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1], outSeen: ColSpec<OS>[1]): Relation<OK+OP+OA+OO+OS>[1]
 {
   $periods->extend(~[sk:r|$r->read($key), sp:r|$r->read($period), sa:r|$r->read($at), so:r|$r->read($ord)])
     ->groupBy(~[sk, sp], ~[ga:x|$x.sa:y|$y->max(), go:x|$x.so:y|$y->max()])
-    ->rename(~sk, $outKey)->rename(~sp, $outPeriod)->rename(~ga, $outAt)->rename(~go, $outOrd)
+    ->extend(~gs:r|1)
+    ->rename(~sk, $outKey)->rename(~sp, $outPeriod)->rename(~ga, $outAt)->rename(~go, $outOrd)->rename(~gs, $outSeen)
 }
 
 // A LINE'S VALUES ONTO THE ANSWER'S PERIODS (R6): each of spine's rows, the line's row of its period -- and of its key,
 // where the line is keyed by its own; whatever the instrument, where it is every instrument's (R2).
-function timeseries::lines::onto<T,U,K,P,L,Q>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], keyed: timeseries::Keyed[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
+// The spine has one row a key and period, so a line of several rows on one pairs each with the other lines' one (a
+// lookup); where an earlier line put several rows on a period and this one has several too, the spreading is refused
+// while the query runs (D1). `seen`: the most rows a line spread so far has on the row's period (the spine's 1);
+// `next` the same with this line's.
+function timeseries::lines::onto<T,U,K,P,L,Q,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], keyed: timeseries::Keyed[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
 {
   if($keyed == timeseries::Keyed.every,
-    |$spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period) == $b->read($linePeriod)}),
-    |$spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))}))
+    |$spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period) == $b->read($linePeriod)})
+      ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+      ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next),
+    |$spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))})
+      ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+      ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next))
+}
+
+// The more rows of two counts on a period (none: a line with no row there, which spreads none).
+function timeseries::lines::most(n: Integer[0..1], m: Integer[0..1]): Integer[1]
+{
+  if($m->isNotEmpty() && ($m->toOne() > $n->toOne()), |$m->toOne(), |$n->toOne())
 }
 
 // A LINE'S VALUE ONTO EVERY PERIOD OF THE ANSWER (R6, FILL) -- the library's alignment: prev, its last value at or before

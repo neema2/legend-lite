@@ -266,6 +266,23 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
         each against gs-quant's ramp).
     - **Part 3, next: every word that keeps its rows gets a rows form,** each held to the frozen answers and the
       oracle. Then the line forms of those words are written through their rows forms, so each has one body.
+  - **Duplicates where lines meet (the time model's D1, ruled 2026-11-03; its proof step 3). Done 2026-11-03.**
+    - Two lines meeting where one has several rows on a date pair as a lookup (each row with the other's one); where
+      both do, the database refuses while the query runs, naming the fix (`SAMPLE BY 1d` and how to take a date's
+      rows). The check is the library's: `lines::meet` (every meeting: expressions, the words over several lines,
+      candles) and `lines::onto` (the answer's rows spread over items of several lines) count each side's rows on each
+      period (`lines::perPeriod`) and fail where both are several (`lines::single`, `fail()`). The spreading carries
+      the most rows a line spread so far has (`seen`, `lines::most`) instead of counting the growing table again at
+      each step: counting it again nested the plan deeper per item, and H2 ran out of memory on five items.
+    - The cost, on the gallery's twelve queries (`//datacube:timeseries_sql_measure`): only the two whose lines meet
+      change -- `beta_63` 3,856 -> 4,515 bytes, 25 -> 53 ms; `ratio_step` 6,234 -> 7,962 bytes, 36 -> 72 ms. The
+      other ten are byte for byte as before.
+    - **Not built yet: the skip where uniqueness is known** (D2: a declared key, `SAMPLE BY`). Under `SAMPLE BY` the
+      counts are 1, so nothing is refused, but the check is still paid.
+    - The spec's R6 says it (D7). Test: `TsIslandTest.linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused`
+      (every in-process database: the lookup's 24 rows; both refused by name, in an expression and as two items).
+    - Found on the way: `p.CLOSE - q.CLOSE` over two aliases of one table is one line (R7's one read), 0 on each row,
+      not two lines meeting.
 
 ### A2. Checkpoint: an independent review and the full gate
 

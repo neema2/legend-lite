@@ -220,6 +220,20 @@ hedge_ratio and residual read the dates both lines have".
 **The result has a row for each date** (and instrument, for per-instrument lines) **on which at least one item has a
 value.** An item with no value on a row is empty there.
 
+**Several rows on one date** (the time model's D1, ruled 2026-11-03; the note "Timeseries time model: dates, moments,
+pairing and duplicates"). Every row of a line is a point, even when several share a date (`close` with no instrument
+picked, over three instruments, has three points a date), and a window counts each row:
+
+| Where | Rule |
+|---|---|
+| Inside one line | Allowed. Everything built from one line is a column of its rows (R7), each row once |
+| Two lines meet, one has several rows on a date | Each of those rows pairs with the other's one value: a lookup, such as each trade at its day's EUR/USD rate |
+| Two lines meet, both have several rows on the same date | Refused while the query runs: "two lines meet where both have several rows on one date, and no pairing of them is right: add SAMPLE BY 1d and say how a date's rows are taken, such as last(close)" |
+
+The check is the library's (`timeseries::lines::meet`, `onto`): the database counts each line's rows on each date while
+the query runs and raises the error itself, as it does for a division by zero. A query over clean data answers as
+before.
+
 ### R7. Names
 
 - Each select item is `expression AS name`. A later item may use an earlier item's name.
