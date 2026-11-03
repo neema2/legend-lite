@@ -827,3 +827,8 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   of no status with DuckDB's words alone -> 500 with `SQLException: Conversion Error: ...`. Lite's other failures
   keep their words and carry no trace (S129). The ledger: three entries gone, two narrower ones in (the trace line,
   §7); sixteen entries. Python's Arrow execute keeps its own words until it moves onto the plan record (R3/R4).
+- 2026-11-03: F, part 1: the JVM's JSON and Arrow writers make legend-engine's header for a plan that states its
+  columns from the plan's own facts (`PureV1Api.planEnvelope`, the one maker every host's answer uses), no longer from
+  the compiler's types; every output the same (`PureV1ApiTest`'s differential of the two makers; the PCT lanes that read
+  the JVM's answer as legend-engine's adapter does, `//pct:pct_duckdb_essential`, `pct_duckdb_relation`, `pct_h2`,
+  green). A dynamic pivot's header is part 2.

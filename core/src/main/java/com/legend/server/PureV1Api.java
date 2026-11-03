@@ -473,24 +473,23 @@ public final class PureV1Api {
             case OBJECTS -> throw new IllegalArgumentException(
                     "ARROW_IPC answers a relation query; a graph fetch under it is refused (upstream's answer unprobed)");
             case RELATION -> {
-                java.util.function.Function<List<com.legend.executionplan.ExecutionPlan.Column>, Map<String, String>>
-                        metadata = columns -> {
-                            com.legend.result.PureV1Writer.Envelope e = envelope(query.resultType(),
-                                    plan.answerSql().statement(), columns);
+                String sql = plan.answerSql().statement();
+                java.util.function.Function<com.legend.result.PureV1Writer.Envelope, Map<String, String>> metadata =
+                        e -> {
                             Map<String, String> m = new LinkedHashMap<>();
                             m.put("legend.builder", e.builder());
-                            m.put("legend.activities",
-                                    Json.toCompact(List.of(activity(plan.answerSql().statement(), false))));
+                            m.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
                             m.put("legend.columns", Json.toCompact(e.names()));
                             return m;
                         };
                 List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
                 // the JSON route's rule (engineWriter; the phase 3 audit, 2026-10-27): the envelope from the plan's
                 // stated columns BEFORE any statement runs, so a column with no builder entry refuses before a write
-                // program changes anything; made from the announced columns only where the plan states none (a
-                // dynamic pivot's)
-                yield stated == null ? new com.legend.result.ArrowWriter(out, metadata)
-                        : new com.legend.result.ArrowWriter(out, metadata.apply(stated));
+                // program changes anything -- made from the plan's own facts, as every host's is (D18 F, the user
+                // 2026-11-03); made from the announced columns only where the plan states none (a dynamic pivot's)
+                yield stated == null ? new com.legend.result.ArrowWriter(out,
+                        columns -> metadata.apply(envelope(query.resultType(), sql, columns)))
+                        : new com.legend.result.ArrowWriter(out, metadata.apply(planEnvelope(sql, stated)));
             }
             case VALUE -> throw unprobed(query);
         };
@@ -570,8 +569,9 @@ public final class PureV1Api {
                     yield com.legend.result.PureV1Writer.relation(out,
                             columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
                 }
-                com.legend.result.PureV1Writer.Envelope made = envelope(query.resultType(),
-                        plan.answerSql().statement(), stated);
+                // the plan's own facts make the header, as every host's answer is made (planEnvelope; D18 F, the user
+                // 2026-11-03): one maker of legend-engine's header for a plan that states its columns
+                com.legend.result.PureV1Writer.Envelope made = planEnvelope(plan.answerSql().statement(), stated);
                 yield com.legend.result.PureV1Writer.relation(out, columns -> made);
             }
             case VALUE -> throw unprobed(query);
