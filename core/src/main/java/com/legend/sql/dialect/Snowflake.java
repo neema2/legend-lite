@@ -164,6 +164,10 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (2026-11-03: the counter no longer outlives a render, so a statement's text no longer depends on what this dialect rendered before)
+            fresh = 0;
+        }
         roots.push(query.outputs());
         try {
             return super.render(query);
@@ -174,6 +178,10 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (2026-11-03: the counter no longer outlives a render, so a statement's text no longer depends on what this dialect rendered before)
+            fresh = 0;
+        }
         roots.push(query.outputs());
         try {
             return super.renderStatement(query);

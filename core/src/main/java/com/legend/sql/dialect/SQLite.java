@@ -348,6 +348,10 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (2026-11-03: the counter no longer outlives a render, so a statement's text no longer depends on what this dialect rendered before)
+            binds[0] = 0;
+        }
         roots.push(query.outputs());
         rootSelects.push(new IdentityHashMap<>());
         try {
@@ -360,6 +364,10 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (2026-11-03: the counter no longer outlives a render, so a statement's text no longer depends on what this dialect rendered before)
+            binds[0] = 0;
+        }
         roots.push(query.outputs());
         rootSelects.push(new IdentityHashMap<>());
         try {
@@ -1448,7 +1456,7 @@ public final class SQLite extends AnsiSqlRenderer {
             SqlFn.ADD_INTERVAL, SqlFn.ADD_INTERVAL_TEMPORAL, SqlFn.DATE_DIFF, SqlFn.TIME_BUCKET, SqlFn.VARIANT_GET,
             SqlFn.MAKE_TIMESTAMP);
 
-    /** Fresh names for bound operands, unique within a statement. */
+    /** Fresh names for bound operands, unique within a statement: numbered from 0 by each outermost render. */
     private final int[] binds = {0};
 
     /**
