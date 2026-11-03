@@ -1,0 +1,83 @@
+# A3, one reader: the plan (2026-11-03, for the user to rule)
+
+**The goal** (`docs/TS_V1_PROGRAM_2026_11_01.md` A3; the one-tree plan's D1): core's `#TS` parser is the only reader
+of a formula. The tile's own grammar (`datacube/src/timeseries-expr.ts`), its signatures (`TS_SIGNATURES` in
+`timeseries-spec.ts`) and its translator (`timeseries-ts.ts`) are deleted, and a guard keeps a grammar from coming back.
+
+## 1. What is there today (measured 2026-11-03)
+
+- **A series is stored as the tile's syntax tree.** `TsSeries.expr: TsExpr` (`timeseries-spec.ts:81`) is in every
+  page document (version 6). The reader checks the tree's shape against `TS_SIGNATURES` (`exprProblem`, `:624`).
+  There is no upgrade code: a page of another version is refused (`page-document.ts:674-678`).
+- **Python shows the trees.** `Timeseries.series` returns them (`python/legend_lite/page.py:1998`), and three Python
+  tests assert them. Python's input is already text.
+- **Every example is written as text** (`s(id, text)` in `examples/markets.ts:73`: about 195 series), so none holds a
+  tree literally.
+- **The tree is walked in about 40 places.** 15 analyses in `timeseries-expr.ts` (unit, level, bounds, band, candles,
+  condition, candles from a column, problems, the `$A` references, the columns and sources read, inlining, two
+  printers), and about 25 more walkers in the query writer, the option builder, the editor, the spec reader and the
+  view. `inlined` (a series reading another, `$A`) alone has about 25 call sites.
+- **The formula box** is a plain input. Each keystroke parses it, and the box shows one error at one character. It
+  has no completions: a function picker and a static list stand in for them. Sliders rewrite the outermost call's
+  numbers.
+- **Core has the parts, not the entry points.** It parses a whole query (`TsParser.parse`), not one item. It stops
+  at the first error. Its catalog of words (`TsCatalog`) is exported at build time into `datacube/src/generated/
+  ts-words.ts`, which nothing reads yet. Nothing in core knows a series' unit, level, band or candles.
+
+## 2. The steps (each leaves the tests green and the frozen answers unchanged)
+
+1. **The facts in the library.** A word's unit (same, percent, ratio, number, index), whether it keeps or makes a
+   level, its bounds (RSI's 0 to 100), and whether it draws a band or candles become tags on the word in
+   `projects/timeseries/model.pure`. Core's catalog reads them. Today they are in `WORDS` and `TS_SIGNATURES`, in
+   TypeScript. *Pure decides; nothing here is Java's to know.*
+2. **Core reads one item.** A new entry `TsParser.item(text)` reads one `#TS` item. It is offered through the planner
+   the tab already holds, as a route like Show #TS's (`/api/lite/v1/grammar/tsItem`). It answers:
+   - the item's canonical text;
+   - the sources, columns and `$` references it reads;
+   - its facts from step 1 (unit, level, band, candles, bounds, condition);
+   - or its error, with a range and the words that could come next (completions).
+   The tile keeps its grammar meanwhile. A test runs every example series both ways and requires the same answers
+   (the frozen answers, and the same facts).
+3. **The tile stores text.** `TsSeries.text` replaces `TsSeries.expr`. The page document becomes version 7 (§3,
+   decision 1). Python's `Timeseries.series` returns text. Every walker moves to the answer of step 2, one module per
+   commit:
+   - the query writer: text in, the `#TS` statement out (no translator);
+   - the option builder;
+   - the editor;
+   - the spec reader;
+   - the view.
+
+   The formula box asks core on each keystroke, debounced, and shows the error's range and the completions.
+4. **The problems from the compiler.** `timeseriesProblems` (a column missing, not a number, a date that is no date)
+   becomes the compiler's own messages: the series' query typed through `relationType`, which the tile already calls.
+   Only what is the tile's own stays in TypeScript: a series with no plot, and a split that differs.
+5. **Delete and guard.** `timeseries-expr.ts`'s grammar, `timeseries-ts.ts` and `TS_SIGNATURES` are deleted. A guard
+   fails if `datacube/src` declares a `#TS` tokenizer or a word table again.
+
+**Done when** those files are gone, and these all hold: the frozen answers, the tile's suites, the Python suites, and
+the bundle and cold-start budgets. Each step re-measures the formula box's keystroke cost and the tile's first plan.
+
+## 3. Decisions for the user
+
+1. **Pages saved before the change.** Version 6 pages hold trees.
+   - (a) Refuse them, as every older version is refused today. You said on 2026-10-31 that nobody uses the tile
+     yet, and every example is built from text.
+   - (b) Upgrade them once, from tree to text, while the tree printer (`exprSource`) still exists, then delete the
+     upgrade with the grammar.
+   - *Recommended: (a).* It is today's rule, and it has no code to keep.
+2. **Where a word's facts live** (step 1).
+   - (a) Tags on the word in the Pure library.
+   - (b) A table in Java beside the catalog.
+   - *Recommended: (a).* The tenet is "Java parses and binds; Pure decides", and the facts are the words' own.
+3. **Completions in v1.** The box today has none.
+   - (a) Word names and their parameters, from the catalog.
+   - (b) Also the grid's columns and instruments, which the box reads from the grid already.
+   - *Recommended: (b).* It costs little more than (a), because the columns are already on the screen.
+
+## 4. Cost and risk
+
+- **Size: large.** About 40 walkers, the document version, Python, and about 40 test targets that import the two
+  files.
+- **Riskiest: the keystroke cost.** Each keystroke becomes a call into the planner. It is measured in step 2 before
+  anything depends on it. If it is slow, the box parses on a pause, not on every key.
+- **The order is safe.** Steps 1 and 2 change no behaviour and can land alone. Step 3 is where the document changes.
