@@ -283,6 +283,20 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       (every in-process database: the lookup's 24 rows; both refused by name, in an expression and as two items).
     - Found on the way: `p.CLOSE - q.CLOSE` over two aliases of one table is one line (R7's one read), 0 on each row,
       not two lines meeting.
+  - **Moments meeting days (the time model's D4; its proof steps 1 and 4). Today's answer recorded 2026-11-03; the
+    refusal waits on a construct.**
+    - Today (`TsIslandTest.aLineOfMomentsMeetingALineOfDaysAsItIsToday`, every in-process database, a `TICKS` table of
+      two moments a day): an expression of both and a word of both (`correlation`) find **no row, silently**; as two
+      items the type checker refuses ("cannot unite" a `StrictDate` period with a `DateTime` one) without naming the
+      fix. The fix D4's refusal will name, `SAMPLE BY 1d` and `last(...)`, answers right on DuckDB and SQLite; H2 has no
+      `ARG_MAX`, which a day's last moment reads (a gap of H2's dialect, for A7).
+    - Why it is not built: lite refuses nothing at plan time (a `fail()` the compiler can decide raises only when the
+      query runs, measured), and the meetings the library cannot see are the dangerous ones -- a word's own meeting of
+      its lines (`(key, date, value)`, no grain) and the answer's spreading (refused by the type checker before any
+      library call). The precise way: Pure picks a function by a column's type (a meeting of days, of moments, and a
+      refusal for the mix), the broadcast's overloads by column type (2a) carried to a column a `ColSpec` names. The
+      other way is the grain passed as data (as `Keyed` is) to every meeting, the words' own included, which changes
+      every word of two lines. To decide after 2a.
 
 ### A2. Checkpoint: an independent review and the full gate
 

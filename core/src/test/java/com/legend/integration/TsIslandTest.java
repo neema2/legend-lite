@@ -61,6 +61,7 @@ class TsIslandTest {
             (
               Table PRICES ( SYMBOL VARCHAR(8), DAY DATE, CLOSE DOUBLE )
               Table INSTRUMENTS ( TICKER VARCHAR(8) PRIMARY KEY, SECTOR VARCHAR(8) )
+              Table TICKS ( SYMBOL VARCHAR(8), AT TIMESTAMP, PRICE DOUBLE )
               Join QuoteInstrument(PRICES.SYMBOL = INSTRUMENTS.TICKER)
             )
             """;
@@ -142,6 +143,19 @@ class TsIslandTest {
                 ps.setString(1, row[0]);
                 ps.setString(2, row[1]);
                 ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        // AAA's ticks: two moments each day, 10:00 and 15:00, at its close less 1 and its close
+        String ticks = backend.dialect().storedName(tables.get(2).name(), tables.get(2).quoted());
+        try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + ticks + " VALUES (?, ?, ?)")) {
+            for (int i = 0; i < AAA.length; i++) {
+                for (int hour : new int[] {10, 15}) {
+                    ps.setString(1, "AAA");
+                    ps.setObject(2, FIRST.plusDays(i).atTime(hour, 0));
+                    ps.setDouble(3, hour == 10 ? AAA[i] - 1 : AAA[i]);
+                    ps.addBatch();
+                }
             }
             ps.executeBatch();
         }
@@ -736,6 +750,34 @@ class TsIslandTest {
                 assertTrue(String.valueOf(e.getMessage()).contains("both have several rows on one date"),
                         backend + ": " + q + " refused by name: " + e.getMessage());
             }
+        }
+    }
+
+    @Test
+    void aLineOfMomentsMeetingALineOfDaysAsItIsToday() throws Exception {
+        // the time model's proof step 1 (2026-11-03): today's answer recorded, for D4's refusal to replace. TICKS has
+        // AAA's moments (10:00 and 15:00 each day), PRICES its days: lines meet on equal periods, and a moment is no
+        // day, so an expression of both, and a word of both, find nothing -- silently
+        for (TestBackend backend : TestBackends.inProcess()) {
+            assertEquals(2 * AAA.length, rows(backend, "|#TS{SELECT PRICE['AAA'] AS t FROM TICKS ON AT BY SYMBOL}#")
+                    .size(), backend + ": a line of moments, a row a moment");
+            assertEquals(0, rows(backend, "|#TS{SELECT p.CLOSE['AAA'] - t.PRICE['AAA'] AS d FROM PRICES p ON DAY BY"
+                    + " SYMBOL, TICKS t ON AT BY SYMBOL}#").size(), backend + ": moments meeting days, no row (today)");
+            assertEquals(0, rows(backend, "|#TS{SELECT correlation(p.CLOSE['AAA'], t.PRICE['AAA'], 3) AS k"
+                    + " FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#").size(),
+                    backend + ": a word of both, no row (today)");
+            // as two items, the answer's periods of two types cannot be one list: refused by the type checker (today)
+            Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{SELECT p.CLOSE['AAA'] AS c,"
+                    + " t.PRICE['AAA'] AS t FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL}#"));
+            assertTrue(String.valueOf(e.getMessage()).contains("cannot unite"), backend + ": " + e.getMessage());
+        }
+        // the fix D4's refusal will name: SAMPLE BY 1d, each day's last tick (15:00's, its close) -- on the platform's
+        // database (H2 has no ARG_MAX, which a day's last moment reads)
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT last(p.CLOSE['AAA']) - last(t.PRICE['AAA'])"
+                    + " AS d FROM PRICES p ON DAY BY SYMBOL, TICKS t ON AT BY SYMBOL SAMPLE BY 1d}#");
+            assertClose(each(AAA.length, i -> 0.0), column(got, null, null, "d"), backend + ": a day's close less its"
+                    + " last tick");
         }
     }
 
