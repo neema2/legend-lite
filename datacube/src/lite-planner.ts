@@ -614,9 +614,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
-   *  (protocol/ts TsShow), each grid a flat source named by WITH -- or why it has none. */
+   *  (protocol/ts TsShow), each grid a flat source named by WITH -- or why it has none. Asked with the model, as a
+   *  query is typed (`relationType`): its compiler answers what a calculated column's `+` adds (A6, 2026-11-03). */
   async tsStatement(query: Lambda): Promise<TsShown> {
-    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/jsonToTs/lambda', '', toJson(query), query)) as TsShown;
+    const over = await this.#over(query);
+    if (over !== this) return over.tsStatement(query);
+    await this.#handle().catch(() => undefined);
+    const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${toJson(query)}}`;
+    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/jsonToTs/lambda', '', body, query)) as TsShown;
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */

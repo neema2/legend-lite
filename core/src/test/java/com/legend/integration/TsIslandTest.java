@@ -1389,9 +1389,20 @@ class TsIslandTest {
         queries.put("a class's paths, filtered", "|let q = ts::Quote.all()->project(~[sym: x|$x.instrument.ticker,"
                 + " day: x|$x.day, px: x|$x.close])->filter(x|$x.sym->in(['AAA', 'BBB']) && ($x.day >= %2024-01-22));"
                 + " #TS{SELECT avg(px, 3) AS ma3, px['AAA'] / px['BBB'] AS r FROM $q ON day BY sym}#;");
+        // A6 (2026-11-03): a calculated column is its flat source's item, the Postgres the #SQL reader reads back to
+        // Pure's meaning -- a + of text as ||, a / a Float's (3 / 2 is 1.5, never Postgres's integer 1), a Float
+        // literal a double, an if a CASE, a later column reading an earlier one, a filter reading one
+        queries.put("a table's calculated column", "|let px = #>{ts::DB.PRICES}#->extend(~twice: r|$r.CLOSE->toOne()"
+                + " * 2); #TS{SELECT avg(twice, 3) AS m FROM $px ON DAY BY SYMBOL}#;");
+        queries.put("a class's calculated columns, filtered by one", "|let q = ts::Quote.all()->project(~[sym:"
+                + " x|$x.instrument.ticker, day: x|$x.day, px: x|$x.close])->extend(~[line: x|$x.sym->toOne() + '-x',"
+                + " scaled: x|$x.px->toOne() * (3 / 2), sign: x|if($x.px > 100.5, |1.0, |-1.0)])->extend(~[twice: x|"
+                + "$x.scaled->toOne() * 2, gap: x|if($x.px < 99.0, |[], |$x.px->toOne() - 99.0)])->filter(x|$x.scaled"
+                + " > 150); #TS{SELECT avg(twice, 3) AS m, sign AS s, gap AS g FROM $q ON day BY line}#;");
+        com.legend.protocol.ts.TsShow.Types types = com.legend.server.PureV1Api.tsTypes(model);
         Map<String, String> statements = new LinkedHashMap<>();
         for (Map.Entry<String, String> q : queries.entrySet()) {
-            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()));
+            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()), types);
             assertNull(shown.refused(), q.getKey());
             String statement = java.util.Objects.requireNonNull(shown.statement());
             statements.put(q.getKey(), statement);
@@ -1405,12 +1416,25 @@ class TsIslandTest {
                 + " instrument.ticker IN ('AAA', 'BBB') AND day >= DATE '2024-01-22') SELECT avg(px, 3) AS ma3,"
                 + " px['AAA'] / px['BBB'] AS r FROM q ON day BY sym", statements.get("a class's paths, filtered"),
                 "as a person writes it: the class's paths, filtered by them");
-        // a calculated column is the flat form's later: refused by name, never approximated
-        com.legend.protocol.ts.TsShow.Shown later = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
-                + " #>{ts::DB.PRICES}#->extend(~twice: r|$r.CLOSE * 2); #TS{SELECT avg(twice, 3) AS m FROM $px ON DAY"
-                + " BY SYMBOL}#;"));
-        assertNull(later.statement());
-        assertTrue(java.util.Objects.requireNonNull(later.refused()).contains("calculated column (twice)"),
-                later.refused());
+        assertEquals("WITH px AS (SELECT *, CLOSE * 2 AS twice FROM ts::DB.PRICES) SELECT avg(twice, 3) AS m FROM px"
+                + " ON DAY BY SYMBOL", statements.get("a table's calculated column"), "a table's columns, then its own");
+        assertEquals("WITH q AS (SELECT instrument.ticker AS sym, day, close AS px, instrument.ticker || '-x' AS line,"
+                + " close * (CAST(3 AS DOUBLE PRECISION) / 2) AS scaled, CASE WHEN close > 100.5 THEN CAST(1.0 AS"
+                + " DOUBLE PRECISION) ELSE -CAST(1.0 AS DOUBLE PRECISION) END AS sign, close * (CAST(3 AS DOUBLE"
+                + " PRECISION) / 2) * 2 AS twice, CASE WHEN close < 99.0 THEN NULL ELSE close - CAST(99.0 AS DOUBLE"
+                + " PRECISION) END AS gap FROM ts::Quote WHERE close * (CAST(3 AS DOUBLE PRECISION) / 2) > 150) SELECT"
+                + " avg(twice, 3) AS m, sign AS s, gap AS g FROM q ON day BY line",
+                statements.get("a class's calculated columns, filtered by one"), "each over the paths it reads");
+        // what the flat form does not say yet is refused by name, never approximated: a window's column, a function
+        // not written yet
+        for (Map.Entry<String, String> later : Map.of(
+                "a window's column", "->extend(over(~SYMBOL, ~DAY->ascending()), ~prev: {p, w, r|$p->lag($r).CLOSE})",
+                "calculates by abs", "->extend(~a: r|$r.CLOSE->toOne()->abs())").entrySet()) {
+            com.legend.protocol.ts.TsShow.Shown refused = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
+                    + " #>{ts::DB.PRICES}#" + later.getValue() + "; #TS{SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY"
+                    + " SYMBOL}#;"), types);
+            assertNull(refused.statement(), later.getKey());
+            assertTrue(java.util.Objects.requireNonNull(refused.refused()).contains(later.getKey()), refused.refused());
+        }
     }
 }

@@ -98,7 +98,8 @@ plus 53 more commits, and is behind `main` by none. The commits are listed in th
   Step 4 needs rulings R1, R7 and R9.
 - **One reader (S3) and the library's text (S4)** (A3, A5). The tile still has its own formula grammar and its own
   `TS_SIGNATURES`. It also sends 279 KB of library text with every model.
-- **Show #TS** cannot yet print an enumeration or a calculated column (A6).
+- **Show #TS** prints an enumeration and a calculated column since 2026-11-03 (A6); a window's column, an exploded one
+  and a function not yet written are refused by name.
 - **H2 runs out of memory on deep `SAMPLE BY` queries** (A7), so those tests run only on DuckDB.
 - **No independent review and no full gate since commit `07ce4597`** (A2). The branch has never run CI: `gate.yml` runs
   on a pull request and on `main` only.
@@ -439,6 +440,9 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
     to `protocol/sql`.
   - **Calculated columns.** Each `extend` is printed as the Postgres expression that the reader reads back to the same
     meaning, one native at a time.
+  - **Built (2026-11-03).** Arithmetic, text joined, `if`, an empty branch, and a condition's functions. `+` is the one
+    native Postgres spells by type: the printer asks the compiler (`TsShow.Types`, answered by
+    `PureV1Api.tsTypes`), never works a type out itself. The other natives wait for a grid that uses them.
 - **Done when:**
   - the class page's refused count is 0, and the pinned count is shrunk to 0;
   - a test page with calculated columns prints exactly.
@@ -669,7 +673,7 @@ Update this table in the same commit as the work.
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |
 | A5 the library's text off the wire | | |
-| A6 Show #TS complete | | |
+| A6 Show #TS complete | done 2026-11-03. An enumeration read as its values' names prints as `CAST(side AS text)`, which the #SQL reader reads back, and the flat source's reader keeps an item's name apart from the path it reads. A calculated column is its flat source's item, the Postgres the reader reads back to Pure's meaning: `+` as `+` or `||` by the compiler's type (the route takes the model), `/` a Float's (`CAST(a AS DOUBLE PRECISION) / b`), a Float literal a double, `if` a `CASE`, `[]` a `NULL`. The class page's refused count is 0; the core test and a markets grid of three calculated columns print exactly and answer the same rows. A window's column, an exploded column and the other functions are refused by name, one native at a time | 4d162d06, e9e080cc |
 | A7 H2's deep plans | moved to v1.1 (P4) | |
 | A8 the ratchets | | |
 | A9 the documents | | |

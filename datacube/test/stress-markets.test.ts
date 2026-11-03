@@ -343,6 +343,40 @@ describe('the example page over the classes, opened the page\'s way', () => {
     assert.deepEqual(Object.fromEntries(unshown), {});
   });
 
+  it('a grid with calculated columns is one #TS statement too, each column its Postgres, read back to the same rows (A6)', async () => {
+    // what a person types into the grid's calculated-column box, read by the compiler (the grid's own lambdas): a
+    // division (a Float's, never Postgres's integer one), text joined (+ as ||), an if (a CASE)
+    const base = referenced.get('px')!.snapshot;
+    const derived = [
+      { name: 'turnover', lambda: await corpus.parse('x|$x.closePrice->toOne() * $x.volume->toOne() / 1000000') },
+      { name: 'listing', lambda: await corpus.parse("x|$x.ticker->toOne() + '@' + $x.exchange->toOne()") },
+      { name: 'tone', lambda: await corpus.parse('x|if($x.closePrice > 100.0, |1.0, |-1.0)') },
+    ];
+    const inputs: TsInputs = new Map([['px', { snapshot: { ...base, derived, columns: [...base.columns,
+      { name: 'turnover', type: 'Float' }, { name: 'listing', type: 'String' }, { name: 'tone', type: 'Float' }] }, filter: undefined }]]);
+    const ts: TimeseriesSpec = {
+      sources: [{ alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
+      series: [
+        { id: 'A', expr: parseExpr('mean(turnover.sum, 21)'), split: 'listing' },
+        { id: 'B', expr: parseExpr('tone[sector="Energy"].sum') },
+      ],
+      grain: 'day',
+    };
+    for (const series of ts.series) {
+      const sent = tsSeriesQuery(inputs, ts, series);
+      const shown = await corpus.tsStatement(sent);
+      assert.ok(shown.statement !== undefined, shown.refused);
+      assert.match(shown.statement, / \|\| '@' \|\| .* AS listing, CASE WHEN /, shown.statement);
+      const alone = lambda([], tsIsland(shown.statement));
+      assert.equal((await corpus.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
+      const want = await projectEngine.execute(await corpus.plan(sent), 0);
+      const got = await projectEngine.execute(await corpus.plan(alone), 0);
+      assert.ok(want.columns[0]!.values.length > 20, `${series.id}: ${want.columns[0]!.values.length} rows`);
+      assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
+        `${series.id}: ${shown.statement}`);
+    }
+  });
+
   it('every series of the page answers as it was frozen', () => {
     holdFrozen('TS_ANSWERS', answers, 'markets-classes-answers');
   });

@@ -160,7 +160,7 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
-            case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body);
+            case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body, models);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -294,18 +294,40 @@ public final class PureV1Api {
     }
 
     /**
-     * {@code /api/lite/v1/grammar/jsonToTs/lambda} (D12, Show #TS; upstream has no #TS): a query of {@code #TS} over
-     * grids -- the lambda's protocol JSON, each grid bound by {@code let} and the island reading it -- as the one
-     * statement a person would write, each grid a flat source named by WITH ({@link TsShow}):
-     * {@code {"statement": text}}, or {@code {"refused": why}} where a grid's relation has no flat form yet.
+     * {@code /api/lite/v1/grammar/jsonToTs/lambda} (D12, Show #TS; upstream has no #TS): {@code {model, lambda}}, a
+     * query of {@code #TS} over grids -- the lambda's protocol JSON, each grid bound by {@code let} and the island
+     * reading it -- as the one statement a person would write, each grid a flat source named by WITH ({@link TsShow}):
+     * {@code {"statement": text}}, or {@code {"refused": why}} where a grid's relation has no flat form yet. The model
+     * is the query's, as {@link #lambdaRelationType} reads one: its compiler answers the type a calculated column's
+     * {@code +} reads (A6, 2026-11-03).
      */
-    public static Answer jsonToTsLambda(String body) {
+    public static Answer jsonToTsLambda(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
-            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(
-                    com.legend.protocol.ProtocolReader.lambda(body));
+            Json.Obj request = request(body);
+            ModelInput model = ModelInput.of(request.getObj("model"));
+            LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
+            com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
+                    lambda, tsTypes(ctx)));
             return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
                     : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
         });
+    }
+
+    /**
+     * Show #TS's types over {@code ctx} ({@link com.legend.protocol.ts.TsShow.Types}): a column of a relation typed as
+     * the compiler types it, the relation the query ({@code |relation}) and the column's type read off its result --
+     * the compiler's answer, never the printer's.
+     */
+    public static com.legend.protocol.ts.TsShow.Types tsTypes(com.legend.compiler.element.ModelContext ctx) {
+        return (relation, column) -> {
+            for (com.legend.compiler.element.type.Type.Column c : UpstreamRelationType.columns(com.legend.Compiler
+                    .query(ctx, new LambdaFunction(List.of(), List.of(relation))).resultType())) {
+                if (c.name().equals(column)) {
+                    return UpstreamRelationType.typePath(c.type());
+                }
+            }
+            throw new IllegalStateException("the relation has no column " + column);
+        };
     }
 
     /**

@@ -37,9 +37,10 @@ import java.util.Map;
  * ({@code let px = ...; #TS{... FROM $px ...}#}) -- as the one statement a person would write: each grid a flat source
  * named by WITH ({@code WITH px AS (SELECT instrument.ticker AS ticker, ... FROM MarketQuote WHERE ...)}), the island
  * reading it by that name, printed by {@link TsPrinter}. For display only, and exact as defined: the statement read
- * back answers the same rows, and prints the same text. A grid the flat form cannot say yet (a calculated column, a
- * group-by, a join, a filter of a kind not written yet) is refused by name -- the window then shows the query as it
- * is, never an approximation.
+ * back answers the same rows, and prints the same text. A calculated column is the flat source's item, the Postgres
+ * expression the #SQL reader reads back to the same meaning (A6, 2026-11-03). A grid the flat form cannot say yet (a
+ * window's column, a group-by, a join, a function not written yet) is refused by name -- the window then shows the
+ * query as it is, never an approximation.
  */
 public final class TsShow {
 
@@ -50,11 +51,23 @@ public final class TsShow {
     public record Shown(@com.legend.base.Nullable String statement, @com.legend.base.Nullable String refused) {
     }
 
+    /**
+     * The compiler's answer to a value's type, asked where Postgres spells by it what Pure spells one way: {@code +}
+     * adds numbers and joins text in Pure, {@code +} and {@code ||} in Postgres (A6). The path ({@code String},
+     * {@code Integer}, ...) of {@code relation}'s column {@code column}, as the compiler types it; the printer never
+     * works a type out itself (AGENTS.md invariant 1). The relation is the grid's own {@code extend}, its column the
+     * value asked.
+     */
+    @FunctionalInterface
+    public interface Types {
+        String of(ValueSpecification relation, String column);
+    }
+
     /** No position: what the statement writes that its island's text did not. */
     private static final SqlAst.Pos NONE = new SqlAst.Pos(0, 0);
 
-    /** {@code query} as one {@code #TS} statement, or why not. */
-    public static Shown of(LambdaFunction query) {
+    /** {@code query} as one {@code #TS} statement, or why not; {@code types} the compiler's, over the query's model. */
+    public static Shown of(LambdaFunction query, Types types) {
         List<ValueSpecification> body = query.body();
         if (body.isEmpty() || !(body.get(body.size() - 1) instanceof SqlIsland island)
                 || island.language() != IslandLanguage.TS) {
@@ -67,7 +80,7 @@ public final class TsShow {
                 return new Shown(null, "it does more than bind its grids");
             }
             try {
-                TsAst.Source grid = flat(let.parameters().get(1));
+                TsAst.Source grid = flat(let.parameters().get(1), types);
                 // a WITH names a source in parentheses: a table's rows as SELECT *
                 grids.put(name.value(), grid instanceof TsAst.Named table
                         ? new TsAst.Flat(List.of(new TsAst.Item(null, null, NONE)), table, null, NONE) : grid);
@@ -144,10 +157,11 @@ public final class TsShow {
 
     /**
      * {@code relation} as a flat source: a class's paths projected ({@code SELECT p.q AS name, ... FROM Class}), a
-     * table ({@code db::Store.schema.T}), and a filter of either as its WHERE -- over the projected names, the flat
-     * form projecting before it filters.
+     * table ({@code db::Store.schema.T}), a filter of either as its WHERE -- over the projected names, the flat
+     * form projecting before it filters -- and a calculated column as its item, over the paths it reads
+     * ({@code quantity * price AS notional}; a table's as {@code SELECT *, CLOSE * 2 AS twice}).
      */
-    private static TsAst.Source flat(ValueSpecification relation) {
+    private static TsAst.Source flat(ValueSpecification relation, Types types) {
         if (relation instanceof AppliedFunction f) {
             switch (f.function()) {
                 case "project" -> {
@@ -171,8 +185,9 @@ public final class TsShow {
                 case "filter" -> {
                     if (f.parameters().size() == 2 && f.parameters().get(1) instanceof LambdaFunction l
                             && l.parameters().size() == 1 && l.body().size() == 1) {
-                        TsAst.Source of = flat(f.parameters().get(0));
-                        SqlAst.Expr where = condition(l.body().get(0), l.parameters().get(0).name());
+                        TsAst.Source of = flat(f.parameters().get(0), types);
+                        String row = l.parameters().get(0).name();
+                        SqlAst.Expr where = condition(l.body().get(0), v -> value(v, row), "filters by");
                         return switch (of) {
                             case TsAst.Flat flat -> {
                                 // a flat source's WHERE reads its class's paths: each projected name as its path
@@ -187,8 +202,9 @@ public final class TsShow {
                     }
                     throw new Refused("filters by what is no condition of a row");
                 }
-                case "extend" -> throw new Refused("has a calculated column (" + names(f) + "): the flat form says"
-                        + " a grid's paths and filters so far");
+                case "extend" -> {
+                    return calculated(f, types);
+                }
                 default -> throw new Refused("is a " + f.function() + " of its rows: the flat form says a grid's paths"
                         + " and filters so far");
             }
@@ -196,26 +212,225 @@ public final class TsShow {
         throw new Refused("is no relation the flat form says");
     }
 
-    /** {@code e} with each column a projected name as that item's path ({@code sym} as {@code instrument.ticker}). */
+    /** {@code e} with each column a projected name as that item's path ({@code sym} as {@code instrument.ticker}), a
+     *  calculated column's name as its expression; under {@code SELECT *} (a table's) any other name the table's own
+     *  column. */
     private static SqlAst.Expr paths(SqlAst.Expr e, List<TsAst.Item> items) {
         return switch (e) {
             case SqlAst.ColumnRef c -> {
                 if (c.parts().size() != 1) {
                     yield c;
                 }
+                boolean star = false;
                 for (TsAst.Item i : items) {
-                    if (i.alias() != null && i.alias().text().equals(c.parts().get(0).text())) {
-                        yield java.util.Objects.requireNonNull(i.expr());
+                    if (i.expr() == null) {
+                        star = true;
+                    } else if (i.alias() != null && i.alias().text().equals(c.parts().get(0).text())) {
+                        yield i.expr();
                     }
                 }
-                throw new Refused("filters by " + c.parts().get(0).text() + ", a column it does not project");
+                if (star) {
+                    yield c;
+                }
+                throw new Refused("reads " + c.parts().get(0).text() + ", a column it does not project");
             }
             case SqlAst.Binary b -> new SqlAst.Binary(b.op(), paths(b.left(), items), paths(b.right(), items), NONE);
             case SqlAst.Unary u -> new SqlAst.Unary(u.op(), paths(u.operand(), items), NONE);
             case SqlAst.IsNull n -> new SqlAst.IsNull(paths(n.operand(), items), n.negated(), NONE);
             case SqlAst.InList i -> new SqlAst.InList(paths(i.operand(), items), i.values(), i.negated(), NONE);
+            case SqlAst.Cast c -> new SqlAst.Cast(paths(c.operand(), items), c.type(), NONE);
+            case SqlAst.Case c -> new SqlAst.Case(c.operand() == null ? null : paths(c.operand(), items),
+                    c.whens().stream().map(w -> new SqlAst.When(paths(w.condition(), items), paths(w.result(),
+                            items))).toList(), c.otherwise() == null ? null : paths(c.otherwise(), items), NONE);
             default -> e;
         };
+    }
+
+    // ------------------------------------------------------------------ a calculated column as its item
+
+    /** A star item, {@code SELECT *}: a table's every column. */
+    private static final TsAst.Item STAR = new TsAst.Item(null, null, NONE);
+
+    /** Postgres's double, a Pure Float: {@code CAST(x AS double precision)}. */
+    private static final SqlAst.TypeName DOUBLE = new SqlAst.TypeName("double precision", List.of(), NONE);
+
+    /** The row a calculated column reads: its {@code extend}, the lambda's variable, and the compiler's types. */
+    private record Row(AppliedFunction extend, Variable variable, Types types) {
+
+        /** {@code value}'s type, the compiler's: the grid's own extend, its column {@code value} ({@link Types}). */
+        String typeOf(ValueSpecification value) {
+            String asked = "__ts_show_type";
+            return types.of(new AppliedFunction(extend.function(), List.of(extend.parameters().get(0),
+                    new ColSpecArray(List.of(new ColSpec(asked, new LambdaFunction(List.of(variable),
+                            List.of(value))))))), asked);
+        }
+    }
+
+    /**
+     * The functions a calculated column writes beside a condition's, each by its protocol name, and so its Postgres
+     * spelling: a table, not name arms (docs/TS_V1_PROGRAM_2026_11_01.md A8). One native at a time (A6), each spelled
+     * as the #SQL reader reads it back to Pure's meaning.
+     */
+    private enum Calc {
+        /** {@code +}: numbers' sum, Postgres's {@code +}; text joined, its {@code ||} -- by the compiler's type. */
+        PLUS("plus"),
+        /** {@code -}: a difference, or one value negated. */
+        MINUS("minus"),
+        TIMES("times"),
+        /** {@code /}: always a Float in Pure ({@code divide(Number[1], Number[1]):Float[1]}), where Postgres divides
+         *  two integers as integers: its left a double, {@code CAST(a AS double precision) / b}. */
+        DIVIDE("divide"),
+        /** {@code if(c, |a, |b)}: {@code CASE WHEN c THEN a ELSE b END}, an else's if a further WHEN. */
+        IF("if"),
+        /** {@code toOne}: the value itself, as a WHERE's operand is read. */
+        TO_ONE("toOne");
+
+        private final String protocol;
+
+        Calc(String protocol) {
+            this.protocol = protocol;
+        }
+
+        private static final Map<String, Calc> BY_NAME = Map.copyOf(java.util.Arrays.stream(values())
+                .collect(java.util.stream.Collectors.toMap(c -> c.protocol, c -> c)));
+
+        static @com.legend.base.Nullable Calc of(String protocol) {
+            return BY_NAME.get(protocol);
+        }
+    }
+
+    /**
+     * {@code extend} as its flat source's items: the source's own (a table's {@code *}), then each calculated column,
+     * its expression over the paths it reads -- a projected name as its path, an earlier calculated column as its
+     * expression, so the source projects, filters and calculates as Pure did (a calculated column changes no row).
+     */
+    private static TsAst.Source calculated(AppliedFunction extend, Types types) {
+        List<ValueSpecification> ps = extend.parameters();
+        if (ps.size() != 2) {
+            throw new Refused("has a window's column (" + names(extend) + "): the flat form says a row's own values so"
+                    + " far");
+        }
+        List<ColSpec> cols = ps.get(1) instanceof ColSpecArray a ? a.colSpecs()
+                : ps.get(1) instanceof ColSpec c ? List.of(c) : List.of();
+        if (cols.isEmpty()) {
+            throw new Refused("extends by what is no column");
+        }
+        TsAst.Source of = flat(ps.get(0), types);
+        TsAst.Flat base = switch (of) {
+            case TsAst.Flat flat -> flat;
+            case TsAst.Filtered filtered -> new TsAst.Flat(List.of(STAR), filtered.of(), filtered.where(), NONE);
+            default -> new TsAst.Flat(List.of(STAR), of, null, NONE);
+        };
+        List<TsAst.Item> items = new ArrayList<>(base.items());
+        for (ColSpec c : cols) {
+            LambdaFunction l = c.function1();
+            if (l == null || c.function2() != null || l.parameters().size() != 1 || l.body().size() != 1) {
+                throw new Refused("has a calculated column " + c.name() + " that is no value of a row");
+            }
+            SqlAst.Expr e;
+            try {
+                e = calc(l.body().get(0), new Row(extend, l.parameters().get(0), types));
+            } catch (Refused r) {
+                throw new Refused("has a calculated column " + c.name() + " that " + r.getMessage());
+            }
+            items.add(new TsAst.Item(paths(e, items), ident(c.name()), NONE));
+        }
+        return new TsAst.Flat(items, base.from(), base.where(), NONE);
+    }
+
+    /** A calculated column's value as the Postgres expression the #SQL reader reads back to the same meaning. */
+    private static SqlAst.Expr calc(ValueSpecification v, Row row) {
+        if (v instanceof AppliedProperty p && p.receiver() instanceof Variable x
+                && x.name().equals(row.variable().name())) {
+            return new SqlAst.ColumnRef(List.of(ident(p.property())), NONE);
+        }
+        if (v instanceof CFloat) {
+            // a Float, where Postgres reads 1.5 as an exact numeric (the reader's Decimal): a double, as Pure's is
+            return new SqlAst.Cast(literal(v, "calculates by"), DOUBLE, NONE);
+        }
+        if (v instanceof PureCollection c && c.values().isEmpty()) {
+            // no value ([]: an if's empty branch): NULL, its type the other branch's, as Pure's empty is
+            return new SqlAst.NullLit(NONE);
+        }
+        if (!(v instanceof AppliedFunction f)) {
+            return literal(v, "calculates by");
+        }
+        Calc op = Calc.of(f.function());
+        if (op == null) {
+            return condition(v, x -> compared(x, row), "calculates by");
+        }
+        List<ValueSpecification> ps = f.parameters();
+        // an operator run, a + b + c, is one collection (AppliedFunction.infixRun); unary minus its operand alone
+        List<ValueSpecification> run = ps.size() == 1 && ps.get(0) instanceof PureCollection c ? c.values() : ps;
+        return switch (op) {
+            case TO_ONE -> {
+                if (ps.size() != 1) {
+                    throw new Refused("calculates by a toOne of " + ps.size() + " values");
+                }
+                yield calc(ps.get(0), row);
+            }
+            case PLUS -> {
+                String type = row.typeOf(f);
+                SqlAst.BinaryOp plus = switch (type) {
+                    case "String" -> SqlAst.BinaryOp.CONCAT;
+                    case "Integer", "Float", "Decimal", "Number" -> SqlAst.BinaryOp.PLUS;
+                    default -> throw new Refused("adds values of type " + type + ": the flat form adds numbers and"
+                            + " joins text so far");
+                };
+                yield arithmetic(run, plus, row);
+            }
+            case MINUS -> run.size() == 1 ? new SqlAst.Unary(SqlAst.UnaryOp.MINUS, calc(run.get(0), row), NONE)
+                    : arithmetic(run, SqlAst.BinaryOp.MINUS, row);
+            case TIMES -> arithmetic(run, SqlAst.BinaryOp.TIMES, row);
+            case DIVIDE -> {
+                if (ps.size() != 2) {
+                    throw new Refused("calculates by a divide of " + ps.size() + " values");
+                }
+                SqlAst.Expr left = calc(ps.get(0), row);
+                yield new SqlAst.Binary(SqlAst.BinaryOp.DIVIDE, left instanceof SqlAst.Cast c && c.type() == DOUBLE
+                        ? left : new SqlAst.Cast(left, DOUBLE, NONE), calc(ps.get(1), row), NONE);
+            }
+            case IF -> {
+                List<SqlAst.When> whens = new ArrayList<>();
+                ValueSpecification at = f;
+                while (at instanceof AppliedFunction g && Calc.of(g.function()) == Calc.IF
+                        && g.parameters().size() == 3) {
+                    whens.add(new SqlAst.When(condition(g.parameters().get(0), x -> compared(x, row),
+                            "calculates by"), calc(branch(g.parameters().get(1)), row)));
+                    at = branch(g.parameters().get(2));
+                }
+                if (whens.isEmpty()) {
+                    throw new Refused("calculates by an if of " + ps.size() + " values");
+                }
+                yield new SqlAst.Case(null, whens, calc(at, row), NONE);
+            }
+        };
+    }
+
+    /** A comparison's operand in a calculated column: a Float literal as written, a double and Postgres's numeric
+     *  comparing alike (a WHERE's {@code close > 100.5}); any other value as it calculates. */
+    private static SqlAst.Expr compared(ValueSpecification v, Row row) {
+        return v instanceof CFloat ? literal(v, "calculates by") : calc(v, row);
+    }
+
+    /** {@code operands} joined by {@code op}, left to right ({@code a - b - c} as {@code (a - b) - c}). */
+    private static SqlAst.Expr arithmetic(List<ValueSpecification> operands, SqlAst.BinaryOp op, Row row) {
+        if (operands.size() < 2) {
+            throw new Refused("calculates by an operator of " + operands.size() + " values");
+        }
+        SqlAst.Expr e = calc(operands.get(0), row);
+        for (ValueSpecification next : operands.subList(1, operands.size())) {
+            e = new SqlAst.Binary(op, e, calc(next, row), NONE);
+        }
+        return e;
+    }
+
+    /** An if's branch, {@code |value}: its value. */
+    private static ValueSpecification branch(ValueSpecification v) {
+        if (v instanceof LambdaFunction l && l.parameters().isEmpty() && l.body().size() == 1) {
+            return l.body().get(0);
+        }
+        throw new Refused("calculates by an if whose branch is no value");
     }
 
     private static String names(AppliedFunction extend) {
@@ -261,8 +476,11 @@ public final class TsShow {
         return new SqlAst.ColumnRef(parts, NONE);
     }
 
-    /** A row's condition ({@code x|$x.sector == 'TECH' && ...}) as the WHERE Postgres reads to the same meaning. */
-    private static SqlAst.Expr condition(ValueSpecification v, String row) {
+    /** A row's condition ({@code x|$x.sector == 'TECH' && ...}) as the WHERE Postgres reads to the same meaning, each
+     *  operand by {@code operand} (a WHERE's a column or a literal, a calculated column's any value it calculates);
+     *  {@code verb} what a refusal says it does ("filters by"). */
+    private static SqlAst.Expr condition(ValueSpecification v,
+            java.util.function.Function<ValueSpecification, SqlAst.Expr> operand, String verb) {
         if (v instanceof AppliedFunction f) {
             List<ValueSpecification> ps = f.parameters();
             switch (f.function()) {
@@ -272,12 +490,13 @@ public final class TsShow {
                             case "and" -> SqlAst.BinaryOp.AND;
                             default -> SqlAst.BinaryOp.OR;
                         };
-                        return new SqlAst.Binary(op, condition(ps.get(0), row), condition(ps.get(1), row), NONE);
+                        return new SqlAst.Binary(op, condition(ps.get(0), operand, verb), condition(ps.get(1), operand,
+                                verb), NONE);
                     }
                 }
                 case "not" -> {
                     if (ps.size() == 1) {
-                        return new SqlAst.Unary(SqlAst.UnaryOp.NOT, condition(ps.get(0), row), NONE);
+                        return new SqlAst.Unary(SqlAst.UnaryOp.NOT, condition(ps.get(0), operand, verb), NONE);
                     }
                 }
                 case "equal", "lessThan", "lessThanEqual", "greaterThan", "greaterThanEqual" -> {
@@ -289,7 +508,7 @@ public final class TsShow {
                             case "greaterThan" -> SqlAst.BinaryOp.GT;
                             default -> SqlAst.BinaryOp.GE;
                         };
-                        return new SqlAst.Binary(op, value(ps.get(0), row), value(ps.get(1), row), NONE);
+                        return new SqlAst.Binary(op, operand.apply(ps.get(0)), operand.apply(ps.get(1)), NONE);
                     }
                 }
                 case "isEmpty", "isNotEmpty" -> {
@@ -298,25 +517,25 @@ public final class TsShow {
                             case "isNotEmpty" -> true;
                             default -> false;
                         };
-                        return new SqlAst.IsNull(value(ps.get(0), row), some, NONE);
+                        return new SqlAst.IsNull(operand.apply(ps.get(0)), some, NONE);
                     }
                 }
                 case "in" -> {
                     if (ps.size() == 2 && ps.get(1) instanceof PureCollection c) {
                         List<SqlAst.Expr> values = new ArrayList<>();
                         for (ValueSpecification e : c.values()) {
-                            values.add(literal(e));
+                            values.add(literal(e, verb));
                         }
-                        return new SqlAst.InList(value(ps.get(0), row), values, false, NONE);
+                        return new SqlAst.InList(operand.apply(ps.get(0)), values, false, NONE);
                     }
                 }
                 default -> {
                 }
             }
-            throw new Refused("filters by " + f.function() + ": the flat form's WHERE says comparisons, IN, AND, OR,"
-                    + " NOT and IS NULL so far");
+            throw new Refused(verb + " " + f.function() + ": the flat form says comparisons, IN, AND, OR, NOT and IS"
+                    + " NULL so far, and a calculated column's arithmetic and if");
         }
-        throw new Refused("filters by what is no condition");
+        throw new Refused(verb + " what is no condition");
     }
 
     /** A condition's operand: a column of the row ({@code $x.sector}) or a literal. */
@@ -333,10 +552,11 @@ public final class TsShow {
                 }
             }
         }
-        return literal(v);
+        return literal(v, "filters by");
     }
 
-    private static SqlAst.Expr literal(ValueSpecification v) {
+    /** A literal value; {@code verb} what a refusal says it does. */
+    private static SqlAst.Expr literal(ValueSpecification v, String verb) {
         return switch (v) {
             case CString s -> new SqlAst.StringLit(s.value(), NONE);
             case CInteger i -> new SqlAst.IntegerLit(new BigInteger(i.value().toString()), NONE);
@@ -349,9 +569,9 @@ public final class TsShow {
                 yield new SqlAst.TypedLit(new SqlAst.TypeName(day ? "date" : "timestamp", List.of(), NONE),
                         day ? text : text.replace('T', ' ').replace("+0000", ""), NONE);
             }
-            case EnumValue e -> throw new Refused("filters by an enumeration's value (" + e.value() + "): the flat"
+            case EnumValue e -> throw new Refused(verb + " an enumeration's value (" + e.value() + "): the flat"
                     + " form's enumerations are written later");
-            default -> throw new Refused("filters by a value the flat form does not write yet");
+            default -> throw new Refused(verb + " a value the flat form does not write yet");
         };
     }
 
