@@ -75,7 +75,7 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":error", ":model", ":sql"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does

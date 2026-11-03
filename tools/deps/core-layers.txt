@@ -102,7 +102,10 @@ probe	base builtin lowering model platform
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
 testdatagen	base builtin compiler compiler_element_type error exec execution_plan judge lineage model plan protocol resolver setup sql sql_dialect values
-execution_plan	base json model sql
+# 2026-11-03 (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D, the user's D18): execution_plan reaches `error` -- a keyed
+# plan's steps that are not statements (KeyedRun: the body written for its keys, the answer's columns) are the plan
+# record's, shared by the JVM's runner and the hosts' boundary, and refuse as the runner refused (NotImplementedException).
+execution_plan	base error json model sql
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect

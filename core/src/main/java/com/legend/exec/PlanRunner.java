@@ -437,43 +437,13 @@ public final class PlanRunner {
                     probeValues.add(value(checked, probe.slots().get(i), i + 1));
                 }
                 st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
-                int fixed = keyed.outputs().size() - perKey;
-                int columns = fixed + keys.size() * perKey;
-                if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
-                            + columns + " columns, more than the database's " + keyed.maxColumns());
-                }
-                List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
-                List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
-                for (int i = 0; i < keyed.outputs().size(); i++) {
-                    if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
-                        answered.add(f.column());
-                        read.add(named(f.column(), f.field()));
-                    }
-                }
-                for (int k = 0; k < keys.size(); k++) {
-                    for (int i = 0; i < keyed.outputs().size(); i++) {
-                        if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
-                            String name = cellText(keys.get(k), p.name());
-                            ExecutionPlan.Column c = p.column();
-                            ExecutionPlan.Column a = c.named(name);
-                            answered.add(a);
-                            read.add(named(a, "_pk" + k + "_" + p.field()));
-                        }
-                    }
-                }
-                // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
-                // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
-                int at = keyed.perKeyAt();
-                int[] place = new int[columns];
-                for (int i = 0; i < columns; i++) {
-                    place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
-                }
-                List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
-                        (ExecutionPlan.Column) null));
-                for (int i = 0; i < columns; i++) {
-                    inOrder.set(place[i], answered.get(i));
-                }
+                // the keyed plan's steps that are not statements, the plan record's (KeyedRun: the hosts' boundary
+                // calls the same, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D)
+                com.legend.executionplan.KeyedRun.Answer answer = com.legend.executionplan.KeyedRun.answer(keyed, keys);
+                List<ExecutionPlan.Column> inOrder = answer.columns();
+                List<ExecutionPlan.Column> read = answer.read();
+                int columns = inOrder.size();
+                int[] place = answer.place().stream().mapToInt(Integer::intValue).toArray();
                 Expanded body = expand(keyed.body(), keys, checked);
                 StatementOrigin.sent(body.statement());
                 // the columns announced once the body's result opens, with the database's report of each in the
@@ -504,112 +474,35 @@ public final class PlanRunner {
         }
     }
 
-    /** {@code c} read under the name its statement writes it: the column's facts, that name. */
-    private static ExecutionPlan.Column named(ExecutionPlan.Column c, String name) {
-        return c.named(name);
-    }
-
-    private static String cellText(List<Object> key, int cell) {
-        if (cell >= key.size() || !(key.get(cell) instanceof String s)) {
-            throw new IllegalStateException("a keys row's cell " + cell + " is " + (cell < key.size() ? key.get(cell)
-                    : "absent") + ": the probe writes each key's text and names");
-        }
-        return s;
-    }
-
     /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order. */
     private record Expanded(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
     }
 
-    /**
-     * {@code sql} written for {@code keys}: the text outside its regions as it is, its type holes filled; each region
-     * once per key ({@code lead} before the first copy, {@code separator} between copies, the key's position at each
-     * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
-     * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
-     */
+    /** {@code sql} written for {@code keys} by the plan record's own steps ({@link com.legend.executionplan.KeyedRun#expand}),
+     *  each type hole filled with its value's type, each placeholder bound: a plan's slot to its checked value, a key's
+     *  cell to that key's text. */
     private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
             Map<String, PlanParameters.Checked> checked) {
-        String text = sql.statement();
-        // the type holes, each outside every region (the writer refuses one inside): their places and types, in order
-        List<int[]> holes = new java.util.ArrayList<>();
-        List<String> holeTypes = new java.util.ArrayList<>();
-        for (int i = 0; i < sql.slots().size(); i++) {
-            ExecutionPlan.Slot each = sql.slots().get(i);
-            if (each.binding() instanceof ExecutionPlan.Binding.One one && one.hole() != null) {
-                holes.add(new int[] {one.hole().at()});
-                holeTypes.add(typeOf(one.hole(), value(checked, each, i + 1), each));
-            }
-        }
-        StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
-        List<ExecutionPlan.Slot> slots = new java.util.ArrayList<>();
-        List<PlanParameters.Checked> values = new java.util.ArrayList<>();
-        int[] hole = {0};
-        int from = 0;
-        int slot = 0;
-        for (ExecutionPlan.Region r : sql.regions()) {
-            outside(out, text, from, r.start(), holes, holeTypes, hole);
-            for (; slot < r.firstSlot(); slot++) {
-                bindOnce(sql, slot, checked, slots, values);
-            }
-            if (keys.isEmpty()) {
-                if (r.empty() == null) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot with no fixed column found no key: its"
-                            + " relation has no column");
+        com.legend.executionplan.KeyedRun.Expanded e = com.legend.executionplan.KeyedRun.expand(sql, keys,
+                i -> typeOf(java.util.Objects.requireNonNull(
+                        ((ExecutionPlan.Binding.One) sql.slots().get(i).binding()).hole(), "a slot asked for its hole's type"),
+                        value(checked, sql.slots().get(i), i + 1), sql.slots().get(i)));
+        List<ExecutionPlan.Slot> slots = new java.util.ArrayList<>(e.bound().size());
+        List<PlanParameters.Checked> values = new java.util.ArrayList<>(e.bound().size());
+        for (com.legend.executionplan.KeyedRun.Bound b : e.bound()) {
+            switch (b) {
+                case com.legend.executionplan.KeyedRun.Bound.Slot one -> {
+                    ExecutionPlan.Slot each = sql.slots().get(one.index());
+                    slots.add(each);
+                    values.add(value(checked, each, one.index() + 1));
                 }
-                out.append(r.empty());
-            } else {
-                out.append(r.lead());
-                for (int k = 0; k < keys.size(); k++) {
-                    if (k > 0) {
-                        out.append(r.separator());
-                    }
-                    int at = r.start();
-                    for (int counter : r.counters()) {
-                        out.append(text, at, counter).append(k);
-                        at = counter;
-                    }
-                    out.append(text, at, r.end());
-                    for (int s = r.firstSlot(); s < r.firstSlot() + r.slotCount(); s++) {
-                        ExecutionPlan.Slot each = sql.slots().get(s);
-                        if (each.binding() instanceof ExecutionPlan.Binding.Key key) {
-                            slots.add(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.One("VARCHAR", null)));
-                            values.add(new PlanParameters.One(cellText(keys.get(k), key.cell())));
-                        } else {
-                            slots.add(each);
-                            values.add(value(checked, each, s + 1));
-                        }
-                    }
+                case com.legend.executionplan.KeyedRun.Bound.Key key -> {
+                    slots.add(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.One("VARCHAR", null)));
+                    values.add(new PlanParameters.One(key.text()));
                 }
             }
-            slot = r.firstSlot() + r.slotCount();
-            from = r.end();
         }
-        outside(out, text, from, text.length(), holes, holeTypes, hole);
-        for (; slot < sql.slots().size(); slot++) {
-            bindOnce(sql, slot, checked, slots, values);
-        }
-        return new Expanded(out.toString(), slots, values);
-    }
-
-    /** The statement's text {@code [from, to)} outside its regions, each type hole up to {@code to} filled (one at
-     *  {@code to} itself before the region that starts there); {@code next} the first hole not yet written. */
-    private static void outside(StringBuilder out, String text, int from, int to, List<int[]> holes,
-            List<String> holeTypes, int[] next) {
-        int at = from;
-        while (next[0] < holes.size() && holes.get(next[0])[0] <= to) {
-            int place = holes.get(next[0])[0];
-            out.append(text, at, place).append(holeTypes.get(next[0]));
-            at = place;
-            next[0]++;
-        }
-        out.append(text, at, to);
-    }
-
-    private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,
-            List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
-        ExecutionPlan.Slot each = sql.slots().get(slot);
-        slots.add(each);
-        values.add(value(checked, each, slot + 1));
+        return new Expanded(e.statement(), slots, values);
     }
 
     /** What a statement's session is asked, once the session is checked and its own statements have run: the

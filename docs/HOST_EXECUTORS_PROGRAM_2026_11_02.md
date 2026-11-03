@@ -710,11 +710,14 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
    column's type as its database reported it; the core writes legend-engine's answer, its header from that report
    (F's `dynamicEnvelope`), the grid's typed rows from the expansion's columns.
 4. **`HostPlans.read` accepts a `Keyed` root** whose statements bind only key cells; anything else stays refused.
-5. **To measure before building** (the tab): which report DuckDB-WASM gives a host. Its results are Arrow, and DuckDB
-   writes a `HUGEINT` (a sum of integers: legend-engine's `Integer`) as a 128-bit decimal there, which the prefix rule
-   would read as `Float`; the candidates are the Arrow schema, a `DESCRIBE` of the expanded body (whether it takes bound
-   values), or a `LIMIT 0` copy read the same way. Python's driver reports DuckDB's own type names
-   (`cursor.description`). The measurement and the choice are posted with D's commit.
+5. **The tab's report, measured (2026-11-03, DuckDB-WASM under Node, a pivot body's eight columns):** its Arrow
+   schema answers `Int32, Decimal[38e0], Float64, Decimal[38e+2], Bool, Date32<DAY>, Timestamp<MICROSECOND>, Int64`
+   -- a `HUGEINT` (a sum of integers, legend-engine's `Integer`) is a 128-bit decimal there, which the prefix rule
+   reads as `Float`, so the Arrow schema is not the report. `DESCRIBE` of the same body answers DuckDB's own names,
+   `INTEGER, HUGEINT, DOUBLE, DECIMAL(38,2), BOOLEAN, DATE, TIMESTAMP, BIGINT` -- the names DuckDB's JDBC driver reports
+   as `getColumnTypeName` -- and does so for a prepared statement with the keys' values bound, planning the body
+   without running it. So the tab's report is a `DESCRIBE` of the expanded body (the connector's how, as D76 put a
+   first step's). Python's driver reports DuckDB's names itself (`cursor.description`, R4).
 
 **R3. The writers take Arrow.**
 - **The measurement first** (scratch, both hosts, posted): the bytes boundary's cost in the native library (a pointer
