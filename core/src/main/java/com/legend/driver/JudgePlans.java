@@ -354,9 +354,9 @@ final class JudgePlans {
     static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.judge.VerdictBatch.Runner() {
             @Override
-            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused) {
+            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, com.legend.exec.Sessions.Session on) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
-                return rowsPlan(statement, schema, env);
+                return rowsPlan(statement, schema, on == env.session() ? env : env.withSession(on));
             }
 
             @Override

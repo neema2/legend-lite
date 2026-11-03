@@ -840,18 +840,16 @@ class BodyRouterParityTest {
                     // a keyed instance's canon needs the dialect's struct and list encodings: a dialect without them
                     // walls the pair on both roads alike (the walk's own answer, raised by the root loop at the flush).
                     // Under the DATABASE judge the planning pass defers the row (nothing rendered: PLANNED, the family
-                    // counted), then the segment's close finds no member the dialect spells (VerdictBatch.plan's split
-                    // rung catches the DialectCapability; DatabaseAsserts.close: no step) and gives the body back to
-                    // the walk, which counts the family again -- M8's note in close, carried as a step by M10d. The
-                    // outcome and the verdicts are the walk's. Pinned as that until M10d.
+                    // counted), the segment's close finds no member the dialect spells (VerdictBatch.plan's split rung
+                    // catches the DialectCapability) and carries the segment as a step with no statement, whose root
+                    // loop raises the dialect's refusal at the member's place (2026-11-03, the database judge on par
+                    // with the host: until then close gave the body back to the walk, M8's note)
                     Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS,
                             mode);
                     assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
                     assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                    // the host road carries the wall as its step's raise (moved); the database road gives the body
-                    // back (not moved)
-                    assertEquals(mode == ExecuteOptions.JudgeMode.DATABASE ? walked.moved : walked.moved + 1,
-                            moved.moved, "the body's road under the wall: " + c.getKey());
+                    // either road carries the wall as a step's raise: the body moves under both judges
+                    assertEquals(walked.moved + 1, moved.moved, "the body's road under the wall: " + c.getKey());
                     continue;
                 }
                 if (mode == ExecuteOptions.JudgeMode.DATABASE && c.getValue().equals("AssertFailed")) {
@@ -921,15 +919,15 @@ class BodyRouterParityTest {
                 Run walked = run(backend, ctx, RT, c.getKey(), false, "select 1", List.of(), mode);
                 if (walked.outcome.startsWith("DialectCapability")) {
                     // the vector form's predicate vector unnests the collection: a dialect without an unnest placement
-                    // walls it on both roads alike (the walk's own answer). The host road carries the raise as its
-                    // step (moved); under the DATABASE judge the arm raises at planning as the first root of its
-                    // segment and the body goes back to the walk after the planning pass counted it (M7's gap, item 4's
-                    // (i); M10d carries it as the step). The outcome and the verdicts are the walk's.
+                    // walls it on both roads alike (the walk's own answer). Either road carries the raise as a step
+                    // (moved): the host's at the assert's turn; the database judge's arm raises at planning as the
+                    // first root of its segment, which closes as a decided step whose root loop raises it (2026-11-03,
+                    // the database judge on par with the host: until then the body went back to the walk, M7's gap).
+                    // The outcome and the verdicts are the walk's.
                     Run moved = run(backend, ctx, RT, c.getKey(), true, "select 1", List.of(), mode);
                     assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
                     assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                    assertEquals(mode == ExecuteOptions.JudgeMode.DATABASE ? walked.moved : walked.moved + 1,
-                            moved.moved, "the body's road under the wall: " + c.getKey());
+                    assertEquals(walked.moved + 1, moved.moved, "the body's road under the wall: " + c.getKey());
                     continue;
                 }
                 walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(), mode);
@@ -1011,8 +1009,9 @@ class BodyRouterParityTest {
                 + " assertEquals([], $r.values.rows.values);}";
         assertNull(BodyClass.of(typed(ctx, navigation), "x::RT", true), "a navigation is a read: " + navigation);
         // a real metamodel read beside the frame, each assert reading one store: the system assert on the graph's
-        // system database, the frame's on the body's -- one program under the host judge (per-statement routing,
-        // 2026-11-03); the database judge's groups on two sessions keep it on the walk, by name
+        // system database, the frame's on the body's -- one program under either judge (per-statement routing,
+        // 2026-11-03: the database judge's group on the system database is a step naming that target, as the host's
+        // side is; until then its two sessions kept the body on the walk)
         String mixed = "{| let r = meta::pure::router::execute(" + query + ", x::M, x::RT.runtimeValue, []);"
                 + " assertEquals(['FIRM', 'TFIRM'], x::DB.schemas.tables.name->sort());"
                 + " assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}";
@@ -1021,8 +1020,9 @@ class BodyRouterParityTest {
                 ExecuteOptions.JudgeMode.DATABASE);
         Run routed = run(backend, ctx, "x::RT", mixed, true, "select count(*) from FIRM", FIRM_ROWS,
                 ExecuteOptions.JudgeMode.DATABASE);
-        assertEquals(walked.moved, routed.moved, "under the database judge the mixed body stays on the walk: " + mixed);
+        assertEquals(walked.moved + 1, routed.moved, "under the database judge the mixed body moves: " + mixed);
         assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
+        assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + mixed);
         assertEquals("ok", walked.outcome, mixed);
     }
 
@@ -1244,17 +1244,13 @@ class BodyRouterParityTest {
                     && declinedFails.outcome.contains("text is the contract"), declinedFails.outcome);
             assertTrue(declinedFails.verdicts.toString().contains("declined foreign-dialect:DB2"),
                     declinedFails.verdicts.toString());
-            // a dialect the engine-text renderer does not spell: the routine RAISES when the text is planned. Under
-            // the host judge the raise is planned at the assert's turn and the body moves; under the database judge
-            // the raise would wall a batch with no row before it to carry the wall, so the static gate leaves the body
-            // to the walk before anything is counted (the same raise, counted once) -- the one road difference
+            // a dialect the engine-text renderer does not spell: the routine RAISES when the text is planned, and
+            // the body moves under either judge -- the host plans the raise at the assert's turn; the database judge
+            // closes a segment of walls alone as a decided step of its own (2026-11-03, the database judge on par
+            // with the host: until then its static gate left this body to the walk, the one road difference)
             String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake")
                     + ");}";
-            if (mode == ExecuteOptions.JudgeMode.HOST) {
-                assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
-            } else {
-                assertWalkedAlike(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
-            }
+            assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
         }
     }
 

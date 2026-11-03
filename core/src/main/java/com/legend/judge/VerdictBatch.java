@@ -70,8 +70,11 @@ public final class VerdictBatch {
      *  index column first), rendered for the body's session. The batch runs the plans itself, as a verdict group
      *  through the plan runner ({@link PlanRunner#program}); a wrapper the dialect cannot spell raises here. */
     public interface Runner {
-        /** A typed result, or a keyed one where the statement reads a raw grid's column names or cells (S3c). */
-        ExecutionPlan.Node plan(SqlQuery statement, boolean fused);
+        /** A typed result, or a keyed one where the statement reads a raw grid's column names or cells (S3c), its
+         *  target the database of the session {@code on} it runs on (the body's, or the graph's system database beside
+         *  it: per-statement routing, 2026-11-03 -- until then a verdict over the system store on a server engine was
+         *  planned against the body's target, so the database judge left such a body to the walk). */
+        ExecutionPlan.Node plan(SqlQuery statement, boolean fused, Sessions.Session on);
 
         /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
          *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
@@ -399,7 +402,8 @@ public final class VerdictBatch {
             }
             ExecutionPlan.TdsResult fusedPlan;
             try {
-                fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true));
+                fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true,
+                        g.getKey()));
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 // the split rung at planning, member by member (the planner-driver seam program's S3b, 2026-10-30): a
                 // verdict whose canon the dialect cannot spell leaves the group and is refused at its own place in the
@@ -412,7 +416,7 @@ public final class VerdictBatch {
                 if (!ps.isEmpty() && ps.size() < unfused.size()) {
                     try {
                         fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames),
-                                true));
+                                true, g.getKey()));
                     } catch (com.legend.sql.dialect.DialectCapability again) {
                         fusedPlan = null;
                     }
@@ -570,7 +574,7 @@ public final class VerdictBatch {
         for (Pending p : keyed) {
             try {
                 ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false));
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
                 verdicts.add(v);
                 members.put(v, p);
             } catch (com.legend.sql.dialect.DialectCapability e) {
@@ -595,7 +599,7 @@ public final class VerdictBatch {
         List<Pending> out = new ArrayList<>(group.size());
         for (Pending p : group) {
             try {
-                runner.plan(fusion.fuse(List.of(p.query()), frames), true);
+                runner.plan(fusion.fuse(List.of(p.query()), frames), true, p.on());
                 out.add(p);
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 // refused at its own place in the root loop
@@ -614,13 +618,13 @@ public final class VerdictBatch {
     }
 
     /** Execute ONE verdict statement on {@code on}, as a verdict group of one step through the plan runner (its
-     * wrapper under the FALLBACK origin), and return its one row; a statement the database rejects, or a canon the
-     * dialect cannot spell, is counted UNJUDGED with the database's own words and surfaces as itself — never a bare
-     * re-run, never a host rescue. */
+     * wrapper under the FALLBACK origin), and return its one row; a canon the dialect cannot spell is counted UNJUDGED
+     * with the dialect's own words, a statement the database rejects is the database's verdict (judged: the test's
+     * failure, its error), and either surfaces as itself — never a bare re-run, never a host rescue. */
     public static List<Object> executeOne(String name, SqlQuery vq, Sessions.Session on, Runner runner) {
         ExecutionPlan.Node wrapper;
         try {
-            wrapper = runner.plan(vq, false);
+            wrapper = runner.plan(vq, false, on);
         } catch (com.legend.sql.dialect.DialectCapability e) {
             CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
                     + String.valueOf(e.getMessage()).split("\n")[0]);
@@ -643,8 +647,11 @@ public final class VerdictBatch {
                         }
                     });
         } catch (com.legend.error.DataError e) {
-            CanonicalDivergence.sqlUnjudged(name, "statement-error: "
-                    + String.valueOf(e.getMessage()).split("\n")[0]);
+            // the database raised evaluating the test's own values (a date past its range, a value it refuses): it
+            // judged, and the verdict is that error -- the test's failure, as the host judge's side read raises it;
+            // never UNJUDGED (2026-11-03: channel B's BigNumber date tests counted 4 "unjudged" under the database
+            // judge alone). A statement lite composed wrongly would fail a test its lane's exact ledger does not list.
+            CanonicalDivergence.sqlJudgedInDatabase(name);
             throw e;
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);

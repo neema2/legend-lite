@@ -271,9 +271,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<String, Integer> frameSegment = new LinkedHashMap<>();
         java.util.Set<Integer> segmentsWithAssert = new java.util.HashSet<>();
-        // the segments where an assert's arm PLANS a verdict row (the gate's PLANS or ENGINE_TEXT): a raise at
-        // planning after one has a row to carry its wall (M10b)
-        java.util.Set<Integer> segmentsWithRows = new java.util.HashSet<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<com.legend.model.FunctionId, Boolean> readMemo = new java.util.HashMap<>();
         int segment = 0;
@@ -340,17 +337,11 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     // session where the walk runs it, not this program's (M10b)
                     return false;
                 }
-                if (gate == AssertVerdicts.DatabaseGate.RAISES && !segmentsWithRows.contains(segment)) {
-                    // the arm raises at planning and no row before it in its segment: the planning pass would wall a
-                    // batch with no row to carry the wall (close) and give the body back after counting, and the walk
-                    // would count it again -- the walk's, decided here so it counts nothing (M7's rule; found by
-                    // M10b's foreign-dialect witness). A row an earlier arm RESOLVED at planning carries none either:
-                    // that case is the gap it was (M7), recorded.
-                    return false;
-                }
-                if (gate != AssertVerdicts.DatabaseGate.RAISES) {
-                    segmentsWithRows.add(segment);
-                }
+                // an arm that raises at planning with no row before it in its segment: the segment's batch holds the
+                // wall alone, decided at planning, and close carries it as a step with no statement whose root loop
+                // raises it at its turn (2026-11-03; until then close gave such a segment back to the walk, so this
+                // pass refused it -- M7's rule -- and the database judge alone refused every body whose assert's side
+                // the dialect cannot write: H2's 33 list operations, SQLite's and MariaDB's regular expressions)
             } catch (RuntimeException e) {
                 // the gate's classification raised: not a route -- the arm raises the same at the assert's turn and
                 // the planning pass plans that raise at the root's place
@@ -462,7 +453,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 continue;
             }
             List<VerdictBatch.Group> groups = planned.groups();
-            if (groups.size() > 1 || groups.stream().anyMatch(g -> g.on() != env.session() || g.keyed())) {
+            if (groups.size() > 1 || groups.stream().anyMatch(g -> !placed(g, env))) {
                 continue;
             }
             out.put(i, new Each(planned, groups.isEmpty() ? null : groups.get(0).step()));
@@ -504,6 +495,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
         }
         return true;
+    }
+
+    /** Whether the program places {@code g} as a step: a group of fused verdicts (a keyed member's wrapper is the
+     *  walk's) on the body's own session, or on the graph's system database beside it -- a verdict over the system
+     *  store alone on a server engine, its statement naming that target, which the runner routes to the system
+     *  database's session (per-statement routing; 2026-11-03: until then such a group left the body to the walk, so
+     *  the database judge alone refused {@code getAll::testBasic} on Postgres, MariaDB and ClickHouse). */
+    private static boolean placed(VerdictBatch.Group g, BodyDriver.ExecEnv env) {
+        return !g.keyed() && (g.on() == env.session() || SystemDatabase.of(env.ctx()).engineOf(g.on()) != null);
     }
 
     /** The shapes the planner refuses BEFORE planning anything, so a body it leaves for the walk has nothing counted
@@ -564,12 +564,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         if (lastAssert < 0) {
             throw new IllegalStateException("a verdict batch planned with no assert in its segment");
         }
-        if (planned.groups().isEmpty() && planned.decidedAtPlanning()) {
+        if (planned.groups().isEmpty()) {
             // every root of the segment decided at planning (a statically identified assertIs: the compiler compares
-            // the spelled types, for both judges alike; an unjudged decline; a planned raise): nothing for the
-            // database to read -- one verdict step with no statement carries the segment, and the sink runs the
-            // batch's root loop at it, as after a segment's fused statement (2026-11-03: the walk had kept such a
-            // body, so the database judge alone planned 9 PCT bodies fewer than the host)
+            // the spelled types, for both judges alike; an unjudged decline; a planned raise), or every member's canon
+            // one the dialect cannot spell (the split rung at planning): nothing for the database to read -- one
+            // verdict step with no statement carries the segment, and the sink runs the batch's root loop at it, as
+            // after a segment's fused statement, where an unspelled member is refused at its own place in the
+            // dialect's own words before anything is sent (VerdictBatch.executeOne) -- the host judge's raise for the
+            // same side (2026-11-03: the walk had kept such a body, so the database judge alone planned 9 PCT bodies
+            // fewer than the host on DuckDB, and refused H2's 33 list operations)
             ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict("decided@" + segment, "decided", List.of(),
                     null);
             ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(decided), null, null);
@@ -579,16 +582,10 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         List<ExecutionPlan.Verdicts> steps = new ArrayList<>();
         for (VerdictBatch.Group g : planned.groups()) {
-            if (g.on() != env.session() || g.keyed()) {
+            if (!placed(g, env)) {
                 return false;
             }
             steps.add(stamped(g.step(), stampOfSegment(segment)));
-        }
-        if (steps.isEmpty()) {
-            // every member's canon the dialect cannot spell: the walk refuses each at its place in the root loop,
-            // which the program road reaches only through a group's step -- the walk keeps the body (M8 carries the
-            // refusal as a step)
-            return false;
         }
         Segment seg = new Segment(planned, steps, false);
         for (ExecutionPlan.Verdicts step : steps) {

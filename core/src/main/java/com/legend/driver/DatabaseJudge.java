@@ -54,6 +54,19 @@ final class DatabaseJudge {
             SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
             boolean cellPool, boolean csvStrings) {
+        return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook, canonicalOrder, cellPool,
+                csvStrings, false);
+    }
+
+    /** {@code renderedStrings}: the pair is the rendered-text family's (a golden String against a relation's text),
+     *  judged by their rows, its message the two Strings upstream prints ({@code VerdictSql.messageAsStrings}). */
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool, boolean csvStrings, boolean renderedStrings) {
+        java.util.function.UnaryOperator<com.legend.sql.SqlQuery> message = q -> renderedStrings
+                ? com.legend.lowering.VerdictSql.messageAsStrings(q) : q;
         KindClass ke = AssertVerdicts.kindKey(eSpec, letPrefix, env);
         KindClass ka = AssertVerdicts.kindKey(aSpec, letPrefix, env);
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
@@ -138,7 +151,7 @@ final class DatabaseJudge {
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
-                return runVerdict(name, wantEqual, pq,
+                return runVerdict(name, wantEqual, message.apply(pq),
                         env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
                 BodyDriver.WrappedSide gw = gridE ? we : wa;
@@ -168,7 +181,7 @@ final class DatabaseJudge {
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE)
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
                                     canonicalOrder);
-                    return runVerdict(name, wantEqual, gq,
+                    return runVerdict(name, wantEqual, message.apply(gq),
                             env.withSession(gw.storeFree() ? pw.session() : gw.session()));
                 }
             }
@@ -202,7 +215,7 @@ final class DatabaseJudge {
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT));
-        return runVerdict(name, wantEqual, vq, runOn);
+        return runVerdict(name, wantEqual, message.apply(vq), runOn);
     }
 
     /** Execute a verdict statement on {@code on} and read its one row:
@@ -291,11 +304,15 @@ final class DatabaseJudge {
         if (w == null) {
             return new SideRows(null, rider, "host-value side: " + describe(pv.answered()));
         }
-        if (needCanon && rider.declined() != null) {
-            return new SideRows(w, rider, "side: " + rider.declined());
-        }
-        if (needCanon && w.shape() == com.legend.plan.ResultShape.GRAPH) {
-            return new SideRows(w, rider, "graph AssertVerdicts.side (leg 3.2)");
+        if (needCanon && (rider.declined() != null || w.shape() == com.legend.plan.ResultShape.GRAPH)) {
+            // a decline is the database judge's own word only for a side the database could run: a side the dialect
+            // cannot write raises its refusal here, as the host judge's read of the same side raises it (2026-11-03:
+            // H2's Variant sides declined their canon before the side was written, so the database judge alone read
+            // UNJUDGED where the host judge, and the ledger, read the dialect's UNNEST refusal); planning only, a
+            // render with nothing sent
+            env.dialect().render(w.plan());
+            return new SideRows(w, rider, rider.declined() != null ? "side: " + rider.declined()
+                    : "graph AssertVerdicts.side (leg 3.2)");
         }
         return new SideRows(w, rider, null);
     }

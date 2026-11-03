@@ -2021,7 +2021,7 @@ final class AssertVerdicts {
         var ra = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(1), chase);
         if (re != null && ra != null) {
             return DatabaseJudge.databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs, env,
-                    hook, true, false);
+                    hook, true, false, false, true);
         }
         boolean goldenIsExpected = ra != null;
         var r = goldenIsExpected ? ra : re;
@@ -2092,9 +2092,9 @@ final class AssertVerdicts {
         boolean csv = r.grammar() instanceof com.legend.compiler.spec.VerdictQueries.RenderGrammar.Csv;
         return goldenIsExpected
                 ? DatabaseJudge.databaseVerdict(name, wantEqual, parsed.literal(), r.value(), letPrefix, specs,
-                        env, hook, multiset, false, csv)
+                        env, hook, multiset, false, csv, true)
                 : DatabaseJudge.databaseVerdict(name, wantEqual, r.value(), parsed.literal(), letPrefix, specs,
-                        env, hook, multiset, false, csv);
+                        env, hook, multiset, false, csv, true);
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

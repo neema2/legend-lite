@@ -19237,3 +19237,73 @@ correct first, then core, then the corpus, then the deletion. This entry is PCT'
     `EngineExecuteCardinalityTest`'s model, read alike by the referee). PCT DuckDB channel A and channel B pass;
     channel B under each judge alone measured here (above). The corpora were not re-measured on this batch: their
     roster moves are the corpus phase's, next.
+
+## 2026-11-03 — The database judge on par with the host: channel B under the database judge alone decides every lane's tests as the host does, by the same ledger
+
+The user's order (2026-11-03: "most important is to get the database judge on par with host fully"). Measured by running
+channel B under the database judge ALONE (`-Dpct.channelb.judge=DATABASE`), where a gap cannot hide behind the host's
+verdict as it does under BOTH. Round 16 (`f73defad`) listed what was left; each item below closes one.
+
+1. **A verdict group on the graph's system database is a step.** On a server engine the system store is a session of
+   its own beside the body's; the batch planned its fused statement against the BODY's target, and the planner then
+   refused the group as "on another session" (`getAll::testBasic` on Postgres, MariaDB and ClickHouse). The batch's
+   runner now plans each group against its own session's target (`VerdictBatch.Runner.plan(..., on)`), and
+   `DatabaseAsserts` places a group on the body's session or the graph's system database
+   (`DatabaseAsserts.placed`); the runner routes it there (per-statement routing). A savepoint guard is sent on the
+   program's own session only: the system database holds no transaction of the program's (`PlanRunner`).
+2. **A segment the dialect cannot spell is a decided step.** Where every member's canon is one the dialect cannot write
+   (H2's list operations, SQLite's `CURRENT_USER`), the segment closes as a step with no statement whose root loop
+   raises the dialect's own refusal at the member's place, nothing sent -- the host judge's raise for the same side.
+   Until now `close` gave such a body back to the walk: under the closed walk, 33 H2 Relation bodies and 2 SQLite bodies
+   failed with "the walk is closed".
+3. **A raise at planning is a step too** (the static pass's `RAISES && !segmentsWithRows` refusal deleted): a segment of
+   walls alone closes as a decided step.
+4. **A side's decline renders the side first.** A side the database judge would decline (an unclaimed canon kind, a
+   graph) is written in the dialect before the decline is answered, so a side the dialect cannot write raises its
+   refusal, as the host's read raises it (H2's Variant flatten: UNJUDGED became the ledger's UNNEST refusal).
+5. **The Variant cell** canons as its whole JSON text read as a String, the host judge's cell exactly (no canonical-JSON
+   function: the JSON inventory, 2026-11-03).
+6. **The failure text is upstream's**: `'\nexpected: %r\nactual:   %r'` and `'%r should not equal %r'` with no family
+   name before it; a String's newline written `\n`; the rendered-text family (a golden String against a relation's
+   `toString` or `toCSV`), which the database judge compares by rows, prints its two sides as the Strings upstream
+   prints, quoted and escaped (`VerdictSql.renderedText`, `VerdictSql.messageAsStrings`; round 17 found the grid arm's
+   framed text unquoted on Postgres, MariaDB, MySQL and ClickHouse). The lean SQL ladder re-pinned for the message's
+   newline (`bazel run //core:update_ladder`).
+7. **A statement the database rejects is the database's verdict**, counted judged, never UNJUDGED (`executeOne`).
+8. **The ledger's rows** carry no run's position (Postgres's `Position: N`, Trino's `line N:M:`, BigQuery's `at [R:C]`:
+   each judge writes its own statement); an outcome's detail keeps its head and its tail (a Databricks error is the
+   whole statement and then Spark's own words, which the head alone cut off); MySQL's mixed-kind `removeDuplicates` row
+   reads the server's own error (its temporary table lost on the several-MB statement), the connection surviving the
+   single-copy JSON read below; DuckDB's four
+   BigNumber rows carry the text both judges' failures contain (`out of range`): the host reads the expected literal
+   first, the database judge's one statement reaches whichever side DuckDB evaluates first, which varies run to run.
+9. **MySQL's null-safe JSON read** writes its document once (`NULLIF(JSON_EXTRACT(x, p), CAST('null' AS JSON))`): the
+   CASE form wrote it twice, so each level of a nested instance graph doubled the statement (7.3 MB, which took mysqld
+   down under the database judge alone; found and the fix suggested by the MySQL lane).
+10. **Measured here at this commit's code:** DuckDB channel B under the database judge alone, under BOTH and under the
+    host alone: essential 336 of 345 (the ledger's 9), grammar 137, relation 469, standard 205, unclassified 93 -- the
+    same tests pass under each judge. H2 Relation and SQLite (grammar, relation, standard, unclassified) under the
+    database judge alone match their ledgers; SQLite essential but its held-out item (Track L, below).
+    **Round 17 at `44dc8514` (each lane's session, measure only), channel B under the database judge alone and under
+    BOTH:** the same census under both judges on every lane -- Trino all ten targets pass; Postgres, MariaDB, MySQL,
+    ClickHouse, Databricks and BigQuery differ from their ledgers in TEXT only (the rendered-text quoting, BigQuery's
+    positions, Databricks' clipped detail: items 6 and 8, folded after the round), never in a verdict; MySQL's mysqld
+    survives the database judge (its largest statement 6.9 MB, wide, not exponential) and MySQL channel A passes all
+    five suites. Against main's own known failures (main's channel B pins, each lane's pass floor, and channel A's
+    unchanged expected-failure lists) every lane and suite measured is at or above main's floor but SQLite essential
+    (332 of main's 333: the Track L statement below); Snowflake essential passes 335 of main's 334 but past its timeout.
+    Open in the database judge's text: an instance's message spells its identity canon (`{"_id": ...}`), the host
+    upstream's `<i1 instanceOf T>` (BigQuery's `testFilterInstance`).
+11. **Open: the Track L statement** (`63ddd3f4`, the first bad commit by the Snowflake lane's bisect of
+    e8c341d0..ffef9991 over the removeDuplicates tests, no later commit multiplying it): a tagged list reads each element
+    through the general `LIST_GET`, which every dialect but DuckDB writes with its index two to five times and its list
+    up to three (the negative-index arms), so nested positions multiply -- the largest Snowflake statement 18.7K -> 721.8K
+    chars, the window 20 s -> 412 s, channel B essential 595 s -> 1,059 s (past 900 s); past SQLite's 1 MB; MySQL's
+    temporary table lost. The next change.
+12. **Checks:** `//gates:local` at the batch's code before the round-17 text fold: 435 of 458 pass here, the eight
+    Postgres-backed targets and the two datacube browser tests pass unprivileged (`tools/postgres/as_unprivileged.sh`;
+    this container runs as root), the twelve lean-ladder pins moved by the message's text and re-pinned. After the fold
+    (`VerdictSql.messageAsStrings`, the ledger's round-17 rows, the detail's tail): the judge, lowering, driver, exec,
+    planner, sql, guardrail and census targets and the twelve ladder pins green; DuckDB channel B under the database
+    judge alone and under BOTH matches its ledger; H2 and SQLite under the database judge alone match theirs but SQLite
+    essential's Track L item. `JavaEvalLedgerTest` re-pinned (`DatabaseJudge` 603 -> 602 -> 612) with its reasons.

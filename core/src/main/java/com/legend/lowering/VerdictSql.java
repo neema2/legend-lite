@@ -430,8 +430,17 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.NOT, equal),
                 new SqlExpr.StringLit("rendered-text: not byte-equal (host policy: line multiset, cell tolerance)"))),
                 null);
+        // each side framed as the String it is (Pure's %r: quoted, backslash and quote escaped -- the message writes
+        // the newline), the host judge's text for the same pair (2026-11-03: a TDS's text was framed raw, so a
+        // failing rendered-text assert read differently under the two judges)
         return predicateOver(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
-                List.of(eo, ao), equal, eo.col(C), ao.col(C), unjudged);
+                List.of(eo, ao), equal, quoted(eo.col(C)), quoted(ao.col(C)), unjudged);
+    }
+
+    /** {@code text} framed as a Pure String's {@code %r}, the canon's own literal (null stays null). */
+    private static SqlExpr quoted(SqlExpr text) {
+        return java.util.Objects.requireNonNull(LiteralSpelling.literal(text,
+                com.legend.compiler.element.type.Type.Primitive.STRING), "a String's literal");
     }
 
     /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])} (bucket 5): the
@@ -1188,6 +1197,30 @@ public final class VerdictSql {
      * pasted; a null canon the word {@code null}, as Java spelled it), or the negated families' one sentence. The judge
      * reads holds and message and knows no polarity. A row wrapped once: a second wrap is a loud error.
      */
+    /** {@code row} with its expected and actual texts framed as the Strings they print (Pure's {@code %r}): the
+     *  rendered-text family, whose sides upstream compares as Strings -- a golden's text against a relation's
+     *  {@code toString} or {@code toCSV} -- while the database judge compares their rows, whose framed text is that
+     *  same text (2026-11-03: Postgres's Variant key extractions read unquoted under the database judge alone, quoted
+     *  under the host). */
+    public static SqlQuery messageAsStrings(SqlQuery row) {
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), sidesAsStrings(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return sidesAsStrings(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
+    private static SqlSelect sidesAsStrings(SqlSelect sel) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections().size());
+        for (SqlSelect.Projection p : sel.projections()) {
+            ps.add(EXPECTED.equals(p.alias()) || ACTUAL.equals(p.alias())
+                    ? new SqlSelect.Projection(quoted(asText(p.expr())), p.alias(), p.out()) : p);
+        }
+        return sel.withProjections(ps);
+    }
+
     public static SqlQuery selfContained(SqlQuery row, String name, boolean wantEqual) {
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
             return new SqlWith(w.ctes(), withHoldsAndMessage(body, name, wantEqual));
@@ -1206,12 +1239,16 @@ public final class VerdictSql {
         SqlExpr expected = java.util.Objects.requireNonNull(projectionOf(sel, EXPECTED), "the expected column").expr();
         SqlExpr actual = java.util.Objects.requireNonNull(projectionOf(sel, ACTUAL), "the actual column").expr();
         SqlExpr holds = wantEqual ? verdict : SqlExpr.Call.of(SqlFn.NOT, verdict);
+        // upstream's own text (essential/tests/assertEquals.pure: '\nexpected: %r\nactual:   %r'; assertNotEquals.pure:
+        // '%r should not equal %r'), the host judge's (PureAsserts): no family name before it, and a newline inside a
+        // spelled value written as %r writes it, \n (2026-11-03: the database judge's failures read 'assertEquals
+        // \nexpected: ...' on every lane, so a lane's ledger, built from the host's text, did not match them)
+        SqlExpr e = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(asText(expected)), new SqlExpr.StringLit("null"));
+        SqlExpr a = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(asText(actual)), new SqlExpr.StringLit("null"));
         SqlExpr message = wantEqual
-                ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(name + "\nexpected: "),
-                        SqlExpr.Call.of(SqlFn.COALESCE, asText(expected), new SqlExpr.StringLit("null")),
-                        new SqlExpr.StringLit("\nactual:   "),
-                        SqlExpr.Call.of(SqlFn.COALESCE, asText(actual), new SqlExpr.StringLit("null")))
-                : new SqlExpr.StringLit("assertNotEquals: both sides are equal");
+                ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "), e,
+                        new SqlExpr.StringLit("\nactual:   "), a)
+                : SqlExpr.Call.of(SqlFn.CONCAT, e, new SqlExpr.StringLit(" should not equal "), a);
         List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
         ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
         ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
@@ -1263,6 +1300,11 @@ public final class VerdictSql {
     }
 
     /** TEXT by contract: a cast to VARCHAR unless the expression is one already. */
+    /** {@code text} with each newline written {@code \\n}, as Pure's {@code %r} writes one inside a String. */
+    private static SqlExpr reprNewlines(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit("\n"), new SqlExpr.StringLit("\\n"));
+    }
+
     private static SqlExpr asText(SqlExpr e) {
         return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.VARCHAR ? e
                 : new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);

@@ -178,27 +178,25 @@ public final class MySql extends MariaDb {
 
     /** {@code JSON_VALUE} takes only a literal path here and answers in another collation (utf8mb4_0900_bin, an
      *  "Illegal mix" with the session's) as VARCHAR(512) (measured): a value at a path is {@code JSON_EXTRACT}'s,
-     *  unquoted, a JSON null NULL. */
+     *  unquoted, a JSON null NULL -- the null compared as JSON with JSON's own null, so the document is written ONCE
+     *  (2026-11-03: the CASE form wrote it twice, so each level of nesting doubled the statement -- 7.3 MB on a nested
+     *  instance graph, which took the server down; measured by the MySQL lane). A JSON string "null" stays a string. */
     @Override
     protected SqlWriter.Piece jsonText(SqlWriter.Piece json, SqlWriter.Piece path) {
-        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) END)");
+        return w -> w.append("JSON_UNQUOTE(").piece(jsonMember(json, path)).append(")");
     }
 
-    /** A JSON null is JSON here, which a string compares unequal to: the null is read by its type, as
-     *  {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} reads it. */
+    /** A JSON null is JSON here, which a string compares unequal to: the null is read as JSON's own null, the
+     *  document written once ({@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)}). */
     @Override
     protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
-        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(") END)");
+        return w -> w.append("NULLIF(JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append("), CAST('null' AS JSON))");
     }
 
     @Override
     protected String jsonText(String json, String path) {
-        return "(CASE WHEN JSON_TYPE(JSON_EXTRACT(" + json + ", " + path + ")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE("
-                + "JSON_EXTRACT(" + json + ", " + path + ")) END)";
+        return "JSON_UNQUOTE(NULLIF(JSON_EXTRACT(" + json + ", " + path + "), CAST('null' AS JSON)))";
     }
 
     /** A table function's argument may not assign a variable here ("Incorrect arguments to JSON_TABLE", measured): the

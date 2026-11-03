@@ -11,11 +11,15 @@
 duckdb	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	expected: 0 ⏎ actual:   1
 duckdb	Essential	meta::pure::functions::string::tests::indexOf::testSimple	expected: 4 ⏎ actual:   5
 duckdb	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	expected: 1 ⏎ actual:   2
-# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-duckdb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	date field value out of range: "800002016-02-29"
-duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	date field value out of range: "236611261-10-03"
-duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	date field value out of range: "33803336-12-17"
-duckdb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	timestamp field value out of range: "1410404-07-12T00:00:00"
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast). The text
+# both judges' failures contain (2026-11-03, the database judge on par with the host): the host reads the expected
+# literal first ('date field value out of range'); the database judge's one statement holds both sides, and DuckDB
+# reports whichever it reaches first, run to run (measured twice: months and hours, then weeks and days, failed the
+# amount's cast first -- 'Type INT64 ... out of range for the destination type INT32', 'Interval value ... out of range')
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	out of range
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	No error was thrown
 duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	No error was thrown
@@ -28,11 +32,11 @@ postgres	Essential	meta::pure::functions::collection::tests::fold::testFold	Dial
 postgres	Essential	meta::pure::functions::collection::tests::fold::testFoldToMany	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=otherNames, type=
 postgres	Essential	meta::pure::functions::collection::tests::fold::testFoldFiltering	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=otherNames, type=
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-postgres	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: ERROR: date out of range: "800002016-02-29" ⏎   Position: 76
-postgres	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: ERROR: date out of range: "236611261-10-03" ⏎   Position: 76
-postgres	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: ERROR: date out of range: "33803336-12-17" ⏎   Position: 76
-postgres	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: ERROR: timestamp out of range: "1410404-07-12T00:00:00" ⏎   Position: 81
-postgres	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: ERROR: time zone displacement out of range: "-21457-01-08T20:48:00" ⏎   Position: 81
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: ERROR: date out of range: "800002016-02-29"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: ERROR: date out of range: "236611261-10-03"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: ERROR: date out of range: "33803336-12-17"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: ERROR: timestamp out of range: "1410404-07-12T00:00:00"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: ERROR: time zone displacement out of range: "-21457-01-08T20:48:00"
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
 postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
@@ -94,10 +98,10 @@ sqlite	Unclassified	meta::pure::functions::runtime::currentUserId::testCurrentUs
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 trino	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-trino	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	line 2:8: '800002016-02-29' is not a valid DATE literal
-trino	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	line 2:8: '236611261-10-03' is not a valid DATE literal
-trino	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	line 2:8: '33803336-12-17' is not a valid DATE literal
-trino	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	line 2:8: '1410404-07-12 00:00:00' is not a valid TIMESTAMP literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	'800002016-02-29' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	'236611261-10-03' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	'33803336-12-17' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	'1410404-07-12 00:00:00' is not a valid TIMESTAMP literal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
 trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
@@ -185,8 +189,10 @@ mariadb	Relation	meta::pure::functions::relation::variant::tests::flatten::testF
 # mysql: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 mysql	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
-# a mixed list's sort: the server drops the connection on the statement -- channel A passes, no engine manifest for MySQL (the lane's one true wire bug, pinned since 2026-10-11)
-mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	Socket error
+# a mixed list's dedup and sort: the tagged list's statement (Track L (1), 63ddd3f4), several MB on MySQL -- the server
+# loses its own temporary table on it, under both judges (2026-11-03, round 17: with the single-copy JSON read the
+# connection survives; until then it dropped, 'Socket error'). Channel A passes. Leaves with Track L's size fix.
+mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	doesn't exist
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
@@ -303,11 +309,11 @@ bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::t
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal at [2:8]
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal at [2:8]
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal at [2:8]
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal at [2:8]
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal at [2:8]
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
 # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
 bigquery	Essential	meta::pure::functions::math::tests::pow::testComplexPow	DialectCapability: a decimal literal 182.88729271224377725957310758531093597412109375 reached BigQuery, whose BIGNUMERIC holds 38 digits each side of the point
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
@@ -333,7 +339,7 @@ bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGro
 bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 # an ORDER BY past a DISTINCT: BigQuery refuses a sort key the DISTINCT does not select (pinned since 2026-10-21)
-bigquery	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	DataError: BigQueryException during runQuery ⏎ ORDER BY clause expression references _tds3.name which is not visible after SELECT DISTINCT at [2:1097]
+bigquery	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	DataError: BigQueryException during runQuery ⏎ ORDER BY clause expression references _tds3.name which is not visible after SELECT DISTINCT
 # BigQuery has no Jaro-Winkler similarity
 bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
 bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity

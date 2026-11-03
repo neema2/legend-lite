@@ -18,8 +18,10 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
     SELECT COUNT(__a.__rn) AS __n, MIN(CASE WHEN __a.__rn = 1 THEN __a.__c END) AS __one, STRING_AGG(__a.__c, ', ' ORDER BY __a.__c ASC) AS __joined, COUNT(CASE WHEN __a.__c IS NULL THEN 1 END) AS __nulls, COUNT(CASE WHEN strpos(__a.__c, 'tree') > 0 THEN 1 END) AS __trees
     FROM __a_0 AS __a
   ) AS s)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('assertSameElements
-expected: ', coalesce(CAST(e.__text AS VARCHAR), 'null'), '
-actual:   ', coalesce(CAST(a.__text AS VARCHAR), 'null')) AS __message
+SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('
+expected: ', coalesce(replace(CAST(e.__text AS VARCHAR), '
+', '\n'), 'null'), '
+actual:   ', coalesce(replace(CAST(a.__text AS VARCHAR), '
+', '\n'), 'null')) AS __message
 FROM __se_0 AS e
 CROSS JOIN __sa_0 AS a

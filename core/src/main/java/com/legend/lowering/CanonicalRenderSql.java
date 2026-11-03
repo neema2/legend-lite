@@ -462,8 +462,17 @@ public final class CanonicalRenderSql {
                     schema.columns().get(i).type());
             boolean typeValued = declFqn != null
                     && com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(declFqn);
+            // a VARIANT cell (a JSON value): its whole value's text as the database writes it, a Pure String's
+            // spelling -- the host judge's cell exactly (the database's compact JSON text, keys in the database's
+            // order, read as a String: JdbcDecode's JSON slot), so the two judges agree by construction; never
+            // anyJsonCanon, whose tree marker declines an object (2026-11-03, the JSON inventory: no canonical-JSON
+            // function needed, nor wanted -- sorted keys would pass where the host and upstream fail)
+            boolean variant = com.legend.compiler.element.type.PlatformTypes.isVariant(kind)
+                    && col.type() == SqlType.Scalar.JSON;
             SqlExpr lit = typeValued
                     ? new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR)
+                    : variant
+                    ? LiteralSpelling.literal(new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR), Type.Primitive.STRING)
                     : LiteralSpelling.literal(
                             kind == Type.Primitive.FLOAT
                                     ? LiteralSpelling.declaredDouble(ref) : ref,

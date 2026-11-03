@@ -308,10 +308,12 @@ public final class ChannelB {
 
     /** The census detail line: assert messages are MULTI-LINE
      * ('\nexpected: …\nactual: …') — newlines flatten so the row keeps
-     * its whole story; long tails clip. */
+     * its whole story; a long middle clips, its head and its TAIL kept (2026-11-03, round 17: a Databricks error is the
+     * whole statement and then Spark's own words, which a head alone cut off -- the statement each judge writes
+     * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
         String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
-        return m.length() <= 400 ? m : m.substring(0, 400) + "…";
+        return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
     }
 
     private static final class Declined extends RuntimeException {

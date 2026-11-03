@@ -637,8 +637,9 @@ public final class PlanRunner {
         if (group.fused() != null) {
             Held h = new Held();
             // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
-            // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction
-            ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
+            // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction -- the
+            // program's own session's: the graph's system database beside it holds no transaction of the program's
+            ExecutionPlan.Verdicts.Savepoint guard = inTransaction && st == rt.home() ? group.savepoint() : null;
             if (guard != null) {
                 sendStatement(guard.set(), st);
             }
