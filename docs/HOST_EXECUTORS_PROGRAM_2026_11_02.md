@@ -1132,3 +1132,9 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   (§7).
 - 2026-11-03: D20 ratified (§1.2): one UI over one typed result, two thin adapters, each connection talking lite or
   legend-engine; the order of the remaining work rewritten before R4's design (§5).
+- 2026-11-03: F's scope question settled by D19 and D20 (the user: "Everything should use new lite plan right? Unless
+  backwards compatible adapter?"). Posted after F part 2 -- whether a dynamic pivot's fixed grouping columns are also
+  retyped from the database's report -- it concerns legend-engine's JSON answer alone, which is the edge and copies
+  upstream: every column retyped from the report, as built (`PureV1Api.dynamicEnvelope`, `RelationalResult.java:248-256`).
+  Lite's own route reads no report: a keyed pivot's columns are typed by the plan record (`KeyedRun.answer`), as every
+  answer of lite's own is.
