@@ -1211,4 +1211,8 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   `ARROW_IPC`) kept as the edge's checks and answering the same rows. Step 3 -- Query's and Studio's results onto the
   typed result -- changes cells they show today, so its cases were measured and posted to the user before any is built
   (§7, the next finding).
+- 2026-11-03: D20 (d), the switch built: `LegendHttpServer --engine-only` serves legend-engine's routes alone (lite's own
+  `/api/lite/v1/` unserved, 404), and Query's end-to-end server suite (`//query:verify_test`, its connection talked to as
+  legend-engine; a CI Linux lane) runs against a server so started and passes whole. Still to come under (d): the
+  `ARROW_IPC` answer written exactly as upstream writes it (R4 step 3's table), on the JVM and the hosts.
 

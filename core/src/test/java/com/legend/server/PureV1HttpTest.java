@@ -122,6 +122,38 @@ class PureV1HttpTest {
         }
     }
 
+    @Test
+    @DisplayName("--engine-only: legend-engine's routes served, lite's own not (D20's switch)")
+    void engineOnlyServesNoLiteRoute() throws Exception {
+        LegendHttpServer engineOnly = new LegendHttpServer(0, java.net.InetAddress.getLoopbackAddress(),
+                LegendHttpServer.Origins.LOOPBACK, null, false);
+        engineOnly.start();
+        try {
+            java.util.function.Function<String, HttpResponse<String>> at = path -> {
+                try {
+                    return HTTP.send(HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:" + engineOnly.getPort() + path))
+                            .POST(HttpRequest.BodyPublishers.ofString("{\"_type\":\"text\",\"code\":\"\"}")).build(),
+                            HttpResponse.BodyHandlers.ofString());
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            };
+            assertEquals(200, at.apply("/api/pure/v1/compilation/compile").statusCode());
+            for (String lite : new String[] {"/api/lite/v1/compilation/compile", "/api/lite/v1/execution/execute"}) {
+                assertEquals(404, at.apply(lite).statusCode(), lite);
+            }
+        } finally {
+            engineOnly.stop();
+        }
+        // and the default server serves lite's own beside legend-engine's
+        HttpResponse<String> lite = HTTP.send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + server.getPort() + "/api/lite/v1/compilation/compile"))
+                .POST(HttpRequest.BodyPublishers.ofString("{\"_type\":\"text\",\"code\":\"\"}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, lite.statusCode(), lite.body());
+    }
+
     private static String sqlOf(String plan) {
         Json.Obj p = Json.parseObject(plan);
         Json.Obj node = (Json.Obj) p.getObj("rootExecutionNode").getArr("executionNodes").items().get(0);

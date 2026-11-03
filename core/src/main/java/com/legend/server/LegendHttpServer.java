@@ -46,6 +46,10 @@ public class LegendHttpServer {
     private final @com.legend.base.Nullable SavedQueries queryStore;
     /** DataCube's saved pages, beside the queries ({@code DIR/dataCube}; the program's B6), or null. */
     private final @com.legend.base.Nullable SavedCubes cubeStore;
+    /** Whether lite's own routes ({@code /api/lite/v1/}) are served beside legend-engine's: off under
+     *  {@code --engine-only}, the switch that proves an app talking to this server as legend-engine never leans on
+     *  them (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20). */
+    private final boolean liteRoutes;
 
     /** On the loopback interface, loopback origins only: the development server. */
     public LegendHttpServer(int port) throws IOException {
@@ -56,6 +60,14 @@ public class LegendHttpServer {
      *  pages in its {@code dataCube} -- or null, every call of the store's then refused. */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore) throws IOException {
+        this(port, bind, origins, queryStore, true);
+    }
+
+    /** As above; {@code liteRoutes} false serves legend-engine's routes alone ({@code --engine-only}: D20's switch),
+     *  lite's own then answering as any route the server does not serve. */
+    public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
+            java.nio.file.@com.legend.base.Nullable Path queryStore, boolean liteRoutes) throws IOException {
+        this.liteRoutes = liteRoutes;
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.lspServer = new PureLspServer();
         this.origins = origins;
@@ -123,8 +135,11 @@ public class LegendHttpServer {
         // legend-engine's own pure/v1 API, exactly (PureV1Api; the user's ruling of
         // 2026-09-27: lite serves upstream's APIs and nothing of its own)
         route("/api/pure/v1/", new PureV1Handler());
-        // and lite's own route beside it, on the same dispatcher (every compile error; the user, 2026-10-10)
-        route("/api/lite/v1/", new PureV1Handler());
+        // and lite's own routes beside it, on the same dispatcher (every compile error, the user 2026-10-10; lite's own
+        // execute, D20), unless the server is to answer as legend-engine alone (--engine-only)
+        if (liteRoutes) {
+            route("/api/lite/v1/", new PureV1Handler());
+        }
         // legend-engine's query store and current user (SavedQueries; the Query app's G5/G7)
         route("/api/pure/v1/query", exchange -> {
             addCorsHeaders(exchange);
@@ -351,11 +366,15 @@ public class LegendHttpServer {
                 System.err.println("Invalid PORT env var: " + envPort);
             }
         }
-        // arguments: [port] [--query-store DIR] (the saved-query store's directory)
+        // arguments: [port] [--query-store DIR] (the saved-query store's directory) [--engine-only] (legend-engine's
+        // routes alone, lite's own not served: D20's switch)
         java.nio.file.Path queryStore = null;
+        boolean liteRoutes = true;
         for (int i = 0; i < args.length; i++) {
             if ("--query-store".equals(args[i]) && i + 1 < args.length) {
                 queryStore = java.nio.file.Path.of(args[++i]);
+            } else if ("--engine-only".equals(args[i])) {
+                liteRoutes = false;
             } else {
                 try {
                     port = Integer.parseInt(args[i]);
@@ -374,7 +393,7 @@ public class LegendHttpServer {
                     + " a caller's model runs its connections' setup SQL on this host.");
         }
         LegendHttpServer server = new LegendHttpServer(port, address,
-                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore);
+                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, liteRoutes);
         server.start();
 
         System.out.println();
@@ -385,7 +404,12 @@ public class LegendHttpServer {
         System.out.println("Endpoints:");
         System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
         System.out.println("  POST http://localhost:" + port + "/api/pure/v1/... - legend-engine's pure/v1 API");
-        System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
+        if (liteRoutes) {
+            System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
+            System.out.println("  POST http://localhost:" + port + "/api/lite/v1/execution/execute - lite's own execute");
+        } else {
+            System.out.println("  (--engine-only: lite's own routes, /api/lite/v1/, not served)");
+        }
         System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();
         System.out.println("Press Ctrl+C to stop");

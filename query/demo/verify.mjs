@@ -39,8 +39,10 @@ const store = mkdtempSync(join(OUT, 'run-'));
 const SHOTS = process.env.TEST_UNDECLARED_OUTPUTS_DIR ?? store;
 
 // ---- legend-lite's server, for the server mode
-// port 0: the server picks a free port and prints it, so no two runs (or shards) collide
-const engine = spawn(SERVER, ['0', '--query-store', store], {
+// port 0: the server picks a free port and prints it, so no two runs (or shards) collide. --engine-only: the server
+// answers legend-engine's routes alone, lite's own not served -- config-server.json talks to it as legend-engine, and
+// this proves that connection never leans on lite's routes (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20's switch)
+const engine = spawn(SERVER, ['0', '--query-store', store, '--engine-only'], {
   env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

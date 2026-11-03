@@ -17358,3 +17358,17 @@ routes. DataCube's product paths to Python already read lite's own Arrow (`pytho
 record beside the rows), so no product output changed.
 
 Checks: `//datacube:{python_engine,typecheck}_test`.
+
+## 2026-11-03 — D20 (d), the switch: the JVM server answers as legend-engine alone
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8, D20 ("a switch that turns lite's own routes off proves, in CI, that the
+engine mode never leans on them"). `LegendHttpServer --engine-only` serves legend-engine's routes alone: lite's own
+(`/api/lite/v1/`: every compile error, lite's own execute, the model's writes) are not served, and answer as any route
+the server does not serve (404). `PureV1HttpTest.engineOnlyServesNoLiteRoute` holds both servers: the switch's
+(`/api/pure/v1/compilation/compile` 200, lite's compile and execute 404) and the default (lite's compile 200).
+`//query:verify_test`'s server suite (`config-server.json`, Query talking to the server as legend-engine) now runs
+against the server started `--engine-only`, and passes whole (14 checks): Query's legend-engine connection needs no
+route of lite's. Its compile errors take legend-engine's `compilation/compile` there (the first error), as against an
+upstream legend-engine: `HttpEngine.compileErrors` asks lite's route first and reads its 404 as no such route.
+
+Checks: `//core:core_tests_server` (`PureV1HttpTest`), `//query:verify_test`.
