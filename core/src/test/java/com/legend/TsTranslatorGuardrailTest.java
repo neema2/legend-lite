@@ -86,11 +86,12 @@ class TsTranslatorGuardrailTest {
     }
 
     @Test
-    void linesMeetByOneLibraryFunctionEachTheirKindItsArgument() throws IOException {
-        // R2, R6 (2026-11-01, docs/TS_V1_PROGRAM_2026_11_01.md A1, the census's move 4): a line's kind -- per
-        // instrument, or every instrument's -- reaches the library as data (timeseries::Keyed), and the library says
-        // what each kind means; the translator never picks between two meeting functions by a line's kind (it chose
-        // meet or meetOne, periodsOf or periodsOfOne, onto or ontoOne before)
+    void linesMeetByOneLibraryFunctionEachPickedByTheKeysType() throws IOException {
+        // R2, R6 (2026-11-01, docs/TS_V1_PROGRAM_2026_11_01.md A1, the census's move 4; 2a, 2026-11-03): a line's kind
+        // -- per instrument, or every instrument's -- is its key's type (a line of no instrument's timeseries::All), and
+        // the library's overloads say what each means; the translator never picks between two meeting functions by a
+        // line's kind (it chose meet or meetOne, periodsOf or periodsOfOne, onto or ontoOne before, then passed
+        // timeseries::Keyed)
         String lines = Files.readString(SourceFiles.file("core/src/main/java/com/legend/protocol/ts/TsLines.java"));
         for (String fn : java.util.List.of("meet", "periodsOf", "onto")) {
             Matcher m = Pattern.compile("LINES \\+ \"" + fn + "\"").matcher(lines);
@@ -98,7 +99,7 @@ class TsTranslatorGuardrailTest {
             while (m.find()) {
                 n++;
             }
-            assertEquals(1, n, "TsLines calls timeseries::lines::" + fn + " from one place, the line's kind its argument");
+            assertEquals(1, n, "TsLines calls timeseries::lines::" + fn + " from one place, picked by the key's type");
         }
         java.util.List<String> variants = new java.util.ArrayList<>();
         for (Path p : SourceFiles.under("core/src/main/java/com/legend/protocol/ts")) {
@@ -112,16 +113,15 @@ class TsTranslatorGuardrailTest {
     }
 
     /** Every branch of the translator on a line's kind, each named with what it does (2026-11-02,
-     *  docs/TS_V1_PROGRAM_2026_11_01.md A1 move 7; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a, what stays in Java). The one
-     *  that picks a library function is a word's broadcast (helpers::each): a Pure if cannot hold it, its branches typed
-     *  by two keys (a line of no instrument's String, the instruments' own) and no overload telling them apart when the
-     *  instruments are Strings. A new branch on a line's kind fails here: its kind goes to the library as data
-     *  (timeseries::Keyed), or it joins this list with its reason. */
+     *  docs/TS_V1_PROGRAM_2026_11_01.md A1 move 7; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a, what stays in Java). None
+     *  picks a library function: a word's broadcast (helpers::each) is picked by the keys' types since 2a (2026-11-03:
+     *  a line of no instrument's key is timeseries::All). A new branch on a line's kind fails here: its kind goes to the
+     *  library as a type or as data, or it joins this list with its reason. */
     private static final java.util.Map<String, String> KIND_BRANCHES = java.util.Map.of(
             "TsLines.java: if (l.byInstrument()) {", "the instruments the lines per instrument have, gathered (bookkeeping)",
             "TsLines.java: if (l.byInstrument() && !l.part().equals(key.part())) {", "the refusal: lines by two instrument columns",
-            "TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {", "a word's broadcast (helpers::each), and"
-                    + " the refusal of a line of no instrument accrued beside lines per instrument (timed)");
+            "TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {", "the refusal of a line of no instrument"
+                    + " accrued beside lines per instrument (timed)");
 
     @Test
     void theTranslatorBranchesOnALinesKindOnlyWhereNamed() throws IOException {
@@ -138,8 +138,8 @@ class TsTranslatorGuardrailTest {
         }
         assertEquals(new java.util.TreeSet<>(KIND_BRANCHES.keySet()), found.keySet(), "the translator's branches on a"
                 + " line's kind");
-        assertEquals(2, found.get("TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {"),
-                "the word's broadcast and the accrued refusal, one branch each (TsWords.each, TsWords.timed)");
+        assertEquals(1, found.get("TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {"),
+                "the accrued refusal alone (TsWords.timed): the broadcast is the library's each, by the keys' types");
     }
 
     /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")};

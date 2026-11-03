@@ -283,20 +283,22 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       (every in-process database: the lookup's 24 rows; both refused by name, in an expression and as two items).
     - Found on the way: `p.CLOSE - q.CLOSE` over two aliases of one table is one line (R7's one read), 0 on each row,
       not two lines meeting.
-  - **The broadcast by a column's type (2a, ruled 2026-11-03). The compiler's half done 2026-11-03 (7fd31cf1); the
-    library's half waits on one more port.**
-    - Done: two user-function overloads that differ only in a relation parameter's column type are two functions
-      (register S131: a user function's id spells its relation's columns; a reference in upstream's spelling still
-      resolves), ranked as legend-pure's `RelationTypeMatch` ranks them (PARK-10's relation-columns part, ported, with
-      its kernel test). So a word over `Relation<(key:All, ...)>` beside its `Relation<(key:K, ...)>` is picked by the
-      line's key type.
-    - Waits: the library's meeting functions take their columns as `ColSpec` parameters (`ColSpec<K⊆T>`), so the
-      broadcast's choice there is between `ColSpec<(?:All)⊆U>` and `ColSpec<L⊆U>`. legend-pure ranks those by the
-      type argument's column type (a concrete one beats a type parameter); lite ranks a `⊆` argument as untyped
-      (PARK-10's type-operations part), so the two would tie. Porting it is the next construct, and the same one
-      lets D4's grain refusal be an overload (`ColSpec<(?:StrictDate)⊆T>` against `DateTime`). Then `Keyed`, the
-      `TsWords.each` branch, `keyed()` and the `byInstrument` flag go, and `TsTranslatorGuardrailTest`'s list of
-      branches on a line's kind goes to zero.
+  - **The broadcast by a column's type (2a, ruled 2026-11-03). Done 2026-11-03.**
+    - The compiler (7fd31cf1, 474af0a8): two user-function overloads that differ only in a relation parameter's
+      column type, or a column specification's (`ColSpec<(?:All)⊆T>` beside `ColSpec<L⊆T>`), are two functions
+      (register S131: the id spells the columns; a reference in upstream's spelling still resolves), ranked as
+      legend-pure's `RelationTypeMatch` ranks them -- for a column specification, its column's type read from the row
+      the relation parameter is bound to, as m3 binds `T` before it matches (PARK-10's relation-columns part ported;
+      of its type operations, this one form).
+    - The library (9a339e05 and the commit after): a line of no instrument's key is `timeseries::All.all`; the meeting
+      functions (`meet`, `periodsOf`, `onto`) and a word's `helpers::each` are picked by the keys' types --
+      `timeseries::Keyed`, the translator's `keyed()` and `TsWords.each`'s branch are deleted. `periodsOf` has a third
+      form, a line of `All` among lines of `All` its own periods (without it, each line was spread over its own key,
+      a self-join that put H2 out of memory). Every answer unchanged; the oracle unchanged.
+    - Left in Java, listed by the guard (`TsTranslatorGuardrailTest`, three branches on a line's kind, none picking a
+      library function): the instruments gathered for the spread (bookkeeping), the refusal of lines by two
+      instrument columns, and the refusal of a line of no instrument accrued (`timed`). The `byInstrument` flag stays
+      as a fact of the source for those and for the answer's instrument column.
   - **Moments meeting days (the time model's D4; its proof steps 1 and 4). Today's answer recorded 2026-11-03; the
     refusal waits on a construct.**
     - Today (`TsIslandTest.aLineOfMomentsMeetingALineOfDaysAsItIsToday`, every in-process database, a `TICKS` table of

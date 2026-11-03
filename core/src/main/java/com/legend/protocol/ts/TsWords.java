@@ -308,14 +308,11 @@ final class TsWords {
         };
     }
 
-    /** {@code v} as a word takes it, every instrument's of {@code key}'s where it is of none and {@code key} per
-     *  instrument (R2, the library's each). */
+    /** {@code v} as a word takes it beside {@code key}, the line whose keys the word's answer has: the library's
+     *  {@code helpers::each}, picked by the two keys' types (2a: a line of no instrument beside lines per instrument
+     *  every instrument's, R2's broadcast; else itself). */
     private static ValueSpecification each(TsLines.Valued v, TsLines.Line key, SqlAst.Pos pos) {
-        ValueSpecification line = in(v.line(), v.value(), pos);
-        if (key.byInstrument() && !v.line().byInstrument()) {
-            return TsLines.call(PACKAGE + "helpers::each", line, in(key, keyValue(key), pos));
-        }
-        return line;
+        return TsLines.call(PACKAGE + "helpers::each", in(v.line(), v.value(), pos), in(key, keyValue(key), pos));
     }
 
     /** {@code v} as a word that accrues over time takes it: its key, its date, its number in time (the line's own, in

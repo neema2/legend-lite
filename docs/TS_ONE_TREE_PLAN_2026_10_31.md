@@ -359,12 +359,10 @@ dashboard, tile kinds).
   5. **A condition in a line's place is its flags** (1 where it holds, 0 where it does not, none where it is none;
      `TsFunctions.arg`): a per-point expression in the per-point SQL, as `x + 1` is, which the guard allows. The
      library's words take lines of numbers; the flags are how a condition is one.
-  6. **A word's broadcast** (`TsWords.each`, which calls `helpers::each`): a line of no instrument given to a word
-     with lines per instrument. Java picks it by the line's kind because Pure's `if` types both branches, and the two
-     keys differ (a line of no instrument's String, the instruments' own type); no overload can tell them apart when
-     the instruments are Strings, and the other ways cost a cast that does not hold or a join on every word's
-     argument. `TsTranslatorGuardrailTest.theTranslatorBranchesOnALinesKindOnlyWhereNamed` lists every branch on a
-     line's kind, so a new one fails the build.
+  6. ~~**A word's broadcast**~~ -- **moved to the library 2026-11-03 (2a).** A line of no instrument's key is
+     `timeseries::All`, so `helpers::each` (and the meeting functions `meet`, `periodsOf`, `onto`) are picked by the
+     keys' types: the translator always calls one function, and `timeseries::Keyed` is gone. It needed overloads by a
+     relation column's type and by a column specification's column type (register S131).
   7. **The refusal of a line of no instrument accrued beside lines per instrument** (`TsWords.timed`: a timed
      basket's member), refused by name with its fix. Writing it would be `helpers::each`'s timed twin, a second
      branch on a line's kind, for a case no page uses. Pinned by

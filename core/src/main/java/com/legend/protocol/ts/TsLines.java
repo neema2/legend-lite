@@ -184,14 +184,14 @@ final class TsLines {
                 instruments = instruments == null ? own : call("concatenate", instruments, own);
             }
         }
-        // the periods each line has, keyed alike: each line's kind beside the others the library's to read (periodsOf:
-        // a line of no instrument beside lines per instrument is every instrument's, under the instruments they have);
+        // the periods each line has, keyed alike: the library's periodsOf, picked by the line's key's type (a line of
+        // no instrument, its key of timeseries::All, is every instrument's, under the instruments the others have);
         // the answer's periods, each dated at its latest line's date and number in time (R5: one date for every line),
         // the library's spine
         ValueSpecification keys = null;
         for (Line l : distinct) {
-            ValueSpecification k = call(LINES + "periodsOf", l.rel(), keyed(l, instruments != null),
-                    new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD),
+            ValueSpecification k = call(LINES + "periodsOf", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                    new ColSpec(l.at()), new ColSpec(ORD),
                     instruments != null ? instruments : l.rel(), new ColSpec(instruments != null ? part : l.part()),
                     new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
             keys = keys == null ? k : call("concatenate", keys, k);
@@ -219,7 +219,7 @@ final class TsLines {
                     new ColSpec(own));
             String next = w.fresh("sp_seen");
             spine = call(LINES + "onto", spine, new ColSpec(part), new ColSpec(PERIOD), r,
-                    keyed(l, instruments != null), new ColSpec(p), new ColSpec(per), new ColSpec(seen),
+                    new ColSpec(p), new ColSpec(per), new ColSpec(seen),
                     new ColSpec(next));
             kept.add(new ColSpec(own));
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
@@ -315,13 +315,6 @@ final class TsLines {
         return new EnumValue(TsToPure.LIBRARY + "Fill", "null".equals(value) ? "none" : value);
     }
 
-    /** {@code l}'s kind among the lines it meets, as the library's {@code timeseries::Keyed}: every instrument's where
-     *  it is of none and {@code byInstrument} (the answer is by instrument: R2's broadcast), else keyed by its own. The
-     *  kind is a fact of its source (a BY, a subscript); what each means is the library's (lines::meet, periodsOf,
-     *  onto). */
-    static EnumValue keyed(Line l, boolean byInstrument) {
-        return new EnumValue(TsToPure.LIBRARY + "Keyed", !l.byInstrument() && byInstrument ? "every" : "own");
-    }
 
     /** The line whose key lines meet by: the first line per instrument, else the first. Refused (R2): lines per
      *  instrument by two instrument columns. */
@@ -373,7 +366,7 @@ final class TsLines {
             // the instrument where both are lines per instrument; dated at the later date
             String at = w.fresh("at");
             ValueSpecification met = call(LINES + "meet", left.rel(), new ColSpec(left.part()), new ColSpec(PERIOD),
-                    new ColSpec(left.at()), rel, keyed(r, left.byInstrument()), new ColSpec(l), new ColSpec(p),
+                    new ColSpec(left.at()), rel, new ColSpec(l), new ColSpec(p),
                     new ColSpec(a), new ColSpec(at));
             left = new Line(met, left.part(), left.byInstrument(), at);
         }
