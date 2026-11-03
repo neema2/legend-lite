@@ -340,7 +340,7 @@ public final class PlanMaker {
             if (stmt instanceof TypedLet let && !last) {
                 planLet(state, body, i, let, effectMemo);
             } else {
-                planStatement(state, i, stmt, last, door);
+                planStatement(state, i, stmt, last, door, kinds.targetOf(state, i, stmt));
             }
         }
         return new ExecutionPlan.Sequence(finished(state));
@@ -415,10 +415,10 @@ public final class PlanMaker {
      *  when last), an orchestration handle (no step; the test door answers a last one as no value), a store write (an
      *  update, its count the answer when last), or a query (a check, its rows dropped; the typed answer when last). */
     private static void planStatement(ProgramState state, int i, TypedSpec stmt, boolean last,
-            ProgramState.Door door) {
+            ProgramState.Door door, ExecutionPlan.@Nullable Target routed) {
         TypedQuery query = state.query();
         SqlDialect dialect = state.dialect();
-        ExecutionPlan.Target target = state.target();
+        ExecutionPlan.Target target = routed != null ? routed : state.target();
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), stmt), state.runtime(), i,
                 state.features(), state.frames());
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
@@ -458,6 +458,19 @@ public final class PlanMaker {
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
                 : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
+    }
+
+    /** The graph's SYSTEM database beside {@code home} (a program's own target): a statement reading the system
+     *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine, the servers and the session
+     *  statements {@code home}'s, as the system database is the runtime's engine in this process. */
+    public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home) {
+        ConnectionDefinition.DatabaseType type = switch (home.database()) {
+            case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
+            case ExecutionPlan.Database.Platform p -> p.type();
+            case ExecutionPlan.Database.System s -> s.type();
+        };
+        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type), home.servers(), home.session(),
+                List.of());
     }
 
     /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3

@@ -302,8 +302,6 @@ class BodyRouterParityTest {
                 "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}",
                 // a temporal class read (S2): the exists-join form
                 "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}",
-                // a read of the system metamodel store (M4)
-                "{| meta::pure::mapping::Mapping.all()->project(~[n:m|$m.name]);}",
                 // an object built and answered (MV6's ids; a construction the compiler folds away, as
                 // ^Pair(...).first, leaves none)
                 "{| ^my::P(name='x');}")) {
@@ -624,10 +622,6 @@ class BodyRouterParityTest {
                         + " 2);}",
                 // F3: the eager inline shape bound by a let
                 "{| let n = " + EXECUTE + "->size(); assertEquals(1, $n);}",
-                // the M9c audit's F8: an element used as a value is the system store's row (its session the system
-                // database's: M10a)
-                "{| let r = " + EXECUTE + "; let m = x::M; assertEquals('M', $m.name); assertSize($r.values.rows, 2);}",
-                "{| let r = " + EXECUTE + "; assertEquals('M', x::M.name); assertSize($r.values.rows, 2);}",
                 // the M9c audit's F2: a store write inside a side runs where its side is planned, inside the walk's
                 // transaction; a body it reaches stays on the walk
                 "{| let r = " + EXECUTE + "; assertEquals(2, #>{x::DB.FIRM}#->filter(f|$f.ID <= 2)"
@@ -1016,17 +1010,20 @@ class BodyRouterParityTest {
                 + "->filter(f|$t->contains($f.name))->project([f|$f.name], ['name']), x::M, x::RT.runtimeValue, []);"
                 + " assertEquals([], $r.values.rows.values);}";
         assertNull(BodyClass.of(typed(ctx, navigation), "x::RT", true), "a navigation is a read: " + navigation);
-        // a real metamodel read beside the frame: two sessions, the walk's
+        // a real metamodel read beside the frame, each assert reading one store: the system assert on the graph's
+        // system database, the frame's on the body's -- one program under the host judge (per-statement routing,
+        // 2026-11-03); the database judge's groups on two sessions keep it on the walk, by name
         String mixed = "{| let r = meta::pure::router::execute(" + query + ", x::M, x::RT.runtimeValue, []);"
                 + " assertEquals(['FIRM', 'TFIRM'], x::DB.schemas.tables.name->sort());"
                 + " assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}";
-        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
-            Run walked = run(backend, ctx, "x::RT", mixed, false, "select count(*) from FIRM", FIRM_ROWS, mode);
-            Run routed = run(backend, ctx, "x::RT", mixed, true, "select count(*) from FIRM", FIRM_ROWS, mode);
-            assertEquals(walked.moved, routed.moved, "the mixed body stays on the walk: " + mixed);
-            assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
-            assertEquals("ok", walked.outcome, mixed);
-        }
+        assertMixedParity(backend, ctx, "x::RT", mixed, "select count(*) from FIRM", FIRM_ROWS);
+        Run walked = run(backend, ctx, "x::RT", mixed, false, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.DATABASE);
+        Run routed = run(backend, ctx, "x::RT", mixed, true, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.DATABASE);
+        assertEquals(walked.moved, routed.moved, "under the database judge the mixed body stays on the walk: " + mixed);
+        assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
+        assertEquals("ok", walked.outcome, mixed);
     }
 
     /** M10c item 7c: the corpus's setup helper -- a seed form mapped over executeInDb, unfolded into the body by the
@@ -1145,10 +1142,22 @@ class BodyRouterParityTest {
                         + walked.statements + "\n  moved:  " + moved.statements);
             }
         }
-        // a user store's read beside a system read: two targets, the walk's
-        String mixed = "{| assertEquals('M', x::M.name); assertSize(x::Firm.all(), 2);}";
-        assertFalse(BodyClass.systemRouted(typed(ctx, mixed), "x::RT"));
-        assertNull(BodyClass.of(typed(ctx, mixed), "x::RT", true));
+        // a user store's read beside a system read, each in a statement of its own (per-statement routing,
+        // 2026-11-03): the system statement on the graph's system database, the user's on the body's, one program --
+        // under the host judge (the database judge's groups on two sessions keep such a body on the walk, by name);
+        // and a query over the system store alone, its one statement on the system database
+        for (String body : List.of(
+                "{| assertEquals('M', x::M.name); assertSize(x::Firm.all(), 2);}",
+                "{| let r = " + EXECUTE + "; let m = x::M; assertEquals('M', $m.name); assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; assertEquals('M', x::M.name); assertSize($r.values.rows, 2);}",
+                "{| meta::pure::mapping::Mapping.all()->project(~[n:m|$m.name]);}")) {
+            assertMixedParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
+        }
+        // a frame whose query reads both stores once its let is spliced: one statement over two databases, the walk's
+        String bothInOne = "{| let t = x::DB.schemas.tables.name; let r = " + EXECUTE.replace(
+                "|x::Firm.all()->project", "|x::Firm.all()->filter(f|$t->contains($f.name))->project")
+                + "; assertEquals([], $r.values.rows.values);}";
+        assertNull(BodyClass.of(typed(ctx, bothInOne), "x::RT", true), bothInOne);
         // the test-data-generation lane's census carrier (getRelationalCSVDataFromQuery): the walk folds it to
         // instance literals in Java from the model, the program road has no fold -- the walk's, by name (M10a's third
         // cut: the corpus's three census tests moved on the strength of their system reads alone and walled at
@@ -1686,6 +1695,39 @@ class BodyRouterParityTest {
         assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
         return walked;
+    }
+
+    /** {@code body}, a MIXED body (a statement on the graph's system database beside the body's own: per-statement
+     *  routing, 2026-11-03), run on the walk and on the router: every boundary observed the same but WHEN the body
+     *  session's own statements run -- the walk sends them before its first statement on that session, the program
+     *  when it opens the session (one SESSION statement, its place in the order). The system database is seeded first,
+     *  so neither run carries its once-per-graph seed. */
+    private static void assertMixedParity(TestBackend backend, ModelContext ctx, String runtime, String body,
+            String check, List<String> setup) throws Exception {
+        run(backend, ctx, runtime, "{| assertEquals('M', x::M.name);}", false, check, setup);
+        assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true), "a moved class's: " + body);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup, ExecuteOptions.JudgeMode.HOST);
+        Run moved = run(backend, ctx, runtime, body, true, check, setup, ExecuteOptions.JudgeMode.HOST);
+        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
+        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
+        assertEquals(walked.answer, moved.answer, "the answer: " + body);
+        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
+        assertEquals(walked.database, moved.database, "the database left: " + body);
+        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body);
+        assertEquals(walked.census, moved.census, "the verdict census: " + body);
+        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
+        java.util.function.Function<List<String>, List<String>> noSession = l -> stampsAsParameters(l).stream()
+                .filter(t -> !t.startsWith("[session]")).toList();
+        assertEquals(noSession.apply(walked.statements), noSession.apply(moved.statements),
+                "the statements sent but the body session's own: " + body);
+        long[] w = originsOf(walked.origins);
+        long[] m = originsOf(moved.origins);
+        for (int i = 0; i < w.length; i++) {
+            long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
+            assertTrue(Math.abs(w[i] - m[i]) <= allowed, "the statement-origin census differs beyond the body"
+                    + " session's own statement: " + body + "\n  walked: " + walked.origins + "\n  moved:  "
+                    + moved.origins);
+        }
     }
 
     /** The walk's spelling of a frame's trace stamp (the run's comment, a literal in the activity rows it registered

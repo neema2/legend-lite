@@ -218,7 +218,19 @@ public final class PlanRunner {
         } else {
             try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
                 Statements st = opened(session, on);
-                bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, st, held, sink));
+                ExecutionPlan.Target system = shape.system();
+                if (system == null) {
+                    Routes rt = new Routes(st, null);
+                    bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                } else {
+                    // a statement reading the graph's system metamodel store beside the body's: its own session, read
+                    // only, outside the program's transaction (the walker-deletion program's per-statement routing,
+                    // 2026-11-03: the first step to a program over two stores)
+                    try (Sessions.Session systemSession = sessions.open(system)) {
+                        Routes rt = new Routes(st, opened(systemSession, system));
+                        bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                    }
+                }
             }
         }
         if (shape.answers()) {
@@ -237,12 +249,25 @@ public final class PlanRunner {
      * constant opens its session: the M3 audit's B3).
      */
     private record ProgramShape(ExecutionPlan.@Nullable Target target, boolean changes,
-            ExecutionPlan.Keyed.@Nullable Snapshot snapshot, boolean answers) {
+            ExecutionPlan.Keyed.@Nullable Snapshot snapshot, boolean answers,
+            ExecutionPlan.@Nullable Target system) {
+    }
+
+    /** Where a program's statements run: the program's own session, and the graph's system database's where a
+     *  statement names that target beside the program's (read only: no write, effect or seed is planned there). */
+    private record Routes(Statements home, @Nullable Statements system) {
+        /** The session {@code sql} runs on: the system database's where it names that target and the program has a
+         *  second session for it; the program's otherwise. */
+        Statements on(ExecutionPlan.Sql sql) {
+            return system != null && sql.target().database() instanceof ExecutionPlan.Database.System ? system
+                    : home;
+        }
     }
 
     /** {@code sequence}'s {@link ProgramShape}: whether it answers (its one result step, a constant's too). */
     private static ProgramShape shapeOf(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked) {
         ExecutionPlan.Target target = null;
+        ExecutionPlan.Target system = null;
         int results = 0;
         boolean changes = false;
         ExecutionPlan.Keyed.Snapshot snapshot = null;
@@ -255,11 +280,18 @@ public final class PlanRunner {
                         throw new IllegalStateException("a write's count is named '" + u.count() + "', as a"
                                 + " declared parameter is");
                     }
+                    writesHome(u.sql().target(), "a write");
                     sqls.add(u.sql());
                 }
                 case ExecutionPlan.Check k -> sqls.add(k.sql());
-                case ExecutionPlan.Effect e -> sqls.add(e.sql());
-                case ExecutionPlan.Setup u -> target = sameTarget(target, u.target());
+                case ExecutionPlan.Effect e -> {
+                    writesHome(e.sql().target(), "an effect");
+                    sqls.add(e.sql());
+                }
+                case ExecutionPlan.Setup u -> {
+                    writesHome(u.target(), "a seed step");
+                    target = sameTarget(target, u.target());
+                }
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     sqls.add(t.sql());
@@ -277,14 +309,30 @@ public final class PlanRunner {
             }
             for (ExecutionPlan.Sql sql : sqls) {
                 nullTypes(sql);
-                target = sameTarget(target, sql.target());
+                if (sql.target().database() instanceof ExecutionPlan.Database.System) {
+                    system = sameTarget(system, sql.target());
+                } else {
+                    target = sameTarget(target, sql.target());
+                }
             }
         }
         if (results > 1) {
             throw new IllegalStateException("a program of " + results + " result steps: a program's answer is at"
                     + " most one");
         }
-        return new ProgramShape(target, changes, snapshot, results > 0);
+        // a program reading the system store alone runs there, as one target; beside the program's own, the system
+        // database is a second, read-only session (per-statement routing, 2026-11-03)
+        return target == null ? new ProgramShape(system, changes, snapshot, results > 0, null)
+                : new ProgramShape(target, changes, snapshot, results > 0, system);
+    }
+
+    /** A write, an effect or a seed step names {@code target}: refused on the graph's system database, which is read
+     *  only beside a program's own target (its rows are the graph's, written once by its holder). */
+    private static void writesHome(ExecutionPlan.Target target, String what) {
+        if (target.database() instanceof ExecutionPlan.Database.System s) {
+            throw new IllegalStateException(what + " on the graph's system database (" + s.type() + "): it is read"
+                    + " only, written once by its holder");
+        }
     }
 
     /** {@code next}, the plan's one target so far being {@code sofar} (none yet when null). */
@@ -407,21 +455,22 @@ public final class PlanRunner {
     /** The program's steps run in order on {@code st}, the values a step produces (a write's count, a run's stamp)
      *  bound for the steps after it; its answer held in {@code held}, its verdicts to {@code sink}. */
     private static void runSteps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
-            Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink) throws IOException {
+            Judging judging, Sessions.Session session, Routes rt, Held held, ProgramSink sink) throws IOException {
         Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
         List<ExecutionPlan.Node> steps = sequence.steps();
         for (int i = 0; i < steps.size(); i++) {
             StatementOrigin named = sink.originOf(i);
             try (var origin = named == null ? StatementOrigin.enter(StatementOrigin.current())
                     : StatementOrigin.enterIfUnmarked(named)) {
-                runStep(steps.get(i), i, live, judging, session, st, held, sink);
+                runStep(steps.get(i), i, live, judging, session, rt, held, sink);
             }
         }
     }
 
     private static void runStep(ExecutionPlan.Node step, int i, Map<String, PlanParameters.Checked> live,
-            Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink)
+            Judging judging, Sessions.Session session, Routes rt, Held held, ProgramSink sink)
             throws IOException {
+        Statements st = rt.home();
         switch (step) {
             case ExecutionPlan.Update u -> {
                 // a store write may change a seeded table: every seed establishes again after it, as after an effect
@@ -434,7 +483,7 @@ public final class PlanRunner {
                 // walk marks a value statement it runs (an unread let's, the user's ruling of 2026-11-02); a mark in
                 // force (a frame's eager run, LET) stands
                 try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    check(k, live, st);
+                    check(k, live, rt.on(k.sql()));
                 }
             }
             case ExecutionPlan.Effect e -> {
@@ -453,16 +502,16 @@ public final class PlanRunner {
                 // the program's answering statement is a statement of the body on its own, as the walk marks a
                 // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
                 try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    result(t, live, st, held);
+                    result(t, live, rt.on(t.sql()), held);
                 }
             }
             case ExecutionPlan.Constant c -> constant(c, held);
             case ExecutionPlan.Keyed k -> {
                 try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    keyedOn(k, live, st, heldSink(held));
+                    keyedOn(k, live, rt.on(k.keys()), heldSink(held));
                 }
             }
-            case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, insideATransaction(st));
+            case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, rt, sink, insideATransaction(st));
             case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
         }
     }
@@ -487,7 +536,7 @@ public final class PlanRunner {
      *  own wrapper where the fused statement is none or the database rejects it: the split rung, counted) and the
      *  HOST judge's sides, each verdict's rows to {@code sink} in the group's order. */
     private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
-            Map<String, PlanParameters.Checked> values, Statements st, ProgramSink sink, boolean inTransaction)
+            Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
             throws IOException {
         if (judging == Judging.HOST || judging == Judging.BOTH) {
             for (ExecutionPlan.Verdict each : group.verdicts()) {
@@ -509,18 +558,18 @@ public final class PlanRunner {
 
     /** {@code each}'s base sides read for the host judge, in the base's order. */
     private static List<Rows> hostSides(ExecutionPlan.Verdict each, Map<String, PlanParameters.Checked> values,
-            Statements st) throws IOException {
+            Routes st) throws IOException {
         List<Rows> sides = new ArrayList<>(each.base().size());
         for (ExecutionPlan.Side side : each.base()) {
             sides.add(switch (side) {
                 case ExecutionPlan.Side.Rows r -> {
                     Held h = new Held();
-                    result(r.result(), values, st, h);
+                    result(r.result(), values, st.on(r.result().sql()), h);
                     yield collected(h);
                 }
                 case ExecutionPlan.Side.KeyedRows k -> {
                     Held h = new Held();
-                    keyedOn(k.keyed(), values, st, heldSink(h));
+                    keyedOn(k.keyed(), values, st.on(k.keyed().keys()), heldSink(h));
                     yield collected(h);
                 }
                 case ExecutionPlan.Side.Constant c -> constantRows(c);
@@ -532,7 +581,9 @@ public final class PlanRunner {
     /** The DATABASE judge's rows for {@code group}: its fused statement (the split rung on a rejection), else each
      *  verdict's own wrapper, each row handed to the sink in the group's order. */
     private static void databaseVerdicts(ExecutionPlan.Verdicts group, Map<String, PlanParameters.Checked> values,
-            Statements st, ProgramSink sink, boolean inTransaction) throws IOException {
+            Routes rt, ProgramSink sink, boolean inTransaction) throws IOException {
+        // the fused statement's session (its members read one store: the database judge groups them by session)
+        Statements st = group.fused() != null ? rt.on(group.fused().sql()) : rt.home();
         Map<Integer, List<Object>> rows = new HashMap<>();
         boolean rejected = false;
         if (group.fused() != null) {
@@ -584,8 +635,8 @@ public final class PlanRunner {
                 try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
                         : StatementOrigin.current())) {
                     switch (each.wrapper()) {
-                        case ExecutionPlan.TdsResult t -> result(t, values, st, h);
-                        case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(h));
+                        case ExecutionPlan.TdsResult t -> result(t, values, rt.on(t.sql()), h);
+                        case ExecutionPlan.Keyed k -> keyedOn(k, values, rt.on(k.keys()), heldSink(h));
                         default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
                                 + " result");
                     }

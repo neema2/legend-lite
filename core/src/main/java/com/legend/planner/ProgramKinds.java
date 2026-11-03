@@ -22,4 +22,14 @@ public interface ProgramKinds {
     /** Plans {@code statement}, the program's statement at {@code index} ({@code last} whether it is the last), into
      *  {@code program} and answers true when it holds a kind the library plans; false leaves it to the planner. */
     boolean plan(ProgramState program, int index, TypedSpec statement, boolean last);
+
+    /** The target {@code statement} (the program's at {@code index}, one the planner plans) runs on where it is not
+     *  the program's: the graph's system database for a statement that reads the system metamodel store alone, beside
+     *  a program whose target is the user's (per-statement routing, the walker-deletion program, 2026-11-03); null for
+     *  the program's own. */
+    default com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target targetOf(ProgramState program,
+            int index,
+            TypedSpec statement) {
+        return null;
+    }
 }

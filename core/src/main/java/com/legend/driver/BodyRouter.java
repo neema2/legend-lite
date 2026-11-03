@@ -68,7 +68,7 @@ public final class BodyRouter {
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
-        BodyDriver.ExecEnv bodyEnv = runtimeFqn == null || !assertsPlanned && !systemRouted ? null
+        BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
                 : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session, listener, referee, options);
         BodyDriver.ExecEnv env = bodyEnv;
         if (systemRouted) {
@@ -127,9 +127,18 @@ public final class BodyRouter {
         try {
             Moved moved = new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed), host,
                     database, agreement, listener);
+            // the graph's system database for a step that names it: the body's own target when the body is
+            // system-routed, else the second, read-only session a statement reading the system store alone runs on
+            // (per-statement routing, 2026-11-03), opened when a step first asks
             Sessions.Session system = systemRoute == null ? null : systemRoute.session();
+            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
+                    system != null ? target -> system
+                            : target -> BodyDriver.systemRoute(java.util.Objects.requireNonNull(bodyEnv,
+                                    "a step names the system database in a body planned with no environment"),
+                                    BodyDriver.systemRouteOf(typed.context(),
+                                            java.util.Objects.requireNonNull(runtimeFqn))).session();
             PlanRunner.program(plan, Map.of(),
-                    PlanSessions.of(session, null, system == null ? null : target -> system),
+                    PlanSessions.of(session, null, systemSessions),
                     database != null ? PlanRunner.Judging.DATABASE
                             : agreement != null ? PlanRunner.Judging.BOTH : PlanRunner.Judging.HOST, moved);
             if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {

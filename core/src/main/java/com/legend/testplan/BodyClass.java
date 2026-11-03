@@ -207,6 +207,92 @@ public enum BodyClass {
         return system;
     }
 
+    /** The stores {@code statement} of {@code query} reads, through the user functions it calls: none, the system
+     *  metamodel store alone, a user store alone, or both (per-statement routing, the walker-deletion program,
+     *  2026-11-03: a statement reading the system store alone runs on the graph's system database beside the body's own
+     *  target; one reading both stays the walk's until the metamodel's rows ride the statement). */
+    public enum Stores { NONE, SYSTEM, USER, BOTH }
+
+    /** {@code statement}'s {@link Stores}, statement {@code index} of {@code query}'s body: a variable read through
+     *  the let that binds it, as the planners splice it. */
+    public static Stores storesOf(TypedSpec statement, TypedQuery query, int index) {
+        ModelContext ctx = query.context();
+        Set<String> systemClasses = systemClasses(ctx);
+        // a frame read as its query (the execute call is a handle the scan stops at): a frame RUNS its query, so the
+        // scan descends into that lambda alone -- a lambda handed anywhere else (a SQL-text helper, a lineage scan, a
+        // plan handle) runs nowhere, as the system-routing rule leaves it aside
+        java.util.Set<TypedSpec> frameQueries = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        TypedSpec read = framesAsTheirQueries(
+                throughLets(statement, query.body().subList(0, Math.min(index, query.body().size())), 0),
+                frameQueries);
+        boolean user = readsStore(read, n -> userStoreRead(n, systemClasses, ctx), query.specs(), new HashMap<>(),
+                frameQueries::contains);
+        boolean system = readsStore(read, n -> anotherWay(n, systemClasses, ctx) == Kind.SYSTEM_READ,
+                query.specs(), new HashMap<>(), frameQueries::contains);
+        return user && system ? Stores.BOTH : user ? Stores.USER : system ? Stores.SYSTEM : Stores.NONE;
+    }
+
+    /** {@code n} with each frame call ({@code execute(...)}: {@code NativeFn.Handle.runsAFrame}) replaced by its query
+     *  argument, for the store scan alone. */
+    private static TypedSpec framesAsTheirQueries(TypedSpec n, java.util.Set<TypedSpec> frameQueries) {
+        if (n instanceof TypedNativeCall call && !call.args().isEmpty()
+                && NativeFn.Handle.runsAFrame(call.callee().id())) {
+            TypedSpec q = framesAsTheirQueries(call.args().get(0), frameQueries);
+            lambdasUnder(q, frameQueries);
+            return q;
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = framesAsTheirQueries(k, frameQueries);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? n.withChildren(out) : n;
+    }
+
+    /** Every lambda literal at or under {@code n} (a frame's query: its predicates run where it runs) into {@code out}. */
+    private static void lambdasUnder(TypedSpec n, java.util.Set<TypedSpec> out) {
+        if (n instanceof TypedLambda) {
+            out.add(n);
+        }
+        for (TypedSpec c : n.children()) {
+            lambdasUnder(c, out);
+        }
+    }
+
+    /** {@code n} with each variable a let of {@code lets} binds replaced by the let's value (itself read through the
+     *  lets before it), for the store scan alone; bounded, a cycle impossible in a body's lexical lets. */
+    private static TypedSpec throughLets(TypedSpec n, List<TypedSpec> lets, int depth) {
+        if (depth > 32) {
+            return n;
+        }
+        if (n instanceof TypedVariable v) {
+            for (int i = lets.size() - 1; i >= 0; i--) {
+                if (lets.get(i) instanceof TypedLet let && let.name().equals(v.name())) {
+                    return throughLets(let.value(), lets.subList(0, i), depth + 1);
+                }
+            }
+            return n;
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = throughLets(k, lets, depth);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? n.withChildren(out) : n;
+    }
+
     /** A property read over a tracked system element ({@code x::DB.schemas}, {@code $db.schemas.tables.name} inside a
      *  helper): a read of the element's row, which the walk routes to the system session -- never an element reference
      *  alone (item 7's audit: the kinds name the reference inside such a navigation, not the navigation). */
@@ -237,6 +323,14 @@ public enum BodyClass {
      *  collection native RUNS evaluates where the let is spliced). */
     static boolean readsStore(TypedSpec n, java.util.function.Predicate<TypedSpec> read, SpecCompiler specs,
             Map<FunctionId, Boolean> memo, boolean throughLambdas) {
+        return readsStore(n, read, specs, memo, lambda -> throughLambdas);
+    }
+
+    /** {@link #readsStore(TypedSpec, java.util.function.Predicate, SpecCompiler, Map, boolean)}, a lambda literal
+     *  walked where {@code descend} says (a frame's query, which runs where the statement runs). */
+    static boolean readsStore(TypedSpec n, java.util.function.Predicate<TypedSpec> read, SpecCompiler specs,
+            Map<FunctionId, Boolean> memo, java.util.function.Predicate<TypedSpec> descend) {
+        boolean throughLambdas = !(n instanceof TypedLambda) || descend.test(n);
         if (n instanceof TypedLambda && !throughLambdas) {
             return false;
         }
@@ -254,7 +348,7 @@ public enum BodyClass {
                 // are read at planning
                 for (int k = 0; k < call.args().size(); k++) {
                     if (!NativeFn.Effect.argumentReadAtPlanning(id, k)
-                            && readsStore(call.args().get(k), read, specs, memo, throughLambdas)) {
+                            && readsStore(call.args().get(k), read, specs, memo, descend)) {
                         return true;
                     }
                 }
@@ -262,7 +356,7 @@ public enum BodyClass {
             }
         }
         if (n instanceof TypedFrom from) {
-            return readsStore(from.source(), read, specs, memo, throughLambdas);
+            return readsStore(from.source(), read, specs, memo, descend);
         }
         if (n instanceof TypedUserCall uc) {
             FunctionId key = uc.callee().id();
@@ -272,7 +366,7 @@ public enum BodyClass {
                 boolean reaches = false;
                 try {
                     for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
-                        if (readsStore(stmt, read, specs, memo, throughLambdas)) {
+                        if (readsStore(stmt, read, specs, memo, descend)) {
                             reaches = true;
                             break;
                         }
@@ -288,7 +382,7 @@ public enum BodyClass {
             }
         }
         for (TypedSpec c : n.children()) {
-            if (readsStore(c, read, specs, memo, throughLambdas)) {
+            if (readsStore(c, read, specs, memo, descend)) {
                 return true;
             }
         }
@@ -396,6 +490,13 @@ public enum BodyClass {
                     return false;
                 }
                 LetPlanner.Kind kind = LetPlanner.kind(let, body, i, query.specs(), effectMemo, relationFrame);
+                if (kind == LetPlanner.Kind.FRAME && kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE))
+                        && storesOf(statement, query, i) == Stores.BOTH) {
+                    // a frame whose query reads both stores once its lets are spliced (a let of a system read read by
+                    // a query over a user store): one statement over two databases, the walk's until the metamodel's
+                    // rows ride the statement
+                    return false;
+                }
                 if (kind == LetPlanner.Kind.FRAME && kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE))) {
                     // the frame's query holds no kind planned another way and reads no earlier frame, by name or
                     // through a tainted let (N1, F2); its mapping and runtime arguments are the frame's own references
@@ -448,6 +549,7 @@ public enum BodyClass {
                 // 7, 7b)
                 boolean consumedBinding = consumption.consumedElementLet(i);
                 if (kind != LetPlanner.Kind.VALUE || !kinds.isEmpty()
+                        || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                         || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                                 n -> sideKind(n, systemClasses, ctx) != null, query.specs(), sideKindMemo)) {
                     return false;
@@ -460,7 +562,7 @@ public enum BodyClass {
             }
             boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
                     && !(statement instanceof TypedLet);
-            if (!assertRoot && !kinds.isEmpty()
+            if (!assertRoot && !kinds.isEmpty() || storesOf(statement, query, i) == Stores.BOTH
                     || StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx) != null, query.specs(), sideKindMemo)) {
                 return false;
@@ -574,6 +676,7 @@ public enum BodyClass {
             // the same test routes the body; through helpers, constructions and chains: items 7, 7b)
             boolean consumedBinding = consumption.consumedElementLet(i);
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
+                    || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
                 return false;
@@ -605,9 +708,14 @@ public enum BodyClass {
         List<TypedSpec> body = query.body();
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
+            // a read of the system store is no kind planned another way: a statement reading it alone runs on the
+            // graph's system database (per-statement routing, 2026-11-03); one reading both stores stays the walk's
             if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
-                    || StatementEffects.reaches(statement, n -> plannedAnotherWay(n, systemClasses, ctx),
-                            query.specs(), memo)) {
+                    || storesOf(statement, query, i) == Stores.BOTH
+                    || StatementEffects.reaches(statement, n -> {
+                        Kind kind = anotherWay(n, systemClasses, ctx);
+                        return kind != null && kind != Kind.SYSTEM_READ;
+                    }, query.specs(), memo)) {
                 return false;
             }
             if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)) {
@@ -663,12 +771,6 @@ public enum BodyClass {
         }
         return literal(statement) || BodyPlanner.handleType(statement, ctx) != null
                 || statement instanceof TypedNativeCall call && NativeFn.Effect.isInertDiagnostic(call.callee().id());
-    }
-
-    /** Whether {@code n} is a kind the program road plans another way than the walk yet ({@link #anotherWay}): the
-     *  test for a statement the PRODUCT road plans (a query program's answer, a frame's eager run). */
-    private static boolean plannedAnotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
-        return anotherWay(n, systemClasses, ctx) != null;
     }
 
     /** The kinds the program road plans another way than the walk yet, each with the kind census's name. */
@@ -785,11 +887,13 @@ public enum BodyClass {
      *  (M10a). */
     static @Nullable Kind sideKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx, boolean systemRouted) {
         Kind kind = anotherWay(n, systemClasses, ctx);
-        if (kind == Kind.SYSTEM_READ && systemRouted) {
+        if (kind == Kind.SYSTEM_READ) {
+            // a side or a value let reading the system store: its side is routed to the graph's system database and
+            // runs there beside the body's own (per-statement routing, 2026-11-03; a system-routed body's one target
+            // since M10a) -- a statement reading BOTH stores is refused by the class rules (Stores.BOTH)
             return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
         }
-        if (kind == Kind.SYSTEM_READ || kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS
-                || kind == Kind.TDG_GENERATOR) {
+        if (kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS || kind == Kind.TDG_GENERATOR) {
             // a store write inside a side or a value let: the side planner runs it where it plans it (the walk at
             // the assert's turn, inside the body's transaction; the program road before the program ran), so it is
             // the walk's (the M9c audit's F2); the census and generator carriers: folded by the walk alone (M10a, M10b)

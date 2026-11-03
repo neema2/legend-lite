@@ -920,9 +920,14 @@ public class MinimalCorpusTest {
     // agreement arm read its sides at its turn. Measured on corpus_one duckdb both: the 44 tests are exactly the
     // database pass's walked bodies with a database-unplanned assert (corpus2-body-stayed.tsv); outcomes unchanged
     // (2471 / 108, disagree=0). Shrinks to zero with the database pass's burn-down.
+    // database 44 -> 45 (2026-11-03, per-statement routing): the one body reading both stores by statement
+    // (testSubTypeMappingValidWhenMappedExplicitly) moves under the agreement judge; its system-store assert's
+    // database group sits on the graph's system database, a second session the database judge's planner refuses by
+    // name (DatabaseAsserts.close), so that half declines it and the host decides (outcome unchanged, disagree=0).
+    // Shrinks when the database judge plans a group on the system session.
     private static final java.util.Map<String, Integer> PLATFORM_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
-            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9, "database", 44);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9, "database", 45);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
     // plan asserts as the DuckDB lane (the plan producer behind a helper),

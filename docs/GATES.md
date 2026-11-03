@@ -19094,3 +19094,37 @@ body needs once the walk is gone and every body seeds through the runner:
 Measured: the corpus's four passes' outcomes unchanged, 12 of 12 green; seed statements per pass 109 -> 177 (DuckDB),
 102 -> 114 (H2 host), 109 -> 177 (H2 database) -- the re-seeds the first fault skipped. Checks: //core:core_tests and
 _integration, //core:census, //core:guardrails, //pct:pct_channel_b, //spec:corpus_duckdb //spec:corpus_h2.
+
+## 2026-11-03 — Per-statement routing: the graph's system database a read-only second target in one program
+
+The user's direction (2026-11-03, "it's like the first step to real xstore join"): a body that reads the system
+metamodel store and a user store, each in a statement of its own, runs as ONE program -- each statement on the database
+its target names. The statement-level census found no statement naming both stores among the walked bodies
+(`docs/test-is-product-homework/walker-deletion/INVENTORY_2026_11_02.md`, "The statement-level store census"), so no
+metamodel row needs inlining.
+
+1. **The runner** (`PlanRunner.program`, `ProgramShape.system`, `Routes`): a program may name the graph's SYSTEM
+   database (`Database.System`) beside its own target; each statement, assert side, wrapper and fused statement runs on
+   the session its target names. The system database is read only: a write, an effect or a seed step naming it is
+   refused by name (`writesHome`); the program's transaction is its own target's. A program reading the system store
+   alone keeps it as its one target (M10a).
+2. **The plan names the target per statement.** An assert side routed to the system store is planned on the side's own
+   session (`JudgePlans.plannedOf`), so its statement names the system target; a check or an answer reading the system
+   store alone takes it from the test library (`ProgramKinds.targetOf`, `TestKinds`, `PlanMaker.systemBeside`).
+3. **The router** opens the system database for a body only when a step names it (`BodyRouter`); the host planner
+   accepts a side on it (`HostAsserts`).
+4. **The class rules**: a read of the system store is no longer a kind that keeps a side, a value let or a query off
+   the program road (`BodyClass.sideKind`, `queryProgram`); a statement reading BOTH stores is refused by name
+   (`BodyClass.storesOf`, `Stores.BOTH`: through the lets it reads and into a frame's query and its lambdas, never into
+   a lambda handed anywhere else). The database judge keeps a body whose groups sit on two sessions on the walk, by name
+   (`DatabaseAsserts.close`).
+5. **Measured:** the corpus's four passes' outcomes unchanged, rosters byte-identical, 12 of 12; moved host 3,069 ->
+   3,082 on both lanes, database 2,980 -> 2,990 (DuckDB) and 2,867 -> 2,877 (H2); the host pass's walked bodies 120 ->
+   105, none held by a system read. `corpus_one duckdb both`: moved 3,082, outcomes unchanged, `disagree=0`; the
+   database judge's declines 44 -> 45 (`PLATFORM_TEXT_DECIDED`, dated): the one body reading both stores by statement,
+   `testSubTypeMappingValidWhenMappedExplicitly`, now moves, its system assert's database group on the second session.
+6. **Witnesses:** `BodyRouterParityTest.assertMixedParity` -- a mixed body on both roads, every boundary the same but
+   where the body session's own statement falls -- over the two-statement mixed asserts, a frame beside a system
+   assert, and a query over the system store alone; a frame whose query reads both stores stays the walk's.
+7. **Checks:** //core:core_tests and _integration, //core:census, //core:guardrails, //pct:pct_channel_b,
+   //spec:corpus_duckdb //spec:corpus_h2 12 of 12, `corpus_one duckdb both`.

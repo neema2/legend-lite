@@ -70,3 +70,22 @@ Measured:
   108 fail); `disagree=0`. The database judge DECLINES 44 tests' asserts (`corpus_both_database_declined_*.txt`): they
   are exactly the database pass's walked bodies with a `database-unplanned-assert`. That residue is pinned once, by
   `PLATFORM_TEXT_DECIDED` "database" 44, and shrinks to zero with the database pass's burn-down.
+
+## The statement-level store census (2026-11-03)
+
+The question before per-statement routing: does any single statement read the system metamodel store AND a user
+store? Asked of the bodies still walked with a `system-read` kind (80 per lane, from the host passes'
+`corpus2-body-stayed.tsv`), run through `bazel run //spec:corpus_one -- --jvm_flag=-Drcorpus.tests=<list>
+--jvm_flag=-Dlegend.diagnostics=corpus-trace,dump-sql <lane> host`, every statement classified by the tables it names
+after `FROM`/`JOIN`/`INTO`/`UPDATE`/`TABLE` (`store_census.py.txt`, a reader of the log, deciding nothing).
+
+| Lane | Statements | Metamodel only | User only | Both |
+|---|---|---|---|---|
+| DuckDB | 3,285 | 227 | 1,398 | 0 (one hit, `testConvertAlias`, is text inside a string literal) |
+| H2 | 1,674 | 245 | 1,393 | 0 |
+
+57 bodies on DuckDB (56 on H2) send metamodel statements, and every one of them sends its user statements as other
+statements (`store_census_<lane>_2026_11_03.tsv`). So no statement needs the metamodel's rows inlined: the mixed bodies
+are mixed by statement, which per-statement routing serves -- each metamodel-only statement on the system database,
+each user statement on the body's, no value crossing between them. The walk could not have run a statement naming both
+(it sends each statement to one session), so this census also bounds what the walk's passing bodies hold.

@@ -3078,7 +3078,9 @@ the deletion and the guards that keep it deleted. **2026-11-03:** the user's let
 `Execution.runProgram`, `BodyClass.check`, `PlanRunner`'s check origin, `DatabaseAsserts`' frame-check refusal;
 register S129). Next, the user's order: the seed-record fix (A, B, A), the statement-level store census, per-statement
 routing (the system database a read-only second target: the first step to a real cross-store join), then the
-generator (T8) and the system catalog's stage 1.
+generator (T8) and the system catalog's stage 1. **2026-11-03, built:** the seed record (A, B, A), the statement-level
+store census (no statement names both stores), per-statement routing (`PlanRunner`'s `Routes`, `ProgramKinds.targetOf`,
+`JudgePlans.plannedOf`, `BodyClass.storesOf`): the host pass's walked bodies 120 -> 105, none held by a system read.
   **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
   path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
   `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests

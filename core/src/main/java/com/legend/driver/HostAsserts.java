@@ -235,7 +235,8 @@ final class HostAsserts implements TestDoor.Asserts {
             assertion = AssertVerdicts.HostAssert.raising(assertion.listenerName(), assertion.family(), e);
             sides = HostSides.Planned.NONE;
         }
-        if (sides.on() != null && sides.on() != target) {
+        if (sides.on() != null && sides.on() != target
+                && SystemDatabase.of(program.ctx()).engineOf(sides.on()) == null) {
             // a side the walk's planner routed to another session than the body's (the system database's: a lineage
             // scan's rows join the metamodel tables, an element's row) -- the walk runs the group there; a moved
             // body's program has ONE target (the body's session, or the system database's when the body is

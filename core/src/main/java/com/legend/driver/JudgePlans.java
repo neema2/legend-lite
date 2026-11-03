@@ -510,8 +510,12 @@ final class JudgePlans {
     /** {@code w}'s plan value: a graph fetch's one-cell statement; a grid's typed rows (a late-bound grid framed by
      *  the database's reported columns; a dynamic pivot nothing names as a keyed result; a grid under assertion
      *  stabilized); a value root's one-column rows. */
-    static PlannedSide plannedOf(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env, boolean assertBoundary,
+    static PlannedSide plannedOf(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env0, boolean assertBoundary,
             @com.legend.base.Nullable TypedSpec root) {
+        // planned on the side's own session: a side routed to the graph's system database names that target, so a
+        // program running it beside the body's own sends it there (per-statement routing, 2026-11-03); the walk runs
+        // a side on its session whatever its target says
+        BodyDriver.ExecEnv env = w.session() == env0.session() ? env0 : env0.withSession(w.session());
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
             case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,

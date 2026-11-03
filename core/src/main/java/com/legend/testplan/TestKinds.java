@@ -89,9 +89,25 @@ final class TestKinds implements ProgramKinds {
     /** The body's asserts, as its judge planned them (M6). */
     private final TestDoor.Asserts asserts;
 
+    /** The body this program plans: a statement's stores decide its target (per-statement routing). */
+    private final TypedQuery body;
+
     TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts) {
         this.scan = new QueryDoor.Scan(body, runtime);
         this.asserts = asserts;
+        this.body = body;
+    }
+
+    /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
+     *  system database beside it (per-statement routing, the walker-deletion program, 2026-11-03). */
+    @Override
+    public ExecutionPlan.@com.legend.base.Nullable Target targetOf(ProgramState program, int index,
+            TypedSpec statement) {
+        if (program.target().database() instanceof ExecutionPlan.Database.System
+                || BodyClass.storesOf(statement, body, index) != BodyClass.Stores.SYSTEM) {
+            return null;
+        }
+        return com.legend.planner.PlanMaker.systemBeside(program.target());
     }
 
     @Override
