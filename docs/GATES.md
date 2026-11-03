@@ -17084,3 +17084,42 @@ plan"). Commits `1aa8e7d1` and `62a86074`.
    - the V8 crash in `//python:engine_test` and `headless_test` (the R2 first step's entry, item 3).
 5. **The open decisions,** with legend-engine's and legend-pure's answers read from the pinned sources, are in the
    program's §1.3 (A-G). They were posted to the user; none is built before the user rules.
+
+## 2026-11-03 — D18: C, B and F (legend-engine's words, its error answer and its dynamic header, on every host)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D18 (the user, 2026-11-03: "in the clean version we should do the
+clean thing, in the edges we should replicate engine"; then "Yes do it, keep going don't stop"). Commits `8a79ca87`
+(D18 recorded, C), `c17c6387` (B), `34b1951c` (F part 1), `730d6c33` (F part 2).
+
+1. **What changed, each as legend-engine answers it, read from the pinned sources.**
+   - **C, the nullable-column refusal:** `Collection element must have a multiplicity [1] - Context:[Applying times],
+     multiplicity:[0..1]` (was `..., found [0..1]`); the context the innermost call (S128).
+   - **B, a database's refusal at run time:** 500, `{"code":-1,"message":"<root cause's short class name>: <its
+     message>","status":"error","trace":...}` on the JVM (the driver's root cause; its own stack the trace) and on the
+     hosts (`PureV1Api.databaseRefused`, the class DuckDB's JDBC driver throws, `Databases.jdbcFailureClass`; the
+     host's account as the trace, S129). Python's `ConversionException: ...` and the tab's status-less `QueryError` are
+     gone; lite's other failures keep their words and carry no trace.
+   - **F, the JVM's answer header:** from the plan's own facts for a plan that states its columns (part 1, no output
+     changed); for a dynamic pivot every column rebuilt from the database's report, `{name, type}` with
+     `labelTypePair`'s type and no relational spelling (part 2; MongoDB, which reports none, keeps the plan's facts,
+     S132).
+2. **Ledgers and guards moved, each with its reason.**
+   - The conformance ledger 17 -> 16: the three refusal entries gone; two narrower ones in (the hosts send a statement
+     without legend-engine's execution-trace line, so DuckDB's message counts one line fewer; the note's §7).
+   - `DialectBoundaryTest`'s DatabaseType census, `Databases.java` 2 -> 3, dated: `jdbcFailureClass`. B's commit
+     `c17c6387` was pushed with this guard red (`//core:guardrails` was not among its checks); `730d6c33` moves it.
+3. **Checks.**
+   - Per step: C `//core:core_tests_{compiler,lowering,judge,exec,server}`, `//datacube:{column_editor,infer,calc_fix}_test`;
+     B the server, architecture and integration lanes, `//wasm:{round_trip,differential,conformance}_test`,
+     `//datacube:{conformance,bundle_budget,lite_planner,python_runner,typecheck}_test`, the Query and Studio
+     typechecks, `//engine-client:{plan_runner,arrow_ipc,update_generated}_test`, `//python:{bindings,host_sql,
+     update_generated_0,update_generated_1}_test`; F `//pct:pct_duckdb_essential`, `pct_duckdb_relation`, `pct_h2`,
+     `//core:core_tests_{server,exec,integration,driver,judge,architecture}`, `//core:arrow_writer_test`,
+     `//core:mongodb_plan_test`, `//core:guardrails`.
+   - The local gate on `730d6c33`: 445 of 457 green, one skipped (`//tools/guards:classpath_test`), eleven red. Nine are this
+     container's: the eight Postgres tests and `//datacube:verify_app_test`'s Postgres (`initdb` refuses root). Two
+     were mine, both fixed after it and rerun green:
+     - `//core:census` (the dialect-leak ban): B's test named a variable after a database; renamed (`0b2d7bd1`).
+     - `//parser-equivalence:update_ratchets_test`: `own_corpus.matched` 3012 -> 3015, the three Pure snippets B's and
+       F's tests add; regenerated with `bazel run //parser-equivalence:update_ratchets`, and
+       `//parser-equivalence/...` green on it.
