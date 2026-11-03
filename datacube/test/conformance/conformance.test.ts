@@ -266,7 +266,15 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       else if (ja.rows !== pa.rows) differ(name, 'arrow-values', 'java/python', firstDifference(ja.rows, pa.rows));
       // grid: the tab's own path against Java's values, by meaning
       if (!name.startsWith('err') && j.status === 200) {
-        const planned = await grammar.plan({ _type: 'text', code: MODEL }, await grammar.lambda(`{| ${query}}`), RUNTIME);
+        let planned: string;
+        try {
+          planned = await grammar.plan({ _type: 'text', code: MODEL }, await grammar.lambda(`{| ${query}}`), RUNTIME);
+        } catch (e) {
+          // a plan the grid does not run (a pivot whose columns its data names: DataCube plans its pivots static),
+          // refused by name at planning (HostPlans.read)
+          differ(name, 'grid-refused', 'java/tab', (e as Error).message);
+          continue;
+        }
         // the plan record (R2), read as the grid's planners read it
         const plan = recordPlan(planned);
         const rows = await grid.execute(plan, 0);

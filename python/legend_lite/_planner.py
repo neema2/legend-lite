@@ -28,6 +28,8 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'executePlan': ('lite_execute_json_plan', lambda m: (m['body'], m['models'])),
     'executeAnswer': ('lite_execute_json_answer', lambda m: (m['plan'], m['rows'])),
     'executeRefusal': ('lite_execute_refusal', lambda m: (m['plan'], m['message'], m['trace'])),
+    'keyedBody': ('lite_keyed_body', lambda m: (m['plan'], m['keys'])),
+    'keyedAnswer': ('lite_keyed_answer', lambda m: (m['plan'], m['keys'], m['rows'], m['reported'])),
     'testData': ('lite_test_data_sql', lambda m: (m['model'], m['database'], m['tables'])),
     'sessionSetup': ('lite_session_setup', lambda m: (m['databaseType'],)),
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),

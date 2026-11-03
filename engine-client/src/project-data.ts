@@ -3,6 +3,7 @@
 // person's own tables. What it is, and every statement that makes, points at, fills and drops it, is the planner's
 // (Boundary.projectData, the platform's ProjectData in Java, by the tab's database type); this tab spells none.
 
+import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
@@ -146,13 +147,18 @@ interface Held {
 
 /** A kept database's connection for its users: every call but close, which is the keeper's alone. */
 function kept(engine: QueryEngine): QueryEngine {
-  return {
+  const users: QueryEngine = {
     name: engine.name,
     execute: (...args) => engine.execute(...args),
     stream: (...args) => engine.stream(...args),
     run: (...args) => engine.run(...args),
     close: () => Promise.resolve(),
   };
+  // the connection held for a plan of several statements, the kept engine's own (D18 D)
+  if (engine.exclusive !== undefined) {
+    return { ...users, exclusive: <T>(work: (held: HeldConnection) => Promise<T>): Promise<T> => engine.exclusive!(work) };
+  }
+  return users;
 }
 
 /**
@@ -188,6 +194,16 @@ export class ProjectRunner implements QueryEngine {
 
   run(...args: Parameters<QueryEngine['run']>): ReturnType<QueryEngine['run']> {
     return this.#current.run(...args);
+  }
+
+  /** The current engine's connection held for a plan of several statements (D18 D); refused by name where it holds
+   *  none. */
+  exclusive<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> {
+    const current = this.#current;
+    if (current.exclusive === undefined) {
+      return Promise.reject(new Error(`${current.name} holds no connection of its own for a plan of several statements`));
+    }
+    return current.exclusive(work);
   }
 
   close(): Promise<void> {

@@ -399,6 +399,37 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A pivot's body for the keys the host read ({@code Boundary.keyedBody}, D18 D). */
+    @CEntryPoint(name = "lite_keyed_body")
+    static CCharPointer keyedBody(IsolateThread thread, CCharPointer plan, CCharPointer keys) {
+        String a;
+        try {
+            String p = text(plan);
+            String k = text(keys);
+            a = Folded.http(() -> Boundary.keyedBody(p, k));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A pivot's answer from the host's rows and report ({@code Boundary.keyedAnswer}, D18 D). */
+    @CEntryPoint(name = "lite_keyed_answer")
+    static CCharPointer keyedAnswer(IsolateThread thread, CCharPointer plan, CCharPointer keys, CCharPointer rows,
+            CCharPointer reported) {
+        String a;
+        try {
+            String p = text(plan);
+            String k = text(keys);
+            String r = text(rows);
+            String t = text(reported);
+            a = Folded.http(() -> Boundary.keyedAnswer(p, k, r, t));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A host's refusal of a call it could not finish, in the engine's error shape ({@code Boundary.refusal}). */
     @CEntryPoint(name = "lite_pure_v1_refusal")
     static CCharPointer refusal(IsolateThread thread, CCharPointer message) {

@@ -366,6 +366,12 @@ class NativePlanner:
     def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
         return compiler.execute_refusal(plan, message, trace)
 
+    def keyed_body(self, plan: str, keys: str) -> compiler.Answer:
+        return compiler.keyed_body(plan, keys)
+
+    def keyed_answer(self, plan: str, keys: str, rows: str, reported: str) -> compiler.Answer:
+        return compiler.keyed_answer(plan, keys, rows, reported)
+
     def refusal(self, message: str) -> compiler.Answer:
         return compiler.refusal(message)
 
@@ -1660,6 +1666,9 @@ class Engine:
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
+                keys_statement = compiler.keyed_statement(planned.body)
+                if keys_statement is not None:
+                    return self._execute_keyed(planned.body, keys_statement, connection)
                 try:
                     cursor = connection.execute(compiler.answer_statement(planned.body))
                     names = [d[0] for d in cursor.description]
@@ -1672,6 +1681,36 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 rows = compiler.host_rows(names, fetched)
         answer = self.planner.execute_json_answer(planned.body, rows)
+        return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+
+    def _execute_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
+        """A pivot whose columns its data names, run as the JVM's runner runs it (D18 D): its keys, then the body the
+        compiler writes for them, DESCRIBEd (DuckDB's own type names, legend-engine's header's source) and run with the
+        keys bound, in one transaction; the answer the compiler's, from the rows and the report."""
+        try:
+            # the keys and the body in one transaction, so the keys are the body's (the plan's snapshot)
+            connection.execute('BEGIN TRANSACTION')
+            try:
+                keys = [[None if c is None else str(c) for c in row]
+                        for row in connection.execute(keys_statement).fetchall()]
+                written = self.planner.keyed_body(plan, json.dumps(keys))
+                if written.status == 200:
+                    body = json.loads(written.body)
+                    reported = [row[1] for row in
+                                connection.execute('DESCRIBE ' + body['statement'], body['parameters']).fetchall()]
+                    cursor = connection.execute(body['statement'], body['parameters'])
+                    names = [d[0] for d in cursor.description]
+                    rows = compiler.host_rows(names, cursor.fetchall())
+            except BaseException:
+                connection.execute('ROLLBACK')
+                raise
+            connection.execute('COMMIT')
+        except duckdb.Error as refused:
+            answer = self.planner.execute_refusal(plan, str(refused), f'{type(refused).__name__}: {refused}')
+            return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+        if written.status != 200:
+            return Answer(written.status, written.content_type, written.body.encode('utf-8'))
+        answer = self.planner.keyed_answer(plan, json.dumps(keys), rows, json.dumps(reported))
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
     @contextlib.contextmanager

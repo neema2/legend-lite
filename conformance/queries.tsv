@@ -17,5 +17,6 @@ distinct	#>{conf::DB.TRADES}#->select(~[REGION])->distinct()->sort([~REGION->asc
 limit	#>{conf::DB.TRADES}#->sort([~ID->ascending()])->limit(3)
 concat	#>{conf::DB.TRADES}#->extend(~[k:x|$x.REGION->toOne() + '-' + $x.DESK->toOne()])->select(~[ID, k])->sort([~ID->ascending()])
 ifThen	#>{conf::DB.TRADES}#->extend(~[big:x|if($x.QTY->toOne() > 20, |'Y', |'N')])->filter(x|$x.QTY->isNotEmpty())->select(~[ID, big])->sort([~ID->ascending()])
+pivotDynamic	#>{conf::DB.TRADES}#->select(~[REGION, DESK, QTY])->pivot(~[DESK], ~[q:x|$x.QTY:y|$y->sum()])->sort([~REGION->ascending()])
 errUnknownColumn	#>{conf::DB.TYPES}#->select(~[NOPE])
 errTypeMismatch	#>{conf::DB.TRADES}#->filter(x|$x.QTY == 'notanumber')

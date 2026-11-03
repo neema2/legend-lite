@@ -196,6 +196,8 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeRefusal: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
+  keyedBody: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
+  keyedAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   testData: "a model's test data is the tab's own database's",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",

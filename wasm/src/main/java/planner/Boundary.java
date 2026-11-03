@@ -130,6 +130,16 @@ public final class Boundary {
         return com.legend.server.PureV1Api.databaseRefused(plan, message, trace);
     }
 
+    /** A pivot's body for the keys a host read ({@code PureV1Api.keyedBody}, D18 D). */
+    public static com.legend.server.PureV1Api.Answer keyedBody(String plan, String keys) {
+        return com.legend.server.PureV1Api.keyedBody(plan, keys);
+    }
+
+    /** A pivot's answer from the host's rows and report ({@code PureV1Api.keyedAnswer}, D18 D). */
+    public static com.legend.server.PureV1Api.Answer keyedAnswer(String plan, String keys, String rows, String reported) {
+        return com.legend.server.PureV1Api.keyedAnswer(plan, keys, rows, reported);
+    }
+
     // ---- planning and typing
 
     /**

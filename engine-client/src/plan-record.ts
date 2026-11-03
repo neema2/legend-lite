@@ -53,6 +53,17 @@ export function hostResult(plan: string): { readonly statement: string; readonly
 }
 
 /** The one statement a host runs for a query's rows (hostResult): its text. */
+/** A pivot whose columns its data names (a keyed plan, HostPlans.query; D18 D): its keys statement, which the host runs
+ *  first; undefined for a plan of one statement. */
+export function keyedStatement(plan: string): string | undefined {
+  const root = readPlanRecord(plan).root as { readonly _type?: string; readonly keys?: { readonly statement?: unknown; readonly slots?: unknown } } | undefined;
+  if (root?._type !== 'keyed') return undefined;
+  if (typeof root.keys?.statement !== 'string' || !Array.isArray(root.keys.slots) || root.keys.slots.length > 0) {
+    throw new PlanRefusal("a host's pivot reads its keys with a statement of text");
+  }
+  return root.keys.statement;
+}
+
 export function answerStatement(plan: string): string {
   return hostResult(plan).statement;
 }

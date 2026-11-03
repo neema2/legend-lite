@@ -44,6 +44,18 @@ public final class TabExports {
         return Folded.http(() -> Boundary.executeRefusal(plan, message, trace));
     }
 
+    /** {@link Boundary#keyedBody}: a pivot's body for the keys the tab read (D18 D). */
+    @JSExport
+    public static String keyedBodyOrError(String plan, String keys) {
+        return Folded.http(() -> Boundary.keyedBody(plan, keys));
+    }
+
+    /** {@link Boundary#keyedAnswer}: a pivot's answer from the tab's rows and report (D18 D). */
+    @JSExport
+    public static String keyedAnswerOrError(String plan, String keys, String rows, String reported) {
+        return Folded.http(() -> Boundary.keyedAnswer(plan, keys, rows, reported));
+    }
+
     /** {@link Boundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
      *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
     @JSExport

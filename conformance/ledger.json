@@ -110,5 +110,19 @@
     "hosts": "java/tab",
     "detail": "at 85: \"g 'notanumber' to INT32\\n\\nLINE 4: WHERE t0.QTY = 'notanumber'\\n                   \" vs \"g 'notanumber' to INT32\\n\\nLINE 3: WHERE t0.QTY = 'notanumber'\\n                   \"",
     "why": "Every host answers a database's refusal in legend-engine's words since D18 B (500, SQLException: and the database's own); the JVM sends each statement with legend-engine's execution-trace comment as its first line (ExecutionTrace, as legend-engine's RelationalExecutor stamps it), the hosts send the plan's statement alone, so DuckDB counts its lines one fewer. The hosts' runners stamp it in R4/R5 (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
+  },
+  {
+    "case": "pivotDynamic",
+    "check": "arrow",
+    "hosts": "java/python",
+    "detail": "status 200 vs 500",
+    "why": "Python's Arrow execute still runs the old plan shape ({sql, metadata}: PureV1Api.arrowPlan), which plans one statement and refuses a pivot whose columns its data names; it moves onto the plan record with the Arrow writers (R3/R4), and runs a keyed plan as its JSON execute does then."
+  },
+  {
+    "case": "pivotDynamic",
+    "check": "grid-refused",
+    "hosts": "java/tab",
+    "detail": "IllegalArgumentException: a host runs one statement, and this query's plan is not one (Keyed: a pivot whose columns the data names, or a program that writes); legend-lite's server runs it",
+    "why": "The grid runs one statement (HostPlans.read): DataCube plans its pivots static, reading their values first (datacube/src/plan.ts planPivot), so a keyed plan is refused at planning by name; legend-engine's execute route runs it on every host (HostPlans.query, D18 D)."
   }
 ]

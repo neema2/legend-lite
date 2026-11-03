@@ -21,6 +21,8 @@ export const REQUEST_KINDS = [
   'executePlan',
   'executeAnswer',
   'executeRefusal',
+  'keyedBody',
+  'keyedAnswer',
   'testData',
   'sessionSetup',
   'projectData',
@@ -55,6 +57,10 @@ export type RequestBody =
   // or that plan's statement refused by the host's database: the database's words and the host's account of them,
   // answered as legend-engine answers a database's refusal (D18 B)
   | { readonly kind: 'executeRefusal'; readonly plan: string; readonly message: string; readonly trace: string }
+  // a pivot whose columns its data names (D18 D): its body for the keys the host read; its answer from the body's
+  // rows and each column's reported type
+  | { readonly kind: 'keyedBody'; readonly plan: string; readonly keys: string }
+  | { readonly kind: 'keyedAnswer'; readonly plan: string; readonly keys: string; readonly rows: string; readonly reported: string }
   // a model's test data as the statements the server seeds DuckDB with, and each table's names as they spell it
   | { readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects

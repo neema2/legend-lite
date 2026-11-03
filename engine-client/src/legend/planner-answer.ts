@@ -24,6 +24,8 @@ export interface PlannerModule {
     executeJsonPlanOrError(body: string, modelsJson: string): string;
     executeJsonAnswerOrError(plan: string, rows: string): string;
     executeRefusalOrError(plan: string, message: string, trace: string): string;
+    keyedBodyOrError(plan: string, keys: string): string;
+    keyedAnswerOrError(plan: string, keys: string, rows: string, reported: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;
@@ -48,6 +50,8 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
     case 'executeAnswer': return m.exports.executeJsonAnswerOrError(r.plan, r.rows);
     case 'executeRefusal': return m.exports.executeRefusalOrError(r.plan, r.message, r.trace);
+    case 'keyedBody': return m.exports.keyedBodyOrError(r.plan, r.keys);
+    case 'keyedAnswer': return m.exports.keyedAnswerOrError(r.plan, r.keys, r.rows, r.reported);
     case 'testData': return m.exports.testDataSqlOrError(r.model, r.database, r.tables);
     case 'sessionSetup': return m.exports.sessionSetupOrError(r.databaseType);
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);

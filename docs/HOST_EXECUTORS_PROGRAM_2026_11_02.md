@@ -871,3 +871,13 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   database's, unchanged. A pivot whose template is a precision decimal, refused by the old maker ("is no primitive"),
   is answered. The compiler-types maker (`PureV1Api.envelope`) is now used by the differential test alone; it goes
   with R2's census.
+- 2026-11-03: D built (commits `de533ae5`, `df357180`, and the hosts' step): a pivot whose columns its data names
+  answers on every host as on the JVM. The keyed run's pure steps are the plan record's (`KeyedRun`); the execute
+  route's plan half answers a keyed plan (`HostPlans.query`; the grid's `HostPlans.read` keeps refusing it); the host
+  reads the keys, the core writes the body (`keyedBody`), the host `DESCRIBE`s it and runs it with the keys bound on a
+  connection held for it (the tab's `exclusive`, now part of its engine interface and forwarded by Query's and
+  Studio's project engines; Python's cursor in one transaction), and the core writes legend-engine's answer from the
+  rows and the report (`keyedAnswer`). Proved: `ExecutorTest.pivotOnAHostAnswersTheJvmsText` (the host path's answer is
+  the JVM's text but for the trace id), and the conformance suite's new `pivotDynamic` case, whose JSON answer is the
+  same text on the JVM, Python and the tab. Its two ledger entries: Python's Arrow execute (the old shape until R3/R4)
+  and the grid's refusal (DataCube plans its pivots static). Ledger 16 -> 18.

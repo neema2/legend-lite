@@ -69,8 +69,9 @@ export interface HeldConnection {
   /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
    *  name where the connection prepares none). */
   rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
-  /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
-  table(sql: string): Promise<RawTable>;
+  /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold); one with values to bind,
+   *  prepared and run with them (a pivot's body, its keys bound: D18 D). */
+  table(sql: string, params?: readonly (string | number | boolean | null)[]): Promise<RawTable>;
 }
 
 /** A prepared statement, as DuckDB-WASM's connections give one. */
@@ -633,7 +634,23 @@ export class DuckDbEngine implements QueryEngine {
           await prepared.close?.();
         }
       },
-      table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+      table: async (sql, params = []) => {
+        if (params.length === 0) return this.#whole(sql, 0, undefined, performance.now());
+        if (conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
+        const started = performance.now();
+        let table: ArrowishTable;
+        try {
+          const prepared = await conn.prepare(sql);
+          try {
+            table = await prepared.query(...params);
+          } finally {
+            await prepared.close?.();
+          }
+        } catch (cause) {
+          throw new QueryError(cause instanceof Error ? cause.message : String(cause), sql, { cause });
+        }
+        return toRawTable(table, 0, performance.now() - started);
+      },
     }));
   }
 

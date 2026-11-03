@@ -12,6 +12,7 @@
 // matters because the deciding factor is likely to be policy on data at
 // rest rather than performance.
 
+import type { HeldConnection } from './duckdb.ts';
 import type { Plan } from './relation-type.ts';
 import type { Receipt } from './receipt.ts';
 import type { ResultTable, Scalar } from './result.ts';
@@ -61,6 +62,12 @@ export interface QueryEngine {
   /** Run raw SQL no planner wrote: names and values, no types. Same `signal` rules. */
   run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable>;
   close(): Promise<void>;
+  /**
+   * The connection held for a plan of several statements -- a write's steps, or a pivot's keys and then its body
+   * (D18 D) -- no other query between them (DuckDbEngine.exclusive). An engine that holds no connection of its own (a
+   * server's) has none, and such a plan is refused by name.
+   */
+  exclusive?<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
 }
 
 /**

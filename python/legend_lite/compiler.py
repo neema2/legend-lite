@@ -323,6 +323,31 @@ def execute_refusal(plan: str, message: str, trace: str) -> Answer:
     return _http(library().call('lite_execute_refusal', plan, message, trace))
 
 
+def keyed_statement(plan: str) -> str | None:
+    """A pivot's keys statement when :func:`execute_json_plan`'s plan is a keyed one (a pivot whose columns its data
+    names, D18 D): the statement a host runs first; None for a plan of one statement."""
+    read = _json.loads(plan)
+    root = read.get('root') or {}
+    if root.get('_type') != 'keyed':
+        return None
+    keys = root.get('keys') or {}
+    if not isinstance(keys.get('statement'), str) or keys.get('slots'):
+        raise ValueError("a host's pivot reads its keys with a statement of text")
+    return keys['statement']
+
+
+def keyed_body(plan: str, keys: str) -> Answer:
+    """A pivot's body for the keys a host read (``keys``: a JSON array of rows, each the texts the keys statement
+    wrote): ``{"statement", "parameters"}``, the body and the text each placeholder binds (``PureV1Api.keyedBody``)."""
+    return _http(library().call('lite_keyed_body', plan, keys))
+
+
+def keyed_answer(plan: str, keys: str, rows: str, reported: str) -> Answer:
+    """A pivot's answer in legend-engine's JSON from the body's rows (:func:`host_rows`) and each body column's type as
+    the database reported it (``reported``: a JSON array of DuckDB's type names, a ``DESCRIBE`` of the body)."""
+    return _http(library().call('lite_keyed_answer', plan, keys, rows, reported))
+
+
 def host_rows(names: list[str], rows: list[tuple]) -> str:
     """A result's rows as the compiler reads a host's rows back (``PureV1Api.jsonAnswer``): a JSON array of objects,
     each a column's name and its cell exactly as the driver read it -- an integer's digits, a float's shortest digits
