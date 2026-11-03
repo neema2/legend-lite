@@ -419,6 +419,11 @@ public final class TsToPure {
             }
 
             @Override
+            public boolean isEnumeration(String type) {
+                return of.isEnumeration(type);
+            }
+
+            @Override
             public boolean variable(String name, SqlToPure.Scoped type) {
                 return of.variable(name, type);
             }
@@ -762,6 +767,11 @@ public final class TsToPure {
             @Override
             public void tables(SqlToPure.Table table) {
                 of.tables(table);
+            }
+
+            @Override
+            public boolean isEnumeration(String type) {
+                return of.isEnumeration(type);
             }
 
             @Override

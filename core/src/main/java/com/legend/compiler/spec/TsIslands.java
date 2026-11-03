@@ -164,6 +164,11 @@ public final class TsIslands {
         }
 
         @Override
+        public boolean isEnumeration(String type) {
+            return sources.isEnumeration(type);
+        }
+
+        @Override
         public boolean variable(String name, SqlToPure.Scoped type) {
             return sources.variable(name, type);
         }

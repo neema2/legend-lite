@@ -106,6 +106,11 @@ final class SqlIslands {
             }
 
             @Override
+            public boolean isEnumeration(String type) {
+                return model.findEnum(type).isPresent();
+            }
+
+            @Override
             public java.util.@com.legend.base.Nullable List<String> primaryKey(String database, String table) {
                 return SqlIslands.primaryKey(model, database, table);
             }

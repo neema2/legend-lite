@@ -338,10 +338,9 @@ describe('the example page over the classes, opened the page\'s way', () => {
       }
     }
     assert.ok(said.length >= 7, `${said.length} statements`);
-    // the series not one statement yet, by reason: each count only allowed to shrink (D12)
-    assert.deepEqual(Object.fromEntries(unshown), {
-      'tr\'s grid reads side, an enumeration, as its values\' names: the #SQL reader casts no enumeration to text yet, so the flat form cannot say it': 3,
-    });
+    // the series not one statement yet, by reason: each count only allowed to shrink (D12). None since A6
+    // (2026-11-03): an enumeration read as its values' names prints as its cast to text, CAST(side AS text)
+    assert.deepEqual(Object.fromEntries(unshown), {});
   });
 
   it('every series of the page answers as it was frozen', () => {

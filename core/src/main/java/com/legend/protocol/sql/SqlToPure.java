@@ -86,6 +86,12 @@ public final class SqlToPure {
         default void variables(java.util.function.Consumer<String> names) {
         }
 
+        /** Whether the Pure type {@code type} (a column's) is an enumeration of the model: its values read as their
+         *  names by a cast to text, as Postgres's cast of an enum gives its label (A6, Show #TS, 2026-11-03). */
+        default boolean isEnumeration(String type) {
+            return false;
+        }
+
         /** IQ island, 2026-10-16: {@code relation}, a derived table's or a common table expression's whose own query
          *  computes window functions, as an inline view -- its windows computed over all of its rows, before the
          *  enclosing query's WHERE, as SQL computes them (the compiler's marker, Pure.Lite.INLINE_VIEW; Pure's
@@ -283,12 +289,20 @@ public final class SqlToPure {
      * body it is -- a value, or for {@code condition} the case where it is TRUE. An aggregate, a window or a subquery
      * in it is this translator's to refuse, in the clause {@code clause} names.
      */
+    /** A source's column as the translation reads it: its kind and its detail the dialect's, an enumeration's its
+     *  type ({@link InputDialect.Enumeration}). */
+    OutCol outCol(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType) {
+        InputDialect.TypeDetail detail = dialect.detailOf(type, storeType);
+        return new OutCol(name, dialect.kindOf(type, storeType), nullable,
+                detail == null && sources.isEnumeration(type) ? new InputDialect.Enumeration(type) : detail);
+    }
+
     public static LambdaFunction rowLambda(SqlAst.Expr e, ValueSpecification relation, Sources sources,
             InputDialect dialect, boolean condition, String clause) {
         SqlToPure t = new SqlToPure(sources, dialect, new Env(Map.of(), null, null, 0));
         List<OutCol> cols = new ArrayList<>();
-        sources.columns(relation, (name, type, nullable, storeType) -> cols.add(new OutCol(name,
-                t.dialect.kindOf(type, storeType), nullable, t.dialect.detailOf(type, storeType))));
+        sources.columns(relation, (name, type, nullable, storeType) -> cols.add(t.outCol(name, type, nullable,
+                storeType)));
         Source source = t.bound(new Rel(relation, cols), null, List.of(), e.pos());
         Input input = t.new Input(source.bindings(), source.star(), clause);
         ValueSpecification body = condition ? t.condition(e, input, clause) : held(t.tx(e, input, t.row));
@@ -390,7 +404,7 @@ public final class SqlToPure {
         List<String> pureTypes = new ArrayList<>();
         List<@com.legend.base.Nullable String> storeTypes = new ArrayList<>();
         sources.columns(table, (name, type, nullable, storeType) -> {
-            columns.add(new OutCol(name, dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType)));
+            columns.add(outCol(name, type, nullable, storeType));
             pureTypes.add(type);
             storeTypes.add(storeType);
         });
@@ -2270,8 +2284,8 @@ public final class SqlToPure {
                     ValueSpecification table = own == null ? dialect.table(t, sources) : null;
                     if (table != null) {
                         List<OutCol> columns = new ArrayList<>();
-                        sources.columns(table, (name, type, nullable, storeType) -> columns.add(new OutCol(name,
-                                dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType))));
+                        sources.columns(table, (name, type, nullable, storeType) -> columns.add(outCol(name, type,
+                                nullable, storeType)));
                         own = read(new Rel(table, columns), t.pos());
                     }
                     if (own == null) {
@@ -2291,8 +2305,8 @@ public final class SqlToPure {
             case SqlAst.TableFunction f -> {
                 ValueSpecification relation = tableFunction(f);
                 List<OutCol> columns = new ArrayList<>();
-                sources.columns(relation, (name, type, nullable, storeType) -> columns.add(new OutCol(name,
-                        dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType))));
+                sources.columns(relation, (name, type, nullable, storeType) -> columns.add(outCol(name, type,
+                        nullable, storeType)));
                 SqlAst.Ident alias = f.alias();
                 yield bound(read(new Rel(relation, columns), f.pos()),
                         alias != null ? alias : dialect.functionName(f), f.columnAliases(), f.pos());

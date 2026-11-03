@@ -225,8 +225,8 @@ public final class TsShow {
     }
 
     /** A projected column's path from its object: {@code x|$x.instrument.ticker} as {@code instrument.ticker}. An
-     *  enumeration read as its values' names ({@code $x.side->toString()}, DataCube's way to read one) is refused by
-     *  name: the #SQL reader casts no enumeration to text yet. */
+     *  enumeration read as its values' names ({@code $x.side->toString()}, DataCube's way to read one) as its cast to
+     *  text, {@code CAST(side AS text)}, which the #SQL reader reads back as the same (A6, 2026-11-03). */
     private static SqlAst.Expr path(ColSpec c) {
         LambdaFunction l = c.function1();
         if (l == null || l.parameters().size() != 1 || l.body().size() != 1) {
@@ -235,8 +235,12 @@ public final class TsShow {
         ValueSpecification body = l.body().get(0);
         if (body instanceof AppliedFunction f) {
             switch (f.function()) {
-                case "toString" -> throw new Refused("reads " + c.name() + ", an enumeration, as its values' names: the"
-                        + " #SQL reader casts no enumeration to text yet, so the flat form cannot say it");
+                case "toString" -> {
+                    if (f.parameters().size() == 1) {
+                        return new SqlAst.Cast(path(c.name(), f.parameters().get(0), l), new SqlAst.TypeName("text",
+                                List.of(), NONE), NONE);
+                    }
+                }
                 default -> {
                 }
             }
