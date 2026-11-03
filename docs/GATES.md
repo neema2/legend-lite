@@ -19398,3 +19398,38 @@ statements (37K chars where 30 were). The database judge alone differed from the
    guardrails, the lean ladder (twelve rungs), the capability matrix; PCT DuckDB both channels every suite, SQLite channel
    A essential and relation, channel B essential, grammar, relation; H2 channel B relation; channel B under the database
    judge alone on DuckDB (every suite), SQLite essential, H2 relation: 41 of 41, 7 of 7.
+
+## 2026-11-03 — PCT closed out against main: round 19 on every lane, the two judges on par, the last ledger rows
+
+1. **Round 19 at `79d07cde`** (each lane's session, measure only; DuckDB, SQLite and H2 here). **Channel A**: every
+   suite measured passes against its expected-failure list, which is main's unchanged, on all eleven backends, but
+   BigQuery essential's one (item 3). **Channel B**, PASS against main's pins (main's `ChannelBLane.PINS`; DuckDB's 9
+   known failures): at or above main on every lane and every suite, below on none --
+   DuckDB 336/137/469/205/93 (main 336/136/469/204/93); H2 relation 432 (431); SQLite 333/134/458/205/92
+   (333/133/456/205/92); Postgres 332/132/467/205/92 (330/132/467/205/92); MariaDB 334/137/456/205/93
+   (330/135/440/204/93); MySQL 333/137/436/205/93 (331/136/422/204/93); ClickHouse 333/137/464/202/93
+   (333/137/462/202/93); Trino 336/136/469/205/93 (331/136/463/205/93); Databricks 335/137/461/205/93
+   (334/135/459/205/93); Snowflake 335/133/469/205/93 (334/133/467/204/93); BigQuery 330/136/457/205/91
+   (330/135/455/205/91), in the order essential/grammar/relation/standard/unclassified. **The judges**: every lane's
+   census identical under BOTH and under the database judge alone, but BigQuery's `testFilterInstance` (item 4).
+   **Snowflake**: channel B essential under BOTH 499 s with the dump on (1,059 s at `ffef9991`, 494 s before Track L's
+   regression); under the database judge alone 270 s.
+2. **The ledger's rows**: Databricks' `testCoalesceInPreFilter` passes under both judges (the VOID-struct cast gone) and
+   leaves; MySQL's mixed-kind `removeDuplicates` -- main's one MySQL true wire bug, its connection dropped there -- runs
+   since Track L's size fix and returns the dedup's order, not the sort's, under both judges alike: the row carries that
+   text.
+3. **BigQuery channel A essential: the mixed-kind `removeDuplicates` joins BigQuery's list** with its dated reason: its
+   tagged list's positions go through the kept-list reduce that BigQuery cannot hold ("a list of lists"), as the three
+   comparator forms above it do. Not this branch's regression: the dedup is main's code unchanged (`Dedup`, the
+   `removeDuplicates` rule, `TaggedLists.dedup`) since Track L (`63ddd3f4`, on main 2026-10-29), and BigQuery's list was
+   last measured on 2026-10-27.
+4. **BigQuery `testFilterInstance`'s row carries the expected side's text**, which every failing form prints: BigQuery
+   writes a literal list of instances as a UNION ALL, returned in any order, and the database judge numbers a side's
+   rows by arrival, so on a run either judge may read the two instances out of order -- the host in rounds 16 and 17, the
+   database judge in round 19 ("THE JUDGES DISAGREE"). Channel A fails it on every lane (main's lists). **Open**: the
+   list's order through its unnest on both judges (the dialect's UNION ALL and the side's ordinal); it changes the
+   statement on the five databases without native lists, so their lanes re-measure it.
+5. **Checks** (the change is ledger and list text only, no code): the five stale local suites re-run at this commit --
+   SQLite channel A grammar, standard, unclassified and H2 channel A relation pass against their lists; SQLite channel B
+   grammar 134, standard 205, unclassified 92 and DuckDB channel B grammar 137 pass against the ledger; the PCT
+   discipline guard: 9 of 9. BigQuery, Databricks and MySQL, whose rows moved, re-measure in their lanes.

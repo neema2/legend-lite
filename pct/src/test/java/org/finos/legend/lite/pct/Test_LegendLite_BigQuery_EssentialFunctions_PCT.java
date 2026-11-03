@@ -65,6 +65,10 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
+            // 2026-11-03 (round 19, the BigQuery lane at 79d07cde): the mixed-kind dedup reduces into one too since Track L
+            // (63ddd3f4, on main since 2026-10-29: its tagged list's positions through the same kept-list reduce); main's
+            // code fails it the same way -- this list was last measured on BigQuery on 2026-10-27, before Track L
+            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             // BIGQUERY'S OWN LIMIT: a date-time past BigQuery's range (years 1 to 9999) is refused
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '740740734720000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\"")
             // NOTE 2026-10-21 (the plan route on BigQuery, measured by the BigQuery lane session at 6c8de4e and

@@ -189,10 +189,10 @@ mariadb	Relation	meta::pure::functions::relation::variant::tests::flatten::testF
 # mysql: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 mysql	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
-# a mixed list's dedup and sort: the tagged list's statement (Track L (1), 63ddd3f4), several MB on MySQL -- the server
-# loses its own temporary table on it, under both judges (2026-11-03, round 17: with the single-copy JSON read the
-# connection survives; until then it dropped, 'Socket error'). Channel A passes. Leaves with Track L's size fix.
-mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	doesn't exist
+# a mixed list's dedup and sort: main's one MySQL true wire bug (pinned since 2026-10-11, the server dropped the
+# connection: 'Socket error'). Since Track L's size fix (9259f2ba) the statement is small and runs; MySQL returns its
+# rows in the dedup's order, not the sort's, under both judges alike (2026-11-03, round 19). Channel A passes.
+mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	AssertFailed: ⏎ expected: [1, 2, 3, '1', '3'] ⏎ actual:   [1, 2, '1', '3', 3]
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
@@ -323,8 +323,12 @@ bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSine
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 bigquery	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 bigquery	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
-# two instances in another order: the query sorts nothing, SQL promises no order (channel A fails it too)
-bigquery	Grammar	meta::pure::functions::collection::tests::filter::testFilterInstance	AssertFailed: ⏎ expected: [<i1 instanceOf meta::pure::functions::collection::tests::model::CO_Person>, <i2 instanceOf meta::pure::functions::collection::tests::
+# two instances in another order: BigQuery writes a literal list of instances as a UNION ALL, whose rows it returns
+# in any order, and the database judge numbers a side's rows by arrival -- so on a run either judge may read them
+# out of order (rounds 16-17 the host, round 19 the database judge: THE JUDGES DISAGREE). Channel A fails it on every
+# lane (main's lists). The text is the expected side, which every failing form prints (2026-11-03, round 19); the
+# fix, the list's order through its unnest on both judges, is open.
+bigquery	Grammar	meta::pure::functions::collection::tests::filter::testFilterInstance	expected: [<i1 instanceOf meta::pure::functions::collection::tests::model::CO_Person>, <i2 instanceOf meta::pure::functions::collection::tests::model::CO_Person>]
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
 bigquery	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 bigquery	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
@@ -371,5 +375,3 @@ databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistin
 databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
 databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`str` cannot be resolved.
 databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds3`.`id` cannot be resolved.
-# a coalesce over a list of structs: Spark's datatype mismatch (sqlState 42K09) -- channel A and the engine's Databricks manifest both pass it (a true wire bug pinned since 2026-10-12)
-databricks	Relation	meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	To convert values from "STRUCT<firstName: VOID, lastName: STRING NOT NULL, __id: STRING NOT NULL, __type: STRING NOT NULL, __canon: VARIANT NOT NULL>"
