@@ -268,11 +268,13 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       observations have rows forms beside `mean`'s, each its line form's window, aggregate and ramp written out whole.
       Every answer unchanged; the oracle unchanged. A rows form that called its generic table function
       (`timeseries::sum`, ...) inside -- one body for the aggregate -- made a query of twelve items over one table
-      type twelve times slower (5.2 s -> 63 s for `aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue`, measured):
-      a generic call inside a generic rows form re-types the growing table under it at each item. So each is written
-      out, and the words whose table functions call others (`zscores`, `drawdown`, `max_drawdown`, `product`,
+      run twelve times slower (5.2 s -> 63 s for `aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue`, measured,
+      the time in the database): the table function's `rename` between its window and the ramp's puts each item's
+      ramp window in a subquery level of its own, so twelve items nested twenty-four levels deep. (A first reading
+      blamed the typer; a stack sample showed the database, and the SQL showed the levels.) So each is written out,
+      and the words whose table functions call others (`zscores`, `drawdown`, `max_drawdown`, `product`,
       `vol_swap_volatility`, `dickey_fuller`, `half_life`, the calendar windows, the lags) keep their line forms until
-      the typer reuses a typed argument (the cost to remove first).
+      the lowering keeps a renamed window's next window on its level (the cost to remove first).
   - **Duplicates where lines meet (the time model's D1, ruled 2026-11-03; its proof step 3). Done 2026-11-03.**
     - Two lines meeting where one has several rows on a date pair as a lookup (each row with the other's one); where
       both do, the database refuses while the query runs, naming the fix (`SAMPLE BY 1d` and how to take a date's

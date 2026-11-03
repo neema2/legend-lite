@@ -2224,9 +2224,10 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 // does).
 // The rows forms of the simple statistics over w observations, each its line form's window, aggregate and ramp
 // (R7, D5): the answer a point where the value has had more than w points to date and is one itself (gs-quant's
-// apply_ramp). Each written out whole, its aggregate the table function's (timeseries::mean and its kin): a generic
-// call inside a rows form, expanded over the line's growing table at each item, made a query of twelve items type
-// twelve times slower (measured 2026-11-03). The words whose table functions call others keep their line forms.
+// apply_ramp). Each written out whole, its aggregate the table function's (timeseries::mean and its kin): calling the
+// table function puts its rename between the two windows, so each item's ramp window is a subquery level of its own
+// -- twelve items nested twenty-four levels deep, which DuckDB ran twelve times slower (measured 2026-11-03); written
+// out, an item's two windows share one level. The words whose table functions call others keep their line forms.
 function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->average()))
