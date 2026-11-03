@@ -1658,6 +1658,25 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
+        void aColumnsTypePicksTheOverload() throws SQLException {
+            // register S131 (2a, the user, 2026-11-03): two overloads differing only in a relation parameter's column
+            // type are two functions, ranked as m3's RelationTypeMatch ranks them -- a key of All picks the All
+            // overload, a text key the generic one
+            String lib = """
+                    Enum test::All { all }
+                    function test::pick<K>(x: Relation<(key:K, v:Integer)>[1]): Relation<(key:K, v:Integer, which:String)>[1]
+                    { $x->extend(~which:r|'generic') }
+                    function test::pick(x: Relation<(key:test::All, v:Integer)>[1]): Relation<(key:test::All, v:Integer, which:String)>[1]
+                    { $x->extend(~which:r|'all') }
+                    """;
+            String base = "|" + PEOPLE + "->select(~[AGE_VAL])->rename(~AGE_VAL, ~v)";
+            var all = exec(modelWith(lib), base + "->extend(~key:r|test::All.all)->select(~[key, v])->test::pick()");
+            var generic = exec(modelWith(lib), base + "->extend(~key:r|'x')->select(~[key, v])->test::pick()");
+            assertEquals("all", String.valueOf(all.rows().get(0).get(2)), "a key of All picks the All version");
+            assertEquals("generic", String.valueOf(generic.rows().get(0).get(2)), "a text key picks the generic one");
+        }
+
+        @Test
         @DisplayName("a window and an aggregate as parameters: the call's own, placed by the body")
         void windowAndAggregateAsParameters() throws SQLException {
             var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"

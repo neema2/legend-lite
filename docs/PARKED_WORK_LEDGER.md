@@ -294,10 +294,14 @@ behaviors), the TDS erasure decided on its own; `PLATFORM_RULE_DISTANCE` deleted
 
 ## PARK-10 — Parts of legend-pure's ranking not ported
 
-**What we do today.** Three parts of legend-pure's match are simplified (`FunctionMatch`'s javadoc lists them): a
-relation-type parameter ranks without comparing columns (legend-pure's `RelationTypeMatch` compares column types and
-multiplicities); a type-operation parameter (`T+V`) ranks as untyped (legend-pure: non-concrete); type arguments are
-compared by position when their counts agree (legend-pure first maps them through the class hierarchy).
+**What we do today.** Two parts of legend-pure's match are simplified (`FunctionMatch`'s javadoc lists them): a
+type-operation parameter (`T+V`) ranks as untyped (legend-pure: non-concrete); type arguments are compared by position
+when their counts agree (legend-pure first maps them through the class hierarchy). The third, a relation-type
+parameter ranked without comparing columns, is **ported** (2026-11-03, the timeseries line's 2a):
+`InferenceKernel.relationTypeFit` is legend-pure's `RelationTypeMatch` (an equal relation type exact; else the columns
+in name order, each one's type match, then their multiplicities), and the acceptance requires every column the formal
+names, each fitting by type (`newRelationTypeMatch`); its kernel test is
+`InferenceKernelTest.overload_aRelationsConcreteColumnTypeOutranksATypeParameter`.
 
 **Why parked.** No lane result depends on these parts; each needs a port with tests against legend-pure.
 
@@ -305,10 +309,9 @@ compared by position when their counts agree (legend-pure first maps them throug
 
 **Acceptance.** All three ported, each with a kernel test against legend-pure's answer.
 
-**Anchors** (one per part, all in exactly one product file, `InferenceKernel.java`): `Type.SchemaAlgebra ignored ->
-FunctionMatch.TypeFit.NULL` (type operations); `Type.RelationType ignored ->
-FunctionMatch.TypeFit.of(FunctionMatch.Kind.RELATION)` (relation columns); `if (actualArgs.size() ==
-fg.arguments().size())` (type arguments by position).
+**Anchors** (one per part left, all in exactly one product file, `InferenceKernel.java`): `Type.SchemaAlgebra ignored
+-> FunctionMatch.TypeFit.NULL` (type operations); `if (actualArgs.size() == fg.arguments().size())` (type arguments by
+position). The relation-columns anchor went with its port (2026-11-03).
 
 ---
 

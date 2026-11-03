@@ -33,9 +33,9 @@ import java.util.function.Function;
  *       against a bare function-type formal (m3 matches a function type only to a function type
  *       and to {@code Any}); a carrier the value's class does not extend; a value's function
  *       parameter narrower than the formal's.</li>
- *   <li>A relation-type formal ranks as a relation match without comparing its columns (m3's
- *       {@code RelationTypeMatch} compares their types and multiplicities); a type-operation formal
- *       ({@code T+V}) ranks as an untyped match (m3: non-concrete).</li>
+ *   <li>A type-operation formal ({@code T+V}) ranks as an untyped match (m3: non-concrete). (A
+ *       relation-type formal ranks as m3's {@code RelationTypeMatch} does, column by column: ported
+ *       2026-11-03, PARK-10's relation-columns part.)</li>
  *   <li>Type arguments are compared position by position when the counts agree; m3 first maps the
  *       value's arguments to the formal's class through the hierarchy.</li>
  * </ul>
