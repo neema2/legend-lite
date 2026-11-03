@@ -1125,7 +1125,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_TRANSFORM -> listMap(writer, a);
             case LIST_CONCAT -> listConcat(writer, a);
             // an element past the end is null (SqlTyping: NULL past the end), where $arrayElemAt answers nothing
-            case LIST_GET -> writer.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(a.get(0), 0)
+            case LIST_GET, LIST_AT -> writer.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(a.get(0), 0)
                     .append(", {\"$subtract\": [").expr(a.get(1), 0).append(", 1]}]}, null]}");
             case LIST_POSITION -> listPosition(writer, a);
             case LIST_EXISTS -> listExists(writer, a);

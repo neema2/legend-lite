@@ -1195,19 +1195,20 @@ public sealed interface SqlExpr
             return out;
         }
 
-        /** The tag at {@code position}. */
+        /** The tag at {@code position}: a position the list holds, read by {@link SqlFn#LIST_AT} (each array and the
+         *  position written once: nested positions multiplied the general read's copies, 2026-11-03). */
         public SqlExpr tagAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, tags, position);
+            return Call.of(SqlFn.LIST_AT, tags, position);
         }
 
         /** The comparable at {@code position}. */
         public SqlExpr comparableAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, comparable, position);
+            return Call.of(SqlFn.LIST_AT, comparable, position);
         }
 
         /** Channel {@code k}'s value at {@code position}. */
         public SqlExpr channelAt(int k, SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, channels.get(k).values(), position);
+            return Call.of(SqlFn.LIST_AT, channels.get(k).values(), position);
         }
 
         /** The element at {@code position}: a tagged value whose tag is the channel index there, whose comparable

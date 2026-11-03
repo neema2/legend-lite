@@ -36,6 +36,7 @@ H2	H2	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	via 
 H2	H2	call	LIST_CONCAT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	2
 H2	H2	call	LIST_GET	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	69
 H2	H2	call	LIST_POSITION	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	39
+H2	H2	call	LIST_AT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	8
 H2	H2	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	3
 H2	H2	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	0
@@ -257,6 +258,7 @@ H2Modern	-	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding
 H2Modern	-	call	LIST_CONCAT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
 H2Modern	-	call	LIST_GET	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
 H2Modern	-	call	LIST_POSITION	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_AT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
 H2Modern	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listExists	-
 H2Modern	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listForAll	-
 H2Modern	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as H2, via AnsiSqlRenderer.structInsert	-
@@ -478,6 +480,7 @@ Postgres	Postgres	call	LIST_TRANSFORM	emulated	listTransform		31
 Postgres	Postgres	call	LIST_CONCAT	emulated	listConcat		2
 Postgres	Postgres	call	LIST_GET	emulated	composed in a block	via Postgres.listCall	69
 Postgres	Postgres	call	LIST_POSITION	spelled	array_position	via Postgres.listCall	39
+Postgres	Postgres	call	LIST_AT	emulated	composed in a block	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_EXISTS	emulated	listExists		8
 Postgres	Postgres	call	LIST_FOR_ALL	emulated	listForAll		3
 Postgres	Postgres	call	STRUCT_INSERT	emulated	structInsert		0
@@ -699,6 +702,7 @@ Snowflake	Snowflake	call	LIST_TRANSFORM	emulated	composed in a block	via Snowfla
 Snowflake	Snowflake	call	LIST_CONCAT	emulated	composed in a block	via Snowflake.list	5
 Snowflake	Snowflake	call	LIST_GET	emulated	typed, listGet	via Snowflake.list	72
 Snowflake	Snowflake	call	LIST_POSITION	emulated	(ARRAY_POSITION(TO_VARIANT(…), …) + 1)	via Snowflake.list	53
+Snowflake	Snowflake	call	LIST_AT	emulated	typed: …GET(…, … - 1)	via Snowflake.list	0
 Snowflake	Snowflake	call	LIST_EXISTS	emulated	listExists		8
 Snowflake	Snowflake	call	LIST_FOR_ALL	emulated	listForAll		3
 Snowflake	Snowflake	call	STRUCT_INSERT	emulated	structInsert		0
@@ -920,6 +924,7 @@ Trino	Trino	call	LIST_TRANSFORM	emulated	by its operands: zip_with(…, …, …
 Trino	Trino	call	LIST_CONCAT	emulated	composed in a block	via Trino.listCall	5
 Trino	Trino	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE element_at(…, …) END)	via Trino.listCall	72
 Trino	Trino	call	LIST_POSITION	emulated	list: (CASE WHEN array_position(…, …) = 0 THEN NULL ELSE array_position(…, …) END)	via Trino.listCall	53
+Trino	Trino	call	LIST_AT	emulated	list: element_at(…, …)	via Trino.listCall	0
 Trino	Trino	call	LIST_EXISTS	emulated	listExists		8
 Trino	Trino	call	LIST_FOR_ALL	emulated	listForAll		3
 Trino	Trino	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1141,6 +1146,7 @@ BigQuery	BigQuery	call	LIST_TRANSFORM	emulated	listTransform		31
 BigQuery	BigQuery	call	LIST_CONCAT	emulated	emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))		2
 BigQuery	BigQuery	call	LIST_GET	emulated	listGet		79
 BigQuery	BigQuery	call	LIST_POSITION	emulated	param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)		39
+BigQuery	BigQuery	call	LIST_AT	emulated	listAt		0
 BigQuery	BigQuery	call	LIST_EXISTS	emulated	listExists		8
 BigQuery	BigQuery	call	LIST_FOR_ALL	emulated	listForAll		3
 BigQuery	BigQuery	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1362,6 +1368,7 @@ Databricks	Databricks	call	LIST_TRANSFORM	emulated	list, oneBasedIndex: transfor
 Databricks	Databricks	call	LIST_CONCAT	emulated	list: concat(, coalesce(…, array()))	via Databricks.listCall	5
 Databricks	Databricks	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE try_element_at(…, CAST(… AS INT)) END)	via Databricks.listCall	72
 Databricks	Databricks	call	LIST_POSITION	emulated	list: nullif(array_position(…, …), 0)	via Databricks.listCall	53
+Databricks	Databricks	call	LIST_AT	emulated	list: try_element_at(…, CAST(… AS INT))	via Databricks.listCall	0
 Databricks	Databricks	call	LIST_EXISTS	emulated	listExists		8
 Databricks	Databricks	call	LIST_FOR_ALL	emulated	listForAll		3
 Databricks	Databricks	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1583,6 +1590,7 @@ DuckDb	DuckDB	call	LIST_TRANSFORM	spelled	list_transform	via DuckDb.listCall	37
 DuckDb	DuckDB	call	LIST_CONCAT	spelled	list_concat	via DuckDb.listCall	5
 DuckDb	DuckDB	call	LIST_GET	spelled	list_extract	via DuckDb.listCall	75
 DuckDb	DuckDB	call	LIST_POSITION	spelled	list_position	via DuckDb.listCall	53
+DuckDb	DuckDB	call	LIST_AT	spelled	list_extract	via DuckDb.listCall	0
 DuckDb	DuckDB	call	LIST_EXISTS	emulated	listExists		8
 DuckDb	DuckDB	call	LIST_FOR_ALL	emulated	listForAll		3
 DuckDb	DuckDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1804,6 +1812,7 @@ ClickHouse	ClickHouse	call	LIST_TRANSFORM	emulated	lambdaArrays: arrayMap(…, �
 ClickHouse	ClickHouse	call	LIST_CONCAT	emulated	list: arrayConcat(, …)	via ClickHouse.listCall	5
 ClickHouse	ClickHouse	call	LIST_GET	emulated	by its operands: arrayElement(…, …) / (CASE WHEN … = 0 OR abs(…) > length(…) THEN NULL ELSE arrayElement(…, …) END)	via ClickHouse.listCall	72
 ClickHouse	ClickHouse	call	LIST_POSITION	emulated	list: nullIf(toInt64(indexOf(…, …)), 0)	via ClickHouse.listCall	53
+ClickHouse	ClickHouse	call	LIST_AT	emulated	list: arrayElement(…, …)	via ClickHouse.listCall	0
 ClickHouse	ClickHouse	call	LIST_EXISTS	emulated	listExists		8
 ClickHouse	ClickHouse	call	LIST_FOR_ALL	emulated	listForAll		3
 ClickHouse	ClickHouse	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2025,6 +2034,7 @@ SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	
 SQLite	SQLite	call	LIST_CONCAT	emulated	concatLists	via SQLite.lists	2
 SQLite	SQLite	call	LIST_GET	emulated	elementAt: (CASE WHEN … = 0 THEN NULL ELSE …CASE WHEN … < 0 THEN '#' || … ELSE … - 1 END...	via SQLite.lists	69
 SQLite	SQLite	call	LIST_POSITION	emulated	elements: (SELECT min() + 1 FROM …__e__o WHERE IS …)	via SQLite.lists	39
+SQLite	SQLite	call	LIST_AT	emulated	elementAt: … - 1	via SQLite.lists	0
 SQLite	SQLite	call	LIST_EXISTS	emulated	listExists		8
 SQLite	SQLite	call	LIST_FOR_ALL	emulated	listForAll		3
 SQLite	SQLite	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2246,6 +2256,7 @@ MariaDb	MariaDB	call	LIST_TRANSFORM	emulated	composed in a block	via MariaDb.lis
 MariaDb	MariaDB	call	LIST_CONCAT	emulated	composed in a block	via MariaDb.lists	2
 MariaDb	MariaDB	call	LIST_GET	emulated	composed in a block	via MariaDb.lists	69
 MariaDb	MariaDB	call	LIST_POSITION	emulated	elements: (SELECT min() FROM …__e__o WHERE <=> …)	via MariaDb.lists	39
+MariaDb	MariaDB	call	LIST_AT	emulated	composed in a block	via MariaDb.lists	0
 MariaDb	MariaDB	call	LIST_EXISTS	emulated	listExists		8
 MariaDb	MariaDB	call	LIST_FOR_ALL	emulated	listForAll		3
 MariaDb	MariaDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2467,6 +2478,7 @@ MySql	MySQL	call	LIST_TRANSFORM	emulated	composed in a block	as MariaDb, via Mar
 MySql	MySQL	call	LIST_CONCAT	emulated	composed in a block	as MariaDb, via MariaDb.lists	2
 MySql	MySQL	call	LIST_GET	emulated	composed in a block	as MariaDb, via MariaDb.lists	69
 MySql	MySQL	call	LIST_POSITION	emulated	elements: (SELECT min() FROM …__e__o WHERE <=> …)	as MariaDb, via MariaDb.lists	39
+MySql	MySQL	call	LIST_AT	emulated	composed in a block	as MariaDb, via MariaDb.lists	0
 MySql	MySQL	call	LIST_EXISTS	emulated	listExists	as MariaDb	8
 MySql	MySQL	call	LIST_FOR_ALL	emulated	listForAll	as MariaDb	3
 MySql	MySQL	call	STRUCT_INSERT	emulated	structInsert	as MariaDb	0
@@ -2688,6 +2700,7 @@ MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
 MongoDb	MongoDB	call	LIST_CONCAT	emulated	listConcat		0
 MongoDb	MongoDB	call	LIST_GET	emulated	{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}		0
 MongoDb	MongoDB	call	LIST_POSITION	emulated	listPosition		0
+MongoDb	MongoDB	call	LIST_AT	emulated	{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}		0
 MongoDb	MongoDB	call	LIST_EXISTS	emulated	listExists		0
 MongoDb	MongoDB	call	LIST_FOR_ALL	emulated	listForAll		0
 MongoDb	MongoDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2909,6 +2922,7 @@ EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
 EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
 EngineStyleH2	-	call	LIST_GET	emulated	listCall		-
 EngineStyleH2	-	call	LIST_POSITION	emulated	listCall		-
+EngineStyleH2	-	call	LIST_AT	emulated	listCall		-
 EngineStyleH2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	-
 EngineStyleH2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	-
 EngineStyleH2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	-
@@ -3130,6 +3144,7 @@ EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_GET	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_POSITION	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_AT	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listExists	-
 EngineStyleDB2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
 EngineStyleDB2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
@@ -3351,6 +3366,7 @@ EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, 
 EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_GET	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_POSITION	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_AT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists	-
 EngineStyleComposite	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
 EngineStyleComposite	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert	-

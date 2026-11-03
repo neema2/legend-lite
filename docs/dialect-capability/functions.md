@@ -62,6 +62,7 @@ Database types planned with it: H2.
 | `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 2 |
 | `LIST_GET` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 69 |
 | `LIST_POSITION` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 39 |
+| `LIST_AT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listExists` | 8 |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listForAll` | 3 |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `via AnsiSqlRenderer.structInsert` | 0 |
@@ -250,6 +251,7 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
 | `LIST_GET` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
 | `LIST_POSITION` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
+| `LIST_AT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as H2, via AnsiSqlRenderer.structInsert` | — |
@@ -438,6 +440,7 @@ Database types planned with it: Postgres.
 | `LIST_CONCAT` | emulated | `listConcat` |  | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `via Postgres.listCall` | 69 |
 | `LIST_POSITION` | spelled | `array_position` | `via Postgres.listCall` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `via Postgres.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -626,6 +629,7 @@ Database types planned with it: Snowflake.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Snowflake.list` | 5 |
 | `LIST_GET` | emulated | `typed, listGet` | `via Snowflake.list` | 72 |
 | `LIST_POSITION` | emulated | `(ARRAY_POSITION(TO_VARIANT(…), …) + 1)` | `via Snowflake.list` | 53 |
+| `LIST_AT` | emulated | `typed: …GET(…, … - 1)` | `via Snowflake.list` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -814,6 +818,7 @@ Database types planned with it: Trino.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Trino.listCall` | 5 |
 | `LIST_GET` | emulated | `list: (CASE WHEN … = 0 THEN NULL ELSE element_at(…, …) END)` | `via Trino.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: (CASE WHEN array_position(…, …) = 0 THEN NULL ELSE array_position(…, …) END)` | `via Trino.listCall` | 53 |
+| `LIST_AT` | emulated | `list: element_at(…, …)` | `via Trino.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1002,6 +1007,7 @@ Database types planned with it: BigQuery.
 | `LIST_CONCAT` | emulated | `emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))` |  | 2 |
 | `LIST_GET` | emulated | `listGet` |  | 79 |
 | `LIST_POSITION` | emulated | `param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)` |  | 39 |
+| `LIST_AT` | emulated | `listAt` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1190,6 +1196,7 @@ Database types planned with it: Databricks.
 | `LIST_CONCAT` | emulated | `list: concat(, coalesce(…, array()))` | `via Databricks.listCall` | 5 |
 | `LIST_GET` | emulated | `list: (CASE WHEN … = 0 THEN NULL ELSE try_element_at(…, CAST(… AS INT)) END)` | `via Databricks.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: nullif(array_position(…, …), 0)` | `via Databricks.listCall` | 53 |
+| `LIST_AT` | emulated | `list: try_element_at(…, CAST(… AS INT))` | `via Databricks.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1378,6 +1385,7 @@ Database types planned with it: DuckDB.
 | `LIST_CONCAT` | spelled | `list_concat` | `via DuckDb.listCall` | 5 |
 | `LIST_GET` | spelled | `list_extract` | `via DuckDb.listCall` | 75 |
 | `LIST_POSITION` | spelled | `list_position` | `via DuckDb.listCall` | 53 |
+| `LIST_AT` | spelled | `list_extract` | `via DuckDb.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1566,6 +1574,7 @@ Database types planned with it: ClickHouse.
 | `LIST_CONCAT` | emulated | `list: arrayConcat(, …)` | `via ClickHouse.listCall` | 5 |
 | `LIST_GET` | emulated | `by its operands: arrayElement(…, …) / (CASE WHEN … = 0 OR abs(…) > length(…) THEN NULL ELSE arrayElement(…, …) END)` | `via ClickHouse.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: nullIf(toInt64(indexOf(…, …)), 0)` | `via ClickHouse.listCall` | 53 |
+| `LIST_AT` | emulated | `list: arrayElement(…, …)` | `via ClickHouse.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1754,6 +1763,7 @@ Database types planned with it: SQLite.
 | `LIST_CONCAT` | emulated | `concatLists` | `via SQLite.lists` | 2 |
 | `LIST_GET` | emulated | `elementAt: (CASE WHEN … = 0 THEN NULL ELSE …CASE WHEN … < 0 THEN '#' \|\| … ELSE … - 1 END...` | `via SQLite.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() + 1 FROM …__e__o WHERE IS …)` | `via SQLite.lists` | 39 |
+| `LIST_AT` | emulated | `elementAt: … - 1` | `via SQLite.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1942,6 +1952,7 @@ Database types planned with it: MariaDB.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via MariaDb.lists` | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `via MariaDb.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() FROM …__e__o WHERE <=> …)` | `via MariaDb.lists` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `via MariaDb.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -2130,6 +2141,7 @@ Database types planned with it: MySQL.
 | `LIST_CONCAT` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() FROM …__e__o WHERE <=> …)` | `as MariaDb, via MariaDb.lists` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` | `as MariaDb` | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` | `as MariaDb` | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` | `as MariaDb` | 0 |
@@ -2318,6 +2330,7 @@ Database types planned with it: MongoDB.
 | `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
 | `LIST_GET` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
 | `LIST_POSITION` | emulated | `listPosition` |  | 0 |
+| `LIST_AT` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 0 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 0 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -2506,6 +2519,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `LIST_CONCAT` | emulated | `listCall` |  | — |
 | `LIST_GET` | emulated | `listCall` |  | — |
 | `LIST_POSITION` | emulated | `listCall` |  | — |
+| `LIST_AT` | emulated | `listCall` |  | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `via AnsiSqlRenderer.structInsert` | — |
@@ -2694,6 +2708,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_GET` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_POSITION` | emulated | `listCall` | `as EngineStyleH2` | — |
+| `LIST_AT` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |
@@ -2882,6 +2897,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_GET` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_POSITION` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LIST_AT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |

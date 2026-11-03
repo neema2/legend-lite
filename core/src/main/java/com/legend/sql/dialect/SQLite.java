@@ -1362,7 +1362,7 @@ public final class SQLite extends AnsiSqlRenderer {
     private static final Set<SqlFn> REPEATING = Set.of(SqlFn.LPAD, SqlFn.RPAD, SqlFn.LEFT, SqlFn.RIGHT,
             SqlFn.STARTS_WITH, SqlFn.ENDS_WITH, SqlFn.SPLIT, SqlFn.SPLIT_PART, SqlFn.PURE_SPLIT_PART, SqlFn.PARSE_INT,
             SqlFn.ROUND, SqlFn.ROUND_HALF_UP, SqlFn.GREATEST, SqlFn.LEAST, SqlFn.MOD, SqlFn.REM, SqlFn.CBRT,
-            SqlFn.ASCII_CODE, SqlFn.ACOS, SqlFn.ASIN, SqlFn.BOOL_TO_TEXT, SqlFn.LIST_GET, SqlFn.LIST_SLICE,
+            SqlFn.ASCII_CODE, SqlFn.ACOS, SqlFn.ASIN, SqlFn.BOOL_TO_TEXT, SqlFn.LIST_GET, SqlFn.LIST_AT, SqlFn.LIST_SLICE,
             SqlFn.LIST_INIT, SqlFn.LIST_TAIL, SqlFn.LIST_DISTINCT, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC,
             SqlFn.LIST_REVERSE, SqlFn.LIST_FLATTEN, SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_REDUCE,
             SqlFn.MAP_KEYS, SqlFn.MAP_VALUES, SqlFn.MAP_EXTRACT, SqlFn.EPOCH_SECONDS, SqlFn.EPOCH_MS,
@@ -1621,7 +1621,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "SQLite parses ISO text only");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
                  LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_REVERSE, LIST_FLATTEN, LIST_ZIP,
                  LIST_PRODUCT, LIST_REDUCE, RANGE_FN, REPEAT_VALUE, TYPEOF -> lists(writer, c);
@@ -2018,6 +2018,8 @@ public final class SQLite extends AnsiSqlRenderer {
                     .piece(elementAt(a.get(0), w -> w.append("CASE WHEN ").expr(a.get(1), 4).append(" < 0 THEN '#' || ")
                             .expr(a.get(1), 6).append(" ELSE ").expr(a.get(1), 6).append(" - 1 END")))
                     .append(" END)");
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.piece(elementAt(a.get(0), w -> w.expr(a.get(1), 6).append(" - 1")));
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS
             case LIST_POSITION -> writer.append("(SELECT min(" + o + ") + 1 FROM ")
                     .piece(elements(a.get(0), "__e", "__o", null)).append(" WHERE " + e + " IS ").expr(a.get(1), 5)

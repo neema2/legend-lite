@@ -1089,6 +1089,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     : writer.append("(CASE WHEN ").expr(args.get(1), 0).append(" = 0 OR abs(")
                     .expr(args.get(1), 0).append(") > length(").piece(list(xs)).append(") THEN NULL ELSE arrayElement(")
                     .piece(list(xs)).append(", ").expr(args.get(1), 0).append(") END)");
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.append("arrayElement(").piece(list(xs)).append(", ").expr(args.get(1), 0).append(")");
             case LIST_POSITION -> writer.append("nullIf(toInt64(indexOf(").piece(list(xs)).append(", ")
                     .expr(args.get(1), 0).append(")), 0)");
             case LIST_DISTINCT -> writer.append("arrayDistinct(").piece(present(xs)).append(")");
@@ -1594,7 +1596,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case HASH -> hashSigned(writer, c.args());
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
             case UNNEST -> unnestProjection(writer, c.args());
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
                  LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());

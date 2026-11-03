@@ -561,6 +561,8 @@ public final class Trino extends AnsiSqlRenderer {
             // 1-based, negative from the end, out of range NULL (DuckDB's list_extract); 0 is out of range
             case LIST_GET -> writer.append("(CASE WHEN ").expr(args.get(1), 0).append(" = 0 THEN NULL ELSE element_at(")
                     .piece(list(xs)).append(", ").expr(args.get(1), 0).append(") END)");
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.append("element_at(").piece(list(xs)).append(", ").expr(args.get(1), 0).append(")");
             // DuckDB's list_position: NULL when absent (array_position answers 0); a CASE, not nullif, which inside a
             // lambda fails in Trino's own planner ("io.trino.sql.ir.Bind cannot be cast to io.trino.sql.ir.Lambda",
             // measured on 483)
@@ -824,7 +826,7 @@ public final class Trino extends AnsiSqlRenderer {
 
     /** The list functions whose answer over the empty collection (a NULL list) is NULL, as DuckDB's are. */
     private static final java.util.Set<SqlFn> NULL_OVER_EMPTY = java.util.Set.of(SqlFn.LIST_FILTER,
-            SqlFn.LIST_TRANSFORM, SqlFn.LIST_GET, SqlFn.LIST_POSITION, SqlFn.LIST_DISTINCT, SqlFn.LIST_SUM, SqlFn.LIST_MIN,
+            SqlFn.LIST_TRANSFORM, SqlFn.LIST_GET, SqlFn.LIST_AT, SqlFn.LIST_POSITION, SqlFn.LIST_DISTINCT, SqlFn.LIST_SUM, SqlFn.LIST_MIN,
             SqlFn.LIST_MAX, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC,
             SqlFn.LIST_REVERSE, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.LIST_SLICE, SqlFn.LIST_PRODUCT, SqlFn.LIST_LENGTH,
             SqlFn.LIST_FLATTEN);
@@ -877,7 +879,7 @@ public final class Trino extends AnsiSqlRenderer {
             case HASH -> hashSigned(writer, c.args());
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
             case UNNEST -> unnestProjection(writer, c.args());
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
                  LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());

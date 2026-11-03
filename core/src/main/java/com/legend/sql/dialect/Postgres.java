@@ -424,7 +424,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The calls over the empty collection whose answer is the empty collection (DuckDB's over a NULL list): a
      *  reduction, an element, or the list rearranged. */
     private static final java.util.Set<SqlFn> EMPTY_IN_EMPTY_OUT = java.util.Set.of(SqlFn.LIST_MIN, SqlFn.LIST_MAX,
-            SqlFn.LIST_SUM, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_GET, SqlFn.LIST_SLICE,
+            SqlFn.LIST_SUM, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_GET, SqlFn.LIST_AT, SqlFn.LIST_SLICE,
             SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC, SqlFn.LIST_REVERSE,
             SqlFn.LIST_DISTINCT);
 
@@ -658,6 +658,11 @@ public final class Postgres extends AnsiSqlRenderer {
                         .append(")[cardinality(").piece(xs).append(") + 1 + ").expr(args.get(1), 6).append("] ELSE (")
                         .piece(xs).append(")[").expr(args.get(1), 0).append("] END)");
                 // an inner list is held as jsonb: read back as a list
+                yield writer.piece(rebuilt(first) ? decode(at, first, 0) : at);
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> {
+                SqlWriter.Piece at = w -> w.append("(").piece(xs).append(")[").expr(args.get(1), 0).append("]");
                 yield writer.piece(rebuilt(first) ? decode(at, first, 0) : at);
             }
             case LIST_POSITION -> writer.append("array_position(").piece(xs).append(", ").expr(args.get(1), 0)
@@ -914,7 +919,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "variant over jsonb is leg P4");
             // ---- lists: a list of scalars is a native array (listCall and its siblings below)
             // the hooks: this dialect's own (or the base's refusal)
-            case LIST_FILTER, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
+            case LIST_FILTER, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE,
                  LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE -> listCall(writer, c.fn(), c.args());
             case LIST_CONCAT -> listConcat(writer, c, parentPrec);

@@ -1625,6 +1625,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
             case LIST_GET -> listGet(writer, c);
+            case LIST_AT -> listAt(writer, c);
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             // (measured)
             case LIST_POSITION -> writer.append("(SELECT MIN(" + param("__o") + ") + 1 FROM ")
@@ -1707,6 +1708,17 @@ public final class BigQuery extends AnsiSqlRenderer {
         return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
                 .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
                 .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+    }
+
+    /** LIST_AT: a position the list holds (1-based, positive): its element by offset, the list and the position
+     *  written once; a NULL list's element its type's NULL, as {@link #listGet}. */
+    private SqlWriter listAt(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (nullList(a.get(0))) {
+            return writer.append(nullOf(typeOf(c)));
+        }
+        return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CAST(").expr(a.get(1), 0)
+                .append(" AS INT64) - 1)]");
     }
 
     /** JSON_TYPE, in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,

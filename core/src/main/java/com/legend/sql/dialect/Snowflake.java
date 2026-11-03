@@ -838,6 +838,9 @@ public final class Snowflake extends AnsiSqlRenderer {
             // 1-based, negative from the end, out of range (0 included) NULL, as DuckDB's list_extract; GET is 0-based
             // and raises on a negative index (measured), so the negative branch guards it
             case LIST_GET -> writer.piece(typed(listGet(xs, a.get(1)), element != null ? element : result));
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.piece(typed(w -> w.append("GET(").expr(xs, 0).append(", ").expr(a.get(1), 6)
+                    .append(" - 1)"), element != null ? element : result));
             // DuckDB's list_position: 1-based, NULL when absent (ARRAY_POSITION is 0-based, NULL when absent)
             case LIST_POSITION -> writer.append("(ARRAY_POSITION(TO_VARIANT(").expr(a.get(1), 0).append("), ")
                     .expr(xs, 0).append(") + 1)");
@@ -1521,7 +1524,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case STRPTIME -> strptime(writer, c);
 
             // ---- lists
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_FLATTEN, LIST_ZIP,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_FLATTEN, LIST_ZIP,
                  LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
                  LIST_BOOL_OR, TYPEOF -> list(writer, c.fn(), a, typeOf(c));

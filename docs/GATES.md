@@ -19307,3 +19307,33 @@ verdict as it does under BOTH. Round 16 (`f73defad`) listed what was left; each 
     planner, sql, guardrail and census targets and the twelve ladder pins green; DuckDB channel B under the database
     judge alone and under BOTH matches its ledger; H2 and SQLite under the database judge alone match theirs but SQLite
     essential's Track L item. `JavaEvalLedgerTest` re-pinned (`DatabaseJudge` 603 -> 602 -> 612) with its reasons.
+
+## 2026-11-03 — Track L's size: a mixed list's statements linear again (the Snowflake slowdown, SQLite's statement too long)
+
+The user's order (2026-11-03): the database judge on par with the host, then Snowflake's performance. The Snowflake
+lane measured its channel B essential at 595 s on `e8c341d0` and 1,059 s on `ffef9991` (past its 900 s timeout): the
+same 2,749 statements, 3.70M -> 6.90M chars, four `removeDuplicates` tests' statements alone grown from ~1K to 700K
+chars. Its bisect over those tests named the first bad commit, `63ddd3f4` (Track L (1), the tagged list carrier: the
+largest statement 18.7K -> 721.8K chars, the window 20 s -> 412 s), and found no later commit multiplying it. The same
+statement was past SQLite's 1 MB (SQLite essential's held-out item) and lost MySQL's temporary table.
+
+1. **The cause.** A tagged list read each element through the general `LIST_GET`, whose negative-index arms write the
+   index two to five times and the list up to three on every dialect but DuckDB (Snowflake's `GET` arms, SQLite's and
+   MySQL's JSON paths, MariaDB's `$[last-n]`); a position that is itself a read (the root's unnested position, a dedup's
+   candidate) is written again in every one, so nesting multiplied.
+2. **`SqlFn.LIST_AT`**: the element at a 1-based position the list's own construction names (never negative; past the
+   end NULL), each dialect's one read with the list and the position written once (`list_extract`, `GET(xs, i - 1)`,
+   `xs[SAFE_OFFSET(i - 1)]`, `element_at`, `try_element_at`, `arrayElement`, `xs[i]`, a JSON path `$[i - 1]`). The
+   tagged list's tag, comparable and channel reads use it; MariaDB's and MySQL's positive literal `LIST_GET` index
+   (the dedup's candidate) reads its path directly. H2, with no list and no JSON carrier, picks the literal array's
+   element as it picked `LIST_GET`'s; the dialects with a carrier read it themselves (the pick writes the position per
+   element). The capability matrix regenerated (`LIST_AT`, one row per dialect).
+3. **Measured** (the mixed-kind `removeDuplicates()->sort()` statement): MySQL 6.94 MB -> 84K, MariaDB 3.75 MB -> 57K,
+   SQLite 1.87 MB -> 39K, Snowflake 715K -> 32K, ClickHouse 7.3K -> 4.7K, Postgres 8.5K -> 5.0K; DuckDB unchanged.
+   `TaggedListStatementSizeTest` holds every relational dialect's four mixed-list statements under 150K chars (84K
+   measured), so a multiplied read fails a test, not a lane's timeout.
+4. **Checks:** core's sql, lowering, judge, driver, planner, integration (DuckDB, SQLite, H2) targets, the census, the
+   guardrails, the lean ladder, the capability matrix's diff; the eight Postgres-backed targets unprivileged; PCT
+   DuckDB and SQLite channel A essential, channel B essential, grammar and relation on DuckDB and SQLite -- SQLite
+   channel B essential passes its ledger with the held-out item passing (its 333, main's floor). The server lanes and
+   Snowflake's time are round 18's.
