@@ -1021,12 +1021,36 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
     same cell differs by connection on DataCube's engine plane today -- what the grid shows (`12.3` against `12.30`),
     and the literal a filter from the cell writes. Proposed (posted to the user, not built): the engine adapter reads a
     `Decimal` column's numbers by their digits as written, so both adapters hold `"12.30"`; on the engine plane a
-    decimal then shows and filters with its scale, as on every other plane. Six cases, both servers: `typesAll`,
+    decimal then shows and filters with its scale, as on every other plane. Eight cases, both servers: `typesAll`,
     `typesSelect`, `filterDecimal`, `extendArith`, `literals`, `groupSum`, `groupMinMax`, `limit`.
   - *A pivot whose columns its data names* (`pivotDynamic`): the engine adapter reads it; the lite adapter refuses it by
     name (`recordPlan`: a host's plan is one typed result). DataCube plans its pivots static, so none of its queries is
     one; Query and Studio run whatever a person writes, so their move onto the adapters (step 3) reads it, each column
     typed by its field's `legend.type` (the plan's type, which lite's writer writes beside every field).
+- **Query's and Studio's cells on the typed result: what would change** (measured 2026-11-03 on the conformance corpus,
+  Java's server: each cell as Query's grid spells it, `cellText`, and as Studio's run view does, `String(v)` -- today
+  over legend-engine's JSON read by `JSON.parse`, against the same function over each adapter's typed result; posted
+  to the user, not built). Five classes, and no other cell changes:
+  1. *An integer past 2^53* (`typesAll`, `I` = `9007199254740993`): today Query `9,007,199,254,740,992` and Studio
+     `9007199254740992` -- wrong digits, the double's; typed, both adapters, `9007199254740993`, without Query's
+     grouping (a bigint is not a JavaScript number). An integer a double holds exactly but past 2^53 (`extendArith`,
+     `9007199254740994`) loses only the grouping.
+  2. *A decimal a double cannot hold* (`typesAll`, `DL` = `12345678901234567.89`, `99999999999999999999999999999999999.99`):
+     today Query `12,345,678,901,234,568` and `100,000,000,000,000,000,000,000,000,000,000,000`, Studio
+     `12345678901234568` and `1e+35` -- wrong; typed, both adapters, the exact digits, ungrouped.
+  3. *A decimal's scale* (the lite adapter; `D` = `12.30`): today `12.3`, lite `12.30` (the previous finding's class);
+     and a decimal held as text loses Query's grouping (`99,999,999.99` -> `99999999.99`).
+  4. *A timestamp* (both adapters): today legend-engine's wire text, `2024-01-02T08:30:00.000000000+0000`; typed, the
+     stored text DataCube shows, `2024-01-02T08:30:00` (UTC as stored, the fraction to the microsecond, its trailing
+     zeros dropped: `values.ts` `timestampFromText`).
+  5. *A `Number` column holding decimals* (`groupMinMax`, `hi`): as class 3.
+
+  Upstream's answer for the display is legend-studio's, whose sources are not among the pinned checkouts; the wire text
+  in class 4 is legend-engine's. Proposed: one spelling of a cell from its value and its column's type, shared by Query
+  and Studio over either adapter -- the exact digits always (1, 2), Query's grouping kept for every numeric column and
+  applied to the exact digits (`9,007,199,254,740,993`, `12,345,678,901,234,567.89`), a decimal with the scale the result
+  holds (3, after the previous finding's fix the same on both adapters), a timestamp as the stored text (4), Studio
+  ungrouped as today.
 
 ## 8. Status
 
@@ -1182,4 +1206,9 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   result -- every column, type and value -- but for two named classes, ledgered (§7): a `Decimal` cell's scale, which the
   engine adapter's parse drops (`12.30` read as `12.3`; the JSON carries it), and a pivot whose columns its data names,
   which the lite adapter refuses. Next: DataCube's remote reads and Query's and Studio's results onto the adapters.
+- 2026-11-03: D20 (c), step 2: DataCube against Python's engine talks lite (D19): `//datacube:python_engine_test`'s
+  remote reads (the cube corpus, the written page) through the lite adapter, the legend-engine routes (JSON,
+  `ARROW_IPC`) kept as the edge's checks and answering the same rows. Step 3 -- Query's and Studio's results onto the
+  typed result -- changes cells they show today, so its cases were measured and posted to the user before any is built
+  (§7, the next finding).
 

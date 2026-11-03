@@ -2,19 +2,20 @@
 // docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md). The harness (python-engine.mjs) starts Python's engine
 // (engine_fixture.py, beside this page: the cube corpus's rows as a Live frame, DataCube's site beside it) and opens this
 // page at the engine's origin; every check runs here, in the pinned Chromium, through DataCube's own remote-run path
-// (RemoteRun over LegendEngineExecutor, declared ARROW_IPC, carrying the engine's token). Nothing is checked in Node.
+// (RemoteRun over LegendEngineExecutor, the connection talked to as lite -- lite's own execute and Arrow, D19 and D20 --
+// carrying the engine's token). Nothing is checked in Node.
 //
 // One cube, two engines, one compiler: every case of the cube corpus runs REMOTELY on Python's engine (the compiler
-// plans in Python, duckdb-python runs the SQL over the frame, the rows come back in upstream's Arrow format), then in
+// plans in Python, duckdb-python runs the SQL over the frame, the rows come back as lite's own Arrow), then in
 // the TAB (the same compiler in its worker, DuckDB-WASM over the same rows). The answers -- their columns, the types
 // the compiler gave them, their values -- must agree: a case whose SQL ends in ORDER BY row for row, one without as
 // a multiset. The corpus reads `trades::DB.TRADES`; each query is pointed at the frame's own table instead (its
 // source, as the frame's model writes it), the one change made to it.
 //
-// Also: upstream's own Arrow answer (legend-engine 4.145.0's, recorded) read by the same reader; the compiler's other
-// answers (a query's types, parse, print) the same on both sides; an engine read as JSON answering the rows it answers
-// in Arrow (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1: Python answers legend-engine's JSON too), and a call without the
-// token refused by name.
+// Also: upstream's own Arrow answer (legend-engine 4.145.0's, recorded) read by the engine adapter's reader; the
+// compiler's other answers (a query's types, parse, print) the same on both sides; the same engine talked to as
+// legend-engine -- its JSON and its ARROW_IPC, the edge (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1: Python answers
+// legend-engine's routes too) -- answering the rows it answers as lite, and a call without the token refused by name.
 //
 // And A PAGE FROM PYTHON'S ENGINE (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): `__pythonPageDocument`
 // writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
@@ -161,7 +162,7 @@ async function run(): Promise<void> {
   if (served === undefined) throw new Error('the harness handed the page no engine');
   const engine = { baseUrl: location.origin, model: served.model, runtime: served.runtime };
   const remote = new RemoteRun(new LegendEngineExecutor({
-    ...engine, serializationFormat: 'ARROW_IPC', authorization: served.authorization,
+    ...engine, protocol: 'lite', authorization: served.authorization,
   }));
 
   // the tab: the same compiler in its worker, DuckDB-WASM over the same rows, in a table the frame's model reads
@@ -414,17 +415,20 @@ async function run(): Promise<void> {
     equal(activities.length, 1, 'its activities:');
   });
 
-  await check('an engine read as JSON answers the rows it answers in Arrow; a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
+  await check('an engine talked to as legend-engine -- its JSON, its ARROW_IPC -- answers the rows it answers as lite; a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
     const asJson = new RemoteRun(new LegendEngineExecutor({ ...engine, authorization: served.authorization }));
     const asArrow = new RemoteRun(new LegendEngineExecutor({ ...engine, serializationFormat: 'ARROW_IPC', authorization: served.authorization }));
     const first = { name: CASES[0]!.name, snapshot: onTheFrame(CASES[0]!.snapshot, served.source) };
     const q = onTheFrame(queries()[0]!.query, served.source);
+    const viaLite = await remote.run(q, first.snapshot);
     const viaJson = await asJson.run(q, first.snapshot);
     const viaArrow = await asArrow.run(q, first.snapshot);
-    deepEqual(viaJson.rows.columns.map((c) => [c.name, c.type, c.values]), viaArrow.rows.columns.map((c) => [c.name, c.type, c.values]),
-      'the rows, as JSON and as Arrow:');
-    const without = new RemoteRun(new LegendEngineExecutor({ ...engine, serializationFormat: 'ARROW_IPC' }));
-    await rejects(without.run(q, first.snapshot), /token/);
+    const typed = (rows: typeof viaLite.rows): unknown => rows.columns.map((c) => [c.name, c.type, c.values]);
+    deepEqual(typed(viaJson.rows), typed(viaLite.rows), 'the rows, as legend-engine\'s JSON and as lite:');
+    deepEqual(typed(viaArrow.rows), typed(viaLite.rows), 'the rows, as legend-engine\'s Arrow and as lite:');
+    for (const unauthorized of [{ ...engine, serializationFormat: 'ARROW_IPC' as const }, { ...engine, protocol: 'lite' as const }]) {
+      await rejects(new RemoteRun(new LegendEngineExecutor(unauthorized)).run(q, first.snapshot), /token/);
+    }
     // a server declared ARROW_IPC that does not serve it answers its JSON, 200: refused, never read as rows
     const json = '{"builder": {"_type":"tdsBuilder","columns":[]}, "activities": [], "result" : {"columns" : [], "rows" : []}}';
     const answersJson = new RemoteRun(new LegendEngineExecutor({
@@ -456,7 +460,7 @@ window.__pythonPageDocument = async () => {
     const said = await (await fetch(`cube.json?table=${frame}`, { headers: { Authorization: served.authorization } })).json() as
       { model: string; runtime: string; source: never };
     const run = new RemoteRun(new LegendEngineExecutor({
-      baseUrl: location.origin, model: said.model, runtime: said.runtime, serializationFormat: 'ARROW_IPC',
+      baseUrl: location.origin, model: said.model, runtime: said.runtime, protocol: 'lite',
       authorization: served.authorization,
     }));
     const columns = await sourceColumns(run, said.source);

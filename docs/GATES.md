@@ -17334,7 +17334,7 @@ names), a body that is no Arrow stream, a lite connection naming a serialization
 
 The judge: the conformance suite's new `adapters` check asks every case of both adapters on both servers (Java's,
 Python's) and compares the typed results -- each column's name and Pure type, each value's kind and text. Found, and
-ledgered (18 entries, 19 -> 37): every `Decimal` cell in six cases on both servers -- the engine adapter reads
+ledgered (18 entries, 19 -> 37): every `Decimal` cell in eight cases on both servers -- the engine adapter reads
 legend-engine's JSON number `12.30` as the JavaScript number `12.3` (`values.ts` `parseExact`: its scale dropped; the
 JSON carries it, `CellText.writeEngine` writes `toPlainString`), the lite adapter keeps `"12.30"` -- §3.6a's first
 finding, its change posted to the user before any is built; and `pivotDynamic` on both servers, refused by the lite
@@ -17345,3 +17345,16 @@ Also fixed: `conformance.test.ts`'s `liteOf` read each field's metadata through 
 
 Checks: `//engine-client:tests` (the new `lite_adapter_test` laned there), `//datacube:{conformance,typecheck,
 engine_remote,engine_remote_http}_test`, `//query:typecheck_test`, `//studio:typecheck_test`.
+
+## 2026-11-03 — D20 (c), step 2: DataCube against Python's engine talks lite
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §8, D19 ("DataCube asking Python's engine for `ARROW_IPC` moves to lite's own
+Arrow route"). `//datacube:python_engine_test`'s page reads Python's engine through DataCube's own remote-run path with
+the connection talked to as lite (`protocol: 'lite'`): every case of the cube corpus answers the same remotely, as
+lite, as in the tab (the SQL Python reports the tab's plan's); the page Python's frames are written into reads them as
+lite too. The same engine talked to as legend-engine -- its JSON and its `ARROW_IPC`, the edge -- answers the first
+case's rows exactly as lite does (each column's name, type and values); a call without the token is refused on both
+routes. DataCube's product paths to Python already read lite's own Arrow (`pythonRunner`, `plan-and-run.json`, the plan
+record beside the rows), so no product output changed.
+
+Checks: `//datacube:{python_engine,typecheck}_test`.
