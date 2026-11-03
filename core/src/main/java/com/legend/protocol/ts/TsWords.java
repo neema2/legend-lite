@@ -137,10 +137,16 @@ final class TsWords {
      * {@code w}) bound to the overload it fits: the word's line, its period and its number in time as the language's
      * lines are. A line of no instrument given with lines per instrument is every instrument's (R2: the library's each).
      */
-    static TsLines.Valued call(TsFunctions.Ctx c, String word, List<Arg> args, Map<String, Given> given,
+    static TsLines.Valued call(TsFunctions.Ctx c, String word, List<Arg> written, Map<String, Given> given,
             SqlAst.Pos pos) {
         String fqn = fqn(c.model(), word);
         List<TsToPure.Overload> overloads = c.model().overloads(fqn);
+        // each line as its own line, its table's rows it is a point of (a word's answer is no point of its ramp's)
+        List<Arg> args = written.stream().map(a -> switch (a) {
+            case LineArg l -> (Arg) new LineArg(c.points(l.line()));
+            case MembersArg m -> new MembersArg(m.lines().stream().map(c::points).toList(), m.weights());
+            case NumArg n -> n;
+        }).toList();
         TsLines.Line key = keyLine(args, word, pos);
         List<List<ValueSpecification>> fits = new ArrayList<>();
         List<TsToPure.Overload> fitting = new ArrayList<>();
@@ -164,6 +170,11 @@ final class TsWords {
             throw new IllegalStateException("the library's " + fqn + " has " + fits.size()
                     + " overloads a call fits: " + given.keySet());
         }
+        // a word that keeps its line's rows: its rows form, a column of its line's own table (R7, the time model's D5)
+        TsLines.Valued kept = rowsForm(c, fqn, word, fitting.get(0), fits.get(0), written);
+        if (kept != null) {
+            return kept;
+        }
         // the answer's value columns: a word's value, or a struct's fields (R10), each under a fresh name
         List<String> gives = fitting.get(0).gives();
         Map<String, String> outs = new LinkedHashMap<>();
@@ -177,6 +188,48 @@ final class TsWords {
             c.struct(first, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(outs)));
         }
         return new TsLines.Valued(line, first);
+    }
+
+    /** The package of the words' rows forms (projects/timeseries/model.pure, A WORD'S ROWS FORM). */
+    static final String ROWS = TsToPure.LIBRARY + "rows::";
+
+    /**
+     * {@code o}, the overload of the word at {@code fqn} a call of one line fits, as its rows form (R7, the time model's
+     * D5): the library's {@code timeseries::rows::} function of the word's name whose parameters are a table, its key,
+     * date and value columns and the value's points, then {@code o}'s own after its line, then the answer's column and
+     * its points -- called on the line's base's newest table, its answer a column of it. Null where the library
+     * declares none (the word makes a new line) or the call is of several lines.
+     */
+    private static TsLines.@com.legend.base.Nullable Valued rowsForm(TsFunctions.Ctx c, String fqn, String word,
+            TsToPure.Overload o, List<ValueSpecification> bound, List<Arg> args) {
+        if (args.size() != 1 || !(args.get(0) instanceof LineArg l) || o.params().isEmpty()
+                || !TsToPure.LINE.equals(o.params().get(0).type()) || !o.gives().equals(List.of("value"))) {
+            return null;
+        }
+        String rows = ROWS + fqn.substring(PACKAGE.length());
+        List<String> own = o.params().subList(1, o.params().size()).stream().map(TsToPure.Parameter::type).toList();
+        for (TsToPure.Overload r : c.model().overloads(rows)) {
+            List<TsToPure.Parameter> p = r.params();
+            if (p.size() != own.size() + 7 || !p.subList(5, p.size() - 2).stream().map(TsToPure.Parameter::type)
+                    .toList().equals(own)) {
+                continue;
+            }
+            TsLines.Valued v = l.line();
+            String present = c.presence(v);
+            String out = c.fresh(word);
+            String points = c.fresh(word + "_pts");
+            TsLines.Line line = c.grown(v.line(), rel -> {
+                List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(v.line().part()),
+                        new ColSpec(v.line().at()), new ColSpec(v.value()), new ColSpec(present)));
+                a.addAll(bound.subList(1, bound.size()));
+                a.add(new ColSpec(out));
+                a.add(new ColSpec(points));
+                return TsLines.call(rows, a);
+            });
+            c.present(out, points);
+            return new TsLines.Valued(line, out);
+        }
+        return null;
     }
 
     /** The line whose key and date the answer takes: the first line per instrument among {@code args}, else the first

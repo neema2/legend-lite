@@ -41,9 +41,11 @@ class TsTranslatorGuardrailTest {
     private static final Pattern CALL = Pattern.compile("\\bcall\\(([^,()]*(?:\\([^()]*\\))?)[,)]");
 
     /** A call's name that is the library's: a line's rule, a word, a word by its name as written ({@code fqn}: its
-     *  path, resolved by {@code TsWords.fqn(model, word)}). */
+     *  path, resolved by {@code TsWords.fqn(model, word)}), a value's points or a word's rows form (2026-11-03, R7
+     *  part 2: the library's {@code timeseries::rows::} package, {@code ROWS + "..."}, and a word's rows form by its
+     *  word's name, {@code rows}). */
     private static final Pattern LIBRARY = Pattern.compile("(TsLines\\.)?LINES \\+ \"[A-Za-z_]+\"|PACKAGE \\+ \"[A-Za-z_:]+\""
-            + "|fqn(\\([a-z().]+, [a-z]+\\))?");
+            + "|(TsWords\\.)?ROWS \\+ \"[A-Za-z_]+\"|rows|fqn(\\([a-z().]+, [a-z]+\\))?");
 
     /** The forms of {@code call(} that write no relation call: the helpers' declarations, a word's dispatch. */
     private static final Pattern NOT_A_CALL = Pattern.compile("String fn|(TsFunctions\\.)?Ctx c|c|this");

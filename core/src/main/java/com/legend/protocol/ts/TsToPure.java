@@ -267,6 +267,10 @@ public final class TsToPure {
                     TsLines.Valued item = new TsLines.Valued(lines.grown(v.line(), rel -> call("extend", rel,
                             new ColSpec(name, lambda("x", new AppliedProperty(new Variable("x"), v.value()))))),
                             name);
+                    // its points its value's
+                    if (!TsLines.ORD.equals(lines.presence(v))) {
+                        lines.present(name, lines.presence(v));
+                    }
                     lines.items.put(name, item);
                     answered.add(item);
                     columns.add(name);
@@ -815,6 +819,8 @@ public final class TsToPure {
             private final Map<TsLines.Line, TsLines.Line> newest = new java.util.IdentityHashMap<>();
             /** Each source's column read, by what it reads ({@link TsLines.Writer#read}). */
             private final Map<Object, TsLines.Valued> reads = new java.util.HashMap<>();
+            /** Each value that is not a point of every row of its table: the column of its points, by its column. */
+            private final Map<String, String> presence = new java.util.HashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -878,10 +884,28 @@ public final class TsToPure {
                 return n == null ? b : n;
             }
 
+            @Override
+            public String presence(TsLines.Valued v) {
+                return presence.getOrDefault(v.value(), TsLines.ORD);
+            }
+
+            @Override
+            public void present(String value, String points) {
+                presence.put(value, points);
+            }
+
+            @Override
+            public TsLines.Valued points(TsLines.Valued v) {
+                String p = presence.get(v.value());
+                return p == null ? v : new TsLines.Valued(v.line().with(call(TsWords.ROWS + "points", v.line().rel(),
+                        new ColSpec(p))), v.value());
+            }
+
             /** {@code line}'s base's newest line ({@link #newest}) with a column {@code add} adds to it: the base's
              *  newest line from now. */
-            TsLines.Line grown(TsLines.Line line, java.util.function.Function<ValueSpecification, ValueSpecification>
-                    add) {
+            @Override
+            public TsLines.Line grown(TsLines.Line line,
+                    java.util.function.Function<ValueSpecification, ValueSpecification> add) {
                 TsLines.Line from = newest(line);
                 TsLines.Line out = from.with(add.apply(from.rel()));
                 extended.put(out, from);
@@ -1069,19 +1093,45 @@ public final class TsToPure {
                 if (parts.isEmpty()) {
                     return new TsLines.Constant(e);
                 }
-                // each part read from its base's newest line: parts of one base are one table, its rows once (R7)
-                List<TsLines.Valued> read = parts.stream().map(p -> new TsLines.Valued(newest(p.line()), p.value()))
-                        .toList();
-                TsAst.Fill fill = query.fill();
-                TsLines.Line met = read.stream().allMatch(p -> p.line() == read.get(0).line()) ? read.get(0).line()
-                        : TsLines.joined(this, read, e.pos(), fill == null ? null : fill.how());
                 visit(over, x -> {
                     if (x instanceof SqlAst.FunctionCall o && TsParser.OPTION.equals(fn(o))) {
                         throw invalid("an option by name is a timeseries function's: returns(x, type => 'log') (R10)",
                                 o.pos());
                     }
                 });
+                // each part read from its base's newest line: parts of one base are one table, its rows once (R7)
+                List<TsLines.Valued> read = parts.stream().map(p -> new TsLines.Valued(newest(p.line()), p.value()))
+                        .toList();
+                TsAst.Fill fill = query.fill();
+                List<String> points = read.stream().map(this::presence).filter(p -> !TsLines.ORD.equals(p)).distinct()
+                        .toList();
                 String value = fresh("pt");
+                if (read.stream().allMatch(p -> p.line() == read.get(0).line()) && (fill == null || points.isEmpty())) {
+                    // a column of the parts' table, a point where every part is (the library's rows::both), none
+                    // elsewhere (rows::masked)
+                    TsLines.Line out = grown(read.get(0).line(), rel -> call("extend", rel, new ColSpec(value,
+                            rowLambda(intervals(over), rel, false, "SELECT"))));
+                    if (points.isEmpty()) {
+                        return new TsLines.Valued(out, value);
+                    }
+                    String at = points.get(0);
+                    for (String next : points.subList(1, points.size())) {
+                        String a = at;
+                        String both = fresh("pts");
+                        out = grown(out, rel -> call(TsWords.ROWS + "both", rel, new ColSpec(a), new ColSpec(next),
+                                new ColSpec(both)));
+                        at = both;
+                    }
+                    String p = at;
+                    String masked = fresh("pt");
+                    out = grown(out, rel -> call(TsWords.ROWS + "masked", rel, new ColSpec(value), new ColSpec(p),
+                            new ColSpec(masked)));
+                    present(masked, p);
+                    return new TsLines.Valued(out, masked);
+                }
+                // lines meeting (R6): each part as its own line, met on their dates
+                List<TsLines.Valued> lines = read.stream().map(this::points).toList();
+                TsLines.Line met = TsLines.joined(this, lines, e.pos(), fill == null ? null : fill.how());
                 TsLines.Line out = grown(met, rel -> call("extend", rel, new ColSpec(value, rowLambda(intervals(over),
                         rel, false, "SELECT"))));
                 return new TsLines.Valued(out, value);

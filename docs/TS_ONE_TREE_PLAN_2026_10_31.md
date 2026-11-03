@@ -351,8 +351,9 @@ dashboard, tile kinds).
   3. **One table per base (R7; 2026-11-03, replacing the R7 fold)**: a source's column read twice is one line, and
      each per-point expression and each item over it is a column added to that line's table, every item read from
      the table's newest form. It is binding (which read is which), and the library sees only values; without it a
-     line with several rows on a date, met with itself, would multiply its rows. A word's answer is still its own
-     table until R7's part 2 (the v1 program's A1).
+     line with several rows on a date, met with itself, would multiply its rows. A word with a rows form in the
+     library (`timeseries::rows::`) is a column of that table too, and Java passes each value's points column
+     (`Lines.presence`); what points are is the library's (the v1 program's A1, R7 part 2).
   4. **R10's naming of a struct's fields**, `<item>_<field>`: Pure cannot build a column name from strings; the field
      names come from the word's return type.
   5. **A condition in a line's place is its flags** (1 where it holds, 0 where it does not, none where it is none;

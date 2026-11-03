@@ -706,6 +706,34 @@ class TsIslandTest {
                 assertEquals(2 * c, Double.parseDouble(r.get("d")), 1e-9, backend + ": d is its own row's c, twice");
                 assertEquals(c - 1, Double.parseDouble(r.get("e")), 1e-9, backend + ": e is its own row's c, less 1");
             }
+            // a word that keeps its line's rows is a column of the same table (the time model's D5): each row once,
+            // its first two rows (the first date's two) its ramp, every other row a mean of two of the line's values
+            List<Map<String, String>> word = rows(backend, "|#TS{SELECT CLOSE AS c, avg(CLOSE, 2) AS m"
+                    + " FROM PRICES ON DAY}#");
+            assertEquals(2 * AAA.length, word.size(), backend + ": a row a point, the word's answer a column");
+            assertEquals(2 * AAA.length - 2, word.stream().filter(r -> r.get("m") != null).count(),
+                    backend + ": none on the ramp's two rows, a value on every other");
+        }
+    }
+
+    @Test
+    void aWordOfAWordCountsFromTheFirstPointOfWhatItReads() throws Exception {
+        // R7 (2026-11-03): a word's answer is a column of its line's own table, no point of its ramp's rows (gs-quant's
+        // apply_ramp drops a word's first w points), and a figure of it no point where it is none -- so a word of
+        // either counts from the first point of what it reads, as over that value's own line
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(avg(CLOSE['AAA'], 3), 3) AS mm,"
+                    + " CLOSE['AAA'] / avg(CLOSE['AAA'], 3) - 1 AS dev, avg(dev, 2) AS md FROM PRICES ON DAY BY SYMBOL}#");
+            double[] x = AAA;
+            Double[] inner = each(x.length, i -> mean3(x, i));
+            Double[] dev = each(x.length, i -> i < 3 ? null : x[i] / mean3(x, i) - 1);
+            // the answer's rows: from dev's first point (the fourth date), the first row an item has a value in (R6)
+            assertClose(each(x.length - 3, i -> i + 3 < 6 ? null : (inner[i + 1] + inner[i + 2] + inner[i + 3]) / 3),
+                    column(got, null, null, "mm"), backend + ": a mean of means, from the inner's fourth point");
+            assertClose(each(x.length - 3, i -> dev[i + 3]), column(got, null, null, "dev"),
+                    backend + ": a figure of a word, none where the word has no point");
+            assertClose(each(x.length - 3, i -> i + 3 < 5 ? null : (dev[i + 2] + dev[i + 3]) / 2),
+                    column(got, null, null, "md"), backend + ": a word of that figure, from its third point");
         }
     }
 

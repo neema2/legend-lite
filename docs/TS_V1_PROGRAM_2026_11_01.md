@@ -245,8 +245,27 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       - SQL: three items over `CLOSE['AAA']` 3,728 -> 635 characters; `bollinger_bands` with a figure of its
         fields 6,038 -> 2,510; queries with no repeated read unchanged. Run times unchanged within noise.
       - Test: `TsIslandTest.theItemsOfOneColumnAreOneTableEachRowOnce` (every in-process database).
-    - **Part 2, next.** A word's answer is still its own table, so `CLOSE AS c, avg(CLOSE, 2) AS m` with no `BY`
-      still answers 46 rows for 24 points. Part 2 makes a window word a column of its line's table too.
+    - **Part 2, the slice (2026-11-03): `mean`'s window of w observations.** A word that keeps its line's rows has a
+      *rows form* in the library (`timeseries::rows::mean`): the word over a table's value column, its answer one more
+      column of that table. The translator calls it where the library has one; any other word still makes its own
+      line.
+      - **What it needed: points.** A word's answer is not a point of its ramp's rows (gs-quant's `apply_ramp` drops a
+        word's first w points), and a point may have no value (a return's first). One column cannot say both, and the
+        next word's ramp counts points: `avg(returns(close), 2)` starts on the third date, `avg(avg(x, 3), 3)` on the
+        seventh. So a value that is not a point of every row carries its points as another column. The rules are the
+        library's (`rows::mean` counts points, `rows::both` and `rows::masked` make a figure a point where all its
+        parts are, `rows::points` gives a value's own line to a word with no rows form). The translator passes the
+        column names (`Lines.presence`).
+      - Answers: `CLOSE AS c, avg(CLOSE, 2) AS m` with no `BY` 46 -> 24 rows. The frozen answers unchanged (parity,
+        class page, tile); the gs-quant oracle unchanged (145 agree, 1 the ruled difference).
+      - SQL: `spread, avg(spread, 3)` 8,312 -> 2,523 characters; `c, avg(c, 3)` 3,483 -> 1,116; a mean of means with a
+        figure of a word and a word of it 14,244 -> 6,430. Run times fell with them (5 runs: 372 -> 269 ms, 110 -> 87,
+        258 -> 137).
+      - Tests: `TsIslandTest.theItemsOfOneColumnAreOneTableEachRowOnce` (the word), and
+        `aWordOfAWordCountsFromTheFirstPointOfWhatItReads` (a mean of means, a figure of a word, a word of that figure,
+        each against gs-quant's ramp).
+    - **Part 3, next: every word that keeps its rows gets a rows form,** each held to the frozen answers and the
+      oracle. Then the line forms of those words are written through their rows forms, so each has one body.
 
 ### A2. Checkpoint: an independent review and the full gate
 

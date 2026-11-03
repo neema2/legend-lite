@@ -2097,6 +2097,52 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
   $x->timeseries::line::helpers::since($w)->timeseries::line::mean(timeseries::Scope.all)
 }
 
+// =====================================================================================================================
+// THE WORDS' ROWS FORMS (R7; the time model's D5, ruled 2026-11-03): one line's figures as columns of the line's own
+// table, each row once -- a line of several rows on a date never meets itself.
+//
+// A value of the table has its POINTS: the rows it is a point of. A source's column, and a figure of points alone, is
+// a point of every row; a word's answer is not a point of its ramp's rows (gs-quant's apply_ramp drops a word's first
+// w points), and a point may have no value (a return's first). One column cannot say both, so a value that is not a
+// point of every row has its points as another column, a value where it is a point and none elsewhere -- `present`,
+// which for a value of every row is any column every row has a value in (the line's number in time). #TS passes each
+// value's points; what they are is these functions'.
+
+// A WORD'S ROWS FORM: the word over t's value (its points `present`) by t's key in date order, its answer a column
+// `out` of t's own table, its points `points` -- t's rows and columns kept; the word's own parameters as its line
+// form's. #TS calls a word's rows form where the library has one. mean: the line form's window and ramp, the ramp
+// counting the value's points to date (a word of a word counts from its first point, as the line form's own line
+// does).
+function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->extend(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_m:{p,f,r|$r->read($value)}:y|if($y->count() < $w, |[], |$y->average()))
+    ->extend(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_n:{p,f,r|$r->read($present)}:y|$y->count())
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty() && ($x.rows_n->toOne() > $w), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->without(~rows_n)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+// Where two values are both points (R6: a per-point figure of several values is a point where every one is): 1, else
+// none.
+function timeseries::rows::both<T,A,B,O>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~rows_b:x|if($x->read($a)->isNotEmpty() && $x->read($b)->isNotEmpty(), |1, |[]))->rename(~rows_b, $out)
+}
+
+// A value where it is a point, none elsewhere: a per-point figure over values with points has none where one is not
+// a point (its line form, the values' lines met, has no row there).
+function timeseries::rows::masked<T,V,P,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~rows_v:x|if($x->read($present)->isNotEmpty(), |$x->read($value), |[]))->rename(~rows_v, $out)
+}
+
+// A value's own line (R6): t's rows it is a point of -- the line a word without a rows form reads, and lines meet as.
+function timeseries::rows::points<T,P>(t: Relation<T>[1], present: ColSpec<P⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(x|$x->read($present)->isNotEmpty())
+}
+// =====================================================================================================================
+
 function {meta::pure::profiles::doc.doc = 'The sum of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::sum(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)

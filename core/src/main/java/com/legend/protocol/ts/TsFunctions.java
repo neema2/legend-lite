@@ -58,6 +58,22 @@ final class TsFunctions {
 
         /** Records that {@code value}, a function's answer, is a struct (R10): each field's column, in order. */
         void struct(String value, Map<String, String> fields);
+
+        /** {@code line}'s base's newest table with a column {@code add} adds to it (R7: one table per base). */
+        TsLines.Line grown(TsLines.Line line,
+                java.util.function.Function<com.legend.protocol.spec.ValueSpecification,
+                        com.legend.protocol.spec.ValueSpecification> add);
+
+        /** The column of {@code v}'s points (the library's THE WORDS' ROWS FORMS): its own where it is not a point of
+         *  every row of its table, else the line's number in time, which every row has. */
+        String presence(TsLines.Valued v);
+
+        /** Records that {@code value}'s points are the column {@code points}. */
+        void present(String value, String points);
+
+        /** {@code v} as its own line: its table's rows it is a point of (the library's {@code rows::points}), or
+         *  {@code v} where it is a point of every row. */
+        TsLines.Valued points(TsLines.Valued v);
     }
 
     /** Whether {@code name} is a function of the language: one written here, or a word the library defines. */
