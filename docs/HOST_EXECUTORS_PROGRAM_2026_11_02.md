@@ -764,6 +764,12 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   refuse alike. *Settled 2026-11-03:* legend-engine and legend-pure refuse the same queries (§1.3 C), so the refusals
   are faithful and stay; their words are legend-engine's since D18 C (`Context:[Applying times], multiplicity:[0..1]`,
   register S128).
+- **The hosts send a statement without legend-engine's execution-trace line** (found 2026-11-03, by B's conformance
+  run). legend-engine's `RelationalExecutor` puts `-- "executionTraceID" : "<id>"` before every statement it runs, and
+  the JVM's seam does the same (`exec/ExecutionTrace`); the tab and Python send the plan's statement alone. Answers are
+  the same but for a database's message that counts lines (DuckDB's `LINE 4` on the JVM, `LINE 3` on a host): two
+  ledger entries. The fix is the hosts' runners' (R4/R5): the statement stamped by the core, its id the answer's
+  activity's, so a host's statement and its answer carry one id as the JVM's do.
 - **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
   builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
   answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
@@ -808,3 +814,16 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   call's name in `Typer`'s applied-function arm); its context a register row (S128). The tests that pinned lite's old
   words follow (core's compiler and lowering lanes, DataCube's `column_editor`, `infer`, `calc_fix`); DataCube's fix
   offer matches both words, as before. Rows S129-S131 record B's trace, D's two statements and H2's dynamic pivot.
+- 2026-11-03: B built: a database's refusal at run time answered on every host as legend-engine answers it -- 500,
+  `{"code":-1,"message":"<root cause's short class name>: <its message>","status":"error","trace":...}`. The JVM names
+  the driver's root cause (a `DataError` among the failure's causes, walked to the end; `ClassUtils`' short name) and
+  writes its own stack as `trace`; a host hands the core the plan it ran, the database's words and its own account of
+  the failure (`PureV1Api.databaseRefused`, exported as `lite_execute_refusal` and `executeRefusalOrError`), the class
+  the one legend-engine's JDBC driver for the plan's database throws (`Databases.jdbcFailureClass`: DuckDB's
+  `SQLException`; any other refused by name). The tab's execute throws legend-engine's error (an `EngineError` of
+  status 500); Python's JSON execute answers it. Before and after, on `errTypeMismatch`
+  (`->filter(x|$x.QTY == 'notanumber')`): Java `SQLException: Conversion Error: ...` (unchanged but for `trace`),
+  Python `ConversionException: Conversion Error: ...` -> `SQLException: Conversion Error: ...`, the tab a `QueryError`
+  of no status with DuckDB's words alone -> 500 with `SQLException: Conversion Error: ...`. Lite's other failures
+  keep their words and carry no trace (S129). The ledger: three entries gone, two narrower ones in (the trace line,
+  §7); sixteen entries. Python's Arrow execute keeps its own words until it moves onto the plan record (R3/R4).

@@ -67,6 +67,7 @@ function fakeExports(
     planJsonOrError: () => 'ERR\nfake\nnot in this fake',
     executeJsonPlanOrError: () => 'ERR\nfake\nnot in this fake',
     executeJsonAnswerOrError: () => 'ERR\nfake\nnot in this fake',
+    executeRefusalOrError: () => 'ERR\nfake\nnot in this fake',
     warmModelOrError: () => 'OK\n',
   };
 }

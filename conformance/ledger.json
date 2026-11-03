@@ -101,21 +101,14 @@
     "case": "errTypeMismatch",
     "check": "refusal-message",
     "hosts": "java/python",
-    "detail": "at 0: \"SQLException: Conversion Error: Could not convert \" vs \"ConversionException: Conversion Error: Could not c\"",
-    "why": "A database's failure is led by the failing class's name, each driver's own: JDBC's SQLException in Java, duckdb-python's ConversionException in Python."
-  },
-  {
-    "case": "errTypeMismatch",
-    "check": "refusal-status",
-    "hosts": "java/tab",
-    "detail": "500 vs 0",
-    "why": "The tab answers a database's failure as a QueryError, with no status; Java and Python answer 500."
+    "detail": "at 85: \"g 'notanumber' to INT32\\n\\nLINE 4: WHERE t0.QTY = 'notanumber'\\n                   \" vs \"g 'notanumber' to INT32\\n\\nLINE 3: WHERE t0.QTY = 'notanumber'\\n                   \"",
+    "why": "Every host answers a database's refusal in legend-engine's words since D18 B (500, SQLException: and the database's own); the JVM sends each statement with legend-engine's execution-trace comment as its first line (ExecutionTrace, as legend-engine's RelationalExecutor stamps it), the hosts send the plan's statement alone, so DuckDB counts its lines one fewer. The hosts' runners stamp it in R4/R5 (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   },
   {
     "case": "errTypeMismatch",
     "check": "refusal-message",
     "hosts": "java/tab",
-    "detail": "at 0: \"SQLException: Conversion Error: Could not convert \" vs \"Conversion Error: Could not convert string 'notanu\"",
-    "why": "The tab's database failure carries DuckDB's words alone, no failing class leading them."
+    "detail": "at 85: \"g 'notanumber' to INT32\\n\\nLINE 4: WHERE t0.QTY = 'notanumber'\\n                   \" vs \"g 'notanumber' to INT32\\n\\nLINE 3: WHERE t0.QTY = 'notanumber'\\n                   \"",
+    "why": "Every host answers a database's refusal in legend-engine's words since D18 B (500, SQLException: and the database's own); the JVM sends each statement with legend-engine's execution-trace comment as its first line (ExecutionTrace, as legend-engine's RelationalExecutor stamps it), the hosts send the plan's statement alone, so DuckDB counts its lines one fewer. The hosts' runners stamp it in R4/R5 (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
   }
 ]

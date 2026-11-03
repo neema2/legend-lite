@@ -740,6 +740,60 @@ class PureV1ApiTest {
     }
 
     /**
+     * D18 B (the user, 2026-11-03): a database's refusal at run time answered as legend-engine answers one
+     * ({@code ExceptionError}) -- by the server, named by its root cause, the driver's own failure all the way down, its
+     * stack the {@code trace}; by a host, from the database's words ({@code databaseRefused}), named by the class DuckDB's
+     * JDBC driver throws, the host's account of it the {@code trace} (S129). lite's own failures keep their words; a
+     * database no host runs is refused, never guessed.
+     */
+    @Test
+    void aDatabasesRefusal_isLegendEnginesAnswer_onTheServerAndOnAHost() {
+        String asked = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
+        PureV1Api.Answer server = PureV1Api.route("/api/pure/v1/execution/execute", null, asked, (q, runtime, sinkOf) -> {
+            throw new com.legend.error.DataError("Data conversion error converting \"x\"", new IllegalStateException(
+                    "Data conversion error converting \"x\"", new NumberFormatException("For input string: \"x\"")));
+        });
+        Json.Obj said = Json.parseObject(server.json());
+        assertEquals(500, server.status(), server.json());
+        assertEquals("NumberFormatException: For input string: \"x\"", said.getString("message"));
+        assertTrue(said.getString("trace").startsWith("com.legend.error.DataError: Data conversion error"), server.json());
+        // legend-engine's keys, sorted, no errorType
+        assertEquals(List.of("code", "message", "status", "trace"), List.copyOf(said.fields().keySet()));
+        // lite's own failure keeps its words (legend-engine has no answer for it to copy), and no trace: a planning
+        // answer is one text on every build (the tab's module answers it byte for byte as the JVM)
+        PureV1Api.Answer own = PureV1Api.route("/api/pure/v1/execution/execute", null, asked, (q, runtime, sinkOf) -> {
+            throw new IllegalArgumentException("the plan half's answer does not read", new NumberFormatException("1x"));
+        });
+        assertEquals("{\"code\":-1,\"message\":\"IllegalArgumentException: the plan half's answer does not read\","
+                + "\"status\":\"error\"}", own.json());
+
+        // a host: the plan it ran, its database's words
+        String duck = """
+                ###Relational
+                Database t::DB ( Table T ( ID INTEGER PRIMARY KEY, QTY INTEGER ) )
+                ###Connection
+                RelationalDatabaseConnection t::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                Runtime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }
+                """;
+        PureV1Api.Answer plan = PureV1Api.jsonPlan("{\"function\":" + PureV1Api.grammarToJsonLambda(
+                "|#>{t::DB.T}#->from(t::RT)", false).json() + ",\"model\":"
+                + Json.toCompact(Map.of("_type", "text", "code", duck)) + "}", List.of(duck));
+        assertEquals(200, plan.status(), plan.json());
+        PureV1Api.Answer host = PureV1Api.databaseRefused(plan.json(),
+                "Conversion Error: Could not convert string 'x' to INT32", "ConversionException: Conversion Error");
+        assertEquals(500, host.status());
+        assertEquals("{\"code\":-1,\"message\":\"SQLException: Conversion Error: Could not convert string 'x' to INT32\","
+                + "\"status\":\"error\",\"trace\":\"ConversionException: Conversion Error\"}", host.json());
+        // a database no host runs (this H2 one): refused by name
+        PureV1Api.Answer h2 = PureV1Api.jsonPlan(asked, List.of(model));
+        assertEquals(200, h2.status(), h2.json());
+        IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> PureV1Api.databaseRefused(h2.json(), "no", "no"));
+        assertTrue(refused.getMessage().contains("this plan's database is H2's"), refused.getMessage());
+    }
+
+    /**
      * G2: a graph fetch through execute is the engine's JSON result -- its recorded answers for
      * the Query app's demo model, compared as JSON trees: one object bare, none as [], checked
      * results with their defects, nesting across to-one and to-many, derived properties.

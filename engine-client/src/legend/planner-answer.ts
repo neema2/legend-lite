@@ -23,6 +23,7 @@ export interface PlannerModule {
     pureV1OrError(path: string, rawQuery: string, body: string): string;
     executeJsonPlanOrError(body: string, modelsJson: string): string;
     executeJsonAnswerOrError(plan: string, rows: string): string;
+    executeRefusalOrError(plan: string, message: string, trace: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;
@@ -46,6 +47,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'pureV1': return m.exports.pureV1OrError(r.path, r.query, r.body);
     case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
     case 'executeAnswer': return m.exports.executeJsonAnswerOrError(r.plan, r.rows);
+    case 'executeRefusal': return m.exports.executeRefusalOrError(r.plan, r.message, r.trace);
     case 'testData': return m.exports.testDataSqlOrError(r.model, r.database, r.tables);
     case 'sessionSetup': return m.exports.sessionSetupOrError(r.databaseType);
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);

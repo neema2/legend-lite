@@ -791,6 +791,21 @@ public final class PureV1Api {
     }
 
     /**
+     * A host's run of {@link #jsonPlan}'s plan refused by its database (D18 B, the user 2026-11-03; the twin of
+     * {@link #jsonAnswer} for a run that answered no rows): answered as legend-engine answers a database's refusal at
+     * run time ({@code Execute}'s catch, {@code ExceptionTool}, {@code ExceptionError}) and as legend-lite's server
+     * answers its own ({@link #named}) -- 500, {@code {"code":-1,"message":"<class>: <the database's words>",
+     * "status":"error","trace":...}}. {@code message}: the database's words as the host received them; the class: the
+     * one legend-engine's JDBC driver for the plan's database throws ({@code Databases.jdbcFailureClass}); {@code trace}: the host's
+     * own account of the failure, since no host carries legend-engine's stack (S129).
+     */
+    public static Answer databaseRefused(String plan, String message, String trace) {
+        String failure = com.legend.database.Databases.jdbcFailureClass(
+                hostResult(plan).sql().target().database().type());
+        return error(500, null, failure + ": " + message, trace);
+    }
+
+    /**
      * {@code ExecuteInput.parameterValues} ({@code [{name, value}]}, each value a protocol value
      * specification -- a literal, a collection, an enum value, a call such as {@code today()})
      * bound to the lambda's parameters: each becomes {@code let name = value;} ahead of the
@@ -1085,7 +1100,9 @@ public final class PureV1Api {
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
                 e.printStackTrace();
             }
-            return error(500, null, named(e));
+            // legend-engine's ExceptionError: the failure named, and, for a database's refusal at run time, its stack
+            // (lite's own: S129; D18 B) -- a planning answer stays one text on every build
+            return error(500, null, named(e), databaseRefusal(e) ? trace(e) : null);
         }
     }
 
@@ -1116,13 +1133,56 @@ public final class PureV1Api {
                 || e instanceof com.legend.sql.dialect.DialectCapability;
     }
 
-    /** Any other failure, as the server writes it: its class's simple name and its message (a database's refusal, its cause's). */
+    /**
+     * Any other failure, as legend-engine names one ({@code ExceptionError}: {@code ExceptionUtils.getRootCauseMessage},
+     * D18 B, the user 2026-11-03): a database's refusal (a {@link com.legend.error.DataError} anywhere in its causes) by
+     * its ROOT cause, the driver's own failure all the way down (on H2 a malformed number's
+     * {@code NumberFormatException}, where one level up names {@code JdbcSQLDataException}); any other failure -- lite's
+     * own, which legend-engine has no answer for -- by itself, so its words keep their context. Its class's short name
+     * ({@link #shortClassName}), a colon, and its message (none an empty one).
+     */
     private static String named(Throwable e) {
-        Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-        return n.getClass().getSimpleName() + ": " + n.getMessage();
+        Throwable n = databaseRefusal(e) ? causes(e).get(causes(e).size() - 1) : e;
+        return shortClassName(n) + ": " + (n.getMessage() == null ? "" : n.getMessage());
+    }
+
+    /** Whether {@code e} is a database's refusal at run time: a {@link com.legend.error.DataError} among its causes. */
+    private static boolean databaseRefusal(Throwable e) {
+        return causes(e).stream().anyMatch(t -> t instanceof com.legend.error.DataError);
+    }
+
+    /** {@code e} and its causes, in order, each once ({@code ExceptionUtils.getThrowableList}). */
+    private static List<Throwable> causes(Throwable e) {
+        List<Throwable> causes = new ArrayList<>();
+        for (Throwable t = e; t != null && !causes.contains(t); t = t.getCause()) {
+            causes.add(t);
+        }
+        return causes;
+    }
+
+    /** {@code t}'s class as legend-engine names it ({@code ClassUtils.getShortClassName}): its package dropped, a nested
+     *  class joined to its outer one by a dot ({@code Outer.Inner}). */
+    private static String shortClassName(Throwable t) {
+        String name = t.getClass().getName();
+        return name.substring(name.lastIndexOf('.') + 1).replace('$', '.');
+    }
+
+    /** {@code e}'s stack as Java prints it: legend-engine's {@code trace} ({@code ExceptionError}), here lite's own
+     *  (S129). */
+    private static String trace(Throwable e) {
+        java.io.StringWriter out = new java.io.StringWriter();
+        e.printStackTrace(new java.io.PrintWriter(out));
+        return out.toString();
     }
 
     private static Answer error(int status, @com.legend.base.Nullable String errorType, String message) {
+        return error(status, errorType, message, null);
+    }
+
+    /** legend-engine's error envelope ({@code ExceptionError}, its keys sorted and its nulls dropped:
+     *  {@code ObjectMapperFactory}). */
+    private static Answer error(int status, @com.legend.base.Nullable String errorType, String message,
+            @com.legend.base.Nullable String trace) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("code", -1);
         if (errorType != null) {
@@ -1130,6 +1190,9 @@ public final class PureV1Api {
         }
         out.put("message", message);
         out.put("status", "error");
+        if (trace != null) {
+            out.put("trace", trace);
+        }
         return new Answer(status, Json.toCompact(out));
     }
 }

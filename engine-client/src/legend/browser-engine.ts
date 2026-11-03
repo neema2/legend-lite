@@ -12,13 +12,12 @@
 // pure/v1, as the server routes them.
 
 import { findAll, isFunction, type Lambda } from '../../../pure-protocol/src/index.ts';
-import type { QueryEngine } from '../engine.ts';
+import { QueryError, type QueryEngine, type RawTable } from '../engine.ts';
 import { answerStatement } from '../plan-record.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
 import type { CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer } from './wire.ts';
-import type { RawTable } from '../engine.ts';
 import type { Scalar } from '../result.ts';
 
 /** The runtime a query runs on: the last argument of its `->from(...)`. */
@@ -64,7 +63,15 @@ export class BrowserEngine implements Engine {
   async executeText(input: ExecuteInput, signal?: AbortSignal): Promise<string> {
     const plan = await this.#planner.executePlan(input);
     // the plan's one statement, its rows handed back as the engine's decoder read them
-    const raw = await this.#engine.run(answerStatement(plan), 0, signal);
+    let raw: RawTable;
+    try {
+      raw = await this.#engine.run(answerStatement(plan), 0, signal);
+    } catch (e) {
+      // the database refusing the statement: answered as legend-engine answers it, by the planner (D18 B), from the
+      // database's own words
+      if (e instanceof QueryError) return this.#planner.executeRefusal(plan, e.message, e.message);
+      throw e;
+    }
     return this.#planner.executeAnswer(plan, hostRows(raw));
   }
 

@@ -98,6 +98,24 @@ public final class Databases {
         };
     }
 
+    /**
+     * The class of the failure the JDBC driver legend-engine runs {@code type} with throws when the database refuses a
+     * statement: the root cause legend-engine's answer to that refusal names ({@code ExceptionError}:
+     * {@code ExceptionUtils.getRootCauseMessage}; D18 B, the user 2026-11-03), which a host that runs the statement
+     * itself, on its own driver, answers with ({@code PureV1Api.databaseRefused}). DuckDB's driver throws
+     * {@code java.sql.SQLException}, its message the database's own words (legend-lite's server, on the same driver,
+     * names the same: the conformance suite). A host runs DuckDB alone (the tab's DuckDB-WASM, Python's duckdb): any
+     * other database is refused here by name, never guessed -- Snowflake's driver's class is read from that driver when
+     * a host runs Snowflake (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R7).
+     */
+    public static String jdbcFailureClass(DatabaseType type) {
+        if (type != DatabaseType.DuckDB) {
+            throw new IllegalArgumentException("a host answers a DuckDB database's refusal, and this plan's database is "
+                    + type + "'s: no host runs it");
+        }
+        return "SQLException";
+    }
+
     /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
      *  its runner checks the session's version against. A version with no dot is itself. */
     public static String majorMinor(String version) {

@@ -383,6 +383,22 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A plan's statement refused by the host's database, as legend-engine answers one ({@code Boundary.executeRefusal},
+     *  D18 B). */
+    @CEntryPoint(name = "lite_execute_refusal")
+    static CCharPointer executeRefusal(IsolateThread thread, CCharPointer plan, CCharPointer message, CCharPointer trace) {
+        String a;
+        try {
+            String p = text(plan);
+            String m = text(message);
+            String t = text(trace);
+            a = Folded.http(() -> Boundary.executeRefusal(p, m, t));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A host's refusal of a call it could not finish, in the engine's error shape ({@code Boundary.refusal}). */
     @CEntryPoint(name = "lite_pure_v1_refusal")
     static CCharPointer refusal(IsolateThread thread, CCharPointer message) {

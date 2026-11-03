@@ -316,6 +316,13 @@ def execute_json_answer(plan: str, rows: str) -> Answer:
     return _http(library().call('lite_execute_json_answer', plan, rows))
 
 
+def execute_refusal(plan: str, message: str, trace: str) -> Answer:
+    """:func:`execute_json_plan`'s statement refused by the host's database, answered as legend-engine answers a
+    database's refusal at run time (D18 B: ``PureV1Api.databaseRefused``): ``message`` the database's words, ``trace``
+    how this host received them (register S129)."""
+    return _http(library().call('lite_execute_refusal', plan, message, trace))
+
+
 def host_rows(names: list[str], rows: list[tuple]) -> str:
     """A result's rows as the compiler reads a host's rows back (``PureV1Api.jsonAnswer``): a JSON array of objects,
     each a column's name and its cell exactly as the driver read it -- an integer's digits, a float's shortest digits

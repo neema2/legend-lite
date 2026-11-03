@@ -123,6 +123,13 @@ public final class Boundary {
         return com.legend.server.PureV1Api.refused(message);
     }
 
+    /** {@code plan}'s statement refused by the host's database: answered as legend-engine answers a database's refusal
+     *  ({@code PureV1Api.databaseRefused}, D18 B), {@code message} the database's words, {@code trace} the host's own
+     *  account of the failure. */
+    public static com.legend.server.PureV1Api.Answer executeRefusal(String plan, String message, String trace) {
+        return com.legend.server.PureV1Api.databaseRefused(plan, message, trace);
+    }
+
     // ---- planning and typing
 
     /**

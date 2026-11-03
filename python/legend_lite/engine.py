@@ -363,6 +363,9 @@ class NativePlanner:
     def execute_json_answer(self, plan: str, rows: str) -> compiler.Answer:
         return compiler.execute_json_answer(plan, rows)
 
+    def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
+        return compiler.execute_refusal(plan, message, trace)
+
     def refusal(self, message: str) -> compiler.Answer:
         return compiler.refusal(message)
 
@@ -1657,9 +1660,17 @@ class Engine:
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                cursor = connection.execute(compiler.answer_statement(planned.body))
-                names = [d[0] for d in cursor.description]
-                rows = compiler.host_rows(names, cursor.fetchall())
+                try:
+                    cursor = connection.execute(compiler.answer_statement(planned.body))
+                    names = [d[0] for d in cursor.description]
+                    fetched = cursor.fetchall()
+                except duckdb.Error as refused:
+                    # the database refusing the plan's statement: answered as legend-engine answers it, by the core
+                    # (D18 B), from DuckDB's own words; the trace this host's account of it
+                    answer = self.planner.execute_refusal(planned.body, str(refused),
+                                                          f'{type(refused).__name__}: {refused}')
+                    return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+                rows = compiler.host_rows(names, fetched)
         answer = self.planner.execute_json_answer(planned.body, rows)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 

@@ -176,6 +176,16 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
+  /**
+   * Execute's answer when the tab's database refused `plan`'s statement (PureV1Api.databaseRefused, D18 B): thrown as
+   * legend-engine answers a database's refusal -- an EngineError of status 500 whose message is the failure's class
+   * and the database's words (`message`); `trace` the tab's own account of the failure.
+   */
+  async executeRefusal(plan: string, message: string, trace: string): Promise<never> {
+    answered(await this.#port.ask({ kind: 'executeRefusal', plan, message, trace }));
+    throw new EngineError(`the planner answered a database's refusal as no refusal: ${message}`, 500);
+  }
+
   /** A query planned on its runtime for the tab to run: the plan record (PlanJson's text, its one typed result; R2),
    *  read by relation-type.ts recordPlan. */
   async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<string> {
