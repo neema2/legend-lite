@@ -6,7 +6,8 @@
 //
 // Per query: the SQL's bytes; its CASE expressions (all, and distinct); the CASE whose copies past its first weigh most
 // (its copies, its bytes, and those extra copies' share of the SQL: what saying it once would save); its windows
-// (`OVER (`); DuckDB's time to run it, the median of RUNS after one not timed.
+// (`OVER (`); DuckDB's time to run it, the median of RUNS after one not timed; and the planner's time to write it
+// (legend-lite's own, as the page runs it: its first plan of the query, then the median of RUNS more).
 
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -85,6 +86,8 @@ interface Measured {
   topCaseShare: number;
   windows: number;
   runMs: number;
+  firstPlanMs: number;
+  planMs: number;
 }
 
 let engine: DuckDbEngine;
@@ -119,8 +122,8 @@ before(async () => {
 after(async () => {
   await engine?.close();
   const rows = results.map((m) => [m.name, m.bytes, m.cases, m.distinctCases, m.topCaseCopies, m.topCaseBytes,
-    `${Math.round(m.topCaseShare * 100)}%`, m.windows, m.runMs]);
-  const head = ['query', 'bytes', 'CASEs', 'distinct', 'top copies', 'top bytes', 'extra share', 'windows', 'run ms'];
+    `${Math.round(m.topCaseShare * 100)}%`, m.windows, m.runMs, m.firstPlanMs, m.planMs]);
+  const head = ['query', 'bytes', 'CASEs', 'distinct', 'top copies', 'top bytes', 'extra share', 'windows', 'run ms', 'first plan ms', 'plan ms'];
   const widths = head.map((h, i) => Math.max(h.length, ...rows.map((r) => String(r[i]).length)));
   const line = (r: unknown[]): string => r.map((v, i) => String(v).padStart(widths[i]!)).join('  ');
   console.log(['', line(head), ...rows.map(line), ''].join('\n'));
@@ -137,7 +140,16 @@ for (const q of QUERIES) {
     const series: TsSeries = { id: 'A', expr: parseExpr(q.expr) };
     const query: TsQuery = q.stats ? statsQuery(inputs, { ...ts, series: [series] }, series)
       : seriesQuery(inputs, { ...ts, series: [series] }, series);
+    const p0 = performance.now();
     const plan = await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]);
+    const firstPlanMs = performance.now() - p0;
+    const plans: number[] = [];
+    for (let i = 0; i < RUNS; i++) {
+      const t0 = performance.now();
+      await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]);
+      plans.push(performance.now() - t0);
+    }
+    plans.sort((a, b) => a - b);
     const sql = plan.sql;
     const all = cases(sql);
     const counts = new Map<string, number>();
@@ -166,6 +178,8 @@ for (const q of QUERIES) {
       topCaseShare: extra(top) / sql.length,
       windows: sql.split('OVER (').length - 1,
       runMs: Math.round(times[Math.floor(RUNS / 2)]!),
+      firstPlanMs: Math.round(firstPlanMs),
+      planMs: Math.round(plans[Math.floor(RUNS / 2)]!),
     });
     if (out) {
       mkdirSync(path.join(out, 'sql'), { recursive: true });
