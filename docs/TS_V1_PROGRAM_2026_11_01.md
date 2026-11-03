@@ -283,6 +283,20 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       (every in-process database: the lookup's 24 rows; both refused by name, in an expression and as two items).
     - Found on the way: `p.CLOSE - q.CLOSE` over two aliases of one table is one line (R7's one read), 0 on each row,
       not two lines meeting.
+  - **The broadcast by a column's type (2a, ruled 2026-11-03). The compiler's half done 2026-11-03 (7fd31cf1); the
+    library's half waits on one more port.**
+    - Done: two user-function overloads that differ only in a relation parameter's column type are two functions
+      (register S131: a user function's id spells its relation's columns; a reference in upstream's spelling still
+      resolves), ranked as legend-pure's `RelationTypeMatch` ranks them (PARK-10's relation-columns part, ported, with
+      its kernel test). So a word over `Relation<(key:All, ...)>` beside its `Relation<(key:K, ...)>` is picked by the
+      line's key type.
+    - Waits: the library's meeting functions take their columns as `ColSpec` parameters (`ColSpec<K⊆T>`), so the
+      broadcast's choice there is between `ColSpec<(?:All)⊆U>` and `ColSpec<L⊆U>`. legend-pure ranks those by the
+      type argument's column type (a concrete one beats a type parameter); lite ranks a `⊆` argument as untyped
+      (PARK-10's type-operations part), so the two would tie. Porting it is the next construct, and the same one
+      lets D4's grain refusal be an overload (`ColSpec<(?:StrictDate)⊆T>` against `DateTime`). Then `Keyed`, the
+      `TsWords.each` branch, `keyed()` and the `byInstrument` flag go, and `TsTranslatorGuardrailTest`'s list of
+      branches on a line's kind goes to zero.
   - **Moments meeting days (the time model's D4; its proof steps 1 and 4). Today's answer recorded 2026-11-03; the
     refusal waits on a construct.**
     - Today (`TsIslandTest.aLineOfMomentsMeetingALineOfDaysAsItIsToday`, every in-process database, a `TICKS` table of
