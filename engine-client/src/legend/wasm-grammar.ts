@@ -176,11 +176,6 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
-  /**
-   * Execute's answer when the tab's database refused `plan`'s statement (PureV1Api.databaseRefused, D18 B): thrown as
-   * legend-engine answers a database's refusal -- an EngineError of status 500 whose message is the failure's class
-   * and the database's words (`message`); `trace` the tab's own account of the failure.
-   */
   /** A pivot's body for the keys the tab read (PureV1Api.keyedBody, D18 D): the statement and the text each of its
    *  placeholders binds. */
   async keyedBody(plan: string, keys: string): Promise<{ readonly statement: string; readonly parameters: readonly string[] }> {
@@ -192,6 +187,11 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'keyedAnswer', plan, keys, rows, reported }));
   }
 
+  /**
+   * Execute's answer when the tab's database refused `plan`'s statement (PureV1Api.databaseRefused, D18 B): thrown as
+   * legend-engine answers a database's refusal -- an EngineError of status 500 whose message is the failure's class
+   * and the database's words (`message`); `trace` the tab's own account of the failure.
+   */
   async executeRefusal(plan: string, message: string, trace: string): Promise<never> {
     answered(await this.#port.ask({ kind: 'executeRefusal', plan, message, trace }));
     throw new EngineError(`the planner answered a database's refusal as no refusal: ${message}`, 500);

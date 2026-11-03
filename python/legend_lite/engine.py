@@ -1685,26 +1685,30 @@ class Engine:
 
     def _execute_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
         """A pivot whose columns its data names, run as the JVM's runner runs it (D18 D): its keys, then the body the
-        compiler writes for them, DESCRIBEd (DuckDB's own type names, legend-engine's header's source) and run with the
-        keys bound, in one transaction; the answer the compiler's, from the rows and the report."""
+        compiler writes for them, described (the compiler's ``describe`` operation: DuckDB's own type names,
+        legend-engine's header's source) and run with the keys bound, in one transaction; the answer the compiler's,
+        from the rows and the report. The transaction's and the description's statements are the compiler's (host
+        operations)."""
         try:
             # the keys and the body in one transaction, so the keys are the body's (the plan's snapshot)
-            connection.execute('BEGIN TRANSACTION')
+            _host.run(connection, {'op': 'transaction', 'step': 'begin'})
             try:
                 keys = [[None if c is None else str(c) for c in row]
                         for row in connection.execute(keys_statement).fetchall()]
                 written = self.planner.keyed_body(plan, json.dumps(keys))
                 if written.status == 200:
                     body = json.loads(written.body)
-                    reported = [row[1] for row in
-                                connection.execute('DESCRIBE ' + body['statement'], body['parameters']).fetchall()]
+                    (describe,) = _host.statements({'op': 'describe', 'statement': body['statement']})
+                    described = connection.execute(describe, body['parameters'])
+                    at = [d[0] for d in described.description].index('column_type')
+                    reported = [row[at] for row in described.fetchall()]
                     cursor = connection.execute(body['statement'], body['parameters'])
                     names = [d[0] for d in cursor.description]
                     rows = compiler.host_rows(names, cursor.fetchall())
             except BaseException:
-                connection.execute('ROLLBACK')
+                _host.run(connection, {'op': 'transaction', 'step': 'rollback'})
                 raise
-            connection.execute('COMMIT')
+            _host.run(connection, {'op': 'transaction', 'step': 'commit'})
         except duckdb.Error as refused:
             answer = self.planner.execute_refusal(plan, str(refused), f'{type(refused).__name__}: {refused}')
             return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))

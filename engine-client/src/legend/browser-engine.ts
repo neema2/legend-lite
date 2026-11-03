@@ -14,6 +14,7 @@
 import { findAll, isFunction, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { QueryError, type QueryEngine, type RawTable } from '../engine.ts';
 import { answerStatement, keyedStatement } from '../plan-record.ts';
+import { hostSession } from '../plan-runner.ts';
 import type { HeldConnection } from '../duckdb.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
@@ -63,8 +64,8 @@ export class BrowserEngine implements Engine {
   /** `execute`'s answer as its text: planned, run on the engine, and written by the server's own writer. */
   async executeText(input: ExecuteInput, signal?: AbortSignal): Promise<string> {
     const plan = await this.#planner.executePlan(input);
-    const keys = keyedStatement(plan);
-    if (keys !== undefined) return this.#keyed(plan, keys);
+    const keyed = keyedStatement(plan);
+    if (keyed !== undefined) return this.#keyed(plan, keyed, signal);
     // the plan's one statement, its rows handed back as the engine's decoder read them
     let raw: RawTable;
     try {
@@ -79,37 +80,47 @@ export class BrowserEngine implements Engine {
   }
 
   /**
-   * A pivot whose columns its data names, run as the JVM's runner runs it (D18 D), on the tab's database held for it:
-   * its keys, then the body the planner writes for them, DESCRIBEd (DuckDB's own type names, legend-engine's header's
-   * source: its Arrow writes a sum of integers as a decimal) and run with the keys bound; the answer the planner's,
-   * from the rows and the report. An engine that holds no connection (a server's) answers no such plan.
+   * A pivot whose columns its data names, run as the JVM's runner runs it (D18 D), on the tab's database held for it,
+   * in one transaction (so the keys are the body's): its keys, then the body the planner writes for them, described
+   * (the planner's `describe` operation: DuckDB's own type names, legend-engine's header's source -- its Arrow writes a
+   * sum of integers as a decimal) and run with the keys bound; the answer the planner's, from the rows and the report.
+   * The transaction's and the description's statements are the planner's (host operations, by the plan's database).
+   * Once begun it runs to its end: DuckDB-WASM cannot interrupt a statement inside its call, so `signal` is checked
+   * before anything runs. An engine that holds no connection (a server's) answers no such plan.
    */
-  async #keyed(plan: string, keysStatement: string): Promise<string> {
+  async #keyed(plan: string, keyed: { readonly statement: string; readonly databaseType: string }, signal?: AbortSignal): Promise<string> {
     const engine = this.#engine;
     if (engine.exclusive === undefined) {
       throw new EngineError(`a pivot whose columns its data names runs its keys first, on a database held for it, and ${engine.name} holds none`, 500);
     }
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return engine.exclusive(async (db: HeldConnection) => {
+      const session = await hostSession(keyed.databaseType, (sql, params) => db.rows(sql, params), this.#planner);
       let keys: string;
       let rows: string;
       let reported: string;
+      await session.transaction('begin');
       try {
-        const read = await db.table(keysStatement);
+        const read = await db.table(keyed.statement);
         keys = JSON.stringify(Array.from({ length: read.rowCount }, (_, r) => read.columns.map((c) => {
           const v = c.values[r];
           return v === null || v === undefined ? null : String(v);
         })));
         const body = await this.#planner.keyedBody(plan, keys);
-        const described = await db.table(`DESCRIBE ${body.statement}`, body.parameters);
+        const [describe] = await this.#planner.hostOperations(keyed.databaseType, [{ op: 'describe', statement: body.statement }]);
+        if (describe?.length !== 1) throw new EngineError(`the planner describes a statement in one statement, not ${describe?.length ?? 0}`, 500);
+        const described = await db.table(describe[0]!, body.parameters);
         const types = described.columns.find((c) => c.name === 'column_type');
-        if (types === undefined) throw new EngineError("DESCRIBE answered no column_type: the tab's database reports no column types", 500);
+        if (types === undefined) throw new EngineError("the description answered no column_type: the tab's database reports no column types", 500);
         reported = JSON.stringify(types.values.map((v) => String(v)));
         rows = hostRows(await db.table(body.statement, body.parameters));
       } catch (e) {
+        await session.transaction('rollback');
         // the database refusing a statement: answered as legend-engine answers it (D18 B)
         if (e instanceof QueryError) return this.#planner.executeRefusal(plan, e.message, e.message);
         throw e;
       }
+      await session.transaction('commit');
       return this.#planner.keyedAnswer(plan, keys, rows, reported);
     });
   }

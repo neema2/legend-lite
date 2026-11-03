@@ -45,14 +45,14 @@ public final class ArrowWriter implements ResultSink {
     private final OutputStream out;
     private final @com.legend.base.Nullable Map<String, String> fixed;
     private final java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
-            @com.legend.base.Nullable List<String>, Map<String, String>> dynamic;
+            @com.legend.base.Nullable List<@com.legend.base.Nullable String>, Map<String, String>> dynamic;
     private List<Enc> encoders = List.of();
 
     /** Onto {@code out}, a DYNAMIC result's (a pivot whose columns its data names): {@code schemaMetadata} the stream's
      *  custom metadata (key to value), in order, made from the columns the result announces and the database's report
      *  of each ({@link ResultSink#columns(List, List)}; D18 F). */
     public ArrowWriter(OutputStream out, java.util.function.BiFunction<List<ExecutionPlan.Column>,
-            @com.legend.base.Nullable List<String>, Map<String, String>> schemaMetadata) {
+            @com.legend.base.Nullable List<@com.legend.base.Nullable String>, Map<String, String>> schemaMetadata) {
         this.out = out;
         this.fixed = null;
         this.dynamic = schemaMetadata;
@@ -66,7 +66,7 @@ public final class ArrowWriter implements ResultSink {
     }
 
     @Override
-    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
             throws IOException {
         if (dynamic == null) {
             columns(columns);

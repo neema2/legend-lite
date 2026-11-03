@@ -45,7 +45,7 @@ public final class Batcher {
 
     /** A DYNAMIC result's columns, to the sink with the database's report of each ({@code reported}; null where the
      *  database reports none), before any row ({@link ResultSink#columns(List, List)}). */
-    public void start(@com.legend.base.Nullable List<String> reported) throws IOException {
+    public void start(@com.legend.base.Nullable List<@com.legend.base.Nullable String> reported) throws IOException {
         if (started) {
             throw new IllegalStateException("a result is started once");
         }

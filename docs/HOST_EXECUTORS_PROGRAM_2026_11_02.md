@@ -703,13 +703,13 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
    (`perKeyAt`, `place`), the names each statement's cells are read under, the column cap (`maxColumns`) -- move out of
    `exec` into the plan record's package, one function the JVM's runner and the hosts' boundary both call
    (`exec` keeps the sessions and the sending; the planner-side builds carry no `exec`).
-2. **The host runs two statements** in one snapshot: the keys statement (its rows the keys' texts and names), then the
+2. **The host runs the keys and the body** in one transaction (with the body's description between them, item 5): the keys statement (its rows the keys' texts and names), then the
    body the core expanded for them, each key's text BOUND as the JVM binds it (a `?` per key cell; the tab's held
    connection prepares, `duckdb.ts` `exclusive`; Python's cursor binds).
 3. **The answer is the core's**: the host hands back the keys' rows, the body's rows (`hostRows`) and each body
    column's type as its database reported it; the core writes legend-engine's answer, its header from that report
    (F's `dynamicEnvelope`), the grid's typed rows from the expansion's columns.
-4. **`HostPlans.read` accepts a `Keyed` root** whose statements bind only key cells; anything else stays refused.
+4. **`HostPlans.query` accepts a `Keyed` root** whose statements bind only key cells (the execute route's profile); the grid's `HostPlans.read` keeps refusing it, and anything else stays refused.
 5. **The tab's report, measured (2026-11-03, DuckDB-WASM under Node, a pivot body's eight columns):** its Arrow
    schema answers `Int32, Decimal[38e0], Float64, Decimal[38e+2], Bool, Date32<DAY>, Timestamp<MICROSECOND>, Int64`
    -- a `HUGEINT` (a sum of integers, legend-engine's `Integer`) is a 128-bit decimal there, which the prefix rule
@@ -717,7 +717,7 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
    `INTEGER, HUGEINT, DOUBLE, DECIMAL(38,2), BOOLEAN, DATE, TIMESTAMP, BIGINT` -- the names DuckDB's JDBC driver reports
    as `getColumnTypeName` -- and does so for a prepared statement with the keys' values bound, planning the body
    without running it. So the tab's report is a `DESCRIBE` of the expanded body (the connector's how, as D76 put a
-   first step's). Python's driver reports DuckDB's names itself (`cursor.description`, R4).
+   first step's). Python describes the body the same way. The description and the transaction are host operations the planner spells by the plan's database (`describe`, `transaction`), never SQL a host writes (`//tools/guards:host_sql_test`, `//python:host_sql_test`).
 
 **R3. The writers take Arrow.**
 - **The measurement first** (scratch, both hosts, posted): the bytes boundary's cost in the native library (a pointer

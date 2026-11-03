@@ -8,13 +8,15 @@ import java.util.List;
 /**
  * WHAT A HOST RUNS, refused at planning (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D6, R2): a host -- the tab, Python --
  * runs a plan itself, as carriage, so the planner hands it only a plan of a shape it runs, and refuses any other here,
- * by name, before anything runs. Two shapes, by what the host asked for:
+ * by name, before anything runs. Three shapes, by what the host asked for:
  *
  * <ul>
  *   <li>{@link #read}: a query's rows (a grid, an execute) -- one typed result over a statement of text, which the
  *       host runs on its own database (its data there already: a plan's setup steps are the server's, never a
  *       host's). Anything else -- a pivot whose columns its data names (a keyed result, its keys read first), a
- *       program that writes, a statement that binds values -- is legend-lite's server's to run.</li>
+ *       program that writes, a statement that binds values -- is not a grid's: DataCube plans its pivots static.</li>
+ *   <li>{@link #query}: a query's answer on legend-engine's execute route -- {@link #read}'s, or a keyed result whose
+ *       statements bind only its keys' cells, which a host runs as the JVM's runner does (D18 D, 2026-11-03).</li>
  *   <li>{@link #program}: a program that writes (DataCube's Output into a table, docs/DATACUBE_FLOW_MODE_2026_10_24.md
  *       M6) -- its statements in order, in one transaction, a count bound where a later statement takes it, the one
  *       typed result read once the transaction has committed: no parameters; a typed result, or a sequence of updates
@@ -25,8 +27,8 @@ import java.util.List;
  *       step it does not know, and that the plan's database is its session's.</li>
  * </ul>
  *
- * <p>The execute route's own plan ({@code PureV1Api.jsonPlan}) makes the read check in the engine's error kinds
- * (its words the same). PURE: the record alone.
+ * <p>The execute route's own plan ({@code PureV1Api.jsonPlan}) makes the {@link #query} check in the engine's error
+ * kinds (its words the same). PURE: the record alone.
  */
 public final class HostPlans {
     private HostPlans() {

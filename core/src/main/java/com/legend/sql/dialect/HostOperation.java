@@ -144,6 +144,12 @@ public sealed interface HostOperation {
         public enum Step { BEGIN, COMMIT, ROLLBACK }
     }
 
+    /** The columns {@code statement} answers, as the database reports them -- each one's name and its type in the
+     *  database's own words -- the statement planned and not run (a pivot's body, its keys bound: legend-engine types a
+     *  dynamic result's header by them, D18 D); the host binds the statement's values to it. */
+    record Describe(String statement) implements HostOperation {
+    }
+
     /** How many relations of {@code name}, whatever its case, the database's own schemas and its temporary ones hold:
      *  one row, one column {@code n}. */
     record NameTaken(String name) implements HostOperation {

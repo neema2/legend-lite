@@ -194,7 +194,7 @@ public final class PlanRunner {
     private static final class Streamed {
         private final com.legend.result.Batcher batcher;
         private final boolean dynamic;
-        private final @com.legend.base.Nullable List<String> reported;
+        private final @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported;
         private boolean started;
 
         Streamed(List<ExecutionPlan.Column> columns, com.legend.result.ResultSink sink, int capacity) {
@@ -202,7 +202,7 @@ public final class PlanRunner {
         }
 
         Streamed(List<ExecutionPlan.Column> columns, com.legend.result.ResultSink sink, int capacity, boolean dynamic,
-                @com.legend.base.Nullable List<String> reported) {
+                @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported) {
             this.batcher = new com.legend.result.Batcher(columns, sink, capacity);
             this.dynamic = dynamic;
             this.reported = reported;
@@ -244,7 +244,7 @@ public final class PlanRunner {
         }
 
         @Override
-        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported) {
+        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported) {
             streamed = new Streamed(columns, sink, capacity, true, reported);
         }
 
@@ -270,7 +270,7 @@ public final class PlanRunner {
     /** Where a keyed plan's answer goes, once its keys are known: its columns with the database's report of each (null
      *  where the database reports none), then each row's cells. */
     private interface KeyedSink {
-        void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+        void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
                 throws IOException;
 
         void row(List<Object> cells) throws IOException;
@@ -453,13 +453,12 @@ public final class PlanRunner {
                         sink.columns(inOrder, null);
                         return;
                     }
-                    if (reported.size() != columns) {
-                        throw new IllegalStateException("the keyed body reports " + reported.size() + " columns, and "
-                                + "its answer has " + columns);
-                    }
-                    List<String> types = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, (String) null));
+                    // the physical columns' report read onto the body's columns (a tagged one's slots beside it)
+                    List<@com.legend.base.Nullable String> logical = com.legend.result.RowDecode.logicalReport(read,
+                            reported.stream().map(Statements.Reported::driverType).toList());
+                    List<@com.legend.base.Nullable String> types = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, (String) null));
                     for (int i = 0; i < columns; i++) {
-                        types.set(place[i], reported.get(i).driverType());
+                        types.set(place[i], logical.get(i));
                     }
                     sink.columns(inOrder, types);
                 }, cells -> {

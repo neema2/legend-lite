@@ -27,7 +27,7 @@ public interface ResultSink {
      * MongoDB's documents) -- what legend-engine types a dynamic result's header by (D18 F, the user 2026-11-03). A sink
      * that writes no such header takes the columns alone.
      */
-    default void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+    default void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
             throws IOException {
         columns(columns);
     }

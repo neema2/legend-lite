@@ -55,6 +55,7 @@ final class HostOperationsJson {
                 default -> throw new IllegalArgumentException("a transaction's step is begin, commit or rollback, not "
                         + string(o, "step"));
             });
+            case "describe" -> new HostOperation.Describe(string(o, "statement"));
             case "nameTaken" -> new HostOperation.NameTaken(string(o, "name"));
             case "relationExists" -> new HostOperation.RelationExists(name(object(o, "name")));
             case "tablesIn" -> new HostOperation.TablesIn(stringOrNull(o, "database"), string(o, "schema"));

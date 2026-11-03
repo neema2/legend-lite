@@ -664,7 +664,9 @@ public final class PureV1Api {
     /**
      * A DYNAMIC result's envelope (a pivot whose columns its data names), as legend-engine makes one
      * ({@code RelationalResult.buildTransformersAndBuilder} with {@code isResultColumnsDynamic}; D18 F, the user
-     * 2026-11-03): EVERY column rebuilt from the database's report -- its label, and the type
+     * 2026-11-03): EVERY column rebuilt from the database's report -- its name (the plan's presented name: legend-engine's
+     * label is its own statement's alias for the column, and lite's body writes its own aliases, so the plan's name is
+     * the one legend-engine's label spells), and the type
      * {@code ResultColumn.labelTypePair} reads from the type name the driver reported ({@link #reportedType}), with no
      * relational spelling ({@code TDSColumn(name, type)}: its {@code relationalType} null, dropped) -- the relational
      * activity carrying {@code sql}, and the columns' names as the engine labels them. A database that reports no type
@@ -672,7 +674,7 @@ public final class PureV1Api {
      * ({@link #planEnvelope}; register S132).
      */
     static com.legend.result.PureV1Writer.Envelope dynamicEnvelope(String sql,
-            List<com.legend.executionplan.ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported) {
+            List<com.legend.executionplan.ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported) {
         if (reported == null) {
             return planEnvelope(sql, columns);
         }
@@ -771,11 +773,12 @@ public final class PureV1Api {
      * {@link #execute} plans it -- as typed rows -- and answered with the plan record itself (PlanJson's text: since
      * 2026-11-02 the one plan every host path runs, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R2): its one typed
      * result, whose statement the host runs and whose columns' facts decode the rows and make the answer's envelope
-     * ({@link #jsonAnswer}). {@code models} are the only models the host runs, as {@link #arrowPlan}'s. What the host
-     * cannot run is refused here, at planning, by name -- a plan that is not one statement of text (a pivot whose
-     * columns the data names, its keys read first; a program that writes), a statement that binds values -- and so is
-     * a relation column legend-engine's builder has no entry for, before any statement runs: legend-lite's server runs
-     * the plans a host does not.
+     * ({@link #jsonAnswer}); or, for a pivot whose columns its data names, its keyed plan, which the host runs as the
+     * JVM's runner does ({@link #keyedBody}, {@link #keyedAnswer}; D18 D). {@code models} are the only models the host
+     * runs, as {@link #arrowPlan}'s. What the host cannot run is refused here, at planning, by name
+     * ({@code HostPlans.query}: a program that writes, a statement that binds values other than a pivot's keys) -- and
+     * so is a relation column legend-engine's builder has no entry for, before any statement runs: legend-lite's
+     * server runs the plans a host does not.
      */
     public static Answer jsonPlan(String body, java.util.Collection<String> models) {
         return answer(500, "COMPILATION", () -> {
@@ -924,18 +927,16 @@ public final class PureV1Api {
             com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
             com.legend.executionplan.KeyedRun.Answer answer = com.legend.executionplan.KeyedRun.answer(keyed, keyRows(keys));
             int n = answer.columns().size();
-            List<String> types = new ArrayList<>();
+            List<String> physical = new ArrayList<>();
             for (Json.Node t : ((Json.Arr) Json.parse(reported)).items()) {
-                types.add(((Json.Str) t).value());
+                physical.add(((Json.Str) t).value());
             }
-            if (types.size() != n) {
-                throw new IllegalArgumentException("the host reports " + types.size() + " columns of the pivot's body, "
-                        + "and its answer has " + n);
-            }
+            // the physical columns' report read onto the body's columns (a tagged one's slots beside it)
+            List<@com.legend.base.Nullable String> types = com.legend.result.RowDecode.logicalReport(answer.read(), physical);
             // each body column read by the name the body writes it, placed in the answer's order
             List<com.legend.executionplan.ExecutionPlan.Column> readInOrder =
                     new ArrayList<>(java.util.Collections.nCopies(n, null));
-            List<String> reportedInOrder = new ArrayList<>(java.util.Collections.nCopies(n, (String) null));
+            List<@com.legend.base.Nullable String> reportedInOrder = new ArrayList<>(java.util.Collections.nCopies(n, (String) null));
             for (int i = 0; i < n; i++) {
                 readInOrder.set(answer.place().get(i), answer.read().get(i));
                 reportedInOrder.set(answer.place().get(i), types.get(i));

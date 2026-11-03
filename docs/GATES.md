@@ -17097,7 +17097,7 @@ clean thing, in the edges we should replicate engine"; then "Yes do it, keep goi
    - **B, a database's refusal at run time:** 500, `{"code":-1,"message":"<root cause's short class name>: <its
      message>","status":"error","trace":...}` on the JVM (the driver's root cause; its own stack the trace) and on the
      hosts (`PureV1Api.databaseRefused`, the class DuckDB's JDBC driver throws, `Databases.jdbcFailureClass`; the
-     host's account as the trace, S129). Python's `ConversionException: ...` and the tab's status-less `QueryError` are
+     host's account as the trace, S129). On the JSON route, Python's `ConversionException: ...` and the tab's status-less `QueryError` are
      gone; lite's other failures keep their words and carry no trace.
    - **F, the JVM's answer header:** from the plan's own facts for a plan that states its columns (part 1, no output
      changed); for a dynamic pivot every column rebuilt from the database's report, `{name, type}` with
@@ -17123,3 +17123,47 @@ clean thing, in the edges we should replicate engine"; then "Yes do it, keep goi
      - `//parser-equivalence:update_ratchets_test`: `own_corpus.matched` 3012 -> 3015, the three Pure snippets B's and
        F's tests add; regenerated with `bazel run //parser-equivalence:update_ratchets`, and
        `//parser-equivalence/...` green on it.
+
+## 2026-11-03 — D18 D (a keyed plan on every host) and the independent audit of C, B, F and D, folded
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §5 "D" and §8. Commits `de533ae5`, `df357180`, `314406a7` (D) and the
+audit's fold after them.
+
+1. **D, what it does.** A pivot whose columns its data names answers on the JVM, Python and the tab with one text:
+   the keyed run's pure steps are the plan record's (`KeyedRun`), the execute route's plan half answers the keyed plan
+   (`HostPlans.query`), the host reads the keys, the core writes the body (`keyedBody`), the host describes it and
+   runs it with the keys bound in one transaction, and the core writes the answer (`keyedAnswer`). The description
+   and the transaction are host operations the planner spells (`describe`, new; `transaction`). Proved by
+   `ExecutorTest.pivotOnAHostAnswersTheJvmsText` (the host path against the JVM's own text, a pivot alone and one
+   with a column added after it) and the conformance suite's `pivotDynamic` case (ledger 16 -> 18: Python's Arrow
+   execute on the old shape until R3/R4, and the grid's refusal by design).
+2. **The local gate on `314406a7`:** 445 of 457 green, one skipped; eleven red, nine this container's (the eight
+   Postgres tests and `//datacube:verify_app_test`'s Postgres: `initdb` refuses root) and two mine:
+   `//tools/guards:host_sql_test` and `//python:host_sql_test`, the hosts having spelled `BEGIN TRANSACTION`, `COMMIT`,
+   `ROLLBACK` and `DESCRIBE` themselves. Fixed in the fold (item 3).
+3. **The audit (an agent that wrote none of it, read-only) and its fold:**
+   - **A defect in B:** a raised error -- the platform's own failure the database raises in SQL -- was named by its
+     root cause through the driver's envelope, so the answer carried DuckDB's `Invalid Input Error:` and the raise
+     markers where it said `SQLException: Cannot cast a collection of size 0 to multiplicity [1]` before B.
+     `RaisedErrors` now keeps the driver's error as suppressed, not as the cause: the root is the clean words, the
+     trace still shows the driver's. `ExecutorTest.aRaisedErrorIsNamedByItsCleanWords` goes through the real unwrap.
+   - **An edge in F:** a pivot with a tagged column (one of mixed kinds) reports more physical columns than its
+     answer has, and was refused; the report is now read onto the logical columns (`RowDecode.logicalReport`), a
+     tagged column typed as legend-engine types a column with no reported type (String).
+   - **The hot path:** the result's metadata is read only when a report is asked for (a keyed answer's).
+   - **A test gap:** every case placed nothing; the host test now also runs a pivot with a column added after it.
+   - **The tab's keyed run** runs in a transaction (the planner's `transaction` operation) and checks its abort
+     signal before it starts.
+   - **Records corrected:** S130 (one activity, the body's template, not two statements), S128 (the call's short
+     name), S129 (each host's own account as the trace); `jsonPlan`'s and `HostPlans`' docs, `dynamicEnvelope`'s
+     ("its name", not "its label"), the note's D items 2, 4 and 5, this file's B entry ("on the JSON route"), an
+     orphaned doc comment in `wasm-grammar.ts` and one in `plan-record.ts`.
+   - **Left as found, with reasons:** `PureV1Api.envelope` (the compiler-types maker) is used by the differential
+     test alone; it goes with R2's census. F retypes the fixed columns of a dynamic pivot too (legend-engine rebuilds
+     every column, `RelationalResult.java:248-256`): posted to the user.
+4. **Checks on the fold:** `//core:core_tests_{exec,server,integration,architecture,driver,judge}`,
+   `//core:{guardrails,census,mongodb_plan_test,arrow_writer_test}`, `//tools/guards:host_sql_test`,
+   `//python:{host_sql,bindings}_test`, `//datacube:{conformance,typecheck,bundle_budget}_test`, the Query and Studio
+   typechecks, `//engine-client:plan_runner_test`, `//wasm:{differential,round_trip}_test`, `//pct:pct_duckdb_relation`
+   and `//pct:pct_h2` green (the PCT lane was killed once by memory while 22 suites ran together, exit 137, and
+   passed alone).

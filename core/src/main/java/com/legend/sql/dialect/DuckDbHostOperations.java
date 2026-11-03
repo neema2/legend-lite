@@ -88,6 +88,9 @@ final class DuckDbHostOperations implements HostOperations {
                 case COMMIT -> "COMMIT";
                 case ROLLBACK -> "ROLLBACK";
             });
+            // its rows column_name, column_type, ... (DuckDB's own type names, as its JDBC driver reports them), the
+            // statement planned with its values bound and not run (measured 2026-11-03, the host executors note's D)
+            case HostOperation.Describe d -> List.of("DESCRIBE " + d.statement());
             case HostOperation.NameTaken t -> List.of("SELECT"
                     + " (SELECT count(*) FROM duckdb_tables() WHERE database_name IN (current_database(), 'temp')"
                     + " AND lower(table_name) = lower(" + literal(t.name()) + "))"

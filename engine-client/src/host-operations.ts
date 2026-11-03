@@ -42,7 +42,10 @@ export type HostOperation =
   | { readonly op: 'extensions'; readonly names: readonly string[] }
   /** Where the database installs extensions from, on demand (the site's folder). */
   | { readonly op: 'extensionRepository'; readonly url: string }
-  | { readonly op: 'transaction'; readonly step: 'begin' | 'commit' | 'rollback' };
+  | { readonly op: 'transaction'; readonly step: 'begin' | 'commit' | 'rollback' }
+  /** The columns a statement answers, as the database reports them (its rows `column_name`, `column_type`), the
+   *  statement planned and not run: a pivot's body, its keys bound (D18 D). */
+  | { readonly op: 'describe'; readonly statement: string };
 
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface HostOperationsSource {

@@ -268,7 +268,7 @@ final class JudgePlans {
         }
 
         @Override
-        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+        public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
                 throws java.io.IOException {
             sink.columns(columns, reported);
         }

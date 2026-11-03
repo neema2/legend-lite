@@ -399,6 +399,32 @@ public final class RowDecode {
         return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null, null, null);
     }
 
+    /**
+     * A statement's report of its result columns (each one's type name, as {@link #physicalColumns} counts them) read
+     * onto the plan's {@code columns}: each column its own type name; a tagged column -- its tag and its slots beside it,
+     * of mixed kinds -- none (null), having no one type (legend-engine types a column with none a String,
+     * {@code ResultColumn.labelTypePair}). A report of another count is refused by name.
+     */
+    public static List<@com.legend.base.Nullable String> logicalReport(List<ExecutionPlan.Column> columns,
+            List<String> physical) {
+        if (physical.size() != physicalColumns(columns)) {
+            throw new IllegalStateException("the database reports " + physical.size() + " columns, and the plan's "
+                    + columns.size() + " columns answer " + physicalColumns(columns));
+        }
+        List<@com.legend.base.Nullable String> out = new java.util.ArrayList<>(columns.size());
+        int at = 0;
+        for (ExecutionPlan.Column c : columns) {
+            if (slotWord(c.slot()).equals("TAGGED")) {
+                out.add(null);
+                at += 1 + topLevel(inside(c, "TAGGED")).size();
+            } else {
+                out.add(physical.get(at));
+                at++;
+            }
+        }
+        return out;
+    }
+
     /** The result columns a statement answers for the plan's {@code columns}: each its own, plus a tagged column's
      *  slot columns beside it (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a). */
     public static int physicalColumns(List<ExecutionPlan.Column> columns) {

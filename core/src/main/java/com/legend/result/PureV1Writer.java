@@ -33,7 +33,7 @@ public final class PureV1Writer implements ResultSink {
     private final ExecutionPlan.TdsResult.Shape shape;
     private final java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope;
     private final java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
-            @com.legend.base.Nullable List<String>, Envelope> dynamic;
+            @com.legend.base.Nullable List<@com.legend.base.Nullable String>, Envelope> dynamic;
     private List<ExecutionPlan.Column> columns = List.of();
     private int[] order = new int[0];
     private long rows;
@@ -42,7 +42,7 @@ public final class PureV1Writer implements ResultSink {
     private PureV1Writer(Writer out, ExecutionPlan.TdsResult.Shape shape,
             java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope,
             java.util.function.@com.legend.base.Nullable BiFunction<List<ExecutionPlan.Column>,
-                    @com.legend.base.Nullable List<String>, Envelope> dynamic) {
+                    @com.legend.base.Nullable List<@com.legend.base.Nullable String>, Envelope> dynamic) {
         this.out = out;
         this.shape = shape;
         this.envelope = envelope;
@@ -59,7 +59,7 @@ public final class PureV1Writer implements ResultSink {
     /** A DYNAMIC relation's answer (a pivot whose columns its data names): its envelope made from the columns the run
      *  announces and the database's report of each ({@link ResultSink#columns(List, List)}; D18 F). */
     public static PureV1Writer dynamicRelation(Writer out, java.util.function.BiFunction<List<ExecutionPlan.Column>,
-            @com.legend.base.Nullable List<String>, Envelope> envelope) {
+            @com.legend.base.Nullable List<@com.legend.base.Nullable String>, Envelope> envelope) {
         return new PureV1Writer(out, ExecutionPlan.TdsResult.Shape.RELATION, columns -> {
             throw new IllegalStateException("a dynamic relation's header is made from the database's report: the run "
                     + "announced its columns without one");
@@ -74,7 +74,7 @@ public final class PureV1Writer implements ResultSink {
     }
 
     @Override
-    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<String> reported)
+    public void columns(List<ExecutionPlan.Column> columns, @com.legend.base.Nullable List<@com.legend.base.Nullable String> reported)
             throws IOException {
         if (dynamic == null) {
             columns(columns);

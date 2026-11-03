@@ -54,16 +54,22 @@ export function hostResult(plan: string): { readonly statement: string; readonly
 
 /** The one statement a host runs for a query's rows (hostResult): its text. */
 /** A pivot whose columns its data names (a keyed plan, HostPlans.query; D18 D): its keys statement, which the host runs
- *  first; undefined for a plan of one statement. */
-export function keyedStatement(plan: string): string | undefined {
-  const root = readPlanRecord(plan).root as { readonly _type?: string; readonly keys?: { readonly statement?: unknown; readonly slots?: unknown } } | undefined;
+ *  first, and the database it runs on (the planner spells the host's operations by it); undefined for a plan of one
+ *  statement. */
+export function keyedStatement(plan: string): { readonly statement: string; readonly databaseType: string } | undefined {
+  const root = readPlanRecord(plan).root as { readonly _type?: string; readonly keys?: { readonly statement?: unknown; readonly slots?: unknown;
+    readonly target?: { readonly database?: { readonly connection?: { readonly databaseType?: unknown }; readonly databaseType?: unknown } } } } | undefined;
   if (root?._type !== 'keyed') return undefined;
   if (typeof root.keys?.statement !== 'string' || !Array.isArray(root.keys.slots) || root.keys.slots.length > 0) {
     throw new PlanRefusal("a host's pivot reads its keys with a statement of text");
   }
-  return root.keys.statement;
+  const database = root.keys.target?.database;
+  const databaseType = database?.connection?.databaseType ?? database?.databaseType;
+  if (typeof databaseType !== 'string') throw new PlanRefusal("a host's pivot names no database its statements run on");
+  return { statement: root.keys.statement, databaseType };
 }
 
+/** A query's one statement (hostResult's), which a host runs. */
 export function answerStatement(plan: string): string {
   return hostResult(plan).statement;
 }

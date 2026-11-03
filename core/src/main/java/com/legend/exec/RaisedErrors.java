@@ -78,8 +78,9 @@ public final class RaisedErrors {
         private final int column;
 
         Positioned(String message, @com.legend.base.Nullable String sqlState,
-                java.sql.SQLException cause, int line, int column) {
-            super(message, sqlState, cause);
+                java.sql.SQLException raw, int line, int column) {
+            super(message, sqlState);
+            addSuppressed(raw);
             this.line = line;
             this.column = column;
         }
@@ -108,7 +109,7 @@ public final class RaisedErrors {
     }
 
     /** Funnel rethrow: a raised-message SQLException re-surfaces with
-     * the clean text (state and cause preserved) — as {@link Positioned}
+     * the clean text (its state kept, the driver's error kept as suppressed: {@link #cleaned}) — as {@link Positioned}
      * when the emission carried its source span; everything else
      * returns as-is. */
     public static java.sql.SQLException unwrapped(java.sql.SQLException e) {
@@ -124,7 +125,7 @@ public final class RaisedErrors {
         String inner = msg.substring(first + 1, last).replace(QUOTE_MARK, '\'');
         int sep = inner.indexOf(POSITION_SEP);
         if (sep < 0) {
-            return new java.sql.SQLException(inner, e.getSQLState(), e);
+            return cleaned(inner, e);
         }
         String pos = inner.substring(0, sep);
         String clean = inner.substring(sep + 1);
@@ -138,7 +139,18 @@ public final class RaisedErrors {
                 // a malformed prefix falls through to the plain strip
             }
         }
-        return new java.sql.SQLException(clean, e.getSQLState(), e);
+        return cleaned(clean, e);
+    }
+
+    /** The platform's raise in its own words, its state kept and the driver's error -- the transport envelope and its
+     *  markers -- kept as SUPPRESSED, not as the cause: a root-cause walk (the server's answer to a database's refusal,
+     *  legend-engine's {@code getRootCauseMessage}; D18 B) ends at the clean words, and a printed stack still shows the
+     *  driver's (the D18 audit, 2026-11-03: with the raw error as the cause, the answer carried DuckDB's envelope and
+     *  the markers). */
+    private static java.sql.SQLException cleaned(String message, java.sql.SQLException raw) {
+        java.sql.SQLException clean = new java.sql.SQLException(message, raw.getSQLState());
+        clean.addSuppressed(raw);
+        return clean;
     }
 
     /** A failed statement's or open's error as the {@link com.legend.error.DataError} the platform tells: its raise

@@ -174,8 +174,41 @@ class ExecutorTest {
     @Test
     @DisplayName("PIVOT: a host's keyed run answers the JVM's text")
     void pivotOnAHostAnswersTheJvmsText() throws Exception {
-        String query = "#>{test::DB.T_TREES}#->pivot(~CITY, ~[total : x|$x.TREES : y|$y->sum(), "
-                + "mean : x|$x.TREES : y|$y->average()])->sort(~YR->ascending())";
+        String pivot = "#>{test::DB.T_TREES}#->pivot(~CITY, ~[total : x|$x.TREES : y|$y->sum(), "
+                + "mean : x|$x.TREES : y|$y->average()])";
+        hostAnswersTheJvmsText(pivot + "->sort(~YR->ascending())");
+        // a column added after the pivot is answered after its per-key ones and written by the body before them: the
+        // cells, the report and the header placed (the D18 audit, 2026-11-03: every other case placed nothing)
+        hostAnswersTheJvmsText(pivot + "->extend(~[k : x|$x.YR->toOne() + 1])->sort(~YR->ascending())");
+    }
+
+    /**
+     * A raised error -- the platform's own failure the database raised in SQL, its words inside the driver's envelope
+     * and markers -- answered by the server in its clean words: the root cause the answer names ends at the platform's
+     * raise, the driver's error kept as suppressed, in the trace (the D18 audit, 2026-11-03: the answer carried
+     * DuckDB's envelope and the markers).
+     */
+    @Test
+    @DisplayName("a raised error is named by its clean words, not the driver's envelope")
+    void aRaisedErrorIsNamedByItsCleanWords() {
+        java.sql.SQLException raw = new java.sql.SQLException("Invalid Input Error: " + RaisedErrors.SENTINEL
+                + "Cannot cast a collection of size 0 to multiplicity [1]" + RaisedErrors.SENTINEL);
+        com.legend.error.DataError refused = RaisedErrors.dataError(raw);
+        String lambda = com.legend.server.PureV1Api.grammarToJsonLambda(
+                "|#>{test::DB.T_PERSON}#->from(" + RUNTIME + ")", false).json();
+        String request = "{\"function\":" + lambda + ",\"model\":"
+                + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", MODEL)) + "}";
+        com.legend.server.PureV1Api.Answer a = com.legend.server.PureV1Api.route("/api/pure/v1/execution/execute",
+                null, request, (q, runtime, sinkOf) -> {
+                    throw refused;
+                });
+        com.legend.json.Json.Obj said = com.legend.json.Json.parseObject(a.json());
+        assertEquals(500, a.status(), a.json());
+        assertEquals("SQLException: Cannot cast a collection of size 0 to multiplicity [1]", said.getString("message"));
+        org.junit.jupiter.api.Assertions.assertTrue(said.getString("trace").contains("Invalid Input Error"), a.json());
+    }
+
+    private void hostAnswersTheJvmsText(String query) throws Exception {
         com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), query);
         java.io.StringWriter jvm = new java.io.StringWriter();
         com.legend.Execution.run(com.legend.testing.LaneFloor.model(MODEL, conn), query, RUNTIME,

@@ -221,7 +221,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
-        rows(statement, slots, values, columns, reported -> { }, cells);
+        read(statement, slots, values, columns, null, cells);
     }
 
     /** {@inheritDoc} The report is the result set's metadata ({@link #reported}: each column's label and the driver's
@@ -229,6 +229,14 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Reports reports, Cells cells) throws IOException {
+        read(statement, slots, values, columns, reports, cells);
+    }
+
+    /** The typed rows, the report read only when one is asked for (a keyed answer's: the metadata read is per column,
+     *  and every other statement is spared it). */
+    private void read(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, @com.legend.base.Nullable Reports reports, Cells cells)
+            throws IOException {
         try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -253,7 +261,9 @@ final class JdbcStatements implements Statements {
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
                 JdbcDecode.Reader reader = new JdbcDecode.Reader(columns, driver);
-                reports.columns(reported(rs.getMetaData()));
+                if (reports != null) {
+                    reports.columns(reported(rs.getMetaData()));
+                }
                 while (rs.next()) {
                     cells.row(reader.row(rs));
                 }
