@@ -696,6 +696,26 @@ step runs under the conformance suite (§3.7).
 - **Python:** `Table.execute`, the engine's executes and plan-and-run move to it.
 - No output changes: the suite and each host's own suites hold it.
 
+**D. A keyed plan on a host (D18 D; designed 2026-11-03, built after F).** The `Keyed` node is carriage, so a host
+runs it with the steps the JVM's runner takes, the core doing every step that is not a statement:
+1. **The expansion is the core's, on the plan side.** `PlanRunner.keyed`'s pure steps -- the body's per-key regions
+   repeated once per key (`expand`), the answered columns (a per-key column named by its key's cell), their order
+   (`perKeyAt`, `place`), the names each statement's cells are read under, the column cap (`maxColumns`) -- move out of
+   `exec` into the plan record's package, one function the JVM's runner and the hosts' boundary both call
+   (`exec` keeps the sessions and the sending; the planner-side builds carry no `exec`).
+2. **The host runs two statements** in one snapshot: the keys statement (its rows the keys' texts and names), then the
+   body the core expanded for them, each key's text BOUND as the JVM binds it (a `?` per key cell; the tab's held
+   connection prepares, `duckdb.ts` `exclusive`; Python's cursor binds).
+3. **The answer is the core's**: the host hands back the keys' rows, the body's rows (`hostRows`) and each body
+   column's type as its database reported it; the core writes legend-engine's answer, its header from that report
+   (F's `dynamicEnvelope`), the grid's typed rows from the expansion's columns.
+4. **`HostPlans.read` accepts a `Keyed` root** whose statements bind only key cells; anything else stays refused.
+5. **To measure before building** (the tab): which report DuckDB-WASM gives a host. Its results are Arrow, and DuckDB
+   writes a `HUGEINT` (a sum of integers: legend-engine's `Integer`) as a 128-bit decimal there, which the prefix rule
+   would read as `Float`; the candidates are the Arrow schema, a `DESCRIBE` of the expanded body (whether it takes bound
+   values), or a `LIMIT 0` copy read the same way. Python's driver reports DuckDB's own type names
+   (`cursor.description`). The measurement and the choice are posted with D's commit.
+
 **R3. The writers take Arrow.**
 - **The measurement first** (scratch, both hosts, posted): the bytes boundary's cost in the native library (a pointer
   and a length) and in the tab's module (a copy each way), against the text handoff (H0) and the Arrow execute's 188 ms.
