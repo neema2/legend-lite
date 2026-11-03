@@ -17283,3 +17283,23 @@ DuckDB and its Arrow take 100-150 ms and the native library 1,640-1,800 ms (deco
 legend-engine's JSON, copy it out); the JVM does the same core work in 690 ms (decode 190 ms). The native image runs
 it about 2.5 times slower (GraalVM CE 25: serial GC, no PGO); the decode boxes every cell; the JSON writer spells
 characters before UTF-8; the answer is copied about five times on its way out. Fixes proposed in §7, none built.
+
+## 2026-11-03 — D20 (a): lite's own execute on the JVM and Python
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D20 and §8. `POST /api/lite/v1/execution/execute`: legend-engine's
+execute request, lite's own answer (one uncompressed Arrow IPC stream in the plan's types, the core's `ArrowWriter`, the
+plan record as the schema's `legend.plan`). The JVM: `PureV1Api.executeLite` through `PlanRunner`. Python:
+`engine.py` `_execute_lite` (and `_execute_lite_keyed`) runs the plan's statements and hands DuckDB's Arrow to the core
+(`PureV1Api.liteAnswer`, `keyedLiteAnswer`; the boundary's `executeLiteAnswer`, `keyedLiteAnswer`; the native library's
+`lite_execute_lite_answer_arrow`, `lite_keyed_lite_answer_arrow`; `Library.call_bytes` takes several strings).
+
+1. **The judge:** the conformance suite's new `lite` check, Java's answer against Python's, case by case: alike on every
+   case (schema with each field's metadata, values, plan record) but `errTypeMismatch`'s refusal, whose DuckDB message
+   counts one line fewer on a host (the known missing execution-trace line): one ledger entry, 18 -> 19, the same cause
+   as the two before it. `PureV1ApiTest.liteExecute_isLitesOwnArrowWithThePlanRecordBesideIt`: the stream, its plan
+   record, its rows the JSON execute's cell for cell, a refusal as the execute route's.
+2. **No output changed:** a new route; every existing route answers as before.
+3. **Checks:** `//core:core_tests_{server,root,architecture}`, `//core:guardrails`, `//wasm:{differential,round_trip}_test`,
+   `//python:{bindings,arrow_handoff,frames,host_sql}_test`, `//tools/guards:host_sql_test`,
+   `//datacube:{conformance,python_execute,python_engine,lite_planner}_test`, `//engine-client:plan_runner_test`, and
+   `//python:engine_test` in three parts (70, 12, 252: OK).

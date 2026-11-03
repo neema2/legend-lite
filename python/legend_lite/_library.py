@@ -52,10 +52,13 @@ _ARITY = {
 }
 
 
-# the entry points that take a C string and bytes (a pointer and a length) and answer bytes (R3)
+# the entry points that take C strings, then bytes (a pointer and a length), and answer bytes (R3): how many strings
 _BYTES = {
     # a plan's answer from the host's rows as Arrow: legend-engine's JSON, and its Arrow format, folded as bytes
-    'lite_execute_json_answer_arrow', 'lite_execute_arrow_answer_arrow',
+    'lite_execute_json_answer_arrow': 1, 'lite_execute_arrow_answer_arrow': 1,
+    # lite's own execute's answer from the host's rows as Arrow: lite's own Arrow, the plan record beside it (D20); a
+    # keyed plan's from its keys rows and its body's Arrow
+    'lite_execute_lite_answer_arrow': 1, 'lite_keyed_lite_answer_arrow': 2,
 }
 
 
@@ -119,20 +122,21 @@ class Library:
         finally:
             self._lib.lite_free(t, p)
 
-    def call_bytes(self, name: str, text: str, data: Any) -> bytes:
+    def call_bytes(self, name: str, text: str | tuple[str, ...], data: Any) -> bytes:
         """One entry point taking a C string and BYTES (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3): ``data`` a
         pyarrow ``Buffer`` or ``bytes``, handed as a pointer and a length and read in place by the library -- never
         copied, and held alive here for the call. Its answer's bytes (the fold's lines,
         then the body's own bytes), the native buffer freed."""
-        if '\0' in text:
+        texts = (text,) if isinstance(text, str) else text
+        if any('\0' in t for t in texts):
             raise ValueError(f'{name}: an argument contains a NUL character')
+        if _BYTES.get(name) != len(texts):
+            raise ValueError(f'{name} is not one of the native library\'s bytes entry points of {len(texts)} strings')
         f = self._ready.get(name)
         if f is None:
-            if name not in _BYTES:
-                raise ValueError(f'{name} is not one of the native library\'s bytes entry points')
             f = getattr(self._lib, name)
-            f.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int64,
-                          ctypes.POINTER(ctypes.c_int64)]
+            f.argtypes = ([ctypes.c_void_p] + [ctypes.c_char_p] * len(texts)
+                          + [ctypes.c_void_p, ctypes.c_int64, ctypes.POINTER(ctypes.c_int64)])
             f.restype = ctypes.c_void_p
             self._ready[name] = f
         if hasattr(data, 'address') and hasattr(data, 'size'):
@@ -147,7 +151,7 @@ class Library:
             raise TypeError(f'{name}: the bytes are a pyarrow Buffer or bytes, not {type(data).__name__}')
         t = self._thread()
         length = ctypes.c_int64()
-        p = f(t, text.encode('utf-8'), address, size, ctypes.byref(length))
+        p = f(t, *[x.encode('utf-8') for x in texts], address, size, ctypes.byref(length))
         if not p:
             raise OSError(f'{name} returned no answer (the library could not allocate one)')
         try:

@@ -424,6 +424,50 @@ class PureV1ApiTest {
     }
 
     /**
+     * LITE'S OWN EXECUTE (D20, 2026-11-03): legend-engine's execute request at {@code /api/lite/v1/execution/execute},
+     * answered with lite's own Arrow -- one uncompressed IPC stream in the plan's types, the plan record in its
+     * schema's metadata -- whose rows are the JSON execute's rows, cell for cell (read back by the core's own reader).
+     */
+    @Test
+    void liteExecute_isLitesOwnArrowWithThePlanRecordBesideIt() throws Exception {
+        String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + textModel()
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/execution/execute", null, request, ConnectionResolver.RUNNER);
+        assertEquals(200, a.status(), a.json());
+        assertEquals("application/vnd.apache.arrow.stream", a.contentType());
+        byte[] stream = a.bytes();
+        assertTrue(stream != null && stream[0] == -1, "an IPC stream, no zstd frame");
+        com.legend.arrowipc.ArrowReader.Stream in = com.legend.arrowipc.ArrowReader.open(java.nio.ByteBuffer.wrap(stream));
+        String plan = in.schema().metadata().get(PureV1Api.PLAN_KEY);
+        assertTrue(plan != null, "the plan record beside the rows: " + in.schema().metadata().keySet());
+        com.legend.executionplan.ExecutionPlan record = com.legend.executionplan.PlanJson.read(plan);
+        List<com.legend.executionplan.ExecutionPlan.Column> columns = record.answerColumns();
+        // the rows, read by the plan's own columns, are the JSON execute's
+        com.legend.result.Collector got = new com.legend.result.Collector();
+        com.legend.result.ArrowRows.stream(java.nio.ByteBuffer.wrap(stream), columns, got);
+        Json.Obj json = Json.parseObject(execute(request).json());
+        List<Json.Node> rows = ((Json.Arr) json.getObj("result").fields().get("rows")).items();
+        assertEquals(rows.size(), got.collected().rows().size());
+        for (int r = 0; r < rows.size(); r++) {
+            List<Json.Node> values = ((Json.Arr) ((Json.Obj) rows.get(r)).fields().get("values")).items();
+            for (int c = 0; c < values.size(); c++) {
+                Object cell = got.collected().rows().get(r).get(c);
+                assertEquals(Json.toCompact(values.get(c)), cell == null ? "null"
+                        : cell instanceof String t ? Json.toCompact(new Json.Str(t)) : String.valueOf(cell), "row " + r + ", column " + c);
+            }
+        }
+        // a refusal is answered as the execute route answers one
+        PureV1Api.Answer refused = PureV1Api.route("/api/lite/v1/execution/execute", null,
+                request.replace(lambda, "{\"_type\":\"lambda\",\"body\":[{\"_type\":\"var\",\"name\":\"nope\"}],\"parameters\":[]}"),
+                ConnectionResolver.RUNNER);
+        assertEquals(refused.status(), PureV1Api.route("/api/pure/v1/execution/execute", null,
+                request.replace(lambda, "{\"_type\":\"lambda\",\"body\":[{\"_type\":\"var\",\"name\":\"nope\"}],\"parameters\":[]}"),
+                ConnectionResolver.RUNNER).status());
+        assertTrue(refused.status() >= 400, refused.json());
+    }
+
+    /**
      * E8 in upstream's Arrow format, served (track A, 2026-10-29): one zstd frame (raw blocks, read back here by the
      * frame's own layout) around an Arrow IPC stream that begins with a schema message carrying the engine's metadata
      * ({@code arrowPlan}'s keys, the same builder as the JSON answer's) and ends with the end marker; upstream's

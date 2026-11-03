@@ -160,6 +160,7 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
+            case "/api/lite/v1/execution/execute" -> executeLite(body, runner, models);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -463,6 +464,119 @@ public final class PureV1Api {
         }
         return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
                 Map.of("x-legend-response-format", "FormatNotSet"));
+    }
+
+    /** The Arrow schema metadata key of lite's own answer: the plan record its rows are the answer of (D20). */
+    public static final String PLAN_KEY = "legend.plan";
+
+    /**
+     * LITE'S OWN EXECUTE (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D19, D20, 2026-11-03): the request legend-engine's
+     * execute takes ({@code ExecuteInput}: the lambda, the model, its parameter values), so a client's two adapters
+     * differ only in the route and the decode; the answer lite's own -- the rows as ONE Arrow IPC stream in the plan's
+     * types (lite's {@code result/ArrowWriter}, every database alike), its schema's metadata the plan record
+     * ({@link #PLAN_KEY}: {@code PlanJson}'s text, its columns' Pure types, multiplicities and facts), no zstd frame,
+     * {@code application/vnd.apache.arrow.stream}. A refusal is answered as the execute route answers one.
+     */
+    public static Answer executeLite(String body, Runner runner, Models models) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            Json.Obj request = request(body);
+            LambdaFunction lambda = ProtocolReader.lambda(
+                    boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
+            return ModelInput.of(request.getObj("model")).with(models, model -> {
+                com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
+                String runtime = runtimeOf(request, query.target());
+                try {
+                    runner.run(query, runtime, plan -> liteWriter(plan, out));
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+                return "";
+            });
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, out.toByteArray(), com.legend.arrowipc.ArrowIpc.MEDIA_TYPE, Map.of());
+    }
+
+    /** Lite's own Arrow writer of {@code plan}'s answer onto {@code out}: the plan's types, the plan record in the
+     *  schema's metadata ({@link #executeLite}). */
+    public static com.legend.result.ResultSink liteWriter(com.legend.executionplan.ExecutionPlan plan,
+            java.io.OutputStream out) {
+        return new com.legend.result.ArrowWriter(out, Map.of(PLAN_KEY, com.legend.executionplan.PlanJson.write(plan)));
+    }
+
+    /** {@link #executeLite}'s answer for a host that ran the plan's statement on its own database ({@link #jsonPlan}'s
+     *  plan record), its rows the Arrow that database answered, read in place: the same writer, the same answer. */
+    public static Answer liteAnswer(String plan, java.nio.ByteBuffer arrow) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            com.legend.executionplan.ExecutionPlan read = com.legend.executionplan.PlanJson.read(plan);
+            com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
+            try {
+                com.legend.result.ArrowRows.stream(arrow, result.columns(), liteWriter(read, out));
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return "";
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, out.toByteArray(), com.legend.arrowipc.ArrowIpc.MEDIA_TYPE, Map.of());
+    }
+
+    /**
+     * {@link #liteAnswer} for a KEYED plan (a pivot whose columns its data names, D18 D) a host ran: its keys rows (as
+     * {@link #keyedAnswer} takes them) and the Arrow the database answered the body the core wrote for them with,
+     * read in the body's order (each per-key column under the name the body writes it) and placed in the answer's
+     * (KeyedRun's {@code place}) -- lite's own Arrow of the answer's columns, the plan record beside it.
+     */
+    public static Answer keyedLiteAnswer(String plan, String keys, java.nio.ByteBuffer arrow) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            com.legend.executionplan.ExecutionPlan read = com.legend.executionplan.PlanJson.read(plan);
+            com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
+            com.legend.executionplan.KeyedRun.Answer answer =
+                    com.legend.executionplan.KeyedRun.answer(keyed, keyRows(keys));
+            List<com.legend.executionplan.ExecutionPlan.Column> columns = answer.columns();
+            com.legend.result.ResultSink writer = liteWriter(read, out);
+            try {
+                com.legend.result.ArrowRows.stream(arrow, answer.read(), new com.legend.result.ResultSink() {
+                    @Override
+                    public void columns(List<com.legend.executionplan.ExecutionPlan.Column> body)
+                            throws java.io.IOException {
+                        writer.columns(columns);
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+                        com.legend.result.Batch.Builder placed = com.legend.result.Batch.builder(columns, batch.size());
+                        for (int r = 0; r < batch.size(); r++) {
+                            List<Object> cells = new ArrayList<>(java.util.Collections.nCopies(columns.size(), null));
+                            for (int i = 0; i < columns.size(); i++) {
+                                cells.set(answer.place().get(i), batch.get(r, i));
+                            }
+                            placed.add(cells);
+                        }
+                        writer.batch(placed.build());
+                    }
+
+                    @Override
+                    public void end() throws java.io.IOException {
+                        writer.end();
+                    }
+                });
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return "";
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, out.toByteArray(), com.legend.arrowipc.ArrowIpc.MEDIA_TYPE, Map.of());
     }
 
     /** The Arrow writer of {@code plan}'s answer onto {@code out}, its schema metadata the engine's for the columns

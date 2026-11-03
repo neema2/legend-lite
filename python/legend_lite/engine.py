@@ -135,6 +135,9 @@ _PLAN_AND_RUN, _PLAN = '/plan-and-run.json', '/plan.json'
 _APPS = ('query', 'studio')
 _CURRENT_USER = '/api/server/v1/currentUser'
 _LITE_API = '/api/lite/v1/'
+# LITE'S OWN EXECUTE (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D19, D20): legend-engine's execute request, lite's own
+# answer -- the rows as Arrow in the plan's types, the plan record beside them -- as legend-lite's server answers it
+_LITE_EXECUTE = _LITE_API + 'execution/execute'
 # the planner's answer to the plan a page's rows are of, in their Arrow schema's metadata
 _PLAN_KEY = b'legend.plan'
 # the only places a page's remote file may be read from (remote.json), each as DuckDB's httpfs names it: never this
@@ -374,6 +377,12 @@ class NativePlanner:
 
     def execute_json_answer_arrow(self, plan: str, arrow: pa.Buffer) -> compiler.Answer:
         return compiler.execute_json_answer_arrow(plan, arrow)
+
+    def execute_lite_answer_arrow(self, plan: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
+        return compiler.execute_lite_answer_arrow(plan, arrow)
+
+    def keyed_lite_answer_arrow(self, plan: str, keys: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
+        return compiler.keyed_lite_answer_arrow(plan, keys, arrow)
 
     def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
         return compiler.execute_refusal(plan, message, trace)
@@ -965,6 +974,8 @@ class Engine:
         try:
             if path == _EXECUTE:
                 return self._execute(body) if _arrow_requested(query) else self._execute_json(body)
+            if path == _LITE_EXECUTE:
+                return self._execute_lite(body)
             answer = self.planner.answer(path, query, body)
         except Exception as failure:
             # never a dropped call: the database refusing is an answer; anything else is a bug, logged whole, and
@@ -1692,6 +1703,56 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
         answer = self.planner.execute_json_answer_arrow(planned.body, arrow)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+
+    def _execute_lite(self, body: str) -> Answer:
+        """LITE'S OWN EXECUTE (D19, D20; ``/api/lite/v1/execution/execute``): planned as the JSON execute plans (the plan
+        record, over the frames' models or a project's), DuckDB runs its statement, and its Arrow is handed to the core,
+        which writes lite's own answer -- the rows in the plan's types, the plan record in the schema's metadata -- as
+        legend-lite's server writes it; a pivot whose columns its data names run as its keyed plan says
+        (``_execute_lite_keyed``)."""
+        with self.frames.serving() as models:
+            self._noted(models)
+            with self._project_of(body, models) as (served, connection):
+                planned = self.planner.execute_json_plan(body, served)
+                if planned.status != 200:
+                    return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
+                keys_statement = compiler.keyed_statement(planned.body)
+                if keys_statement is not None:
+                    return self._execute_lite_keyed(planned.body, keys_statement, connection)
+                try:
+                    arrow = _ipc_stream(connection.execute(compiler.answer_statement(planned.body)).fetch_record_batch())
+                except duckdb.Error as refused:
+                    answer = self.planner.execute_refusal(planned.body, str(refused),
+                                                          f'{type(refused).__name__}: {refused}')
+                    return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+        status, content_type, rows = self.planner.execute_lite_answer_arrow(planned.body, arrow)
+        return Answer(status, content_type, rows)
+
+    def _execute_lite_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
+        """A pivot whose columns its data names, on lite's own execute: its keys, then the body the compiler writes for
+        them run with the keys bound, in one transaction (the transaction's statements the compiler's host
+        operations), as ``_execute_keyed`` runs it -- the body's rows handed to the compiler as Arrow, lite's own answer
+        written from them in the plan's types (no database's report: lite's own types are the plan's)."""
+        try:
+            _host.run(connection, {'op': 'transaction', 'step': 'begin'})
+            try:
+                keys = [[None if c is None else str(c) for c in row]
+                        for row in connection.execute(keys_statement).fetchall()]
+                written = self.planner.keyed_body(plan, json.dumps(keys))
+                if written.status == 200:
+                    body = json.loads(written.body)
+                    arrow = _ipc_stream(connection.execute(body['statement'], body['parameters']).fetch_record_batch())
+            except BaseException:
+                _host.run(connection, {'op': 'transaction', 'step': 'rollback'})
+                raise
+            _host.run(connection, {'op': 'transaction', 'step': 'commit'})
+        except duckdb.Error as refused:
+            answer = self.planner.execute_refusal(plan, str(refused), f'{type(refused).__name__}: {refused}')
+            return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+        if written.status != 200:
+            return Answer(written.status, written.content_type, written.body.encode('utf-8'))
+        status, content_type, rows = self.planner.keyed_lite_answer_arrow(plan, json.dumps(keys), arrow)
+        return Answer(status, content_type, rows)
 
     def _execute_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
         """A pivot whose columns its data names, run as the JVM's runner runs it (D18 D): its keys, then the body the

@@ -7,6 +7,9 @@
 //   arrow  the ARROW_IPC answer, its schema and its values: Java's against Python's (the tab answers no Arrow execute);
 //   grid   the tab's grid path's values against Java's JSON values, by their meaning (a number by its value, a decimal
 //          by its value whatever its scale, a timestamp by its instant), for the cases that are not refusals;
+//   lite   lite's own execute (D20: /api/lite/v1/execution/execute, legend-engine's request, lite's own Arrow in the
+//          plan's types with the plan record beside it): Java's against Python's, the schema with each field's
+//          metadata, the values, the plan record;
 //   handoff  the tab's rows handed to the planner's writers as DuckDB-WASM's own Arrow IPC (R3: the module's
 //          `...FromArrowOrError` exports) against the same rows handed as JSON text: legend-engine's JSON byte for
 //          byte, and the Arrow answer, its schema and its values, against Java's.
@@ -168,6 +171,8 @@ function body(input: ExecuteInput): string {
 }
 
 const javaExecute = (): string => `${java.api()}/pure/v1/execution/execute`;
+const javaLite = (): string => `${java.api()}/lite/v1/execution/execute`;
+const pythonLite = (): string => `${pythonAt.url}/api/lite/v1/execution/execute`;
 const pythonExecute = (): string => `${pythonAt.url}/api/pure/v1/execution/execute`;
 
 async function textOf(url: string, input: ExecuteInput, headers: Record<string, string> = {}): Promise<Said> {
@@ -194,6 +199,18 @@ function answerOfArrow(stream: Uint8Array): { readonly schema: string; readonly 
   const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)}`).join(', ')
     + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
   return { schema, rows: cellsText(toRawTable(table, 0, 0)) };
+}
+
+/** Lite's own execute's answer (D20): its schema in words (each field's type and metadata), its rows, its plan record;
+ *  or its refusal. */
+async function liteOf(url: string, input: ExecuteInput, headers: Record<string, string> = {}):
+    Promise<{ readonly status: number; readonly schema: string; readonly rows: string; readonly plan: string; readonly text?: string }> {
+  const r = await post(url, body(input), headers);
+  if (!r.ok) return { status: r.status, schema: '', rows: '', plan: '', text: refusalOf(await r.text()).message };
+  const { table, metadata } = arrowIpcAnswer(new Uint8Array(await r.arrayBuffer()));
+  const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)} ${JSON.stringify([...f.metadata.entries()].sort())}`)
+    .join(', ') + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
+  return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)), plan: metadata.get('legend.plan') ?? '' };
 }
 
 /** A decoded table's values, each as its kind and text (a bigint marked), row by row. */
@@ -318,6 +335,15 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
           else if (javas.rows !== mine.rows) differ(name, 'handoff-arrow-values', 'java/tab', firstDifference(javas.rows, mine.rows));
         }
       }
+      // lite: lite's own execute, Java's against Python's (D20)
+      const jl = await liteOf(javaLite(), input);
+      const pl = await liteOf(pythonLite(), input, auth);
+      if (jl.status !== pl.status) differ(name, 'lite', 'java/python', `status ${jl.status} vs ${pl.status}`);
+      else if (jl.status !== 200) {
+        if (jl.text !== pl.text) differ(name, 'lite-refusal', 'java/python', firstDifference(jl.text ?? '', pl.text ?? ''));
+      } else if (jl.schema !== pl.schema) differ(name, 'lite-schema', 'java/python', `${jl.schema} vs ${pl.schema}`);
+      else if (jl.rows !== pl.rows) differ(name, 'lite-values', 'java/python', firstDifference(jl.rows, pl.rows));
+      else if (jl.plan !== pl.plan) differ(name, 'lite-plan', 'java/python', firstDifference(jl.plan, pl.plan));
       // arrow: Java's against Python's
       const ja = await arrowOf(javaExecute(), input);
       const pa = await arrowOf(pythonExecute(), input, auth);

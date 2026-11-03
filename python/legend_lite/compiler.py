@@ -344,6 +344,19 @@ def execute_arrow_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
     return _http_bytes(library().call_bytes('lite_execute_arrow_answer_arrow', plan, arrow))
 
 
+def execute_lite_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
+    """Lite's own execute's answer (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20: ``/api/lite/v1/execution/execute``)
+    from the rows as ARROW: lite's own Arrow in the plan's types, the plan record in its schema's metadata
+    (``legend.plan``) -- its status, media type and body (the Arrow stream, or a refusal's JSON)."""
+    return _http_bytes(library().call_bytes('lite_execute_lite_answer_arrow', plan, arrow))
+
+
+def keyed_lite_answer_arrow(plan: str, keys: str, arrow: Any) -> tuple[int, str, bytes]:
+    """:func:`execute_lite_answer_arrow` for a keyed plan (a pivot whose columns its data names): ``keys`` the keys
+    statement's rows (as :func:`keyed_answer` takes them), ``arrow`` the Arrow the body written for them answered."""
+    return _http_bytes(library().call_bytes('lite_keyed_lite_answer_arrow', (plan, keys), arrow))
+
+
 def execute_refusal(plan: str, message: str, trace: str) -> Answer:
     """:func:`execute_json_plan`'s statement refused by the host's database, answered as legend-engine answers a
     database's refusal at run time (D18 B: ``PureV1Api.databaseRefused``): ``message`` the database's words, ``trace``

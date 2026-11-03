@@ -1138,3 +1138,12 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   upstream: every column retyped from the report, as built (`PureV1Api.dynamicEnvelope`, `RelationalResult.java:248-256`).
   Lite's own route reads no report: a keyed pivot's columns are typed by the plan record (`KeyedRun.answer`), as every
   answer of lite's own is.
+- 2026-11-03: D20 (a) built: lite's own execute, `POST /api/lite/v1/execution/execute`, on the JVM server and Python's
+  engine. Its request is legend-engine's execute request (so a client's two adapters differ only in the route and the
+  decode); its answer lite's own Arrow -- one uncompressed IPC stream in the plan's types, written by the core's
+  `ArrowWriter` on both servers, the plan record in its schema's metadata (`legend.plan`) -- or a refusal as the execute
+  route answers one. Python runs the plan's statement (a keyed pivot's keys and body, in one transaction) and hands
+  DuckDB's Arrow to the core (`PureV1Api.liteAnswer`, `keyedLiteAnswer`), which writes the same answer the JVM writes.
+  Judged by the conformance suite's new `lite` check: Java's and Python's answers alike on every case -- schema with
+  each field's metadata, values, plan record -- but the one line DuckDB's refusal counts (the hosts' missing trace line,
+  §7: one ledger entry, 18 -> 19). The tab's lite path is in-process (no route): the apps' adapters, item (c).

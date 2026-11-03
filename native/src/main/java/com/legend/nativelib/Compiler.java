@@ -402,6 +402,38 @@ public final class Compiler {
         return answerBytes(a, answerLength);
     }
 
+    /** Lite's own execute's answer from the host's rows as ARROW (D20; {@code Boundary.executeLiteAnswer}): lite's own
+     *  Arrow in the plan's types, the plan record in its schema's metadata, folded as bytes. */
+    @CEntryPoint(name = "lite_execute_lite_answer_arrow")
+    static CCharPointer executeLiteAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer arrow,
+            long length, CLongPointer answerLength) {
+        byte[] a;
+        try {
+            String p = text(plan);
+            java.nio.ByteBuffer rows = bytes(arrow, length);
+            a = Folded.httpBytes(() -> Boundary.executeLiteAnswer(p, rows));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
+        }
+        return answerBytes(a, answerLength);
+    }
+
+    /** {@code lite_execute_lite_answer_arrow} for a keyed plan a host ran ({@code Boundary.keyedLiteAnswer}; D20): its
+     *  keys rows (JSON text) and the Arrow of the body written for them, read in place. */
+    @CEntryPoint(name = "lite_keyed_lite_answer_arrow")
+    static CCharPointer keyedLiteAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer keys,
+            CCharPointer arrow, long length, CLongPointer answerLength) {
+        byte[] a;
+        try {
+            String p = text(plan), k = text(keys);
+            java.nio.ByteBuffer rows = bytes(arrow, length);
+            a = Folded.httpBytes(() -> Boundary.keyedLiteAnswer(p, k, rows));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
+        }
+        return answerBytes(a, answerLength);
+    }
+
     /** That plan's answer in upstream's Arrow format from the rows the host's database answered
      *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
     @CEntryPoint(name = "lite_execute_arrow_answer")

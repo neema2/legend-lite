@@ -114,6 +114,18 @@ public final class Boundary {
         return com.legend.server.PureV1Api.arrowAnswer(plan, arrow);
     }
 
+    /** Lite's own execute's answer from the host's rows as ARROW (PureV1Api.liteAnswer; D20): lite's own Arrow in the
+     *  plan's types, the plan record in its schema's metadata. */
+    public static com.legend.server.PureV1Api.Answer executeLiteAnswer(String plan, java.nio.ByteBuffer arrow) {
+        return com.legend.server.PureV1Api.liteAnswer(plan, arrow);
+    }
+
+    /** {@link #executeLiteAnswer} for a keyed plan a host ran (PureV1Api.keyedLiteAnswer; D20): its keys rows and the
+     *  Arrow of the body written for them. */
+    public static com.legend.server.PureV1Api.Answer keyedLiteAnswer(String plan, String keys, java.nio.ByteBuffer arrow) {
+        return com.legend.server.PureV1Api.keyedLiteAnswer(plan, keys, arrow);
+    }
+
     /** The models a host runs, from their JSON array of texts. */
     private static java.util.List<String> models(String modelsJson) {
         java.util.List<String> models = new java.util.ArrayList<>();

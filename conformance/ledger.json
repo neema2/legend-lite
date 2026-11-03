@@ -106,6 +106,13 @@
   },
   {
     "case": "errTypeMismatch",
+    "check": "lite-refusal",
+    "hosts": "java/python",
+    "detail": "at 85: \"g 'notanumber' to INT32\\n\\nLINE 4: WHERE t0.QTY = 'notanumber'\\n                   \" vs \"g 'notanumber' to INT32\\n\\nLINE 3: WHERE t0.QTY = 'notanumber'\\n                   \"",
+    "why": "Every host answers a database's refusal in legend-engine's words since D18 B (500, SQLException: and the database's own); the JVM sends each statement with legend-engine's execution-trace comment as its first line (ExecutionTrace, as legend-engine's RelationalExecutor stamps it), the hosts send the plan's statement alone, so DuckDB counts its lines one fewer. The hosts' runners stamp it in R4/R5 (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §7)."
+  },
+  {
+    "case": "errTypeMismatch",
     "check": "refusal-message",
     "hosts": "java/tab",
     "detail": "at 85: \"g 'notanumber' to INT32\\n\\nLINE 4: WHERE t0.QTY = 'notanumber'\\n                   \" vs \"g 'notanumber' to INT32\\n\\nLINE 3: WHERE t0.QTY = 'notanumber'\\n                   \"",
