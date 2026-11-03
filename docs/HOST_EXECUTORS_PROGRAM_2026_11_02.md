@@ -831,6 +831,28 @@ runs it with the steps the JVM's runner takes, the core doing every step that is
      its microseconds at UTC.
    It changes the JVM's `ARROW_IPC` answer (today lite's own Arrow, the plan's types) column kind by column kind, each
    listed in its commit and posted.
+   **Its cases, posted to the user 2026-11-03 before anything is built (D7), each `before -> after` on the conformance
+   corpus (DuckDB; upstream's rules above, DuckDB's JDBC report measured):**
+
+   | Column | The JVM's answer today | Python's today | Upstream's, both after |
+   |---|---|---|---|
+   | an `INTEGER` (`TYPES.ID`, `TRADES.QTY`) | int64 | int32 | int32 |
+   | a `TIMESTAMP` (`TS`, `BOOKED`, a min of one) | timestamp[ns, UTC] | timestamp[us], no zone | timestamp[us, UTC], digits past a microsecond dropped |
+   | a sum of integers (`groupSum.q`, DuckDB's `HUGEINT`) | decimal128(38,0) | decimal128(38,0) | utf8, its digits as text |
+   | a computed decimal (`extendArith.d2`, `D * 2`) | decimal128(29,2) (the typer's) | decimal128(18,2) | decimal128(18,2) (DuckDB's report) |
+   | a `FLOAT` (none in the corpus) | float64 | float32 | float32 |
+   | a `TIME` (none in the corpus) | time64[ns] | time64[us] | time32[ms] (upstream itself fails on DuckDB's `LocalTime`: lite answers, a register row) |
+   | a `TIMESTAMPTZ` (none) | timestamp[ns, UTC] | timestamp[us, UTC] | timestamp[us, UTC] (upstream fails on DuckDB's `OffsetDateTime`: lite answers, a register row) |
+   | a list, struct or map (none) | Arrow's nested types | DuckDB's nested types | utf8, its JSON text (upstream: an array's JSON by Jackson; a struct's and a map's to be read before they land) |
+   | `UBIGINT`, `UUID`, `INTERVAL`, `JSON`, `ENUM` (none) | the plan's types | DuckDB's | utf8 |
+   | every other corpus column (`BIGINT`, `DOUBLE`, `DECIMAL(p,s)`, `VARCHAR`, `BOOLEAN`, `DATE`) | unchanged | unchanged | unchanged |
+   | each field's metadata | `legend.*` per field | none | none; every field nullable |
+   | the schema's metadata | insertion order | insertion order | Java `HashMap`'s order |
+
+   *The question with them:* whether lite's own consumers that read `ARROW_IPC` today (DataCube asking Python's engine)
+   keep reading it -- and then see upstream's types (a sum of integers as text, as from a real legend-engine) -- or
+   move to lite's own Arrow in the plan's types (D17's reading). The fourteen schema entries of the ledger go when both
+   the JVM and Python write upstream's answer.
 4. **Python's Arrow execute onto the record and the edge writer**: `arrowPlan`, `lite_execute_plan` and Python's own
    Arrow writer (`engine.py` `_arrow_ipc`) retired, the census at zero; the fourteen schema entries of the ledger gone
    (Java and Python both upstream's).
@@ -1042,3 +1064,5 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   a `FLOAT`'s digits, an infinite date or timestamp, a BC date (500 -> its rows), each now the JVM's.
 - 2026-11-03: R4 step 1 built: `ArrowReader` reads a dictionary-encoded column (DuckDB's `ENUM`; pyarrow's replacement
   dictionaries), judged in `//python:arrow_handoff_test`.
+- 2026-11-03: R4 step 3's cases posted to the user (§5 R4, the table under step 3) with the question of lite's own
+  consumers of `ARROW_IPC`; step 3 and step 4 wait on the ruling (D7). Steps 5 and 6 do not depend on it.
