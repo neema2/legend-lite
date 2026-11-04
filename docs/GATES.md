@@ -19844,3 +19844,13 @@ seven local suites under the database judge alone and BOTH: 7 of 7 each; the Duc
 every status identical in both passes, the database-lost set identical, `//spec:corpus_duckdb_verdict` red as at the
 baseline. (The corpus phase ran while new, not yet called, functions were being added to `VerdictQueries` and
 `VerdictSql` for the next step: no behavior of the checked commit changed.)
+
+## 2026-11-04 — The per-element form, checked wide
+
+`5eac7e30` (the asserts-as-plan-nodes program, step 5: a quantified equality judged element by element, its operands
+computed by the database). **Checks at `5eac7e30`:** `//core:core_tests` under the database judge alone and BOTH: 28 of
+28 each; PCT channel B's seven local suites under the database judge alone and BOTH: 7 of 7 each; the DuckDB corpus
+against the explicit rule's run (`corpus_rules`): every status identical in both passes (moved 3,084 and 3,050, fail
+108 and 111, skip 14 each), the database-lost set identical, `//spec:corpus_duckdb_verdict` red as at the baseline
+(the same three database-lost names: `columnValueDifferenceWithoutPrevalTest`, `testCheckedWithCircularConstraints`,
+`strictdate::testProject`). The H2 corpus was not re-run (its logs carried from the step before).
