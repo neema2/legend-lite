@@ -3354,6 +3354,18 @@ final class Scalars {
                     continue;
                 }
             }
+            // %s over a number: pure prints the value's toString (format('got %s', [2]) is 'got 2'); printf's %s
+            // takes text, and DuckDB's refuses an integer (2026-11-04, the asserts-as-plan-nodes program: the format
+            // overload of an assert's message reached it -- PCT formats no number by %s)
+            if (d == 's' && typed != null && typed.info().type() instanceof Type.Primitive p
+                    && (p == Type.Primitive.INTEGER || p == Type.Primitive.FLOAT || p == Type.Primitive.DECIMAL
+                            || p == Type.Primitive.NUMBER)) {
+                spread.set(argIdx, pureToString(p, spread.get(argIdx)));
+                out.append("%s");
+                argIdx++;
+                i += 2;
+                continue;
+            }
             out.append('%').append(d == 't' ? 's' : d);
             argIdx++;
             i += 2;

@@ -557,6 +557,14 @@ final class AssertVerdicts {
         if (fn == null) {
             return null;
         }
+        // a caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04): the family's arm judges the
+        // base overload; under the database judge its verdict row fails with the message's text (DatabaseJudge.runVerdict)
+        com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST
+                ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
+        if (split != null) {
+            env = env.withFailureMessage(DatabaseJudge.failureMessage(split.message(), letPrefix, specs, env, hook));
+            bare = split.base();
+        }
         String name = fn.bareName();
         com.legend.judge.CanonicalDivergence.sqlFamily(name);   // leg 3.0 census
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
@@ -1078,10 +1086,15 @@ final class AssertVerdicts {
                     rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
         }
         String name = fn == null ? null : fn.bareName();
+        // a caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04): the family's arm plans the
+        // base overload, the message one more side its failure raises (HostJudge.messaged)
+        com.legend.compiler.spec.AssertMessages.Split split = fn == null ? null
+                : com.legend.compiler.spec.AssertMessages.split(bare, specs);
+        TypedSpec armRoot = split == null ? bare : split.base();
         HostSides.Check check;
         try {
             check = fn == null ? SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook)
-                    : planArm(fn, fn.bareName(), bare, letPrefix, specs, env, hook);
+                    : planArm(fn, fn.bareName(), armRoot, letPrefix, specs, env, hook);
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
             // the family counted first, as adjudicate counts it before the arm (N2)
@@ -1116,7 +1129,8 @@ final class AssertVerdicts {
         }
         boolean wantEqual = fn == null || fn != NativeFn.Verdict.ASSERT_NOT_EQUALS
                 && fn != NativeFn.Verdict.ASSERT_FALSE && fn != NativeFn.Verdict.ASSERT_NOT_EMPTY;
-        return new HostAssert(listenerName(bare), name, wantEqual, check);
+        return new HostAssert(listenerName(bare), name, wantEqual,
+                split == null ? check : HostJudge.messaged(check, split.message(), hook));
     }
 
     /** {@code fn}'s arm planned over {@code bare}'s arguments, or null where the host checks do not plan the shape. */

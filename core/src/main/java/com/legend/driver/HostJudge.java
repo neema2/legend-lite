@@ -711,6 +711,7 @@ final class HostJudge {
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides);
+            case HostJudgment.Messaged m -> messagedOf(m, sides);
         };
     }
 
@@ -954,6 +955,27 @@ final class HostJudge {
         // (identity/key canon); the egress is one boolean, so
         // no other lane ever sees the identity field
         return new HostSides.Check(List.of(identityAsk(cond, hook)), new HostJudgment.Condition(name, wantTrue));
+    }
+
+    /** {@code check} with the caller's failure message (the asserts-as-plan-nodes program, step 2): the message one
+     *  more side, folded where it is a constant (a literal costs no statement). */
+    static HostSides.Check messaged(HostSides.Check check, TypedSpec message,
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        List<HostSides.Ask> asks = new java.util.ArrayList<>(check.asks());
+        asks.add(new HostSides.Ask(message, false, true, hook));
+        return new HostSides.Check(asks, new HostJudgment.Messaged(check.judgment(), check.asks().size()));
+    }
+
+    private static @com.legend.base.Nullable TypedSide messagedOf(HostJudgment.Messaged m, List<TypedSide> sides) {
+        try {
+            return judge(m.inner(), sides.subList(0, m.innerSides()));
+        } catch (com.legend.error.AssertFailed e) {
+            if (e.unjudgedReason() != null) {
+                throw e;
+            }
+            Object text = AssertVerdicts.one(AssertVerdicts.decodeSide(sides.get(m.innerSides())), "the message");
+            throw new com.legend.error.AssertFailed(String.valueOf(text));
+        }
     }
 
     private static TypedSide conditionOf(HostJudgment.Condition j, List<TypedSide> one) {

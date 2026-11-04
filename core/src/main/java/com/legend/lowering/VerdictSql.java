@@ -190,10 +190,13 @@ public final class VerdictSql {
         OneRow n = rowOf("n", nScalar);
         SqlExpr count = c.col("__n");
         SqlExpr want = new SqlExpr.Cast(n.col(C), SqlType.Scalar.BIGINT);
+        SqlExpr wantText = new SqlExpr.Cast(want, SqlType.Scalar.VARCHAR);
+        SqlExpr countText = new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR);
+        // upstream's own words (assertSize.pure: 'expected size: %s, actual size: %s'), the host's (PureAsserts)
         return predicateOver(envelope ? List.of() : List.of(new SqlWith.Cte("__a", sideRows)),
-                List.of(c, n), SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, want),
-                new SqlExpr.Cast(want, SqlType.Scalar.VARCHAR),
-                new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR), new SqlExpr.NullLit());
+                List.of(c, n), SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, want), wantText, countText,
+                new SqlExpr.NullLit(), new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("expected size: "),
+                        wantText, new SqlExpr.StringLit(", actual size: "), countText)));
     }
 
     /** A GRAPH-shaped side (a class collection serialized as ONE JSON
@@ -334,11 +337,19 @@ public final class VerdictSql {
         OneRow m = new OneRow("m", new SqlSelect(List.of(new SqlSelect.Projection(
                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__m", mOut)),
                 false, matched, null, List.of(), null, null, List.of(), null, null, List.of(mOut)), List.of(mOut));
-        OneRow t = textOf("t", "__sa");
+        OneRow t = textAndCountOf("t", "__sa");
+        // upstream's own words (assertContains.pure: '%s does not contain %r', the collection its representations
+        // joined '[', ', ', ']' in its own order), the host's (PureAsserts.containsMessage): one element bracketed too
+        SqlExpr list = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, t.col(F_N), new SqlExpr.IntLit(1)),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), t.col(F_TEXT), new SqlExpr.StringLit("]")))),
+                t.col(F_TEXT));
         return predicateOver(List.of(new SqlWith.Cte("__a", collRows), new SqlWith.Cte("__v0", valScalar),
-                        new SqlWith.Cte("__sa", sideFacts("__a", true, true))),
+                        new SqlWith.Cte("__sa", sideFacts("__a", true, false))),
                 List.of(v, m, t), SqlExpr.Call.of(SqlFn.GREATER, m.col("__m"), new SqlExpr.IntLit(0)),
-                v.col(C), t.col(F_TEXT), new SqlExpr.NullLit());
+                v.col(C), t.col(F_TEXT), new SqlExpr.NullLit(), SqlExpr.Call.of(SqlFn.CONCAT, list,
+                        new SqlExpr.StringLit(" does not contain "), SqlExpr.Call.of(SqlFn.COALESCE, v.col(C),
+                                new SqlExpr.StringLit("[]"))));
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)}: the condition's one
@@ -774,6 +785,17 @@ public final class VerdictSql {
                 new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_TEXT), F_TEXT, factOutputs().get(0))),
                 false, new SqlSource.Table(factsCte, factsCte, factOutputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null,
                 List.of(), null, null, List.of(factOutputs().get(0))), List.of(factOutputs().get(0)));
+    }
+
+    /** {@link #textOf} with the side's count beside its text ({@code F_N}): a message that brackets one element. */
+    private static OneRow textAndCountOf(String alias, String factsCte) {
+        List<OutputCol> outs = List.of(factOutputs().get(0), factOutputs().get(3));
+        return new OneRow(alias, new SqlSelect(List.of(
+                new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_TEXT), F_TEXT, outs.get(0)),
+                new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_N), F_N, outs.get(1))),
+                false, new SqlSource.Table(factsCte, factsCte, factOutputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs),
+                outs);
     }
 
     /** The first row of a rows CTE as a one-row relation ({@code __c}). */
@@ -1396,6 +1418,51 @@ public final class VerdictSql {
                     SqlExpr.Column.of("ra", actualRepr.outputs(), "value"));
             List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
             ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+            return new SqlSelect(ps, sel.distinct(), from, sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
+                    sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
+        };
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), f.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return f.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
+    /** A caller's failure message for an assert (the asserts-as-plan-nodes program, step 2, 2026-11-04): a constant the
+     *  plan spells ({@code literal}), or the one-row relation of its {@code value} the database computes
+     *  ({@link #firstValueRow}). */
+    public record FailureMessage(@com.legend.base.Nullable String literal, @com.legend.base.Nullable SqlQuery row) {
+        public FailureMessage {
+            if ((literal == null) == (row == null)) {
+                throw new IllegalArgumentException("a failure message is a literal or a row, one of the two");
+            }
+        }
+    }
+
+    /** {@code row}, a verdict row, failing with {@code message}: its MESSAGE column the caller's text, replacing any the
+     *  family composed -- upstream's {@code assert(condition, | message)}; the comparison the row's own. */
+    public static SqlQuery withFailureMessage(SqlQuery row, FailureMessage message) {
+        java.util.function.UnaryOperator<SqlSelect> f = sel -> {
+            SqlSource from = sel.from();
+            SqlExpr text;
+            if (message.row() != null) {
+                SqlQuery m = message.row();
+                from = new SqlSource.Join(from, new SqlSource.Subselect(m, "rm", null), SqlSource.Join.Kind.CROSS,
+                        null);
+                text = SqlExpr.Call.of(SqlFn.COALESCE, asText(SqlExpr.Column.of("rm", m.outputs(), "value")),
+                        new SqlExpr.StringLit("null"));
+            } else {
+                text = new SqlExpr.StringLit(java.util.Objects.requireNonNull(message.literal()));
+            }
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            for (SqlSelect.Projection p : sel.projections()) {
+                if (!MESSAGE.equals(p.alias())) {
+                    ps.add(p);
+                }
+            }
+            ps.add(new SqlSelect.Projection(text, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
             return new SqlSelect(ps, sel.distinct(), from, sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
                     sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
         };

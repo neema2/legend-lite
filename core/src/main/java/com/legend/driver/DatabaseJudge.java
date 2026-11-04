@@ -284,6 +284,22 @@ final class DatabaseJudge {
      *  core program: a rendered text's generic comparison) -- planned as the host judge plans the same side, a plain
      *  value with no canon wrap (a canon would encode the render's own reduction, which a dialect without a list
      *  encoding refuses: H2's {@code joinStrings}); null where the side is answered with no plan. */
+    /** {@code message}, a caller's failure text, as the verdict row carries it: a constant the compiler folds (a
+     *  literal, a join of literals), else the one-row relation the database computes ({@link #textRow}). */
+    static com.legend.lowering.VerdictSql.FailureMessage failureMessage(TypedSpec message, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        Object folded = com.legend.compiler.spec.typed.Literals.fold(message, letPrefix);
+        if (folded instanceof String s) {
+            return new com.legend.lowering.VerdictSql.FailureMessage(s, null);
+        }
+        com.legend.sql.SqlQuery row = textRow(message, letPrefix, specs, env, hook);
+        if (row == null) {
+            throw new IllegalStateException("an assert's message planned no side and folds to no String: "
+                    + message.getClass().getSimpleName());
+        }
+        return new com.legend.lowering.VerdictSql.FailureMessage(null, row);
+    }
+
     static com.legend.sql.@com.legend.base.Nullable SqlQuery textRow(TypedSpec spec, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         BodyDriver.PlannedValue pv = BodyDriver.planHostSide(spec, letPrefix, specs, env, false, false,
@@ -309,6 +325,10 @@ final class DatabaseJudge {
      * (never NULL) with the two framed canons as the message. */
     static TypedSide runVerdict(String name, boolean wantEqual,
             com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
+        if (runOn.failureMessage() != null) {
+            // a caller's failure message (the asserts-as-plan-nodes program, step 2): the row's message the caller's
+            vq = com.legend.lowering.VerdictSql.withFailureMessage(vq, runOn.failureMessage());
+        }
         com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush

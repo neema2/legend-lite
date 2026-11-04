@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -284,6 +284,13 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  holds (the dispatch's own rendered arm, not the equality's). */
     record Rendered(String name, boolean wantEqual, String form, @Nullable String eForm, @Nullable String aForm,
             boolean sortedOrder, boolean counted) implements HostJudgment {
+    }
+
+    /** A caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04;
+     *  {@code compiler.spec.AssertMessages}): {@code inner} judges the first {@code innerSides} sides, the family's
+     *  check over the base overload; the side after them is the message, a String the plan read -- a failure of
+     *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. */
+    record Messaged(HostJudgment inner, int innerSides) implements HostJudgment {
     }
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it. */

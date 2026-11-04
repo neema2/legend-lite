@@ -96,14 +96,12 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            "assert-custom-message", "assertFalse-custom-message", "assert-computed-message",
-            "assertEquals-custom-message", "assertEquals-format-message", "forAll-zip-assert-message",
+            "forAll-zip-assert-message",
             "assertNotEq-holds", "assertNotEq-fails", "assertNotSize-holds", "assertNotContains-holds",
             "one-statement-helper-holds", "one-statement-helper-fails", "assert-in-an-if", "assert-bound-by-a-let",
-            "forAll-over-range", "forAll-zip-computed-arguments", "assertInstanceOf-custom-message",
+            "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type", "concatenate-keeps-order", "union-keeps-order", "float-looking-strings",
-            "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert", "assertSize-fails",
-            "assertContains-fails", "assert-then-a-query"));
+            "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert", "assert-then-a-query"));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);
