@@ -590,18 +590,32 @@ public enum BodyClass {
         if (!anAssert) {
             // a frame program with no assert (2026-11-03, the core program: ExecuteFrameTest's `let r = execute(...);
             // $r.values`): its last statement is its answer, by the query program's answer rule -- the guard below (a
-            // query planned after the asserts could fail before they ran) has no assert to guard. Not a bare
-            // execute(...) answered whole: the test door plans no result envelope (ExecuteFrameTest's
-            // executeInResultPosition, the walk's)
+            // query planned after the asserts could fail before they ran) has no assert to guard.
             // Only let-bound frames, no frame run as a statement of its own: the corpus's
             // otherwiseTestQualifierPropertyConstantExpression (`let result = execute(|Product.all()->filter(...));
-            // true;`, its unread let a statement over an object query) the walk runs and the store resolver refuses
-            return !statementFrame && !frames.isEmpty()
-                    && !(Lets.bare(last) instanceof TypedNativeCall call && NativeFn.Handle.runsAFrame(call.callee().id()))
-                    && answered(query, Lets.bare(last));
+            // true;`, its unread let a statement over an object query) the walk runs and the store resolver refuses.
+            // A bare execute(...) of a relation-rooted query as the answer answers its frame's rows, the walk's forced
+            // frame (2026-11-04, the core program: ExecuteFrameTest's executeInResultPosition; the test door's
+            // ProductStatements.prepare, frameAnswered); any other execute(...) answered whole stays the walk's
+            if (bareExecute(last)) {
+                return !statementFrame && relationFrameAnswer(query, last, lets);
+            }
+            return !statementFrame && !frames.isEmpty() && answered(query, Lets.bare(last));
         }
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+    }
+
+    /** Whether {@code statement} is an {@code execute(...)} at its root (no let): a frame answered whole. */
+    private static boolean bareExecute(TypedSpec statement) {
+        return statement instanceof TypedNativeCall call
+                && NativeFn.Handle.of(call.callee().id()).orElse(null) == NativeFn.Handle.EXECUTE;
+    }
+
+    /** Whether {@code last}, a bare {@code execute(...)}, runs a relation-rooted frame (its answer the frame's rows). */
+    private static boolean relationFrameAnswer(TypedQuery query, TypedSpec last, List<TypedSpec> lets) {
+        Boolean relationRooted = FramePlanner.relationRooted((TypedNativeCall) last, lets, query.specs());
+        return Boolean.TRUE.equals(relationRooted);
     }
 
     /** The names {@code lam}, a frame's query, binds itself: its parameters (an executeLegendQuery's, bound from its
@@ -765,6 +779,13 @@ public enum BodyClass {
                 return refused("statement " + i + " tdg");
             }
             if (storesOf(statement, query, i) == Stores.BOTH) {
+                if (body.size() == 1) {
+                    // a lone statement reading both stores (2026-11-04, the core program: MetamodelStoreTest's
+                    // mixedChainKeepsTheWall): planning raises what the walk raises at its turn, nothing before it --
+                    // the store resolver's wall where a user class has no context, else the system route's refusal
+                    // (no single session: SystemRoutes.refuseMixed, the walk's and the program road's)
+                    return true;
+                }
                 return refused("statement " + i + " reads both stores");
             }
             if (i < body.size() - 1 && statement instanceof TypedLet let
@@ -783,7 +804,7 @@ public enum BodyClass {
                         // equality and membership in value position)
                         // a store write as the body's ONE statement (2026-11-04, the core program): one update step,
                         // atomic in the database as the walk's transaction around it is (StagedRowsTest's delete)
-                        if (kind == Kind.STORE_WRITE && body.size() == 1) {
+                        if (kind == Kind.STORE_WRITE || kind == Kind.STAGED) {
                             return false;
                         }
                         if (kind != null && kind != Kind.SYSTEM_READ && kind != Kind.RAW_GRID && kind != Kind.OBJECT) {
@@ -795,6 +816,9 @@ public enum BodyClass {
                 return refused("statement " + i + " another way: " + found[0]);
             }
             if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
+                    && !(!(statement instanceof TypedLet) && StatementEffects.isStoreWrite(Lets.bare(statement)))
+                    && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
+                            new HashMap<>(), n -> false) == LetPlanner.Kind.STAGED)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
                             new HashMap<>(), n -> false) == LetPlanner.Kind.VALUE
                             && !StatementEffects.reaches(let.value(), ProductStatements::toOneReader, query.specs(),

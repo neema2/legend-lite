@@ -434,7 +434,7 @@ public final class PlanMaker {
         SqlDialect dialect = state.dialect();
         ExecutionPlan.Target target = routed != null ? routed : state.target();
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), stmt), state.runtime(), i,
-                state.features(), state.frames());
+                state.features(), state.frames(), Map.of(), last && door == ProgramState.Door.TEST);
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
             // a value the program wrote: the answer where it is the last statement (a test's as the walk answers

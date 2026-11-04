@@ -98,6 +98,16 @@ public final class ProductStatements {
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames) {
+        return prepare(query, statements, runtime, mark, features, frames, runtimeRenames, false);
+    }
+
+    /** {@link #prepare}; {@code frameAnswered}: the statement is a TEST program's answer, and its root, an
+     *  {@code execute(...)} of a relation-rooted query, answers its frame's rows (its chain) -- the walk's forced frame
+     *  at a value position, whose run is the value (ExecuteFrameTest's executeInResultPosition, 2026-11-04, the core
+     *  program). The product's query door plans no Result envelope as an answer, and keeps refusing it. */
+    public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
@@ -106,7 +116,7 @@ public final class ProductStatements {
         PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows)
                 : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames);
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows));
+        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -136,6 +146,9 @@ public final class ProductStatements {
         // then every store the statement touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);
         CrossStoreGuard.check(body, ctx, runtime);
+        // one session per statement: none reads the system metamodel store beside a user store (the walk's route
+        // refuses it alike, SystemRoutes.of)
+        CrossStoreGuard.oneSession(SystemRoutes.stores(body));
         // widened LAST, after resolution: the renames of the frames the statement reads (the walk's order)
         Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
                 frames.renames(), env.tableReplace(), lets, specs);
@@ -158,18 +171,37 @@ public final class ProductStatements {
     /** {@code statements} inlined with the splice hook {@code first} records into; inlined again, its frames read as
      *  their CTE, where it pastes one more than once (M3g, B10). */
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
-            ProgramFrames.Recorder first) {
+            ProgramFrames.Recorder first, boolean frameAnswered) {
         ProgramFrames.Recorder recorder = first;
         UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
-        List<TypedSpec> body = inliner.inlineBody(new ArrayList<>(statements), mark);
+        List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder,
+                frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
             inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
-            body = inliner.inlineBody(new ArrayList<>(statements), mark);
+            body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder, frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
                 recorder.reads());
+    }
+
+    /** {@code body} with its last statement, an {@code execute(...)} of a relation-rooted query at its root, read as
+     *  its frame's chain where {@code frameAnswered} (a test program's answer: {@link #prepare}); as it is otherwise. */
+    private static List<TypedSpec> frameAnswered(List<TypedSpec> body, ProgramFrames.Recorder recorder,
+            boolean frameAnswered) {
+        if (!frameAnswered || body.isEmpty()
+                || !(body.get(body.size() - 1) instanceof TypedNativeCall ec)
+                || NativeFn.Handle.of(ec.callee().id()).orElse(null) != NativeFn.Handle.EXECUTE) {
+            return body;
+        }
+        ResultEnvelopeSplice.View view = recorder.inlineExecute(ec, false);
+        if (!view.relationRooted()) {
+            return body;
+        }
+        List<TypedSpec> out = new ArrayList<>(body);
+        out.set(out.size() - 1, view.chain());
+        return out;
     }
 
     /** {@code s}'s answer as a value the program wrote, answered with nothing sent (MV12), or null: a DDL text the

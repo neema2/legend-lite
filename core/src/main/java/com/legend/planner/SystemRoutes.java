@@ -36,24 +36,25 @@ public final class SystemRoutes {
 
     /** {@code body}'s route, or null when it reads no system store. */
     public static @com.legend.base.Nullable Route of(java.util.List<TypedSpec> body, PlanEnv env) {
-        java.util.Set<String> stores = new java.util.TreeSet<>();
-        for (TypedSpec n : body) {
-            BodyPlanner.collectStores(n, stores);
-        }
+        java.util.Set<String> stores = stores(body);
         String storeFqn = com.legend.builtin.SystemMetamodel.STORE_FQN;
         if (!stores.contains(storeFqn)) {
             return null;
         }
-        if (stores.size() > 1) {
-            throw new com.legend.error.NotImplementedException("a query reading"
-                    + " the system metamodel store AND a user store " + stores
-                    + " has no single session — the system database is"
-                    + " separate from user connections");
-        }
+        CrossStoreGuard.oneSession(stores);
         var store = env.ctx().findDatabase(storeFqn).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is"
                         + " not in the model — injection regressed"));
         return new Route(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type(), store);
+    }
+
+    /** The stores {@code body}, resolved, reads, in name order. */
+    public static java.util.Set<String> stores(java.util.List<TypedSpec> body) {
+        java.util.Set<String> stores = new java.util.TreeSet<>();
+        for (TypedSpec n : body) {
+            BodyPlanner.collectStores(n, stores);
+        }
+        return stores;
     }
 
     /** The store's tables as {@code route}'s system session names them: none renamed on a database the platform runs

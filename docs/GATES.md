@@ -19580,3 +19580,27 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
    baseline: every test's status identical in all four passes. The corpus verdict targets and
    `update_rcorpus_h2_0_test` (strictdate `testProject`, failing at the baseline too) are red as they were at the
    baseline.
+
+## 2026-11-04 — Core, sixth batch: a bare execute answered, a lone both-store statement, staged lets (5 -> 2 walkers)
+
+1. **A bare `execute(...)` of a relation-rooted query as a test's answer** (ExecuteFrameTest's
+   `executeInResultPosition`) answers its frame's rows, the walk's forced frame at a value position: the test door's
+   statement planner reads the root as its frame's chain (`ProductStatements.prepare`, `frameAnswered`, the test door
+   alone); the product's query door plans no Result envelope and keeps refusing it.
+2. **A lone statement reading the system metamodel store and a user store** (MetamodelStoreTest's
+   `mixedChainKeepsTheWall`) is planned: planning raises what the walk raises at its turn, nothing before it -- the
+   store resolver's wall where a user class has no context, else the one-session refusal, now asked by the program
+   road's statements too (`CrossStoreGuard.oneSession`, the walk's route's own text, `SystemRoutes.of`). Such a
+   statement beside others stays refused.
+3. **A staged let and the store writes after it** (StagedRowsTest's staged let) are a query program's steps: the
+   planner's staged table and update steps, the plan's one transaction as the walk's.
+4. The allow list 5 -> 2 (`deferredTextPrograms`, `classQueryDerivedSqlResolves`: each a design question posted to the
+   user -- the engine-text asserts whose golden is a plan's text, the computed effect text as a keyed effect).
+5. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green; the corpora against the `8951f974`
+   baseline: every test's status identical in all four passes (the corpus verdict targets and
+   `update_rcorpus_h2_0_test` red as at the baseline). Core under the database judge alone: the known gaps only
+   (QuantifiedRowsTest's row messages, MetamodelMappingStoreTest's instance message, H2's out-of-memory on the
+   metamodel nesting). The one-session refusal moved from SystemRoutes to CrossStoreGuard after the corpus and PCT
+   passes (the same check and text; census, guardrails and every core target re-run green); `JavaEvalLedgerTest`:
+   `SystemRoutes` 94 -> 93.

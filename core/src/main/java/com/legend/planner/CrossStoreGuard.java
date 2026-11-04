@@ -65,6 +65,19 @@ public final class CrossStoreGuard {
         }
     }
 
+    /** Refuses {@code stores}, the stores a resolved statement reads ({@code SystemRoutes.stores}), where they hold the
+     *  system metamodel store beside a user store: no single session runs it, the system database being separate from
+     *  user connections (the walk's route, {@code SystemRoutes.of}, and the program road's statements,
+     *  {@code ProductStatements.prepare}, 2026-11-04). */
+    public static void oneSession(java.util.Set<String> stores) {
+        if (stores.size() > 1 && stores.contains(com.legend.builtin.SystemMetamodel.STORE_FQN)) {
+            throw new com.legend.error.NotImplementedException("a query reading"
+                    + " the system metamodel store AND a user store " + stores
+                    + " has no single session — the system database is"
+                    + " separate from user connections");
+        }
+    }
+
     /** The runtime's bindings, each also covering every store its database INCLUDES, at any depth: an included
      *  database's tables are part of the including one, reached through its connection (a store bound directly
      *  keeps its own binding too, so a conflicting one is still the multi-connection shape refused above). */

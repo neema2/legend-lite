@@ -19,8 +19,9 @@
 # 2026-11-04 (the core program): 7 -> 5 -- a store write as a body's one statement is one update step
 # (StagedRowsTest's delete); an effect let a later statement reads raises the walk's own refusal on the test door
 # (ExecuteInDbDuckDbTest's effectfulLetReadIsLoud).
+# 2026-11-04 (the core program): 5 -> 2 -- a bare execute(...) of a relation-rooted query answers its frame's rows
+# (ExecuteFrameTest#executeInResultPosition); a lone statement reading both stores raises at planning what the walk
+# raises at its turn (MetamodelStoreTest#mixedChainKeepsTheWall); a staged let and the store writes after it are a
+# query program's steps (StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt).
 com.legend.driver.BodyRouterParityTest#deferredTextPrograms
-com.legend.exec.ExecuteFrameTest#executeInResultPosition
 com.legend.exec.ExecuteInDbDuckDbTest#classQueryDerivedSqlResolves
-com.legend.integration.MetamodelStoreTest#mixedChainKeepsTheWall
-com.legend.integration.StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt
