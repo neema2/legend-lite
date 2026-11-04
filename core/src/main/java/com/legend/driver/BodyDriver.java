@@ -320,18 +320,39 @@ public final class BodyDriver {
                 || com.legend.builtin.NativeFn.ContextOwner.of(nc.callee().id()).isPresent();
     }
 
-    /** The rule for a statement-root HELPER call ({@link #prepareValue}): a user call whose inlined, staged root is an
-     *  ASSERT -- any verdict native of the asserts package -- is adjudicated as that assert, as any function is its
-     *  body (the asserts-as-plan-nodes program, step 3, 2026-11-04: a helper {@code check(x){ assertEquals(2, $x) }} and
-     *  the prelude's upstream bodies -- {@code assertNotEq}, {@code assertNotSize}, {@code assertNotContains},
-     *  {@code assertIsNot}, each an {@code assert} of a condition with upstream's message -- until then the rule took an
-     *  assert over a CLASS VALUE alone, the corpus's two witnesses, and refused the rest); a root that reads a STRING
-     *  ENTRY likewise (the corpus's {@code runLegendTest} wrappers); every other helper root is a value. */
+    /** The walk's rule for a statement-root HELPER call ({@link #prepareValue}): a user call whose inlined, staged
+     *  root is a verdict native asserting a CLASS VALUE or reading a STRING ENTRY is adjudicated as that assert (the
+     *  corpus's {@code runLegendTest} wrappers, {@code toPostgresModel}'s {@code assertConversion}); every other
+     *  helper root is a value -- but for an ASSERT HELPER ({@link #isAssertHelper}), whose root is its assert. */
     static boolean isHelperAssertRoot(TypedSpec bare, TypedSpec preRoot) {
         return bare instanceof com.legend.compiler.spec.typed.TypedUserCall
-                && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot) || assertsPackageNative(nc)
-                        && com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).isPresent());
+                && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
+                && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
+                        || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot));
+    }
+
+    /** Whether {@code callee} IS an assert (the asserts-as-plan-nodes program, step 3, 2026-11-04): its body one
+     *  statement, an assert of the family or a call of another assert helper -- a user's {@code check(x){
+     *  assertEquals(2, $x) }}, the prelude's upstream {@code assertNotEq}, {@code assertNotSize}, {@code
+     *  assertNotContains}, {@code assertIsNot}. Such a helper is its body's assert, as any function is its body; a helper
+     *  that does more than assert (a setup that writes tables, then answers true) is not one, whatever asserts its
+     *  library reaches (the first cut asked only whether an assert was reachable, and folded such setups away: 61 corpus
+     *  bodies lost their tables). */
+    static boolean isAssertHelper(com.legend.compiler.element.TypedFunction callee, SpecCompiler specs, int depth) {
+        if (depth > 8) {
+            return false;
+        }
+        java.util.List<TypedSpec> body = specs.compile(callee).body();
+        if (body.size() != 1 || body.get(0) instanceof com.legend.compiler.spec.typed.TypedLet) {
+            return false;
+        }
+        TypedSpec root = body.get(0);
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
+            return com.legend.builtin.NativeFn.Verdict.of(nc.callee().id())
+                    .filter(v -> v != com.legend.builtin.NativeFn.Verdict.TO_CSV).isPresent();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && isAssertHelper(uc.callee(), specs, depth + 1);
     }
 
     /** The assert a statement-root HELPER call reduces to, by the walk's rule ({@link #isHelperAssertRoot}: the call
@@ -374,14 +395,17 @@ public final class BodyDriver {
             preRoot = pf.source();
         }
         preRoot = foldPairProjection(preRoot);
-        if (preRoot instanceof com.legend.compiler.spec.typed.TypedCBoolean decided && decided.value()
+        boolean assertHelper = isAssertHelper(call.callee(), specs, 0);
+        if (assertHelper && preRoot instanceof com.legend.compiler.spec.typed.TypedCBoolean decided && decided.value()
                 && body.size() == single.size()) {
             // the compiler decided the helper's assert (LiteralUnroll folds an assert over spelled values to true): the
             // assert it is, holding -- assert(true), planned by both judges as any assert (the asserts-as-plan-nodes
             // program, step 3: assertNotEq(1, 2) inlined to assert(!eq(1, 2), ...) folds so)
             return com.legend.compiler.spec.AssertMessages.holds(specs);
         }
-        return isHelperAssertRoot(bare, preRoot) ? preRoot : null;
+        return isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
+                com.legend.compiler.spec.typed.TypedNativeCall nc && assertsPackageNative(nc)
+                && com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).isPresent() ? preRoot : null;
     }
 
     static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,

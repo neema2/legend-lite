@@ -102,7 +102,7 @@ class AssertBarTest {
             "assert-in-an-if",
             "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type",
-            "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert"));
+            "decimal-scale", "assertError-over-a-failing-assert"));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);
