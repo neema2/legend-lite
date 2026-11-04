@@ -1675,7 +1675,10 @@ final class HostJudge {
         List<Object> av = AssertVerdicts.decodeSide(pair.get(1));
         if (ev.size() == 1 && ev.get(0) instanceof String et
                 && av.size() == 1 && av.get(0) instanceof String at) {
-            boolean held = com.legend.judge.TdsCompare.renderedText(
+            // GENERIC FIRST (2026-11-04, the core program): the two strings compared as strings; the ruled policy (an
+            // unsorted query's lines as a multiset, S131; float tokens within 2 ULP, S132) only where they differ
+            // (measured on the corpus's DuckDB host pass: 240 of 269 texts byte-equal, 25 held by the policy)
+            boolean held = et.equals(at) || com.legend.judge.TdsCompare.renderedText(
                     j.aForm() != null ? et : at, j.aForm() != null ? at : et,
                     form, j.sortedOrder());
             if (held != j.wantEqual()) {

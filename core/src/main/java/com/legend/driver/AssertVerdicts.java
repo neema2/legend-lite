@@ -2066,8 +2066,12 @@ final class AssertVerdicts {
         var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
         var ra = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(1), chase);
         if (re != null && ra != null) {
-            return DatabaseJudge.databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs, env,
-                    hook, true, false, false, true);
+            DatabaseJudge.SideRows et = DatabaseJudge.planSide(args.get(0), false, letPrefix, specs, env, hook);
+            DatabaseJudge.SideRows at = DatabaseJudge.planSide(args.get(1), false, letPrefix, specs, env, hook);
+            return textFirst(name, wantEqual, et.why() == null && at.why() == null
+                    ? com.legend.lowering.VerdictSql.textEquals(et.scalarRow(false), at.scalarRow(false)) : null, env,
+                    () -> DatabaseJudge.databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs,
+                            env, hook, true, false, false, true));
         }
         boolean goldenIsExpected = ra != null;
         var r = goldenIsExpected ? ra : re;
@@ -2087,6 +2091,22 @@ final class AssertVerdicts {
         if (text == null) {
             return DatabaseJudge.unjudged(name, "rendered-text: the golden is not a string constant");
         }
+        DatabaseJudge.SideRows rendered = DatabaseJudge.planSide(goldenIsExpected ? args.get(1) : args.get(0), false,
+                letPrefix, specs, env, hook);
+        var rendering = r;
+        return textFirst(name, wantEqual, rendered.why() == null
+                ? com.legend.lowering.VerdictSql.textEquals(text, rendered.scalarRow(false)) : null, env,
+                () -> renderedRows(name, wantEqual, args, letPrefix, specs, env, hook, orderedForm, goldenIsExpected,
+                        rendering, text));
+    }
+
+    /** {@link #renderedValueVerdict}'s FALLBACK: the golden brought to rows by the render's own grammar and judged as
+     *  rows -- an unsorted query's as a multiset (S131), a Float within 2 ULP (S132) -- run where the two texts
+     *  differ. */
+    private static TypedSide renderedRows(String name, boolean wantEqual, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable SpliceHook hook, boolean orderedForm, boolean goldenIsExpected,
+            com.legend.compiler.spec.VerdictQueries.RenderedSide r, String text) {
         com.legend.compiler.element.type.Type.RelationType schema = null;
         if (r.grid() && r.restrictTo() != null) {
             // columnValues: the relation restricted to the one column, minted
@@ -2141,6 +2161,25 @@ final class AssertVerdicts {
                         env, hook, multiset, false, csv, true)
                 : DatabaseJudge.databaseVerdict(name, wantEqual, r.value(), parsed.literal(), letPrefix, specs,
                         env, hook, multiset, false, csv, true);
+    }
+
+    /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically, a ruled fallback only
+     *  after it fails): a rendered text's equality is its two strings' ({@code textRow}, the database computing the
+     *  render), and {@code rows} -- the ruled line and row comparison -- decides only where they differ: under the
+     *  batch as the row's fallback ({@code VerdictBatch.orElse}), else run now on a failed text. {@code textRow} null
+     *  (a side the database judge cannot read as a String) or the negated family: {@code rows} alone. */
+    private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
+            BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
+        if (!wantEqual || textRow == null) {
+            return rows.get();
+        }
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            batch.defer(name, true, textRow, env.session());
+            batch.orElse(rows::get);
+            return ok();
+        }
+        return DatabaseJudge.holdsNow(name, textRow, env) ? ok() : rows.get();
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

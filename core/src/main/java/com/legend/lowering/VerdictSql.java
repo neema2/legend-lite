@@ -666,6 +666,16 @@ public final class VerdictSql {
     /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
      *  golden a constant, ours the side's one-row relation ({@code oursRow}: {@link #scalarRow}'s {@code value}), string
      *  equality; the ACTUAL column carries our text back to the appeal of a failed row. */
+    /** Two rendered texts the database computes ({@code eRow}, {@code aRow}: {@link #scalarRow}'s {@code value}),
+     *  string equality (2026-11-04, the core program: a rendered text's generic comparison, its rows the fallback). */
+    public static SqlQuery textEquals(SqlQuery eRow, SqlQuery aRow) {
+        OneRow e = rowOf("e", eRow);
+        OneRow a = rowOf("a", aRow);
+        return predicateOver(List.of(), List.of(e, a),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("value"), a.col("value")),
+                e.col("value"), a.col("value"), new SqlExpr.NullLit());
+    }
+
     public static SqlQuery textEquals(String golden, SqlQuery oursRow) {
         OneRow e = constantOf("e", new SqlExpr.StringLit(golden), "__t", SqlType.Scalar.VARCHAR);
         OneRow a = rowOf("a", oursRow);

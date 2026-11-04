@@ -86,6 +86,12 @@ statement and H2 copes. The same shape as finding 2: the fix is the generic lowe
 
 ## 5. What to do when we come back (after the walkers and doors are gone)
 
+**The order (the user, 2026-11-04):** PCT and core 100% passing on the host and the database judge with 100% agreement
+between them; then the same for the relational corpus; then the walk deleted -- and only then one large SQL round,
+the lowerer and the SQL passes optimized globally: "we really do need to be able to build the leanest and most clean
+sql possible but first we have to get out of walker so we actually have the real sql we want to run". The round's first
+item: H2's out-of-memory under the database judge (section 4), the one core failure left to it.
+
 1. **Seed once, not per test.** The seed is Knowledge derived once per graph and engine (`SeedMemo`) but SENT once per
    session; core's metamodel tests open a session per test. Options: one system database per graph per JVM (the
    memo's key extended to the session's database), or seed only the tables a plan reads (lazy Work, `docs/TENETS.md`),
