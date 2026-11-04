@@ -16,10 +16,11 @@
 # pairs whose schemas differ (BodyRouterParityTest#theAssertShapesTheDatabasePlannerLeavesOnTheWalk).
 # 2026-11-04 (the core program): 8 -> 7 -- the host's planner unrolls a nested quantification, and an assert no arm
 # plans raises at its turn the walk's own error (BodyRouterParityTest#theAssertShapesTheHostChecksLeaveOnTheWalk).
+# 2026-11-04 (the core program): 7 -> 5 -- a store write as a body's one statement is one update step
+# (StagedRowsTest's delete); an effect let a later statement reads raises the walk's own refusal on the test door
+# (ExecuteInDbDuckDbTest's effectfulLetReadIsLoud).
 com.legend.driver.BodyRouterParityTest#deferredTextPrograms
 com.legend.exec.ExecuteFrameTest#executeInResultPosition
 com.legend.exec.ExecuteInDbDuckDbTest#classQueryDerivedSqlResolves
-com.legend.exec.ExecuteInDbDuckDbTest#effectfulLetReadIsLoud
 com.legend.integration.MetamodelStoreTest#mixedChainKeepsTheWall
-com.legend.integration.StagedRowsTest#aDeleteOfTheRowsAnotherRelationNames
 com.legend.integration.StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt

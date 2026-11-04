@@ -19565,3 +19565,18 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
 4. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
    SQLite and H2 relation) under BOTH and under the database judge alone: green; the corpora against the `8951f974`
    baseline: every test's status identical in all four passes. `JavaEvalLedgerTest`: `HostJudge` 1203 -> 1206.
+
+## 2026-11-04 — Core, fifth batch: a lone store write and a read effect let (7 -> 5 walkers)
+
+1. **A store write as a body's one statement** (StagedRowsTest's delete of the rows another relation names) is a query
+   program: one update step, atomic in the database as the walk's transaction around it is (`BodyClass.queryProgram`).
+   A store write beside other statements stays on the walk until the staged-let step exists.
+2. **An effect let a later statement reads** (ExecuteInDbDuckDbTest's `effectfulLetReadIsLoud`) is an effect program:
+   the test door raises the walk's own refusal ("reading an executeInDb result binding ... is not supported",
+   `TestKinds.effect`) at the let, as the walk raises it at the let's turn (`BodyClass.effectProgram`).
+3. The allow list 7 -> 5.
+4. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green; the corpora against the `8951f974`
+   baseline: every test's status identical in all four passes. The corpus verdict targets and
+   `update_rcorpus_h2_0_test` (strictdate `testProject`, failing at the baseline too) are red as they were at the
+   baseline.

@@ -781,6 +781,11 @@ public enum BodyClass {
                         // program road by core's tests): a raw grid (executeInDb's rows, the product's keyed result,
                         // ProductStatements), an object built inside the statement (InstanceIdentityTest's keyed
                         // equality and membership in value position)
+                        // a store write as the body's ONE statement (2026-11-04, the core program): one update step,
+                        // atomic in the database as the walk's transaction around it is (StagedRowsTest's delete)
+                        if (kind == Kind.STORE_WRITE && body.size() == 1) {
+                            return false;
+                        }
                         if (kind != null && kind != Kind.SYSTEM_READ && kind != Kind.RAW_GRID && kind != Kind.OBJECT) {
                             found[0] = kind;
                             return true;
@@ -1041,10 +1046,15 @@ public enum BodyClass {
             TypedSpec value = statement instanceof TypedLet let ? let.value() : statement;
             if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && value instanceof TypedNativeCall call
                     && NativeFn.Effect.isDbEffect(call.callee().id())) {
-                if (!literalEffect(call, body.subList(0, i))
-                        || statement instanceof TypedLet let
-                                && !ConnectionLets.onlyConnectionReads(body, i + 1, let.name())) {
+                if (!literalEffect(call, body.subList(0, i))) {
                     return false;
+                }
+                if (statement instanceof TypedLet let && !ConnectionLets.onlyConnectionReads(body, i + 1, let.name())) {
+                    // an effect let a later statement reads: the test door raises the walk's own refusal at this
+                    // statement ("reading an executeInDb result binding ... is not supported", TestKinds.effect), as the
+                    // walk raises it at the let's turn -- nothing after it is reached on either road (2026-11-04, the core
+                    // program: ExecuteInDbDuckDbTest's effectfulLetReadIsLoud)
+                    return true;
                 }
                 anEffect = true;
                 continue;
