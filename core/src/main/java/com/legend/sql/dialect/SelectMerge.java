@@ -28,9 +28,10 @@ import java.util.Map;
  * <p>The merge keeps the answer, by construction:
  * <ul>
  *   <li>the subselect's rows are its source's rows, filtered: no DISTINCT, ORDER BY, LIMIT or OFFSET in it;</li>
- *   <li>a subselect that groups, or has a window, or a QUALIFY, merges only under an outer select that projects,
- *       orders or limits (none of WHERE, GROUP BY, HAVING, QUALIFY, an aggregate or a window over its values: a
- *       window over a window is no SQL, and a filter over one is a later level's);</li>
+ *   <li>a subselect that groups, or has a QUALIFY, merges only under an outer select that projects, orders or
+ *       limits (none of WHERE, GROUP BY, HAVING, QUALIFY, an aggregate or a window over its values); one with windows
+ *       alone also under an outer select's windows that read none of its window values (a window over a window is no
+ *       SQL, a filter over one a later level's; two windows over the same rows are one select's);</li>
  *   <li>a value the subselect computes is computed once: the outer reads it at most once, or it is a plain column;</li>
  *   <li>a value whose evaluation may raise ({@link SqlExpr#raisesNothing}) is evaluated on the same rows as
  *       before: the outer reads it once, as a projection of its own, and filters and limits nothing; a subselect's column the
@@ -79,9 +80,18 @@ final class SelectMerge extends SqlRewriter {
             return null;
         }
         boolean filters = s.where() != null || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null;
-        boolean inLevels = !in.groupBy().isEmpty() || in.having() != null || in.qualify() != null
-                || in.projections().stream().anyMatch(p -> levelled(p.expr()));
-        if (inLevels && (filters || reads.levelled || reads.ordersBy(s, byName))) {
+        // a subselect that groups (or qualifies, or unnests) is one level of its own; one with windows alone takes the
+        // outer's windows beside its own where they read none of its levelled values (a window over a window is no
+        // SQL; two windows over the same rows are one select's, as a hand writes them: 2026-11-04)
+        boolean grouped = !in.groupBy().isEmpty() || in.having() != null || in.qualify() != null
+                || in.projections().stream().anyMatch(p -> grouping(p.expr()));
+        boolean windowed = in.projections().stream().anyMatch(p -> levelled(p.expr()));
+        boolean inLevels = grouped || windowed;
+        if (grouped && (filters || reads.levelled || reads.ordersBy(s, byName))) {
+            return null;
+        }
+        if (!grouped && windowed && (filters || reads.grouping || reads.ordersBy(s, byName)
+                || reads.windowed.stream().anyMatch(n -> !byName.containsKey(n) || levelled(byName.get(n))))) {
             return null;
         }
         for (SqlSelect.Projection p : in.projections()) {
@@ -143,6 +153,22 @@ final class SelectMerge extends SqlRewriter {
         return true;
     }
 
+    /** Whether {@code e} holds an aggregate or an UNNEST: a value of its select's groups or its rows' count. */
+    private static boolean grouping(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        if (SqlAgg.aggregatesSelect(e) || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (grouping(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Whether {@code e} holds an aggregate, a window or an UNNEST: a value of its select's level, not of a row of its
      *  source. */
     private static boolean levelled(SqlExpr e) {
@@ -166,6 +192,10 @@ final class SelectMerge extends SqlRewriter {
         final java.util.Set<String> bare = new java.util.HashSet<>();
         boolean refused;
         boolean levelled;
+        /** Whether the outer aggregates or unnests. */
+        boolean grouping;
+        /** The subselect's columns the outer's windows read (their arguments, partitions, orders, offsets). */
+        final java.util.Set<String> windowed = new java.util.HashSet<>();
 
         Reads(String alias) {
             this.alias = alias;
@@ -208,7 +238,20 @@ final class SelectMerge extends SqlRewriter {
 
         private void read(SqlExpr e) {
             levelled |= levelled(e);
+            grouping |= grouping(e);
+            inWindows(e);
             rewriteExpr(e);
+        }
+
+        /** Each of the subselect's columns a window in {@code e} reads, into {@link #windowed}. */
+        private void inWindows(SqlExpr e) {
+            if (e instanceof SqlExpr.WindowCall w) {
+                Reads inside = new Reads(alias);
+                inside.rewriteExpr(w);
+                windowed.addAll(inside.count.keySet());
+                return;
+            }
+            e.children().forEach(this::inWindows);
         }
 
         @Override

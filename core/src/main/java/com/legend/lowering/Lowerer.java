@@ -438,7 +438,8 @@ public final class Lowerer {
         }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(q, !engineText);
+        // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
+        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
     }
 
     /**
@@ -963,6 +964,17 @@ public final class Lowerer {
     // Relation ops
     // ==================================================================
 
+    /** Each table read's declared primary key, by the alias it is read under ({@link KeyedCounts}). */
+    private final java.util.Map<String, List<String>> tableKeys = new java.util.HashMap<>();
+
+    /** {@code table}, its key noted under its alias ({@link #tableKeys}). */
+    private SqlSource.Table keyed(TypedTableReference t, SqlSource.Table table) {
+        if (!t.key().isEmpty()) {
+            tableKeys.put(table.alias(), t.key());
+        }
+        return table;
+    }
+
     SqlSelect relation(TypedSpec spec) {
         // a relation the statement reads more than once: written once, read by name (SharedRelations)
         SharedRelations.Frame frame = sharing;
@@ -1009,10 +1021,10 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
                             com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
-                    : SqlSelect.starOf(
+                    : SqlSelect.starOf(keyed(t,
                     new SqlSource.Table(t.table(), nextAlias(),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()))));
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline

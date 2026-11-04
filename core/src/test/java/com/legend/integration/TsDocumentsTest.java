@@ -49,14 +49,14 @@ class TsDocumentsTest {
             ###Relational
             Database docs::DB
             (
-              Table prices ( symbol VARCHAR(16), asset_class VARCHAR(16), date DATE, open DOUBLE, high DOUBLE,
-                low DOUBLE, close DOUBLE, volume BIGINT )
-              Table rates ( tenor VARCHAR(8), years DOUBLE, date DATE, yield DOUBLE )
-              Table macro ( series VARCHAR(16), date DATE, value DOUBLE )
+              Table prices ( symbol VARCHAR(16) PRIMARY KEY, asset_class VARCHAR(16), date DATE PRIMARY KEY,
+                open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT )
+              Table rates ( tenor VARCHAR(8) PRIMARY KEY, years DOUBLE, date DATE PRIMARY KEY, yield DOUBLE )
+              Table macro ( series VARCHAR(16) PRIMARY KEY, date DATE PRIMARY KEY, value DOUBLE )
               Table trades ( ticker VARCHAR(16), trade_date DATE, price DOUBLE, qty DOUBLE, side VARCHAR(8),
                 venue VARCHAR(8) )
-              Table fx ( pair VARCHAR(16), date DATE, rate DOUBLE )
-              Table yields ( tenor VARCHAR(8), date DATE, yield DOUBLE )
+              Table fx ( pair VARCHAR(16) PRIMARY KEY, date DATE PRIMARY KEY, rate DOUBLE )
+              Table yields ( tenor VARCHAR(8) PRIMARY KEY, date DATE PRIMARY KEY, yield DOUBLE )
               Table quotes ( ticker VARCHAR(16), quote_time DATE, close_price DOUBLE )
               Table instruments ( ticker VARCHAR(16) PRIMARY KEY )
               Join QuoteInstrument(quotes.ticker = instruments.ticker)
