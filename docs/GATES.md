@@ -19782,3 +19782,31 @@ channel B's seven local suites under the database judge: 7 of 7; the DuckDB corp
 entry): every status identical in both passes, moved 3,084 (host) and 3,050 (database) unchanged -- no corpus body has
 an assert under a top-level `if` -- and `//spec:corpus_duckdb_verdict` red as at the baseline (the database-lost set
 identical). Not run here: the H2 corpus, the server lanes, `//core:core_tests_lanes`.
+
+## 2026-11-04 — Asserts as plan nodes: a Decimal's D, a vector assert's own message, and S127 ruled
+
+1. **A Decimal's message carries its D** (`2b65fff7`): the database judge printed `3.0` where the host and upstream
+   print `3.0D` (`VerdictSql.messageWithDecimals`); `AssertBarTest`'s `decimal-scale` closed.
+2. **A vector assert fails with the caller's message** (`2b65fff7`): `forAll(p | assert(cond, 'm'))` failed with
+   "Assert failed" under every judge (`VerdictQueries.assertMessage`); `forAll-zip-assert-message` closed;
+   `QuantifiedRowsTest#predicateRows` had pinned the old default.
+3. **S127 ruled** (`09104091`; the user, 2026-11-04: "the principled fix for the product, then compiled for backwards
+   compatible", asked with legend-engine's answers in hand, `fc7cfdbc`,
+   `core/src/test/resources/upstream-api/s127-number-equality.txt`): in lite's own runs two numbers of different
+   kinds are never equal (the database judge decides such a single pair false at planning, as the host judge already
+   did); backwards-compatibility mode compares an Integer and a Decimal by text as compiled legend-pure does. Under
+   BOTH, `assertEquals(1D, 1)` had reported THE JUDGES DISAGREE. Three new probes; the bar now misses 5 of 49.
+4. Guards, each dated: `JavaEvalLedgerTest` `DatabaseJudge` 719 -> 726 -> 751, `AssertVerdicts` 1840 -> 1841,
+   `Equality` 498 -> 502.
+
+**Checks at `09104091`:** `//core:core_tests_driver`, `_judge`, `_lowering`, `_compiler`, `//core:census`,
+`//core:guardrails` green; `//core:core_tests` under the database judge alone and BOTH: 28 of 28 each; PCT channel B's
+seven local suites under the database judge alone and BOTH: 7 of 7 each; the DuckDB corpus against `8de96db7`'s run:
+every status identical in both passes (moved 3,084 and 3,050), `//spec:corpus_duckdb_verdict` red as at the baseline
+(the database-lost set identical). Not run here: the H2 corpus, the server lanes, `//core:core_tests_lanes`.
+
+**Open, for the user (2026-11-04):** the backwards-compatibility mode is chosen per run at planning
+(`ExecuteOptions.withEngineCompat`, set by the PCT channel B and corpus harnesses alone) but no plan names the rules it
+was built under, and the host judge's rules travel through a thread-local (`Equality.compat`); and the two remaining
+`forAll` gaps (any source, computed operands) need a per-element verdict the database judge does not have -- options put
+to the user before any is built.
