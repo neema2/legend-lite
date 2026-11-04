@@ -1,0 +1,20 @@
+# What upstream answers for an equality of two numbers of different kinds (register S127), 2026-11-04.
+# Asked of legend-engine 4.145.0 through its own planner and executor (//tools/engine-runner:testable, the recipe in
+# docs/result-boundary-homework/README.md section 7; the probe docs/result-boundary-homework/probes/EqualityProbe.java.txt),
+# and of legend-pure's compiled runtime's own function, CompiledSupport.equal, from the same classpath. The interpreted
+# runtime's rule is read from its source (EqualityUtilities.eq: the same primitive type, then the value).
+#
+# expression          | legend-engine executes | CompiledSupport.equal | interpreted (read)
+# |1D == 1             | true                   | true                  | false
+# |equal(3, 3D)        | true                   | -                     | false
+# |1 == 1.0            | true                   | false                 | false
+# |1.5 == 1.5D         | false                  | -                     | false
+# 3.0D vs 3.00D        | -                      | false                 | false
+# |assertEquals(1D, 1) | refused: StackOverflowError while planning (the engine plans no assert)
+#
+# The engine's plan for each equality is a PureExpressionPlatformExecutionNode whose implementation is the engine's
+# generated Java (_pure.plan.root.Execute.execute), e.g. for |1 == 1.0:
+# {"_type":"platform","implementation":{"_type":"java","executionClassFullName":"_pure.plan.root.Execute",
+#  "executionMethodName":"execute"},"pure":{"_type":"func","fControl":"equal_Any_MANY__Any_MANY__Boolean_1_",
+#  "function":"equal","parameters":[{"_type":"integer","value":1},{"_type":"float","value":1.0}]},
+#  "resultType":{"_type":"dataType","dataType":"Boolean"}}
