@@ -1485,6 +1485,11 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
+                            // item's parsed tree written as data for the route that answers it -- each node's kind,
+                            // place and parts, a number's text as the parser read it; parse only, no connection, no
+                            // JDBC, no value computed
+                            "TsTree.java",
                             // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
                             // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
                             "ModelInput.java"),

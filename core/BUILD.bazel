@@ -1085,8 +1085,8 @@ junit_test(
 )
 
 # THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
-# (docs/timeseries/examples.sql, their one source) runs on DuckDB over tables shaped as the documents name them, or is
-# listed with why (only allowed to shrink)
+# (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
+# documents name them, or is listed with why (only allowed to shrink)
 junit_test(
     name = "ts_documents_test",
     memory_mb = 1024,

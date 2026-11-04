@@ -6,7 +6,6 @@ package com.legend.integration;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.PlanCases;
@@ -34,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (docs/TIMESERIES_LANGUAGE_2026_10_29.md) and the guide for quants (docs/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md)
  * show is an example of docs/timeseries/examples.sql -- their one source, which writes the documents' copies
  * ({@code bazel run //docs:update_ts_examples}; the documents themselves are never read here: prose is never a test
- * input, G17) -- and this test runs each on DuckDB, over tables shaped as the documents name them -- {@code prices}, {@code rates},
+ * input, G17) -- and this test runs each on the platform's own database (no database is what it is about), over tables shaped as the documents name them -- {@code prices}, {@code rates},
  * {@code macro}, {@code trades}, {@code fx}, {@code yields} and the class {@code MarketQuote} -- filled with five years of
  * business days made up here. Each must answer rows, and each of its columns a value somewhere: an example that reads
  * an instrument the data has not, or is no longer the language, fails here, never in a reader's hands. The numbers are
@@ -281,7 +280,7 @@ class TsDocumentsTest {
     }
 
     /** The most SQL an example may be before it is run: a database spends minutes preparing tens of millions of
-     *  characters (the spec's pairs trade, 2026-11-03: 23.9 million, DuckDB's prepare not done after ten minutes). */
+     *  characters (the spec's pairs trade, 2026-11-03: 23.9 million, the database's prepare not done after ten minutes). */
     private static final int SQL_CAP = 1_000_000;
 
     /** The examples that do not run yet, by id, each why. Only allowed to shrink: an example listed here that runs
@@ -323,7 +322,7 @@ class TsDocumentsTest {
 
     @Test
     void everyExampleOfTheSpecAndTheGuideRuns() throws Exception {
-        TestBackend backend = TestBackends.of(DatabaseType.DuckDB);
+        TestBackend backend = TestBackends.platform();
         ModelContext model = Compiler.compileModel(model(backend));
         Map<String, String> examples = examples(Runfile.property("ts.examples"));
         List<String> wrong = new ArrayList<>();
