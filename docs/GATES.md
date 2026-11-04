@@ -19828,3 +19828,19 @@ from the matrix script): a count that could only be 0. Measured now at `09104091
   (two `forAll` bodies and one static-pass refusal, in its `GAPS`).
 
 The conclusion the earlier entries drew holds; it rests on this measurement, not on theirs.
+
+## 2026-11-04 — The explicit rule: every verdict step names the rules it is judged by
+
+The user (2026-11-04): "yes explicit rule". `d24e84dc`: `ExecutionPlan.JudgingRules` (`LITE`, `COMPILED_PURE_COMPAT`), a
+required field of every verdict step and of the plan's JSON; `ExecuteOptions.judgingRules()` is what every planner
+stamps; the host judge is handed the rules (down to `Equality`, `PureAsserts`, `TdsCompare`), read off the plan step at
+the program's sink, which refuses by name a step stamped with another run's rules; `Equality`'s thread-local and
+`HostJudgment.Compat` are deleted; the database judge reads the same named rules. Guards: `JavaEvalLedgerTest`
+`Equality` 502 -> 494, `HostJudgment` 198 -> 191, `HostJudge` 1229 -> 1234, `AssertVerdicts` 1841 -> 1842.
+
+**Checks at `d24e84dc`:** `//core:core_tests_driver`, `_exec`, `_judge`, `_planner`, `_testplan`, `//core:census`,
+`//core:guardrails` green; `//core:core_tests` under the database judge alone and BOTH: 28 of 28 each; PCT channel B's
+seven local suites under the database judge alone and BOTH: 7 of 7 each; the DuckDB corpus against `09104091`'s run:
+every status identical in both passes, the database-lost set identical, `//spec:corpus_duckdb_verdict` red as at the
+baseline. (The corpus phase ran while new, not yet called, functions were being added to `VerdictQueries` and
+`VerdictSql` for the next step: no behavior of the checked commit changed.)
