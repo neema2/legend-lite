@@ -452,8 +452,13 @@ public final class PlanRunner {
     /** A verdict group of constants handed to the sink as {@code judging} asks, nothing sent. */
     private static void constantVerdicts(ExecutionPlan.Verdicts v, Judging judging, ProgramSink sink)
             throws IOException {
+        boolean hostAll = judging == Judging.HOST || judging == Judging.BOTH;
         for (ExecutionPlan.Verdict each : v.verdicts()) {
-            if (judging == Judging.HOST || judging == Judging.BOTH) {
+            // a HOST-JUDGED verdict in a database-judged program (an assertError's step, ruling N3): its sides, as the
+            // runner's main path hands them (verdicts' hostOnly) -- until 2026-11-04 a program of constants alone
+            // handed none, so such a step was never judged
+            boolean hostOnly = !hostAll && each.wrapper() == null && !each.base().isEmpty();
+            if (hostAll || hostOnly) {
                 List<Rows> sides = new ArrayList<>(each.base().size());
                 for (ExecutionPlan.Side side : each.base()) {
                     if (!(side instanceof ExecutionPlan.Side.Constant c)) {

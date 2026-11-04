@@ -54,9 +54,9 @@ final class AssertBranch {
         if (!(statement instanceof TypedIf branch) || !scan.kinds(branch.condition()).isEmpty()) {
             return null;
         }
-        List<TypedSpec> then = side(branch.thenBranch(), scan, specs);
-        List<TypedSpec> otherwise = branch.elseBranch().isPresent() ? side(branch.elseBranch().get(), scan, specs)
-                : List.of();
+        List<TypedSpec> then = side(branch.thenBranch(), last, scan, specs);
+        List<TypedSpec> otherwise = branch.elseBranch().isPresent()
+                ? side(branch.elseBranch().get(), last, scan, specs) : List.of();
         if (then == null || otherwise == null || then.isEmpty() && otherwise.isEmpty()) {
             return null;
         }
@@ -66,11 +66,18 @@ final class AssertBranch {
         return new Parts(branch.condition(), then, otherwise);
     }
 
-    /** {@code side}'s statements (above), or null where it is neither. */
-    private static @Nullable List<TypedSpec> side(TypedSpec side, QueryDoor.Scan scan, SpecCompiler specs) {
+    /** {@code side}'s statements (above), or null where it is neither. A side that is the literal {@code true} where
+     *  the branch is the body's last statement answers what an assert answers: it is planned as {@code assert(true)},
+     *  an assert that holds (2026-11-04, the assert bar: {@code if(c, |assertEquals(1, 1), |true)} closing a test
+     *  body was refused). */
+    private static @Nullable List<TypedSpec> side(TypedSpec side, boolean last, QueryDoor.Scan scan,
+            SpecCompiler specs) {
         EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(side);
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || QueryDoor.assertErrorRoot(side, specs)) {
             return List.of(side);
+        }
+        if (last && side instanceof TypedCBoolean b && b.value()) {
+            return List.of(com.legend.compiler.spec.AssertMessages.holds(specs));
         }
         return kinds.isEmpty() && constant(side) ? List.of() : null;
     }

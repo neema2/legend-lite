@@ -338,7 +338,14 @@ final class HostAsserts implements TestDoor.Asserts {
         try {
             BodyDriver.ExecEnv sidesAt = program == env ? at
                     : BodyDriver.frameReplaceEnv(statement, frames, program, before, specs);
-            sides = HostSides.plan(assertion.name(), assertion.check().asks(), before, specs, sidesAt);
+            HostSides.PlannedCheck pc = HostSides.planChecked(assertion.name(), assertion.check(), before, specs,
+                    sidesAt);
+            sides = pc.planned();
+            if (pc.check() != assertion.check()) {
+                // a caller's message the planner cannot plan: raised where the assert fails (HostSides.planChecked)
+                assertion = new AssertVerdicts.HostAssert(assertion.listenerName(), assertion.family(),
+                        assertion.wantEqual(), pc.check(), assertion.beforeTheArm());
+            }
         } catch (RuntimeException e) {
             // a side's planning raised: raised at the assert's turn, once its family is counted (the walk plans the
             // sides there, after the asserts before it ran)
@@ -383,6 +390,19 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
             return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env.options().judgingRules());
+        }
+        com.legend.compiler.spec.typed.TypedSpec inner = QueryDoor.innerAssert(ae, specs);
+        if (inner != null) {
+            // f IS one assert (the asserts-as-plan-nodes program, 2026-11-04): planned as any assert, its sides the
+            // step's; its failure is the error assertError matches (AssertErrorNative.judge)
+            Planned p = planAssert(inner, inner, letPrefix, frames, specs, env, env);
+            if (p == null) {
+                return null;
+            }
+            AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
+                    new HostSides.Check(p.assertion().check().asks(), new HostJudgment.AssertError(args.expected(),
+                            args.line(), args.column(), null, p.assertion())));
+            return planned(assertion, p.sides(), savepoint, env.options().judgingRules());
         }
         List<TypedSpec> body = args.f().body();
         if (body.isEmpty()) {

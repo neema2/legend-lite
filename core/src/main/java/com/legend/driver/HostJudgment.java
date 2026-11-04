@@ -302,8 +302,15 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     /** A caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04;
      *  {@code compiler.spec.AssertMessages}): {@code inner} judges the first {@code innerSides} sides, the family's
      *  check over the base overload; the side after them is the message, a String the plan read -- a failure of
-     *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. */
-    record Messaged(HostJudgment inner, int innerSides) implements HostJudgment {
+     *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. {@code unplanned}: the
+     *  message is no side -- its planning raised that (a message reading what the planner cannot plan), named in the
+     *  failure where {@code inner} fails ({@code AssertMessages.unevaluated}), as upstream evaluates the message only
+     *  there (2026-11-04, the assert bar). */
+    record Messaged(HostJudgment inner, int innerSides, @Nullable RuntimeException unplanned) implements HostJudgment {
+        /** The message a side the plan reads. */
+        Messaged(HostJudgment inner, int innerSides) {
+            this(inner, innerSides, null);
+        }
     }
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it. */
@@ -318,7 +325,11 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
      *  error was thrown". */
     record AssertError(String expected, @Nullable Long line, @Nullable Long column,
-            @Nullable RuntimeException caught) implements HostJudgment {
+            @Nullable RuntimeException caught, AssertVerdicts.@Nullable HostAssert inner) implements HostJudgment {
+        /** f's body a value: the error a side raises is the answer. */
+        AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable RuntimeException caught) {
+            this(expected, line, column, caught, null);
+        }
     }
 
     /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned ({@link SqlTextVerdicts.Collected}: the

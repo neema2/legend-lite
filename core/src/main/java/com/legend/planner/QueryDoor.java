@@ -133,15 +133,35 @@ public final class QueryDoor {
     }
 
     /** Whether {@code statement} is an {@code assertError(f, ...)} at its root -- not a let -- whose function's body
-     *  holds no assert of its own (the scan names such a statement both an assertError and an assert, the call being a
-     *  verdict call): the program road plans it as one verdict step, f's body its side (the walker-deletion program,
-     *  2026-11-03). */
+     *  holds no assert of its own, or IS one assert (the scan names such a statement both an assertError and an
+     *  assert, the call being a verdict call): the program road plans it as one verdict step, f's body its side (the
+     *  walker-deletion program, 2026-11-03), or f's assert planned as any assert and its failure the error assertError
+     *  matches (the asserts-as-plan-nodes program, 2026-11-04: upstream's assertError catches an assert's failure as
+     *  any error). */
     public static boolean assertErrorRoot(TypedSpec statement, SpecCompiler specs) {
         if (!(statement instanceof TypedNativeCall call)
                 || NativeFn.ContextOwner.of(call.callee().id()).isEmpty() || call.args().isEmpty()) {
             return false;
         }
-        return !StatementEffects.reaches(call.args().get(0), QueryDoor::isAssert, specs, new HashMap<>());
+        return !StatementEffects.reaches(call.args().get(0), QueryDoor::isAssert, specs, new HashMap<>())
+                || innerAssert(call, specs) != null;
+    }
+
+    /** The one assert {@code assertError}'s function body is -- a single statement, a verdict call (no assertError
+     *  itself) whose arguments hold no other assert -- or null. */
+    public static @Nullable TypedSpec innerAssert(TypedNativeCall assertError, SpecCompiler specs) {
+        if (!(assertError.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda f)
+                || !f.parameters().isEmpty() || f.body().size() != 1
+                || !(f.body().get(0) instanceof TypedNativeCall inner) || !isAssert(inner)
+                || NativeFn.ContextOwner.of(inner.callee().id()).isPresent()) {
+            return null;
+        }
+        for (TypedSpec arg : inner.args()) {
+            if (StatementEffects.reaches(arg, QueryDoor::isAssert, specs, new HashMap<>())) {
+                return null;
+            }
+        }
+        return inner;
     }
 
     /** An assert's call: a verdict function, {@code fail} aside (a raise; by its declarations). */

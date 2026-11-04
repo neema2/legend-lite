@@ -225,15 +225,20 @@ final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
+        // each side WRITTEN in the failure message as upstream writes it (VerdictSql.Message: toRepresentation, Pure's
+        // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
+        // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
+        com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool);
+        com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool);
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
                         re.many(), canonicalOrder,
-                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT),
+                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT, me),
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
-                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT));
+                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma));
         // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
         // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
         // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
@@ -266,6 +271,15 @@ final class DatabaseJudge {
                 !ra.many() && decimal(ra.kinds().get(ia)));
         return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
                 : message.apply(vq), runOn);
+    }
+
+    /** How a side's canon {@code i} is written in the failure message: its typed kind's (a literal channel's kind is
+     *  no element's, but an empty side's, Nil, which writes no element); null where it is no one primitive. */
+    private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
+            com.legend.lowering.CanonRider r, int i, boolean sorted) {
+        com.legend.compiler.element.type.Type kind = r.kinds().get(i);
+        return i != r.literalIndex() || com.legend.compiler.element.type.PlatformTypes.isNil(kind)
+                ? com.legend.lowering.VerdictSql.Message.of(kind, sorted) : null;
     }
 
     /** Whether {@code e} and {@code a} are two numbers of different known kinds that are never equal (S127): any such
@@ -508,8 +522,15 @@ final class DatabaseJudge {
             return unjudged(name, side.why());
         }
         var sw = java.util.Objects.requireNonNull(side.side());
+        // the elements written as the message writes them where the side's canon names one primitive kind (2026-11-04,
+        // the assert bar: upstream's '%s is not empty', the host's)
+        com.legend.lowering.CanonRider r = side.rider();
+        com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
+                || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.listed(r.kinds().get(0));
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
+                : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
+                        sw.plan(), "__canon0", java.util.Objects.requireNonNull(r).many(), listed), wantEmpty, true)
                 : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty);
         return runVerdict(name, true, vq, side.on(env));
     }
@@ -530,6 +551,15 @@ final class DatabaseJudge {
         boolean literal = cr.literalOnly() || vr.literalOnly();
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
+        }
+        // both written as upstream's message writes them where each names one primitive kind (2026-11-04, the assert
+        // bar: the canons left a String unquoted)
+        com.legend.lowering.VerdictSql.Message cm = literal ? null : written(cr, 0, false);
+        com.legend.lowering.VerdictSql.Message vm = literal ? null : written(vr, 0, false);
+        if (cm != null && vm != null && !cr.tdsWrapped()) {
+            return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(
+                    com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm.kind()), c.on(env));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
                 c.on(env));

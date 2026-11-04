@@ -710,7 +710,7 @@ final class HostJudge {
             case HostJudgment.Rendered r -> renderedOf(r, sides);
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
-            case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides);
+            case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules);
         };
     }
@@ -729,7 +729,8 @@ final class HostJudge {
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        return j instanceof HostJudgment.AssertError a ? AssertErrorNative.judge(a, sides) : judge(j, sides.get(), rules);
+        return j instanceof HostJudgment.AssertError a ? AssertErrorNative.judge(a, sides, rules)
+                : judge(j, sides.get(), rules);
     }
 
     /** The static facts of one side, read once at planning. */
@@ -979,6 +980,10 @@ final class HostJudge {
         } catch (com.legend.error.AssertFailed e) {
             if (e.unjudgedReason() != null) {
                 throw e;
+            }
+            if (m.unplanned() != null) {
+                throw new com.legend.error.AssertFailed(
+                        com.legend.compiler.spec.AssertMessages.unevaluated(m.unplanned()));
             }
             Object text = AssertVerdicts.one(AssertVerdicts.decodeSide(sides.get(m.innerSides())), "the message");
             throw new com.legend.error.AssertFailed(String.valueOf(text));

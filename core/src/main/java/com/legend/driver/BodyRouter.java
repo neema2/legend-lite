@@ -295,8 +295,16 @@ public final class BodyRouter {
             if (database == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
             }
-            if (database.hostStep(verdict) != null) {
-                return;   // an assertError's step under the database judge: judged at its sides (ruling N3)
+            HostAsserts.Planned hostStep = database.hostStep(verdict);
+            if (hostStep != null) {
+                // an assertError's step under the database judge: judged at its sides (ruling N3) -- or here, at its
+                // turn, where it has no side to read (its error caught at planning, or its inner assert decided there):
+                // the runner hands no sides for an empty base, and until 2026-11-04 such a step was never judged (a
+                // body ending on it failed on its missing verdict, any other passed it silently)
+                if (verdict.base().isEmpty()) {
+                    judged(hostStep, List::of, rules(verdict));
+                }
+                return;
             }
             database.received(verdict, row, listener);
             lastVerdict = AssertVerdicts.ok();

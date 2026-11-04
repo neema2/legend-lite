@@ -94,6 +94,11 @@ class AssertBarTest {
             new Probe("assertInstanceOf-mixed-element", "{|assertInstanceOf([1, 2.5]->at(0), Integer)}", null),
             new Probe("assertIs-dynamic-type",
                     "{|assertIs(t::Employee, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}", null),
+            new Probe("assertIs-picked-element",
+                    "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())}", null),
+            new Probe("assertIs-picked-element-fails",
+                    "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}",
+                    "\nexpected: t::Person\nactual:   t::Employee"),
             new Probe("concatenate-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->concatenate([3]))}",
                     "\nexpected: [3, 1, 2]\nactual:   [1, 2, 3]"),
             new Probe("union-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->union([3]))}",
@@ -114,6 +119,12 @@ class AssertBarTest {
             new Probe("assertError-let-message", "{|let m = 'boom'; assertError(|fail($m), $m);}", null),
             new Probe("assertError-over-a-failing-assert",
                     "{|assertError(|assertEquals(1, 2), '\\nexpected: 1\\nactual:   2')}", null),
+            // an assert's failure is the error assertError matches, as upstream's assertError catches it
+            new Probe("assertError-over-a-holding-assert", "{|assertError(|assertEquals(1, 1), 'boom')}",
+                    "No error was thrown"),
+            new Probe("assertError-over-a-different-failure", "{|assertError(|assert(false, 'one'), 'two')}",
+                    "Execution error message mismatch.\nThe actual message was \"one\"\nwhere the expected"
+                            + " message was:\"two\""),
             new Probe("assertEmpty-holds", "{|assertEmpty([1, 2]->filter(x | $x > 5))}", null),
             new Probe("assertSize-fails", "{|assertSize([1, 2], 3)}", "expected size: 3, actual size: 2"),
             new Probe("assertContains-fails", "{|assertContains([1, 2], 3)}", "[1, 2] does not contain 3"),
@@ -121,7 +132,38 @@ class AssertBarTest {
             new Probe("assertEqWithinTolerance-holds", "{|assertEqWithinTolerance(1.0, 1.0005, 0.001)}", null),
             new Probe("second-assert-fails", "{|assertEquals(1, 1); assertEquals('a', 'b');}",
                     "\nexpected: 'a'\nactual:   'b'"),
-            new Probe("class-value-property", "{|assertEquals('a', ^t::Person(name='a').name)}", null));
+            new Probe("class-value-property", "{|assertEquals('a', ^t::Person(name='a').name)}", null),
+            // 2026-11-04, the wider probe: a caller's message that READS (a let, a variable) -- dropped by every judge
+            // until the message split carried it
+            new Probe("message-reads-a-let", "{|let x = 3; assert(false, | $x->toString());}", "3"),
+            new Probe("message-is-a-let", "{|let m = 'ab'; assertEquals(1, 2, $m);}", "ab"),
+            new Probe("message-is-a-let-holds", "{|let m = 'ab'; assertEquals(1, 1, $m);}", null),
+            new Probe("format-message-reads-a-let",
+                    "{|let x = [1, 2]; assertEquals(3, $x->size(), 'size %s of %s', [$x->size(), 7]);}",
+                    "size 2 of 7"),
+            // the failure messages upstream writes (essential/tests/*.pure), the same under every judge
+            new Probe("assertSameElements-sorted-message", "{|assertSameElements([2, 11, 2], [11, 3])}",
+                    "\nexpected: [2, 2, 11]\nactual:   [3, 11]"),
+            new Probe("assertSameElements-strings-message", "{|assertSameElements(['b', 'a'], ['a', 'c'])}",
+                    "\nexpected: ['a', 'b']\nactual:   ['a', 'c']"),
+            new Probe("assertSameElements-one-element-bracketed", "{|assertSameElements([true, false], [true])}",
+                    "\nexpected: [false, true]\nactual:   [true]"),
+            new Probe("assertSameElements-dates-message", "{|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])}",
+                    "\nexpected: [%2019-05-01, %2020-01-02]\nactual:   [%2019-05-01]"),
+            new Probe("assertEquals-strings-message", "{|assertEquals(['a', 'b'], ['b', 'c'])}",
+                    "\nexpected: ['a', 'b']\nactual:   ['b', 'c']"),
+            new Probe("assertEquals-one-against-many", "{|assertEquals(1, [1, 2])}", "\nexpected: [1]\nactual:   [1, 2]"),
+            new Probe("assertEquals-empty-against-one", "{|assertEquals([], [1])}", "\nexpected: []\nactual:   [1]"),
+            new Probe("assertEmpty-message", "{|assertEmpty([1, 2])}", "[1, 2] is not empty"),
+            new Probe("assertNotEmpty-message", "{|assertNotEmpty([])}", "Expected non-empty collection"),
+            new Probe("assertContains-strings-message", "{|assertContains(['a'], 'b')}", "['a'] does not contain 'b'"),
+            // assertIs over two primitives: compiled pure's `left == right`, their values (the engine runner)
+            new Probe("assertIs-primitives-holds", "{|assertIs('a', 'a')}", null),
+            new Probe("assertIs-primitives-fails", "{|assertIs(1, 2)}", "\nexpected: 1\nactual:   2"),
+            // an if closing the body whose other side is the literal true
+            new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
+            new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
+                    "\nexpected: 1\nactual:   2"));
 
     /** A probe that answers a value: its body and the value upstream answers. */
     private record Answer(String id, String body, Object value) { }
@@ -132,8 +174,9 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            "assertIs-dynamic-type",
-            "assertError-over-a-failing-assert", "assert-then-a-query"));
+            // empty since 2026-11-04: every probe meets the bar under the host judge, the database judge alone and BOTH;
+            // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it
+    ));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);

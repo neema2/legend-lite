@@ -562,7 +562,16 @@ final class AssertVerdicts {
         com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST
                 ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
         if (split != null) {
-            env = env.withFailureMessage(DatabaseJudge.failureMessage(split.message(), letPrefix, specs, env, hook));
+            com.legend.lowering.VerdictSql.FailureMessage message;
+            try {
+                message = DatabaseJudge.failureMessage(split.message(), letPrefix, specs, env, hook);
+            } catch (RuntimeException e) {
+                // a message the planner cannot plan: the assert fails naming it, as the host judge's does
+                // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
+                message = new com.legend.lowering.VerdictSql.FailureMessage(
+                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null);
+            }
+            env = env.withFailureMessage(message);
             bare = split.base();
         }
         String name = fn.bareName();
@@ -733,6 +742,11 @@ final class AssertVerdicts {
                 if (isv != null) {
                     arm.staticallyDecided(name);
                     yield isv;
+                }
+                if (primitivePair(args.get(0), args.get(1))) {
+                    // two primitive values: is() is compiled pure's `left == right` -- their values (the engine:
+                    // assertIs(1, 1) and ('a', 'a') hold, (1, 2) fails), judged as assertEq (2026-11-04, the assert bar)
+                    yield arm.eq(name, args, letPrefix, specs, env, hook);
                 }
                 yield arm.is(name, args, letPrefix, specs, env, hook);
             }
@@ -1135,6 +1149,14 @@ final class AssertVerdicts {
         return new HostAssert(listenerName(bare), name, wantEqual, planned);
     }
 
+    /** Whether {@code is(left, right)} compares two PRIMITIVE values (both statically of a primitive type):
+     *  compiled pure's {@code Is} native writes {@code left == right} for two primitive operands -- their values. */
+    static boolean primitivePair(TypedSpec left, TypedSpec right) {
+        return left.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
+                && right.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
+                && !isAnyStamped(left) && !isAnyStamped(right);
+    }
+
     /** {@code fn}'s arm planned over {@code bare}'s arguments, or null where the host checks do not plan the shape. */
     private static HostSides.@com.legend.base.Nullable Check planArm(NativeFn.Verdict fn, String name, TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
@@ -1224,6 +1246,8 @@ final class AssertVerdicts {
                 // assert's turn)
                 yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
                         java.util.Objects.requireNonNull(isDecided(left, right), "statically identified operands"))
+                        // two primitive values: is() is compiled pure's `left == right`, their values (as assertEq)
+                        : primitivePair(left, right) ? HostJudge.planEq(args, letPrefix, env, hook)
                         : HostJudge.planIs(name, args, specs, hook);
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> args.isEmpty() ? null
@@ -1357,13 +1381,13 @@ final class AssertVerdicts {
     private static @com.legend.base.Nullable String staticTypeName(TypedSpec arg) {
         // concrete static identification only: a literal's primitive or a
         // constructed/class-typed value — never an Any/generic stamp
-        var ty = peel(arg).info().type();
+        var ty = elementOf(peel(arg)).info().type();
         if (ty instanceof com.legend.compiler.element.type.Type.ClassType ct) {
-            // the static class decides (assertIs(Employee, [^Employee(..), ^Person(..)]->at(0)->type()) is decided
-            // false by the list's static class, Person: AssertBarTest's assertIs-dynamic-type gap). Narrowing it to a
-            // construction alone (aaa8badb, 2026-11-04) sent every other class-typed value to a run-time path that
-            // cannot read a type -- two PCT tests lost (testConcatenateTypeInference, testAssignNewInstance) -- and
-            // closed no gap: reverted the same day; the dynamic type waits on a run-time type read
+            // the static class decides -- of the ELEMENT a literal index picks from a literal collection, as the
+            // lowering of type() reads it (2026-11-04: assertIs(Employee, [^Employee(..), ^Person(..)]->at(0)->type())
+            // was decided false by the list's common class, Person, where the query answers Employee). A collection's
+            // type() is its common class (testConcatenateTypeInference); narrowing the rule to a construction alone
+            // (aaa8badb) lost two PCT tests and was reverted
             return ct.fqn();
         }
         String n = ty.typeName();
@@ -1392,6 +1416,20 @@ final class AssertVerdicts {
     /** Peel value-preserving wrappers ({@code toOne}) and fold a property
      * read over a constructed instance to its constructor argument — the
      * provenance chain the OneToOne witness rides. */
+    /** {@code t}, or the element a LITERAL index picks from a LITERAL collection ({@code [a, b]->at(0)} is {@code a}),
+     *  as the lowering reduces it: its static type is that element's. */
+    private static TypedSpec elementOf(TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && "meta::pure::functions::collection::at".equals(c.callee().qualifiedName())
+                && c.args().size() == 2
+                && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCollection coll
+                && c.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger i
+                && i.value().longValue() >= 0 && i.value().longValue() < coll.elements().size()) {
+            return peel(coll.elements().get(i.value().intValue()));
+        }
+        return t;
+    }
+
     private static TypedSpec peel(TypedSpec t) {
         TypedSpec s = t;
         while (true) {

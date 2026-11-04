@@ -122,8 +122,24 @@ final class AssertErrorNative {
      *  message, line and column with the pure {@code assertError/4} body's exact spellings, the walk's and the program
      *  road's one rule; a side that raises nothing fails ("No error was thrown"), an error no arm takes (a wall) is
      *  raised as it was. */
-    static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides) {
+    static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         RuntimeException raised = a.caught();
+        if (a.inner() != null) {
+            // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
+            // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the
+            // same rules -- a side that raises is that error too
+            String message = null;
+            try {
+                if (HostJudge.judge(a.inner().check().judgment(), sides, rules) == null) {
+                    throw new com.legend.error.NotImplementedException(a.inner().name()
+                            + " inside assertError: the host judge declined the sides it read");
+                }
+            } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
+                message = String.valueOf(e.getMessage());
+            }
+            return judged(a.expected(), a.line(), a.column(), message, null);
+        }
         if (raised == null) {
             try {
                 sides.get();

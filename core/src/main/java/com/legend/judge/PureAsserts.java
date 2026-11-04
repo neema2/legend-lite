@@ -71,7 +71,17 @@ public final class PureAsserts {
         expected.forEach(t -> e.add(t.value()));
         List<Object> a = new ArrayList<>();
         actual.forEach(t -> a.add(t.value()));
-        return "\nexpected: " + reprSide(e) + "\nactual:   " + reprSide(a);
+        return equalsMessage(e, a, null, null);
+    }
+
+    /** Upstream's assertEquals text (assertEquals.pure:19-21): each side's {@code %r} where BOTH hold one value, else
+     *  both as lists of representations -- the one-value form is the pair's, never a side's alone (2026-11-04, the
+     *  assert bar: {@code assertEquals(1, [1, 2])} printed {@code expected: 1} where upstream prints {@code [1]}). */
+    private static String equalsMessage(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
+            @com.legend.base.Nullable String aClass) {
+        boolean ones = e.size() == 1 && a.size() == 1;
+        return "\nexpected: " + (ones ? repr(e.get(0), eClass) : reprList(e, eClass))
+                + "\nactual:   " + (ones ? repr(a.get(0), aClass) : reprList(a, aClass));
     }
 
     /** With each side's STATIC type (the {@code instanceOf Type} half of
@@ -83,8 +93,7 @@ public final class PureAsserts {
         if (equal(expected, actual, rules)) {
             return null;
         }
-        return "\nexpected: " + reprSide(expected, classFqnOf(expectedType))
-                + "\nactual:   " + reprSide(actual, classFqnOf(actualType));
+        return equalsMessage(expected, actual, classFqnOf(expectedType), classFqnOf(actualType));
     }
 
     private static @com.legend.base.Nullable String classFqnOf(
@@ -344,15 +353,8 @@ public final class PureAsserts {
 
     /** The spec's single-value message side ({@code %r}) or the
      * collection form ({@code joinStrings('[', ', ', ']')}). */
-    private static String reprSide(List<Object> side) {
-        return reprSide(side, null);
-    }
-
-    private static String reprSide(List<Object> side,
+    private static String reprList(List<Object> side,
             @com.legend.base.Nullable String instanceClass) {
-        if (side.size() == 1) {
-            return repr(side.get(0), instanceClass);
-        }
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < side.size(); i++) {
             if (i > 0) {

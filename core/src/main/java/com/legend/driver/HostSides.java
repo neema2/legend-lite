@@ -61,8 +61,40 @@ final class HostSides {
             return null;
         }
         // judged by the run's rules (ExecuteOptions.judgingRules), as the program road's step names them
-        return HostJudge.judge(check.judgment(), fetch(name, check.asks(), letPrefix, specs, env),
+        PlannedCheck pc = planChecked(name, check, letPrefix, specs, env);
+        return HostJudge.judge(pc.check().judgment(), fetched(name, pc.planned(), env),
                 env.options().judgingRules());
+    }
+
+    /** {@code check}'s sides planned as one verdict's base, with the check they plan: a caller's message whose
+     *  planning raised is no side, its failure the judgment's raise where the assert fails ({@link #withoutTheMessage}). */
+    record PlannedCheck(Check check, Planned planned) {
+    }
+
+    static PlannedCheck planChecked(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env) {
+        try {
+            return new PlannedCheck(check, plan(name, check.asks(), letPrefix, specs, env));
+        } catch (RuntimeException e) {
+            Check c = withoutTheMessage(check, e);
+            if (c == null) {
+                throw e;
+            }
+            return new PlannedCheck(c, plan(name, c.asks(), letPrefix, specs, env));
+        }
+    }
+
+    /** {@code check} with its caller's message taken off its sides, {@code failure} (the message's planning raised it,
+     *  or the sides' did -- planning the check's own sides again raises theirs) raised where the assert fails: upstream
+     *  evaluates the message only there (2026-11-04, the assert bar); null where {@code check} carries no message
+     *  side. */
+    private static @com.legend.base.Nullable Check withoutTheMessage(Check check, RuntimeException failure) {
+        if (!(check.judgment() instanceof HostJudgment.Messaged m) || m.unplanned() != null
+                || m.innerSides() != check.asks().size() - 1) {
+            return null;
+        }
+        return new Check(check.asks().subList(0, m.innerSides()),
+                new HostJudgment.Messaged(m.inner(), m.innerSides(), failure));
     }
 
     /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */
@@ -139,9 +171,13 @@ final class HostSides {
     /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
     static List<TypedSide> fetch(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env) {
-        Planned planned = plan(name, asks, letPrefix, specs, env);
+        return fetched(name, plan(name, asks, letPrefix, specs, env), env);
+    }
+
+    /** {@code planned}'s sides run as one verdict's base, shaped. */
+    private static List<TypedSide> fetched(String name, Planned planned, BodyDriver.ExecEnv env) {
         Sessions.Session on = planned.on();
-        List<TypedSide> out = new ArrayList<>(asks.size());
+        List<TypedSide> out = new ArrayList<>(planned.sides().size());
         if (on == null) {
             for (JudgePlans.PlannedSide p : planned.sides()) {
                 out.add(JudgePlans.shape(p, JudgePlans.runSide(p, env)));

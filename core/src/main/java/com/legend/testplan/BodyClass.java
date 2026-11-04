@@ -736,14 +736,34 @@ public enum BodyClass {
         }
         TypedSpec last = body.get(body.size() - 1);
         // an assert as the last statement answers its verdict, as the walk answers it; any other last statement sends
-        // nothing (a literal, a handle, an inert print): a query planned after the asserts could fail planning before
-        // they ran and reported, where the walk fails it at its turn -- and a last statement the program cannot plan
-        // at all (a class query under an if() whose condition is decided at run time: the corpus's 55 test-data
-        // generation bodies, which end in mayExecuteAlloyTest) the walk runs, its condition read first. Admitting
-        // "asserts, then a query" (2026-11-04) lost those bodies and was reverted the same day: the lazy branch is the
-        // Branch node's (docs/ASSERT_NODES_PLAN_2026_11_04.md)
+        // nothing (a literal, a handle, an inert print) -- or is a QUERY the query program's own rule answers
+        // (answersAsTheLastStatement: no test-only kind, no generator, one store, nothing planned another way, an
+        // answer the query door gives). Admitting ANY last statement (2026-11-04) lost the corpus's 55 test-data
+        // generation bodies, whose last statement the program cannot plan (a class query under an if() decided at
+        // run time, mayExecuteAlloyTest) and was reverted; the query rule refuses those, so they stay as they were
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
-                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx)
+                || answersAsTheLastStatement(query, scan, body.size() - 1, systemClasses, ctx);
+    }
+
+    /** Whether the statement at {@code i}, a program's last, is a query the query program's rule answers as its last
+     *  statement ({@link #queryProgram}'s own checks: no test-only kind, no test-data generator, one store, nothing
+     *  that plans another way but a system read, a raw grid or an object built inside it, and an answer the query door
+     *  gives -- {@link #answered}). */
+    private static boolean answersAsTheLastStatement(TypedQuery query, QueryDoor.Scan scan, int i,
+            Set<String> systemClasses, ModelContext ctx) {
+        TypedSpec statement = query.body().get(i);
+        if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
+                || storesOf(statement, query, i) == Stores.BOTH) {
+            return false;
+        }
+        if (StatementEffects.reaches(statement, n -> {
+                    Kind kind = anotherWay(n, systemClasses, ctx);
+                    return kind != null && kind != Kind.SYSTEM_READ && kind != Kind.RAW_GRID && kind != Kind.OBJECT;
+                }, query.specs(), new HashMap<>())) {
+            return false;
+        }
+        return answered(query, Lets.bare(statement));
     }
 
     /** Whether {@code body} holds an assert at a statement's root, or an assertError: what a judge plans. */

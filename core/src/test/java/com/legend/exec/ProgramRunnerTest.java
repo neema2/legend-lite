@@ -364,6 +364,21 @@ final class ProgramRunnerTest {
     }
 
     @Test
+    @DisplayName("a program of constants alone under the database judge hands a host-judged verdict its sides")
+    void aConstantHostVerdictGetsItsSidesUnderTheDatabaseJudge() throws IOException {
+        // an assertError's step is the host's in both modes (ruling N3): with no wrapper and constant sides, the runner's
+        // constants-alone path handed it no sides until 2026-11-04, so it was never judged under the database judge
+        ExecutionPlan.Side three = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
+                List.of(List.of("3")), false);
+        ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("assertError@1",
+                "assertError", List.of(three), null)), null, ExecutionPlan.JudgingRules.LITE);
+        Recording sink = new Recording();
+        PlanRunner.program(new ExecutionPlan(List.of(), step), Map.of(), PlanSessions.shared(),
+                PlanRunner.Judging.DATABASE, sink);
+        assertEquals(List.of("sides assertError@1", "verdict assertError@1"), sink.events);
+    }
+
+    @Test
     @DisplayName("a branch reads back from its JSON, and its condition is no answer")
     void aBranchReadsBackFromItsJson() {
         ExecutionPlan.Side condition = new ExecutionPlan.Side.Rows(relation("SELECT TRUE AS value",

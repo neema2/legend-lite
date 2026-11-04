@@ -77,18 +77,24 @@ public final class AssertMessages {
         } else {
             return null;
         }
-        if (!spelled(message)) {
-            // a message that reads (a variable, a query, a navigation): upstream evaluates it only where the assert
-            // fails, and planning it beforehand may fail where the assert holds (2026-11-04: 55 corpus test-data
-            // generation bodies, a message over a plan the program cannot plan) -- carried once the plan evaluates a
-            // side lazily (the Branch node, docs/ASSERT_NODES_PLAN_2026_11_04.md); until then the call is planned whole
-            return null;
-        }
+        // a message that READS (a variable, a let, a query) splits as a spelled one does (2026-11-04, the assert bar: a
+        // call planned whole dropped it, both judges failing with the family's default): upstream evaluates it only
+        // where the assert fails, so a message the planner cannot plan is no refusal of the assert -- the host judge
+        // raises the planning failure where the assert fails (HostJudgment.Messaged#unplanned) and the database judge
+        // leaves the assert to the host (DatabaseJudge.failureMessage)
         TypedFunction overload = overload(fn.fqn(), base, specs);
         if (overload == null) {
             return null;
         }
         return new Split(new TypedNativeCall(overload, args.subList(0, base), n.info(), n.pos()), message);
+    }
+
+    /** The failure of an assert whose caller's message could not be evaluated -- its planning raised {@code failure}
+     *  (a message reading what the planner cannot plan): upstream evaluates the message only where the assert fails,
+     *  so the assert holds where it holds, and fails with this text where it fails -- both judges alike (2026-11-04,
+     *  the assert bar). */
+    public static String unevaluated(RuntimeException failure) {
+        return "Assert failed; its message could not be evaluated: " + failure.getMessage();
     }
 
     /** {@code assert(true)}: an assert the compiler decided holds (a helper whose asserts fold over spelled values),
