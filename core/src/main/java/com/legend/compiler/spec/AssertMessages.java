@@ -77,6 +77,13 @@ public final class AssertMessages {
         } else {
             return null;
         }
+        if (!spelled(message)) {
+            // a message that reads (a variable, a query, a navigation): upstream evaluates it only where the assert
+            // fails, and planning it beforehand may fail where the assert holds (2026-11-04: 55 corpus test-data
+            // generation bodies, a message over a plan the program cannot plan) -- carried once the plan evaluates a
+            // side lazily (the Branch node, docs/ASSERT_NODES_PLAN_2026_11_04.md); until then the call is planned whole
+            return null;
+        }
         TypedFunction overload = overload(fn.fqn(), base, specs);
         if (overload == null) {
             return null;
@@ -91,6 +98,22 @@ public final class AssertMessages {
                 "the platform declares assert(Boolean[1])");
         ExprType one = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
         return new TypedNativeCall(f, List.of(new com.legend.compiler.spec.typed.TypedCBoolean(true, one)), one);
+    }
+
+    /** Whether {@code n} is SPELLED: literals, collections of them and calls over them, nothing read -- a message
+     *  that always plans, whatever the assert's outcome. */
+    static boolean spelled(TypedSpec n) {
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedCString s -> true;
+            case com.legend.compiler.spec.typed.TypedCInteger i -> true;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> true;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> true;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> true;
+            case com.legend.compiler.spec.typed.TypedCDate d -> true;
+            case com.legend.compiler.spec.typed.TypedCollection c -> c.elements().stream().allMatch(AssertMessages::spelled);
+            case TypedNativeCall c -> c.args().stream().allMatch(AssertMessages::spelled);
+            default -> false;
+        };
     }
 
     /** The number of operands {@code fn}'s base overload takes, or -1 for a family with no message overloads. */
