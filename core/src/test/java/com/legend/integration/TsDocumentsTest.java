@@ -289,9 +289,7 @@ class TsDocumentsTest {
             // spec §6's rebase(x, date): rebase's base by a date, and latest's arithmetic as a word's argument
             Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"),
             // spec §8's other views: plain SQL over a series query (FROM s, no ON) is not read yet
-            Map.entry("spec-05", "SELECT regr_slope(...) FROM s: plain SQL over a series query, unbuilt"),
-            // r_squared of a line with itself (SPX against SPX) is 1 + 4e-16; Pure's sqrt of a negative refuses
-            Map.entry("spec-16", "sqrt(1 - r_squared(...)) of SPX with itself: r_squared is 1 + 4e-16"));
+            Map.entry("spec-05", "SELECT regr_slope(...) FROM s: plain SQL over a series query, unbuilt"));
 
     /** {@code query}'s rows, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(ModelContext model, Connection c, String query) throws Exception {

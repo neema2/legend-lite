@@ -940,6 +940,17 @@ function timeseries::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], 
 // -- two columns of one table (a pair's, aligned by the caller: each series on its own dates, then joined), over the
 // window's pairs, the dates both have a value; none until the window holds ramp pairs --
 
+// A correlation within its bounds, [-1, 1]: a database's corr (or a covariance over the root of the two variances) of
+// two lines that move together exactly can be 1 + 2e-16 by rounding -- a line against itself (spec-16: SPX regressed on
+// SPX) -- and 1 - r_squared is then below 0, whose sqrt refuses, as legend-pure's does. None stays none. (The user,
+// 2026-11-04: clamp the correlation, option A; exact decimals ruled out: no exact root, the databases' statistics in
+// double, and none on SQLite. docs/SEMANTICS_REGISTER.md S133: gs-quant's rolling corr is unclamped, its r_squared
+// never above 1.)
+function timeseries::bounded(c: Number[0..1]): Number[0..1]
+{
+  if($c->isEmpty(), |[], |if($c->toOne() > 1.0, |1.0, |if($c->toOne() < -1.0, |-1.0, |$c->toOne())))
+}
+
 // The correlation of the pairs (gs-quant's correlation, of the returns its caller reads).
 function timeseries::correlation<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -947,7 +958,7 @@ function timeseries::correlation<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1],
   // Pure audit, 2026-10-28) -- every correlation of the library so (pairPeriod's, leadLag's; the conversion's review)
   $t->timeseries::pairs($first, $second, ~pa, ~pb)
     ->extend($win, ~[c:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->corr(), n:{p,f,r|$r.pa}:y|$y->count(), va:{p,f,r|$r.pa}:y|$y->varianceSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample()])
-    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |timeseries::bounded($x.c)))
     ->without(~[pa, pb, c, n, va, vb])->rename(~o, $out)
 }
 
@@ -1017,7 +1028,7 @@ function timeseries::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L�
     ->join($base->select(~[l, d, a, b])->rename(~l, ~wl)->rename(~d, ~wd)->rename(~a, ~wa)->rename(~b, ~wb), meta::pure::functions::relation::JoinKind.INNER, {x,y|($x.l == $y.wl) && ($y.wd > $x.lo) && ($y.wd <= $x.d)})
     ->groupBy(~[l, d], ~[c:x|rowMapper($x.wa, $x.wb):y|$y->corr(), cv:x|rowMapper($x.wa, $x.wb):y|$y->covarSample(),
       va:x|if($x.wb->isEmpty(), |[], |$x.wa):y|$y->varianceSample(), vb:x|if($x.wa->isEmpty(), |[], |$x.wb):y|$y->varianceSample()])
-    ->extend(~s:x|if($stat == timeseries::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
+    ->extend(~s:x|if($stat == timeseries::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |timeseries::bounded($x.c)), |$x.cv))
     ->select(~[l, d, s])->rename(~l, ~gl)->rename(~d, ~gd);
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {x,y|($x.l == $y.gl) && ($x.d == $y.gd)})
     ->without(~[l, d, a, b, gl, gd])
@@ -1031,7 +1042,7 @@ function timeseries::pairPeriod<T,L,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆
     ->extend(over($line, ~pk->ascending(), _range(-(timeseries::periodSpan($n, $unit) - 1), 0)),
       ~[c:{p,f,r|rowMapper($r.a, $r.b)}:y|$y->corr(), cv:{p,f,r|rowMapper($r.a, $r.b)}:y|$y->covarSample(),
         va:{p,f,r|if($r.b->isEmpty(), |[], |$r.a)}:y|$y->varianceSample(), vb:{p,f,r|if($r.a->isEmpty(), |[], |$r.b)}:y|$y->varianceSample()])
-    ->extend(~s:x|if($stat == timeseries::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
+    ->extend(~s:x|if($stat == timeseries::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |timeseries::bounded($x.c)), |$x.cv))
     ->without(~[pk, a, b, c, cv, va, vb])
     ->rename(~s, $out)
 }
@@ -1158,7 +1169,7 @@ function timeseries::leadLag<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], fir
   $t->extend($win, ~[c:{p,f,r|rowMapper($r->read($first), $r->read($second))}:y|$y->corr(), n:{p,f,r|$r->read($first)}:y|$y->count(),
       va:{p,f,r|if($r->read($second)->isEmpty(), |[], |$r->read($first))}:y|$y->varianceSample(),
       vb:{p,f,r|if($r->read($first)->isEmpty(), |[], |$r->read($second))}:y|$y->varianceSample()])
-    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |timeseries::bounded($x.c)))
     ->without(~[c, n, va, vb])->rename(~o, $out)
 }
 
@@ -1490,7 +1501,7 @@ function timeseries::regression<T,Y,X,O1,O2,O3,O4>(t: Relation<T>[1], win: _Wind
     ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), va:{p,f,r|$r.pa}:y|$y->varianceSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample(), ma:{p,f,r|$r.pa}:y|$y->average(), mb:{p,f,r|$r.pb}:y|$y->average(), n:{p,f,r|$r.pa}:y|$y->count()])
     ->extend(~fl:x|($x.n->toOne() < $ramp) || $x.vb->isEmpty() || ($x.vb->toOne() == 0))
     ->extend(~[s:x|if($x.fl, |[], |$x.cv->toOne() / $x.vb->toOne()),
-      c:x|if($x.fl || $x.va->isEmpty() || ($x.va->toOne() == 0), |[], |$x.cv->toOne() / sqrt($x.va->toOne() * $x.vb->toOne()))])
+      c:x|if($x.fl || $x.va->isEmpty() || ($x.va->toOne() == 0), |[], |timeseries::bounded($x.cv->toOne() / sqrt($x.va->toOne() * $x.vb->toOne())))])
     ->extend(~[i:x|if($x.s->isEmpty(), |[], |$x.ma->toOne() - ($x.s->toOne() * $x.mb->toOne())), q:x|if($x.c->isEmpty(), |[], |$x.c->toOne() * $x.c->toOne())])
     ->without(~[pa, pb, cv, va, vb, ma, mb, n, fl])->rename(~s, $slope)->rename(~i, $intercept)->rename(~c, $corr)->rename(~q, $r2)
 }
@@ -1621,7 +1632,7 @@ function timeseries::correlationOf<T,Z,X,Y,O,N>(t: Relation<T>[1], by: ColSpecAr
 {
   $t->timeseries::pairs($first, $second, ~pa, ~pb)
     ->groupBy($by, ~[c:x|rowMapper($x.pa, $x.pb):y|$y->corr(), k:x|$x.pa:y|$y->count(), va:x|$x.pa:y|$y->varianceSample(), vb:x|$x.pb:y|$y->varianceSample()])
-    ->extend(~o:x|if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->extend(~o:x|if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |timeseries::bounded($x.c)))
     ->without(~[c, va, vb])->rename(~o, $corr)->rename(~k, $n)
 }
 // A line's own figures, a row a line (the statistics table's, beside performanceStatistics' of a level): how many

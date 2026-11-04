@@ -194,8 +194,9 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
      literal (`'a' + 'b'` inside a filter stays SQL). A test pins that a data-position expression is never folded.
   4. **Anything else is a clear error**, naming the expression and the fence; never a guess and never a partial fold.
   5. Every row value such a function produces is computed by the database, as today.
-- **C6.2b — A window frame's bound is structure, folded when spelled** (the user's direction, 2026-11-04: "Can the
-  offset arithmetic fit in our tenets? Constant fold known at compile time?"). A frame bound decides the window's shape,
+- **C6.2b — A window frame's bound is structure, folded when spelled** (ruled 2026-11-04, the user: asked "Can the
+  offset arithmetic fit in our tenets? Constant fold known at compile time?", then "Agree on everything else" to this
+  wording). A frame bound decides the window's shape,
   as a column name decides a schema (C6.2a): legend-engine evaluates the window while it plans and reads each bound as
   the number it computed (docs/SEMANTICS_REGISTER.md S129). A library writes its window's span once over its arguments
   (`-(timeseries::periodSpan($n, $unit) - 1)`), and once a call's literals are substituted the span is arithmetic over
