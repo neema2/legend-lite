@@ -330,7 +330,7 @@ public final class SpecCompiler {
                 if (TsIslands.holdsIsland(stmt)) {
                     // a relation a #TS island's query reads again bound once, ahead of the statement (TsIslands.lifted)
                     Env at = scope;
-                    TsIslands.Lifted lifted = TsIslands.lifted(stmt, source -> typer.synth(source, at), ctx, at, taken);
+                    TsIslands.Lifted lifted = TsIslands.lifted(stmt, typer, ctx, at, taken);
                     stmts.set(si, lifted.statement());
                     stmts.addAll(si, lifted.lets());
                     stmt = stmts.get(si);

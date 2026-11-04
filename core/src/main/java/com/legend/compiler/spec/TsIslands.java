@@ -8,7 +8,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.Property;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Function;
 
 /**
  * THE {@code #TS{...}#} ISLAND'S SEAM (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): the protocol layer's translator
@@ -46,17 +44,15 @@ public final class TsIslands {
         }, model));
     }
 
-    /** The relation expression {@code island}, a {@code #TS{...}#} query, means, names resolved; {@code typeSource}
-     *  types a resolved relation in {@code env}. */
-    static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
-            ModelContext model, Env env) {
-        return NameResolver.resolveQuery(translated(island, typeSource, model, env));
+    /** The relation expression {@code island}, a {@code #TS{...}#} query, means, names resolved; {@code typer} types
+     *  the relations it reads in {@code env}. */
+    static ValueSpecification desugar(SqlIsland island, Typer typer, ModelContext model, Env env) {
+        return NameResolver.resolveQuery(translated(island, typer, model, env));
     }
 
     /** {@code island}'s translation, its names not yet resolved: one node wherever the query reads it again (the
      *  translator builds a relation once and reads it at each use). */
-    private static ValueSpecification translated(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
-            ModelContext model, Env env) {
+    private static ValueSpecification translated(SqlIsland island, Typer typer, ModelContext model, Env env) {
         if (model.findFunction(TsToPure.LIBRARY + "mean").isEmpty()) {
             // the library is a project a model depends on (docs/TS_LANGUAGE_BUILD_2026_10_30.md §1, open: a dependency
             // until the user rules on the platform loading it)
@@ -64,9 +60,10 @@ public final class TsIslands {
                     + ": #TS uses the timeseries library: add the project timeseries (projects/timeseries) to the"
                     + " model's dependencies");
         }
-        SqlToPure.Sources sources = SqlIslands.sources(island, typeSource, model, env, new java.util.TreeSet<>());
+        SqlToPure.Sources sources = SqlIslands.sources(island, source -> typer.synth(source, env), model, env,
+                new java.util.TreeSet<>());
         try {
-            return TsToPure.translate(island.sql(), new Facts(sources, model),
+            return TsToPure.translate(island.sql(), new Facts(new TypedOnce(sources, island, typer, env), model),
                     java.util.Objects.requireNonNull(InputLanguages.of(IslandLanguage.SQL, null)));
         } catch (SqlTranslationException e) {
             throw SqlIslands.refusal(island, e);
@@ -98,13 +95,12 @@ public final class TsIslands {
      * no name but the query's own (its parameters, the lets before it): a relation that reads a lambda's parameter
      * stays where it is. {@code scope} is the statement's: its names, and the sources typed in it.
      */
-    static Lifted lifted(ValueSpecification statement, Function<ValueSpecification, TypedSpec> typeSource,
-            ModelContext model, Env scope, java.util.Set<String> taken) {
+    static Lifted lifted(ValueSpecification statement, Typer typer, ModelContext model, Env scope,
+            java.util.Set<String> taken) {
         List<ValueSpecification> lets = new ArrayList<>();
         java.util.IdentityHashMap<ValueSpecification, ValueSpecification> islands = new java.util.IdentityHashMap<>();
         collect(statement, island -> {
-            TsToPure.Bound bound = TsToPure.bindShared(translated(island, typeSource, model, scope), scope.names(),
-                    taken);
+            TsToPure.Bound bound = TsToPure.bindShared(translated(island, typer, model, scope), scope.names(), taken);
             lets.addAll(bound.lets());
             islands.put(island, NameResolver.resolveQuery(bound.answer()));
         });
@@ -144,6 +140,69 @@ public final class TsIslands {
             out.add(r);
         }
         return changed ? v.withChildren(out) : v;
+    }
+
+    /**
+     * A RELATION THE TRANSLATOR ASKS THE COLUMNS OF, TYPED AS THE QUERY WILL BE (2026-11-04, spec-15's planning time):
+     * the translator asks the columns of the relation it is building, which reads at several places the relations it
+     * built before -- one node, read again ({@link TsToPure#bindShared}). Its names resolved as one expression, each
+     * read is a copy, typed again at each place: spec-15's last relation, 1,102 nodes, took 3.0 of the query's 3.7
+     * seconds of planning. So each relation it reads at more than one place is bound by a let, typed once, in the
+     * order the lets read each other, and the relation typed with them in scope -- as {@link #lifted} binds them and
+     * the query's typing types them. A relation read at one place only is {@code of}'s, as any source.
+     */
+    private record TypedOnce(SqlToPure.Sources of, SqlIsland island, Typer typer, Env env)
+            implements SqlToPure.Sources {
+
+        @Override
+        public void columns(ValueSpecification source, SqlToPure.Column column) {
+            // the lets' names are this typing's own: none taken from the query's, none left to it
+            java.util.Set<String> taken = new java.util.HashSet<>(env.names());
+            TsToPure.Bound bound = TsToPure.bindShared(source, env.names(), taken);
+            if (bound.lets().isEmpty()) {
+                of.columns(source, column);
+                return;
+            }
+            Env at = env;
+            for (ValueSpecification let : bound.lets()) {
+                com.legend.protocol.spec.AppliedFunction bind =
+                        (com.legend.protocol.spec.AppliedFunction) NameResolver.resolveQuery(let);
+                String name = ((com.legend.protocol.spec.CString) bind.parameters().get(0)).value();
+                ValueSpecification value = bind.parameters().get(1);
+                at = at.withLet(name, typer.synth(value, at).info(), value);
+            }
+            SqlIslands.columns(typer.synth(NameResolver.resolveQuery(bound.answer()), at), island, column);
+        }
+
+        @Override
+        public java.util.@com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return of.primaryKey(database, table);
+        }
+
+        @Override
+        public void tables(SqlToPure.Table table) {
+            of.tables(table);
+        }
+
+        @Override
+        public boolean variable(String name, SqlToPure.Scoped type) {
+            return of.variable(name, type);
+        }
+
+        @Override
+        public void variables(java.util.function.Consumer<String> names) {
+            of.variables(names);
+        }
+
+        @Override
+        public boolean isEnumeration(String type) {
+            return of.isEnumeration(type);
+        }
+
+        @Override
+        public ValueSpecification inlineView(ValueSpecification relation) {
+            return of.inlineView(relation);
+        }
     }
 
     /** The enumerations directly in the package {@code pkg} ({@code timeseries}), by their simple names, each its

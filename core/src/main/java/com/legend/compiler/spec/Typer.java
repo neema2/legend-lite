@@ -211,7 +211,7 @@ final class Typer {
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, source -> synth(source, env), ctx, env), env);
+                    synth(SqlIslands.desugar(si, this, ctx, env), env);
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"

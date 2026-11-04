@@ -33,19 +33,18 @@ final class SqlIslands {
     private SqlIslands() {
     }
 
-    /** The relation expression {@code island} means, names resolved; {@code typeSource} types a resolved source.
-     *  IQ island, 2026-10-14 (M1e): {@code model}'s tables are the ones a dialect may name without a source function
-     *  (an IQ owner's), and {@code env}'s variables the ones it may read (IQ's host variables); Postgres's reads
-     *  neither. */
-    static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
-            ModelContext model, Env env) {
+    /** The relation expression {@code island} means, names resolved; {@code typer} types a resolved source in
+     *  {@code env}. IQ island, 2026-10-14 (M1e): {@code model}'s tables are the ones a dialect may name without a
+     *  source function (an IQ owner's), and {@code env}'s variables the ones it may read (IQ's host variables);
+     *  Postgres's reads neither. */
+    static ValueSpecification desugar(SqlIsland island, Typer typer, ModelContext model, Env env) {
         return switch (island.language()) {
             // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): its own seam, over the class model
             case CYPHER -> CypherIslands.desugar(island, model);
             // the timeseries language (docs/TS_LANGUAGE_BUILD_2026_10_30.md): its own builder, the library's calls
-            case TS -> TsIslands.desugar(island, typeSource, model, env);
+            case TS -> TsIslands.desugar(island, typer, model, env);
             // SQL read through its language's dialect: Postgres's, IQ's under the island's profile
-            case SQL, IQ -> translated(island, typeSource, model, env);
+            case SQL, IQ -> translated(island, source -> typer.synth(source, env), model, env);
         };
     }
 
@@ -260,7 +259,7 @@ final class SqlIslands {
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold
      *  no value, and, when the source is a table, its declared store type, spelled as the store spells it. */
-    private static void columns(TypedSpec source, SqlIsland island, SqlToPure.Column column) {
+    static void columns(TypedSpec source, SqlIsland island, SqlToPure.Column column) {
         Type.RelationType schema = Type.relationSchema(source.info().type());
         if (schema == null || !schema.dynamicColumns().isEmpty()) {
             throw new TypeInferenceException(island.opening() + "...}# at " + position(island, 1, 1) + ": a FROM"
