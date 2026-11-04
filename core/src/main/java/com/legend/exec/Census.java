@@ -90,6 +90,7 @@ public final class Census {
 
     /** {@link #UNPLANNED_ASSERTS}: one declined assert, by its shape. */
     public static void unplannedAssert(String shape) {
+        com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", shape);
         UNPLANNED_ASSERTS.add(shape);
     }
 

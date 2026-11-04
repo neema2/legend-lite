@@ -1045,7 +1045,8 @@ public final class VerdictSql {
                 new SqlSelect.Projection(one, "__one", oneOut),
                 new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
                         List.of(c, new SqlExpr.StringLit(", ")), false,
-                        List.of(new SqlSelect.SortKey(key, true, null, null))), "__joined", joinedOut),
+                        byCanonText ? hostCanonicalOrder(c) : List.of(new SqlSelect.SortKey(key, true, null, null))),
+                        "__joined", joinedOut),
                 new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.IS_NULL, c)), F_NULLS, nullsOut),
                 new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.GREATER,
                         SqlExpr.Call.of(SqlFn.STRPOS, c, new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
@@ -1069,6 +1070,39 @@ public final class VerdictSql {
                 new SqlSelect.Projection(n, F_N, outs.get(3))),
                 false, new SqlSource.Subselect(agg, "s", null), null, List.of(), null, null,
                 List.of(), null, null, outs);
+    }
+
+    /** A multiset side's elements in the host judge's canonical order ({@code Equality.sorted}: null, a number by its
+     *  value, a String, a Boolean, a date, the rest; the canon text breaks a tie), read from the canon's own spelling:
+     *  the literal grammar's forms are disjoint by construction ({@link LiteralSpelling}) -- a quoted String, a bare
+     *  Boolean, a %-prefixed temporal, a number bare, pointed or D-suffixed -- so its first character names its kind
+     *  (2026-11-04, the core program: a failing multiset printed its numbers in text order, {@code [11, 2]} where the
+     *  host prints {@code [2, 11]}, and its Strings before its numbers). The verdict compares the two joined texts,
+     *  each side in this one total order, so it decides as before; the message reads as the host's. The database
+     *  orders; a number's value read as a DOUBLE, its canon text the tie's. */
+    private static List<SqlSelect.SortKey> hostCanonicalOrder(SqlExpr c) {
+        SqlExpr first = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
+        List<SqlExpr> numberStarts = new ArrayList<>();
+        numberStarts.add(first);
+        for (String d : List.of("-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")) {
+            numberStarts.add(new SqlExpr.StringLit(d));
+        }
+        SqlExpr number = new SqlExpr.Call(SqlFn.IN, numberStarts);
+        SqlExpr rank = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.IntLit(0)),
+                new SqlExpr.Case.When(number, new SqlExpr.IntLit(1)),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("'")),
+                        new SqlExpr.IntLit(2)),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, c, new SqlExpr.StringLit("true"),
+                        new SqlExpr.StringLit("false")), new SqlExpr.IntLit(3)),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("%")),
+                        new SqlExpr.IntLit(4))),
+                new SqlExpr.IntLit(5));
+        SqlExpr value = new SqlExpr.Case(List.of(new SqlExpr.Case.When(number, new SqlExpr.Cast(
+                SqlExpr.Call.of(SqlFn.REPLACE, c, new SqlExpr.StringLit("D"), new SqlExpr.StringLit("")),
+                SqlType.Scalar.DOUBLE))), null);
+        return List.of(new SqlSelect.SortKey(rank, true, null, null), new SqlSelect.SortKey(value, true, null, null),
+                new SqlSelect.SortKey(c, true, null, null));
     }
 
     /** {@code COUNT(CASE WHEN <cond> THEN 1 END)} — portable filtered count. */

@@ -292,6 +292,36 @@ class TaggedListTest {
         }
     }
 
+    /** A failing multiset prints its elements in the host judge's canonical order under each judge (2026-11-04, the
+     *  core program: the database judge printed numbers in text order, {@code [11, 2]}, and Strings before numbers --
+     *  the verdict alike, the words not). A raw grid's order is incidental, so each comparison is a multiset. */
+    @Test
+    void aFailingMultisetPrintsInTheHostsOrderUnderEachJudge() throws Exception {
+        String[][] cases = {
+                {"select * from (select 1 as A, \\'x\\' as B union all select 2, \\'y\\') t order by A",
+                        "[1, 'x', 2, 'z']", "\nexpected: [1, 2, 'x', 'z']\nactual:   [1, 2, 'x', 'y']"},
+                {"select 10 as A union all select 2", "[2, 11]", "\nexpected: [2, 11]\nactual:   [2, 10]"},
+                {"select \\'b\\' as A union all select \\'a\\'", "['a', 'c']",
+                        "\nexpected: ['a', 'c']\nactual:   ['a', 'b']"},
+                {"select 10 as A, \\'b\\' as B union all select 2, \\'a\\'", "[2, 'a', 11, 'b']",
+                        "\nexpected: [2, 11, 'a', 'b']\nactual:   [2, 10, 'a', 'b']"}};
+        try (Connection c = TestBackends.platform().open()) {
+            for (String[] q : cases) {
+                String let = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                        + "let rs = meta::relational::metamodel::execute::executeInDb('" + q[0] + "', $c);\n";
+                for (com.legend.ExecuteOptions.JudgeMode mode : List.of(com.legend.ExecuteOptions.JudgeMode.HOST,
+                        com.legend.ExecuteOptions.JudgeMode.DATABASE, com.legend.ExecuteOptions.JudgeMode.BOTH)) {
+                    Exception failed = assertThrows(Exception.class, () -> Program.last(
+                            StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                            let + "assertEquals(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                            com.legend.ExecuteOptions.NONE.withJudgeMode(mode)), mode + " " + q[1]);
+                    assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
+                }
+            }
+        }
+    }
+
     @Test
     void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
@@ -314,6 +344,12 @@ class TaggedListTest {
                     CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                     com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH));
             assertEquals(true, both.one());
+            // and under the database judge alone (the core program's 100% check, 2026-11-04: under BOTH a database
+            // decline is the host's to decide, so the BOTH case alone does not show the database judge decides it)
+            Lean.Result database = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                    CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.ExecuteOptions.JudgeMode.DATABASE));
+            assertEquals(true, database.one());
             // a row's cells read in a lambda are on the variant carrier: the literal list meets them there
             assertEquals(List.of(true, false), Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     CONN_LET + "$rs.rows->map(r | [1, 'x'] == $r.values);}", StorelessRuntime.RUNTIME, c)

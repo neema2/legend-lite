@@ -102,7 +102,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted) {
         SpecCompiler specs = typed.specs();
-        if (!plannable(typed, systemRouted) || !everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
+        if (!plannable(typed, systemRouted)) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
+            return null;
+        }
+        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the static pass");
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
@@ -454,6 +459,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
             List<VerdictBatch.Group> groups = planned.groups();
             if (groups.size() > 1 || groups.stream().anyMatch(g -> !placed(g, env))) {
+                com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", AssertVerdicts.listenerName(bare),
+                        groups.size() > 1 ? "several groups" : "a group on another session");
                 continue;
             }
             out.put(i, new Each(planned, groups.isEmpty() ? null : groups.get(0).step()));
@@ -503,7 +510,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  database's session (per-statement routing; 2026-11-03: until then such a group left the body to the walk, so
      *  the database judge alone refused {@code getAll::testBasic} on Postgres, MariaDB and ClickHouse). */
     private static boolean placed(VerdictBatch.Group g, BodyDriver.ExecEnv env) {
-        return !g.keyed() && (g.on() == env.session() || SystemDatabase.of(env.ctx()).engineOf(g.on()) != null);
+        return g.on() == env.session() || SystemDatabase.of(env.ctx()).engineOf(g.on()) != null;
     }
 
     /** The shapes the planner refuses BEFORE planning anything, so a body it leaves for the walk has nothing counted
@@ -516,8 +523,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  RUN of each statement ({@link #scanned}). */
     private static boolean plannable(TypedQuery typed, boolean systemRouted) {
         Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-        java.util.function.Predicate<TypedSpec> refused = n -> n instanceof
-                com.legend.compiler.spec.typed.TypedRawSqlRelation || !systemRouted && lineageScan(n);
+        java.util.function.Predicate<TypedSpec> refused = n -> !systemRouted && lineageScan(n);
         for (TypedSpec statement : typed.body()) {
             for (TypedSpec part : scanned(statement)) {
                 if (com.legend.compiler.spec.StatementEffects.reaches(part, refused, typed.specs(), memo)) {

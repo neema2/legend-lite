@@ -79,6 +79,15 @@ public final class Diagnostics {
         return ON.get(name);
     }
 
+    /** {@code judge-declines}: one line per database-judge decline or UNJUDGED, with the running test (the core
+     *  program's 100% check, 2026-11-04). Measurement only: prints, decides nothing. */
+    public static void judgeDecline(String kind, String name, String reason) {
+        if (on("judge-declines")) {
+            System.err.println("[judge-decline] " + kind + " " + System.getProperty("legend.test.current", "?") + " "
+                    + name + ": " + reason.replace('\n', ' '));
+        }
+    }
+
     /** {@code dump-sql}; the LEGEND_LITE_DUMP_SQL env flag still turns it on until P7-14 retires the env flags. */
     public static boolean dumpSql() {
         return on("dump-sql") || System.getenv("LEGEND_LITE_DUMP_SQL") != null;

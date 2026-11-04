@@ -150,6 +150,8 @@ final class AssertVerdicts {
             }
         }
         if (v == null) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", listenerName(bare), "the database arm: "
+                    + shapeOf(bare));
             batch.discard();
             return DatabasePlan.UNPLANNED;
         }
@@ -299,6 +301,10 @@ final class AssertVerdicts {
                     || keylessInstances(raw.get(0), raw.get(1), env.ctx()));
             default -> true;
         };
+        if (!plans) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", fn.bareName(), "the database gate: "
+                    + shapeOf(bare));
+        }
         return plans ? DatabaseGate.PLANS : DatabaseGate.UNPLANNED;
     }
 
