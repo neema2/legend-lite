@@ -501,6 +501,19 @@ public final class TsToPure {
             return out;
         }
 
+        /** {@code of} as a key by identity: a line is the very line, its relation a graph never compared by value. */
+        private record Same(Object of) {
+            @Override
+            public boolean equals(@com.legend.base.Nullable Object o) {
+                return o instanceof Same s && s.of == of;
+            }
+
+            @Override
+            public int hashCode() {
+                return System.identityHashCode(of);
+            }
+        }
+
         /** A column of a source opened, as the model gave it. */
         private record Held(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType) {
         }
@@ -1002,6 +1015,8 @@ public final class TsToPure {
             private final Map<Object, TsLines.Valued> reads = new java.util.HashMap<>();
             /** Each value that is not a point of every row of its table: the column of its points, by its column. */
             private final Map<String, String> presence = new java.util.HashMap<>();
+            /** Each set of lines met ({@link #met}), by each one's base, value and points, in order. */
+            private final Map<List<Object>, TsLines.Line> mets = new java.util.HashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -1059,7 +1074,8 @@ public final class TsToPure {
             }
 
             /** {@code line}'s base with every column added to it so far: every column of {@code line}, its rows. */
-            TsLines.Line newest(TsLines.Line line) {
+            @Override
+            public TsLines.Line newest(TsLines.Line line) {
                 TsLines.Line b = base(line);
                 TsLines.Line n = newest.get(b);
                 return n == null ? b : n;
@@ -1080,6 +1096,36 @@ public final class TsToPure {
                 String p = presence.get(v.value());
                 return p == null ? v : new TsLines.Valued(v.line().with(call(TsWords.ROWS + "points", v.line().rel(),
                         new ColSpec(p))), v.value());
+            }
+
+            /** The lines of {@code parts} met on their dates (R6), each where it is a point: met once for the same
+             *  values of the same bases (a later column of a base read from it, the base's rows the same), its newest
+             *  table at each read -- two words of two lines, two figures of them, one table (R7 part 3). */
+            @Override
+            public TsLines.Line met(List<TsLines.Valued> parts, SqlAst.Pos pos) {
+                List<Object> key = new ArrayList<>();
+                List<TsLines.Valued> read = new ArrayList<>();
+                for (TsLines.Valued p : parts) {
+                    TsLines.Valued v = new TsLines.Valued(newest(p.line()), p.value());
+                    key.add(new Same(base(v.line())));
+                    key.add(v.value());
+                    key.add(presence(v));
+                    read.add(v);
+                }
+                TsLines.Line m = mets.get(key);
+                if (m == null) {
+                    // each table once, its rows where every value read of it is a point (each value's own points,
+                    // taken in turn): two values of one table are its columns, never the table met with itself
+                    Map<TsLines.Line, TsLines.Line> pointed = new java.util.IdentityHashMap<>();
+                    for (TsLines.Valued v : read) {
+                        TsLines.Line from = pointed.getOrDefault(v.line(), v.line());
+                        pointed.put(v.line(), points(new TsLines.Valued(from, v.value())).line());
+                    }
+                    m = TsLines.joined(this, read.stream().map(v -> new TsLines.Valued(
+                            java.util.Objects.requireNonNull(pointed.get(v.line())), v.value())).toList(), pos, null);
+                    mets.put(List.copyOf(key), m);
+                }
+                return newest(m);
             }
 
             /** {@code line}'s base's newest line ({@link #newest}) with a column {@code add} adds to it: the base's
@@ -1310,9 +1356,9 @@ public final class TsToPure {
                     present(masked, p);
                     return new TsLines.Valued(out, masked);
                 }
-                // lines meeting (R6): each part as its own line, met on their dates
-                List<TsLines.Valued> lines = read.stream().map(this::points).toList();
-                TsLines.Line met = TsLines.joined(this, lines, e.pos(), fill == null ? null : fill.how());
+                // lines meeting (R6): each part as its own line, met on their dates -- once for the same lines (met)
+                TsLines.Line met = fill == null ? met(read, e.pos())
+                        : TsLines.joined(this, read.stream().map(this::points).toList(), e.pos(), fill.how());
                 TsLines.Line out = grown(met, rel -> call("extend", rel, new ColSpec(value, rowLambda(intervals(over),
                         rel, false, "SELECT"))));
                 return new TsLines.Valued(out, value);

@@ -2401,6 +2401,57 @@ function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K�
     ->without(~rows_l)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
+// The rows forms of the words of two lines' levels (R7 part 3, 2026-11-04): the word of t's columns x and y, t the two
+// lines met -- each row a pair, a point of both, as the line form's meet makes them (#TS meets two lines once,
+// timeseries::lines::meet, and every word of the same two lines adds its column to that one table, where their
+// windows may share a select) -- by t's key in date order, its answer a column of t: the line form's own table
+// function, window and ramp. Every row is a pair, so the answer is a point of every row, as the line form's line has
+// every pair.
+function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::beta(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), $out)
+}
+
+function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+}
+
+function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::betaPeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::residual(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), $out)
+}
+
+function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::residual(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+}
+
+function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::residualPeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::covariance(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), $out)
+}
+
+function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::covariance(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+}
+
+function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::covariancePeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
 // Where two values are both points (R6: a per-point figure of several values is a point where every one is): 1, else
 // none.
 function timeseries::rows::both<T,A,B,O>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]

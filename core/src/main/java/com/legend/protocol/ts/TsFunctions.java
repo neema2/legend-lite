@@ -74,6 +74,13 @@ final class TsFunctions {
         /** {@code v} as its own line: its table's rows it is a point of (the library's {@code rows::points}), or
          *  {@code v} where it is a point of every row. */
         TsLines.Valued points(TsLines.Valued v);
+
+        /** The lines of {@code parts} met on their dates (R6), each where it is a point: the newest table of one base
+         *  for the same values of the same lines, met once (R7 part 3: every word of two lines a column of it). */
+        TsLines.Line met(java.util.List<TsLines.Valued> parts, SqlAst.Pos pos);
+
+        /** {@code line}'s base with every column added to it so far (R7: one table per base). */
+        TsLines.Line newest(TsLines.Line line);
     }
 
     /** Whether {@code name} is a function of the language: one written here, or a word the library defines. */

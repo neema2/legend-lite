@@ -167,7 +167,7 @@ final class TsWords {
                     + " overloads a call fits: " + given.keySet());
         }
         // a word that keeps its line's rows: its rows form, a column of its line's own table (R7, the time model's D5)
-        TsLines.Valued kept = rowsForm(c, fqn, word, fitting.get(0), fits.get(0), written);
+        TsLines.Valued kept = rowsForm(c, fqn, word, fitting.get(0), fits.get(0), written, pos);
         if (kept != null) {
             return kept;
         }
@@ -197,12 +197,15 @@ final class TsWords {
      * declares none (the word makes a new line) or the call is of several lines.
      */
     private static TsLines.@com.legend.base.Nullable Valued rowsForm(TsFunctions.Ctx c, String fqn, String word,
-            TsToPure.Overload o, List<ValueSpecification> bound, List<Arg> args) {
+            TsToPure.Overload o, List<ValueSpecification> bound, List<Arg> args, SqlAst.Pos pos) {
+        String rowsFqn = ROWS + fqn.substring(PACKAGE.length());
+        if (args.size() == 2) {
+            return pairForm(c, rowsFqn, word, o, bound, args, pos);
+        }
         if (args.size() != 1 || !(args.get(0) instanceof LineArg l) || o.params().isEmpty()
                 || !TsToPure.LINE.equals(o.params().get(0).type()) || !o.gives().equals(List.of("value"))) {
             return null;
         }
-        String rowsFqn = ROWS + fqn.substring(PACKAGE.length());
         List<String> own = o.params().subList(1, o.params().size()).stream().map(TsToPure.Parameter::type).toList();
         for (TsToPure.Overload r : c.model().overloads(rowsFqn)) {
             List<TsToPure.Parameter> p = r.params();
@@ -223,6 +226,51 @@ final class TsWords {
                 return TsLines.call(rowsFqn, a);
             });
             c.present(out, points);
+            return new TsLines.Valued(line, out);
+        }
+        return null;
+    }
+
+    /**
+     * {@code o}, the overload of a word a call of two lines fits, as its rows form (R7 part 3, the time model's D5): the
+     * library's {@code timeseries::rows::} function of the word's name, {@code rowsFqn}, whose parameters are a table,
+     * its key and date, the two values' columns, then {@code o}'s own after its lines but the query's periods (the
+     * lines meet on them already), then the answer's column -- called on the two lines met ({@link TsFunctions.Ctx#met}:
+     * one table for the same two lines, every word of them a column of it), each of its rows a pair, so the answer a
+     * point of every row. Null where the library declares none, under FILL (the line form meets its lines unfilled), or
+     * where both values are of one table (met with itself, a table of several rows on a date is refused, D1: the line
+     * form's to say).
+     */
+    private static TsLines.@com.legend.base.Nullable Valued pairForm(TsFunctions.Ctx c, String rowsFqn, String word,
+            TsToPure.Overload o, List<ValueSpecification> bound, List<Arg> args, SqlAst.Pos pos) {
+        if (!(args.get(0) instanceof LineArg x) || !(args.get(1) instanceof LineArg y) || o.params().size() < 2
+                || !TsToPure.LINE.equals(o.params().get(0).type()) || !TsToPure.LINE.equals(o.params().get(1).type())
+                || !o.gives().equals(List.of("value")) || c.query().fill() != null
+                || c.newest(x.line().line()) == c.newest(y.line().line())) {
+            return null;
+        }
+        List<Integer> own = new ArrayList<>();
+        for (int i = 2; i < o.params().size(); i++) {
+            if (!TsCatalog.SAMPLE.equals(o.params().get(i).type())) {
+                own.add(i);
+            }
+        }
+        List<String> types = own.stream().map(i -> o.params().get(i).type()).toList();
+        for (TsToPure.Overload r : c.model().overloads(rowsFqn)) {
+            List<TsToPure.Parameter> p = r.params();
+            if (p.size() != own.size() + 6 || !p.subList(5, p.size() - 1).stream().map(TsToPure.Parameter::type)
+                    .toList().equals(types)) {
+                continue;
+            }
+            TsLines.Line met = c.met(List.of(x.line(), y.line()), pos);
+            String out = c.fresh(word);
+            TsLines.Line line = c.grown(met, rel -> {
+                List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(met.part()),
+                        new ColSpec(met.at()), new ColSpec(x.line().value()), new ColSpec(y.line().value())));
+                own.forEach(i -> a.add(bound.get(i)));
+                a.add(new ColSpec(out));
+                return TsLines.call(rowsFqn, a);
+            });
             return new TsLines.Valued(line, out);
         }
         return null;
