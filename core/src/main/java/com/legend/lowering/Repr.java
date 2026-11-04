@@ -66,6 +66,12 @@ final class Repr {
             if (dp != null) {
                 return Scalars.cat(new SqlExpr.StringLit("%"), dp);
             }
+            if (typed.info().type() instanceof Type.Primitive p && p != Type.Primitive.STRING) {
+                // a number, a Boolean, a Decimal: pure's representation by its type (format('%r', [1]) is '1', a
+                // Decimal's '3.0D' -- until 2026-11-04 every %r quoted as a String: the asserts-as-plan-nodes program
+                // reached it through assertNotEq's message, '%r should not equal %r')
+                return of(p, e);
+            }
         }
         // CAST first: identity for a real string; keeps a DEAD branch
         // (assertEquals' %r fast path inlined over a known-many

@@ -97,8 +97,7 @@ class AssertBarTest {
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
             "forAll-zip-assert-message",
-            "assertNotEq-holds", "assertNotEq-fails", "assertNotSize-holds", "assertNotContains-holds",
-            "one-statement-helper-holds", "one-statement-helper-fails", "assert-in-an-if", "assert-bound-by-a-let",
+            "assert-in-an-if", "assert-bound-by-a-let",
             "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type", "concatenate-keeps-order", "union-keeps-order", "float-looking-strings",
             "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert", "assert-then-a-query"));
@@ -143,6 +142,25 @@ class AssertBarTest {
         assertTrue(missed.isEmpty() && closed.isEmpty(), (missed.isEmpty() ? "" : "missing the bar (not in GAPS):\n  "
                 + String.join("\n  ", missed) + "\n") + (closed.isEmpty() ? "" : "meeting the bar now -- delete from"
                 + " GAPS: " + closed));
+    }
+
+    /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
+     *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
+     *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */
+    @Test
+    void aSegmentsAssertsAreOneStatementUnderTheDatabaseJudge() throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            for (String body : List.of(
+                    "{|assertEquals(1, 1); assertEquals('a', 'a'); assert(2 > 1);}",
+                    "{|assertEquals(1, 1, 'one'); assertEquals('a', 'a', 'got %s', ['a']); assert(2 > 1, | 'two');}")) {
+                int bodyOrigin = com.legend.exec.StatementOrigin.BODY.ordinal();
+                long before = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin];
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
+                        ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.DATABASE));
+                long sent = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin] - before;
+                org.junit.jupiter.api.Assertions.assertEquals(1L, sent, "one fused statement: " + body);
+            }
+        }
     }
 
     private static void record(String id, List<String> wrong, List<String> missed, List<String> closed) {

@@ -36,6 +36,17 @@ operands, guard and message rows and applies the enum's predicate in Java (`Equa
 the message row's text. **Nothing at judge time:** the sink reads rows and decides; a fallback is a planned column or
 step, never a statement planned or sent from the sink.
 
+**Fused (the user, 2026-11-04: "the 'fuse' step to do all assert together in one go"):** the database judge sends a
+segment's asserts as ONE statement (`VerdictBatch`'s fused verdict statement): each node's row -- its holds and its
+message, the caller's message a column of its own row -- is a member of it; pinned by
+`AssertBarTest#aSegmentsAssertsAreOneStatementUnderTheDatabaseJudge` (three asserts with custom, format and function
+messages: one statement). The node also carries its OWN planned statement, so where the database rejects the fused
+statement (the split rung) the runner sends planned statements -- today those wrappers are planned at judge time (the
+audit's L1), which this program ends.
+
+**The default message** stays each family's own, which both judges spell from the operands (the cost of two judges,
+accepted 2026-11-04); only a CALLER's message is a side -- a literal folds to a constant and costs no statement.
+
 **The planning rule (one rule, no shapes):** an assert's value, whenever execution continues past it, is `true`. The
 planner lifts each assert into a verdict step at its place in the program -- under its `if` conditions as a guard,
 over its lambda's source as a vector -- and puts `true` where it stood. Helpers and prelude functions that contain

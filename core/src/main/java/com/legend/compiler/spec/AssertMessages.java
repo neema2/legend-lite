@@ -84,6 +84,15 @@ public final class AssertMessages {
         return new Split(new TypedNativeCall(overload, args.subList(0, base), n.info(), n.pos()), message);
     }
 
+    /** {@code assert(true)}: an assert the compiler decided holds (a helper whose asserts fold over spelled values),
+     *  planned by the judges as any assert. */
+    public static TypedSpec holds(SpecCompiler specs) {
+        TypedFunction f = java.util.Objects.requireNonNull(overload(PlatformTypes.ASSERT, 1, specs),
+                "the platform declares assert(Boolean[1])");
+        ExprType one = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
+        return new TypedNativeCall(f, List.of(new com.legend.compiler.spec.typed.TypedCBoolean(true, one)), one);
+    }
+
     /** The number of operands {@code fn}'s base overload takes, or -1 for a family with no message overloads. */
     static int baseArity(NativeFn.Verdict fn) {
         return switch (fn) {
