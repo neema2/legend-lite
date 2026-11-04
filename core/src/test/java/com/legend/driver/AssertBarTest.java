@@ -79,6 +79,15 @@ class AssertBarTest {
                     "\nexpected: 1\nactual:   2"),
             new Probe("assert-bound-by-a-let", "{|let ok = assertEquals(1, 1); assert($ok);}", null),
             new Probe("forAll-over-range", "{|range(1, 4)->forAll(i | assertEquals($i, $i))}", null),
+            // per element, the operands computed by the database (step 5): the first failing element in upstream's
+            // words, each operand spelled by its own kind, an empty source holding
+            new Probe("forAll-over-range-fails", "{|range(1, 4)->forAll(i | assertEquals($i, 2))}",
+                    "\nexpected: 1\nactual:   2"),
+            new Probe("forAll-decimal-scale", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.00D))}",
+                    "\nexpected: 3.0D\nactual:   3.00D"),
+            new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
+                    "\nexpected: 1D\nactual:   1"),
+            new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
             new Probe("assertInstanceOf-custom-message", "{|assertInstanceOf(1, Integer, 'msg')}", null),
@@ -123,7 +132,6 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type",
             "assertError-over-a-failing-assert", "assert-then-a-query"));
 

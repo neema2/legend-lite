@@ -404,6 +404,90 @@ public final class VerdictSql {
                 new SqlExpr.NullLit(), message);
     }
 
+    /**
+     * A quantified EQUALITY judged element by element (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     * {@code pairs}, the plan of {@code source->map(x | pair(expected, actual))} -- each element's two operands one row's
+     * {@code {first, second}}, in the source's order -- and the verdict that every element's operands are equal by the
+     * database judge's own spelling of their kinds ({@link LiteralSpelling#leaf}: a Decimal's scale kept); a failure's
+     * texts the FIRST failing element's, each as upstream's {@code %r} writes it ({@link Repr}), so the row's message is
+     * upstream's {@code '\nexpected: %r\nactual:   %r'} for that element. {@code neverEqual}: the two kinds are never
+     * equal under the run's rules (register S127): every element fails, an empty source holds. {@code floats}: both are
+     * Floats, two finite doubles within 2 ULP equal too (S15, as the scalar equality's leniency). Null where a kind has no
+     * spelling (the caller declines by name). One statement: the pairs read once, numbered in their own select.
+     */
+    public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
+            boolean neverEqual, boolean floats) {
+        SqlQuery numbered = SideOrdinal.withOrdinal(pairs);
+        OutputCol valueOut = pairs.outputs().get(0);
+        SqlExpr value = SqlExpr.Column.of("__s", numbered.outputs(), valueOut.name());
+        SqlExpr first = SqlExpr.StructGet.of(value, "first");
+        SqlExpr second = SqlExpr.StructGet.of(value, "second");
+        SqlExpr ce = LiteralSpelling.leaf(first, expectedKind);
+        SqlExpr ca = LiteralSpelling.leaf(second, actualKind);
+        if (ce == null || ca == null) {
+            return null;
+        }
+        SqlExpr ok;
+        if (neverEqual) {
+            ok = new SqlExpr.BoolLit(false);
+        } else {
+            ok = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, asText(ce), asText(ca));
+            if (floats) {
+                SqlExpr x = new SqlExpr.Cast(first, SqlType.Scalar.DOUBLE);
+                SqlExpr y = new SqlExpr.Cast(second, SqlType.Scalar.DOUBLE);
+                ok = SqlExpr.Call.of(SqlFn.OR, ok, withinTwoUlp(x, y));
+            }
+        }
+        OutputCol okOut = new OutputCol("__ok", SqlType.Scalar.BOOLEAN, false);
+        OutputCol reOut = new OutputCol("__re", SqlType.Scalar.VARCHAR, true);
+        OutputCol raOut = new OutputCol("__ra", SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlQuery rows = new SqlSelect(List.of(
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
+                new SqlSelect.Projection(Repr.of(expectedKind, first), "__re", reOut),
+                new SqlSelect.Projection(Repr.of(actualKind, second), "__ra", raOut),
+                new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
+                false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
+                null, List.of(okOut, reOut, raOut, rnOut));
+        List<OutputCol> pe = List.of(okOut, reOut, raOut, rnOut);
+        SqlExpr failingAt = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Column.of("__pe", pe, "__ok")),
+                SqlExpr.Column.of("__pe", pe, RN))), null);
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        OutputCol fe = new OutputCol("__fe", SqlType.Scalar.VARCHAR, true);
+        OutputCol fa = new OutputCol("__fa", SqlType.Scalar.VARCHAR, true);
+        OneRow b = new OneRow("b", new SqlSelect(List.of(
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(failingAt), false, List.of()),
+                        "__n", n),
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.ARG_MIN,
+                        List.of(SqlExpr.Column.of("__pe", pe, "__re"), failingAt), false, List.of()), "__fe", fe),
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.ARG_MIN,
+                        List.of(SqlExpr.Column.of("__pe", pe, "__ra"), failingAt), false, List.of()), "__fa", fa)),
+                false, new SqlSource.Table("__pe", "__pe", pe, false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                List.of(n, fe, fa)),
+                List.of(n, fe, fa));
+        return predicateOver(List.of(new SqlWith.Cte("__pe", rows)), List.of(b),
+                SqlExpr.Call.of(SqlFn.EQUAL, b.col("__n"), new SqlExpr.IntLit(0)), b.col("__fe"), b.col("__fa"),
+                new SqlExpr.NullLit());
+    }
+
+    /** Two finite doubles within {@code 2 * ulp(max(|x|, |y|))}: S15's Float leniency over two values. */
+    private static SqlExpr withinTwoUlp(SqlExpr x, SqlExpr y) {
+        SqlExpr big = SqlExpr.Call.of(SqlFn.GREATEST, SqlExpr.Call.of(SqlFn.ABS, x), SqlExpr.Call.of(SqlFn.ABS, y));
+        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE);
+        SqlExpr two = new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE);
+        SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, big, zero), zero)),
+                SqlExpr.Call.of(SqlFn.TIMES, two, SqlExpr.Call.of(SqlFn.POW, two, SqlExpr.Call.of(SqlFn.MINUS,
+                        SqlExpr.Call.of(SqlFn.FLOOR, SqlExpr.Call.of(SqlFn.DIVIDE, SqlExpr.Call.of(SqlFn.LN, big),
+                                SqlExpr.Call.of(SqlFn.LN, two))), new SqlExpr.IntLit(52)))));
+        SqlExpr finite = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(Double.MAX_VALUE)),
+                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, y), new SqlExpr.FloatLit(Double.MAX_VALUE)));
+        return SqlExpr.Call.of(SqlFn.AND, finite, SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, x, y)), twoUlp));
+    }
+
     /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over the three sides' canon texts, computed
      *  in {@code arithmetic} -- the sides' own kind (the user's ruling, 2026-11-03: never more lenient than upstream's
      *  exact {@code abs($e-$a) <= abs($delta)}): BIGINT for Integers, DECIMAL for Decimals, DOUBLE where a side is a

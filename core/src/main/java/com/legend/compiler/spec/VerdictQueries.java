@@ -279,6 +279,34 @@ public final class VerdictQueries {
         return a.size() <= values || a.get(values) instanceof com.legend.compiler.spec.typed.TypedCString;
     }
 
+    /**
+     * THE PER-ELEMENT OPERANDS of a quantified equality (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     * {@code source->map(x | pair(expected, actual))} -- both operands of each element computed by the database in one
+     * ordered value, never in Java -- or null where the lambda is not one statement or an operand is not one value per
+     * element (the pairing would not align). Compiler-owned synthesis over the typed tree, nothing evaluated.
+     */
+    public static @com.legend.base.Nullable TypedMap pairsVector(TypedSpec source, TypedLambda lam, TypedSpec expected,
+            TypedSpec actual, com.legend.compiler.element.ModelContext ctx) {
+        if (lam.parameters().size() != 1 || lam.body().size() != 1 || !one(expected) || !one(actual)) {
+            return null;
+        }
+        var pairFns = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.PAIR_FN).stream()
+                .filter(f -> f.parameters().size() == 2).toList();
+        if (pairFns.size() != 1) {
+            throw new IllegalStateException("verdict synthesis bug: expected one 2-arg collection::pair");
+        }
+        ExprType pairType = new ExprType(new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.PAIR,
+                List.of(expected.info().type(), actual.info().type()), List.of()), Multiplicity.Bounded.ONE);
+        TypedLambda pairLam = new TypedLambda(lam.parameters(),
+                List.of(new TypedNativeCall(pairFns.get(0), List.of(expected, actual), pairType)), lam.info());
+        return new TypedMap(source, pairLam, new ExprType(pairType.type(), Multiplicity.Bounded.ZERO_MANY));
+    }
+
+    private static boolean one(TypedSpec n) {
+        return n.info().multiplicity() instanceof Multiplicity.Bounded b && b.lower() == 1 && b.upper() != null
+                && b.upper() == 1;
+    }
+
     /** The message an {@code assert}/{@code assertFalse} under the vector contract fails with: its literal message
      *  ({@code (3)} admits no other), else upstream's default for the base overload, "Assert failed"
      *  (2026-11-04, the asserts-as-plan-nodes program: both judges printed the default over a caller's message --

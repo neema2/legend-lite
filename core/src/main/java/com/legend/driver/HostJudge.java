@@ -1070,6 +1070,12 @@ final class HostJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.sameElements(name, args, gridPair, letPrefix, specs, env, hook);
         }
+        @Override public TypedSide perElement(String name, TypedSpec pairs,
+                com.legend.compiler.element.type.ExprType expected, com.legend.compiler.element.type.ExprType actual,
+                List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            return HostSides.judged(name, planPerElement(name, pairs, expected, actual, hook), letPrefix, specs, env);
+        }
         @Override public @com.legend.base.Nullable TypedSide is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.is(name, args, letPrefix, specs, env, hook);
@@ -1386,7 +1392,11 @@ final class HostJudge {
         String binder = lam.parameters().get(0);
         List<HostJudgment.RowArg> read = new java.util.ArrayList<>();
         for (TypedSpec arg : args.subList(0, isTolerance ? 3 : 2)) {
-            read.add(rowArg(arg, binder, fqn));
+            HostJudgment.RowArg a = rowArg(arg, binder, fqn);
+            if (a == null) {
+                return null;   // an argument computed per element: not this read's
+            }
+            read.add(a);
         }
         List<TypedSpec> arms = new java.util.ArrayList<>();
         TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(source, letPrefix);
@@ -1401,7 +1411,7 @@ final class HostJudge {
     }
 
     /** A row assert's argument as data: {@link #rowValue}'s shapes, read at planning. */
-    private static HostJudgment.RowArg rowArg(TypedSpec arg, String binder, String fqn) {
+    private static HostJudgment.@com.legend.base.Nullable RowArg rowArg(TypedSpec arg, String binder, String fqn) {
         return switch (arg) {
             case com.legend.compiler.spec.typed.TypedCast c -> rowArg(c.source(), binder, fqn);
             case com.legend.compiler.spec.typed.TypedVariable v when v.name().equals(binder) ->
@@ -1413,10 +1423,20 @@ final class HostJudge {
             case com.legend.compiler.spec.typed.TypedCInteger l -> new HostJudgment.RowArg.Literal(l.value());
             case com.legend.compiler.spec.typed.TypedCFloat l -> new HostJudgment.RowArg.Literal(l.value());
             case com.legend.compiler.spec.typed.TypedCBoolean l -> new HostJudgment.RowArg.Literal(l.value());
-            default -> throw new com.legend.error.NotImplementedException(fqn + ": a quantified assert over database"
-                    + " rows takes a row's field or a literal as an argument, not " + arg.getClass().getSimpleName()
-                    + " (the host judge evaluates nothing)");
+            // another argument is computed per element: the database computes it (the per-element form's operand
+            // pairs, or the unroll's per-element sides), never this read of the row (2026-11-04)
+            default -> null;
         };
+    }
+
+    /** A quantified equality element by element on the host (the asserts-as-plan-nodes program, step 5): its one
+     *  side the operand pairs the database computes, each element judged as the element arm judges a pair
+     *  ({@link com.legend.judge.PureAsserts}: the same decision, the same message) -- nothing computed here. */
+    static HostSides.Check planPerElement(String fqn, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
+            com.legend.compiler.element.type.ExprType actual, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(pairs, hook)), new HostJudgment.Rows(fqn, false,
+                List.of(new HostJudgment.RowArg.Field("first"), new HostJudgment.RowArg.Field("second")), expected,
+                actual, null));
     }
 
     /** The zip's pairing over its arms, in {@link #zipArms}' order. */
@@ -1436,10 +1456,12 @@ final class HostJudge {
     private static @com.legend.base.Nullable TypedSide rowsOf(HostJudgment.Rows j, List<TypedSide> sides,
             com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> rows;
-        if (j.pairing() == null) {
-            if (!(sides.get(0) instanceof TypedSide.Tabular t)) {
-                return null;   // the walk's generic path (rowsOf's own decline)
-            }
+        if (j.pairing() == null && !(sides.get(0) instanceof TypedSide.Tabular)) {
+            // the per-element operand pairs (planPerElement): one value per element, each a {first, second} the
+            // database computed, in the source's order
+            rows = AssertVerdicts.decodeSide(sides.get(0));
+        } else if (j.pairing() == null) {
+            TypedSide.Tabular t = (TypedSide.Tabular) sides.get(0);
             rows = new java.util.ArrayList<>(t.rows().size());
             for (com.legend.judge.Row r : t.rows()) {
                 java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();

@@ -72,6 +72,14 @@ interface VerdictArm {
             com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
+    /** A quantified EQUALITY judged element by element (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     *  {@code pairs} the operand pairs the database computes ({@code VerdictQueries.pairsVector}, one ordered value per
+     *  element), {@code expected} and {@code actual} the operands' static facts; every element equal under the run's
+     *  rules, a failure in upstream's words for the first element that is not. */
+    TypedSide perElement(String name, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
+            com.legend.compiler.element.type.ExprType actual, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
+
     /** The GRID PAIR: {@code assertEquals} / {@code assertNotEquals} over two statically relation-typed sides
      * (D3: the grid owner judges, never a byte decline); {@code sorted}: the actual side's order view is SORTED, so
      * the rows compare in order (else as a row multiset). The host arm is the grid owner over both grids executed

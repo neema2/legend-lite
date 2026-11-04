@@ -1528,6 +1528,20 @@ final class AssertVerdicts {
         return new QuantifiedShape(qm, source, lam, root, fqn, nestedQuantified, vectorPredMap, simplePredicate);
     }
 
+    /** The PER-ELEMENT form's operand pairs for {@code sh} (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     *  an {@code assertEquals} with no message of its own, one statement in its lambda, each operand one value per
+     *  element -- {@code source->map(x | pair(expected, actual))}, the database computing both; null where the form
+     *  does not apply. */
+    private static @com.legend.base.Nullable TypedSpec perElementPairs(QuantifiedShape sh, BodyDriver.ExecEnv env) {
+        if (sh.nestedQuantified() || NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(sh.root()))
+                .orElse(null) != NativeFn.Verdict.ASSERT_EQUALS) {
+            return null;
+        }
+        List<TypedSpec> args = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
+        return args.size() != 2 ? null : com.legend.compiler.spec.VerdictQueries.pairsVector(sh.source(), sh.lam(),
+                args.get(0), args.get(1), env.ctx());
+    }
+
     /** The family name the vector arms report under: the root's verdict native's bare name, else its FQN. */
     private static String vectorFamily(QuantifiedShape sh) {
         return NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(sh.root()))
@@ -1560,7 +1574,14 @@ final class AssertVerdicts {
         List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries
                 .unrollElements(sh.source(), letPrefix, env.ctx());
         if (elements == null) {
-            return null;
+            // any other source: the per-element form, the operands computed by the database (step 5)
+            TypedSpec pairs = perElementPairs(sh, env);
+            if (pairs == null) {
+                return null;
+            }
+            List<TypedSpec> args = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
+            return arm(env).perElement(vectorFamily(sh), pairs, args.get(0).info(), args.get(1).info(), letPrefix,
+                    specs, env, rawHook == null ? null : rawHook::apply);
         }
         TypedSide last = null;
         for (TypedSpec element : elements) {
@@ -1699,8 +1720,10 @@ final class AssertVerdicts {
                 // source the sides, the arguments read at planning (HostJudge.planRows); until then the walk's alone
                 HostSides.Check rows = HostJudge.planRows(vectorFamily(sh), sh.source(), sh.lam(), sh.root(),
                         letPrefix, hook);
-                return rows == null ? null
-                        : new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true, rows));
+                if (rows != null) {
+                    return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true, rows));
+                }
+                // an argument computed per element: the unroll (a literal source) or the per-element form below
             }
         }
         if (sh.simplePredicate()) {
@@ -1717,7 +1740,14 @@ final class AssertVerdicts {
         List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries.unrollElements(sh.source(), letPrefix,
                 env.ctx());
         if (elements == null) {
-            return null;
+            // any other source: the per-element form, the operands computed by the database (step 5)
+            TypedSpec pairs = perElementPairs(sh, env);
+            if (pairs == null) {
+                return null;
+            }
+            List<TypedSpec> args = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
+            return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
+                    HostJudge.planPerElement(vectorFamily(sh), pairs, args.get(0).info(), args.get(1).info(), hook)));
         }
         List<Unrolled> out = new ArrayList<>(elements.size());
         for (TypedSpec element : elements) {

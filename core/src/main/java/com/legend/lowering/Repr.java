@@ -48,8 +48,11 @@ final class Repr {
             return Scalars.cat(new SqlExpr.StringLit("%"),
                     Scalars.pureToString(t, x));
         }
-        if (t == Type.Primitive.DECIMAL) {
-            return Scalars.cat(Scalars.pureToString(t, x),
+        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            // a declared-precision Decimal IS a Decimal: its representation carries the D too (2026-11-04, the
+            // asserts-as-plan-nodes program: a literal 3.0D is typed Decimal(2,1), and the database judge's
+            // per-element message printed 3.0 where upstream prints 3.0D)
+            return Scalars.cat(Scalars.pureToString(Type.Primitive.DECIMAL, x),
                     new SqlExpr.StringLit("D"));
         }
         // numbers, booleans, and the Any carrier: the toString spelling

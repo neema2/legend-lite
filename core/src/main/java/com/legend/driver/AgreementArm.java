@@ -231,6 +231,16 @@ final class AgreementArm implements VerdictArm {
     }
 
     @Override
+    public TypedSide perElement(String name, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
+            com.legend.compiler.element.type.ExprType actual, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return java.util.Objects.requireNonNull(agree(name, env,
+                () -> host.perElement(name, pairs, expected, actual, letPrefix, specs, env, hook),
+                () -> database.perElement(name, pairs, expected, actual, letPrefix, specs, env, hook)),
+                "both judges answer a per-element equality");
+    }
+
+    @Override
     public TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

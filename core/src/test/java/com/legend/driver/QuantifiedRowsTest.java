@@ -79,10 +79,15 @@ class QuantifiedRowsTest {
     }
 
     @Test
-    @DisplayName("an argument that is neither a row's field nor a literal is refused by name, never evaluated here")
-    void otherArgumentsRefused() {
-        com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> run("{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}"));
-        assertTrue(e.getMessage().contains("the host judge evaluates nothing"), e.getMessage());
+    @DisplayName("an argument computed per element is computed by the database, never here: judged, and a failure"
+            + " names the first failing element")
+    void computedArgumentsJudged() throws Exception {
+        // until 2026-11-04 refused by name ("the host judge evaluates nothing"): the database computes each element's
+        // operands now (the unroll over a literal source; the per-element form over any other), so the host still
+        // evaluates nothing (the asserts-as-plan-nodes program, step 5)
+        assertEquals(Boolean.TRUE, run("{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}"));
+        AssertFailed e = assertThrows(AssertFailed.class,
+                () -> run("{|[1, 2]->zip([1, 3])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}"));
+        assertEquals("\nexpected: 3\nactual:   4", e.getMessage());
     }
 }

@@ -796,8 +796,13 @@ final class DatabaseJudge {
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
                     .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
-            if ((family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
-                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE)
+            if (family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS) {
+                // an equality is judged element by element, by the judge's own spelling of the operands' kinds: the
+                // unroll over a literal source, the per-element form over any other (step 5, 2026-11-04) -- never the
+                // database's SQL equal over a predicate vector, which compares across kinds and drops a Decimal's scale
+                return null;
+            }
+            if (family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE
                     && com.legend.compiler.spec.VerdictQueries.unrollElements(source, letPrefix, env.ctx()) != null) {
                 // a literal source (2026-11-04, the core program: every assert on its own merit): each element's assert
                 // judged as itself -- the spelled tokens rearranged, nothing computed -- each a row of the segment's
@@ -820,6 +825,30 @@ final class DatabaseJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, true, true);
+        }
+        @Override public TypedSide perElement(String name, TypedSpec pairs,
+                com.legend.compiler.element.type.ExprType expected, com.legend.compiler.element.type.ExprType actual,
+                List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            // the operand pairs planned as any side the database computes (no canon over the pair itself: each
+            // operand is spelled by its own kind inside the verdict); one statement, the first failing element's words
+            SideRows vector = planSide(pairs, false, false, letPrefix, specs, env, hook);
+            if (vector.side() == null) {
+                return unjudged(name, java.util.Objects.requireNonNull(vector.why()));
+            }
+            com.legend.compiler.element.type.Type ek = expected.type();
+            com.legend.compiler.element.type.Type ak = actual.type();
+            boolean compat = env.options().judgingRules()
+                    == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+            com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
+                    crossNumberKinds(ek, ak, compat),
+                    ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT);
+            if (row == null) {
+                return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
+                        + ak.typeName() + ")");
+            }
+            return runVerdict(name, true, row, vector.on(env));
         }
         @Override public TypedSide is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
