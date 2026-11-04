@@ -19549,3 +19549,19 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
    resolver targets under the database judge alone: green but QuantifiedRowsTest's two messages. The corpora against
    the `8951f974` baseline: every test's status identical in all four passes. `JavaEvalLedgerTest`: `PureAsserts`
    247 -> 251, `AssertVerdicts` 1769 -> 1778, `DatabaseJudge` 639 -> 664, with their reasons.
+
+## 2026-11-04 — Core, fourth batch: the host planner's long tail (8 -> 7 walkers)
+
+1. **A nested quantification** (`[1, 2]->map(i| [3]->map(j| assertEquals($i, $i)))`) is planned by the host's planner
+   as the walk unrolls it, recursively (`AssertVerdicts.planQuantified`'s nested refusal deleted): the same outcome,
+   verdicts and census as the walk.
+2. **An `assertIs` or `assertInstanceOf` no arm plans** (primitives' identity, a computed type) raises at its turn the
+   error the walk's generic path raises lowering it -- the assert native is no scalar (`NoRule`: "implemented by
+   [Verdict], not as a scalar") -- planned by the same lowering (`HostAsserts`, `HostJudge.statementAsk`). Only these
+   two families: an engine-text assert no arm plans is read by the walk's own arms (`deferredTextPrograms`), where a
+   blanket rule raised wrongly (measured, withdrawn). The census of a planned raise is the program road's own
+   (`(pre-arm) raised`), pinned beside the walk's.
+3. BodyRouterParityTest's host-shape test moves (its pins with dated reasons); the allow list 8 -> 7.
+4. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green; the corpora against the `8951f974`
+   baseline: every test's status identical in all four passes. `JavaEvalLedgerTest`: `HostJudge` 1203 -> 1206.

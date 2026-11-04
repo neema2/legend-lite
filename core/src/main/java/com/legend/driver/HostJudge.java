@@ -620,6 +620,11 @@ final class HostJudge {
     }
 
     /** A side as {@code AssertVerdicts.side} fetched it: folded where literal, no identity lane. */
+    /** A statement read as a value side: what the walk's generic path plans for an assert no arm plans. */
+    static HostSides.Ask statementAsk(TypedSpec statement, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return valueAsk(statement, hook);
+    }
+
     private static HostSides.Ask valueAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return new HostSides.Ask(arg, false, true, hook);
     }

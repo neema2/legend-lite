@@ -1604,10 +1604,20 @@ class BodyRouterParityTest {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
             Run walked = run(backend, ctx, body, false, "select 1");
             Run routed = run(backend, ctx, body, true, "select 1");
-            assertEquals(walked.moved, routed.moved, "the router left the body on the walk: " + body);
+            // MOVED 2026-11-04 (the core program): each runs on the program road with the walk's outcome and verdicts
+            // -- the nested quantification unrolled recursively by the host's planner; an assert no arm plans raises at
+            // its turn the error the walk's generic path raises lowering it (HostAsserts: NoRule's "not as a scalar").
+            // The census differs by construction there (the walk enters the arm and falls through; the program road
+            // raises at planning): pinned as the program road's own, not the walk's
+            assertEquals(walked.moved + 1, routed.moved, "the router left the body on the walk: " + body);
             assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
             assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
-            assertEquals(walked.census, routed.census, "the verdict census: " + body);
+            if (walked.outcome.equals("ok")) {
+                assertEquals(walked.census, routed.census, "the verdict census: " + body);
+            } else {
+                assertEquals("{not-attempted (pre-arm) raised=1}", routed.census,
+                        "the program road's census of a planned raise: " + body);
+            }
         }
     }
 

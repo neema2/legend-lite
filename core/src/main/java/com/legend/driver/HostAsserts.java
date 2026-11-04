@@ -236,6 +236,24 @@ final class HostAsserts implements TestDoor.Asserts {
             // walk counts it (entered, raised)
             assertion = AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null, e);
         }
+        com.legend.builtin.NativeFn.Verdict declined = assertion != null ? null : com.legend.builtin.NativeFn.Verdict
+                .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (assertion == null && (declined == com.legend.builtin.NativeFn.Verdict.ASSERT_IS
+                || declined == com.legend.builtin.NativeFn.Verdict.ASSERT_INSTANCE_OF)) {
+            // assertIs / assertInstanceOf whose arm declines (no element identity, a computed type): the walk's generic
+            // path lowers the assert as a statement, which raises (an assert native is no scalar: NoRule) -- the same
+            // lowering here, its raise the assert's at its turn (2026-11-04, the core program). Any other assert no arm
+            // plans (an engine text the walk's own arms read) stays the walk's
+            try {
+                HostSides.plan(AssertVerdicts.listenerName(bare), List.of(HostJudge.statementAsk(bare, hook)), before,
+                        specs, at);
+            } catch (IllegalStateException | com.legend.error.NotImplementedException e) {
+                // the lowering's refusal of an assert native as a scalar (NoRule: "not as a scalar")
+                return planned(AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null, e),
+                        HostSides.Planned.NONE);
+            }
+            return null;
+        }
         if (assertion == null) {
             return null;
         }

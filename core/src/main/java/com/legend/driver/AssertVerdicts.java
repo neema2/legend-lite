@@ -1626,7 +1626,9 @@ final class AssertVerdicts {
             return null;
         }
         QuantifiedShape sh = quantifiedShape(qm, letPrefix, specs, env, rawHook);
-        if (sh == null || sh.nestedQuantified()) {
+        // a NESTED quantification (the engine's guard idiom) unrolls as the walk unrolls it, recursively: each
+        // element's root is itself a quantified assert, planned by this same rule (2026-11-04, the core program)
+        if (sh == null) {
             return null;
         }
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
