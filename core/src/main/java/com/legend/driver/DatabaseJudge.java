@@ -255,6 +255,18 @@ final class DatabaseJudge {
         return true;
     }
 
+    /** {@code spec}, a rendered TEXT, as a one-row relation of its {@code value} for a verdict row (2026-11-04, the
+     *  core program: a rendered text's generic comparison) -- planned as the host judge plans the same side, a plain
+     *  value with no canon wrap (a canon would encode the render's own reduction, which a dialect without a list
+     *  encoding refuses: H2's {@code joinStrings}); null where the side is answered with no plan. */
+    static com.legend.sql.@com.legend.base.Nullable SqlQuery textRow(TypedSpec spec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(spec, letPrefix, specs, env, false, false,
+                hook == null ? null : hook::apply);
+        BodyDriver.WrappedSide side = pv.side();
+        return side == null ? null : com.legend.lowering.VerdictSql.firstValueRow(side.plan());
+    }
+
     /** Whether {@code vq}, a verdict statement of the equality family, HOLDS: run now on {@code runOn}'s session (no
      *  batch open), its row read for the polarity it computed -- an unjudged row holds nothing. A generic comparison
      *  whose failure a ruled fallback decides ({@code AssertVerdicts.textFirst}, 2026-11-04, the core program). */
@@ -694,14 +706,22 @@ final class DatabaseJudge {
         @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
                 com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
+                    .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
+            if ((family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
+                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE)
+                    && com.legend.compiler.spec.VerdictQueries.unrollElements(source, letPrefix, env.ctx()) != null) {
+                // a literal source (2026-11-04, the core program: every assert on its own merit): each element's assert
+                // judged as itself -- the spelled tokens rearranged, nothing computed -- each a row of the segment's
+                // statement, the first failing element's message upstream's own, as the host's row read words it
+                return null;
+            }
             SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
             }
             // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), "Assert failed";
             // another family's rows keep the count's frame
-            com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
-                    .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
             boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
                     || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,

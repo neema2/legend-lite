@@ -666,6 +666,22 @@ public final class VerdictSql {
     /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
      *  golden a constant, ours the side's one-row relation ({@code oursRow}: {@link #scalarRow}'s {@code value}), string
      *  equality; the ACTUAL column carries our text back to the appeal of a failed row. */
+    /** {@code plan}'s first output as a one-row relation {@code (value)} (a one-row seed LEFT JOINed to the plan, so an
+     *  empty plan is one NULL row, as {@link #scalarRow}'s): a rendered text's value, no canon (2026-11-04). */
+    public static SqlQuery firstValueRow(SqlQuery plan) {
+        OutputCol first = plan.outputs().get(0);
+        OutputCol vOut = new OutputCol("value", first.type(), true);
+        OutputCol seedOut = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlSource seed = new SqlSource.Subselect(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", seedOut)),
+                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
+                List.of(seedOut)), "__one", null);
+        SqlSource from = new SqlSource.Join(seed, new SqlSource.Subselect(plan, "w", null), SqlSource.Join.Kind.LEFT,
+                new SqlExpr.BoolLit(true));
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("w", plan.outputs(), first.name()),
+                "value", vOut)), false, from, null, List.of(), null, null, List.of(), null, null, List.of(vOut));
+    }
+
     /** Two rendered texts the database computes ({@code eRow}, {@code aRow}: {@link #scalarRow}'s {@code value}),
      *  string equality (2026-11-04, the core program: a rendered text's generic comparison, its rows the fallback). */
     public static SqlQuery textEquals(SqlQuery eRow, SqlQuery aRow) {

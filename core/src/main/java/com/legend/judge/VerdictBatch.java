@@ -422,6 +422,9 @@ public final class VerdictBatch {
         }
         List<Group> out = new ArrayList<>();
         Map<ExecutionPlan.Verdict, Pending> members = new java.util.IdentityHashMap<>();
+        // the members the dialect cannot spell (the split rung at planning): a generic row with a ruled fallback is
+        // decided by its fallback at its turn, nothing sent for it (2026-11-04, the core program)
+        java.util.Set<Pending> unspelled = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (var g : groups.entrySet()) {
             List<Pending> all = g.getValue();
             if (PrepTrace.on()) {
@@ -455,6 +458,11 @@ public final class VerdictBatch {
                 // such a side before it joined the group -- by accident, and only for those sides
                 List<Pending> unfused = ps;
                 ps = spelled(unfused);
+                for (Pending u : unfused) {
+                    if (!ps.contains(u)) {
+                        unspelled.add(u);
+                    }
+                }
                 fusedPlan = null;
                 if (!ps.isEmpty() && ps.size() < unfused.size()) {
                     try {
@@ -479,7 +487,7 @@ public final class VerdictBatch {
             out.add(new Group(new ExecutionPlan.Verdicts(verdicts, fusedPlan, runner.savepoint()), g.getKey(),
                     false));
         }
-        return new Planned(batch, out, members);
+        return new Planned(batch, out, members, unspelled);
     }
 
     /** The planned batch: its groups, and the judgment over their rows. */
@@ -487,13 +495,16 @@ public final class VerdictBatch {
         private final List<Root> batch;
         private final List<Group> groups;
         private final Map<ExecutionPlan.Verdict, Pending> members;
+        private final java.util.Set<Pending> unspelled;
         private final Map<Integer, List<Object>> rows = new HashMap<>();
         private boolean counted;
 
-        private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members) {
+        private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
+                java.util.Set<Pending> unspelled) {
             this.batch = batch;
             this.groups = groups;
             this.members = members;
+            this.unspelled = unspelled;
         }
 
         /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
@@ -546,6 +557,17 @@ public final class VerdictBatch {
             }
         }
 
+        /** {@code p}'s ruled fallback decides it: the failure decided at planning raised, or the fallback's own
+         *  statement run now and judged as any row. */
+        private void orElseDecides(Pending p) {
+            if (p.orElse() instanceof Resolved decided) {
+                throw decided.failure();
+            }
+            Pending fallback = (Pending) java.util.Objects.requireNonNull(p.orElse());
+            judge.judge(fallback.name(), executeOne(fallback.name(),
+                    com.legend.sql.FrameCtes.attach(fallback.query(), frames), fallback.on(), runner));
+        }
+
         /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
          *  split rung, lazily, nothing sent past the first failure), a resolved step's failure; each root's verdict to
          *  the listener; the first failure raises. */
@@ -561,6 +583,11 @@ public final class VerdictBatch {
                     try {
                         if (s instanceof Pending p) {
                             List<Object> row = rows.get(p.ix());
+                            if (row == null && p.orElse() != null && unspelled.contains(p)) {
+                                // a generic row the dialect cannot write: its ruled fallback decides
+                                orElseDecides(p);
+                                continue;
+                            }
                             if (row == null) {
                                 row = executeOne(p.name(),
                                         com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
@@ -568,15 +595,9 @@ public final class VerdictBatch {
                             try {
                                 judge.judge(p.name(), row);
                             } catch (com.legend.error.AssertFailed e) {
-                                if (p.orElse() instanceof Resolved decided) {
-                                    // the fallback decided at planning
-                                    throw decided.failure();
-                                }
-                                if (p.orElse() instanceof Pending fallback) {
-                                    // the generic row failed: the ruled fallback's own statement decides, run now
-                                    judge.judge(fallback.name(), executeOne(fallback.name(),
-                                            com.legend.sql.FrameCtes.attach(fallback.query(), frames), fallback.on(),
-                                            runner));
+                                if (p.orElse() != null) {
+                                    // the generic row failed: the ruled fallback decides
+                                    orElseDecides(p);
                                     continue;
                                 }
                                 if (p.appeal() == null) {

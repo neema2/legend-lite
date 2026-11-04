@@ -2066,10 +2066,10 @@ final class AssertVerdicts {
         var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
         var ra = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(1), chase);
         if (re != null && ra != null) {
-            DatabaseJudge.SideRows et = DatabaseJudge.planSide(args.get(0), false, letPrefix, specs, env, hook);
-            DatabaseJudge.SideRows at = DatabaseJudge.planSide(args.get(1), false, letPrefix, specs, env, hook);
-            return textFirst(name, wantEqual, et.why() == null && at.why() == null
-                    ? com.legend.lowering.VerdictSql.textEquals(et.scalarRow(false), at.scalarRow(false)) : null, env,
+            com.legend.sql.SqlQuery et = DatabaseJudge.textRow(args.get(0), letPrefix, specs, env, hook);
+            com.legend.sql.SqlQuery at = DatabaseJudge.textRow(args.get(1), letPrefix, specs, env, hook);
+            return textFirst(name, wantEqual, et != null && at != null
+                    ? com.legend.lowering.VerdictSql.textEquals(et, at) : null, env,
                     () -> DatabaseJudge.databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs,
                             env, hook, true, false, false, true));
         }
@@ -2091,11 +2091,11 @@ final class AssertVerdicts {
         if (text == null) {
             return DatabaseJudge.unjudged(name, "rendered-text: the golden is not a string constant");
         }
-        DatabaseJudge.SideRows rendered = DatabaseJudge.planSide(goldenIsExpected ? args.get(1) : args.get(0), false,
+        com.legend.sql.SqlQuery rendered = DatabaseJudge.textRow(goldenIsExpected ? args.get(1) : args.get(0),
                 letPrefix, specs, env, hook);
         var rendering = r;
-        return textFirst(name, wantEqual, rendered.why() == null
-                ? com.legend.lowering.VerdictSql.textEquals(text, rendered.scalarRow(false)) : null, env,
+        return textFirst(name, wantEqual, rendered != null
+                ? com.legend.lowering.VerdictSql.textEquals(text, rendered) : null, env,
                 () -> renderedRows(name, wantEqual, args, letPrefix, specs, env, hook, orderedForm, goldenIsExpected,
                         rendering, text));
     }
