@@ -243,6 +243,10 @@ public final class PlanJson {
                     sp.put("release", v.savepoint().release());
                     o.put("savepoint", sp);
                 }
+                o.put("rules", switch (v.rules()) {
+                    case LITE -> "lite";
+                    case COMPILED_PURE_COMPAT -> "compiledPureCompat";
+                });
             }
             case ExecutionPlan.Branch b -> {
                 o.put("_type", NodeTag.branch.name());
@@ -561,9 +565,16 @@ public final class PlanJson {
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
+                String rules = o.getString("rules");
                 yield new ExecutionPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new ExecutionPlan.Verdicts.Savepoint(sp.getString("set"),
-                                sp.getString("rollbackTo"), sp.getString("release")));
+                                sp.getString("rollbackTo"), sp.getString("release")),
+                        switch (rules) {
+                            case "lite" -> ExecutionPlan.JudgingRules.LITE;
+                            case "compiledPureCompat" -> ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+                            default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
+                                    + "': lite or compiledPureCompat");
+                        });
             }
             case branch -> new ExecutionPlan.Branch(readSide(o.getObj("condition")), readNodes(o.getArr("then")),
                     readNodes(o.getArr("otherwise")));

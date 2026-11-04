@@ -87,6 +87,10 @@ public final class VerdictBatch {
          *  failing statement (F11, the test-is-the-product plan's B12), or null where none is needed or none exists
          *  ({@code SqlDialect.verdictSavepoint}). */
         ExecutionPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint();
+
+        /** The rules the batch's verdicts are judged by (the run's, stamped on every group it plans: the explicit
+         *  rule, 2026-11-04) -- the database judge planned their statements under them. */
+        ExecutionPlan.JudgingRules rules();
     }
 
     /** The arm a verdict's name spells: the assert function's simple name (the name is its callee's FQN, or the
@@ -484,7 +488,8 @@ public final class VerdictBatch {
                 verdicts.add(v);
                 members.put(v, p);
             }
-            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, fusedPlan, runner.savepoint()), g.getKey(),
+            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, fusedPlan, runner.savepoint(), runner.rules()),
+                    g.getKey(),
                     false));
         }
         return new Planned(batch, out, members, unspelled);
@@ -656,7 +661,8 @@ public final class VerdictBatch {
                 // refused at its own place in the root loop
             }
         }
-        return verdicts.isEmpty() ? null : new Group(new ExecutionPlan.Verdicts(verdicts, null), on, true);
+        return verdicts.isEmpty() ? null : new Group(new ExecutionPlan.Verdicts(verdicts, null, runner.rules()), on,
+                true);
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
@@ -706,7 +712,7 @@ public final class VerdictBatch {
             throw e;
         }
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
-                new ExecutionPlan.Verdict(name, armOf(name), List.of(), wrapper)), null);
+                new ExecutionPlan.Verdict(name, armOf(name), List.of(), wrapper)), null, runner.rules());
         List<List<Object>> rows = new ArrayList<>(1);
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
             PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, null),

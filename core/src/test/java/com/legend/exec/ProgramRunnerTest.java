@@ -128,7 +128,7 @@ final class ProgramRunnerTest {
                 List.of(left, right), wrapper(true, "x", "x"));
         ExecutionPlan.Verdict second = new ExecutionPlan.Verdict("assertEquals@3", "assertEquals",
                 List.of(left, right), wrapper(false, "a", "b"));
-        return new ExecutionPlan.Verdicts(List.of(first, second), fused);
+        return new ExecutionPlan.Verdicts(List.of(first, second), fused, ExecutionPlan.JudgingRules.LITE);
     }
 
     /** What the program's sink received, in order. */
@@ -208,7 +208,7 @@ final class ProgramRunnerTest {
         ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict("assertIs@4", "assertIs",
                 g.verdicts().get(0).base(), null);
         ExecutionPlan.Verdicts withUnjudged = new ExecutionPlan.Verdicts(
-                List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null);
+                List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null, ExecutionPlan.JudgingRules.LITE);
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), withUnjudged), Map.of(), sessions(),
                 PlanRunner.Judging.DATABASE, sink);
@@ -310,7 +310,8 @@ final class ProgramRunnerTest {
                 null);
         ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
                 new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target)),
-                new ExecutionPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused()),
+                new ExecutionPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused(),
+                        ExecutionPlan.JudgingRules.LITE),
                 relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))));
         String json = PlanJson.write(plan);
         assertEquals(plan, PlanJson.read(json), "the plan read back differs");
@@ -324,7 +325,7 @@ final class ProgramRunnerTest {
     private static ExecutionPlan.Verdicts oneVerdict(String name, String sql) {
         ExecutionPlan.Side side = new ExecutionPlan.Side.Rows(relation(sql, List.of(col("value", "Integer", "INTEGER"))));
         return new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(name, "assert", List.of(side), null)),
-                null);
+                null, ExecutionPlan.JudgingRules.LITE);
     }
 
     @Test
@@ -351,9 +352,9 @@ final class ProgramRunnerTest {
         ExecutionPlan.Side three = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
         ExecutionPlan.Verdicts then = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("then@1",
-                "assertEquals", List.of(three, three), null)), null);
+                "assertEquals", List.of(three, three), null)), null, ExecutionPlan.JudgingRules.LITE);
         ExecutionPlan.Verdicts otherwise = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("else@1",
-                "assertEquals", List.of(three, three), null)), null);
+                "assertEquals", List.of(three, three), null)), null, ExecutionPlan.JudgingRules.LITE);
         ExecutionPlan.Branch inner = new ExecutionPlan.Branch(yes, List.of(), List.of(otherwise));
         ExecutionPlan.Branch branch = new ExecutionPlan.Branch(yes, List.of(then, inner), List.of(otherwise));
         Recording sink = new Recording();
@@ -376,6 +377,8 @@ final class ProgramRunnerTest {
         String json = PlanJson.write(plan);
         assertEquals(plan, PlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);
+        // the rules each verdict group is judged by are the plan's own (the explicit rule, 2026-11-04)
+        assertTrue(json.contains("\"rules\":\"lite\""), json);
         assertThrows(IllegalStateException.class, plan::answerShape, "a plan that only branches answers no rows");
         assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan.Branch(condition,
                 List.of(relation("SELECT 1 AS value", List.of(col("value", "Integer", "INTEGER")))), List.of()),
@@ -469,12 +472,12 @@ final class ProgramRunnerTest {
         ExecutionPlan.Update write = new ExecutionPlan.Update(ExecutionPlan.Sql.of("INSERT INTO m3b_w VALUES (1)",
                 target), null);
         ExecutionPlan.Verdicts held = group(fused(FUSED));
-        ExecutionPlan.Verdicts guarded = new ExecutionPlan.Verdicts(held.verdicts(), held.fused(), sp);
+        ExecutionPlan.Verdicts guarded = new ExecutionPlan.Verdicts(held.verdicts(), held.fused(), sp, held.rules());
         run(new ExecutionPlan.Sequence(List.of(write, guarded)), PlanRunner.Judging.DATABASE);
         assertEquals(List.of("set", "release"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
         ExecutionPlan.Verdicts rejected = group(fused("SELECT * FROM no_such_table_m3b"));
         Recording split = run(new ExecutionPlan.Sequence(List.of(write, new ExecutionPlan.Verdicts(
-                rejected.verdicts(), rejected.fused(), sp))), PlanRunner.Judging.DATABASE);
+                rejected.verdicts(), rejected.fused(), sp, rejected.rules()))), PlanRunner.Judging.DATABASE);
         assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
         assertEquals(2, split.verdictRows.size(), "the wrappers ran after the rollback to the savepoint");
         // outside any transaction (no write, the session's own commits): no savepoint statement is sent

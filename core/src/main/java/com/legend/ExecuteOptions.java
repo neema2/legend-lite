@@ -68,10 +68,18 @@ public record ExecuteOptions(
     /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass
      *  PCT/rcorpus in backwards compat mode"): the judges' leniencies that exist only to meet legend-engine's goldens --
      *  computed in Java doubles where lite computes in the database's -- apply in a run that asks for them (the PCT and
-     *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. Today: S132's float tokens within
-     *  2 ULP inside a String (judge.Equality). */
+     *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. The choice is made upfront and
+     *  stated in the plan: every verdict step names its rules ({@link #judgingRules}, ExecutionPlan.JudgingRules), which
+     *  both judges read. Today: S132's float tokens within 2 ULP inside a String, S127's Integer equal to a Decimal by
+     *  text (judge.Equality, driver.DatabaseJudge). */
     public ExecuteOptions withEngineCompat(boolean on) {
         return new ExecuteOptions(recorder, resources, features, judgeMode, systemConnections, on);
+    }
+
+    /** The rules this run's asserts are judged by, which its planners stamp on every verdict step (the user,
+     *  2026-11-04: "explicit rule"): backwards compatibility's where the run asked for it, lite's own otherwise. */
+    public com.legend.executionplan.ExecutionPlan.JudgingRules judgingRules() {
+        return engineCompat ? com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT : com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the

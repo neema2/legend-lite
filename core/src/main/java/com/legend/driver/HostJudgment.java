@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged, HostJudgment.Compat {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -286,27 +286,17 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
             boolean sortedOrder, boolean counted) implements HostJudgment {
     }
 
-    /** {@code j} with its wrappers taken off ({@link Compat}, {@link Messaged}: a run's mode and a caller's message,
-     *  neither of which changes what the judgment IS): the judgment the planners ask about -- a planned raise, an
-     *  engine-text arm, an unrolled quantifier. (2026-11-04: the wrappers hid those from the gate, and the corpus's
-     *  engine-text asserts, wrapped in compat mode, lost their arm: 61 DuckDB bodies.) */
+    /** {@code j} with its wrapper taken off ({@link Messaged}: a caller's message, which does not change what the
+     *  judgment IS): the judgment the planners ask about -- a planned raise, an engine-text arm, an unrolled
+     *  quantifier. (2026-11-04: the wrappers hid those from the gate: 61 DuckDB corpus bodies. The run's mode is no
+     *  wrapper since the explicit rules, the same day: the verdict step names them, ExecutionPlan.JudgingRules, and the
+     *  judge is handed them.) */
     static HostJudgment core(HostJudgment j) {
         HostJudgment c = j;
-        while (true) {
-            if (c instanceof Compat w) {
-                c = w.inner();
-            } else if (c instanceof Messaged m) {
-                c = m.inner();
-            } else {
-                return c;
-            }
+        while (c instanceof Messaged m) {
+            c = m.inner();
         }
-    }
-
-    /** {@code inner} judged in BACKWARDS-COMPATIBILITY MODE (2026-11-04: the run asked for it, ExecuteOptions
-     *  .withEngineCompat -- the PCT and corpus harnesses): the leniencies that meet legend-engine's goldens apply
-     *  (judge.Equality.compat). */
-    record Compat(HostJudgment inner) implements HostJudgment {
+        return c;
     }
 
     /** A caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04;

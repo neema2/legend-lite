@@ -146,15 +146,16 @@ public final class Equality {
     }
 
     /** Equal, or the first difference. */
-    public static @com.legend.base.Nullable String scalar(Typed e, Typed a) {
-        return same(e, a) ? null
+    public static @com.legend.base.Nullable String scalar(Typed e, Typed a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return same(e, a, rules) ? null
                 : "\nexpected: " + PureAsserts.repr(e.value())
                         + "\nactual:   " + PureAsserts.repr(a.value());
     }
 
     /** The decision itself (the narrative is the caller's when it has a
      * better one — a row, a path). */
-    public static boolean same(Typed et, Typed at) {
+    public static boolean same(Typed et, Typed at, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");
         Object e = et.value();
         Object a = at.value();
         if ("TDSNull".equals(e) && a == null) {
@@ -165,7 +166,7 @@ public final class Equality {
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
-            return structural(e, a);
+            return structural(e, a, rules);
         }
         Type ek = effectiveKind(et);
         Type ak = effectiveKind(at);
@@ -183,7 +184,8 @@ public final class Equality {
             // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
             // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
             // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return COMPAT.get() && integerAndDecimal(ek, ak) && String.valueOf(e).equals(String.valueOf(a));
+            return rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
+                    && String.valueOf(e).equals(String.valueOf(a));
         }
         if (ek == Type.Primitive.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -222,7 +224,7 @@ public final class Equality {
         }
         if (ek == Type.Primitive.STRING) {
             // S132's float tokens: backwards-compatibility mode alone (a run that asks: ExecuteOptions.withEngineCompat)
-            return e.equals(a) || (COMPAT.get() && e instanceof String es && a instanceof String as
+            return e.equals(a) || (rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT && e instanceof String es && a instanceof String as
                     && floatTokensWithinTwoUlp(es, as));
         }
         if (ek == Type.Primitive.BOOLEAN) {
@@ -236,23 +238,6 @@ public final class Equality {
     private static boolean integerAndDecimal(Type x, Type y) {
         return x == Type.Primitive.INTEGER && y == Type.Primitive.DECIMAL
                 || x == Type.Primitive.DECIMAL && y == Type.Primitive.INTEGER;
-    }
-
-    /** Whether the judgment running on this thread is a backwards-compatibility run's ({@link #compat}). */
-    private static final ThreadLocal<Boolean> COMPAT = ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /** {@code judgment} run in BACKWARDS-COMPATIBILITY MODE (2026-11-04, the user: lite's own runs judge exactly, as
-     *  upstream's language does; PCT and the corpus pass in a mode that meets legend-engine's goldens): S132's float
-     *  tokens within 2 ULP inside a String apply in it alone. The mode is the plan's judgment's (HostJudgment.Compat,
-     *  planned from the run's options), scoped to the one judgment. */
-    public static <T> T compat(java.util.function.Supplier<T> judgment) {
-        Boolean before = COMPAT.get();
-        COMPAT.set(Boolean.TRUE);
-        try {
-            return judgment.get();
-        } finally {
-            COMPAT.set(before);
-        }
     }
 
     /** A float's text in a rendered string: digits, a point and digits, an optional exponent. */
@@ -301,20 +286,20 @@ public final class Equality {
         }
     }
 
-    private static boolean structural(Object e, Object a) {
-        return firstDiff(e, a, "$", (x, y) -> same(Typed.of(x), Typed.of(y))) == null;
+    private static boolean structural(Object e, Object a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return firstDiff(e, a, "$", (x, y) -> same(Typed.of(x), Typed.of(y), rules)) == null;
     }
 
     // ---- COLLECTIONS ------------------------------------------------------
 
     /** Element by element, in order. */
-    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a) {
+    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (e.size() != a.size()) {
             return "\nexpected " + e.size() + " element(s), actual " + a.size();
         }
         for (int i = 0; i < e.size(); i++) {
-            if (!same(e.get(i), a.get(i))) {
-                return "\nelement " + i + scalar(e.get(i), a.get(i));
+            if (!same(e.get(i), a.get(i), rules)) {
+                return "\nelement " + i + scalar(e.get(i), a.get(i), rules);
             }
         }
         return null;
@@ -322,15 +307,15 @@ public final class Equality {
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a) {
-        return ordered(sorted(e), sorted(a));
+    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return ordered(sorted(e), sorted(a), rules);
     }
 
     /** True when every element of {@code needle} has an equal in
      * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle) {
+    public static boolean contains(List<Typed> hay, Typed needle, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         for (Typed h : hay) {
-            if (same(needle, h)) {
+            if (same(needle, h, rules)) {
                 return true;
             }
         }
@@ -353,8 +338,8 @@ public final class Equality {
      * between them is the counted Float leniency. The mixed verdict's
      * arbitration reads this (a byte canon that differs by the last
      * digit while the host holds); it goes with the mixed verdict. */
-    public static boolean differByLeniencyOnly(List<Typed> e, List<Typed> a) {
-        if (e.isEmpty() || e.size() != a.size() || ordered(e, a) != null) {
+    public static boolean differByLeniencyOnly(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        if (e.isEmpty() || e.size() != a.size() || ordered(e, a, rules) != null) {
             return false;
         }
         for (int i = 0; i < e.size(); i++) {
@@ -373,7 +358,7 @@ public final class Equality {
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one
      * equal actual row); cells through {@link #same}. */
-    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w) {
+    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (e.size() != a.size()) {
             return false;
         }
@@ -381,7 +366,7 @@ public final class Equality {
         for (List<Typed> row : chunk(e, w)) {
             int hit = -1;
             for (int i = 0; i < pool.size() && hit < 0; i++) {
-                if (ordered(row, pool.get(i)) == null) {
+                if (ordered(row, pool.get(i), rules) == null) {
                     hit = i;
                 }
             }

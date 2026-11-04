@@ -70,7 +70,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                     verdicts.add(v);
                     m.put(v, v);
                 }
-                this.step = new ExecutionPlan.Verdicts(verdicts, group.fused(), group.savepoint());
+                this.step = new ExecutionPlan.Verdicts(verdicts, group.fused(), group.savepoint(), group.rules());
                 this.hostVerdict = both;
             }
             this.members = m;
@@ -200,7 +200,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  (no base, so nothing read) is nothing to the host, but an error reading it is raised, never dropped. */
     void hostSides(ExecutionPlan.Verdict verdict,
             java.util.function.Supplier<List<com.legend.exec.PlanRunner.Rows>> rows,
-            @Nullable AssertListener listener) {
+            @Nullable AssertListener listener, ExecutionPlan.JudgingRules rules) {
         One one = of(verdict);
         if (verdict != one.hostVerdict) {
             rows.get();
@@ -208,7 +208,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
         one.held = AssertVerdicts.heldAtItsStep(a, listener,
-                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get()));
+                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get()), rules);
     }
 
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.

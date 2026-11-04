@@ -71,7 +71,7 @@ public final class PlanRoundTrip {
                             each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
                             each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper())))
                     .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()),
-                    v.savepoint());
+                    v.savepoint(), v.rules());
             case ExecutionPlan.Branch b -> new ExecutionPlan.Branch(withoutTrees(b.condition()),
                     b.then().stream().map(PlanRoundTrip::withoutTrees).toList(),
                     b.otherwise().stream().map(PlanRoundTrip::withoutTrees).toList());

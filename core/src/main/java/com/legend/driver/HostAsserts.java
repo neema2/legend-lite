@@ -195,7 +195,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 TypedSpec bare = Lets.bare(statement);
                 Planned p = pendingLet != null
                         ? planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                                pendingLet), HostSides.Planned.NONE)
+                                pendingLet), HostSides.Planned.NONE, env.options().judgingRules())
                         : planAssertError(statement, bare, letPrefix, frames, specs, env);
                 if (p == null) {
                     return null;
@@ -211,7 +211,7 @@ final class HostAsserts implements TestDoor.Asserts {
             Planned p;
             if (pendingLet != null) {
                 p = planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                        pendingLet), HostSides.Planned.NONE);
+                        pendingLet), HostSides.Planned.NONE, env.options().judgingRules());
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
@@ -303,7 +303,7 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             // the frame environment raised: the walk raises it before the arm is entered (S1)
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare), e),
-                    HostSides.Planned.NONE);
+                    HostSides.Planned.NONE, env.options().judgingRules());
         }
         AssertVerdicts.HostAssert assertion;
         try {
@@ -327,7 +327,7 @@ final class HostAsserts implements TestDoor.Asserts {
             } catch (IllegalStateException | com.legend.error.NotImplementedException e) {
                 // the lowering's refusal of an assert native as a scalar (NoRule: "not as a scalar")
                 return planned(AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null, e),
-                        HostSides.Planned.NONE);
+                        HostSides.Planned.NONE, env.options().judgingRules());
             }
             return null;
         }
@@ -354,7 +354,7 @@ final class HostAsserts implements TestDoor.Asserts {
             // any run (M9d)
             return null;
         }
-        return planned(assertion, sides);
+        return planned(assertion, sides, env.options().judgingRules());
     }
 
     /**
@@ -382,7 +382,7 @@ final class HostAsserts implements TestDoor.Asserts {
             args = AssertErrorNative.args(ae, letPrefix);
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
-            return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE);
+            return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env.options().judgingRules());
         }
         List<TypedSpec> body = args.f().body();
         if (body.isEmpty()) {
@@ -417,7 +417,7 @@ final class HostAsserts implements TestDoor.Asserts {
             at = BodyDriver.frameReplaceEnv(statement, frames, env, before, specs);
             hook = BodyDriver.spliceHook(frames, before, specs, env)::apply;
         } catch (RuntimeException e) {
-            return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE);
+            return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE, env.options().judgingRules());
         }
         List<HostSides.Ask> asks = new ArrayList<>(working.size());
         for (TypedSpec side : working) {
@@ -431,7 +431,7 @@ final class HostAsserts implements TestDoor.Asserts {
             caught = AssertErrorNative.caught(e);
             if (caught == null) {
                 // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
-                return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE);
+                return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env.options().judgingRules());
             }
             sides = HostSides.Planned.NONE;
         }
@@ -442,7 +442,7 @@ final class HostAsserts implements TestDoor.Asserts {
         AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
                 new HostSides.Check(caught == null ? asks : List.of(),
                         new HostJudgment.AssertError(args.expected(), args.line(), args.column(), caught)));
-        return planned(assertion, sides, savepoint);
+        return planned(assertion, sides, savepoint, env.options().judgingRules());
     }
 
     /** The dialect's savepoint texts for a statement whose failure the program survives, or null where it has none. */
@@ -452,15 +452,15 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     /** {@code assertion}'s verdict step over {@code sides}' base: one verdict, its wrapper none (the host judges). */
-    private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides) {
-        return planned(assertion, sides, null);
+    private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides, ExecutionPlan.JudgingRules rules) {
+        return planned(assertion, sides, null, rules);
     }
 
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
-            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint) {
+            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint, ExecutionPlan.JudgingRules rules) {
         ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(assertion.listenerName(), assertion.name(),
                 sides.base(), null);
-        return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint));
+        return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint, rules));
     }
 
     @Override

@@ -173,8 +173,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * the plan.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint) implements Node {
+            @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) implements Node {
         public Verdicts {
+            Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
@@ -187,8 +188,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** A group with no savepoint: its database's transaction survives a failing statement, the group runs
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
-        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
-            this(verdicts, fused, null);
+        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
+            this(verdicts, fused, null, rules);
         }
 
         /**
@@ -208,6 +209,20 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             }
         }
     }
+
+    /**
+     * THE RULES A VERDICT GROUP IS JUDGED BY (the user, 2026-11-04: "explicit rule"): chosen upfront per run
+     * ({@code ExecuteOptions.withEngineCompat}), stamped on every group by its planner, read by both judges -- the
+     * database judge's statement was planned under them, the host judge compares by them. A reader of the plan sees
+     * which rules it judges by.
+     * <ul>
+     *   <li>{@link #LITE}: lite's own -- what a product run and every core test judge by.</li>
+     *   <li>{@link #COMPILED_PURE_COMPAT}: backwards compatibility with legend-pure's compiled runtime and
+     *       legend-engine's goldens (PCT channel B, the corpus), each leniency a register row: S132 (a String's float
+     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text).</li>
+     * </ul>
+     */
+    public enum JudgingRules { LITE, COMPILED_PURE_COMPAT }
 
     /**
      * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;

@@ -135,7 +135,8 @@ public final class BodyRouter {
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
         try {
-            Moved moved = new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed), host,
+            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
+                    toOneReader(typed), host,
                     database, agreement, listener);
             // the graph's system database for a step that names it: the body's own target when the body is
             // system-routed, else the second, read-only session a statement reading the system store alone runs on
@@ -193,10 +194,41 @@ public final class BodyRouter {
         private final @Nullable AssertListener listener;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
+        /** {@code node}'s verdict steps' rules recorded by verdict, each checked against the run's: a planner that
+         *  stamped another run's rules is refused by name, never judged under them. */
+        private void rulesOf(ExecutionPlan.Node node, com.legend.executionplan.ExecutionPlan.JudgingRules runRules) {
+            switch (node) {
+                case ExecutionPlan.Sequence s -> s.steps().forEach(step -> rulesOf(step, runRules));
+                case ExecutionPlan.Branch b -> {
+                    b.then().forEach(step -> rulesOf(step, runRules));
+                    b.otherwise().forEach(step -> rulesOf(step, runRules));
+                }
+                case ExecutionPlan.Verdicts v -> {
+                    if (v.rules() != runRules) {
+                        throw new IllegalStateException("a verdict step planned under " + v.rules()
+                                + " in a run judging by " + runRules);
+                    }
+                    v.verdicts().forEach(each -> rulesOf.put(each, v.rules()));
+                }
+                default -> {
+                }
+            }
+        }
+
+        /** The rules {@code verdict}'s step names. */
+        private com.legend.executionplan.ExecutionPlan.JudgingRules rules(ExecutionPlan.Verdict verdict) {
+            return java.util.Objects.requireNonNull(rulesOf.get(verdict),
+                    () -> "a verdict no step of the plan holds: " + verdict.name());
+        }
+
         /** The last assert's verdict, once judged: a body ending on an assert answers it. */
         private @Nullable TypedSide lastVerdict;
+        /** The rules each verdict is judged by, read off the plan's verdict steps (the explicit rule, 2026-11-04): the
+         *  plan is the one carrier; the host judge is handed them at the verdict's step. */
+        private final java.util.Map<ExecutionPlan.Verdict, com.legend.executionplan.ExecutionPlan.JudgingRules> rulesOf = new java.util.IdentityHashMap<>();
 
-        Moved(TestDoor.Planned planned, SqlDialect dialect, RawSqlBoundary.@Nullable Recorder recorder,
+        Moved(TestDoor.Planned planned, com.legend.executionplan.ExecutionPlan.JudgingRules runRules, SqlDialect dialect,
+                RawSqlBoundary.@Nullable Recorder recorder,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader,
                 @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
                 @Nullable AgreementAsserts agreement, @Nullable AssertListener listener) {
@@ -210,6 +242,7 @@ public final class BodyRouter {
             this.database = database;
             this.agreement = agreement;
             this.listener = listener;
+            rulesOf(planned.plan().root(), runRules);
             java.util.Set<Integer> groups = new java.util.HashSet<>();
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<ExecutionPlan.Node> steps = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps()
@@ -289,11 +322,11 @@ public final class BodyRouter {
         public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
             if (agreement != null) {
                 // the host's verdict held until the database half's rows are in
-                agreement.hostSides(verdict, () -> rows, listener);
+                agreement.hostSides(verdict, () -> rows, listener, rules(verdict));
                 return;
             }
             HostAsserts.Planned p = hostPlanned(verdict);
-            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows));
+            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows), rules(verdict));
         }
 
         /** A side of {@code verdict}'s that could not be read (the database refused it, or the read raised): judged as
@@ -304,12 +337,12 @@ public final class BodyRouter {
             if (agreement != null) {
                 agreement.hostSides(verdict, () -> {
                     throw failure;
-                }, listener);
+                }, listener, rules(verdict));
                 return;
             }
             judged(hostPlanned(verdict), () -> {
                 throw failure;
-            });
+            }, rules(verdict));
         }
 
         /** The host's planned assert {@code verdict} is: the host judge's, or, under the database judge, an
@@ -326,9 +359,10 @@ public final class BodyRouter {
             return assertOf(verdict);
         }
 
-        private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides) {
+        private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides,
+                com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
             AssertVerdicts.HostAssert a = p.assertion();
-            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides);
+            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides, rules);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");

@@ -659,7 +659,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // fewer than the host on DuckDB, and refused H2's 33 list operations)
             ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict("decided@" + place + segment, "decided",
                     List.of(), null);
-            ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(decided), null, null);
+            ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(decided), null, null,
+                    env.options().judgingRules());
             byVerdict.put(decided, new Segment(planned, List.of(step), true));
             byStatement.put(lastAssert, List.of(step));
             return true;
@@ -690,7 +691,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         return new ExecutionPlan.Verdicts(step.verdicts(),
                 new ExecutionPlan.TdsResult(fused.shape(), fused.columns(), fused.sql().stamped(stamp)),
-                step.savepoint());
+                step.savepoint(), step.rules());
     }
 
     /** The stamp parameter of the fused statement of segment {@code segment}: the stamp prefix (the program's, so the

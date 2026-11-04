@@ -56,15 +56,15 @@ public final class PureAsserts {
      * spec's own message — {@code %r} single values, represented-and-
      * joined collections. */
     public static @com.legend.base.Nullable String assertEquals(
-            List<Object> expected, List<Object> actual) {
-        return assertEquals(expected, actual, null, null);
+            List<Object> expected, List<Object> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return assertEquals(expected, actual, null, null, rules);
     }
 
     /** The message for typed sides — the verdict's own cells, so the
      * narrative can never disagree with the decision. */
     public static @com.legend.base.Nullable String assertEqualsTyped(
-            List<Equality.Typed> expected, List<Equality.Typed> actual) {
-        if (Equality.ordered(expected, actual) == null) {
+            List<Equality.Typed> expected, List<Equality.Typed> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        if (Equality.ordered(expected, actual, rules) == null) {
             return null;
         }
         List<Object> e = new ArrayList<>();
@@ -79,8 +79,8 @@ public final class PureAsserts {
     public static @com.legend.base.Nullable String assertEquals(
             List<Object> expected, List<Object> actual,
             com.legend.compiler.element.type.@com.legend.base.Nullable Type expectedType,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType) {
-        if (equal(expected, actual)) {
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        if (equal(expected, actual, rules)) {
             return null;
         }
         return "\nexpected: " + reprSide(expected, classFqnOf(expectedType))
@@ -97,10 +97,10 @@ public final class PureAsserts {
      * (assertSameElements.pure:17): {@code assertEquals(e->sort(),
      * a->sort())} — the multiset rule IS sort-then-ordered-equal. */
     public static @com.legend.base.Nullable String assertSameElements(
-            List<Object> expected, List<Object> actual) {
+            List<Object> expected, List<Object> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> es = sorted(expected);
         List<Object> as = sorted(actual);
-        if (equal(es, as)) {
+        if (equal(es, as, rules)) {
             return null;
         }
         return "\nexpected: " + joined(es) + "\nactual:   " + joined(as);
@@ -187,7 +187,7 @@ public final class PureAsserts {
      * true where pure answers false). */
     public static @com.legend.base.Nullable String assertEq(
             @com.legend.base.Nullable Object expected,
-            @com.legend.base.Nullable Object actual) {
+            @com.legend.base.Nullable Object actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
             // F13 — identity IS observable when both wires carry the
             // synthetic __id (keyless-class instance maps, minted per
@@ -208,7 +208,7 @@ public final class PureAsserts {
                     + " identity, which is not observable on a value wire"
                     + " (assertEquals is the structural compare)");
         }
-        if (Equality.same(Equality.Typed.of(expected), Equality.Typed.of(actual))) {
+        if (Equality.same(Equality.Typed.of(expected), Equality.Typed.of(actual), rules)) {
             return null;
         }
         return "\nexpected: " + repr(expected)
@@ -290,9 +290,9 @@ public final class PureAsserts {
      * collection equality is ordered, element-wise. */
     // ---- messages only: the decision is Equality's (host mode's one judge)
 
-    private static boolean equal(List<Object> left, List<Object> right) {
+    private static boolean equal(List<Object> left, List<Object> right, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         return Equality.ordered(Equality.Typed.all(left, null),
-                Equality.Typed.all(right, null)) == null;
+                Equality.Typed.all(right, null), rules) == null;
     }
 
     private static boolean isIntegral(Object v) {

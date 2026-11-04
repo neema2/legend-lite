@@ -60,11 +60,9 @@ final class HostSides {
         if (check == null) {
             return null;
         }
-        // a backwards-compatibility run's judgment in its mode (ExecuteOptions.withEngineCompat), as the program road plans
-        // it (AssertVerdicts.planHost); a judgment planned in it already is not wrapped twice
-        HostJudgment judgment = env.options().engineCompat() && !(check.judgment() instanceof HostJudgment.Compat)
-                ? new HostJudgment.Compat(check.judgment()) : check.judgment();
-        return HostJudge.judge(judgment, fetch(name, check.asks(), letPrefix, specs, env));
+        // judged by the run's rules (ExecuteOptions.judgingRules), as the program road's step names them
+        return HostJudge.judge(check.judgment(), fetch(name, check.asks(), letPrefix, specs, env),
+                env.options().judgingRules());
     }
 
     /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */
@@ -151,7 +149,7 @@ final class HostSides {
             return out;
         }
         ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, planned.base(), null);
-        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(verdict), null);
+        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(verdict), null, env.options().judgingRules());
         List<List<PlanRunner.Rows>> got = new ArrayList<>(1);
         try {
             PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, env.trace()),

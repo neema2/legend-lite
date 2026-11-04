@@ -28,6 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * discovery.
  */
 class EqualityWorldsConformanceTest {
+    /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
+    private static final com.legend.executionplan.ExecutionPlan.JudgingRules LITE =
+            com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
+
 
     private static Connection conn;
 
@@ -51,7 +55,7 @@ class EqualityWorldsConformanceTest {
 
     private static void agree(boolean expected, String pureA, String pureB,
             Object javaA, Object javaB) throws Exception {
-        assertEquals(expected, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB)),
+        assertEquals(expected, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
                 "World 1 moved: " + pureA + " == " + pureB);
         assertEquals(expected, world2(pureA, pureB),
                 "World 2 moved: " + pureA + " == " + pureB);
@@ -62,7 +66,7 @@ class EqualityWorldsConformanceTest {
     private static void diverge(boolean world1, @com.legend.base.Nullable Object world2,
             String pureA, String pureB, Object javaA, Object javaB,
             String reason) throws Exception {
-        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB)),
+        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
                 "World 1 moved (" + reason + "): " + pureA + " == " + pureB);
         assertEquals(world2, world2(pureA, pureB),
                 "World 2 moved (" + reason + "): " + pureA + " == " + pureB);

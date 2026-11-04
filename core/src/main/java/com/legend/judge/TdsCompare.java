@@ -39,7 +39,7 @@ public final class TdsCompare {
     /** TDS grids compare STRUCTURALLY: column names ordered+exact, rows
      * under the order policy. */
     public static boolean grids(TypedSide.Tabular expected,
-            TypedSide.Tabular actual, boolean ordered) {
+            TypedSide.Tabular actual, boolean ordered, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (expected.columns().size() != actual.columns().size()) {
             return false;
         }
@@ -70,14 +70,14 @@ public final class TdsCompare {
         List<Equality.Typed> te = Equality.grid(ef, eKinds);
         List<Equality.Typed> ta = Equality.grid(af, aKinds);
         if (ordered) {
-            return Equality.ordered(te, ta) == null;
+            return Equality.ordered(te, ta, rules) == null;
         }
-        if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()))) {
+        if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()), rules)) {
             return false;
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
-        ordLeniency("row-multiset", () -> Equality.ordered(te, ta) == null);
+        ordLeniency("row-multiset", () -> Equality.ordered(te, ta, rules) == null);
         return true;
     }
 
