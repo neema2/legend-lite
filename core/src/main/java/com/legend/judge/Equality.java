@@ -178,7 +178,12 @@ public final class Equality {
                     + a.getClass().getSimpleName());
         }
         if (ek != ak) {
-            return false;   // Rule 3: a different kind is never equal
+            // Rule 3 (register S127, the user's ruling of 2026-11-04: "the principled fix for the product, then compiled
+            // for backwards compatible"): a different kind is never equal in lite's own runs -- the type is part of the
+            // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
+            // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
+            // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
+            return COMPAT.get() && integerAndDecimal(ek, ak) && String.valueOf(e).equals(String.valueOf(a));
         }
         if (ek == Type.Primitive.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -224,6 +229,13 @@ public final class Equality {
             return e.equals(a);
         }
         return e.equals(a);   // dates: the literal's own equality
+    }
+
+    /** Whether {@code x} and {@code y} are an Integer and a Decimal, either way round: the pair compiled legend-pure
+     *  equates by text (S127). */
+    private static boolean integerAndDecimal(Type x, Type y) {
+        return x == Type.Primitive.INTEGER && y == Type.Primitive.DECIMAL
+                || x == Type.Primitive.DECIMAL && y == Type.Primitive.INTEGER;
     }
 
     /** Whether the judgment running on this thread is a backwards-compatibility run's ({@link #compat}). */

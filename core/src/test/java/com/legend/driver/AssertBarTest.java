@@ -95,6 +95,11 @@ class AssertBarTest {
                     "\nexpected: 'x=1.0000000000000002'\nactual:   'x=1.0'"),
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", "\nexpected: 3.0D\nactual:   3.00D"),
             new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "\nexpected: 1\nactual:   1.0"),
+            // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
+            // backwards-compatibility mode compares an Integer and a Decimal by text: below)
+            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "\nexpected: 1D\nactual:   1"),
+            new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "\nexpected: 1.5\nactual:   1.5D"),
+            new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3D)}", null),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
             new Probe("assertError-let-message", "{|let m = 'boom'; assertError(|fail($m), $m);}", null),
@@ -162,6 +167,30 @@ class AssertBarTest {
         assertTrue(missed.isEmpty() && closed.isEmpty(), (missed.isEmpty() ? "" : "missing the bar (not in GAPS):\n  "
                 + String.join("\n  ", missed) + "\n") + (closed.isEmpty() ? "" : "meeting the bar now -- delete from"
                 + " GAPS: " + closed));
+    }
+
+    /** BACKWARDS-COMPATIBILITY MODE (register S127, the user's ruling of 2026-11-04: "the principled fix for the
+     *  product, then compiled for backwards compatible"): compiled legend-pure's number equality -- an Integer and a
+     *  Decimal equal by their texts, a Float equal to neither (CompiledSupport.eq; the engine asked:
+     *  upstream-api/s127-number-equality.txt) -- under every judge alike. */
+    @Test
+    void backwardsCompatibilityModeComparesNumbersAsCompiledPureDoes() throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            for (ExecuteOptions.JudgeMode mode : JUDGES) {
+                ExecuteOptions compat = ExecuteOptions.NONE.withJudgeMode(mode).withEngineCompat(true);
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), "{|assertEquals(1D, 1)}",
+                        StorelessRuntime.RUNTIME, c, compat);
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), "{|assertEquals(3, 3D)}",
+                        StorelessRuntime.RUNTIME, c, compat);
+                for (String body : List.of("{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}",
+                        "{|assertEquals(1.0D, 1)}")) {
+                    AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
+                            () -> Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body,
+                                    StorelessRuntime.RUNTIME, c, compat), mode + " " + body);
+                    assertTrue(e.getMessage().startsWith("\nexpected: "), mode + " " + body + ": " + e.getMessage());
+                }
+            }
+        }
     }
 
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever

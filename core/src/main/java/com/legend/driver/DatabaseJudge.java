@@ -254,11 +254,45 @@ final class DatabaseJudge {
                         com.legend.lowering.VerdictSql.firstValueRow(reprA));
             }
         }
+        // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
+        // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
+        // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
+        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
+                env.options().engineCompat())) {
+            vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
+        }
         // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
         vq = com.legend.lowering.VerdictSql.messageWithDecimals(vq, !re.many() && decimal(re.kinds().get(ie)),
                 !ra.many() && decimal(ra.kinds().get(ia)));
         return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
                 : message.apply(vq), runOn);
+    }
+
+    /** Whether {@code e} and {@code a} are two numbers of different known kinds that are never equal (S127): any such
+     *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
+     *  legend-pure compares by text. An unrefined Number is no known kind. */
+    private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
+            com.legend.compiler.element.type.Type a, boolean compat) {
+        com.legend.compiler.element.type.Type fe = fineNumber(e);
+        com.legend.compiler.element.type.Type fa = fineNumber(a);
+        if (fe == null || fa == null || fe == fa) {
+            return false;
+        }
+        boolean integerAndDecimal = fe == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                && fa == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || fe == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                && fa == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+        return !(compat && integerAndDecimal);
+    }
+
+    /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type fineNumber(
+            com.legend.compiler.element.type.Type kind) {
+        if (decimal(kind)) {
+            return com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+        }
+        return kind == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || kind == com.legend.compiler.element.type.Type.Primitive.FLOAT ? kind : null;
     }
 
     /** Whether {@code kind} is a Decimal's (a declared precision one's too): its {@code %r} ends in {@code D}. */
