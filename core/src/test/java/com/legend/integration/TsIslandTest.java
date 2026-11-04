@@ -1107,6 +1107,30 @@ class TsIslandTest {
         }
     }
 
+    @Test
+    void theWordsOfTwoLinesAreColumnsOfTheirOneMeeting() throws Exception {
+        // R7 part 3 (2026-11-04): two lines met once -- hedge_ratio, residual and cov of their levels each a column of
+        // that one table (the library's rows forms), each its line form's answer: least squares over the last three
+        // pairs, a value from the third pair (the ramp's rows none, the answer's first rows none of any item)
+        String q = "|#TS{SELECT hedge_ratio(CLOSE['AAA'], CLOSE['BBB'], 3) AS h, residual(CLOSE['AAA'], CLOSE['BBB'], 3)"
+                + " AS r, cov(CLOSE['AAA'], CLOSE['BBB'], 3) AS c FROM PRICES ON DAY BY SYMBOL}#";
+        for (TestBackend backend : deep()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            Double[] slope = each(AAA.length - 2, i -> covariance(AAA, BBB, i, i + 2) / covariance(BBB, BBB, i, i + 2));
+            assertClose(slope, column(got, null, null, "h"), of + "the slope of three pairs");
+            assertClose(each(AAA.length - 2, i -> AAA[i + 2] - ((AAA[i] + AAA[i + 1] + AAA[i + 2]) / 3
+                    - slope[i] * (BBB[i] + BBB[i + 1] + BBB[i + 2]) / 3 + slope[i] * BBB[i + 2])),
+                    column(got, null, null, "r"), of + "the first less its fit");
+            assertClose(each(AAA.length - 2, i -> covariance(AAA, BBB, i, i + 2)), column(got, null, null, "c"),
+                    of + "the covariance of three pairs");
+        }
+        // the two lines joined once, the answer that one table: one join, where each word's own meeting and its own
+        // table spread onto the answer's dates were six
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertEquals(1, sql.split(" JOIN ", -1).length - 1, sql);
+    }
+
     /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */
     private static double covariance(double[] x, double[] y, int from, int to) {
         double mx = 0;
