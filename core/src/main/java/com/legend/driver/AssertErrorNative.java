@@ -87,18 +87,27 @@ final class AssertErrorNative {
     }
 
     static Args args(TypedNativeCall ae) {
+        return args(ae, List.of());
+    }
+
+    /** {@link #args(TypedNativeCall)} with the lets before the call: an expected message the compiler folds to a String
+     *  over them -- a literal, a let bound to one, a join of them -- is that String (2026-11-04, the asserts-as-plan-nodes
+     *  program: {@code let m = 'boom'; assertError(|fail($m), $m)} was refused); one computed at run time is refused by
+     *  name, the comparison Java's (ruling N3). */
+    static Args args(TypedNativeCall ae, List<com.legend.compiler.spec.typed.TypedSpec> lets) {
         if (!(ae.args().get(0) instanceof TypedLambda f)
                 || !f.parameters().isEmpty()) {
             throw new com.legend.error.NotImplementedException(
                     "assertError whose function argument is not a"
                     + " zero-parameter lambda literal");
         }
-        if (!(ae.args().get(1) instanceof TypedCString exp)) {
+        Object expected = ae.args().get(1) instanceof TypedCString exp ? exp.value()
+                : com.legend.compiler.spec.typed.Literals.fold(ae.args().get(1), lets);
+        if (!(expected instanceof String message)) {
             throw new com.legend.error.NotImplementedException(
-                    "assertError whose message argument is not a string"
-                    + " literal");
+                    "assertError whose message argument is computed at run time (not a String the compiler folds)");
         }
-        return new Args(f, exp.value(), optionalInt(ae, 2), optionalInt(ae, 3));
+        return new Args(f, message, optionalInt(ae, 2), optionalInt(ae, 3));
     }
 
     /** The error {@code f} raised, as the arm catches it: a database's error (its message clean, its cause the raise's

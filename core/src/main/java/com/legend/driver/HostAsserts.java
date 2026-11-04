@@ -302,7 +302,7 @@ final class HostAsserts implements TestDoor.Asserts {
         ExecutionPlan.Verdicts.@Nullable Savepoint savepoint = savepointOf(env);
         AssertErrorNative.Args args;
         try {
-            args = AssertErrorNative.args(ae);
+            args = AssertErrorNative.args(ae, letPrefix);
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
             return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE);
