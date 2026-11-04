@@ -19664,3 +19664,51 @@ fallback run -- for an engine-text assert, the rows replay ("the harness replay 
    3,049). The corpus verdict targets and `update_rcorpus_h2_0_test` red as at the baseline. Core under the database
    judge alone: the known gaps only (QuantifiedRowsTest's row messages, MetamodelMappingStoreTest's instance message,
    H2's out-of-memory on the metamodel nesting).
+
+## 2026-11-04 — Core closed out on DuckDB: every core test under the host judge, the database judge alone and BOTH; the database judge decides every assert
+
+The user's order (2026-11-04): "fixing the assert special cases and fixing judge to be 100%", then the corpus, then the
+walk deleted, then the overfitting audit, then the SQL round; core's bar the DuckDB (platform) targets under host and
+database with full agreement ("A is fine, let's focus on closing out core 100%"), the H2 and SQLite lanes
+(`//core:core_tests_lanes`) measurement held to floors that only shrink.
+
+1. **Rendered-text asserts generic first** (`a2f4ce33`; the user's principle: every assert runs on its own merit
+   generically, a ruled fallback only after it fails). A golden String against a relation's rendered text compares the
+   two strings first; only where they differ does the ruled line/row comparison decide (S131's multiset of an unsorted
+   query's lines, S132's 2-ULP float tokens). Host: `HostJudge.renderedOf`. Database judge: the verdict row compares the
+   golden with the text the database renders, the rows comparison that row's fallback, its statement sent only when the
+   row fails (`VerdictBatch.orElse`; with no batch open `DatabaseJudge.holdsNow`). Measured on the corpus's DuckDB
+   host pass: 240 of 269 texts byte-equal, 25 held by the fallback, 4 failing. `RenderedTextTest`.
+2. **The text side planned as the host plans it** (`b2a0123d`): a plain value, no canon wrap
+   (`DatabaseJudge.textRow`, `VerdictSql.firstValueRow`); a generic row the dialect cannot spell is decided by its ruled
+   fallback, nothing sent for it (`VerdictBatch`'s unspelled members; H2's `specialUnion::testGroupBy`, which the first
+   cut broke). The DuckDB database-judge engine-order register regenerated, +67, 0 removed (the text rows read unsorted
+   relations, which the test lanes' scan-order emulation rewrites too).
+3. **A quantified equality over a literal source** judges each element as itself (`b2a0123d`): the vector form declines,
+   the first failing element's message upstream's own. `QuantifiedRowsTest`'s two tests pass under the database judge.
+4. **A failing equality over two instances prints them as the host does** (`c3f1981a`): `<v1|v2 instanceOf T>`, one
+   bare, several bracketed (`VerdictSql.instancesRepr`, `messageAsInstances`).
+   `MetamodelMappingStoreTest#instanceFailureMessageRenders` passes under the database judge.
+5. **A green BOTH run is not agreement** (`6e08d17a`, `b0cb1a8c`): under BOTH a database decline or UNJUDGED is the
+   host's to decide, so nothing turns red. `-Dlegend.diagnostics=judge-declines` prints each with its test: the arms'
+   declines and UNJUDGED (`CanonicalDivergence`, `AgreementArm`) and the database planner's refusals (the gate, the arm,
+   a group not placed, the static pass), on the diagnostics switchboard (`Diagnostics.judgeDecline`). Over core at
+   `c3f1981a` it found one real gap: **an assert over a raw grid** (an `executeInDb` SELECT read as a value) -- the
+   database judge refused the whole body up front (`DatabaseAsserts.plannable`) and never placed a keyed verdict group
+   (`placed`), though the runner has run a keyed verdict with no fused statement since S3c (2026-10-31,
+   `PlanRunner.databaseVerdicts`) and the batch builds the keyed members as their own group. Both refusals lifted:
+   `TaggedListTest`'s untyped-grid assert under the database judge alone (refused until now) and
+   `#aFailingMultisetOverARawGridFailsUnderEachJudge` (every judge fails each case).
+   The rest of what it printed is by design: the host judge's own byte-channel rider declining itself on the plan path
+   (`HostJudge.sideCanonOf`: "the database judge is the referee"), `assertError` under BOTH (ruling N3: one step, Java's
+   comparison in both modes), and the unit tests that exercise the decline paths on purpose (`BodyRouterParityTest`,
+   `JudgesOnPlansTest`, `AgreementArmTest`).
+6. **Open finding: a failing multiset's message order** (found by item 5's test): the database judge joins a multiset
+   side in canon-text order, so its message prints numbers as text orders them and Strings before numbers --
+   `[11, 2]` where the host prints `[2, 11]`; the verdicts agree, the words differ where the two orders differ. A sort
+   key read from the canon's spelling was tried (`b0cb1a8c`) and reverted (`5eac4a02`): the canon does not name its kind
+   in every lane (a date spells `2024-02-03`, a grid row its cells joined, a year-only date and an Integer both `2014`).
+   The host's order needs each element's kind, which the lowering knows: the fix belongs there. No core, PCT or corpus
+   test reaches it today.
+7. Guards, each dated: `JavaEvalLedgerTest` `AssertVerdicts` 1791 -> 1820 -> 1826, `DatabaseJudge` 664 -> 672 -> 679
+   -> 684 -> 703.
