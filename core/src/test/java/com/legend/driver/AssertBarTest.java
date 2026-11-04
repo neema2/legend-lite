@@ -69,8 +69,9 @@ class AssertBarTest {
                     "\nexpected: [3, 1, 2]\nactual:   [1, 2, 3]"),
             new Probe("union-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->union([3]))}",
                     "\nexpected: [3, 1, 2]\nactual:   [1, 2, 3]"),
-            new Probe("float-looking-strings", "{|assertEquals('x=1.0000000000000002', 'x=1.0')}",
-                    "\nexpected: 'x=1.0000000000000002'\nactual:   'x=1.0'"),
+            // upstream fails it (Floats exact); the user's ruling S132 (2026-11-03) holds float tokens within 2 ULP in a
+            // String in every judge -- so it passes, under every judge alike
+            new Probe("float-looking-strings", "{|assertEquals('x=1.0000000000000002', 'x=1.0')}", null),
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", "\nexpected: 3.0D\nactual:   3.00D"),
             new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "\nexpected: 1\nactual:   1.0"),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
@@ -99,7 +100,7 @@ class AssertBarTest {
             "forAll-zip-assert-message",
             "assert-in-an-if",
             "forAll-over-range", "forAll-zip-computed-arguments",
-            "assertIs-dynamic-type", "concatenate-keeps-order", "union-keeps-order", "float-looking-strings",
+            "assertIs-dynamic-type", "float-looking-strings",
             "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert"));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,

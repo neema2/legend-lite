@@ -41,11 +41,19 @@ public enum OrderView {
             com.legend.builtin.Pure.GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY
                     .qualifiedName(),
             com.legend.builtin.Pure.JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
+            // a RELATION's concatenate (SQL's UNION ALL leaves no order); a collection's concatenate and union keep the
+            // language's order -- the first's elements, then the second's (union its first occurrences) -- so a side
+            // that reads them is compared in order, as upstream compares it (2026-11-04, the asserts-as-plan-nodes
+            // program: assertEquals([3, 1, 2], [1, 2]->concatenate([3])) passed as a multiset where upstream fails it)
             com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName(),
             com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
             com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
+
+    /** A collection's concatenate and union (2026-11-04, the asserts-as-plan-nodes program): the language's order --
+     *  the first's elements, then the second's; union's first occurrences -- over its inputs', each read. */
+    public static final java.util.Set<String> ORDER_COMBINING = java.util.Set.of(
+            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName());
 
     /** Order-preserving native tails, EXACT identities from the catalog. */
     public static final java.util.Set<String> ORDER_PRESERVING = java.util.Set.of(
@@ -123,6 +131,16 @@ public enum OrderView {
             }
             if (ORDER_DESTROYING.contains(fqn)) {
                 return OrderView.INCIDENTAL;
+            }
+            if (ORDER_COMBINING.contains(fqn)) {
+                // a collection's concatenate or union: the language's order over its inputs' -- as ordered as the
+                // least ordered of them (an input in arrival order leaves the whole in arrival order)
+                for (TypedSpec arg : c.args()) {
+                    if (of(arg, lets, seen, hook) == OrderView.INCIDENTAL) {
+                        return OrderView.INCIDENTAL;
+                    }
+                }
+                return OrderView.DEFINED;
             }
             return OrderView.DEFINED;
         }
