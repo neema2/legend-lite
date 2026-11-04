@@ -377,7 +377,7 @@ public final class Lowerer {
     public SqlQuery lower(List<TypedSpec> body) {
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(withQueryLets(body)));
+        return SubselectPrune.prune(lower(withQueryLets(body)), !engineText);
     }
 
     /**
@@ -431,7 +431,7 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source)));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));

@@ -24,10 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A window frame sized by a parameter (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1; ruling L2, the user,
  * 2026-10-31): a function's {@code rows($back, 0)} takes its call's argument -- a literal argument a literal frame, as
- * if written so; an expression the database's to compute, its direction its shape's ({@code -(e)} before the current
- * row, anything else after), checked by the database where upstream checks the numbers it computed; a query's
- * parameter bound like any other. Each answer is the literal frame's, on the lane's database; each refusal a refusal
- * on every lane, where without the check one database answers empty windows.
+ * if written so, and so is integer arithmetic over spelled integers, worked out as upstream works out its numbers
+ * (docs/TENET_CHARTER.md C6.2b, the user 2026-11-04); a bound still an expression (a query's parameter) is the
+ * database's to compute, its direction its shape's ({@code -(e)} before the current row, anything else after),
+ * checked by the database where upstream checks the numbers it computed, the parameter bound like any other. Each
+ * answer is the literal frame's, on the lane's database; each refusal a refusal on every lane, where without the check
+ * one database answers empty windows.
  */
 class FrameFromParameterTest extends AbstractDatabaseTest {
 
@@ -116,44 +118,77 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("arithmetic over a parameter is the database's: (2 - 1) PRECEDING, inside its check")
-    void arithmeticIsTheDatabases() throws SQLException {
+    @DisplayName("arithmetic over spelled integers is the number it spells: -(2 - 1) is 1 PRECEDING, unchecked (C6.2b)")
+    void spelledArithmeticIsTheLiteralFrame() throws SQLException {
         assertEquals(TWO_ROWS, sums("|test::frames::window(2)"));
         String sql = generateSql("|test::frames::window(2)");
-        assertTrue(sql.contains("ROWS BETWEEN (2 - 1) PRECEDING AND CURRENT ROW"), sql);
-        assertTrue(sql.contains("CASE WHEN"), "the check around the window: " + sql);
+        assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND CURRENT ROW"), sql);
+        assertFalse(sql.contains("CASE"), "no check around a literal frame: " + sql);
+    }
+
+    @Test
+    @DisplayName("arithmetic over a query's parameter is the database's: inside its check, the value bound")
+    void arithmeticOverAParameterIsTheDatabases() throws Exception {
+        String query = "{n: Integer[1]|" + sum("rows(-($n - 1), 0)") + "->sort([~p->ascending(), ~o->ascending()])}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(getCompletePureModelWithRuntime()), query)
+                .executionPlan("test::TestRuntime");
+        String json = com.legend.executionplan.PlanJson.write(plan);
+        assertTrue(json.contains("computedPreceding"), json);
+        assertTrue(json.contains("CASE WHEN"), "the check around the window: " + json);
+        String csv = PlanCases.write(plan, connection, Map.of("n", 2L), PlanCases.Written.CSV::writer);
+        List<String> lines = Arrays.asList(csv.split("\r\n"));
+        int s = Arrays.asList(lines.get(0).split(",")).indexOf("s");
+        assertEquals(List.of("10", "30", "50", "100", "300"),
+                lines.subList(1, lines.size()).stream().map(l -> l.split(",", -1)[s]).toList());
     }
 
     @Test
     @DisplayName("a start after the end is refused, in upstream's words, where the database answers empty windows")
-    void aStartAfterTheEndIsRefused() {
-        // -(0 - 1) is one row AFTER the current row: rows(1, 0), refused by upstream; a negative offset, which one
-        // database answers with empty windows (the check refuses it there, in upstream's words) and the others refuse
-        // themselves (dialect/ComputedFrameOffsetTest has the check's text): refused on every lane
-        assertThrows(Exception.class, () -> sums("|test::frames::window(0)"));
+    void aStartAfterTheEndIsRefused() throws Exception {
+        // -(0 - 1) spelled is one row AFTER the current row: rows(1, 0), refused when planned, as upstream refuses it
+        Exception w = assertThrows(Exception.class, () -> sums("|test::frames::window(0)"));
+        assertTrue(chain(w).contains("lower bound of window frame cannot be greater"), chain(w));
         // rows(-1, -2): one row before to two rows before -- nearly every database answers empty windows
         Exception r = assertThrows(Exception.class, () -> sums("|test::frames::between(1, 2)"));
         assertTrue(chain(r).contains("lower bound of window frame cannot be greater"), chain(r));
+        // the same frame from a query's parameters is the database's: its check refuses it, in upstream's words, where
+        // a database would answer empty windows (dialect/ComputedFrameOffsetTest has the check's text)
+        String query = "{a: Integer[1], b: Integer[1]|" + sum("rows(-$a, -$b)") + "}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(getCompletePureModelWithRuntime()), query)
+                .executionPlan("test::TestRuntime");
+        assertThrows(Exception.class, () -> PlanCases.write(plan, connection, Map.of("a", 1L, "b", 2L),
+                PlanCases.Written.CSV::writer));
         // rows(-2, -0): both literal by then, a literal frame, unchecked
         assertEquals(List.of(10L, 30L, 60L, 100L, 300L), sumsOrNulls("|test::frames::between(2, 0)"));
     }
 
     @Test
-    @DisplayName("a frame whose shapes start after the current row and end at it is refused when planned, naming S129")
-    void aShapeAfterThatEndsBeforeIsRefused() {
-        // 1 - 2 = -1: upstream reads one row BEFORE; lite reads the shape (after): (1 - 2) FOLLOWING AND CURRENT ROW,
-        // which no database parses
-        Exception e = assertThrows(Exception.class, () -> generateSql("|test::frames::afterShape(2)"));
+    @DisplayName("spelled, 1 - 2 is one row before, as upstream reads it; a parameter's shape after is refused, naming S129")
+    void aShapeAfterThatEndsBeforeIsRefused() throws SQLException {
+        // 1 - 2 = -1: upstream reads one row BEFORE, and so does lite once the argument is spelled (C6.2b)
+        assertEquals(TWO_ROWS, sums("|test::frames::afterShape(2)"));
+        // a query's parameter leaves it an expression: lite reads the shape (after), (1 - n) FOLLOWING AND CURRENT
+        // ROW, which no database parses -- refused when planned
+        String query = "{n: Integer[1]|" + sum("rows(1 - $n, 0)") + "}";
+        Exception e = assertThrows(Exception.class, () -> Compiler.query(
+                Compiler.compileModel(getCompletePureModelWithRuntime()), query).executionPlan("test::TestRuntime"));
         assertTrue(chain(e).contains("S129"), chain(e));
     }
 
     @Test
     @DisplayName("a negative computed offset is refused, by the database's check or by the database")
-    void aNegativeOffsetIsRefused() throws SQLException {
+    void aNegativeOffsetIsRefused() throws Exception {
         // one row before to the partition's end
         assertEquals(List.of(60L, 60L, 50L, 300L, 300L), sums("|test::frames::toEnd(1)"));
-        // -(-1): written before, its value negative -- no order to check against the unbounded end, the sign's check
-        assertThrows(Exception.class, () -> sums("|test::frames::toEnd(0 - 1)"));
+        // -(0 - 1) spelled is 1: one row after to the end, upstream's reading of the number (C6.2b)
+        assertEquals(java.util.Arrays.asList(50L, 30L, null, 200L, null), sumsOrNulls("|test::frames::toEnd(0 - 1)"));
+        // -(n) with n = -1 from a query's parameter: written before, its value negative -- no order to check against
+        // the unbounded end, the sign's check refuses it
+        String query = "{n: Integer[1]|" + sum("rows(-$n, unbounded())") + "}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(getCompletePureModelWithRuntime()), query)
+                .executionPlan("test::TestRuntime");
+        assertThrows(Exception.class, () -> PlanCases.write(plan, connection, Map.of("n", -1L),
+                PlanCases.Written.CSV::writer));
     }
 
     @Test

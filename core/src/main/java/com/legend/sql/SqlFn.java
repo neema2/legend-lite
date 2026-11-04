@@ -129,6 +129,13 @@ public enum SqlFn {
      * scalar). MAP_KEYS/MAP_VALUES, REGEXP_EXTRACT_ALL and SPLIT
      * produce lists (witnesses in the corpus: values()->sort(),
      * chunk()->sort(), split(':')->sort()->joinStrings). */
+    /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
+     *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
+     *  SubselectPrune). */
+    public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
+            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
+            MAKE_TIMESTAMP));
+
     public boolean producesList() {
         return switch (this) {
             // LIST_SORT_DESC + RANGE_FN joined 2026-08-21 (shortcut

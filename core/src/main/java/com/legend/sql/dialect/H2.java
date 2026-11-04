@@ -74,6 +74,8 @@ public class H2 extends AnsiSqlRenderer {
         // a select that only names its subselect's columns folded into it: H2 plans each nested derived table again at
         // every level above it (ProjectionWrapsFold)
         ps.add(new ProjectionWrapsFold());
+        // and a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
+        ps.add(new SelectMerge());
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());

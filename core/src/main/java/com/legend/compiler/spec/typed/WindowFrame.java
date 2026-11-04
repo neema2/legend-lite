@@ -94,6 +94,11 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
                     && NativeFn.Frame.of(c.callee().id()).orElse(null) == NativeFn.Frame.UNBOUNDED) {
                 return fromSide ? new UnboundedPreceding() : new UnboundedFollowing();
             }
+            Long folded = spelled(arg);
+            if (folded != null && folded != Long.MIN_VALUE) {   // a size of -MIN_VALUE is no long: the database's
+                // a bound spelled in integers: the number it spells, read by its sign as a literal is (C6.2b)
+                return folded < 0 ? new Preceding(-folded) : folded > 0 ? new Following(folded) : new CurrentRow();
+            }
             return new Offset(arg);
         }
     }
@@ -148,6 +153,64 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
         }
         return new WindowFrame(kind, f, t);
     }
+
+    /**
+     * A FRAME BOUND IS STRUCTURE, FOLDED WHEN SPELLED (docs/TENET_CHARTER.md C6.2b, the user 2026-11-04): {@code arg},
+     * where it is integer arithmetic over spelled integers alone -- plus, minus, times and a unary minus, as a library's
+     * window writes its span once its arguments are substituted ({@code -(6 * 31 - 1)}) -- is the number it spells,
+     * worked exactly; null where it is anything else (a parameter, a column, a division, a float) or overflows a long.
+     * The frame is then the literal one: its direction the number's sign and its order checked when it is lowered, as
+     * legend-engine reads a frame from the numbers it computes while it plans (docs/SEMANTICS_REGISTER.md S129). Only a
+     * frame's bound is folded here, never a row's value.
+     */
+    static java.lang.@com.legend.base.Nullable Long spelled(TypedSpec arg) {
+        if (arg instanceof TypedCInteger c) {
+            Number v = c.value();
+            if (v instanceof Long || v instanceof Integer || v instanceof Short || v instanceof Byte) {
+                return v.longValue();
+            }
+            return v instanceof java.math.BigInteger b && b.bitLength() < 64 ? b.longValue() : null;
+        }
+        if (!(arg instanceof TypedNativeCall nc) || nc.args().size() != 1) {
+            return null;
+        }
+        com.legend.model.FunctionId id = nc.callee().id();
+        boolean plus = INTEGER_PLUS.equals(id);
+        boolean minus = INTEGER_MINUS.equals(id);
+        boolean times = INTEGER_TIMES.equals(id);
+        if (!plus && !minus && !times) {
+            return null;
+        }
+        TypedSpec only = nc.args().get(0);
+        List<TypedSpec> terms = only instanceof TypedCollection coll ? coll.elements() : List.of(only);
+        if (terms.isEmpty()) {
+            return null;
+        }
+        long[] v = new long[terms.size()];
+        for (int i = 0; i < v.length; i++) {
+            Long t = spelled(terms.get(i));
+            if (t == null) {
+                return null;
+            }
+            v[i] = t;
+        }
+        try {
+            if (minus && v.length == 1) {
+                return Math.negateExact(v[0]);
+            }
+            long out = v[0];
+            for (int i = 1; i < v.length; i++) {
+                out = plus ? Math.addExact(out, v[i]) : minus ? Math.subtractExact(out, v[i]) : Math.multiplyExact(out, v[i]);
+            }
+            return out;
+        } catch (ArithmeticException overflow) {
+            return null;
+        }
+    }
+
+    private static final com.legend.model.FunctionId INTEGER_PLUS = com.legend.model.FunctionId.of(Pure.PLUS__INTEGER_MANY);
+    private static final com.legend.model.FunctionId INTEGER_MINUS = com.legend.model.FunctionId.of(Pure.MINUS__INTEGER_MANY);
+    private static final com.legend.model.FunctionId INTEGER_TIMES = com.legend.model.FunctionId.of(Pure.TIMES__INTEGER_MANY);
 
     /** {@code e} of {@code -(e)} (a unary minus), else null. Pure's {@code minus} is variadic: {@code a - b} is
      *  {@code minus([a, b])}, one argument too, so the unary form is the one whose argument is one value (as the

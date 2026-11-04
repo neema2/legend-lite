@@ -35,6 +35,45 @@ public sealed interface SqlExpr
     public static final String TDS_NULL_CELL = "TDSNull";
 
     /**
+     * Whether {@code e}'s value is its operands' alone, evaluating it raises nothing and it keeps its select's rows, so
+     * a pass may drop it unread or move where it is evaluated (2026-11-04): no raising function ({@link SqlFn#RAISING}),
+     * no UNNEST (a row per element), no checked narrowing or JSON cast, no subquery, no plain aggregate (its select's
+     * grouping reads it), no star, deferred text or temp table. A window over such values is one.
+     */
+    static boolean raisesNothing(SqlExpr e) {
+        return switch (e) {
+            case Call c -> !SqlFn.RAISING.contains(c.fn()) && c.fn() != SqlFn.UNNEST && allRaiseNothing(e.children());
+            case Cast c -> c.target() != SqlType.Scalar.JSON && raisesNothing(c.value());
+            case WindowCall w -> allRaiseNothing(w.fn().args())
+                    && (!(w.fn() instanceof SqlAgg.Reducer r) || r.orderBy().stream().allMatch(k -> raisesNothing(k.expr())))
+                    && allRaiseNothing(w.partitionBy())
+                    && w.orderBy().stream().allMatch(k -> raisesNothing(k.expr()))
+                    && (w.frame() == null || allRaiseNothing(w.frame().offsets()));
+            case CheckedOne c -> false;
+            case CheckedDefects c -> false;
+            case CheckedChildValue c -> false;
+            case ScalarSubquery q -> false;
+            case Exists q -> false;
+            case InSubquery q -> false;
+            case Quantified q -> false;
+            case Star st -> false;
+            case StarExcept st -> false;
+            case DeferredTdsString d -> false;
+            case TempTableInSplice t -> false;
+            default -> !(e instanceof SqlAgg) && allRaiseNothing(e.children());
+        };
+    }
+
+    private static boolean allRaiseNothing(List<SqlExpr> es) {
+        for (SqlExpr x : es) {
+            if (!raisesNothing(x)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
      * structural-recursion contract every expression walker shares. The
      * switch is EXHAUSTIVE with no default arm: a new variant fails
