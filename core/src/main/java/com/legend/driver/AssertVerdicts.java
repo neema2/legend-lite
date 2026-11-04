@@ -562,16 +562,24 @@ final class AssertVerdicts {
         com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST
                 ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
         if (split != null) {
-            com.legend.lowering.VerdictSql.FailureMessage message;
+            DatabaseJudge.PlannedMessage message;
             try {
-                message = DatabaseJudge.failureMessage(split.message(), letPrefix, specs, env, hook);
+                message = DatabaseJudge.plannedMessage(split.message(), letPrefix, specs, env, hook);
             } catch (RuntimeException e) {
                 // a message the planner cannot plan: the assert fails naming it, as the host judge's does
                 // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
-                message = new com.legend.lowering.VerdictSql.FailureMessage(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null);
+                message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
+                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null), env.session());
             }
-            env = env.withFailureMessage(message);
+            com.legend.judge.VerdictBatch batch = env.verdictBatch();
+            com.legend.sql.SqlQuery read = message.message().row();
+            if (read != null && batch != null && batch.active()) {
+                // a message that READS: the batch sends its row at the assert's place only where the assert fails
+                // (upstream evaluates it only there), the verdict row failing with the family's own text until then
+                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName()), message.on());
+            } else {
+                env = env.withFailureMessage(message.message());
+            }
             bare = split.base();
         }
         String name = fn.bareName();

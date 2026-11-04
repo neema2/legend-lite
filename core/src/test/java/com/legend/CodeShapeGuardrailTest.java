@@ -89,6 +89,11 @@ class CodeShapeGuardrailTest {
             // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
             // answers it (the walk's Segments.last, beside it above, until M10 deletes both)
             "BodyRouter.lastVerdict",
+            // (2026-11-04, the assert bar) the body router's reader: the running program's, handed by the runner before
+            // its first step and taken back when its session closes (PlanRunner.ProgramSink#reader) -- one moved body's
+            // sink, one instance per run and never shared; a verdict's caller's message is read through it only where
+            // the verdict fails
+            "BodyRouter.reader",
             // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
             "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON

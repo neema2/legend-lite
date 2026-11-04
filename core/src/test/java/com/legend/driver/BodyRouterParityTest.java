@@ -181,13 +181,12 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 'abc'->parseInteger());}")) {
             assertParity(backend, body, "select 1");
         }
-        // asserts, then a query answered: the program road's where the query program's own rule answers the last
-        // statement (BodyClass.answersAsTheLastStatement, 2026-11-04, the assert bar); a last statement the program
-        // cannot plan (the corpus's test-data generation bodies) stays refused by that rule
-        String assertsThenAQuery = "{| assertEquals(2, 1 + 1); #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}";
+        // asserts, then a query answered: its planning after the asserts is the walk's at its turn (admitting it on the
+        // program road, 2026-11-04, lost the corpus's bodies whose last statement the program cannot plan -- twice;
+        // reverted both times)
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, assertsThenAQuery), RT, true));
-        assertParity(backend, assertsThenAQuery, "select 1");
+        assertNull(BodyClass.of(typed(ctx, "{| assertEquals(2, 1 + 1); #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}"),
+                RT, true));
     }
 
     /** The cases M6's audit asked for (S4): an assert after a failing one, a let between asserts, the class test,

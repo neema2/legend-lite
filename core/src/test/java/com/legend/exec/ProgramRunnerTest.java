@@ -132,7 +132,7 @@ final class ProgramRunnerTest {
     }
 
     /** What the program's sink received, in order. */
-    private static final class Recording implements PlanRunner.ProgramSink {
+    private static class Recording implements PlanRunner.ProgramSink {
         final List<String> events = new ArrayList<>();
         final List<List<Object>> verdictRows = new ArrayList<>();
         final List<List<PlanRunner.Rows>> sides = new ArrayList<>();
@@ -174,6 +174,47 @@ final class ProgramRunnerTest {
         public void end() {
             events.add("end");
         }
+    }
+
+    @Test
+    @DisplayName("a verdict's message is never read on its own: the sink reads it on demand, through the program's reader")
+    void aVerdictsMessageIsReadOnlyOnDemand() throws IOException {
+        ExecutionPlan.Side base = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
+                List.of(List.of("3")), false);
+        ExecutionPlan.Side message = new ExecutionPlan.Side.Rows(relation("SELECT 'read on demand' AS value",
+                List.of(col("value", "String", "VARCHAR"))));
+        ExecutionPlan.Side raising = new ExecutionPlan.Side.Rows(relation("SELECT * FROM no_such_table_message",
+                List.of(col("value", "String", "VARCHAR"))));
+        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
+                new ExecutionPlan.Verdict("assert@1", "assert", List.of(base), null, raising),
+                new ExecutionPlan.Verdict("assert@2", "assert", List.of(base), null, message)),
+                null, ExecutionPlan.JudgingRules.LITE);
+        List<Object> read = new ArrayList<>();
+        PlanRunner.SideReader[] reader = new PlanRunner.SideReader[1];
+        Recording sink = new Recording() {
+            @Override
+            public void reader(PlanRunner.SideReader r) {
+                reader[0] = r;
+            }
+
+            @Override
+            public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
+                super.sides(verdict, rows);
+                if (verdict.name().equals("assert@2")) {
+                    try {
+                        read.add(reader[0].read(verdict.message()).rows().get(0).get(0));
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
+        // the first verdict's message would raise if sent: the runner never reads it on its own
+        PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), sessions(), PlanRunner.Judging.HOST, sink);
+        assertEquals(List.of("sides assert@1", "sides assert@2"), sink.events);
+        assertEquals(1, sink.sides.get(0).size(), "the base alone, the message not read");
+        assertEquals(List.of("read on demand"), read);
+        assertNull(reader[0], "the reader closed with the program's session");
     }
 
     @Test

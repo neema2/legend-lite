@@ -174,6 +174,13 @@ public final class PlanRunner {
             throw failure;
         }
 
+        /** The program's READER, handed before its first step runs (null once its session has closed): a verdict's
+         *  {@code message} side read on demand, the one side the runner never reads on its own -- the judge asks for
+         *  it only where the verdict fails, as upstream evaluates a caller's message only there (the assert bar,
+         *  2026-11-04). */
+        default void reader(@Nullable SideReader reader) {
+        }
+
         /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
          *  told): each of its setup steps that ran, in order, whether it answered rows (the raw-SQL ledger's kind;
          *  the test-is-the-product plan's M5) -- where one failed, those before it. */
@@ -201,6 +208,13 @@ public final class PlanRunner {
         }
     }
 
+    /** A side of the program read on demand ({@link ProgramSink#reader}): its typed rows, on the session its
+     *  statement's target names. */
+    @FunctionalInterface
+    public interface SideReader {
+        Rows read(ExecutionPlan.Side side) throws IOException;
+    }
+
     /**
      * Runs {@code plan} as a PROGRAM: its steps in order on one session, in one transaction where one changes the
      * database (as {@link #stream}'s sequence; a keyed step's snapshot the same), every verdict step delivered to
@@ -217,21 +231,36 @@ public final class PlanRunner {
         Held held = new Held();
         ExecutionPlan.Target on = shape.target();
         if (on == null) {
-            constantsAlone(sequence, judging, held, sink);
+            sink.reader(side -> constantRows(constantOnly(side)));
+            try {
+                constantsAlone(sequence, judging, held, sink);
+            } finally {
+                sink.reader(null);
+            }
         } else {
             try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
                 Statements st = opened(session, on);
                 ExecutionPlan.Target system = shape.system();
                 if (system == null) {
                     Routes rt = new Routes(st, null, null);
-                    bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                    sink.reader(side -> sideRows(side, checked, rt));
+                    try {
+                        bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                    } finally {
+                        sink.reader(null);
+                    }
                 } else {
                     // a statement reading the graph's system metamodel store beside the body's: its own session, read
                     // only, outside the program's transaction (the walker-deletion program's per-statement routing,
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
                         Routes rt = new Routes(st, opened(systemSession, system), systemSession);
-                        bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                        sink.reader(side -> sideRows(side, checked, rt));
+                        try {
+                            bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                        } finally {
+                            sink.reader(null);
+                        }
                     }
                 }
             }
@@ -382,7 +411,12 @@ public final class PlanRunner {
                 }
                 default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed result");
             }
-            for (ExecutionPlan.Side side : each.base()) {
+            List<ExecutionPlan.Side> sides = new ArrayList<>(each.base());
+            if (each.message() != null) {
+                // read on demand, on the program's session: its statement names its target as a base side's does
+                sides.add(each.message());
+            }
+            for (ExecutionPlan.Side side : sides) {
                 switch (side) {
                     case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
                     case ExecutionPlan.Side.KeyedRows kr -> {
@@ -396,6 +430,14 @@ public final class PlanRunner {
             }
         }
         return strictest;
+    }
+
+    /** {@code side}, read where the program has no session: a constant, or refused by name. */
+    private static ExecutionPlan.Side.Constant constantOnly(ExecutionPlan.Side side) {
+        if (!(side instanceof ExecutionPlan.Side.Constant c)) {
+            throw new IllegalStateException("a verdict side that sends a statement in a program with no target");
+        }
+        return c;
     }
 
     /** A branch's statements, whichever side runs: its condition's and both sides' (each side's steps verdict groups

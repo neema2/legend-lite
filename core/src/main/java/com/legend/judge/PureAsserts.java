@@ -98,8 +98,10 @@ public final class PureAsserts {
 
     private static @com.legend.base.Nullable String classFqnOf(
             com.legend.compiler.element.type.@com.legend.base.Nullable Type t) {
-        return t instanceof com.legend.compiler.element.type.Type.ClassType c
-                ? c.fqn() : null;
+        // a generic class's instance (a Pair<Integer, String>) is of its raw class, as upstream's toRepresentation
+        // writes its type()->elementToPath() (2026-11-04, the assert bar: the pair printed 'instanceOf ?')
+        return t instanceof com.legend.compiler.element.type.Type.ClassType c ? c.fqn()
+                : t instanceof com.legend.compiler.element.type.Type.GenericType g ? g.rawFqn() : null;
     }
 
     /** {@code assertSameElements(expected, actual)}

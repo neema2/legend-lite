@@ -478,8 +478,17 @@ final class HostAsserts implements TestDoor.Asserts {
 
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
             ExecutionPlan.Verdicts.@Nullable Savepoint savepoint, ExecutionPlan.JudgingRules rules) {
+        // a caller's message, the check's last side (HostJudge.messaged), is the verdict's MESSAGE: the runner never
+        // reads it on its own, the judge asks for it only where the assert fails (upstream evaluates it only there)
+        List<ExecutionPlan.Side> base = sides.base();
+        ExecutionPlan.Side message = null;
+        if (assertion.check().judgment() instanceof HostJudgment.Messaged m && m.unplanned() == null
+                && base.size() == m.innerSides() + 1) {
+            message = base.get(m.innerSides());
+            base = base.subList(0, m.innerSides());
+        }
         ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(assertion.listenerName(), assertion.name(),
-                sides.base(), null);
+                base, null, message);
         return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint, rules));
     }
 

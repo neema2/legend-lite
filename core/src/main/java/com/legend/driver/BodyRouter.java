@@ -330,11 +330,38 @@ public final class BodyRouter {
         public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
             if (agreement != null) {
                 // the host's verdict held until the database half's rows are in
-                agreement.hostSides(verdict, () -> rows, listener, rules(verdict));
+                agreement.hostSides(verdict, () -> rows, messageOf(verdict), listener, rules(verdict));
                 return;
             }
             HostAsserts.Planned p = hostPlanned(verdict);
-            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows), rules(verdict));
+            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows, messageOf(verdict)),
+                    rules(verdict));
+        }
+
+        /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
+        private PlanRunner.@Nullable SideReader reader;
+
+        @Override
+        public void reader(PlanRunner.@Nullable SideReader reader) {
+            this.reader = reader;
+        }
+
+        /** {@code verdict}'s caller's message read on demand (the judge asks only where it fails), or null where the
+         *  verdict carries none. */
+        private java.util.function.@Nullable Supplier<PlanRunner.Rows> messageOf(ExecutionPlan.Verdict verdict) {
+            ExecutionPlan.Side message = verdict.message();
+            if (message == null) {
+                return null;
+            }
+            PlanRunner.SideReader r = java.util.Objects.requireNonNull(reader,
+                    "a verdict's message asked for with no program running");
+            return () -> {
+                try {
+                    return r.read(message);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            };
         }
 
         /** A side of {@code verdict}'s that could not be read (the database refused it, or the read raised): judged as
@@ -345,7 +372,7 @@ public final class BodyRouter {
             if (agreement != null) {
                 agreement.hostSides(verdict, () -> {
                     throw failure;
-                }, listener, rules(verdict));
+                }, null, listener, rules(verdict));
                 return;
             }
             judged(hostPlanned(verdict), () -> {

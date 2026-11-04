@@ -235,10 +235,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * DATABASE judge -- the canonical spelling of the cells and the comparison, answering one row of the verdict
      * schema (the verdict, the expected and actual texts, an unjudged reason, a leniency flag) -- null where the
      * database judge cannot express the arm, and then the database judges nothing here (the row the sink receives is
-     * null).
+     * null); {@code message}, the caller's failure message where it READS (a let, a query: upstream's
+     * {@code assert(condition, | message)}), a side the runner never reads on its own: the judge asks for it, through
+     * the runner's reader ({@code PlanRunner.ProgramSink#reader}), only where the verdict fails -- upstream evaluates the
+     * message only there, so a message that would raise where the assert holds raises nothing (the assert bar,
+     * 2026-11-04); null where the message is the judge's own.
      */
     public record Verdict(String name, String arm, List<Side> base,
-            @com.legend.base.Nullable Node wrapper) {
+            @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message) {
         public Verdict {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arm, "arm");
@@ -252,6 +256,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                     && !(wrapper instanceof Keyed)) {
                 throw new IllegalArgumentException("a verdict's wrapper answers a relation: the verdict's one row");
             }
+        }
+
+        /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */
+        public Verdict(String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper) {
+            this(name, arm, base, wrapper, null);
         }
     }
 

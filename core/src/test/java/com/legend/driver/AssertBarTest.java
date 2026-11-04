@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.ExecuteOptions;
@@ -138,6 +139,17 @@ class AssertBarTest {
             new Probe("message-reads-a-let", "{|let x = 3; assert(false, | $x->toString());}", "3"),
             new Probe("message-is-a-let", "{|let m = 'ab'; assertEquals(1, 2, $m);}", "ab"),
             new Probe("message-is-a-let-holds", "{|let m = 'ab'; assertEquals(1, 1, $m);}", null),
+            // the message read only where the assert fails (upstream evaluates it only there): one that would raise
+            // is never read while the assert holds
+            new Probe("message-not-read-where-the-assert-holds",
+                    "{|let x = []->cast(@Integer); assert($x->isEmpty(), | $x->toOne()->toString());}", null),
+            // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
+            // '<id instanceOf path>', its path the raw class's
+            new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
+                    "\nexpected: <1|a instanceOf meta::pure::functions::collection::Pair>\nactual:   <1|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>"),
+            new Probe("message-not-read-where-assertEmpty-holds",
+                    "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",
                     "{|let x = [1, 2]; assertEquals(3, $x->size(), 'size %s of %s', [$x->size(), 7]);}",
                     "size 2 of 7"),
@@ -174,12 +186,32 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            // empty since 2026-11-04: every probe meets the bar under the host judge, the database judge alone and BOTH;
-            // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it
+            // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it.
+            // 2026-11-04: the database judge alone writes two failing pairs as their JSON documents -- its instance
+            // writer (VerdictSql.instancesRepr) spells an aggregate of objects, not one generic instance
+            "assertEquals-pairs-message",
+            // 2026-11-04: admitted at 6038d060 and reverted -- the corpus's 55 test-data generation bodies end in a
+            // statement the program cannot plan (a class query under a runtime if()), which the static rule admitted;
+            // with the walk closed (the core tests' door) no class admits it
+            "assert-then-a-query"
     ));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);
+
+    /** A failing assert's message that raises: its evaluation's error is the test's, as upstream's (the assert bar,
+     *  2026-11-04) -- under every judge. */
+    @Test
+    void aFailingAssertsMessageThatRaisesRaisesItsOwnError() throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            for (ExecuteOptions.JudgeMode mode : JUDGES) {
+                assertEquals("DataError: The system is trying to get an element at offset 5 where the collection is"
+                                + " of size 2",
+                        outcome(c, "{|let x = [1, 2]; assertEmpty([1], | $x->at(5)->toString());}", mode),
+                        mode.toString());
+            }
+        }
+    }
 
     @Test
     void everyAssertDoesWhatItSaysUnderEveryJudge() throws Exception {

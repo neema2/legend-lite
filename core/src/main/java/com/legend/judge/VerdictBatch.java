@@ -157,6 +157,9 @@ public final class VerdictBatch {
     private static final class Root {
         final String listenerName;
         final List<Step> steps = new ArrayList<>();
+        /** The caller's message where it READS ({@link #message}): its row, sent only where the root fails. */
+        @com.legend.base.Nullable SqlQuery message;
+        Sessions.@com.legend.base.Nullable Session messageOn;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -236,6 +239,16 @@ public final class VerdictBatch {
 
     public Map<String, SqlQuery> frames() {
         return java.util.Collections.unmodifiableMap(frames);
+    }
+
+    /** The open root's caller's message where it READS (a let, a query): {@code row}, its one value as a verdict row
+     *  ({@code VerdictSql.messageRow}), on {@code on} -- sent by the root loop at the root's place only where the root
+     *  fails, its value the failure's text; a raise reading it is the failure (upstream evaluates the message only
+     *  where the assert fails, and its evaluation's error is the test's; the assert bar, 2026-11-04). */
+    public void message(SqlQuery row, Sessions.Session on) {
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        r.message = row;
+        r.messageOn = on;
     }
 
     public void defer(String name, boolean wantEqual, SqlQuery query, Sessions.Session on) {
@@ -627,6 +640,10 @@ public final class VerdictBatch {
                     }
                     continue;
                 }
+                if (r.message != null && failure instanceof com.legend.error.AssertFailed af
+                        && af.unjudgedReason() == null) {
+                    failure = messaged(r);
+                }
                 CanonicalDivergence.sqlRaised();
                 if (l != null && reported) {
                     if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
@@ -636,6 +653,19 @@ public final class VerdictBatch {
                 }
                 throw failure;   // first-failure sequencing, as before
             }
+        }
+    }
+
+    /** The failure of {@code r}, a root that did not hold, with its caller's message: the message's row sent now, at
+     *  the root's place, its value the failure's text -- or the error reading it raised. */
+    private RuntimeException messaged(Root r) {
+        try {
+            List<Object> row = executeOne(r.listenerName, com.legend.sql.FrameCtes.attach(
+                    java.util.Objects.requireNonNull(r.message), frames),
+                    java.util.Objects.requireNonNull(r.messageOn), runner);
+            return new com.legend.error.AssertFailed(String.valueOf(row.get(6)));
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            return e;
         }
     }
 

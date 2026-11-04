@@ -62,7 +62,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 // the host's base on the database's first member: one verdict carries both judges' statements
                 ExecutionPlan.Verdict first = group.verdicts().get(0);
                 ExecutionPlan.Verdict both = new ExecutionPlan.Verdict(hv.name(), hv.arm(), hv.base(),
-                        first.wrapper());
+                        first.wrapper(), hv.message());
                 List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(group.verdicts().size());
                 verdicts.add(both);
                 m.put(both, first);
@@ -200,6 +200,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  (no base, so nothing read) is nothing to the host, but an error reading it is raised, never dropped. */
     void hostSides(ExecutionPlan.Verdict verdict,
             java.util.function.Supplier<List<com.legend.exec.PlanRunner.Rows>> rows,
+            java.util.function.@Nullable Supplier<com.legend.exec.PlanRunner.Rows> message,
             @Nullable AssertListener listener, ExecutionPlan.JudgingRules rules) {
         One one = of(verdict);
         if (verdict != one.hostVerdict) {
@@ -208,7 +209,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
         one.held = AssertVerdicts.heldAtItsStep(a, listener,
-                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get()), rules);
+                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get(), message), rules);
     }
 
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.

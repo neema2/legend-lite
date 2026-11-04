@@ -106,22 +106,6 @@ public final class AssertMessages {
         return new TypedNativeCall(f, List.of(new com.legend.compiler.spec.typed.TypedCBoolean(true, one)), one);
     }
 
-    /** Whether {@code n} is SPELLED: literals, collections of them and calls over them, nothing read -- a message
-     *  that always plans, whatever the assert's outcome. */
-    static boolean spelled(TypedSpec n) {
-        return switch (n) {
-            case com.legend.compiler.spec.typed.TypedCString s -> true;
-            case com.legend.compiler.spec.typed.TypedCInteger i -> true;
-            case com.legend.compiler.spec.typed.TypedCFloat f -> true;
-            case com.legend.compiler.spec.typed.TypedCDecimal d -> true;
-            case com.legend.compiler.spec.typed.TypedCBoolean b -> true;
-            case com.legend.compiler.spec.typed.TypedCDate d -> true;
-            case com.legend.compiler.spec.typed.TypedCollection c -> c.elements().stream().allMatch(AssertMessages::spelled);
-            case TypedNativeCall c -> c.args().stream().allMatch(AssertMessages::spelled);
-            default -> false;
-        };
-    }
-
     /** The number of operands {@code fn}'s base overload takes, or -1 for a family with no message overloads. */
     static int baseArity(NativeFn.Verdict fn) {
         return switch (fn) {

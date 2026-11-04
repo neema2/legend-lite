@@ -1691,6 +1691,30 @@ public final class VerdictSql {
         }
     }
 
+    /** A caller's message READ where its assert fails (the assert bar, 2026-11-04): {@code textRow}, the message's one
+     *  value, as a self-contained verdict row that holds nothing and whose message is that value -- the statement the
+     *  database judge's batch sends at the failing assert's place alone, so a message that would raise where the assert
+     *  holds is never sent (upstream evaluates it only where the assert fails). */
+    public static SqlQuery messageRow(SqlQuery textRow, String name) {
+        SqlExpr text = SqlExpr.Call.of(SqlFn.COALESCE, asText(SqlExpr.Column.of("rm", textRow.outputs(), "value")),
+                new SqlExpr.StringLit("null"));
+        SqlSelect row = new SqlSelect(List.of(
+                new SqlSelect.Projection(new SqlExpr.BoolLit(false), VERDICT,
+                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(new SqlExpr.StringLit(""), EXPECTED,
+                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
+                new SqlSelect.Projection(new SqlExpr.StringLit(""), ACTUAL,
+                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
+                new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR), UNJUDGED,
+                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
+                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(text, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true))),
+                false, new SqlSource.Subselect(textRow, "rm", null), null, List.of(), null, null, List.of(), null, null,
+                List.of());
+        return selfContained(row, name, true);
+    }
+
     /** {@code row}, a verdict row, failing with {@code message}: its MESSAGE column the caller's text, replacing any the
      *  family composed -- upstream's {@code assert(condition, | message)}; the comparison the row's own. */
     public static SqlQuery withFailureMessage(SqlQuery row, FailureMessage message) {

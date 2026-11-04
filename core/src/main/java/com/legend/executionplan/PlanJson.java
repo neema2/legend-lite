@@ -232,6 +232,9 @@ public final class PlanJson {
                     }
                     vo.put("base", base);
                     vo.put("wrapper", each.wrapper() == null ? null : node(each.wrapper()));
+                    if (each.message() != null) {
+                        vo.put("message", side(each.message()));
+                    }
                     verdicts.add(vo);
                 }
                 o.put("verdicts", verdicts);
@@ -560,8 +563,9 @@ public final class PlanJson {
                         base.add(readSide((Json.Obj) sn));
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
+                    Json.Obj m = vo.getObjOr("message", null);
                     verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
-                            base, w == null ? null : readNode(w)));
+                            base, w == null ? null : readNode(w), m == null ? null : readSide(m)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);

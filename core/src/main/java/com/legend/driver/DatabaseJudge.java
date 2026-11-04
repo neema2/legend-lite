@@ -323,8 +323,11 @@ final class DatabaseJudge {
     }
 
     private static @com.legend.base.Nullable String classOf(TypedSpec s) {
-        return s.info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
-                && !com.legend.compiler.element.type.PlatformTypes.isAny(ct) ? ct.fqn() : null;
+        com.legend.compiler.element.type.Type t = s.info().type();
+        // a generic class's instance (a Pair<Integer, String>) is of its raw class (the host's PureAsserts.classFqnOf)
+        return t instanceof com.legend.compiler.element.type.Type.ClassType ct
+                && !com.legend.compiler.element.type.PlatformTypes.isAny(ct) ? ct.fqn()
+                : t instanceof com.legend.compiler.element.type.Type.GenericType g ? g.rawFqn() : null;
     }
 
     private static boolean sameNames(com.legend.compiler.element.type.Type.RelationType e,
@@ -341,20 +344,28 @@ final class DatabaseJudge {
      *  core program: a rendered text's generic comparison) -- planned as the host judge plans the same side, a plain
      *  value with no canon wrap (a canon would encode the render's own reduction, which a dialect without a list
      *  encoding refuses: H2's {@code joinStrings}); null where the side is answered with no plan. */
-    /** {@code message}, a caller's failure text, as the verdict row carries it: a constant the compiler folds (a
-     *  literal, a join of literals), else the one-row relation the database computes ({@link #textRow}). */
-    static com.legend.lowering.VerdictSql.FailureMessage failureMessage(TypedSpec message, List<TypedSpec> letPrefix,
+    /** {@code message}, a caller's failure text, planned as the verdict carries it -- a constant the compiler folds (a
+     *  literal, a join of literals), else the one-row relation the database computes -- with the session its row reads
+     *  (the body's where it reads no store). */
+    record PlannedMessage(com.legend.lowering.VerdictSql.FailureMessage message, com.legend.exec.Sessions.Session on) {
+    }
+
+    static PlannedMessage plannedMessage(TypedSpec message, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         Object folded = com.legend.compiler.spec.typed.Literals.fold(message, letPrefix);
         if (folded instanceof String s) {
-            return new com.legend.lowering.VerdictSql.FailureMessage(s, null);
+            return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(s, null), env.session());
         }
-        com.legend.sql.SqlQuery row = textRow(message, letPrefix, specs, env, hook);
-        if (row == null) {
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(message, letPrefix, specs, env, false, false,
+                hook == null ? null : hook::apply);
+        BodyDriver.WrappedSide side = pv.side();
+        if (side == null) {
             throw new IllegalStateException("an assert's message planned no side and folds to no String: "
                     + message.getClass().getSimpleName());
         }
-        return new com.legend.lowering.VerdictSql.FailureMessage(null, row);
+        return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(null,
+                com.legend.lowering.VerdictSql.firstValueRow(side.plan())),
+                side.storeFree() ? env.session() : side.session());
     }
 
     static com.legend.sql.@com.legend.base.Nullable SqlQuery textRow(TypedSpec spec, List<TypedSpec> letPrefix,

@@ -168,6 +168,47 @@ final class HostSides {
         return out;
     }
 
+    /** {@code planned}'s sides shaped for its verdict: the rows the runner read for the base, and, where the verdict
+     *  carries its caller's MESSAGE ({@code message} non-null: the planned check's last side), that side read through
+     *  {@code message} only where the judgment asks for it -- the assert failing (HostJudgment.Messaged), as upstream
+     *  evaluates the message only there; an error reading it is the failure (the assert bar, 2026-11-04). */
+    static List<TypedSide> shaped(String name, Planned planned, List<PlanRunner.Rows> rows,
+            java.util.function.@com.legend.base.Nullable Supplier<PlanRunner.Rows> message) {
+        if (message == null) {
+            return shaped(name, planned, rows);
+        }
+        int n = rows.size();
+        List<TypedSide> inner = shaped(name, new Planned(planned.sides().subList(0, n), planned.base().subList(0, n),
+                planned.on()), rows);
+        JudgePlans.PlannedSide asked = planned.sides().get(n);
+        return new java.util.AbstractList<TypedSide>() {
+            private @com.legend.base.Nullable TypedSide read;
+
+            @Override
+            public TypedSide get(int i) {
+                if (i < n) {
+                    return inner.get(i);
+                }
+                if (i != n) {
+                    throw new IndexOutOfBoundsException(i);
+                }
+                if (read == null) {
+                    TypedSide shaped = JudgePlans.shape(asked, message.get());
+                    if (planned.on() != null) {
+                        JudgePlans.toOneReader(asked.root(), shaped);
+                    }
+                    read = shaped;
+                }
+                return read;
+            }
+
+            @Override
+            public int size() {
+                return n + 1;
+            }
+        };
+    }
+
     /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
     static List<TypedSide> fetch(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env) {
