@@ -241,8 +241,33 @@ final class DatabaseJudge {
         boolean rawStrings = ie != re.literalIndex() && ia != ra.literalIndex() && !re.many() && !ra.many()
                 && re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.STRING
                 && ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.STRING;
+        String expectedClass = rawStrings || !wantEqual ? null : instancesMessage(eSpec, aSpec);
+        if (expectedClass != null) {
+            // two class sides the database serializes as their objects: the failure message spells them as the host
+            // judge prints instances, <values instanceOf Type> (2026-11-04, the core program)
+            com.legend.sql.SqlQuery reprE = com.legend.lowering.VerdictSql.instancesRepr(we.plan(), expectedClass);
+            com.legend.sql.SqlQuery reprA = com.legend.lowering.VerdictSql.instancesRepr(wa.plan(),
+                    java.util.Objects.requireNonNull(classOf(aSpec)));
+            if (reprE != null && reprA != null) {
+                vq = com.legend.lowering.VerdictSql.messageAsInstances(vq,
+                        com.legend.lowering.VerdictSql.firstValueRow(reprE),
+                        com.legend.lowering.VerdictSql.firstValueRow(reprA));
+            }
+        }
         return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
                 : message.apply(vq), runOn);
+    }
+
+    /** The declared class of {@code e} when both {@code e} and {@code a} are class-typed (the expected side's, as the host
+     *  judge names each side by its own declared type): the instance message's case; null otherwise. */
+    private static @com.legend.base.Nullable String instancesMessage(TypedSpec e, TypedSpec a) {
+        String ce = classOf(e);
+        return ce != null && classOf(a) != null ? ce : null;
+    }
+
+    private static @com.legend.base.Nullable String classOf(TypedSpec s) {
+        return s.info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
+                && !com.legend.compiler.element.type.PlatformTypes.isAny(ct) ? ct.fqn() : null;
     }
 
     private static boolean sameNames(com.legend.compiler.element.type.Type.RelationType e,

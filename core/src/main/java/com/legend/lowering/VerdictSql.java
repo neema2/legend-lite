@@ -1331,6 +1331,83 @@ public final class VerdictSql {
         throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
     }
 
+    /** {@code plan}, a class side the database serializes as the JSON array of its objects
+     *  ({@code json_group_array(json_object(...))}), re-spelled as the host judge prints instances (2026-11-04, the core
+     *  program: an object with no synthetic id its field values joined by {@code |}, a missing value {@code null}, then
+     *  {@code instanceOf} and the declared type; one instance bare, several bracketed, none {@code []}): the same rows and
+     *  the same order keys, a failing assert's message alone ({@link #messageAsInstances}). Null where the plan holds no
+     *  such array, or an object holds a value that is no scalar (a nested object, an array). */
+    public static @com.legend.base.Nullable SqlQuery instancesRepr(SqlQuery plan, String typeFqn) {
+        boolean[] spelled = {false};
+        boolean[] refused = {false};
+        SqlQuery out = new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (!(e instanceof SqlExpr.JsonArrayAgg agg && agg.value() instanceof SqlExpr.JsonObject obj)) {
+                    return e;
+                }
+                List<SqlExpr> parts = new ArrayList<>();
+                parts.add(new SqlExpr.StringLit("<"));
+                for (int i = 1; i < obj.kv().size(); i += 2) {
+                    SqlExpr v = obj.kv().get(i);
+                    if (!(v.type() instanceof com.legend.sql.TypeFact.Typed t)
+                            || t.type() instanceof SqlType.Struct || t.type() instanceof SqlType.Array
+                            || t.type() == SqlType.Scalar.JSON) {
+                        refused[0] = true;
+                        return e;
+                    }
+                    if (i > 1) {
+                        parts.add(new SqlExpr.StringLit("|"));
+                    }
+                    SqlExpr text = t.type() == SqlType.Scalar.BOOLEAN ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
+                            : new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+                    parts.add(SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit("null")));
+                }
+                parts.add(new SqlExpr.StringLit(" instanceOf " + typeFqn + ">"));
+                SqlExpr one = new SqlExpr.Call(SqlFn.CONCAT, parts);
+                List<SqlSelect.SortKey> order = new ArrayList<>();
+                for (SqlExpr.JsonArrayAgg.Key k : agg.orderKeys()) {
+                    order.add(new SqlSelect.SortKey(k.expr(), !k.desc(), null, null));
+                }
+                SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(one, new SqlExpr.StringLit(", ")),
+                        false, order);
+                SqlExpr count = new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(one), false, List.of());
+                spelled[0] = true;
+                return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER, count, new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), joined, new SqlExpr.StringLit("]")))),
+                        joined);
+            }
+        }.rewrite(plan);
+        return spelled[0] && !refused[0] ? out : null;
+    }
+
+    /** {@code row}, an equality's verdict row over two class sides, its failure message spelled from
+     *  {@code expectedRepr} and {@code actualRepr} ({@link #instancesRepr}, each a one-row relation of its
+     *  {@code value}: {@link #firstValueRow}) -- upstream's {@code '\nexpected: %r\nactual:   %r'} as the host judge
+     *  prints instances; the comparison the row's own (2026-11-04, the core program). */
+    public static SqlQuery messageAsInstances(SqlQuery row, SqlQuery expectedRepr, SqlQuery actualRepr) {
+        java.util.function.UnaryOperator<SqlSelect> f = sel -> {
+            SqlSource from = new SqlSource.Join(new SqlSource.Join(sel.from(),
+                    new SqlSource.Subselect(expectedRepr, "re", null), SqlSource.Join.Kind.CROSS, null),
+                    new SqlSource.Subselect(actualRepr, "ra", null), SqlSource.Join.Kind.CROSS, null);
+            SqlExpr message = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "),
+                    SqlExpr.Column.of("re", expectedRepr.outputs(), "value"), new SqlExpr.StringLit("\nactual:   "),
+                    SqlExpr.Column.of("ra", actualRepr.outputs(), "value"));
+            List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
+            ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+            return new SqlSelect(ps, sel.distinct(), from, sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
+                    sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
+        };
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), f.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return f.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
     public static SqlQuery messageAsStrings(SqlQuery row) {
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
             return new SqlWith(w.ctes(), sidesAsStrings(body));
