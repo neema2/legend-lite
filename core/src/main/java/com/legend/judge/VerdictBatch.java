@@ -128,8 +128,12 @@ public final class VerdictBatch {
     private sealed interface Step permits Pending, Resolved {
     }
 
+    /** {@code orElse}: what decides the row when it FAILS (2026-11-04, the core program: every assert on its own merit
+     *  generically first, a ruled fallback only after) -- a verdict statement of its own, run then and judged as any row
+     *  (never fused: nothing is sent for it while the generic row holds), or the failure decided at planning. */
     private record Pending(int ix, String name, SqlQuery query,
-            Sessions.Session on, @com.legend.base.Nullable Appeal appeal) implements Step {
+            Sessions.Session on, @com.legend.base.Nullable Appeal appeal, @com.legend.base.Nullable Step orElse)
+            implements Step {
     }
 
     /** A verdict row's APPEAL (block-compiler rung 2a): run at the flush when the
@@ -246,7 +250,45 @@ public final class VerdictBatch {
             }
         }
         // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
-        r.steps.add(new Pending(ix, name, selfContained.wrap(query, name, wantEqual), on, appeal));
+        SqlQuery row = selfContained.wrap(query, name, wantEqual);
+        Pending of = orElseOf.peek();
+        if (of != null) {
+            // the verdict of the root's last row's fallback (orElse): attached to that row, never a step of its own
+            int at = r.steps.indexOf(of);
+            if (at < 0 || of.orElse() != null || appeal != null) {
+                throw new IllegalStateException("verdict batch: a fallback for no row of the open root: " + name);
+            }
+            Pending withFallback = new Pending(of.ix(), of.name(), of.query(), of.on(), of.appeal(),
+                    new Pending(-1, name, row, on, null, null));
+            r.steps.set(at, withFallback);
+            orElseOf.pop();
+            orElseOf.push(withFallback);
+            return;
+        }
+        r.steps.add(new Pending(ix, name, row, on, appeal, null));
+    }
+
+    /** The row whose fallback {@link #orElse}'s arm is planning, while it does: a frame, pushed and popped by it. */
+    private final java.util.ArrayDeque<Pending> orElseOf = new java.util.ArrayDeque<>(1);
+
+    /** {@code arm} planned as the FALLBACK of the open root's last row (2026-11-04, the core program): the verdict it
+     *  defers -- or the failure it decides at planning -- decides the root only when that row fails. The generic
+     *  comparison first, the ruled fallback after: a rendered text's two strings, then its rows. */
+    public void orElse(Runnable arm) {
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (r.steps.isEmpty() || !(r.steps.get(r.steps.size() - 1) instanceof Pending last)) {
+            throw new IllegalStateException("verdict batch: a fallback with no row before it");
+        }
+        orElseOf.push(last);
+        try {
+            arm.run();
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            Pending p = java.util.Objects.requireNonNull(orElseOf.peek());
+            r.steps.set(r.steps.indexOf(p), new Pending(p.ix(), p.name(), p.query(), p.on(), p.appeal(),
+                    new Resolved(e, true)));
+        } finally {
+            orElseOf.pop();
+        }
     }
 
     /** The verdict rows deferred so far (the next row's index). */
@@ -526,6 +568,17 @@ public final class VerdictBatch {
                             try {
                                 judge.judge(p.name(), row);
                             } catch (com.legend.error.AssertFailed e) {
+                                if (p.orElse() instanceof Resolved decided) {
+                                    // the fallback decided at planning
+                                    throw decided.failure();
+                                }
+                                if (p.orElse() instanceof Pending fallback) {
+                                    // the generic row failed: the ruled fallback's own statement decides, run now
+                                    judge.judge(fallback.name(), executeOne(fallback.name(),
+                                            com.legend.sql.FrameCtes.attach(fallback.query(), frames), fallback.on(),
+                                            runner));
+                                    continue;
+                                }
                                 if (p.appeal() == null) {
                                     throw e;
                                 }
