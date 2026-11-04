@@ -19723,3 +19723,45 @@ database with full agreement ("A is fine, let's focus on closing out core 100%")
    passes 3,084. The corpus verdict targets and `update_rcorpus_h2_0_test` red as at the baseline. Not run here: the
    server lanes (Postgres, MariaDB, MySQL, Trino, ClickHouse, Snowflake, Databricks, BigQuery); `//core:core_tests_lanes`
    (H2 and SQLite, measurement held to their floors) not re-run since batch 8.
+
+## 2026-11-04 — Asserts as plan nodes, batch 1: the bar's ratchet, messages as sides, helpers, the lift, backwards-compatibility mode
+
+The user's bar (2026-11-04): "anyone can write a NEW test function using any of the assert* constructs and they should
+just do what they say they do on the tin"; the design (docs/ASSERT_NODES_PLAN_2026_11_04.md): one plan node per assert
+-- the enum, the operand sides, the caller's message side -- that both judges read, fused per segment.
+
+1. **The bar as a ratchet** (`046a1825`): `AssertBarTest`, probes of tests a developer could write, each with upstream's
+   outcome in upstream's words, under the host judge, the database judge alone and BOTH; the probes that miss in a
+   shrink-only `GAPS` list. 27 of 37 missed at `963e45aa`; 8 miss now.
+2. **A caller's message is a side** (`c461710e`): a String, a format and its arguments, or a function
+   (`compiler.spec.AssertMessages.split`: the call split into its base overload and the message), so both judges fail
+   in the caller's words; `assertSize` and `assertContains` default to upstream's words. Fused: the database judge still
+   sends a segment's asserts as one statement whatever their messages
+   (`AssertBarTest#aSegmentsAssertsAreOneStatementUnderTheDatabaseJudge`).
+3. **A helper is its assert** where its body IS one (`20bdc834`, narrowed by `4ad14afe`): one statement, an assert or
+   another such helper; `format`'s `%r` by type and `%s` over a number by `toString`.
+4. **The lift** (`26a6f561`): a `let`-bound assert is a statement of its own, `true` where it stood
+   (`compiler.spec.AssertLift`). "Asserts followed by a query" was admitted with it and reverted (`5149f1a8`).
+5. **A collection's `concatenate` and `union` keep the language's order** (`f1cd587f`): no multiset over them.
+6. **Backwards-compatibility mode** (`df9dc51e`; the user: "I want ours to be super clean, but be able to pass
+   PCT/rcorpus in backwards compat mode"): `ExecuteOptions.withEngineCompat`, set by the PCT channel B and corpus
+   harnesses; lite's own runs judge exactly. Today it scopes S132's float tokens inside a String.
+7. **The corpus regression, bisected** (the first corpus run of the batch: 61 bodies newly failing on DuckDB): two
+   causes. The judgment's wrappers (`Compat`, `Messaged`) hid its type from the planners: `HostJudgment.core` unwraps
+   them (`35e9b2e5`). And a caller's message was planned eagerly, where upstream evaluates it only on failure: a
+   message that reads (a variable, a query) is a side only where it is SPELLED, literals and calls over them; the rest
+   waits on a lazy side (`656ec117`).
+8. **Reverted: `assertIs` decided statically only for a construction** (`aaa8badb`, reverted here). It sent every other
+   class-typed value to a run-time path that cannot read a type: PCT lost `testConcatenateTypeInference` (essential)
+   and `testAssignNewInstance` (grammar), and the gap it aimed at (`assertIs-dynamic-type`) stayed open.
+9. Guards, each dated: `JavaEvalLedgerTest` `AssertVerdicts` 1837 -> 1840, `HostJudgment` 186 -> 198, `BodyDriver`
+   1015 -> 1034, `SqlTextVerdicts` 1541 -> 1542.
+10. **Checks.** At `656ec117`: `//core:core_tests`, `//core:guardrails` and the lean ladder under the host judge, the
+    database judge alone and BOTH: all green, `judge-declines` 0 lines each; `//core:census` red on item 9's four pins
+    alone. PCT channel B's seven local suites under the database judge alone and BOTH: five of seven, essential 335
+    (floor 336) and grammar 136 (floor 137) -- item 8. The corpora against the `8951f974` baseline: 0 newly failing
+    in all four passes; the database passes move 3,022 -> 3,050 bodies, the host passes 3,082 -> 3,084; the corpus
+    verdict targets and `update_rcorpus_h2_0_test` red as at the baseline (the database-lost sets identical: DuckDB 3,
+    H2 71). With item 8's revert: `//core:census`, `//core:core_tests_driver`, PCT channel B essential and grammar
+    under the database judge: green (essential and grammar back at their floors).
+    Not run here: the server lanes; `//core:core_tests_lanes` (H2 and SQLite, measurement).

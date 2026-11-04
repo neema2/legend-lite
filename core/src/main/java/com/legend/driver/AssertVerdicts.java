@@ -1356,15 +1356,14 @@ final class AssertVerdicts {
     private static @com.legend.base.Nullable String staticTypeName(TypedSpec arg) {
         // concrete static identification only: a literal's primitive or a
         // constructed/class-typed value — never an Any/generic stamp
-        TypedSpec value = peel(arg);
-        var ty = value.info().type();
+        var ty = peel(arg).info().type();
         if (ty instanceof com.legend.compiler.element.type.Type.ClassType ct) {
-            // a class-typed value's static class is its runtime type only where the value IS a construction of it; any
-            // other (a let, an element of a list of several classes, a navigation) may be a subclass's instance at run
-            // time, which the judge reads (2026-11-04, the asserts-as-plan-nodes program:
-            // assertIs(Employee, [^Employee(..), ^Person(..)]->at(0)->type()) was decided false at planning by the
-            // list's static class, Person)
-            return value instanceof com.legend.compiler.spec.typed.TypedNewInstance ? ct.fqn() : null;
+            // the static class decides (assertIs(Employee, [^Employee(..), ^Person(..)]->at(0)->type()) is decided
+            // false by the list's static class, Person: AssertBarTest's assertIs-dynamic-type gap). Narrowing it to a
+            // construction alone (aaa8badb, 2026-11-04) sent every other class-typed value to a run-time path that
+            // cannot read a type -- two PCT tests lost (testConcatenateTypeInference, testAssignNewInstance) -- and
+            // closed no gap: reverted the same day; the dynamic type waits on a run-time type read
+            return ct.fqn();
         }
         String n = ty.typeName();
         return switch (n) {
