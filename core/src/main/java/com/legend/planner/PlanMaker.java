@@ -242,14 +242,7 @@ public final class PlanMaker {
                 List<ExecutionPlan.Sql> out = new ArrayList<>();
                 for (ExecutionPlan.Verdict verdict : v.verdicts()) {
                     for (ExecutionPlan.Side side : verdict.base()) {
-                        switch (side) {
-                            case ExecutionPlan.Side.Rows r -> out.add(r.result().sql());
-                            case ExecutionPlan.Side.KeyedRows k -> out.addAll(List.of(k.keyed().keys(),
-                                    k.keyed().body()));
-                            case ExecutionPlan.Side.Constant c -> {
-                                // nothing sent
-                            }
-                        }
+                        out.addAll(sideSqls(side));
                     }
                     if (verdict.wrapper() != null) {
                         out.addAll(sqls(verdict.wrapper()));
@@ -260,7 +253,28 @@ public final class PlanMaker {
                 }
                 yield out;
             }
+            // a branch (the asserts-as-plan-nodes program, step 4): its condition's statement, then both sides' -- each
+            // side's statements are the program's whichever side runs
+            case ExecutionPlan.Branch b -> {
+                List<ExecutionPlan.Sql> out = new ArrayList<>(sideSqls(b.condition()));
+                for (ExecutionPlan.Node n : b.then()) {
+                    out.addAll(sqls(n));
+                }
+                for (ExecutionPlan.Node n : b.otherwise()) {
+                    out.addAll(sqls(n));
+                }
+                yield out;
+            }
             case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
+        };
+    }
+
+    /** The statements a side sends: a constant's none. */
+    private static List<ExecutionPlan.Sql> sideSqls(ExecutionPlan.Side side) {
+        return switch (side) {
+            case ExecutionPlan.Side.Rows r -> List.of(r.result().sql());
+            case ExecutionPlan.Side.KeyedRows k -> List.of(k.keyed().keys(), k.keyed().body());
+            case ExecutionPlan.Side.Constant c -> List.of();
         };
     }
 

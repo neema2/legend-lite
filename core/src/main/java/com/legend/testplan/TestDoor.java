@@ -75,9 +75,10 @@ public final class TestDoor {
         /** The verdict steps for the statement-root assert at {@code statement} (0-based): one step (the host judge's
          *  verdict over its sides), several (the database judge's groups of the segment this assert closes: its keyed
          *  members' then its fused statement, per session), none (the assert is ABSORBED into a later statement's
-         *  groups: the database judge defers every assert of a segment to the segment's last), or null (not planned:
-         *  the body is refused by name). */
-        @Nullable List<ExecutionPlan.Verdicts> at(int statement);
+         *  groups: the database judge defers every assert of a segment to the segment's last), one branch (an
+         *  {@code if} whose sides hold asserts, each side's steps its judge's: the asserts-as-plan-nodes program, step
+         *  4), or null (not planned: the body is refused by name). */
+        @Nullable List<? extends ExecutionPlan.Node> at(int statement);
 
         /** Whether a frame let's eager run is a step of the program (the host judge: Pure runs it at the let); the
          *  database judge runs no frame at its let -- its readers reference the frame's CTE inside the fused statement

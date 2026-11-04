@@ -6,6 +6,7 @@ package com.legend.driver;
 import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
+import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.AssertFailed;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.judge.AssertListener;
@@ -83,16 +84,25 @@ final class AgreementAsserts implements TestDoor.Asserts {
 
     private final HostAsserts host;
     private final Map<Integer, One> byStatement;
+    /** The branches (the asserts-as-plan-nodes program, step 4), by the statement's place: the host half's branch,
+     *  each side's asserts assembled for both judges. */
+    private final Map<Integer, ExecutionPlan.Branch> branches;
     private final Map<ExecutionPlan.Verdict, One> byVerdict;
 
-    private AgreementAsserts(HostAsserts host, Map<Integer, One> byStatement) {
+    private AgreementAsserts(HostAsserts host, Map<Integer, One> byStatement, Map<Integer, ExecutionPlan.Branch> branches,
+            List<AgreementAsserts> sides) {
         this.host = host;
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
+        this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         Map<ExecutionPlan.Verdict, One> verdicts = new IdentityHashMap<>();
         for (One one : byStatement.values()) {
             for (ExecutionPlan.Verdict v : one.step.verdicts()) {
                 verdicts.put(v, one);
             }
+        }
+        // a branch side's asserts are this body's: the runner hands their verdicts back as any other's
+        for (AgreementAsserts side : sides) {
+            verdicts.putAll(side.byVerdict);
         }
         this.byVerdict = Collections.unmodifiableMap(verdicts);
     }
@@ -113,22 +123,61 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         BodyDriver.ExecEnv databaseEnv = env.withOptions(env.options().withJudgeMode(
                 ExecuteOptions.JudgeMode.DATABASE));
+        return assemble(host, typed, runtime, databaseEnv, systemRouted, List.of());
+    }
+
+    /** {@code host}'s asserts over {@code typed}'s statements (following {@code lets}) each joined by its database
+     *  half; a branch the host half planned assembled side by side, each side a body of its own over the lets the
+     *  host half planned it over. */
+    private static AgreementAsserts assemble(HostAsserts host, TypedQuery typed, String runtime,
+            BodyDriver.ExecEnv databaseEnv, boolean systemRouted, List<TypedSpec> lets) {
         Map<Integer, DatabaseAsserts.Each> database = DatabaseAsserts.planEach(typed, runtime, databaseEnv,
-                systemRouted, host::frameStamp);
+                systemRouted, host::frameStamp, lets);
         Map<Integer, One> byStatement = new LinkedHashMap<>();
+        Map<Integer, ExecutionPlan.Branch> branches = new LinkedHashMap<>();
+        List<AgreementAsserts> sides = new ArrayList<>();
         for (int i = 0; i < typed.body().size(); i++) {
+            HostAsserts.Branched b = host.branch(i);
+            if (b != null) {
+                AgreementAsserts then = assemble(b.then(), AssertBranch.body(typed, b.parts().then()), runtime,
+                        databaseEnv, systemRouted, b.lets());
+                AgreementAsserts otherwise = assemble(b.otherwise(), AssertBranch.body(typed, b.parts().otherwise()),
+                        runtime, databaseEnv, systemRouted, b.lets());
+                branches.put(i, new ExecutionPlan.Branch(b.condition(), then.steps(b.parts().then().size()),
+                        otherwise.steps(b.parts().otherwise().size())));
+                sides.add(then);
+                sides.add(otherwise);
+                continue;
+            }
             HostAsserts.Planned p = host.planned(i);
             if (p != null) {
                 byStatement.put(i, new One(p, p.assertion().beforeTheArm() != null ? null : database.get(i)));
             }
         }
-        return new AgreementAsserts(host, byStatement);
+        return new AgreementAsserts(host, byStatement, branches, sides);
     }
 
     @Override
-    public @Nullable List<ExecutionPlan.Verdicts> at(int statement) {
+    public @Nullable List<? extends ExecutionPlan.Node> at(int statement) {
+        ExecutionPlan.Branch b = branches.get(statement);
+        if (b != null) {
+            return List.of(b);
+        }
         One one = byStatement.get(statement);
         return one == null ? null : List.of(one.step);
+    }
+
+    /** The steps of this body's {@code statements} statements, in order. */
+    private List<ExecutionPlan.Node> steps(int statements) {
+        List<ExecutionPlan.Node> out = new ArrayList<>();
+        for (int i = 0; i < statements; i++) {
+            List<? extends ExecutionPlan.Node> at = at(i);
+            if (at == null) {
+                throw new IllegalStateException("a branch side's statement " + i + " planned no step");
+            }
+            out.addAll(at);
+        }
+        return out;
     }
 
     @Override

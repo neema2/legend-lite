@@ -51,8 +51,20 @@ final class HostAsserts implements TestDoor.Asserts {
         }
     }
 
+    /** A branch planned (the asserts-as-plan-nodes program, step 4): its plan node, its condition as the host's
+     *  planner planned it, each side's asserts as this planner planned them over the side's body, the branch's parts
+     *  and the lets before it (the prefix both sides were planned over). */
+    record Branched(ExecutionPlan.Branch node, ExecutionPlan.Side condition, HostAsserts then, HostAsserts otherwise,
+            AssertBranch.Parts parts, List<TypedSpec> lets) {
+        Branched {
+            lets = List.copyOf(lets);
+        }
+    }
+
     /** The planned asserts by the statement's place in the body. */
     private final Map<Integer, Planned> byStatement;
+    /** The branches planned, by the statement's place. */
+    private final Map<Integer, Branched> branches;
     /** The same, by the verdict the runner hands back (a record compares by value: two asserts alike are two
      *  verdicts). */
     private final Map<ExecutionPlan.Verdict, Planned> byVerdict;
@@ -60,11 +72,18 @@ final class HostAsserts implements TestDoor.Asserts {
      *  binds and the sides reading the frame's activities carry. */
     private final Map<Integer, String> frameStamps;
 
-    private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps) {
+    private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps,
+            Map<Integer, Branched> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
+        this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         Map<ExecutionPlan.Verdict, Planned> verdicts = new IdentityHashMap<>();
         byStatement.values().forEach(p -> verdicts.put(p.verdict(), p));
+        // a branch side's asserts are this body's: the runner hands their verdicts back as any other's
+        branches.values().forEach(b -> {
+            verdicts.putAll(b.then().byVerdict);
+            verdicts.putAll(b.otherwise().byVerdict);
+        });
         this.byVerdict = Collections.unmodifiableMap(verdicts);
     }
 
@@ -89,13 +108,23 @@ final class HostAsserts implements TestDoor.Asserts {
      *  writes the plan environment's run-scoped accumulators, as item 8's deferred side planned twice already does). */
     static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             BodyDriver.@Nullable ExecEnv bodyEnv) {
+        return plan(typed, runtime, env, bodyEnv, List.of(), Map.of());
+    }
+
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, BodyDriver.ExecEnv)} over a body whose statements follow
+     *  {@code lets} and {@code knownFrames} (a branch's side: the lets and frames before the branch, the outer body's,
+     *  already planned there). */
+    private static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            BodyDriver.@Nullable ExecEnv bodyEnv, List<TypedSpec> lets,
+            Map<String, BodyDriver.ExecFrame> knownFrames) {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
-        List<TypedSpec> letPrefix = new ArrayList<>();
+        List<TypedSpec> letPrefix = new ArrayList<>(lets);
         // the body's frames as the walk builds them (M9): a frame let's chain, not run here -- its eager run is the
         // program's check step at the let -- so an assert's side reading the frame is the walk's statement
-        Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
+        Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>(knownFrames);
+        Map<Integer, Branched> branches = new LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, Planned> planned = new LinkedHashMap<>();
         Map<Integer, String> frameStamps = new LinkedHashMap<>();
@@ -142,6 +171,22 @@ final class HostAsserts implements TestDoor.Asserts {
                         pendingLet = e;
                     }
                 }
+                continue;
+            }
+            AssertBranch.Parts parts = AssertBranch.of(statement, last, scan, specs);
+            if (parts != null) {
+                // an assert under an if (step 4): a branch, each side's asserts planned as this body's are, over the
+                // lets before it; a pending let's raise is the next assert's, which no side may be
+                if (pendingLet != null || !frames.isEmpty()) {
+                    // a side reading a frame: the database judge composes no frame into a side's statement yet, so
+                    // neither judge plans the shape (refused by name, as the database judge refuses it)
+                    return null;
+                }
+                Branched b = planBranch(typed, runtime, env, bodyEnv, parts, letPrefix, frames);
+                if (b == null) {
+                    return null;
+                }
+                branches.put(i, b);
                 continue;
             }
             if (QueryDoor.assertErrorRoot(statement, specs)) {
@@ -196,7 +241,39 @@ final class HostAsserts implements TestDoor.Asserts {
         if (pendingLet != null && !raisedByAnAssert) {
             throw pendingLet;
         }
-        return new HostAsserts(planned, frameStamps);
+        return new HostAsserts(planned, frameStamps, branches);
+    }
+
+    /** A branch statement planned: its condition a side (the lets before it), each side's statements a body of their
+     *  own planned by this planner over the same lets and frames; null where a side holds an assert it does not plan.
+     */
+    private static @Nullable Branched planBranch(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            BodyDriver.@Nullable ExecEnv bodyEnv, AssertBranch.Parts parts, List<TypedSpec> letPrefix,
+            Map<String, BodyDriver.ExecFrame> frames) {
+        ExecutionPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, typed.specs(), env, false,
+                false, null).side();
+        HostAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, bodyEnv, letPrefix, frames);
+        HostAsserts otherwise = then == null ? null
+                : plan(AssertBranch.body(typed, parts.otherwise()), runtime, env, bodyEnv, letPrefix, frames);
+        if (then == null || otherwise == null) {
+            return null;
+        }
+        ExecutionPlan.Branch node = new ExecutionPlan.Branch(condition, then.steps(parts.then().size()),
+                otherwise.steps(parts.otherwise().size()));
+        return new Branched(node, condition, then, otherwise, parts, letPrefix);
+    }
+
+    /** The steps of this body's {@code statements} statements, in order. */
+    List<ExecutionPlan.Node> steps(int statements) {
+        List<ExecutionPlan.Node> out = new ArrayList<>();
+        for (int i = 0; i < statements; i++) {
+            List<? extends ExecutionPlan.Node> at = at(i);
+            if (at == null) {
+                throw new IllegalStateException("a branch side's statement " + i + " planned no step");
+            }
+            out.addAll(at);
+        }
+        return out;
     }
 
     /** The stamp parameter of the frame let at {@code statement}: the stamp prefix (the program's, so the test door
@@ -387,9 +464,18 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     @Override
-    public @Nullable List<ExecutionPlan.Verdicts> at(int statement) {
+    public @Nullable List<? extends ExecutionPlan.Node> at(int statement) {
+        Branched b = branches.get(statement);
+        if (b != null) {
+            return List.of(b.node());
+        }
         Planned p = byStatement.get(statement);
         return p == null ? null : List.of(p.step());
+    }
+
+    /** The branch planned at {@code statement}, or null. */
+    @Nullable Branched branch(int statement) {
+        return branches.get(statement);
     }
 
     /** The assert planned at {@code statement}, or null (no statement-root assert there). */

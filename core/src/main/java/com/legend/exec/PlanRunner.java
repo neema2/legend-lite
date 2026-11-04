@@ -128,6 +128,8 @@ public final class PlanRunner {
                     + " program's step, run by program(...)");
             case ExecutionPlan.Verdicts verdicts -> throw new IllegalStateException("a plan whose root is a verdict"
                     + " group: a program's step, run by program(...)");
+            case ExecutionPlan.Branch branch -> throw new IllegalStateException("a plan whose root is a branch: a"
+                    + " program's step, run by program(...)");
         }
     }
 
@@ -310,6 +312,7 @@ public final class PlanRunner {
                     sqls.add(k.body());
                 }
                 case ExecutionPlan.Verdicts v -> snapshot = verdictStatements(v, sqls, snapshot);
+                case ExecutionPlan.Branch b -> snapshot = branchStatements(b, sqls, snapshot);
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             }
@@ -395,6 +398,39 @@ public final class PlanRunner {
         return strictest;
     }
 
+    /** A branch's statements, whichever side runs: its condition's and both sides' (each side's steps verdict groups
+     *  and branches, the record's own rule). */
+    private static ExecutionPlan.Keyed.@Nullable Snapshot branchStatements(ExecutionPlan.Branch b,
+            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
+        ExecutionPlan.Keyed.Snapshot strictest = sideStatements(b.condition(), sqls, snapshot);
+        for (List<ExecutionPlan.Node> side : List.of(b.then(), b.otherwise())) {
+            for (ExecutionPlan.Node step : side) {
+                strictest = switch (step) {
+                    case ExecutionPlan.Verdicts v -> verdictStatements(v, sqls, strictest);
+                    case ExecutionPlan.Branch inner -> branchStatements(inner, sqls, strictest);
+                    default -> throw new IllegalStateException("a branch's side holds verdict groups and branches");
+                };
+            }
+        }
+        return strictest;
+    }
+
+    /** A side's statements: a typed result's one, a keyed result's two, a constant's none. */
+    private static ExecutionPlan.Keyed.@Nullable Snapshot sideStatements(ExecutionPlan.Side side,
+            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
+        switch (side) {
+            case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
+            case ExecutionPlan.Side.KeyedRows kr -> {
+                sqls.add(kr.keyed().keys());
+                sqls.add(kr.keyed().body());
+                return stricter(snapshot, kr.keyed().snapshot());
+            }
+            case ExecutionPlan.Side.Constant c -> {
+            }
+        }
+        return snapshot;
+    }
+
     /** A program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
      *  opened; a verdict group whose sides are all constants (M6) handed to the sink as {@code judging} asks -- each
      *  verdict's constant sides to the host judge, no row to the database judge (it judges nothing without a
@@ -404,29 +440,67 @@ public final class PlanRunner {
         for (ExecutionPlan.Node step : sequence.steps()) {
             switch (step) {
                 case ExecutionPlan.Constant c -> constant(c, held);
-                case ExecutionPlan.Verdicts v -> {
-                    for (ExecutionPlan.Verdict each : v.verdicts()) {
-                        if (judging == Judging.HOST || judging == Judging.BOTH) {
-                            List<Rows> sides = new ArrayList<>(each.base().size());
-                            for (ExecutionPlan.Side side : each.base()) {
-                                if (!(side instanceof ExecutionPlan.Side.Constant c)) {
-                                    throw new IllegalStateException("a verdict side that sends a statement in a"
-                                            + " program with no target");
-                                }
-                                sides.add(constantRows(c));
-                            }
-                            sink.sides(each, sides);
-                        }
-                        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-                            sink.verdict(each, null);
-                        }
-                    }
-                }
+                case ExecutionPlan.Verdicts v -> constantVerdicts(v, judging, sink);
+                case ExecutionPlan.Branch b -> constantBranch(b, judging, sink);
                 default -> throw new IllegalStateException("a program that sends nothing holds a "
-                        + step.getClass().getSimpleName() + " step: only a constant or a verdict group of constants"
-                        + " runs with no session");
+                        + step.getClass().getSimpleName() + " step: only a constant, a verdict group of constants"
+                        + " or a branch over them runs with no session");
             }
         }
+    }
+
+    /** A verdict group of constants handed to the sink as {@code judging} asks, nothing sent. */
+    private static void constantVerdicts(ExecutionPlan.Verdicts v, Judging judging, ProgramSink sink)
+            throws IOException {
+        for (ExecutionPlan.Verdict each : v.verdicts()) {
+            if (judging == Judging.HOST || judging == Judging.BOTH) {
+                List<Rows> sides = new ArrayList<>(each.base().size());
+                for (ExecutionPlan.Side side : each.base()) {
+                    if (!(side instanceof ExecutionPlan.Side.Constant c)) {
+                        throw new IllegalStateException("a verdict side that sends a statement in a program with no"
+                                + " target");
+                    }
+                    sides.add(constantRows(c));
+                }
+                sink.sides(each, sides);
+            }
+            if (judging == Judging.DATABASE || judging == Judging.BOTH) {
+                sink.verdict(each, null);
+            }
+        }
+    }
+
+    /** A branch that sends nothing: its condition the program's text, the side it names run as constants. */
+    private static void constantBranch(ExecutionPlan.Branch b, Judging judging, ProgramSink sink) throws IOException {
+        if (!(b.condition() instanceof ExecutionPlan.Side.Constant c)) {
+            throw new IllegalStateException("a branch condition that sends a statement in a program with no target");
+        }
+        for (ExecutionPlan.Node step : taken(constantRows(c)) ? b.then() : b.otherwise()) {
+            switch (step) {
+                case ExecutionPlan.Verdicts v -> constantVerdicts(v, judging, sink);
+                case ExecutionPlan.Branch inner -> constantBranch(inner, judging, sink);
+                default -> throw new IllegalStateException("a branch's side holds verdict groups and branches");
+            }
+        }
+    }
+
+    /** Which side of {@code b} runs: its condition's one Boolean, as the database answered it or the program wrote it
+     *  (a constant's TEXT cell, its Pure spelling). An absent or many-valued condition is refused by name: Pure's
+     *  {@code if} takes a {@code Boolean[1]}. */
+    private static boolean taken(Rows condition) {
+        if (condition.rows().size() != 1 || condition.rows().get(0).size() != 1) {
+            throw new IllegalStateException("a branch's condition answered " + condition.rows().size() + " rows: an"
+                    + " if's condition is one Boolean");
+        }
+        Object cell = condition.rows().get(0).get(0);
+        return switch (cell) {
+            case Boolean v -> v;
+            case String text when text.equals("true") || text.equals("false") -> Boolean.parseBoolean(text);
+            case null -> throw new IllegalStateException("a branch's condition answered no value: an if's condition"
+                    + " is one Boolean");
+            default -> throw new IllegalStateException("a branch's condition answered a "
+                    + cell.getClass().getSimpleName() + " (" + cell + "): an if's condition is one Boolean");
+        };
     }
 
     /** A constant side's rows: its columns and its TEXT cells as the program wrote them. */
@@ -534,6 +608,17 @@ public final class PlanRunner {
                 }
             }
             case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, rt, sink, insideATransaction(st));
+            case ExecutionPlan.Branch b -> {
+                // its condition a statement of the body, as a value statement is (a mark in force stands); then the
+                // steps of the side it names, and only those: the side not taken is never sent
+                Rows condition;
+                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                    condition = sideRows(b.condition(), live, rt);
+                }
+                for (ExecutionPlan.Node inner : taken(condition) ? b.then() : b.otherwise()) {
+                    runStep(inner, i, live, judging, session, rt, held, sink);
+                }
+            }
             case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
         }
     }
@@ -609,21 +694,28 @@ public final class PlanRunner {
             Routes st) throws IOException {
         List<Rows> sides = new ArrayList<>(each.base().size());
         for (ExecutionPlan.Side side : each.base()) {
-            sides.add(switch (side) {
-                case ExecutionPlan.Side.Rows r -> {
-                    Held h = new Held();
-                    result(r.result(), values, st.on(r.result().sql()), h);
-                    yield collected(h);
-                }
-                case ExecutionPlan.Side.KeyedRows k -> {
-                    Held h = new Held();
-                    keyedOn(k.keyed(), values, st.on(k.keyed().keys()), heldSink(h));
-                    yield collected(h);
-                }
-                case ExecutionPlan.Side.Constant c -> constantRows(c);
-            });
+            sides.add(sideRows(side, values, st));
         }
         return sides;
+    }
+
+    /** A side's typed rows: a statement's or a keyed result's read on the session its target names, a constant's its
+     *  TEXT cells as the program wrote them. */
+    private static Rows sideRows(ExecutionPlan.Side side, Map<String, PlanParameters.Checked> values, Routes st)
+            throws IOException {
+        return switch (side) {
+            case ExecutionPlan.Side.Rows r -> {
+                Held h = new Held();
+                result(r.result(), values, st.on(r.result().sql()), h);
+                yield collected(h);
+            }
+            case ExecutionPlan.Side.KeyedRows k -> {
+                Held h = new Held();
+                keyedOn(k.keyed(), values, st.on(k.keyed().keys()), heldSink(h));
+                yield collected(h);
+            }
+            case ExecutionPlan.Side.Constant c -> constantRows(c);
+        };
     }
 
     /** The DATABASE judge's rows for {@code group}: its fused statement (the split rung on a rejection), else each
@@ -950,6 +1042,8 @@ public final class PlanRunner {
                 }
                 case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
                         + " for its answer: a program's step, run by program(...)");
+                case ExecutionPlan.Branch b -> throw new IllegalStateException("a branch inside a plan run for its"
+                        + " answer: a program's step, run by program(...)");
                 case ExecutionPlan.Constant c -> throw new IllegalStateException("not reached: a constant step sends"
                         + " nothing");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
@@ -1028,6 +1122,8 @@ public final class PlanRunner {
                 case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
                 case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
                         + " for its answer: a program's step, run by program(...)");
+                case ExecutionPlan.Branch b -> throw new IllegalStateException("a branch inside a plan run for its"
+                        + " answer: a program's step, run by program(...)");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }

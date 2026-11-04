@@ -72,6 +72,9 @@ public final class PlanRoundTrip {
                             each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper())))
                     .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()),
                     v.savepoint());
+            case ExecutionPlan.Branch b -> new ExecutionPlan.Branch(withoutTrees(b.condition()),
+                    b.then().stream().map(PlanRoundTrip::withoutTrees).toList(),
+                    b.otherwise().stream().map(PlanRoundTrip::withoutTrees).toList());
         };
     }
 
@@ -111,6 +114,12 @@ public final class PlanRoundTrip {
                 }
                 yield chars;
             }
+            case ExecutionPlan.Branch b -> (switch (b.condition()) {
+                case ExecutionPlan.Side.Rows r -> statementChars(r.result());
+                case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
+                case ExecutionPlan.Side.Constant c -> 0L;
+            }) + b.then().stream().mapToLong(PlanRoundTrip::statementChars).sum()
+                    + b.otherwise().stream().mapToLong(PlanRoundTrip::statementChars).sum();
         };
     }
 
@@ -159,6 +168,17 @@ public final class PlanRoundTrip {
                         }
                     }
                 }
+            }
+            case ExecutionPlan.Branch b -> {
+                switch (b.condition()) {
+                    case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
+                    case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
+                    case ExecutionPlan.Side.Constant c -> {
+                        // the program's text
+                    }
+                }
+                b.then().forEach(step -> assertRenders(step, what));
+                b.otherwise().forEach(step -> assertRenders(step, what));
             }
         }
     }

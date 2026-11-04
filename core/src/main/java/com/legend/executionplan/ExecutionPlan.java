@@ -96,6 +96,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             case Setup u -> throw new IllegalStateException("a plan that only seeds answers no rows");
             case Verdicts v -> throw new IllegalStateException("a plan that only judges answers no rows: its verdicts"
                     + " go to the program's sink");
+            case Branch b -> throw new IllegalStateException("a plan that only branches answers no rows: its sides'"
+                    + " verdicts go to the program's sink");
         };
     }
 
@@ -128,7 +130,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Setup, Verdicts, Constant {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Setup, Verdicts, Constant,
+            Branch {
     }
 
     /**
@@ -300,6 +303,37 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             steps = List.copyOf(steps);
             if (steps.isEmpty()) {
                 throw new IllegalArgumentException("a sequence has at least one step");
+            }
+        }
+    }
+
+    /**
+     * A BRANCH of a program (the asserts-as-plan-nodes program, step 4, 2026-11-04; docs/ASSERT_NODES_PLAN_2026_11_04.md:
+     * the user's word, "we own the 'new' lite plan so we should do whatever we think is the cleanest way to represent
+     * in our plan"): a test body's {@code if(condition, |then, |else)} whose sides hold asserts. The runner reads
+     * {@code condition} -- one Boolean, a statement's one row or a constant the program wrote -- and runs the steps of
+     * the side it names, and only those: the side not taken is never sent, as upstream never evaluates it. A side's
+     * steps are verdict groups and branches (the asserts a side holds, as their judge planned them), possibly none (a
+     * side that asserts nothing). A program's step, run by {@code PlanRunner.program}, never a plan's answer; a product
+     * query's {@code if} stays the database's {@code CASE}.
+     */
+    public record Branch(Side condition, List<Node> then, List<Node> otherwise) implements Node {
+        public Branch {
+            Objects.requireNonNull(condition, "condition");
+            then = List.copyOf(then);
+            otherwise = List.copyOf(otherwise);
+            for (Node step : then) {
+                sideStep(step);
+            }
+            for (Node step : otherwise) {
+                sideStep(step);
+            }
+        }
+
+        private static void sideStep(Node step) {
+            if (!(step instanceof Verdicts) && !(step instanceof Branch)) {
+                throw new IllegalArgumentException("a branch's side holds verdict groups and branches, not "
+                        + step.getClass().getSimpleName());
             }
         }
     }

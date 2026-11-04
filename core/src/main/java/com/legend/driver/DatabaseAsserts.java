@@ -66,13 +66,17 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     /** The stamp parameter minted for each frame let, by the let's place: the comment of its segment's fused statement. */
     private final Map<Integer, String> frameStamps;
 
+    /** The branches planned (the asserts-as-plan-nodes program, step 4), by the statement's place. */
+    private final Map<Integer, ExecutionPlan.Branch> branches;
+
     private DatabaseAsserts(Map<Integer, List<ExecutionPlan.Verdicts>> byStatement,
             Map<ExecutionPlan.Verdict, Segment> byVerdict, Map<Integer, String> frameStamps,
-            Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps) {
+            Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps, Map<Integer, ExecutionPlan.Branch> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.byVerdict = byVerdict;
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.hostSteps = hostSteps;
+        this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
     }
 
     /** The assertErrors' steps by their verdict (ruling N3: the comparison is Java's in both judge modes, so the step
@@ -101,22 +105,31 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  database: such a body is the walk's (M10b). */
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted) {
+        return plan(typed, runtime, env, systemRouted, List.of(), "");
+    }
+
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, boolean)} over a body whose statements follow {@code lets}
+     *  (a branch's side: the value lets before the branch, the outer body's, already planned there), its segments'
+     *  stamps named under {@code place} (the side's place in the outer body: no two fused statements share a stamp). */
+    private static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            boolean systemRouted, List<TypedSpec> lets, String place) {
         SpecCompiler specs = typed.specs();
         if (!plannable(typed, systemRouted)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
             return null;
         }
-        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
+        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted, lets)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the static pass");
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps = new IdentityHashMap<>();
         List<TypedSpec> body = typed.body();
-        List<TypedSpec> letPrefix = new ArrayList<>();
+        List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, List<ExecutionPlan.Verdicts>> byStatement = new LinkedHashMap<>();
+        Map<Integer, ExecutionPlan.Branch> branches = new LinkedHashMap<>();
         Map<ExecutionPlan.Verdict, Segment> byVerdict = new IdentityHashMap<>();
         Map<Integer, String> frameStamps = new LinkedHashMap<>();
         // the walk's fragment map: a frame's CTE name to the let it came from, so a split rung's reason names it
@@ -143,7 +156,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (kind == LetPlanner.Kind.FRAME) {
                     // the frame as the walk builds it under the batch: not run, its CTE defined when a reader splices
                     // it; its activity comment the segment's fused statement's stamp
-                    String stamp = stampOfSegment(segment);
+                    String stamp = stampOfSegment(place, segment);
                     frameStamps.put(i, stamp);
                     frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
                             specs, benv, stamp));
@@ -161,7 +174,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the walk flushes before an effect runs: the segment closes here, the next opens with a fresh batch
                 if (!walled) {
                     batch.fragments(fragments);
-                    if (!close(batch, segment, lastAssert, env, byStatement, byVerdict)) {
+                    if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
                         return null;
                     }
                     segment++;
@@ -179,6 +192,45 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 com.legend.exec.Census.unplannedAssert("database: a check over a frame not run at its let");
                 return null;
             }
+            AssertBranch.Parts parts = AssertBranch.of(statement, last, scan, specs);
+            if (parts != null) {
+                // an assert under an if (step 4): the segment before it closes here -- its asserts run before the
+                // condition is read -- each side's asserts are segments of their own, planned as this body's are over
+                // the lets before the branch, and the next segment opens after it
+                if (walled) {
+                    byStatement.put(i, List.of());
+                    continue;
+                }
+                if (!frames.isEmpty()) {
+                    // a side reading a frame would compose the frame's CTE into its own fused statement, its activity
+                    // comment that statement's stamp: not designed for a side yet -- refused by name
+                    com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "a branch after a frame let");
+                    return null;
+                }
+                batch.fragments(fragments);
+                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+                    return null;
+                }
+                segment++;
+                batch = BodyDriver.newVerdictBatch(env);
+                benv = env.withVerdictBatch(batch);
+                ExecutionPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false,
+                        false, null).side();
+                DatabaseAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, systemRouted,
+                        letPrefix, place + i + "t.");
+                DatabaseAsserts otherwise = then == null ? null : plan(AssertBranch.body(typed, parts.otherwise()),
+                        runtime, env, systemRouted, letPrefix, place + i + "e.");
+                if (then == null || otherwise == null) {
+                    return null;
+                }
+                branches.put(i, new ExecutionPlan.Branch(condition, then.steps(parts.then().size()),
+                        otherwise.steps(parts.otherwise().size())));
+                for (DatabaseAsserts side : List.of(then, otherwise)) {
+                    byVerdict.putAll(side.byVerdict);
+                    hostSteps.putAll(side.hostSteps);
+                }
+                continue;
+            }
             if (QueryDoor.assertErrorRoot(statement, specs)) {
                 // ruling N3 under the database judge: assertError's comparison is Java's in both judge modes, so its
                 // step is the host planner's (HostAsserts.planAssertError), placed at its turn -- the walk runs it at
@@ -188,7 +240,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     continue;
                 }
                 batch.fragments(fragments);
-                if (!close(batch, segment, lastAssert, env, byStatement, byVerdict)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
                     return null;
                 }
                 segment++;
@@ -233,7 +285,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             lastAssert = i;
             if (outcome == AssertVerdicts.DatabasePlan.WALLED) {
                 batch.fragments(fragments);
-                if (!close(batch, segment, lastAssert, env, byStatement, byVerdict)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
                     return null;
                 }
                 walled = true;
@@ -241,7 +293,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         if (!walled) {
             batch.fragments(fragments);
-            if (!close(batch, segment, lastAssert, env, byStatement, byVerdict)) {
+            if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
                 return null;
             }
         }
@@ -252,7 +304,20 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // the shape by name; kept as the guard behind it)
             return null;
         }
-        return new DatabaseAsserts(byStatement, byVerdict, frameStamps, hostSteps);
+        return new DatabaseAsserts(byStatement, byVerdict, frameStamps, hostSteps, branches);
+    }
+
+    /** The steps of this body's {@code statements} statements, in order (an absorbed assert's none). */
+    List<ExecutionPlan.Node> steps(int statements) {
+        List<ExecutionPlan.Node> out = new ArrayList<>();
+        for (int i = 0; i < statements; i++) {
+            List<? extends ExecutionPlan.Node> at = at(i);
+            if (at == null) {
+                throw new IllegalStateException("a branch side's statement " + i + " planned no step");
+            }
+            out.addAll(at);
+        }
+        return out;
     }
 
     /**
@@ -266,13 +331,13 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      * statement's). A gate that raises is left to the arm, which raises the same at its turn (a planned wall).
      */
     private static boolean everyAssertPlansStatically(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
-            boolean systemRouted) {
+            boolean systemRouted, List<TypedSpec> lets) {
         SpecCompiler specs = typed.specs();
         BodyDriver.ExecEnv pre = env.withPlan(com.legend.planner.PlanEnv.of(env.ctx(), env.runtimeFqn(),
                 env.dialect(), env.plan().features(), env.plan().generatorPlanText()));
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
-        List<TypedSpec> letPrefix = new ArrayList<>();
+        List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<String, Integer> frameSegment = new LinkedHashMap<>();
         java.util.Set<Integer> segmentsWithAssert = new java.util.HashSet<>();
@@ -312,8 +377,10 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 segment++;
                 continue;
             }
-            if (QueryDoor.assertErrorRoot(statement, specs)) {
-                // the main pass closes the segment at an assertError (its step is the host's, ruling N3): numbered
+            if (QueryDoor.assertErrorRoot(statement, specs)
+                    || AssertBranch.of(statement, last, scan, specs) != null) {
+                // the main pass closes the segment at an assertError (its step is the host's, ruling N3) and at a
+                // branch (each side's asserts planned as a body of their own, its own static pass first): numbered
                 // alike here, so a frame's stamp is bound in the same segment on both passes
                 segment++;
                 continue;
@@ -383,6 +450,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      */
     static Map<Integer, Each> planEach(TypedQuery typed, String runtime, BodyDriver.ExecEnv env, boolean systemRouted,
             java.util.function.IntFunction<@Nullable String> frameStamp) {
+        return planEach(typed, runtime, env, systemRouted, frameStamp, List.of());
+    }
+
+    /** {@link #planEach(TypedQuery, String, BodyDriver.ExecEnv, boolean, java.util.function.IntFunction)} over a body
+     *  whose statements follow {@code lets} (a branch's side: the agreement judge assembles the branch from the host
+     *  half's, {@code AgreementAsserts}, and asks this half of each side's asserts). A branch statement is none of this
+     *  half's: its sides are asked as bodies of their own. */
+    static Map<Integer, Each> planEach(TypedQuery typed, String runtime, BodyDriver.ExecEnv env, boolean systemRouted,
+            java.util.function.IntFunction<@Nullable String> frameStamp, List<TypedSpec> lets) {
         Map<Integer, Each> out = new LinkedHashMap<>();
         if (!plannable(typed, systemRouted)) {
             return out;
@@ -390,7 +466,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
-        List<TypedSpec> letPrefix = new ArrayList<>();
+        List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         VerdictBatch batch = BodyDriver.newVerdictBatch(env);
@@ -426,7 +502,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 }
                 continue;
             }
-            if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
+            if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet
+                    || AssertBranch.of(statement, last, scan, specs) != null) {
                 continue;
             }
             TypedSpec bare = Lets.bare(statement);
@@ -561,8 +638,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The segment's batch planned and its groups placed at the segment's last assert; false where the walk keeps
      *  the body: a group on another session than the body's, or a keyed member. */
-    private static boolean close(VerdictBatch batch, int segment, int lastAssert, BodyDriver.ExecEnv env,
-            Map<Integer, List<ExecutionPlan.Verdicts>> byStatement, Map<ExecutionPlan.Verdict, Segment> byVerdict) {
+    private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
+            BodyDriver.ExecEnv env, Map<Integer, List<ExecutionPlan.Verdicts>> byStatement,
+            Map<ExecutionPlan.Verdict, Segment> byVerdict) {
         VerdictBatch.Planned planned = batch.plan();
         if (planned == null) {
             return true;
@@ -579,8 +657,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // dialect's own words before anything is sent (VerdictBatch.executeOne) -- the host judge's raise for the
             // same side (2026-11-03: the walk had kept such a body, so the database judge alone planned 9 PCT bodies
             // fewer than the host on DuckDB, and refused H2's 33 list operations)
-            ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict("decided@" + segment, "decided", List.of(),
-                    null);
+            ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict("decided@" + place + segment, "decided",
+                    List.of(), null);
             ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(decided), null, null);
             byVerdict.put(decided, new Segment(planned, List.of(step), true));
             byStatement.put(lastAssert, List.of(step));
@@ -591,7 +669,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             if (!placed(g, env)) {
                 return false;
             }
-            steps.add(stamped(g.step(), stampOfSegment(segment)));
+            steps.add(stamped(g.step(), stampOfSegment(place, segment)));
         }
         Segment seg = new Segment(planned, steps, false);
         for (ExecutionPlan.Verdicts step : steps) {
@@ -617,13 +695,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The stamp parameter of the fused statement of segment {@code segment}: the stamp prefix (the program's, so the
      *  test door adopts it and the runner binds it), then the segment's place. */
-    private static String stampOfSegment(int segment) {
-        return ProgramFrames.STAMP + ".fused" + segment;
+    private static String stampOfSegment(String place, int segment) {
+        return ProgramFrames.STAMP + ".fused" + place + segment;
     }
 
     @Override
-    public @Nullable List<ExecutionPlan.Verdicts> at(int statement) {
-        return byStatement.get(statement);
+    public @Nullable List<? extends ExecutionPlan.Node> at(int statement) {
+        ExecutionPlan.Branch b = branches.get(statement);
+        return b != null ? List.of(b) : byStatement.get(statement);
     }
 
     @Override

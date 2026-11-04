@@ -215,6 +215,11 @@ public final class BodyRouter {
             List<ExecutionPlan.Node> steps = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps()
                     : List.of(planned.plan().root());
             for (int i = 0; i < steps.size(); i++) {
+                if (steps.get(i) instanceof ExecutionPlan.Branch && database != null) {
+                    // a branch's statements under the database judge: its sides' fused statements under BODY, as any
+                    // group's, and its condition beside them (the asserts-as-plan-nodes program, step 4)
+                    groups.add(i);
+                }
                 if (!(steps.get(i) instanceof ExecutionPlan.Verdicts group)) {
                     continue;
                 }

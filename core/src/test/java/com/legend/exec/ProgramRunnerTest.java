@@ -318,6 +318,70 @@ final class ProgramRunnerTest {
                 && json.contains("\"_type\":\"constant\"") && json.contains("\"folded\":true"), json);
     }
 
+    // ---- a branch (the asserts-as-plan-nodes program, step 4, 2026-11-04): an if whose sides hold asserts ----------
+
+    /** One assert whose one rows side reads {@code sql}. */
+    private static ExecutionPlan.Verdicts oneVerdict(String name, String sql) {
+        ExecutionPlan.Side side = new ExecutionPlan.Side.Rows(relation(sql, List.of(col("value", "Integer", "INTEGER"))));
+        return new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(name, "assert", List.of(side), null)),
+                null);
+    }
+
+    @Test
+    @DisplayName("a branch: the condition read, the side it names run, the other never sent")
+    void aBranchRunsTheSideItsConditionNames() throws IOException {
+        ExecutionPlan.Side condition = new ExecutionPlan.Side.Rows(relation("SELECT 1 > 2 AS value",
+                List.of(col("value", "Boolean", "BOOLEAN"))));
+        // the side not taken reads a table that does not exist: sent, it would fail the program
+        ExecutionPlan.Branch branch = new ExecutionPlan.Branch(condition,
+                List.of(oneVerdict("then@1", "SELECT v AS value FROM no_such_table_branch")),
+                List.of(oneVerdict("else@1", "SELECT 4 AS value")));
+        Recording sink = new Recording();
+        PlanRunner.program(new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(branch))), Map.of(),
+                sessions(), PlanRunner.Judging.HOST, sink);
+        assertEquals(List.of("sides else@1"), sink.events);
+        assertEquals(List.of(4L), sink.sides.get(0).get(0).rows().get(0));
+    }
+
+    @Test
+    @DisplayName("a branch that sends nothing: its constant condition read from the program's text, no session opened")
+    void aConstantBranchRunsWithNoSession() throws IOException {
+        ExecutionPlan.Side yes = new ExecutionPlan.Side.Constant(List.of(col("value", "Boolean", null)),
+                List.of(List.of("true")), false);
+        ExecutionPlan.Side three = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
+                List.of(List.of("3")), false);
+        ExecutionPlan.Verdicts then = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("then@1",
+                "assertEquals", List.of(three, three), null)), null);
+        ExecutionPlan.Verdicts otherwise = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("else@1",
+                "assertEquals", List.of(three, three), null)), null);
+        ExecutionPlan.Branch inner = new ExecutionPlan.Branch(yes, List.of(), List.of(otherwise));
+        ExecutionPlan.Branch branch = new ExecutionPlan.Branch(yes, List.of(then, inner), List.of(otherwise));
+        Recording sink = new Recording();
+        PlanRunner.program(new ExecutionPlan(List.of(), branch), Map.of(), PlanSessions.shared(),
+                PlanRunner.Judging.BOTH, sink);
+        assertEquals(List.of("sides then@1", "verdict then@1"), sink.events);
+    }
+
+    @Test
+    @DisplayName("a branch reads back from its JSON, and its condition is no answer")
+    void aBranchReadsBackFromItsJson() {
+        ExecutionPlan.Side condition = new ExecutionPlan.Side.Rows(relation("SELECT TRUE AS value",
+                List.of(col("value", "Boolean", "BOOLEAN"))));
+        ExecutionPlan.Branch inner = new ExecutionPlan.Branch(new ExecutionPlan.Side.Constant(
+                List.of(col("value", "Boolean", null)), List.of(List.of("false")), false),
+                List.of(group(fused(FUSED))), List.of());
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
+                new ExecutionPlan.Branch(condition, List.of(oneVerdict("then@1", "SELECT 1 AS value"), inner),
+                        List.of(oneVerdict("else@1", "SELECT 2 AS value"))))));
+        String json = PlanJson.write(plan);
+        assertEquals(plan, PlanJson.read(json), "the plan read back differs");
+        assertTrue(json.contains("\"_type\":\"branch\""), json);
+        assertThrows(IllegalStateException.class, plan::answerShape, "a plan that only branches answers no rows");
+        assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan.Branch(condition,
+                List.of(relation("SELECT 1 AS value", List.of(col("value", "Integer", "INTEGER")))), List.of()),
+                "a branch's side holds verdict groups and branches");
+    }
+
     private static List<Object> cells(List<Object> row) {
         return new ArrayList<>(row);
     }

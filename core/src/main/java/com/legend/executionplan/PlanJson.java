@@ -84,7 +84,7 @@ public final class PlanJson {
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, verdicts, constant }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, verdicts, constant, branch }
 
     enum SideTag { rows, keyedRows, constant }
 
@@ -228,24 +228,7 @@ public final class PlanJson {
                     vo.put("arm", each.arm());
                     List<Object> base = new ArrayList<>();
                     for (ExecutionPlan.Side side : each.base()) {
-                        Map<String, Object> so = new LinkedHashMap<>();
-                        switch (side) {
-                            case ExecutionPlan.Side.Rows r -> {
-                                so.put("_type", SideTag.rows.name());
-                                so.put("result", node(r.result()));
-                            }
-                            case ExecutionPlan.Side.KeyedRows k -> {
-                                so.put("_type", SideTag.keyedRows.name());
-                                so.put("keyed", node(k.keyed()));
-                            }
-                            case ExecutionPlan.Side.Constant c -> {
-                                so.put("_type", SideTag.constant.name());
-                                so.put("columns", columns(c.columns()));
-                                so.put("cells", c.cells());
-                                so.put("folded", c.folded());
-                            }
-                        }
-                        base.add(so);
+                        base.add(side(side));
                     }
                     vo.put("base", base);
                     vo.put("wrapper", each.wrapper() == null ? null : node(each.wrapper()));
@@ -261,8 +244,44 @@ public final class PlanJson {
                     o.put("savepoint", sp);
                 }
             }
+            case ExecutionPlan.Branch b -> {
+                o.put("_type", NodeTag.branch.name());
+                o.put("condition", side(b.condition()));
+                o.put("then", nodes(b.then()));
+                o.put("otherwise", nodes(b.otherwise()));
+            }
         }
         return o;
+    }
+
+    private static List<Object> nodes(List<Node> steps) {
+        List<Object> out = new ArrayList<>(steps.size());
+        for (Node step : steps) {
+            out.add(node(step));
+        }
+        return out;
+    }
+
+    /** A verdict's side, or a branch's condition: a typed result, a keyed result, or a constant the program wrote. */
+    private static Map<String, Object> side(ExecutionPlan.Side side) {
+        Map<String, Object> so = new LinkedHashMap<>();
+        switch (side) {
+            case ExecutionPlan.Side.Rows r -> {
+                so.put("_type", SideTag.rows.name());
+                so.put("result", node(r.result()));
+            }
+            case ExecutionPlan.Side.KeyedRows k -> {
+                so.put("_type", SideTag.keyedRows.name());
+                so.put("keyed", node(k.keyed()));
+            }
+            case ExecutionPlan.Side.Constant c -> {
+                so.put("_type", SideTag.constant.name());
+                so.put("columns", columns(c.columns()));
+                so.put("cells", c.cells());
+                so.put("folded", c.folded());
+            }
+        }
+        return so;
     }
 
     /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
@@ -534,39 +553,7 @@ public final class PlanJson {
                     Json.Obj vo = (Json.Obj) n;
                     List<ExecutionPlan.Side> base = new ArrayList<>();
                     for (Json.Node sn : vo.getArr("base").items()) {
-                        Json.Obj so = (Json.Obj) sn;
-                        base.add(switch (tag(SideTag.class, so, "verdict side")) {
-                            case rows -> new ExecutionPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));
-                            case keyedRows -> {
-                                Node k = readNode(so.getObj("keyed"));
-                                if (!(k instanceof ExecutionPlan.Keyed keyed)) {
-                                    throw new IllegalArgumentException("a keyed side holds a keyed result");
-                                }
-                                yield new ExecutionPlan.Side.KeyedRows(keyed);
-                            }
-                            case constant -> {
-                                List<List<String>> cells = new ArrayList<>();
-                                for (Json.Node r : so.getArr("cells").items()) {
-                                    if (!(r instanceof Json.Arr row)) {
-                                        throw new IllegalArgumentException("a constant side's row is an array of cells");
-                                    }
-                                    List<String> out = new ArrayList<>();
-                                    for (Json.Node cell : row.items()) {
-                                        out.add(switch (cell) {
-                                            case Json.Str s -> s.value();
-                                            case Json.Null x -> null;
-                                            case Json.Num x -> throw notTextSide();
-                                            case Json.Bool x -> throw notTextSide();
-                                            case Json.Obj x -> throw notTextSide();
-                                            case Json.Arr x -> throw notTextSide();
-                                        });
-                                    }
-                                    cells.add(out);
-                                }
-                                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells,
-                                        so.getBool("folded"));
-                            }
-                        });
+                        base.add(readSide((Json.Obj) sn));
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
@@ -578,6 +565,8 @@ public final class PlanJson {
                         sp == null ? null : new ExecutionPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")));
             }
+            case branch -> new ExecutionPlan.Branch(readSide(o.getObj("condition")), readNodes(o.getArr("then")),
+                    readNodes(o.getArr("otherwise")));
             case constant -> {
                 List<List<String>> cells = new ArrayList<>();
                 for (Json.Node r : o.getArr("cells").items()) {
@@ -613,6 +602,50 @@ public final class PlanJson {
 
     private static IllegalArgumentException notTextSide() {
         return new IllegalArgumentException("a constant side's cell is text or null (the program's own spelling)");
+    }
+
+    private static List<Node> readNodes(Json.Arr steps) {
+        List<Node> out = new ArrayList<>();
+        for (Json.Node n : steps.items()) {
+            out.add(readNode((Json.Obj) n));
+        }
+        return out;
+    }
+
+    /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
+    private static ExecutionPlan.Side readSide(Json.Obj so) {
+        return switch (tag(SideTag.class, so, "verdict side")) {
+            case rows -> new ExecutionPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));
+            case keyedRows -> {
+                Node k = readNode(so.getObj("keyed"));
+                if (!(k instanceof ExecutionPlan.Keyed keyed)) {
+                    throw new IllegalArgumentException("a keyed side holds a keyed result");
+                }
+                yield new ExecutionPlan.Side.KeyedRows(keyed);
+            }
+            case constant -> {
+                List<List<String>> cells = new ArrayList<>();
+                for (Json.Node r : so.getArr("cells").items()) {
+                    if (!(r instanceof Json.Arr row)) {
+                        throw new IllegalArgumentException("a constant side's row is an array of cells");
+                    }
+                    List<String> out = new ArrayList<>();
+                    for (Json.Node cell : row.items()) {
+                        out.add(switch (cell) {
+                            case Json.Str s -> s.value();
+                            case Json.Null x -> null;
+                            case Json.Num x -> throw notTextSide();
+                            case Json.Bool x -> throw notTextSide();
+                            case Json.Obj x -> throw notTextSide();
+                            case Json.Arr x -> throw notTextSide();
+                        });
+                    }
+                    cells.add(out);
+                }
+                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells,
+                        so.getBool("folded"));
+            }
+        };
     }
 
     private static List<ExecutionPlan.Column> readRelationColumns(Json.Arr columns) {

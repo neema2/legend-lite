@@ -1486,6 +1486,12 @@ class JavaEvalLedgerTest {
                     // the agreement rule (AgreementArm.agree) through AssertVerdicts' seam. Plans only; sends nothing;
                     // judges through the two judges' seams
                     "AgreementAsserts.java",
+                    // an assert under an if (the asserts-as-plan-nodes program, step 4, 2026-11-04): a branch
+                    // statement's parts read from the typed tree -- its condition, each side a statement a judge plans
+                    // or a constant -- so each side is planned as a body of its own by the same judge's planner, the
+                    // branch a plan node the runner takes one side of. Reads the tree; plans nothing itself, sends
+                    // nothing, evaluates nothing
+                    "AssertBranch.java",
                     // the walk's door (the walker-deletion program, 2026-11-03): refuses the walk by name to a test a
                     // lane's allow list does not name (-Dlegend.walk.allowed; none: the lane walks nothing). Reads a
                     // property and a resource list; sends nothing, plans nothing, evaluates nothing

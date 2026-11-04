@@ -57,6 +57,26 @@ class AssertBarTest {
             new Probe("one-statement-helper-fails", "{|t::check(3)}", "\nexpected: 2\nactual:   3"),
             new Probe("two-statement-helper-fails", "{|t::check2(3)}", "\nexpected: 2\nactual:   3"),
             new Probe("assert-in-an-if", "{|if(1 == 1, |assertEquals(1, 1), |assertEquals(1, 2))}", null),
+            // an assert under an if (lite's plan's Branch node, step 4): the side not taken is never evaluated, as
+            // upstream never evaluates it -- the else side's toOne() over nothing would fail if it ran
+            new Probe("assert-in-an-if-fails", "{|if(1 == 2, |assertEquals(1, 1), |assertEquals(1, 2))}",
+                    "\nexpected: 1\nactual:   2"),
+            new Probe("if-side-not-taken-never-runs",
+                    "{|if(1 == 1, |assert(true), |assertEquals(1, [1, 2]->filter(x | $x > 5)->toOne()))}", null),
+            new Probe("if-over-a-let", "{|let x = 2; if($x > 1, |assertEquals(2, $x), |assertEquals(1, $x));}", null),
+            new Probe("if-over-a-query",
+                    "{|if([1, 2, 3]->filter(x | $x > 1)->size() == 2, |assertEquals(1, 1), |assertEquals(1, 2))}",
+                    null),
+            new Probe("asserts-around-an-if",
+                    "{|assertEquals(1, 1); if(2 > 1, |assertEquals('a', 'a'), |assert(false)); assertEquals(2, 3);}",
+                    "\nexpected: 2\nactual:   3"),
+            new Probe("nested-if",
+                    "{|if(1 == 1, |if(2 == 3, |assert(false, 'inner then'), |assert(false, 'inner else')),"
+                            + " |assert(true))}", "inner else"),
+            new Probe("if-with-a-constant-then", "{|if(1 == 1, |true, |assert(false, 'not taken')); assert(true);}",
+                    null),
+            new Probe("if-with-a-constant-side", "{|if(1 == 1, |assertEquals(1, 2), |true); true;}",
+                    "\nexpected: 1\nactual:   2"),
             new Probe("assert-bound-by-a-let", "{|let ok = assertEquals(1, 1); assert($ok);}", null),
             new Probe("forAll-over-range", "{|range(1, 4)->forAll(i | assertEquals($i, $i))}", null),
             new Probe("forAll-zip-computed-arguments",
@@ -99,7 +119,6 @@ class AssertBarTest {
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
             "forAll-zip-assert-message",
-            "assert-in-an-if",
             "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type",
             "decimal-scale", "assertError-over-a-failing-assert", "assert-then-a-query"));
