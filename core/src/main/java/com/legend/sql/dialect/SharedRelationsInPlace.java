@@ -30,7 +30,7 @@ import java.util.function.Predicate;
 final class SharedRelationsInPlace extends SqlRewriter {
 
     private final Predicate<SqlQuery> which;
-    private int copies;
+    private final int[] copies = {0};
 
     private SharedRelationsInPlace(Predicate<SqlQuery> which) {
         this.which = which;
@@ -76,7 +76,7 @@ final class SharedRelationsInPlace extends SqlRewriter {
             @Override
             protected SqlSource source(SqlSource s) {
                 if (s instanceof SqlSource.Cte c && inPlace.containsKey(c.name())) {
-                    SqlQuery copy = AliasPrefix.apply("s" + copies++ + "_", inPlace.get(c.name()));
+                    SqlQuery copy = AliasPrefix.apply("s" + copies[0]++ + "_", inPlace.get(c.name()));
                     return new SqlSource.Subselect(copy, c.alias(), null);
                 }
                 return s;

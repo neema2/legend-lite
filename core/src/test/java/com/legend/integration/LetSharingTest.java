@@ -98,14 +98,15 @@ class LetSharingTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("a shared relation that binds a parameter: written once, but in place on H2 (which loses the value)")
+    @DisplayName("a shared relation that binds a parameter: written once, or in place where the database loses the"
+            + " value inside a WITH (SharedRelationsInPlaceTest), each copy binding it")
     void aSharedRelationThatBindsAParameter() {
         String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(getCompletePureModelWithRuntime()),
                         "{min: Integer[1] | test::selfJoined(" + PEOPLE + "->filter(r|$r.AGE_VAL > $min))}")
                 .executionPlan("test::TestRuntime").answerSql().statement();
-        boolean h2 = backend().type().toString().startsWith("H2");
-        assertEquals(h2 ? 0 : 1, count(sql, "__let\\d+\\s+AS\\s*\\("), sql);
-        assertEquals(h2 ? 2 : 1, tableReads(sql), sql);
+        int expressions = count(sql, "__let\\d+\\s+AS\\s*\\(");
+        assertTrue(expressions == 1 && tableReads(sql) == 1 || expressions == 0 && tableReads(sql) == 2, sql);
+        assertEquals(tableReads(sql), count(sql, "\\?"), sql);
     }
 
     @Test

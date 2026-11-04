@@ -11,10 +11,16 @@ import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTds;
 import com.legend.compiler.spec.typed.TypedVariable;
 
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlWith;
+
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -61,6 +67,29 @@ final class SharedRelations {
             }
         });
         return shared;
+    }
+
+    /** One statement's shared relations while it lowers: the nodes; each one's expression once it is lowered; the
+     *  expressions in the order they were lowered (an expression another reads is lowered, and written, first); and
+     *  the nodes being lowered now (a node's own lowering writes it, never a read of itself). */
+    static final class Frame {
+        final Set<TypedSpec> nodes;
+        final Map<TypedSpec, SqlSource.Cte> read = new IdentityHashMap<>();
+        final List<SqlWith.Cte> written = new ArrayList<>();
+        final Set<TypedSpec> lowering = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        Frame(Set<TypedSpec> nodes) {
+            this.nodes = nodes;
+        }
+    }
+
+    /** Whether {@code s} is a bare read of one source -- a table, a raw grid, a URL, a literal grid, a variable's rows:
+     *  no clause of its own, its SQL no larger than a reference to it. */
+    static boolean bare(SqlSelect s) {
+        return s.projections().isEmpty() && s.where() == null && s.groupBy().isEmpty() && s.having() == null
+                && s.qualify() == null && s.orderBy().isEmpty() && s.limit() == null && s.offset() == null
+                && !s.distinct() && !(s.from() instanceof SqlSource.Subselect || s.from() instanceof SqlSource.Join
+                        || s.from() instanceof SqlSource.Pivot);
     }
 
     /** Whether {@code n}'s SQL is larger than a reference to it: a read of a store, a frame, a literal grid or a

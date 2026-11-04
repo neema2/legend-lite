@@ -236,44 +236,42 @@ public final class Lowerer {
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
      *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
      *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
-     *  cteExtractionPostProcessor: {@link #withoutSharedRelations}). */
+     *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
-    /** While a statement lowers ({@link #lower(List)}): its shared relation nodes, each lowered at most once. */
-    private java.util.@com.legend.base.Nullable Set<TypedSpec> shared;
-    private final Map<TypedSpec, SqlSource.Cte> sharedCtes = new java.util.IdentityHashMap<>();
-    private final List<SqlWith.Cte> sharedWith = new ArrayList<>();
-    private final java.util.Set<TypedSpec> sharedLowering =
-            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
+    private @com.legend.base.Nullable SharedRelations.Frame sharing;
 
-    /** Every read of a relation written where it stands, as legend-engine writes it: a frame whose post-processor
-     *  extracts the statement's subqueries as common table expressions of its own spelling. */
-    public Lowerer withoutSharedRelations() {
-        this.shareRelations = false;
+    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
+     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
+     *  expressions of its own spelling. */
+    public Lowerer sharingRelations(boolean on) {
+        this.shareRelations = on;
         return this;
     }
 
     /** {@code spec}, a relation the statement reads more than once: lowered the first time it is read, its rows a
-     *  common table expression of the statement's head; each read the expression by name. A relation whose order the
-     *  statement keeps (an ORDER BY at its top: a sort before a positional read) is written where it stands at each
-     *  read: a common table expression carries no order. */
-    private SqlSelect sharedRead(TypedSpec spec) {
-        SqlSource.Cte cte = sharedCtes.get(spec);
+     *  common table expression of the statement's head; each read the expression by name. Written where it stands at
+     *  each read instead: a relation whose order the statement keeps (an ORDER BY at its top: a sort before a
+     *  positional read; a common table expression carries no order), and a bare read of one source (a raw grid, a
+     *  table: no larger than a reference to it, and a raw grid's report reads the grid as it is written). */
+    private SqlSelect sharedRead(SharedRelations.Frame frame, TypedSpec spec) {
+        SqlSource.Cte cte = frame.read.get(spec);
         if (cte == null) {
             SqlSelect body;
-            sharedLowering.add(spec);
+            frame.lowering.add(spec);
             try {
                 body = relation(spec);
             } finally {
-                sharedLowering.remove(spec);
+                frame.lowering.remove(spec);
             }
-            if (!body.orderBy().isEmpty()) {
-                Objects.requireNonNull(shared).remove(spec);
+            if (!body.orderBy().isEmpty() || SharedRelations.bare(body)) {
+                frame.nodes.remove(spec);
                 return body;
             }
-            String name = SqlWith.SHARED_PREFIX + sharedWith.size();
-            sharedWith.add(new SqlWith.Cte(name, body));
+            String name = SqlWith.SHARED_PREFIX + frame.written.size();
+            frame.written.add(new SqlWith.Cte(name, body));
             cte = new SqlSource.Cte(name, name, body.outputs());
-            sharedCtes.put(spec, cte);
+            frame.read.put(spec, cte);
         }
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
@@ -433,17 +431,17 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (shared == null && shareRelations && !engineText) {
+        if (sharing == null && shareRelations && !engineText) {
             // a relation read more than once, written once (SharedRelations): the statement's own names are its
             // query lets and plan parameters, which its head reads as every part of it does
-            shared = SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet()));
+            SharedRelations.Frame frame =
+                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+            sharing = frame;
             try {
-                SqlQuery reads = lower(root);   // first: the reads register the expressions
-                q = SqlWith.prepend(List.copyOf(sharedWith), reads);
+                SqlQuery reads = lower(root);   // first: the reads write the expressions
+                q = SqlWith.prepend(List.copyOf(frame.written), reads);
             } finally {
-                shared = null;
-                sharedCtes.clear();
-                sharedWith.clear();
+                sharing = null;
             }
         } else {
             q = lower(root);
@@ -991,8 +989,9 @@ public final class Lowerer {
 
     SqlSelect relation(TypedSpec spec) {
         // a relation the statement reads more than once: written once, read by name (SharedRelations)
-        if (shared != null && shared.contains(spec) && !sharedLowering.contains(spec)) {
-            return sharedRead(spec);
+        SharedRelations.Frame frame = sharing;
+        if (frame != null && frame.nodes.contains(spec) && !frame.lowering.contains(spec)) {
+            return sharedRead(frame, spec);
         }
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction

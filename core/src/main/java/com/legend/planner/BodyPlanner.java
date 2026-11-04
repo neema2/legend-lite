@@ -153,10 +153,6 @@ public final class BodyPlanner {
             List<TypedSpec> body, PlanEnv env, ModelContext ctx,
             SqlDialect dialect, boolean identity, boolean named) {
         Lowerer lowerer = lowererFor(body, env, ctx, identity);
-        if (env.postProcessors().extractCtes()) {
-            // the engine's cteExtractionPostProcessor names the statement's subqueries itself: legend-engine's text
-            lowerer = lowerer.withoutSharedRelations();
-        }
         SqlQuery plan =
                 lowerer.lower(SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
@@ -191,7 +187,9 @@ public final class BodyPlanner {
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone());
+                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes());
+        // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
+        // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04)
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read
