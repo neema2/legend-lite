@@ -216,12 +216,31 @@ public final class Equality {
                     && withinTwoUlp(de, da);
         }
         if (ek == Type.Primitive.STRING) {
-            return e.equals(a) || (e instanceof String es && a instanceof String as && floatTokensWithinTwoUlp(es, as));
+            // S132's float tokens: backwards-compatibility mode alone (a run that asks: ExecuteOptions.withEngineCompat)
+            return e.equals(a) || (COMPAT.get() && e instanceof String es && a instanceof String as
+                    && floatTokensWithinTwoUlp(es, as));
         }
         if (ek == Type.Primitive.BOOLEAN) {
             return e.equals(a);
         }
         return e.equals(a);   // dates: the literal's own equality
+    }
+
+    /** Whether the judgment running on this thread is a backwards-compatibility run's ({@link #compat}). */
+    private static final ThreadLocal<Boolean> COMPAT = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** {@code judgment} run in BACKWARDS-COMPATIBILITY MODE (2026-11-04, the user: lite's own runs judge exactly, as
+     *  upstream's language does; PCT and the corpus pass in a mode that meets legend-engine's goldens): S132's float
+     *  tokens within 2 ULP inside a String apply in it alone. The mode is the plan's judgment's (HostJudgment.Compat,
+     *  planned from the run's options), scoped to the one judgment. */
+    public static <T> T compat(java.util.function.Supplier<T> judgment) {
+        Boolean before = COMPAT.get();
+        COMPAT.set(Boolean.TRUE);
+        try {
+            return judgment.get();
+        } finally {
+            COMPAT.set(before);
+        }
     }
 
     /** A float's text in a rendered string: digits, a point and digits, an optional exponent. */

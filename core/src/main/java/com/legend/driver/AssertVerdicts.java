@@ -1129,8 +1129,9 @@ final class AssertVerdicts {
         }
         boolean wantEqual = fn == null || fn != NativeFn.Verdict.ASSERT_NOT_EQUALS
                 && fn != NativeFn.Verdict.ASSERT_FALSE && fn != NativeFn.Verdict.ASSERT_NOT_EMPTY;
-        return new HostAssert(listenerName(bare), name, wantEqual,
-                split == null ? check : HostJudge.messaged(check, split.message(), hook));
+        HostSides.Check planned = split == null ? check : HostJudge.messaged(check, split.message(), hook);
+        return new HostAssert(listenerName(bare), name, wantEqual, env.options().engineCompat()
+                ? new HostSides.Check(planned.asks(), new HostJudgment.Compat(planned.judgment())) : planned);
     }
 
     /** {@code fn}'s arm planned over {@code bare}'s arguments, or null where the host checks do not plan the shape. */

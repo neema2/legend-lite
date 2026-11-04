@@ -292,7 +292,10 @@ public final class ChannelB {
                             .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.valueOf(
                                     System.getProperty("pct.channelb.judge", "BOTH")))
                             // a server lane's system connection, as channel A's (PctBackend)
-                            .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections()));
+                            .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections())
+                            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
+                            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+                            .withEngineCompat(true));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a

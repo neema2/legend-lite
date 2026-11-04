@@ -610,7 +610,9 @@ public final class MinimalCorpus {
                 } catch (IOException e) {
                     throw new com.legend.error.DataError("test resource '" + path + "'", e);
                 }
-            });
+            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
+            // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+            }).withEngineCompat(true);
         }
 
         @Override

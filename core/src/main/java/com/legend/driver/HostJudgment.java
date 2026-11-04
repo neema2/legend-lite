@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged, HostJudgment.Compat {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -284,6 +284,12 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  holds (the dispatch's own rendered arm, not the equality's). */
     record Rendered(String name, boolean wantEqual, String form, @Nullable String eForm, @Nullable String aForm,
             boolean sortedOrder, boolean counted) implements HostJudgment {
+    }
+
+    /** {@code inner} judged in BACKWARDS-COMPATIBILITY MODE (2026-11-04: the run asked for it, ExecuteOptions
+     *  .withEngineCompat -- the PCT and corpus harnesses): the leniencies that meet legend-engine's goldens apply
+     *  (judge.Equality.compat). */
+    record Compat(HostJudgment inner) implements HostJudgment {
     }
 
     /** A caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04;

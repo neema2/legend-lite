@@ -60,7 +60,11 @@ final class HostSides {
         if (check == null) {
             return null;
         }
-        return HostJudge.judge(check.judgment(), fetch(name, check.asks(), letPrefix, specs, env));
+        // a backwards-compatibility run's judgment in its mode (ExecuteOptions.withEngineCompat), as the program road plans
+        // it (AssertVerdicts.planHost); a judgment planned in it already is not wrapped twice
+        HostJudgment judgment = env.options().engineCompat() && !(check.judgment() instanceof HostJudgment.Compat)
+                ? new HostJudgment.Compat(check.judgment()) : check.judgment();
+        return HostJudge.judge(judgment, fetch(name, check.asks(), letPrefix, specs, env));
     }
 
     /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */

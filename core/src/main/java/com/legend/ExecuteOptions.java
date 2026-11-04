@@ -12,6 +12,8 @@ package com.legend;
  * @param resources the test-input resource resolver (path → text; null = none)
  * @param systemConnections the host's system connections, by engine: a query reading the system metamodel store on a
  *                  server engine runs on that engine's (SystemDatabase); an in-process engine needs none
+ * @param engineCompat backwards-compatibility mode ({@link #withEngineCompat}): the judges' leniencies that meet
+ *                  legend-engine's goldens; off, lite judges exactly
  */
 public record ExecuteOptions(
         com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
@@ -19,7 +21,8 @@ public record ExecuteOptions(
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
         java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType, com.legend.exec.Sessions.Opener>
-                systemConnections) {
+                systemConnections,
+        boolean engineCompat) {
 
     public ExecuteOptions {
         systemConnections = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
@@ -39,27 +42,36 @@ public record ExecuteOptions(
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
             java.util.function.@com.legend.base.Nullable Function<String, String> resources,
             java.util.Set<com.legend.platform.Feature> features) {
-        this(recorder, resources, features, JudgeMode.HOST, java.util.Map.of());
+        this(recorder, resources, features, JudgeMode.HOST, java.util.Map.of(), false);
     }
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, null, java.util.Set.of());
 
     public ExecuteOptions withJudgeMode(JudgeMode mode) {
-        return new ExecuteOptions(recorder, resources, features, mode, systemConnections);
+        return new ExecuteOptions(recorder, resources, features, mode, systemConnections, engineCompat);
     }
 
     /** The runner's DEFAULT feature flags — merged into every execute
      *  call's own ({@code ExecutionContext.features}); the one ambient
      *  source (the engine's testable runner has the same knob). */
     public ExecuteOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new ExecuteOptions(recorder, resources, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(f)), judgeMode, systemConnections);
+        return new ExecuteOptions(recorder, resources, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(f)), judgeMode, systemConnections, engineCompat);
     }
 
     /** The host's system connections, by engine: where a server engine's system database lives, configured apart from
      *  every runtime's connection (the platform holds no server credential; SystemDatabase). */
     public ExecuteOptions withSystemConnections(java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
             com.legend.exec.Sessions.Opener> connections) {
-        return new ExecuteOptions(recorder, resources, features, judgeMode, connections);
+        return new ExecuteOptions(recorder, resources, features, judgeMode, connections, engineCompat);
+    }
+
+    /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass
+     *  PCT/rcorpus in backwards compat mode"): the judges' leniencies that exist only to meet legend-engine's goldens --
+     *  computed in Java doubles where lite computes in the database's -- apply in a run that asks for them (the PCT and
+     *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. Today: S132's float tokens within
+     *  2 ULP inside a String (judge.Equality). */
+    public ExecuteOptions withEngineCompat(boolean on) {
+        return new ExecuteOptions(recorder, resources, features, judgeMode, systemConnections, on);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the

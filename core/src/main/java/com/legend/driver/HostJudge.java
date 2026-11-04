@@ -712,6 +712,7 @@ final class HostJudge {
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides);
             case HostJudgment.Messaged m -> messagedOf(m, sides);
+            case HostJudgment.Compat c -> com.legend.judge.Equality.compat(() -> judge(c.inner(), sides));
         };
     }
 
