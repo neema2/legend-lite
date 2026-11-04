@@ -209,9 +209,11 @@ class TestDoorTest {
      *  name. */
     @Test
     void aComputedStringArgumentIsRefusedByName() {
-        assertEquals("a computed String argument of meta::relational::metamodel::execute::executeInDb on the test"
-                + " door's program road: its value is the database's to compute before the effect is written (the T9"
-                + " kind the test-is-the-product plan's M9 plans)", assertThrows(NotImplementedException.class,
+        // the refusal's text since the user's ruling of 2026-11-04 (the core program): a SQL text built at run time is a
+        // text hole, which lite does not have
+        assertEquals("a computed String argument of meta::relational::metamodel::execute::executeInDb: a SQL text built"
+                + " at run time is a text hole, which lite does not have -- write a computed value with a store write"
+                + " (the user's ruling, 2026-11-04)", assertThrows(NotImplementedException.class,
                         () -> storeless(CONN + EXEC + "'Create Table m3d_' + 1->toString() + '(i INT);', $c, 0,"
                                 + " 1000); 1;}")).getMessage());
     }

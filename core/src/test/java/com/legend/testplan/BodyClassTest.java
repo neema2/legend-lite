@@ -58,11 +58,18 @@ class BodyClassTest {
     }
 
     @Test
-    void aBodyWithAnAssertOrAComputedArgumentStaysOnTheWalk() {
+    void aBodyWithAnAssertStaysOnTheWalk() {
         assertNull(classOf(CONN + EXEC + "'Create Table m5_a(i INT);', $c, 0, 1000);\nassert(1 == 1);}"));
         assertNull(classOf("{| assert(1 == 1);}"));
-        // a String argument computed from a value only the run knows (the walk folds a let's literal, as the test door)
-        assertNull(classOf(CONN + EXEC + "'Create Table t' + now()->toString() + '(i INT);', $c, 0, 1000);}"));
+    }
+
+    /** MOVED 2026-11-04 (the core program; the user's ruling: a SQL text built at run time is a text hole, which lite
+     *  does not have): a String argument computed from a value only the run knows (a let's literal folds, as on the
+     *  walk) is an effect program's, which the test door refuses by name when it plans the effect. */
+    @Test
+    void aComputedArgumentIsTheTestDoorsToRefuse() {
+        assertEquals(BodyClass.EFFECT_PROGRAM,
+                classOf(CONN + EXEC + "'Create Table t' + now()->toString() + '(i INT);', $c, 0, 1000);}"));
     }
 
     /** MOVED 2026-11-03 (the core program): an executeInDb result read as the answer is the product's keyed result

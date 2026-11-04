@@ -50,7 +50,7 @@ import java.util.Set;
  *
  * <p><b>Effects (M3d; R11, D34, R7 decision 14).</b> A database effect's statements are written by
  * {@link EffectPlanner} from its String arguments, each a literal folded ({@code Literals.fold}, the walk's own fold; a
- * computed one is refused by name, the T9 kind M9 plans). Consecutive effect statements are ONE script, as the walk's
+ * computed one is refused by name: lite has no text holes, the user's ruling of 2026-11-04). Consecutive effect statements are ONE script, as the walk's
  * segment rule makes them (any other statement closes it): an {@link ExecutionPlan.Effect} whose script holds the
  * statements, their dialect's bracket and abort, and whose text is the statements joined bare (the walk's
  * {@code sendScript}). An effect let binds what only connection reads may read (the walk's guard). An effect as the
@@ -312,9 +312,9 @@ final class TestKinds implements ProgramKinds {
                 if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
                         instanceof String folded)) {
                     throw new NotImplementedException("a computed String argument of "
-                            + e.call().callee().qualifiedName() + " on the test door's program road: its value is the"
-                            + " database's to compute before the effect is written (the T9 kind the test-is-the-product"
-                            + " plan's M9 plans)");
+                            + e.call().callee().qualifiedName() + ": a SQL text built at run time is a text hole, which"
+                            + " lite does not have -- write a computed value with a store write (the user's ruling,"
+                            + " 2026-11-04)");
                 }
                 values.add(folded);
             }

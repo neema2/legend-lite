@@ -149,6 +149,12 @@ public enum BodyClass {
         // M3e) -- the M5 audit's B1 refusal predated that seed (2026-11-04, the core program: JudgesOnPlansTest,
         // ServiceTestProvisionKeyTest, CreateClassTest measured on the program road)
         QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);
+        if (computedEffectText(body, scan)) {
+            // a database effect's text computed at run time (the user's ruling, 2026-11-04, the core program: lite has
+            // no text holes, D75 -- a value is written with a store write): the test door refuses it by name when it
+            // plans the effect (TestKinds.effect), before anything runs
+            return EFFECT_PROGRAM;
+        }
         if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;
         }
@@ -1125,6 +1131,25 @@ public enum BodyClass {
     static boolean seedFormEffectMap(TypedSpec value, List<TypedSpec> lets) {
         return value instanceof com.legend.compiler.spec.typed.TypedMap tm && Seeds.seedForm(tm, lets) != null
                 && Seeds.oneEffectMapper(tm, lets);
+    }
+
+    /** Whether {@code query}'s body, holding no assert, has a statement that is a database effect whose String
+     *  arguments are not all literals ({@link #literalEffect}): a text the database would compute before the effect is
+     *  written -- a text hole, which lite does not have. {@code loadCsvToDbTable} is not one (its CSV a test resource). */
+    private static boolean computedEffectText(TypedQuery query, QueryDoor.Scan scan) {
+        List<TypedSpec> body = query.body();
+        boolean computed = false;
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
+            if (scan.kinds(statement).contains(QueryDoor.TestOnly.ASSERT)) {
+                return false;
+            }
+            TypedSpec value = statement instanceof TypedLet let ? let.value() : statement;
+            computed |= value instanceof TypedNativeCall call && NativeFn.Effect.isDbEffect(call.callee().id())
+                    && NativeFn.Effect.of(call.callee().id()).orElse(null) != NativeFn.Effect.LOAD_CSV_TO_DB_TABLE
+                    && !literalEffect(call, body.subList(0, i));
+        }
+        return computed;
     }
 
     /** Whether {@code value} is a String or Boolean literal: a value both roads answer with no statement sent. */

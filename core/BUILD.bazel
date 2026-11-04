@@ -666,8 +666,10 @@ _CORE_TEST_EXCLUDED_TAGS = [
 ]
 
 # THE WALK'S DOOR (the walker-deletion program, 2026-11-03): a core test's body reaches the walk only where the allow
-# list names the test (driver/WalkDoor); the list only shrinks
-_WALK_DOOR = ["-Dlegend.walk.allowed=classpath:com/legend/walk-allowed.txt"]
+# list names the test (driver/WalkDoor); the list only shrank. CLOSED 2026-11-04 (the core program: 73 -> 0, the last
+# entry a computed executeInDb text the user ruled a text hole lite does not have): no core test walks, and no list
+# remains that could grow back -- channel B's door since 2026-11-03
+_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
 
 [junit_test(
     name = "core_tests_" + p,

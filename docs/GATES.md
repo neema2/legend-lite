@@ -19640,3 +19640,27 @@ fallback run -- for an engine-text assert, the rows replay ("the harness replay 
    `update_rcorpus_h2_0_test` red as at the baseline. Core under the database judge alone: the known gaps only
    (QuantifiedRowsTest's row messages, MetamodelMappingStoreTest's instance message, H2's out-of-memory on the metamodel
    nesting).
+
+## 2026-11-04 — Core, eighth batch: no core test walks (1 -> 0; core's walk door `none`)
+
+1. **A SQL text built at run time is refused by name** (the user's ruling, 2026-11-04: "Agreed"; register S133). A
+   database effect whose String argument does not fold at planning -- `executeInDb('... values (\'' + $names + '\')',
+   $c)`, `$names` a class query's `makeString` -- is a text hole, which lite does not have (D75): the class rule sends
+   such a body to the test door (`BodyClass.computedEffectText`, a body with no assert), whose planner refuses it by
+   name before anything runs (`TestKinds.effect`, its text the ruling's); a computed value is written with a store
+   write. Measured first: 0 of legend-engine's 2,255 `executeInDb` call sites and 0 of legend-pure's build a text from
+   a query's data (2,161 literals; the rest literals held in lets, the compiler's own SQL, helpers passing a parameter
+   through); the corpus has no such body. The core test that pinned the walk running it (T1.9 of
+   `docs/ARCHITECTURE_REMEDIATION.md`, an audit finding of our own) becomes the refusal's pin
+   (`ExecuteInDbDuckDbTest#aComputedEffectTextIsRefused`: refused, nothing run).
+2. **Core's walk door closed**: the allow list 1 -> 0 and deleted; `core/BUILD.bazel`'s `_WALK_DOOR` is
+   `-Dlegend.walk.allowed=none`, channel B's form -- no list remains that could grow back. 73 -> 0 over the core
+   program's eight batches (2026-11-03 to 2026-11-04).
+3. Pins moved, each dated: `TestDoorTest` (the refusal's text), `BodyClassTest` (a computed argument is the test door's
+   to refuse), `BodyRouterParityTest#theShapesTheRuleKeepsOnTheWalk` (the computed argument an effect program).
+4. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green; the corpora against the `8951f974`
+   baseline: every test's status identical in all four passes, the moved counts unchanged (host 3,084, database
+   3,049). The corpus verdict targets and `update_rcorpus_h2_0_test` red as at the baseline. Core under the database
+   judge alone: the known gaps only (QuantifiedRowsTest's row messages, MetamodelMappingStoreTest's instance message,
+   H2's out-of-memory on the metamodel nesting).

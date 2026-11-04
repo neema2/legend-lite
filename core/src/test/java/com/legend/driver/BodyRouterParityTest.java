@@ -329,8 +329,10 @@ class BodyRouterParityTest {
         // walk does, once per session (TestKinds.seed)
         assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(Compiler.compileModel(model(backend, true)),
                 c + effect("insert into seed_t values (9)") + "true;}"), RT));
-        // a computed effect argument (T9, M9)
-        assertWalked(backend, c + EXEC + "'create table w3(i int)'->toUpper(), $c, 0, 1000);\ntrue;}", false);
+        // a computed effect argument (T9, M9) -- MOVED 2026-11-04 (the core program; the user's ruling: a SQL text
+        // built at run time is a text hole, which lite does not have): an effect program the test door refuses by name
+        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(Compiler.compileModel(model(backend, false)),
+                c + EXEC + "'create table w3(i int)'->toUpper(), $c, 0, 1000);\ntrue;}"), RT));
         // MOVED 2026-11-03 (the core program): an executeInDb result read, a raw grid (T8, M9), is the product's keyed
         // result (ExecuteInDbProbeCountTest, ProductStatementsTest on the program road)
         assertEquals(BodyClass.QUERY_PROGRAM, BodyClass.of(typed(Compiler.compileModel(model(backend, false)),
