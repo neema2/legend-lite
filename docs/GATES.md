@@ -19489,3 +19489,29 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
    verdict targets red at the baseline too (the corpus reconciliation since `de641baf`, open: DuckDB's three database
    losses, H2's 31 host-compared). One witness text moved with the message (`testDateTimeInclusiveRangeQuery`'s, both
    database registers: the host's own text now, `(2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)`).
+
+## 2026-11-04 — Core, second batch: declared test data and row asserts on the program road (19 -> 9 walkers)
+
+1. **A runtime that declares test data is no longer the walk's.** `BodyClass.of`'s first rule refused every body whose
+   runtime declares test data (the M5 audit's B1: "the two roads seed and memo differently"); the test door has since
+   seeded the program runtime's declared data as the walk does -- a keyed setup step before the first statement naming
+   it, once per session (`TestKinds.seed`, `Seeds.planned`, M3e). The rule deleted; JudgesOnPlansTest's three,
+   ServiceTestProvisionKeyTest's three and CreateClassTest's one pass on the program road with the walk closed.
+   BodyRouterParityTest's two pins of that shape move with dated reasons.
+2. **The quantified `assertEquals` / `assertEqWithinTolerance` over rows** (`$xs->zip($ys)->forAll(p | assertEquals(
+   $p.first, $p.second))`, or over a relation's rows) is planned for the host judge: `HostJudgment.Rows` -- the sides
+   the zip's arms (or the one relation source), each argument a row's field, the row or a literal read at planning as
+   data, the zip's pairing as data -- judged row by row by `PureAsserts`, the first failing row's message (until now
+   the walk's alone, `HostJudge.quantifiedRows`, which now runs the same planned check in place: one function).
+   QuantifiedRowsTest's three pass on the program road.
+3. **Open, the judges**: under the database judge alone, QuantifiedRowsTest's failing rows raise "every element true /
+   N element(s) otherwise" (its vector carries each row's truth, not its two values) where the host raises the first
+   failing row's upstream message; and `otherArgumentsRefused` -- the host refuses `$p.first + 1` ("the host judge
+   evaluates nothing") where the database judge computes it and holds. The walkers left: BodyRouterParityTest's three
+   (the planners' long tail: assertEq over constructed instances, three grid-pair edges, a computed assertInstanceOf
+   type, assertIs over primitives, a nested quantification, the deferred engine texts), ExecuteInDbDuckDbTest's two
+   effects, StagedRowsTest's two, a statement over both stores, a bare execute answered.
+4. **Checks**: core (every target, lanes, guardrails, census), the lean ladder, PCT DuckDB channel B every suite, SQLite
+   channel B every suite, H2 channel B relation: green. The corpora against the `8951f974` baseline: every test's
+   status identical in all four passes (their verdict targets red at the baseline too). `JavaEvalLedgerTest`:
+   `HostJudge` 1179 -> 1203, `HostJudgment` 165 -> 182, `AssertVerdicts` 1766 -> 1769, with their reasons.

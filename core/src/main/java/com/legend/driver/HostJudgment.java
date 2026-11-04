@@ -28,7 +28,7 @@ import java.util.Set;
  * outside the plan by the user's ruling (R3, T13, R6), run at the step on a failed text alone. The walk runs the same
  * function in place ({@link HostSides#run}).
  */
-sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
+sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
@@ -192,6 +192,37 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
      *  predicate vector the database computes over the source's elements; the assert holds when every row is
      *  {@code wantTrue}, else it fails with {@code message} (the element arm's own words). */
     record AllRows(String name, boolean wantTrue, String message) implements HostJudgment {
+    }
+
+    /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
+     *  the element arm judges a pair ({@link com.legend.judge.PureAsserts}: the same decision, the same message, the
+     *  first failing row's): the sides are the zip's arms ({@code pairing}: their pairing by position, stopped at the
+     *  shorter, zip's own rule) or one relation source ({@code pairing} null: its rows as records by column name); each
+     *  argument a row's field, the row itself, or a literal, decided at planning (2026-11-04, the core program: until
+     *  then the walk's alone, HostJudge.quantifiedRows). */
+    record Rows(String name, boolean tolerance, List<RowArg> args, ExprType expectedInfo, ExprType actualInfo,
+            @Nullable Pairing pairing) implements HostJudgment {
+    }
+
+    /** A row assert's argument: the row, one of its fields, or a literal. */
+    sealed interface RowArg permits RowArg.Whole, RowArg.Field, RowArg.Literal {
+        record Whole() implements RowArg {
+        }
+
+        record Field(String name) implements RowArg {
+        }
+
+        record Literal(@Nullable Object value) implements RowArg {
+        }
+    }
+
+    /** The zip's shape over its arms, left to right: an arm by its index among the sides, or a zip of two. */
+    sealed interface Pairing permits Pairing.Arm, Pairing.Zip {
+        record Arm(int index) implements Pairing {
+        }
+
+        record Zip(Pairing left, Pairing right) implements Pairing {
+        }
     }
 
     /** An UNROLLED quantified assert's judgment (M10c item 5): the elements' planned asserts in order, each judged over

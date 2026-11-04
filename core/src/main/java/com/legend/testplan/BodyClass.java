@@ -144,9 +144,10 @@ public enum BodyClass {
      *  M6 and M9, or the database's, M7: the assert and frame classes are theirs; a run judging with both, channel B,
      *  keeps every assert body on the walk until M8), or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean oneJudge) {
-        if (QueryDoor.declaresTestData(runtime, body.context())) {
-            return null;
-        }
+        // a runtime that declares test data: the test door seeds it as the walk does, a keyed setup step before the
+        // first statement that names it, once per session (TestKinds.seed, Seeds.planned: "the program's runtime";
+        // M3e) -- the M5 audit's B1 refusal predated that seed (2026-11-04, the core program: JudgesOnPlansTest,
+        // ServiceTestProvisionKeyTest, CreateClassTest measured on the program road)
         QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);
         if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;

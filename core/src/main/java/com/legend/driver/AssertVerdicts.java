@@ -1622,8 +1622,12 @@ final class AssertVerdicts {
                         HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true, "Assert failed", hook)));
             }
             if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
-                // the walk judges these row by row on the host (HostJudge.quantifiedRows): the walk's
-                return null;
+                // row by row on the host, planned (2026-11-04, the core program): the zip's arms or the relation
+                // source the sides, the arguments read at planning (HostJudge.planRows); until then the walk's alone
+                HostSides.Check rows = HostJudge.planRows(vectorFamily(sh), sh.source(), sh.lam(), sh.root(),
+                        letPrefix, hook);
+                return rows == null ? null
+                        : new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true, rows));
             }
         }
         if (sh.simplePredicate()) {

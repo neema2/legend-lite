@@ -9,22 +9,15 @@
 # plain queries over a connection handle, a raw grid, a value let, a constructed instance or a class's extent
 # (Phase1AuditTest, AuditTier1PipelineTest, ExecuteInDbProbeCountTest, InstanceIdentityTest, the metamodel stores'
 # tests, DeclaredQuotedTableH2Test, ProductStatementsTest). BodyClass's rules, BodyRouterParityTest's moved pins.
-com.legend.JudgesOnPlansH2Test#everyBodyHoldsUnderBothJudges
-com.legend.JudgesOnPlansTest#aFailingAssertFailsUnderBothJudges_withTheHostsMessage
-com.legend.JudgesOnPlansTest#everyBodyHoldsUnderBothJudges_onThePlatform
+# 2026-11-04 (the core program): 19 -> 9 -- a runtime declaring test data is seeded by the test door as the walk
+# seeds it (JudgesOnPlansTest, ServiceTestProvisionKeyTest, CreateClassTest); the quantified assertEquals and
+# assertEqWithinTolerance over rows planned for the host judge (QuantifiedRowsTest).
 com.legend.driver.BodyRouterParityTest#deferredTextPrograms
 com.legend.driver.BodyRouterParityTest#theAssertShapesTheDatabasePlannerLeavesOnTheWalk
 com.legend.driver.BodyRouterParityTest#theAssertShapesTheHostChecksLeaveOnTheWalk
-com.legend.driver.QuantifiedRowsTest#equalsRows
-com.legend.driver.QuantifiedRowsTest#otherArgumentsRefused
-com.legend.driver.QuantifiedRowsTest#toleranceRows
 com.legend.exec.ExecuteFrameTest#executeInResultPosition
 com.legend.exec.ExecuteInDbDuckDbTest#classQueryDerivedSqlResolves
 com.legend.exec.ExecuteInDbDuckDbTest#effectfulLetReadIsLoud
 com.legend.integration.MetamodelStoreTest#mixedChainKeepsTheWall
-com.legend.integration.ServiceTestProvisionKeyTest#collidingCsvHashesDoNotShareASessionUnderSharedPolicy
-com.legend.integration.ServiceTestProvisionKeyTest#collidingCsvHashesDoNotShareATestRuntime
-com.legend.integration.ServiceTestProvisionKeyTest#identicalCsvSharesOneRuntimeAndSession
 com.legend.integration.StagedRowsTest#aDeleteOfTheRowsAnotherRelationNames
 com.legend.integration.StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt
-com.legend.server.CreateClassTest#theSampleRowsLoad

@@ -324,8 +324,10 @@ class BodyRouterParityTest {
         // print of an effect (S4): its argument holds a test kind
         assertWalked(backend, c + effect("create table w2(i int)") + "print(" + EXEC
                 + "'insert into w2 values (1)', $c, 0, 1000), 1);\ntrue;}", false);
-        // a runtime that declares test data (B1): the two roads seed and memo differently
-        assertWalked(backend, c + effect("insert into seed_t values (9)") + "true;}", true);
+        // MOVED 2026-11-04 (the core program): a runtime that declares test data (B1) -- the test door seeds it as the
+        // walk does, once per session (TestKinds.seed)
+        assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(Compiler.compileModel(model(backend, true)),
+                c + effect("insert into seed_t values (9)") + "true;}"), RT));
         // a computed effect argument (T9, M9)
         assertWalked(backend, c + EXEC + "'create table w3(i int)'->toUpper(), $c, 0, 1000);\ntrue;}", false);
         // MOVED 2026-11-03 (the core program): an executeInDb result read, a raw grid (T8, M9), is the product's keyed
@@ -579,9 +581,11 @@ class BodyRouterParityTest {
                         + " x::RTSeeded.runtimeValue, []); assertSize($r.values.rows, 2);}")) {
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
         }
-        // a body whose own runtime declares test data stays on the walk (the first rule of every class)
-        assertNull(BodyClass.of(typed(ctx, "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}"),
-                "x::RTSeeded", true));
+        // MOVED 2026-11-04 (the core program): a body whose own runtime declares test data is a frame program -- the
+        // test door seeds the runtime's data as the walk does (TestKinds.seed; JudgesOnPlansTest,
+        // ServiceTestProvisionKeyTest, CreateClassTest on the program road with the walk closed)
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, "{| let r = " + EXECUTE
+                + "; assertSize($r.values.rows, 2);}"), "x::RTSeeded", true));
     }
 
     /** The frame shapes M9 leaves on the walk, each by name: the eager inline execute, an effect let, a frame reading
