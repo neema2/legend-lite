@@ -19765,3 +19765,20 @@ just do what they say they do on the tin"; the design (docs/ASSERT_NODES_PLAN_20
     H2 71). With item 8's revert: `//core:census`, `//core:core_tests_driver`, PCT channel B essential and grammar
     under the database judge: green (essential and grammar back at their floors).
     Not run here: the server lanes; `//core:core_tests_lanes` (H2 and SQLite, measurement).
+
+## 2026-11-04 — Asserts as plan nodes, step 4: an assert under an `if` is lite's plan's Branch node
+
+The user's word (2026-11-04): "we own the 'new' lite plan so we should do whatever we think is the cleanest way to
+represent in our plan". `8de96db7`: `ExecutionPlan.Branch` (a condition side; the then and else sides' steps, verdict
+groups and branches) -- the runner reads the condition's one Boolean and runs only the side it names, so the side not
+taken is never sent, as upstream never evaluates it; each side planned as a body of its own by the same judge's planner
+(`driver/AssertBranch`); a product query's `if` untouched (the database's `CASE`). `AssertBarTest`: `assert-in-an-if`
+closed (8 -> 7 gaps of 46 probes), nine branch probes meet the bar under the host judge, the database judge alone and
+BOTH; `ProgramRunnerTest`: the side not taken never sent, a constant branch with no session, the JSON round trip.
+
+**Checks at `8de96db7`:** `//core:core_tests_driver`, `_exec`, `_planner`, `_testplan`, `//core:census`,
+`//core:guardrails` green; `//core:core_tests` under the database judge alone and under BOTH: 28 of 28 each; PCT
+channel B's seven local suites under the database judge: 7 of 7; the DuckDB corpus against the batch-1 run (`eef7fc38`'s
+entry): every status identical in both passes, moved 3,084 (host) and 3,050 (database) unchanged -- no corpus body has
+an assert under a top-level `if` -- and `//spec:corpus_duckdb_verdict` red as at the baseline (the database-lost set
+identical). Not run here: the H2 corpus, the server lanes, `//core:core_tests_lanes`.
