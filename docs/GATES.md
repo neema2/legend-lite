@@ -19712,3 +19712,14 @@ database with full agreement ("A is fine, let's focus on closing out core 100%")
    test reaches it today.
 7. Guards, each dated: `JavaEvalLedgerTest` `AssertVerdicts` 1791 -> 1820 -> 1826, `DatabaseJudge` 664 -> 672 -> 679
    -> 684 -> 703.
+8. **Checks at `5eac4a02`** (code; the entry's commit is records only): `//core:core_tests` under the host judge, the
+   database judge alone and BOTH: 28 of 28 each; `//core:census`, `//core:guardrails` and the lean ladder green.
+   `judge-declines` over the database and BOTH runs: outside the unit tests that exercise the decline paths and the
+   host judge's own rider, the database judge declined nothing under the database judge alone, and under BOTH only
+   `assertError` (ruling N3). PCT channel B (DuckDB's five suites, SQLite and H2 relation) under the database judge
+   alone and under BOTH: 7 of 7 each (BOTH's first run lost two targets to a full disk -- "could not copy inputs into
+   sandbox" -- and was re-run whole after `bazel clean`). The corpora against the `8951f974` baseline: every test's
+   status identical in all four passes; the database passes move 3,049 -> 3,050 bodies (the raw-grid assert), the host
+   passes 3,084. The corpus verdict targets and `update_rcorpus_h2_0_test` red as at the baseline. Not run here: the
+   server lanes (Postgres, MariaDB, MySQL, Trino, ClickHouse, Snowflake, Databricks, BigQuery); `//core:core_tests_lanes`
+   (H2 and SQLite, measurement held to their floors) not re-run since batch 8.
