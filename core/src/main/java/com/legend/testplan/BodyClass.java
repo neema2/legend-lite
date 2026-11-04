@@ -735,11 +735,14 @@ public enum BodyClass {
             return false;
         }
         TypedSpec last = body.get(body.size() - 1);
-        // an assert as the last statement answers its verdict, as the walk answers it; any other last statement sends
-        // nothing (a literal, a handle, an inert print): a query planned after the asserts could fail planning before
-        // they ran and reported, where the walk fails it at its turn
+        // an assert as the last statement answers its verdict; any other last statement is the body's answer, planned
+        // after the asserts as any query is (the asserts-as-plan-nodes program, step 4, 2026-11-04: "assert, then a
+        // query" -- until then refused, so a query planned after the asserts could not fail planning before they ran;
+        // the program plans everything before it runs, so a last statement lite cannot plan fails the body with its
+        // refusal even where an earlier assert would fail -- the test fails either way, in other words)
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
-                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx) || scan.kinds(last).isEmpty()
+                && !(last instanceof TypedLet);
     }
 
     /** Whether {@code body} holds an assert at a statement's root, or an assertError: what a judge plans. */

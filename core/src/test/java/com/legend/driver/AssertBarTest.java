@@ -97,10 +97,10 @@ class AssertBarTest {
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
             "forAll-zip-assert-message",
-            "assert-in-an-if", "assert-bound-by-a-let",
+            "assert-in-an-if",
             "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type", "concatenate-keeps-order", "union-keeps-order", "float-looking-strings",
-            "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert", "assert-then-a-query"));
+            "decimal-scale", "assertError-let-message", "assertError-over-a-failing-assert"));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);

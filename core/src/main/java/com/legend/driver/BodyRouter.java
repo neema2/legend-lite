@@ -47,10 +47,14 @@ public final class BodyRouter {
     }
 
     /** {@code typed} run on {@code session}: moved or walked ({@link BodyDriver#execute}'s contract either way). */
-    public static void execute(TypedQuery typed, @Nullable String runtimeFqn, SqlDialect dialect,
+    public static void execute(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
+        // the lift (the asserts-as-plan-nodes program, step 4): an assert in a value's position is a statement of its own
+        // at its place, true where it stood -- every road below sees the lifted body
+        List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
+        TypedQuery typed = lifted == given.body() ? given : given.withBody(lifted);
         // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
         // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
         BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);

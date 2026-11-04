@@ -66,3 +66,13 @@ asserts are inlined like any function.
 8. **Delete the shape recognizers the node made redundant.**
 
 Then the wall (§2 of the audit) and the lean SQL (§3), then the corpus.
+
+## Progress
+
+| Step | State | Commit |
+|---|---|---|
+| 1 the ratchet | 37 probes, 27 gaps | `046a1825` |
+| 2 messages as sides | a caller's message (String, format, function) one side; size and contains in upstream's words | `c461710e` |
+| 3 helpers inlined | any helper whose root is an assert, or an assert the compiler decided; `format`'s `%r` by type and `%s` over a number | `20bdc834` |
+| 4 the lift (part) | a `let`-bound assert lifted (`compiler.spec.AssertLift`, applied at the test door's entry, `BodyRouter`); asserts followed by a query admitted (the program plans everything before it runs: a last statement lite cannot plan fails the body with its refusal even where an earlier assert would fail -- the test fails either way) | this |
+| 4 the lift: `if` | **open, a decision for the user**: a guarded assert must not evaluate the branch not taken (`if($x->isEmpty(), |assertEmpty($x), |assertEquals(1, $x->toOne()))`); the walk evaluates the condition then the branch (planning and running at judge time); exactness on the program road wants a branch node in the plan the runner evaluates | |
