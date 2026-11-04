@@ -275,7 +275,8 @@ final class AssertVerdicts {
             // eq over a PAIR of class-kind sides is identity, the host's (D43); with one side a primitive it is the
             // kind and the value, which the database's kind-faithful canon decides (2026-11-03: assertEq('echo', an
             // Any-typed 'echo') had kept testLetWithParam from the database judge)
-            case ASSERT_EQ -> raw.size() >= 2 && !(classKind(raw.get(0)) && classKind(raw.get(1)));
+            case ASSERT_EQ -> raw.size() >= 2 && (!(classKind(raw.get(0)) && classKind(raw.get(1)))
+                    || keylessInstances(raw.get(0), raw.get(1), env.ctx()));
             default -> true;
         };
         return plans ? DatabaseGate.PLANS : DatabaseGate.UNPLANNED;
@@ -297,23 +298,30 @@ final class AssertVerdicts {
      *  which compares the row canons alone, does not see. The same predicate gates the database road and routes the
      *  walk's pair, so a pair it refuses keeps the host grid owner on every road (the item's audit, A). */
     static boolean sqlGridPair(TypedSpec e, TypedSpec a) {
-        if (!staticGrid(e) || !staticGrid(a)) {
+        // two static grids, whatever their schemas (2026-11-04, the core program): where the names or the widths
+        // differ the grid owner's verdict is false by the schemas alone (gridSchemasDiffer), decided at planning, the
+        // statement read for the message; where only the kinds differ the cells are spelled in the expected's kinds
+        // (the grid owner's rule, TdsCompare.grids)
+        return staticGrid(e) && staticGrid(a);
+    }
+
+    /** Two static grids whose column names or widths differ: the grid owner's verdict is false (TdsCompare.grids). */
+    static boolean gridSchemasDiffer(TypedSpec e, TypedSpec a) {
+        var se = com.legend.compiler.element.type.Type.schemaView(e.info().type());
+        var sa = com.legend.compiler.element.type.Type.schemaView(a.info().type());
+        if (!(se instanceof com.legend.compiler.element.type.Type.RelationType re)
+                || !(sa instanceof com.legend.compiler.element.type.Type.RelationType ra)) {
             return false;
         }
-        var se = (com.legend.compiler.element.type.Type.RelationType) java.util.Objects.requireNonNull(
-                com.legend.compiler.element.type.Type.schemaView(e.info().type()));
-        var sa = (com.legend.compiler.element.type.Type.RelationType) java.util.Objects.requireNonNull(
-                com.legend.compiler.element.type.Type.schemaView(a.info().type()));
-        if (se.columns().size() != sa.columns().size()) {
-            return false;
+        if (re.columns().size() != ra.columns().size()) {
+            return true;
         }
-        for (int i = 0; i < se.columns().size(); i++) {
-            if (!se.columns().get(i).name().equals(sa.columns().get(i).name())
-                    || !se.columns().get(i).type().equals(sa.columns().get(i).type())) {
-                return false;
+        for (int i = 0; i < re.columns().size(); i++) {
+            if (!re.columns().get(i).name().equals(ra.columns().get(i).name())) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}
@@ -389,6 +397,18 @@ final class AssertVerdicts {
         return fqn != null ? fqn
                 : bare instanceof com.legend.compiler.spec.typed.TypedMap
                         ? "quantified-assert" : bare.getClass().getSimpleName();
+    }
+
+    /** Two instances of KEYLESS classes: their equality is identity, which the database's identity canon (the
+     *  construction's {@code __id}) decides -- {@code eq}'s own rule (2026-11-04, the core program: InstanceIdentityTest's
+     *  eqIdentity under the database judge alone). A keyed class's canon is its key tree, equal's rule, not eq's: those
+     *  stay the host's identity (D43). */
+    static boolean keylessInstances(TypedSpec e, TypedSpec a, com.legend.compiler.element.ModelContext ctx) {
+        return classKind(e) && classKind(a)
+                && com.legend.compiler.element.EqualityKeys.fqnOf(e.info().type()) != null
+                && com.legend.compiler.element.EqualityKeys.fqnOf(a.info().type()) != null
+                && com.legend.compiler.element.EqualityKeys.resolve(ctx, e.info().type()) == null
+                && com.legend.compiler.element.EqualityKeys.resolve(ctx, a.info().type()) == null;
     }
 
     static boolean classKind(TypedSpec s) {

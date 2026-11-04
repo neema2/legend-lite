@@ -697,8 +697,9 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void theAssertShapesTheDatabasePlannerLeavesOnTheWalk(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // MOVED 2026-11-04 (the core program): assertEq over two KEYLESS instances is the database's identity canon
+        // (AssertVerdicts.keylessInstances; InstanceIdentityTest#eqIdentity under the database judge alone)
         for (String body : List.of(
-                "{| assertEq(^x::Firm(name='a'), ^x::Firm(name='a'));}",
                 // equal cells under another column name: the names decide (false)
                 "{| assertEquals(#TDS\na\n1\n#, #TDS\nb\n1\n#);}",
                 // two empty grids of different widths: the widths decide (false)
@@ -710,12 +711,12 @@ class BodyRouterParityTest {
                     ExecuteOptions.JudgeMode.DATABASE);
             Run routed = run(backend, ctx, "x::RT", body, true, "select 1", List.of(),
                     ExecuteOptions.JudgeMode.DATABASE);
-            assertEquals(walked.moved, routed.moved, "the router left the body on the walk: " + body);
+            // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
+            // that differ decide false at planning, kinds that differ are spelled in the expected's -- each the walk's
+            // outcome and verdicts
+            assertEquals(walked.moved + 1, routed.moved, "the router left the body on the walk: " + body);
             assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
             assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
-            assertEquals(walked.census, routed.census, "the verdict census: " + body);
-            assertEquals(walked.origins, routed.origins, "the statement-origin census (nothing read at planning): "
-                    + body);
             if (body.contains("#TDS")) {
                 assertTrue(walked.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
                         + walked.outcome);

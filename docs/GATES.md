@@ -19515,3 +19515,37 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
    channel B every suite, H2 channel B relation: green. The corpora against the `8951f974` baseline: every test's
    status identical in all four passes (their verdict targets red at the baseline too). `JavaEvalLedgerTest`:
    `HostJudge` 1179 -> 1203, `HostJudgment` 165 -> 182, `AssertVerdicts` 1766 -> 1769, with their reasons.
+
+## 2026-11-04 — Core, third batch: the database judge's gaps closed (assertEq over instances, grid pairs whose schemas differ, frames with no assert); 9 -> 8 walkers
+
+1. **A regression of the first batch, found and fixed.** The frame programs with no assert (`92de0aae`: ExecuteFrameTest,
+   TaggedListTest, ResolveDeepEmptinessProbeTest, AssertVerdictSpliceTest's two) failed under the database judge alone
+   ("lowering not yet implemented for TypedPropertyAccess", "a scalar query has no row scope for $result.values"): the
+   database judge's planner composes frames into verdict statements and splices none into an answer, and they were
+   measured under the host judge and both judges only. A body that judges nothing is planned by the host's planner
+   whatever the judge (`BodyRouter`, `BodyClass.anAssert`); all ten pass under each judge.
+2. **`assertEq` over two keyless instances is the database judge's**: their equality is identity, which the identity
+   canon (each construction's `__id`) decides in the statement (`AssertVerdicts.keylessInstances`; the static gate
+   admits the pair). A keyed class's canon is its key tree -- equal's rule, not eq's -- so a keyed pair keeps the
+   host's identity (D43). Lambda-minted instances carry each element's own identity (`<i2#1 ...>`, `<i2#2 ...>`): both
+   judges answer `assertEquals($l->at(0), $l->at(1))` as distinct (measured), so InstanceIdentityTest's decline counter
+   is the host judge's alone.
+3. **Upstream's words for a failing `assertEq` over instances** under both judges -- `'\nexpected: %r\nactual:   %r'`
+   with each instance as `<id instanceOf Class>` (assertEq.pure); "expected and actual are distinct instances (eq is
+   identity)" was lite's (`PureAsserts.assertEq`).
+4. **The grid pair whose schemas differ is the database judge's**: names or widths that differ decide false at
+   planning, the rows read for the message (`VerdictSql.decidedFalse`); kinds that differ spell both sides in the
+   expected's kinds (the grid owner's rule, `TdsCompare.grids`) -- the GRID PAIR family's alone (`gridPairArm`): a flat
+   cells compare that reaches two grids compares their cells, whatever the names (caught by the corpus against the
+   baseline before this landed: fifteen database-mode validation and qualifier tests failed while the rule applied to
+   every two-grid compare). BodyRouterParityTest's three grid shapes and its keyless `assertEq` now move, each equal
+   to the walk's outcome and verdicts.
+5. **Measured (core, every target and lane)**: the host judge and both judges green; the database judge alone, 17 -> 4
+   tests apart from the host, measured on the targets this batch touched (QuantifiedRowsTest's two failing-row messages; MetamodelMappingStoreTest's instance
+   message -- upstream's `%r` for an instance without an identity to be read from the pinned sources first; H2's
+   OutOfMemoryError, the SQL-size item). Walkers 9 -> 8.
+6. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green; core's driver, judge, root, exec and
+   resolver targets under the database judge alone: green but QuantifiedRowsTest's two messages. The corpora against
+   the `8951f974` baseline: every test's status identical in all four passes. `JavaEvalLedgerTest`: `PureAsserts`
+   247 -> 251, `AssertVerdicts` 1769 -> 1778, `DatabaseJudge` 639 -> 664, with their reasons.

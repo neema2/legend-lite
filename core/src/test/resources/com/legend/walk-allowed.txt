@@ -12,8 +12,9 @@
 # 2026-11-04 (the core program): 19 -> 9 -- a runtime declaring test data is seeded by the test door as the walk
 # seeds it (JudgesOnPlansTest, ServiceTestProvisionKeyTest, CreateClassTest); the quantified assertEquals and
 # assertEqWithinTolerance over rows planned for the host judge (QuantifiedRowsTest).
+# 2026-11-04 (the core program): 9 -> 8 -- the database planner plans assertEq over keyless instances and grid
+# pairs whose schemas differ (BodyRouterParityTest#theAssertShapesTheDatabasePlannerLeavesOnTheWalk).
 com.legend.driver.BodyRouterParityTest#deferredTextPrograms
-com.legend.driver.BodyRouterParityTest#theAssertShapesTheDatabasePlannerLeavesOnTheWalk
 com.legend.driver.BodyRouterParityTest#theAssertShapesTheHostChecksLeaveOnTheWalk
 com.legend.exec.ExecuteFrameTest#executeInResultPosition
 com.legend.exec.ExecuteInDbDuckDbTest#classQueryDerivedSqlResolves

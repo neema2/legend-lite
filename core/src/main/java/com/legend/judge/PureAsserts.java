@@ -196,11 +196,12 @@ public final class PureAsserts {
             String ei = wireId(expected);
             String ai = wireId(actual);
             if (ei != null && ai != null) {
-                // repr() has no instance-map form (loud by design) —
-                // the failure names the identities themselves
+                // upstream's own words (assertEq.pure: '\nexpected: %r\nactual:   %r'), each instance as %r writes it
+                // (<id instanceOf Class>) -- the database judge's text (2026-11-04, the core parity program: "expected
+                // and actual are distinct instances" was lite's)
                 return ei.equals(ai) ? null
-                        : "\nexpected and actual are distinct instances"
-                                + " (eq is identity)";
+                        : "\nexpected: " + repr(expected, wireType(expected)) + "\nactual:   "
+                                + repr(actual, wireType(actual));
             }
             throw new com.legend.error.NotImplementedException(
                     "assertEq over non-primitive values: eq is INSTANCE"
@@ -222,6 +223,11 @@ public final class PureAsserts {
     /** The synthetic site identity a keyless-instance wire map carries
      * ({@code __id}, F13), or null when the value has no observable
      * identity. */
+    private static @com.legend.base.Nullable String wireType(@com.legend.base.Nullable Object v) {
+        return v instanceof java.util.Map<?, ?> m
+                && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE) instanceof String t ? t : null;
+    }
+
     private static @com.legend.base.Nullable String wireId(
             @com.legend.base.Nullable Object v) {
         return v instanceof java.util.Map<?, ?> m

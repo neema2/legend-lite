@@ -1279,6 +1279,21 @@ public final class VerdictSql {
      *  {@code toString} or {@code toCSV} -- while the database judge compares their rows, whose framed text is that
      *  same text (2026-11-03: Postgres's Variant key extractions read unquoted under the database judge alone, quoted
      *  under the host). */
+    /** {@code row} with its verdict decided false at planning (a grid pair whose schemas differ): its canons kept for
+     *  the message. */
+    public static SqlQuery decidedFalse(SqlQuery row) {
+        java.util.function.UnaryOperator<SqlSelect> f = sel -> sel.withProjections(sel.projections().stream()
+                .map(p -> VERDICT.equals(p.alias()) ? new SqlSelect.Projection(new SqlExpr.BoolLit(false), p.alias(),
+                        p.out()) : p).toList());
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), f.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return f.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
     public static SqlQuery messageAsStrings(SqlQuery row) {
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
             return new SqlWith(w.ctes(), sidesAsStrings(body));

@@ -86,7 +86,12 @@ public final class BodyRouter {
             // (M10c item 10)
             BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(env);
             String runtime = java.util.Objects.requireNonNull(runtimeFqn);
-            switch (mode) {
+            // a frame program with no assert judges nothing (2026-11-04, the core program): its frames run and its last
+            // statement answers as the host's planner plans them, whatever the judge -- the database judge's planner
+            // composes frames into verdict statements and splices none into an answer (ExecuteFrameTest under the
+            // database judge alone)
+            boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
+            switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
                 case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                 case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
                 // both judges in one plan: each assert's step carries the host's sides and the database's statement

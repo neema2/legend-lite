@@ -722,6 +722,18 @@ public enum BodyClass {
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
 
+    /** Whether {@code body} holds an assert at a statement's root, or an assertError: what a judge plans. */
+    public static boolean anAssert(TypedQuery body, String runtime) {
+        QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);
+        for (TypedSpec statement : body.body()) {
+            if (scan.kinds(statement).contains(QueryDoor.TestOnly.ASSERT)
+                    || QueryDoor.assertErrorRoot(statement, body.specs())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Why the query program's rule last refused a body on this thread (a measurement for the walk's door message,
      *  2026-11-03: the core program reads it to move the walking bodies); null where it admitted the body. */
     private static final ThreadLocal<String> REFUSAL = new ThreadLocal<>();

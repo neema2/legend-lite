@@ -65,6 +65,19 @@ final class DatabaseJudge {
             SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
             boolean cellPool, boolean csvStrings, boolean renderedStrings) {
+        return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook, canonicalOrder, cellPool,
+                csvStrings, renderedStrings, false);
+    }
+
+    /** {@code gridPairArm}: the pair is the GRID PAIR family's (two relation values compared as grids, the grid
+     *  owner's rule): its schemas decide where they differ -- names or widths false at planning, kinds spelled in the
+     *  expected's. Another family that reaches two grids (a flat cells compare) compares their cells alone
+     *  (2026-11-04: the corpus's validation tests, whose cells agree under other column names). */
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool, boolean csvStrings, boolean renderedStrings, boolean gridPairArm) {
         java.util.function.UnaryOperator<com.legend.sql.SqlQuery> message = q -> renderedStrings
                 ? com.legend.lowering.VerdictSql.messageAsStrings(q) : q;
         KindClass ke = AssertVerdicts.kindKey(eSpec, letPrefix, env);
@@ -146,10 +159,16 @@ final class DatabaseJudge {
                 var sa = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(wa));
                 com.legend.sql.SqlQuery pq;
                 if (se != null && sa != null && se.columns().size() == sa.columns().size()) {
+                    // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
-                            gridSide(wa.plan(), sa, csvStrings), canonicalOrder);
+                            gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
+                            canonicalOrder);
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
+                }
+                if (gridPairArm && AssertVerdicts.gridSchemasDiffer(eSpec, aSpec)) {
+                    // names or widths differ: false by the schemas (decided at planning), the rows read for the message
+                    pq = com.legend.lowering.VerdictSql.decidedFalse(pq);
                 }
                 return runVerdict(name, wantEqual, message.apply(pq),
                         env.withSession(we.storeFree() ? wa.session() : we.session()));
@@ -224,6 +243,16 @@ final class DatabaseJudge {
                 && ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.STRING;
         return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
                 : message.apply(vq), runOn);
+    }
+
+    private static boolean sameNames(com.legend.compiler.element.type.Type.RelationType e,
+            com.legend.compiler.element.type.Type.RelationType a) {
+        for (int i = 0; i < e.columns().size(); i++) {
+            if (!e.columns().get(i).name().equals(a.columns().get(i).name())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Execute a verdict statement on {@code on} and read its one row:
@@ -636,7 +665,7 @@ final class DatabaseJudge {
             // the grid owner's own rule (TdsCompare.grids), in the statement (the test-is-the-product plan's M10c
             // item 2)
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
-                    false);
+                    false, false, false, true);
         }
         @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -722,6 +751,11 @@ final class DatabaseJudge {
             // verdict decides; a class-instance pair keeps the host's LOUD identity wall. One side a primitive: the
             // kind and the value, the database's kind-faithful canon decides (2026-11-03, the static gate's own rule)
             if (!(AssertVerdicts.classKind(args.get(0)) && AssertVerdicts.classKind(args.get(1)))) {
+                return databaseVerdict(name, true, args.get(0), args.get(1),
+                        letPrefix, specs, env, hook, false, false);
+            }
+            if (AssertVerdicts.keylessInstances(args.get(0), args.get(1), env.ctx())) {
+                // two keyless instances: identity, the database's identity canon (each construction's __id)
                 return databaseVerdict(name, true, args.get(0), args.get(1),
                         letPrefix, specs, env, hook, false, false);
             }
