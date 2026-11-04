@@ -19810,3 +19810,21 @@ every status identical in both passes (moved 3,084 and 3,050), `//spec:corpus_du
 was built under, and the host judge's rules travel through a thread-local (`Equality.compat`); and the two remaining
 `forAll` gaps (any source, computed operands) need a per-element verdict the database judge does not have -- options put
 to the user before any is built.
+
+## 2026-11-04 — CORRECTION: the database judge's declines, measured (the batch-1 entry's "0 lines" was not a measurement)
+
+The batch-1 entry above (item 10: "`judge-declines` 0 lines each") and the summaries after it counted the
+`[judge-decline]` lines of runs that never switched the diagnostic on (`-Dlegend.diagnostics=judge-declines` was missing
+from the matrix script): a count that could only be 0. Measured now at `09104091`, with the switch, under BOTH:
+
+- **PCT channel B** (the seven local suites): 2,586 lines. 34 are the database judge's own declines, every one an
+  `assertError` (ruling N3: its comparison is Java's in both modes, by design). The other 2,552 are the HOST judge's
+  byte-channel rider declining itself (`HostJudge.sqlByteVerdict` and `TdsCompare`'s peers: "plan path: the database
+  judge is the referee"; one "mixed-kind-collection"), by design since the database judge became the referee -- a
+  leftover instrument, a candidate for deletion in the cleanup. Outside `assertError`, the database judge decides every
+  PCT assert.
+- **Core** (`//core:core_tests`): 669 lines. Outside the rider (638) and `assertError` (14): the unit tests that
+  exercise the decline paths on purpose (`BodyRouterParityTest`, `AgreementArmTest`), and `AssertBarTest`'s known gaps
+  (two `forAll` bodies and one static-pass refusal, in its `GAPS`).
+
+The conclusion the earlier entries drew holds; it rests on this measurement, not on theirs.
