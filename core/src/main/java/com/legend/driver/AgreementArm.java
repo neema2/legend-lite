@@ -95,6 +95,7 @@ final class AgreementArm implements VerdictArm {
             case Failed f -> {
                 String unjudged = f.failure().unjudgedReason();
                 if (unjudged != null) {
+                    com.legend.judge.CanonicalDivergence.declineSeen("unjudged", name, unjudged);
                     if (listener != null) {
                         listener.unjudged(name, unjudged);
                     }
@@ -104,6 +105,7 @@ final class AgreementArm implements VerdictArm {
                 }
             }
             case Declined d -> {
+                com.legend.judge.CanonicalDivergence.declineSeen("declined", name, "database judge: not this shape");
                 if (listener != null) {
                     listener.declined(name, "database judge: not this shape");
                 }

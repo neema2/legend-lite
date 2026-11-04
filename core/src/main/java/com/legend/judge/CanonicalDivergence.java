@@ -239,6 +239,17 @@ public final class CanonicalDivergence {
         R1_SUSPENDED.set(on);
     }
 
+    private static final boolean DECLINES = com.legend.diagnostics.Diagnostics.on("judge-declines");
+
+    /** -Dlegend.diagnostics=judge-declines: one line per database-judge decline or UNJUDGED, with the running test
+     *  (the core program's 100% check, 2026-11-04). Measurement only: prints, decides nothing. */
+    public static void declineSeen(String kind, String name, String reason) {
+        if (DECLINES) {
+            System.err.println("[judge-decline] " + kind + " " + System.getProperty("legend.test.current", "?") + " "
+                    + name + ": " + reason.replace('\n', ' '));
+        }
+    }
+
     private static void record(String family, boolean held, String byteAns) {
         if (R1_SUSPENDED.get()) {
             return;
@@ -334,6 +345,7 @@ public final class CanonicalDivergence {
     }
 
     public static void sqlDeclined(String reason) {
+        declineSeen("declined", "", reason);
         if (MUTED.get()) {
             return;
         }
@@ -455,6 +467,7 @@ public final class CanonicalDivergence {
     /** Leg 3.1: database mode could NOT decide the assert — the assert
      * failed with this reason; the per-mode ceiling the register pins. */
     public static void sqlUnjudged(String family, String reason) {
+        declineSeen("unjudged", family, reason);
         if (MUTED.get()) {
             return;
         }

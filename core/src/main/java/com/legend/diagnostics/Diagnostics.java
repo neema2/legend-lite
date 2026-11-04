@@ -27,6 +27,9 @@ import java.util.Map;
  *       typed tree and its statements' characters (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18)</li>
  *   <li>{@code sql-sizes}: print each statement's characters and the running test's name before it is sent (the core
  *       program's size measurement, 2026-11-03)</li>
+ *   <li>{@code judge-declines}: print each assert the database judge declines or leaves UNJUDGED, with the running
+ *       test's name (the core program's 100% check, 2026-11-04: a decline under BOTH is the host's to decide, so a
+ *       green run alone does not show the database judge decided every assert)</li>
  * </ul>
  */
 public final class Diagnostics {
@@ -42,7 +45,9 @@ public final class Diagnostics {
             "forbid-walk",
             // the core program's SQL size (2026-11-03, the user's "core test SQL much smaller than PCT/corpus"): each
             // statement sent, its characters and the test that sent it, before it is sent
-            "sql-sizes");
+            "sql-sizes",
+            // the core program's 100% check (2026-11-04): each database-judge decline or UNJUDGED, with its test
+            "judge-declines");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 
