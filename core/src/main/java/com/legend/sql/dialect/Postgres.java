@@ -256,8 +256,9 @@ public final class Postgres extends AnsiSqlRenderer {
                 new WholePartitionOrderedSets(),
                 new SubstringClamp(), new StringCountsAsInt(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES),
                 new QualifyToSubselect(true),
-                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
-                new SelectMerge(),
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new SelectMerge(), new SelectLayers(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 

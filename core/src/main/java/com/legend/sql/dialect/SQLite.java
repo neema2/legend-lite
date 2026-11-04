@@ -190,8 +190,9 @@ public final class SQLite extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
-                new QualifyToSubselect(true), new SelectMerge(), new ConstantKeysAsExpressions(),
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new QualifyToSubselect(true), new SelectMerge(), new SelectLayers(), new ConstantKeysAsExpressions(),
                 new CommonSubexpressions());
     }
 

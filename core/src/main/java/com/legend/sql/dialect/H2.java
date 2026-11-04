@@ -76,6 +76,8 @@ public class H2 extends AnsiSqlRenderer {
         ps.add(new ProjectionWrapsFold());
         // and a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
         ps.add(new SelectMerge());
+        // and a chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+        ps.add(new SelectLayers());
         // a shared relation that binds a value written in place: H2 loses a bound name inside a WITH
         // (SharedRelationsInPlace, 2026-11-04)
         ps.add(SharedRelationsInPlace.bindingAValue());
