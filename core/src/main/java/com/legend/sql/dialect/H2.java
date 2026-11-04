@@ -74,6 +74,8 @@ public class H2 extends AnsiSqlRenderer {
         // a raw grid's column-names report written in place where a WITH holds it (H2 loses its bound names there:
         // GridReportCtesInline, H2LostCteParameterTest)
         ps.add(new GridReportCtesInline());
+        // and a shared relation that binds a value (the same defect: SharedRelationsInPlace, 2026-11-04)
+        ps.add(SharedRelationsInPlace.bindingAValue());
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());

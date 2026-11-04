@@ -180,7 +180,9 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS));
+        // a relation read more than once written where each read stands: a pipeline holds no WITH
+        // (SharedRelationsInPlace, 2026-11-04)
+        return List.of(SharedRelationsInPlace.all(), new CarrierStrategies(CAPS));
     }
 
     /** {@inheritDoc} A collection's {@code _id} declared {@code OTHER} (an objectId) is read as its hex text. */

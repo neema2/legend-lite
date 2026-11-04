@@ -153,6 +153,10 @@ public final class BodyPlanner {
             List<TypedSpec> body, PlanEnv env, ModelContext ctx,
             SqlDialect dialect, boolean identity, boolean named) {
         Lowerer lowerer = lowererFor(body, env, ctx, identity);
+        if (env.postProcessors().extractCtes()) {
+            // the engine's cteExtractionPostProcessor names the statement's subqueries itself: legend-engine's text
+            lowerer = lowerer.withoutSharedRelations();
+        }
         SqlQuery plan =
                 lowerer.lower(SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));

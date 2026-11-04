@@ -37,6 +37,11 @@ public record SqlWith(List<Cte> ctes, SqlQuery body, boolean recursive) implemen
      * frame every assert of a body reads — every side sees the same rows
      * of a nondeterministically ordered result). Dialects without the
      * keyword (H2) spell a plain CTE. */
+    /** The name a relation the statement reads more than once is written once under (the lowering's
+     *  {@code SharedRelations}, 2026-11-04): {@code __let<n>}, unique within the statement that lowered it. A dialect
+     *  with no common table expressions writes each such expression back where it is read (MongoDB's pipeline). */
+    public static final String SHARED_PREFIX = "__let";
+
     public record Cte(String name, SqlQuery query, boolean materialized) {
         public Cte(String name, SqlQuery query) {
             this(name, query, false);

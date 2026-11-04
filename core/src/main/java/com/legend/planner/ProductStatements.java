@@ -303,6 +303,10 @@ public final class ProductStatements {
     public static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
             boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
+        if (p.env().postProcessors().extractCtes()) {
+            // the engine's cteExtractionPostProcessor names the statement's subqueries itself: legend-engine's text
+            lowerer = lowerer.withoutSharedRelations();
+        }
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
         return postProcessed(plan, p.env());
     }
