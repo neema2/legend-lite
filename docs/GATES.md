@@ -19604,3 +19604,39 @@ make sure that the Core test SQL is much much much smaller than these crazy PCT/
    metamodel nesting). The one-session refusal moved from SystemRoutes to CrossStoreGuard after the corpus and PCT
    passes (the same check and text; census, guardrails and every core target re-run green); `JavaEvalLedgerTest`:
    `SystemRoutes` 94 -> 93.
+
+## 2026-11-04 — Core, seventh batch: the SQL-text asserts generic first (2 -> 1 walker)
+
+The user's principle (2026-11-04): every assert runs on its own merit generically; only if that fails does a ruled
+fallback run -- for an engine-text assert, the rows replay ("the harness replay is totally fine").
+
+1. **Either text may be a side the plan reads.** An engine-text assert's two texts were constants of the plan, or OUR
+   text a side the host judge's step read (M10c item 8). Now:
+   - **Host judge:** the golden may also be a side the step reads (`SqlTextVerdicts.Collecting`): a golden that is
+     lite's own plan text (`let g = $p.rootExecutionNode...sqlQuery; assertEquals($g, toSQLString(...))`). The step
+     compares the two texts first, as any equality; only a failed comparison re-runs the arm over the two texts the
+     step read (`Replaying`, `armOf`), so its golden processing -- the chained-plan warning, the replay routes -- and
+     its appeal see the real golden.
+   - **Database judge:** our text a side the plan reads is planned as a side of the verdict row
+     (`SqlTextVerdicts.BatchTexts`, `VerdictSql.textEquals(golden, oursRow)`): the database computes it and the
+     equality, nothing read at planning (the M10c item 8 audit's finding 1 kept); a failed row hands its ACTUAL text to
+     the appeal (`VerdictBatch.Appeal` takes the row). A golden the plan reads stays the walk's under the database
+     judge, by name (no corpus or core body has one).
+2. **Constant texts are unchanged**: the text equality first and the appeal on a failed text was already the arms'
+   order; only where a text was read did the arms need it at planning.
+3. **No shape special-cased**: no fold of the plan's SQL text (considered and dropped: the general mechanism covers
+   it), no rule naming which side is the golden.
+4. `BodyRouterParityTest#deferredTextPrograms`: its three "stays on the walk" pins move (dated); the database judge's
+   pins compare everything with the walk but its statements -- the program computes our text inside the verdict row,
+   one `REFEREE_OURS` statement fewer (`assertParityTextInRow`); three new cases cover the paths a failure takes (the
+   host re-run, the row appeal agreeing and diverging). The allow list 2 -> 1.
+5. **Guards**: `ArchitectureTest` V3 (the host-verdict classes reached only from the seam): the declined re-run's
+   message spelled on the seam (`HostJudge.equalsMessage`). `JavaEvalLedgerTest`: `SqlTextVerdicts` 1406 -> 1541,
+   `AssertVerdicts` 1778 -> 1791, `HostJudge` 1206 -> 1210 (sides planned and texts routed, nothing evaluated).
+6. **Checks**: core (every target and lane, guardrails, census), the lean ladder, PCT channel B (DuckDB every suite,
+   SQLite and H2 relation) under BOTH and under the database judge alone: green. The corpora against the `8951f974`
+   baseline: every test's status identical in all four passes; the database passes move 3,024 -> 3,049 bodies (the
+   engine-text sites whose text the step reads), the host passes unchanged at 3,084. The corpus verdict targets and
+   `update_rcorpus_h2_0_test` red as at the baseline. Core under the database judge alone: the known gaps only
+   (QuantifiedRowsTest's row messages, MetamodelMappingStoreTest's instance message, H2's out-of-memory on the metamodel
+   nesting).

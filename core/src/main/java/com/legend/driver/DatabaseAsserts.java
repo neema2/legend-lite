@@ -332,7 +332,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (gate == AssertVerdicts.DatabaseGate.UNPLANNED) {
                     return false;
                 }
-                if (gate == AssertVerdicts.DatabaseGate.ENGINE_TEXT && systemRouted) {
+                if (AssertVerdicts.engineText(gate) && systemRouted) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, not this program's (M10b)
                     return false;
@@ -433,7 +433,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // a raise at planning (RAISES) is planned as the walk's arm raises it: the root resolved or walled,
                 // judged at the step with no row
                 outcome = gate == AssertVerdicts.DatabaseGate.UNPLANNED
-                        || gate == AssertVerdicts.DatabaseGate.ENGINE_TEXT && systemRouted
+                        || AssertVerdicts.engineText(gate) && systemRouted
                         ? AssertVerdicts.DatabasePlan.UNPLANNED
                         : AssertVerdicts.planDatabase(batch, bare, letPrefix, specs, at, hook);
             } catch (RuntimeException e) {

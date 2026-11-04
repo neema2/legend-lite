@@ -1579,6 +1579,14 @@ final class HostJudge {
                 () -> com.legend.judge.PureAsserts.notEqualsMessage(e, a));
     }
 
+    /** Upstream's {@code assertEquals} failure text for two values ({@code '\nexpected: %r\nactual:   %r'}, the host
+     *  judge's spelling): an engine-text arm declining the texts its verdict step read, a plain String equality that
+     *  failed (2026-11-04, the core program). */
+    static String equalsMessage(Object expected, Object actual) {
+        return "\nexpected: " + com.legend.judge.PureAsserts.repr(expected) + "\nactual:   "
+                + com.legend.judge.PureAsserts.repr(actual);
+    }
+
     /** {@code assertJsonStringsEqual(golden, actual)}: both strings executed, parsed, the
      * engine's semantics judged over the structures (json-simple's equals, CompiledSupport.jsonStringEquals: object
      * keys order-insensitive, arrays order-sensitive, an object never an array; an incidental-order root as a

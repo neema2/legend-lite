@@ -120,14 +120,19 @@ final class AssertVerdicts {
             }
             bare = helper;
         }
-        if (!databasePlansWithoutReading(bare, letPrefix, specs, env, rawHook)) {
+        DatabaseGate gate = databaseGate(bare, letPrefix, specs, env, rawHook);
+        if (gate == DatabaseGate.UNPLANNED) {
             return DatabasePlan.UNPLANNED;
         }
+        // our text a side the plan reads: the arm runs under the database judge's text collector, which plans it as a
+        // side of the verdict row (SqlTextVerdicts.BatchTexts) -- nothing read at planning
+        SqlTextVerdicts.BatchTexts texts = gate == DatabaseGate.ENGINE_TEXT_READ ? new SqlTextVerdicts.BatchTexts() : null;
+        BodyDriver.ExecEnv at = texts != null ? texts.under(env) : env;
         com.legend.judge.CanonicalDivergence.sqlEnter();
         batch.open(listenerName(bare));
         TypedSide v;
         try {
-            v = adjudicate(bare, letPrefix, specs, env, rawHook);
+            v = adjudicate(bare, letPrefix, specs, at, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             batch.resolve(e);
             batch.close();
@@ -138,6 +143,11 @@ final class AssertVerdicts {
             batch.wall(e);
             batch.close();
             return DatabasePlan.WALLED;
+        } finally {
+            if (texts != null) {
+                // planned: the appeal the arm built runs at the flush in the same environment and reads its sides then
+                texts.planning = false;
+            }
         }
         if (v == null) {
             batch.discard();
@@ -168,7 +178,13 @@ final class AssertVerdicts {
      *  {@link HostAssert#raising}) -- the planning pass walls the root at its place, which the program carries only
      *  where a row before it in the segment holds the wall ({@code DatabaseAsserts.close}); or the shape is UNPLANNED
      *  (the walk's). */
-    enum DatabaseGate { PLANS, ENGINE_TEXT, RAISES, UNPLANNED }
+    enum DatabaseGate { PLANS, ENGINE_TEXT, ENGINE_TEXT_READ, RAISES, UNPLANNED }
+
+    /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
+     *  row computes ({@link DatabaseGate#ENGINE_TEXT_READ}, 2026-11-04, the core program). */
+    static boolean engineText(DatabaseGate g) {
+        return g == DatabaseGate.ENGINE_TEXT || g == DatabaseGate.ENGINE_TEXT_READ;
+    }
 
     /** {@link #databasePlansWithoutReading}'s answer in three (M10b: a raise at planning told apart, so the static pass
      *  refuses a body whose first root of a segment would wall a batch with no row to carry it -- the planning pass
@@ -207,7 +223,7 @@ final class AssertVerdicts {
                 if (g == DatabaseGate.RAISES && first) {
                     return g;
                 }
-                if (g == DatabaseGate.ENGINE_TEXT) {
+                if (engineText(g) && worst != DatabaseGate.ENGINE_TEXT_READ) {
                     worst = g;
                 }
                 first = false;
@@ -230,12 +246,16 @@ final class AssertVerdicts {
             return DatabaseGate.RAISES;
         }
         if (shape.check().judgment() instanceof HostJudgment.EngineText e) {
-            if (e.collected().ours() == null) {
-                // our text a side the host judge's step reads (M10c item 8): the batch row composes the text equality
-                // at planning, so planDatabase's adjudicate would read the side by a statement then -- before the
-                // program, out of the walk's order. The walk's, by name, until the fused statement carries the side
-                com.legend.exec.Census.unplannedAssert("database: engine text read at the step: " + shapeOf(bare));
+            if (e.collected().golden() == null) {
+                // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
+                // database judge's text equality with the golden a constant -- the walk's, by name
+                com.legend.exec.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
                 return DatabaseGate.UNPLANNED;
+            }
+            if (e.collected().ours() == null) {
+                // our text a side the plan reads (M10c item 8; the database judge since 2026-11-04, the core
+                // program): the verdict row computes it and the equality, its ACTUAL column the appeal's text
+                return DatabaseGate.ENGINE_TEXT_READ;
             }
             // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the walk's
             // own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning

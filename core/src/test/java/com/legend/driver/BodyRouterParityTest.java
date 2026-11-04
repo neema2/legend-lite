@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1519,18 +1520,55 @@ class BodyRouterParityTest {
         assertEquals("ok", counted.outcome);
         assertEquals(0, originsOf(counted.origins)[oursLeg], "no probe of a side that is no text: "
                 + counted.statements);
-        // a golden that is no constant: the arms route on its text at planning -- the body stays the walk's, by name
-        assertWalkedAlike(backend, ctx, "x::RT", "{| " + planLet + " let g = " + nav + "; assertEquals($g, "
+        // a golden that is no constant (MOVED 2026-11-04, the core program: a golden the plan reads is a side of the
+        // verdict step; the two texts compare first, and only a failed comparison re-runs the arm over them)
+        assertParity(backend, ctx, "x::RT", "{| " + planLet + " let g = " + nav + "; assertEquals($g, "
                 + producer + ");}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
-        // under the database judge the batch row composes the text equality at planning, so a text the step would
-        // read stays the walk's, by name, nothing read while planning (the item's audit, finding 1): the walk twice,
-        // alike, the statements at the assert's turn
+        // under the database judge, a text the step would read (MOVED 2026-11-04, the core program: our text a side of
+        // the verdict row -- the database computes it and the equality, nothing read while planning, the item's
+        // audit's finding 1 kept)
         for (String deferred : List.of(
                 "{| " + planLet + " assertEquals('" + pure(planSql) + "', " + nav + ");}",
                 "{| assertEquals('" + pure(replaced) + "', " + producer + replace + ");}")) {
-            assertWalkedAlike(backend, ctx, "x::RT", deferred, "select count(*) from FIRM", FIRM_ROWS,
-                    ExecuteOptions.JudgeMode.DATABASE);
+            assertParityTextInRow(backend, ctx, "x::RT", deferred, "select count(*) from FIRM", FIRM_ROWS);
         }
+        // the texts differing (2026-11-04, the core program): a golden the plan read re-runs the arm over the two
+        // texts the step read -- its rows leg the walk's (host); the database judge's failed row hands its text to the
+        // appeal -- the rows agreeing hold, the rows diverging fail with the arm's own message
+        Run rerun = assertParity(backend, ctx, "x::RT", "{| " + planLet + " let g = " + nav + "; assertEquals($g, "
+                + producer + replace + ");}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", rerun.outcome, "the rows agree: the re-run's appeal holds");
+        assertParityTextInRow(backend, ctx, "x::RT", "{| assertEquals('" + pure(ours) + "', " + producer + replace
+                + ");}", "select count(*) from FIRM", FIRM_ROWS);
+        assertParityTextInRow(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
+                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                FIRM_ROWS);
+    }
+
+    /** {@code body}, an engine-text assert whose OUR text is a side the plan reads, under the database judge
+     *  (2026-11-04, the core program): the walk reads our text by its own statement under the arm's mark and then sends
+     *  the verdict; the program computes it inside the verdict row. Everything the parity test observes is the walk's
+     *  but those statements: the program sends the walk's statements less the one {@code REFEREE_OURS} read. */
+    private static void assertParityTextInRow(TestBackend backend, ModelContext ctx, String runtime, String body,
+            String check, List<String> setup) throws Exception {
+        ExecuteOptions.JudgeMode mode = ExecuteOptions.JudgeMode.DATABASE;
+        assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true), "a moved class's: " + body);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
+        Run moved = run(backend, ctx, runtime, body, true, check, setup, mode);
+        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
+        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
+        assertEquals(walked.answer, moved.answer, "the answer: " + body);
+        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
+        assertEquals(walked.database, moved.database, "the database left: " + body);
+        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body);
+        assertEquals(walked.census, moved.census, "the verdict census: " + body);
+        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
+        long[] w = originsOf(walked.origins);
+        long[] m = originsOf(moved.origins);
+        w[StatementOrigin.REFEREE_OURS.ordinal()]--;
+        assertArrayEquals(w, m, "the statement-origin census, less the walk's read of our text: " + body
+                + "\n  walked: " + walked.statements + "\n  moved:  " + moved.statements);
+        assertEquals(walked.statements.size() - 1, moved.statements.size(), "one statement fewer: " + body);
     }
 
     /** {@code body} is a moved class's, yet the router leaves it to the walk by a named rule of its judge's planner:

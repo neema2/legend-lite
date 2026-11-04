@@ -663,6 +663,17 @@ public final class VerdictSql {
                 e.col("__t"), a.col("__t"), new SqlExpr.NullLit());
     }
 
+    /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
+     *  golden a constant, ours the side's one-row relation ({@code oursRow}: {@link #scalarRow}'s {@code value}), string
+     *  equality; the ACTUAL column carries our text back to the appeal of a failed row. */
+    public static SqlQuery textEquals(String golden, SqlQuery oursRow) {
+        OneRow e = constantOf("e", new SqlExpr.StringLit(golden), "__t", SqlType.Scalar.VARCHAR);
+        OneRow a = rowOf("a", oursRow);
+        return predicateOver(List.of(), List.of(e, a),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("__t"), a.col("value")),
+                e.col("__t"), a.col("value"), new SqlExpr.NullLit());
+    }
+
     private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
             SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
         return predicateOver(ctes, ops, verdict, expected, actual, unjudged, (SqlExpr) null);

@@ -136,7 +136,8 @@ public final class VerdictBatch {
      * row FAILED — returns on a pass by another judgment (the SQL-text referee's
      * rows), raises its own failure otherwise. Never consulted on a held row. */
     public interface Appeal {
-        TypedSide appeal();
+        /** The failed {@code row} ({@code VerdictSql.schema}'s columns) decided: a pass returns, a failure raises. */
+        TypedSide appeal(List<Object> row);
     }
 
     /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
@@ -530,7 +531,7 @@ public final class VerdictBatch {
                                 }
                                 // rung 2a: the row failed — the appeal decides (returns
                                 // on a pass by rows, raises its own failure otherwise)
-                                p.appeal().appeal();
+                                p.appeal().appeal(row);
                             }
                         } else if (s instanceof Resolved rv) {
                             reported = rv.reported();

@@ -60,7 +60,55 @@ final class SqlTextVerdicts {
          *  and answers a text token the arm compares as any text; null where the side is not deferred (the caller
          *  refuses the body by name). */
         @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity,
-                boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at);
+                boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at,
+                List<TypedSpec> letPrefix, SpecCompiler specs);
+    }
+
+    /** A collector that DEFERS a text side while an arm is planned: which text the arm is reading now -- OUR text
+     *  ({@link #oursText}) or the GOLDEN ({@link #readText}). */
+    private abstract static class Deferring implements Collector {
+        boolean readingOurs;
+        boolean readingGolden;
+
+        /** Whether {@code side}, planned as {@code planned} under {@code at}, is a text this collector may defer: a
+         *  {@code VALUES} side declared a String to one, planned under the environment the arm was given ({@code env}:
+         *  a side the arm plans under another -- the runtime-dialect form rebinds the frame -- the step would not). */
+        static boolean deferrable(TypedSpec side, JudgePlans.PlannedSide planned, BodyDriver.ExecEnv at,
+                BodyDriver.@com.legend.base.Nullable ExecEnv env) {
+            return planned.kind() == JudgePlans.Kind.VALUES && at == env
+                    && side.info().type() == com.legend.compiler.element.type.Type.Primitive.STRING
+                    && toOne(side.info());
+        }
+    }
+
+    /** The two texts a verdict step READ, handed to an arm RE-RUN on a failed comparison (2026-11-04, the core
+     *  program): the arm reads them where it would read its sides ({@link #readText}, {@link #oursText}), so its own
+     *  processing of the golden (the chained-plan warning, the replay routes) and its appeal see the texts the step
+     *  read. Nothing deferred, nothing collected. */
+    private record Replaying(String golden, String ours) implements Collector {
+        @Override
+        public void collect(String name, String golden, String ours, boolean textEqual,
+                @com.legend.base.Nullable String decline, TextAppeal appeal, BodyDriver.ExecEnv env) {
+            throw new IllegalStateException(name + ": an arm re-run on the step's texts collects nothing");
+        }
+
+        @Override
+        public boolean planning() {
+            return false;
+        }
+
+        @Override
+        public @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned,
+                boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+                BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
+            return null;
+        }
+    }
+
+    /** An arm re-run over the two texts its verdict step read (a golden the plan read: the arm's golden processing
+     *  needs the text, {@link #judge}). */
+    interface Rerun {
+        TypedSide rerun(String golden, String ours);
     }
 
     /** The APPEAL of a text comparison: what decides a text that is not its golden -- the rows leg (our rows through
@@ -78,9 +126,14 @@ final class SqlTextVerdicts {
      *  APPEAL that decides a failed text and the environment it runs in. The one host judgment that holds a closure and
      *  the harness's objects: the appeal is harness Java outside the plan by the user's ruling (R3, T13, R6), built
      *  when the assert is planned and run at the step on a failed text alone. */
-    record Collected(String name, String golden, @com.legend.base.Nullable String ours, boolean textEqual,
-            @com.legend.base.Nullable String decline, TextAppeal appeal, BodyDriver.ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable StatementOrigin oursOrigin) {
+    record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
+            boolean textEqual, @com.legend.base.Nullable String decline, TextAppeal appeal, BodyDriver.ExecEnv env,
+            com.legend.exec.@com.legend.base.Nullable StatementOrigin oursOrigin,
+            @com.legend.base.Nullable Rerun rerun) {
+        /** This comparison with {@code r} its re-run over the step's texts. */
+        Collected withRerun(Rerun r) {
+            return new Collected(name, golden, ours, textEqual, decline, appeal, env, oursOrigin, r);
+        }
     }
 
     /** Raised while an arm is PLANNED for the program road where a text side is not a constant of the plan (it would
@@ -112,20 +165,21 @@ final class SqlTextVerdicts {
     }
 
     /** A collector for one planned assert. */
-    private static final class Collecting implements Collector {
+    private static final class Collecting extends Deferring {
         final List<Collected> collected = new java.util.ArrayList<>(1);
         boolean planning = true;
         /** The environment the arm is planned under ({@link #plan}'s): a side the arm plans under another (the
          *  runtime-dialect form rebinds the frame and the table replaces) is not deferred -- the step would plan it
          *  under this one. Set once, when that environment is made from this collector. */
         BodyDriver.@com.legend.base.Nullable ExecEnv env;
-        /** The arm is reading OUR text ({@link #oursText}): the one side the collector may defer. */
-        boolean readingOurs;
-        /** The deferred side as the step's ask, and the origin the arm marked when it read it. */
+        /** The deferred sides as the step's asks -- our text, and the golden where it is a text the plan reads
+         *  (2026-11-04, the core program) -- and the origin the arm marked when it read them (one for both). */
         HostSides.@com.legend.base.Nullable Ask deferred;
+        HostSides.@com.legend.base.Nullable Ask deferredGolden;
         com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredOrigin;
-        /** The text the arm holds for a deferred side: compared by identity, never a text a program spells. */
+        /** The texts the arm holds for the deferred sides: compared by identity, never a text a program spells. */
         final String token = new String("\u0000 our text, read at the verdict step");
+        final String goldenToken = new String("\u0000 the golden, read at the verdict step");
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
@@ -136,25 +190,88 @@ final class SqlTextVerdicts {
                         ? "the arm compared a deferred text the collector did not record"
                         : "a text deferred to the verdict step is not the text the arm compared"));
             }
-            collected.add(new Collected(name, golden, deferredText ? null : ours, textEqual, decline, appeal, env,
-                    deferredText ? deferredOrigin : null));
+            boolean deferredGoldenText = golden == goldenToken;
+            if (deferredGoldenText != (deferredGolden != null)) {
+                // the arm processed the golden it read before comparing it (a strip that cut it, a route's own
+                // reading): a golden the plan reads reaches the comparison as read, or the body is the walk's
+                throw new NotAConstant(NotAConstant.LABEL + "a golden the plan reads, processed by the arm before its"
+                        + " comparison");
+            }
+            collected.add(new Collected(name, deferredGoldenText ? null : golden, deferredText ? null : ours,
+                    textEqual, decline, appeal, env, deferredText || deferredGoldenText ? deferredOrigin : null, null));
         }
 
         @Override
         public @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned,
                 boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
-                BodyDriver.ExecEnv at) {
-            if (!readingOurs || planned.kind() != JudgePlans.Kind.VALUES || at != env
-                    || side.info().type() != com.legend.compiler.element.type.Type.Primitive.STRING
-                    || !toOne(side.info())) {
+                BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
+            if (!(readingOurs || readingGolden) || !deferrable(side, planned, at, env)) {
                 return null;
             }
-            if (deferred != null) {
-                throw new IllegalStateException("two texts deferred to one verdict step: the arms read our text once");
+            if (readingGolden ? deferredGolden != null : deferred != null) {
+                throw new IllegalStateException("a text deferred twice to one verdict step: the arms read each text once");
             }
-            deferred = new HostSides.Ask(side, identity, fold, hook);
             com.legend.exec.StatementOrigin now = com.legend.exec.StatementOrigin.current();
-            deferredOrigin = now == com.legend.exec.StatementOrigin.OTHER ? null : now;
+            com.legend.exec.StatementOrigin origin = now == com.legend.exec.StatementOrigin.OTHER ? null : now;
+            if ((deferred != null || deferredGolden != null) && origin != deferredOrigin) {
+                // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
+                throw new NotAConstant(NotAConstant.LABEL + "two texts the plan reads under different statement origins");
+            }
+            deferredOrigin = origin;
+            HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook);
+            if (readingGolden) {
+                deferredGolden = ask;
+                return new TypedSide.Scalar(goldenToken, side.info().type());
+            }
+            deferred = ask;
+            return new TypedSide.Scalar(token, side.info().type());
+        }
+
+        @Override
+        public boolean planning() {
+            return planning;
+        }
+    }
+
+    /** The DATABASE judge's collector while an engine-text assert is planned into its verdict batch (2026-11-04, the
+     *  core program): OUR text, a side the plan reads, is planned as a side of the verdict row -- the database computes
+     *  it and the equality, the row's ACTUAL column carries it back to the appeal ({@link #decide}); the golden is a
+     *  constant of the plan ({@code AssertVerdicts.gateOf} admits no other). Nothing read at planning. */
+    static final class BatchTexts extends Deferring {
+        /** The environment the arm is planned under (as {@link Collecting#env}): set once, when that environment is
+         *  made from this collector ({@link #under}). */
+        BodyDriver.@com.legend.base.Nullable ExecEnv env;
+        final String token = new String("\u0000 our text, computed in the verdict row");
+        /** Our text's one-row relation ({@code value}), planned where the arm read it. */
+        com.legend.sql.@com.legend.base.Nullable SqlQuery oursRow;
+        /** True while the arm is planned: the appeal it built runs at the flush in the same environment, and reads what
+         *  it needs then ({@code AssertVerdicts.planDatabase} ends the planning). */
+        boolean planning = true;
+
+        /** {@code at} with this collector its engine-text collector: the environment the arm is planned under. */
+        BodyDriver.ExecEnv under(BodyDriver.ExecEnv at) {
+            env = at.withEngineText(this);
+            return env;
+        }
+
+        @Override
+        public void collect(String name, String golden, String ours, boolean textEqual,
+                @com.legend.base.Nullable String decline, TextAppeal appeal, BodyDriver.ExecEnv env) {
+            throw new IllegalStateException(name + ": the database judge's texts are rows of its batch, never collected");
+        }
+
+        @Override
+        public @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned,
+                boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+                BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
+            if (!readingOurs || oursRow != null || !deferrable(side, planned, at, env)) {
+                return null;
+            }
+            DatabaseJudge.SideRows rows = DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
+            if (rows.why() != null) {
+                return null;
+            }
+            oursRow = rows.scalarRow(false);
             return new TypedSide.Scalar(token, side.info().type());
         }
 
@@ -186,35 +303,17 @@ final class SqlTextVerdicts {
     static HostSides.@com.legend.base.Nullable Check plan(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         String fqn = AssertVerdicts.calleeFqn(bare);
+        boolean root = fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall;
+        if (!root && !equalityFamily(bare)) {
+            return null;
+        }
         Collecting collecting = new Collecting();
         BodyDriver.ExecEnv planning = env.withEngineText(collecting);
         collecting.env = planning;
         TypedSide answered = null;
-        boolean routed = false;
         NotAConstant notAConstant = null;
         try {
-            if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
-                answered = com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
-                        ? tryArmSameSql(root, letPrefix, specs, planning, hook)
-                        : com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
-                        ? tryArmTdgRoot(root, letPrefix, specs, planning, hook)
-                        : tryArmDualGolden(root, letPrefix, specs, planning, hook);
-            } else {
-                com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
-                        com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
-                if (fn != com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
-                        && fn != com.legend.builtin.NativeFn.Verdict.ASSERT_NOT_EQUALS) {
-                    return null;
-                }
-                List<TypedSpec> raw = bare instanceof com.legend.compiler.spec.typed.TypedUserCall u ? u.args()
-                        : ((com.legend.compiler.spec.typed.TypedNativeCall) bare).args();
-                List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix,
-                        specs);
-                answered = tryArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS, args,
-                        letPrefix, specs, planning, hook);
-                // the equality arm's census route, counted by adjudicate once the arm answers (at the step here)
-                routed = answered != null;
-            }
+            answered = armOf(bare, letPrefix, specs, planning, hook);
         } catch (NotAConstant e) {
             notAConstant = e;
         } finally {
@@ -226,19 +325,62 @@ final class SqlTextVerdicts {
         if (answered == null) {
             return null;
         }
+        // the equality arm's census route, counted by adjudicate once the arm answers (at the step here)
+        boolean routed = !root;
         if (collecting.collected.size() != 1) {
             throw new IllegalStateException(fqn + ": the engine-text arm answered with " + collecting.collected.size()
                     + " comparisons collected, one expected");
         }
         Collected c = collecting.collected.get(0);
-        // our side: the planned text as the step's constant, or the deferred side itself as the step's ask (M10c
-        // item 8), planned at the step as the arm evaluated it
+        // each text: the planned text as the step's constant, or the deferred side itself as the step's ask (M10c
+        // item 8; the golden since 2026-11-04), planned at the step as the arm evaluated it
         HostSides.Ask ours = c.ours() == null
                 ? java.util.Objects.requireNonNull(collecting.deferred, "a deferred text with no ask")
                 : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.ours()), false, true, null);
-        return new HostSides.Check(List.of(
-                new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null), ours),
-                new HostJudgment.EngineText(c, routed));
+        HostSides.Ask golden = c.golden() == null
+                ? java.util.Objects.requireNonNull(collecting.deferredGolden, "a deferred golden with no ask")
+                : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
+        if (c.golden() == null) {
+            // a golden the plan reads (2026-11-04, the core program): the arm processes its golden before comparing
+            // (the chained-plan warning, the replay routes), so a failed comparison re-runs the arm over the two texts
+            // the step read -- the texts compared first, as any equality, the arm's own path only after
+            c = c.withRerun((g, o) -> {
+                TypedSide arm = armOf(bare, letPrefix, specs, env.withEngineText(new Replaying(g, o)), hook);
+                // the arm declining the step's texts: the assert is the plain String equality, which failed
+                return arm != null ? arm : fail(HostJudge.equalsMessage(g, o));
+            });
+        }
+        return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c, routed));
+    }
+
+    /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
+    private static boolean equalityFamily(TypedSpec bare) {
+        com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
+                com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        return fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
+                || fn == com.legend.builtin.NativeFn.Verdict.ASSERT_NOT_EQUALS;
+    }
+
+    /** The arm the walk runs for {@code bare} ({@code AssertVerdicts.adjudicate}'s order: the root arm its FQN names,
+     *  else the equality arm over the narrowed sides), under {@code env}: planned under a collector ({@link #plan}),
+     *  or re-run over a step's texts ({@link Replaying}). Null where the arm declines the shape. */
+    private static @com.legend.base.Nullable TypedSide armOf(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        String fqn = AssertVerdicts.calleeFqn(bare);
+        if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
+            return com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
+                    ? tryArmSameSql(root, letPrefix, specs, env, hook)
+                    : com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
+                    ? tryArmTdgRoot(root, letPrefix, specs, env, hook)
+                    : tryArmDualGolden(root, letPrefix, specs, env, hook);
+        }
+        com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
+                com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElseThrow();
+        List<TypedSpec> raw = bare instanceof com.legend.compiler.spec.typed.TypedUserCall u ? u.args()
+                : ((com.legend.compiler.spec.typed.TypedNativeCall) bare).args();
+        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs);
+        return tryArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS, args, letPrefix, specs,
+                env, hook);
     }
 
     /** {@code e} judged at its verdict step over the two text sides the runner handed back (the golden a constant of
@@ -254,8 +396,24 @@ final class SqlTextVerdicts {
         }
         String golden = scalarString(sides.get(0));
         String ours = scalarString(sides.get(1));
-        if (!c.golden().equals(golden) || c.ours() != null && !c.ours().equals(ours)) {
+        if (c.golden() != null && !c.golden().equals(golden) || c.ours() != null && !c.ours().equals(ours)) {
             throw new IllegalStateException(c.name() + ": the verdict step's texts are not the texts the arm planned");
+        }
+        if (c.golden() == null) {
+            // a golden the plan read (2026-11-04, the core program): the two texts compare first, as any equality;
+            // only a failed comparison re-runs the arm over them -- its golden processing and its appeal
+            if (golden == null || ours == null) {
+                return fail(c.name() + " (sql-text): " + (golden == null ? "the golden" : "our text")
+                        + " side, a String to one, read no string at the verdict step");
+            }
+            if (golden.equals(ours)) {
+                if (c.decline() != null) {
+                    declined(c.env(), c.name(), c.decline());
+                }
+                return ok();
+            }
+            return java.util.Objects.requireNonNull(c.rerun(), "a golden read at the step with no re-run")
+                    .rerun(golden, ours);
         }
         boolean textEqual = c.textEqual();
         if (c.ours() == null) {
@@ -281,7 +439,7 @@ final class SqlTextVerdicts {
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, TextAppeal appeal) {
         Collector collector = env.engineText();
-        if (collector != null && collector.planning()) {
+        if (collector instanceof Collecting && collector.planning()) {
             // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
             // where this is reached again through the collected environment with the planning over (judge), the
             // text decides below as on the walk
@@ -293,8 +451,22 @@ final class SqlTextVerdicts {
         }
         com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
+            if (collector instanceof BatchTexts bt && ours == bt.token) {
+                // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
+                // equality in the verdict row, and a failed row hands the text it read to the appeal
+                batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden,
+                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), env.session(),
+                        row -> {
+                            String read = actualText(row);
+                            return read == null
+                                    ? fail(name + " (sql-text): our text side, a String to one, read no string at"
+                                            + " the verdict step")
+                                    : appeal.appeal(read, golden.equals(read));
+                        });
+                return ok();
+            }
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session(),
-                    () -> appeal.appeal(ours, textEqual));
+                    row -> appeal.appeal(ours, textEqual));
             return ok();
         }
         return textEqual ? ok() : appeal.appeal(ours, textEqual);
@@ -306,8 +478,9 @@ final class SqlTextVerdicts {
      * navigation, a collection, a count -- the walk evaluated such a side to learn it and declined after a statement;
      * one rule over the type on both roads, nothing sent: R16; a Variant or another class whose value decodes to a
      * String is refused too, which no arm's actual side is today), else the side evaluated as any side --
-     * and, while an assert is PLANNED for the program road, the one side the collector may DEFER to the verdict step
-     * ({@link Collector#defer}; M10c item 8). The golden side is never read here: the arms route on its text.
+     * and, while an assert is PLANNED for the program road, a side the collector may DEFER to the verdict step
+     * ({@link Collector#defer}; M10c item 8); the text the step read where the arm re-runs on a failed comparison
+     * ({@link Replaying}). The golden side is read by {@link #readText}.
      */
     private static @com.legend.base.Nullable String oursText(TypedSpec side, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
@@ -315,17 +488,46 @@ final class SqlTextVerdicts {
                 || com.legend.compiler.element.type.PlatformTypes.isAny(side.info().type())) || !toOne(side.info())) {
             return null;
         }
-        Collecting collecting = env.engineText() instanceof Collecting c && c.planning ? c : null;
-        if (collecting != null) {
-            collecting.readingOurs = true;
+        return readText(side, letPrefix, specs, env, hook, false);
+    }
+
+    /** A TEXT side read as the string the arm compares, as every arm reads its golden ({@code golden}) and our text:
+     *  the side evaluated; while an assert is PLANNED for the program road, a side the collector may DEFER to the
+     *  verdict step ({@link Collector#defer}; our text since M10c item 8, the golden since 2026-11-04 -- lite's own
+     *  plan text, {@code let g = $p...sqlQuery; assertEquals($g, toSQLString(...))}); the text the step read where the
+     *  arm re-runs on a failed comparison ({@link Replaying}). */
+    private static @com.legend.base.Nullable String readText(TypedSpec side, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+            boolean golden) {
+        if (env.engineText() instanceof Replaying r) {
+            return golden ? r.golden() : r.ours();
+        }
+        Deferring deferring = env.engineText() instanceof Deferring d && d.planning() ? d : null;
+        if (deferring != null) {
+            deferring.readingGolden = golden;
+            deferring.readingOurs = !golden;
         }
         try {
             return scalarString(JudgePlans.evalSide(side, letPrefix, specs, env, false, true, hook));
         } finally {
-            if (collecting != null) {
-                collecting.readingOurs = false;
+            if (deferring != null) {
+                deferring.readingGolden = false;
+                deferring.readingOurs = false;
             }
         }
+    }
+
+    /** The ACTUAL text of a failed verdict row ({@code VerdictSql.schema}'s column): our text as the database computed
+     *  it, or null. */
+    private static @com.legend.base.Nullable String actualText(List<Object> row) {
+        List<com.legend.compiler.element.type.Type.RelationType.Column> cols =
+                com.legend.lowering.VerdictSql.schema().columns();
+        for (int i = 0; i < cols.size(); i++) {
+            if (com.legend.lowering.VerdictSql.ACTUAL.equals(cols.get(i).name())) {
+                return row.get(i) == null ? null : String.valueOf(row.get(i));
+            }
+        }
+        throw new IllegalStateException("the verdict schema has no actual column");
     }
 
     /** Whether {@code info} declares at most one value (a scalar side's shape). */
@@ -438,8 +640,7 @@ final class SqlTextVerdicts {
         String golden;
         String ours;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            golden = scalarString(JudgePlans.evalSide(
-                    goldenSide, letPrefix, specs, env, false, true, hook));
+            golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(producerSide, letPrefix, specs, env, hook);
         }
         if (golden == null || ours == null) {
@@ -573,8 +774,7 @@ final class SqlTextVerdicts {
                     "sql-text assertSameSQL: Result actual is not a"
                             + " mintable frame read");
         }
-        String golden = scalarString(JudgePlans.evalSide(
-                goldenSide, letPrefix, specs, env, false, true, hook));
+        String golden = readText(goldenSide, letPrefix, specs, env, hook, true);
         String ours = oursText(strip, letPrefix, specs, env, hook);
         if (golden == null || ours == null) {
             throw new com.legend.error.NotImplementedException(
@@ -636,8 +836,7 @@ final class SqlTextVerdicts {
                 oursExpr = com.legend.compiler.spec.VerdictQueries
                         .firstStatementRead(read);
                 resultArg = read.args().get(0);
-                String goldenN = scalarString(JudgePlans.evalSide(
-                        goldenSide, letPrefix, specs, env, false, true, hook));
+                String goldenN = readText(goldenSide, letPrefix, specs, env, hook, true);
                 String oursN = oursText(oursExpr, letPrefix, specs, env, hook);
                 if (goldenN == null || oursN == null) {
                     return null;
@@ -679,8 +878,7 @@ final class SqlTextVerdicts {
             oursExpr = strip;
             resultArg = actualSide;
         }
-        String golden = scalarString(JudgePlans.evalSide(
-                goldenSide, letPrefix, specs, env, false, true, hook));
+        String golden = readText(goldenSide, letPrefix, specs, env, hook, true);
         String ours = oursText(oursExpr, letPrefix, specs, env, hook);
         if (golden == null || ours == null) {
             throw new com.legend.error.NotImplementedException(
@@ -804,8 +1002,7 @@ final class SqlTextVerdicts {
         com.legend.compiler.spec.typed.TypedUserCall read =
                 r0 != null ? r0 : r1;
         TypedSpec resultArg = read.args().get(0);
-        String golden = scalarString(JudgePlans.evalSide(
-                goldenSide, letPrefix, specs, env, false, true, hook));
+        String golden = readText(goldenSide, letPrefix, specs, env, hook, true);
         // THE ENGINE'S PLAN IS ONE STATEMENT PER STORE-BACKED LET of the
         // query lambda, in order, then the main statement (batch 69a,
         // 2026-09-05 — the datePeriods shape `let reportEndDate =
@@ -1109,8 +1306,7 @@ final class SqlTextVerdicts {
         String golden;
         String ours;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            golden = scalarString(JudgePlans.evalSide(
-                    goldenSide, letPrefix, specs, env, false, true, hook));
+            golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(actualSide, letPrefix, specs, env, hook);
         }
         if (golden == null || ours == null) {
@@ -1290,8 +1486,7 @@ final class SqlTextVerdicts {
         if (!hasTdgProducer(actualSide, letPrefix)) {
             return null;
         }
-        String golden = scalarString(JudgePlans.evalSide(
-                goldenSide, letPrefix, specs, env, false, true, hook));
+        String golden = readText(goldenSide, letPrefix, specs, env, hook, true);
         String ours = oursText(actualSide, letPrefix, specs, env, hook);
         if (golden == null || ours == null) {
             return null;

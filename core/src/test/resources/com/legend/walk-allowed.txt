@@ -23,5 +23,7 @@
 # (ExecuteFrameTest#executeInResultPosition); a lone statement reading both stores raises at planning what the walk
 # raises at its turn (MetamodelStoreTest#mixedChainKeepsTheWall); a staged let and the store writes after it are a
 # query program's steps (StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt).
-com.legend.driver.BodyRouterParityTest#deferredTextPrograms
+# 2026-11-04 (the core program): 2 -> 1 -- the SQL-text asserts generic first: either text a side the verdict step
+# reads, the arm re-run over the step's texts only on a failed comparison, our text computed in the database judge's
+# verdict row (BodyRouterParityTest#deferredTextPrograms).
 com.legend.exec.ExecuteInDbDuckDbTest#classQueryDerivedSqlResolves

@@ -398,7 +398,8 @@ final class JudgePlans {
             if (p.kind() != Kind.CONSTANT) {
                 // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it
                 TypedSide deferred = collecting.defer(value, p, identity, fold,
-                        hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env);
+                        hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env,
+                        letPrefix, specs);
                 if (deferred != null) {
                     return deferred;
                 }
