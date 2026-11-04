@@ -66,8 +66,31 @@ class TimeseriesLibraryTest {
     /** The prices' table: a store of the model's own, which each test's session is given by the platform's own DDL. */
     private static final String STORE = """
             ###Relational
-            Database ts::DB ( Table PRICES ( SYMBOL VARCHAR(8), DAY DATE, CLOSE DOUBLE ) )
+            Database ts::DB
+            (
+              Table PRICES ( SYMBOL VARCHAR(8), DAY DATE, CLOSE DOUBLE )
+              Table CAL ( SYMBOL VARCHAR(8), DAY DATE, DT TIMESTAMP, CLOSE DOUBLE, V2 DOUBLE )
+            )
             """;
+
+    /** CAL's CLOSE of {@code symbol} on its {@code i}-th day. */
+    private static double calClose(String symbol, int i) {
+        double k = symbol.equals("CCC") ? 100 : 250;
+        return Math.round(100 * k * (1 + 0.1 * Math.sin(i / 17.0) + 0.0005 * i)) / 100.0;
+    }
+
+    /** CAL's V2 of {@code symbol} on its {@code i}-th day. */
+    private static double calV2(String symbol, int i) {
+        double k = symbol.equals("CCC") ? 1 : 2.5;
+        return Math.round(100 * (50 + 7 * Math.cos(i / (9.0 * k)) + 0.01 * i)) / 100.0;
+    }
+
+    /** CAL's days: every business day of 2023 and 2024 -- month ends, a leap day, weekends and a year's end -- each
+     *  twice, a date ({@code DAY}) and the same day's midnight ({@code DT}). */
+    private static final List<LocalDate> CAL_DAYS = java.util.stream.Stream.iterate(LocalDate.of(2023, 1, 2), d -> d.plusDays(1))
+            .takeWhile(d -> !d.isAfter(LocalDate.of(2024, 12, 31)))
+            .filter(d -> d.getDayOfWeek() != java.time.DayOfWeek.SATURDAY && d.getDayOfWeek() != java.time.DayOfWeek.SUNDAY)
+            .toList();
 
     private static final String PRICES = "#>{ts::DB.PRICES}#";
 
@@ -87,12 +110,30 @@ class TimeseriesLibraryTest {
 
     /** {@code c} given the prices: the table as {@code backend}'s dialect writes it, and its rows bound. */
     private static void seed(TestBackend backend, Connection c) throws java.sql.SQLException {
-        com.legend.model.DatabaseDefinition.TableDefinition table = Compiler.parseModel(STORE).elements().stream()
+        List<com.legend.model.DatabaseDefinition.TableDefinition> tables = Compiler.parseModel(STORE).elements().stream()
                 .filter(e -> e instanceof com.legend.model.DatabaseDefinition)
-                .flatMap(e -> ((com.legend.model.DatabaseDefinition) e).tables().stream()).findFirst().orElseThrow();
+                .flatMap(e -> ((com.legend.model.DatabaseDefinition) e).tables().stream()).toList();
         try (java.sql.Statement s = c.createStatement()) {
-            s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(table, null)));
+            for (com.legend.model.DatabaseDefinition.TableDefinition t : tables) {
+                s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(t, null)));
+            }
         }
+        com.legend.model.DatabaseDefinition.TableDefinition cal = tables.get(1);
+        try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO "
+                + backend.dialect().storedName(cal.name(), cal.quoted()) + " VALUES (?, ?, ?, ?, ?)")) {
+            for (String symbol : List.of("CCC", "DDD")) {
+                for (int i = 0; i < CAL_DAYS.size(); i++) {
+                    ps.setString(1, symbol);
+                    ps.setObject(2, CAL_DAYS.get(i));
+                    ps.setObject(3, CAL_DAYS.get(i).atStartOfDay());
+                    ps.setDouble(4, calClose(symbol, i));
+                    ps.setDouble(5, calV2(symbol, i));
+                    ps.addBatch();
+                }
+            }
+            ps.executeBatch();
+        }
+        com.legend.model.DatabaseDefinition.TableDefinition table = tables.get(0);
         String target = backend.dialect().storedName(table.name(), table.quoted());
         try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + target + " VALUES (?, ?, ?)")) {
             for (Map.Entry<String, double[]> line : Map.of("AAA", AAA, "BBB", BBB).entrySet()) {
@@ -109,8 +150,13 @@ class TimeseriesLibraryTest {
 
     /** {@code query}'s rows on {@code backend}, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(TestBackend backend, String query) throws Exception {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(backend)), query)
-                .executionPlan("ts::RT");
+        return rows(backend, Compiler.compileModel(model(backend)), query);
+    }
+
+    /** {@link #rows(TestBackend, String)} over a model already compiled. */
+    private static List<Map<String, String>> rows(TestBackend backend, com.legend.compiler.element.ModelContext model,
+            String query) throws Exception {
+        ExecutionPlan plan = Compiler.query(model, query).executionPlan("ts::RT");
         String text;
         try (Connection c = backend.open()) {
             seed(backend, c);
@@ -138,13 +184,17 @@ class TimeseriesLibraryTest {
     }
 
     private static void assertClose(Double[] want, Double[] got, String what) {
+        assertClose(want, got, what, 1e-9);
+    }
+
+    private static void assertClose(Double[] want, Double[] got, String what, double relative) {
         assertEquals(want.length, got.length, what + ": the rows");
         for (int i = 0; i < want.length; i++) {
             if (want[i] == null) {
                 assertNull(got[i], what + " at " + i);
             } else {
                 assertNotNull(got[i], what + " at " + i);
-                assertEquals(want[i], got[i], 1e-9 * Math.max(1, Math.abs(want[i])), what + " at " + i);
+                assertEquals(want[i], got[i], relative * Math.max(1, Math.abs(want[i])), what + " at " + i);
             }
         }
     }
@@ -233,6 +283,122 @@ class TimeseriesLibraryTest {
             ran.add(backend);
         }
         assertTrue(ran.size() >= 3, "on every in-process database: " + ran);
+    }
+
+    /**
+     * A CALENDAR WINDOW OF A LINE OF DATES IS ONE WINDOW FRAME (2026-11-04): windowPeriod and pairPeriod over a date
+     * column are a frame over the date's period key (timeseries::periodKey), where over a date-time column they are the
+     * line joined to itself on (date - n unit, date]. Every statistic of the dates' frame is the window's own, worked here
+     * from (date - n unit, date] as java.time reads it (minusMonths clamps a month's end, as adjust does), on every
+     * in-process database, for months across their ends and a leap day, a year, days and weeks; and on the platform's
+     * own database the date-times' join answers the same. (SQLite's join of date-times holds a window's first day too,
+     * found here: the date-times' defect, not the frame's.)
+     */
+    @Test
+    void aCalendarWindowOfDatesIsTheWindowAsAFrame() throws Exception {
+        List<String> stats = List.of("mean", "sum", "min", "max", "range", "std", "var", "count");
+        List<String> pairStats = List.of("corr", "cov");
+        Object[][] windows = {{3, "MONTHS"}, {6, "MONTHS"}, {1, "YEARS"}, {10, "DAYS"}, {2, "WEEKS"}};
+        List<TestBackend> ran = new ArrayList<>();
+        for (TestBackend backend : TestBackends.inProcess()) {
+            com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend));
+            for (Object[] w : windows) {
+                int n = (Integer) w[0];
+                String unit = (String) w[1];
+                String window = n + ", meta::pure::functions::date::DurationUnit." + unit;
+                // every statistic of the dates in one query: a frame reads its line once
+                StringBuilder frames = new StringBuilder("|#>{ts::DB.CAL}#");
+                for (String stat : stats) {
+                    frames.append("->timeseries::windowPeriod(~SYMBOL, ~DAY, ~CLOSE, ").append(window)
+                            .append(", timeseries::Statistic.").append(stat).append(", ~").append(stat).append(')');
+                }
+                for (String stat : pairStats) {
+                    frames.append("->timeseries::pairPeriod(~SYMBOL, ~DAY, ~CLOSE, ~V2, ").append(window)
+                            .append(", timeseries::PairStatistic.").append(stat).append(", ~").append(stat).append(')');
+                }
+                List<Map<String, String>> got = rows(backend, model, frames + "->sort([~SYMBOL->ascending(), ~DAY->ascending()])");
+                assertEquals(2 * CAL_DAYS.size(), got.size(), backend + " " + window + ": the rows");
+                for (String stat : java.util.stream.Stream.concat(stats.stream(), pairStats.stream()).toList()) {
+                    for (String symbol : List.of("CCC", "DDD")) {
+                        // a correlation and a covariance to 1e-7: SQLite has neither, and lite writes each there from
+                        // running sums (8e-9 apart from the two-pass figure on a window of three, measured here)
+                        assertClose(calWindow(symbol, stat, n, unit), column(got, symbol, stat),
+                                backend + " " + symbol + " " + stat + " over " + window,
+                                pairStats.contains(stat) ? 1e-7 : 1e-9);
+                    }
+                }
+                // the join of date-times, one statistic a query (a join reads its line three times), where it is right
+                if (backend.type() == Databases.PLATFORM) {
+                    for (String stat : stats) {
+                        List<Map<String, String>> joined = rows(backend, model, "|#>{ts::DB.CAL}#->timeseries::windowPeriod(~SYMBOL, ~DT, ~CLOSE, "
+                                + window + ", timeseries::Statistic." + stat + ", ~" + stat + ")->sort([~SYMBOL->ascending(), ~DAY->ascending()])");
+                        for (String symbol : List.of("CCC", "DDD")) {
+                            assertClose(column(joined, symbol, stat), column(got, symbol, stat),
+                                    backend + " " + symbol + " " + stat + " over " + window + ": the join's answer");
+                        }
+                    }
+                }
+            }
+            ran.add(backend);
+        }
+        assertTrue(ran.size() >= 3, "on every in-process database: " + ran);
+    }
+
+    /** {@code stat} of {@code symbol}'s CAL values over (date - n unit, date] at each of its days, as java.time reads the
+     *  window: none where the statistic has none (a deviation of one value, a correlation of no variation). */
+    private static Double[] calWindow(String symbol, String stat, int n, String unit) {
+        Double[] out = new Double[CAL_DAYS.size()];
+        for (int i = 0; i < out.length; i++) {
+            LocalDate d = CAL_DAYS.get(i);
+            LocalDate lo = switch (unit) {
+                case "MONTHS" -> d.minusMonths(n);
+                case "YEARS" -> d.minusYears(n);
+                case "WEEKS" -> d.minusWeeks(n);
+                case "DAYS" -> d.minusDays(n);
+                default -> throw new IllegalArgumentException(unit);
+            };
+            List<double[]> w = new ArrayList<>();
+            for (int j = 0; j <= i; j++) {
+                if (CAL_DAYS.get(j).isAfter(lo)) {
+                    w.add(new double[] {calClose(symbol, j), calV2(symbol, j)});
+                }
+            }
+            int m = w.size();
+            double sx = 0;
+            double sy = 0;
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (double[] p : w) {
+                sx += p[0];
+                sy += p[1];
+                min = Math.min(min, p[0]);
+                max = Math.max(max, p[0]);
+            }
+            double mx = sx / m;
+            double my = sy / m;
+            double vxx = 0;
+            double vyy = 0;
+            double vxy = 0;
+            for (double[] p : w) {
+                vxx += (p[0] - mx) * (p[0] - mx);
+                vyy += (p[1] - my) * (p[1] - my);
+                vxy += (p[0] - mx) * (p[1] - my);
+            }
+            out[i] = switch (stat) {
+                case "mean" -> mx;
+                case "sum" -> sx;
+                case "min" -> min;
+                case "max" -> max;
+                case "range" -> max - min;
+                case "count" -> (double) m;
+                case "var" -> m < 2 ? null : vxx / (m - 1);
+                case "std" -> m < 2 ? null : Math.sqrt(vxx / (m - 1));
+                case "cov" -> m < 2 ? null : vxy / (m - 1);
+                case "corr" -> m < 2 || vxx == 0 || vyy == 0 ? null : vxy / Math.sqrt(vxx * vyy);
+                default -> throw new IllegalArgumentException(stat);
+            };
+        }
+        return out;
     }
 
     /**

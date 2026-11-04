@@ -136,6 +136,51 @@ function timeseries::windowPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L�
     ->rename(~s, $out);
 }
 
+// -- the same, over a line of dates: one window frame (2026-11-04). A calendar window of a line of dates is the rows whose
+// period key (periodKey) is within periodSpan(n, unit) - 1 steps before the date's: (date - n unit, date] exactly, as
+// the join above reads it, in one frame the database sweeps once -- no join of the line to itself, nor back. A line of
+// date-times keeps the join (a time of day within a day's key: the intraday program's, docs/TS_V1_PROGRAM_2026_11_01.md
+// B6b). --
+
+// The period key of a date: a whole number whose differences count a calendar window's steps. For months and years,
+// the month's number times 31 plus the day of its month less 1, so that n months back is 31n steps back, a month's end
+// included: six months back from August 31st is February's last day (adjust's clamp), and the key of a "February 31st"
+// sorts after February's last day and before March 1st, exactly where the clamped date does. For days and weeks (and
+// an hour, a minute or a second of a date) the day's number. Measured equal to the join's window on DuckDB, Postgres,
+// MySQL, MariaDB, SQLite, H2, Trino and ClickHouse: every business day of 2020-2024, windows of 3, 6 and 12 months.
+function timeseries::periodKey(d: StrictDate[1], unit: meta::pure::functions::date::DurationUnit[1]): Integer[1]
+{
+  if($unit == meta::pure::functions::date::DurationUnit.MONTHS, |timeseries::monthKey($d),
+    |if($unit == meta::pure::functions::date::DurationUnit.YEARS, |timeseries::monthKey($d), |dateDiff(%1970-01-01, $d, meta::pure::functions::date::DurationUnit.DAYS)))
+}
+
+// A date's month key: its month's number (from year 0) times 31, plus the day of its month less 1.
+function timeseries::monthKey(d: StrictDate[1]): Integer[1]
+{
+  ((($d->year() * 12) + $d->monthNumber()) * 31) + ($d->dayOfMonth() - 1)
+}
+
+// The period key's steps a window of n units spans: n a day, 7n a week, 31n a month, 372n a year; an hour, a minute or
+// a second of a date as the days the window reaches (36 hours back from a date reaches the day before it: two days).
+function timeseries::periodSpan(n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Integer[1]
+{
+  if($unit == meta::pure::functions::date::DurationUnit.YEARS, |$n * 372,
+    |if($unit == meta::pure::functions::date::DurationUnit.MONTHS, |$n * 31,
+      |if($unit == meta::pure::functions::date::DurationUnit.WEEKS, |$n * 7,
+        |if($unit == meta::pure::functions::date::DurationUnit.DAYS, |$n,
+          |if($unit == meta::pure::functions::date::DurationUnit.HOURS, |ceiling($n / 24),
+            |if($unit == meta::pure::functions::date::DurationUnit.MINUTES, |ceiling($n / 1440), |ceiling($n / 86400)))))))
+}
+
+// windowPeriod of a line of dates: the statistic over the frame of its window.
+function timeseries::windowPeriod<T,L,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<(?:StrictDate)⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: timeseries::Statistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~pk:r|timeseries::periodKey($r->read($date)->toOne(), $unit))
+    ->extend(over($line, ~pk->ascending(), _range(-(timeseries::periodSpan($n, $unit) - 1), 0)), ~s:{p,f,r|$r->read($value)}:y|if($stat == timeseries::Statistic.mean, |$y->average(), |if($stat == timeseries::Statistic.sum, |$y->sum(), |if($stat == timeseries::Statistic.min, |$y->min(), |if($stat == timeseries::Statistic.max, |$y->max(), |if($stat == timeseries::Statistic.range, |$y->max()->toOne() - $y->min()->toOne(), |if($stat == timeseries::Statistic.std, |$y->stdDevSample(), |if($stat == timeseries::Statistic.count, |$y->count(), |$y->varianceSample()))))))))
+    ->without(~pk)
+    ->rename(~s, $out)
+}
+
 // A column none before a calendar period on from the first date another column has a value (gs-quant's apply_ramp of a
 // DateOffset, x.loc[x.index[0] + r:], its start the first date of the series read -- a price's, where the column is of
 // its returns).
@@ -991,6 +1036,18 @@ function timeseries::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L�
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {x,y|($x.l == $y.gl) && ($x.d == $y.gd)})
     ->without(~[l, d, a, b, gl, gd])
     ->rename(~s, $out);
+}
+
+// pairPeriod of a line of dates: the statistic over the frame of its window (windowPeriod's, of two columns).
+function timeseries::pairPeriod<T,L,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<(?:StrictDate)⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: timeseries::PairStatistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pk:r|timeseries::periodKey($r->read($date)->toOne(), $unit), a:r|$r->read($first), b:r|$r->read($second)])
+    ->extend(over($line, ~pk->ascending(), _range(-(timeseries::periodSpan($n, $unit) - 1), 0)),
+      ~[c:{p,f,r|rowMapper($r.a, $r.b)}:y|$y->corr(), cv:{p,f,r|rowMapper($r.a, $r.b)}:y|$y->covarSample(),
+        va:{p,f,r|if($r.b->isEmpty(), |[], |$r.a)}:y|$y->varianceSample(), vb:{p,f,r|if($r.a->isEmpty(), |[], |$r.b)}:y|$y->varianceSample()])
+    ->extend(~s:x|if($stat == timeseries::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
+    ->without(~[pk, a, b, c, cv, va, vb])
+    ->rename(~s, $out)
 }
 
 // The slope of the first column on the second over their pairs a calendar period back of each date, least squares:

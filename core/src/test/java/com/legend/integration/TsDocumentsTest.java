@@ -290,10 +290,10 @@ class TsDocumentsTest {
             Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"),
             // spec §8's other views: plain SQL over a series query (FROM s, no ON) is not read yet
             Map.entry("spec-05", "SELECT regr_slope(...) FROM s: plain SQL over a series query, unbuilt"),
-            // a let read k times is pasted k times (UserCallInliner's KNOWN TRADE: CTE sharing the fix); the
-            // calendar windows read their input three times each, so nested ones multiply
-            Map.entry("spec-13", "the pairs trade's SQL: 23.9 million characters (no CTE sharing of a let)"),
-            Map.entry("spec-15", "the 60/40 portfolio's SQL: 2.9 million characters (no CTE sharing of a let)"),
+            // the translator's reused pieces are typed at each use, and a let read k times is pasted k times: the
+            // sampled lines read by the basket, the returns, the ratio and the drawdown are each written about 25 times
+            // (the translator's lets and the WITH sharing of a let read twice the fix: docs/TS_V1_PROGRAM_2026_11_01.md)
+            Map.entry("spec-15", "the 60/40 portfolio's SQL: 2.9 million characters (reused pieces written at each use)"),
             // r_squared of a line with itself (SPX against SPX) is 1 + 4e-16; Pure's sqrt of a negative refuses
             Map.entry("spec-16", "sqrt(1 - r_squared(...)) of SPX with itself: r_squared is 1 + 4e-16"));
 
