@@ -152,7 +152,8 @@ final class SqlTextVerdicts {
      *  the shape (null: the walk's generic path continues) but the program road refusing the body by name -- the
      *  callers leave the body to the walk and count the refusal once, by {@link #why}. Never judged. */
     static boolean notAConstant(HostSides.@com.legend.base.Nullable Check check) {
-        return check != null && check.judgment() instanceof HostJudgment.Raise r && r.failure() instanceof NotAConstant;
+        return check != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.Raise r
+                && r.failure() instanceof NotAConstant;
     }
 
     /** The side a {@link #notAConstant} check names: its kind and planned root (the message after its label). */
@@ -160,7 +161,7 @@ final class SqlTextVerdicts {
         if (check == null) {
             throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
         }
-        String what = String.valueOf(((HostJudgment.Raise) check.judgment()).failure().getMessage());
+        String what = String.valueOf(((HostJudgment.Raise) HostJudgment.core(check.judgment())).failure().getMessage());
         return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 

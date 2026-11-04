@@ -244,10 +244,10 @@ final class AssertVerdicts {
     private static DatabaseGate gateOf(HostAssert shape, TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        if (shape.check().judgment() instanceof HostJudgment.Raise) {
+        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
-        if (shape.check().judgment() instanceof HostJudgment.EngineText e) {
+        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e) {
             if (e.collected().golden() == null) {
                 // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
                 // database judge's text equality with the golden a constant -- the walk's, by name
@@ -806,7 +806,7 @@ final class AssertVerdicts {
          *  the judgment decides (an assertError's answer, any other's failure: {@code HostJudge.judge}). */
         @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides) {
             TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides));
-            if (v != null && check.judgment() instanceof HostJudgment.EngineText e && e.routed()) {
+            if (v != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.EngineText e && e.routed()) {
                 sqlTextRouted(name());
             }
             return v;
@@ -818,7 +818,7 @@ final class AssertVerdicts {
             if (beforeTheArm != null) {
                 throw beforeTheArm;
             }
-            if (check.judgment() instanceof HostJudgment.Unrolled u) {
+            if (HostJudgment.core(check.judgment()) instanceof HostJudgment.Unrolled u) {
                 // the walk's unroll: each element entered, fetched and judged in turn, the first failure stopping it
                 // (the program road reads every element's sides in one step and judges them in order: the one
                 // difference, on a failing body -- its later elements' sides are read; M10c item 5)
@@ -1606,7 +1606,8 @@ final class AssertVerdicts {
 
     /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an engine-text judgment: the one whose
      *  appeal reads the user store, which a system-routed body's program cannot carry (M10b's refusal). */
-    static boolean holdsEngineText(HostJudgment j) {
+    static boolean holdsEngineText(HostJudgment judgment) {
+        HostJudgment j = HostJudgment.core(judgment);
         return j instanceof HostJudgment.EngineText
                 || j instanceof HostJudgment.Unrolled u
                         && u.parts().stream().anyMatch(p -> holdsEngineText(p.check().judgment()));
@@ -1616,7 +1617,8 @@ final class AssertVerdicts {
      *  text is a side the verdict step runs (M10c item 8: {@code SqlTextVerdicts.Collected.oursOrigin}), looked for
      *  through an unroll's parts; null where none (the step runs under its own). An unroll whose parts carry
      *  different marks is refused before it is placed ({@link #oneTextOrigin}). */
-    static com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredTextOrigin(HostJudgment j) {
+    static com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredTextOrigin(HostJudgment judgment) {
+        HostJudgment j = HostJudgment.core(judgment);
         if (j instanceof HostJudgment.EngineText e) {
             return e.collected().oursOrigin();
         }
@@ -1635,7 +1637,8 @@ final class AssertVerdicts {
      *  under one origin where the walk enters each unrolled part's own mark, so an unroll whose parts' marks differ
      *  (one part's text deferred under the arm's mark, another's not) cannot agree with the walk's census (the M10c
      *  item 8 audit's finding 2). Any other judgment is one part. */
-    static boolean oneTextOrigin(HostJudgment j) {
+    static boolean oneTextOrigin(HostJudgment judgment) {
+        HostJudgment j = HostJudgment.core(judgment);
         if (!(j instanceof HostJudgment.Unrolled u)) {
             return true;
         }

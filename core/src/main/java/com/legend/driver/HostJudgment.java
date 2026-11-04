@@ -286,6 +286,23 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
             boolean sortedOrder, boolean counted) implements HostJudgment {
     }
 
+    /** {@code j} with its wrappers taken off ({@link Compat}, {@link Messaged}: a run's mode and a caller's message,
+     *  neither of which changes what the judgment IS): the judgment the planners ask about -- a planned raise, an
+     *  engine-text arm, an unrolled quantifier. (2026-11-04: the wrappers hid those from the gate, and the corpus's
+     *  engine-text asserts, wrapped in compat mode, lost their arm: 61 DuckDB bodies.) */
+    static HostJudgment core(HostJudgment j) {
+        HostJudgment c = j;
+        while (true) {
+            if (c instanceof Compat w) {
+                c = w.inner();
+            } else if (c instanceof Messaged m) {
+                c = m.inner();
+            } else {
+                return c;
+            }
+        }
+    }
+
     /** {@code inner} judged in BACKWARDS-COMPATIBILITY MODE (2026-11-04: the run asked for it, ExecuteOptions
      *  .withEngineCompat -- the PCT and corpus harnesses): the leniencies that meet legend-engine's goldens apply
      *  (judge.Equality.compat). */
