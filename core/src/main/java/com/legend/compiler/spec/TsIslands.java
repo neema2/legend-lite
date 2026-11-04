@@ -50,6 +50,13 @@ public final class TsIslands {
      *  types a resolved relation in {@code env}. */
     static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
             ModelContext model, Env env) {
+        return NameResolver.resolveQuery(translated(island, typeSource, model, env));
+    }
+
+    /** {@code island}'s translation, its names not yet resolved: one node wherever the query reads it again (the
+     *  translator builds a relation once and reads it at each use). */
+    private static ValueSpecification translated(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env env) {
         if (model.findFunction(TsToPure.LIBRARY + "mean").isEmpty()) {
             // the library is a project a model depends on (docs/TS_LANGUAGE_BUILD_2026_10_30.md §1, open: a dependency
             // until the user rules on the platform loading it)
@@ -59,11 +66,84 @@ public final class TsIslands {
         }
         SqlToPure.Sources sources = SqlIslands.sources(island, typeSource, model, env, new java.util.TreeSet<>());
         try {
-            return NameResolver.resolveQuery(TsToPure.translate(island.sql(), new Facts(sources, model),
-                    java.util.Objects.requireNonNull(InputLanguages.of(IslandLanguage.SQL, null))));
+            return TsToPure.translate(island.sql(), new Facts(sources, model),
+                    java.util.Objects.requireNonNull(InputLanguages.of(IslandLanguage.SQL, null)));
         } catch (SqlTranslationException e) {
             throw SqlIslands.refusal(island, e);
         }
+    }
+
+    /** A query statement and the lets it now reads ({@link #lifted}). */
+    record Lifted(List<ValueSpecification> lets, ValueSpecification statement) {
+    }
+
+    /** Whether {@code statement} holds a {@code #TS{...}#} island outside every lambda. */
+    static boolean holdsIsland(ValueSpecification statement) {
+        return switch (statement) {
+            case SqlIsland si -> si.language() == IslandLanguage.TS;
+            case com.legend.protocol.spec.LambdaFunction ignored -> false;
+            default -> statement.children().stream().anyMatch(TsIslands::holdsIsland);
+        };
+    }
+
+    /**
+     * A RELATION THE QUERY READS AGAIN IS BOUND ONCE (2026-11-04, the user: "can we do this for real"): each
+     * {@code #TS{...}#} island of {@code statement} outside every lambda translated, and each relation its translation
+     * reads at more than one place -- a line an item reads, an item a later item reads -- bound by a {@code let} ahead
+     * of the statement, its every read the let's name. The translator builds such a relation once and reads it at
+     * each use; typed where it stands it was typed, inlined and lowered again at each, and the SQL wrote it again at
+     * each (spec-13: the prices table read 36 times, one regression computed 13 times). Bound by a let it is typed
+     * once, and the inliner splices the one value at each read (UserCallInliner, query lets), which the lowering
+     * writes once, as a common table expression ({@code lowering.SharedRelations}). Bound only where its value reads
+     * no name but the query's own (its parameters, the lets before it): a relation that reads a lambda's parameter
+     * stays where it is. {@code scope} is the statement's: its names, and the sources typed in it.
+     */
+    static Lifted lifted(ValueSpecification statement, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env scope, java.util.Set<String> taken) {
+        List<ValueSpecification> lets = new ArrayList<>();
+        java.util.IdentityHashMap<ValueSpecification, ValueSpecification> islands = new java.util.IdentityHashMap<>();
+        collect(statement, island -> {
+            TsToPure.Bound bound = TsToPure.bindShared(translated(island, typeSource, model, scope), scope.names(),
+                    taken);
+            lets.addAll(bound.lets());
+            islands.put(island, NameResolver.resolveQuery(bound.answer()));
+        });
+        return new Lifted(lets.stream().map(NameResolver::resolveQuery).toList(), replaced(statement, islands));
+    }
+
+    /** Each {@code #TS{...}#} island of {@code v} outside every lambda, in order. */
+    private static void collect(ValueSpecification v, java.util.function.Consumer<SqlIsland> each) {
+        switch (v) {
+            case SqlIsland si -> {
+                if (si.language() == IslandLanguage.TS) {
+                    each.accept(si);
+                }
+            }
+            case com.legend.protocol.spec.LambdaFunction ignored -> {
+            }
+            default -> v.children().forEach(c -> collect(c, each));
+        }
+    }
+
+    /** {@code v} with each island of {@code islands} replaced by its translation, outside every lambda. */
+    private static ValueSpecification replaced(ValueSpecification v,
+            java.util.IdentityHashMap<ValueSpecification, ValueSpecification> islands) {
+        ValueSpecification done = islands.get(v);
+        if (done != null) {
+            return done;
+        }
+        if (v instanceof com.legend.protocol.spec.LambdaFunction || v.children().isEmpty()) {
+            return v;
+        }
+        List<ValueSpecification> kids = v.children();
+        List<ValueSpecification> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (ValueSpecification k : kids) {
+            ValueSpecification r = replaced(k, islands);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? v.withChildren(out) : v;
     }
 
     /** The enumerations directly in the package {@code pkg} ({@code timeseries}), by their simple names, each its

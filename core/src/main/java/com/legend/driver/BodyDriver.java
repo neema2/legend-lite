@@ -2238,7 +2238,7 @@ public final class BodyDriver {
                 t -> identity ? com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t, true)
                         : com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone());
+                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read

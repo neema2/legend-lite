@@ -316,9 +316,26 @@ public final class SpecCompiler {
                 scope = scope.with(p.name(), typer.declaredType(p));
             }
             List<TypedSpec> body = new ArrayList<>();
-            int lastStmt = lf.body().size() - 1;
-            for (int si = 0; si < lf.body().size(); si++) {
-                ValueSpecification stmt = lf.body().get(si);
+            List<ValueSpecification> stmts = new ArrayList<>(lf.body());
+            // the names the query's statements bind, so a let a #TS island's lifting adds takes none of them
+            java.util.Set<String> taken = new java.util.HashSet<>(scope.names());
+            stmts.forEach(st -> {
+                com.legend.protocol.spec.CString n = SourceSubst.letName(st);
+                if (n != null) {
+                    taken.add(n.value());
+                }
+            });
+            for (int si = 0; si < stmts.size(); si++) {
+                ValueSpecification stmt = stmts.get(si);
+                if (TsIslands.holdsIsland(stmt)) {
+                    // a relation a #TS island's query reads again bound once, ahead of the statement (TsIslands.lifted)
+                    Env at = scope;
+                    TsIslands.Lifted lifted = TsIslands.lifted(stmt, source -> typer.synth(source, at), ctx, at, taken);
+                    stmts.set(si, lifted.statement());
+                    stmts.addAll(si, lifted.lets());
+                    stmt = stmts.get(si);
+                }
+                int lastStmt = stmts.size() - 1;
                 // bind-once (family A): a let whose rhs is a DEFERRED
                 // kind parks the raw syntax instead of dying typing it;
                 // consuming checkers resolve through the alias channel.

@@ -225,6 +225,50 @@ public final class Lowerer {
         return this;
     }
 
+    /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
+     *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
+     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
+     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  cteExtractionPostProcessor: {@link #sharingRelations}). */
+    private boolean shareRelations = true;
+    /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
+    private @com.legend.base.Nullable SharedRelations.Frame sharing;
+
+    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
+     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
+     *  expressions of its own spelling. */
+    public Lowerer sharingRelations(boolean on) {
+        this.shareRelations = on;
+        return this;
+    }
+
+    /** {@code spec}, a relation the statement reads more than once: lowered the first time it is read, its rows a
+     *  common table expression of the statement's head; each read the expression by name. Written where it stands at
+     *  each read instead: a relation whose order the statement keeps (an ORDER BY at its top: a sort before a
+     *  positional read; a common table expression carries no order), and a bare read of one source (a raw grid, a
+     *  table: no larger than a reference to it, and a raw grid's report reads the grid as it is written). */
+    private SqlSelect sharedRead(SharedRelations.Frame frame, TypedSpec spec) {
+        SqlSource.Cte cte = frame.read.get(spec);
+        if (cte == null) {
+            SqlSelect body;
+            frame.lowering.add(spec);
+            try {
+                body = relation(spec);
+            } finally {
+                frame.lowering.remove(spec);
+            }
+            if (!body.orderBy().isEmpty() || SharedRelations.bare(body)) {
+                frame.nodes.remove(spec);
+                return body;
+            }
+            String name = SqlWith.SHARED_PREFIX + frame.written.size();
+            frame.written.add(new SqlWith.Cte(name, body));
+            cte = new SqlSource.Cte(name, name, body.outputs());
+            frame.read.put(spec, cte);
+        }
+        return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
+    }
+
     /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
      * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
     private boolean engineExistsJoinForm;
@@ -375,9 +419,26 @@ public final class Lowerer {
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        TypedSpec root = withQueryLets(body);
+        SqlQuery q;
+        if (sharing == null && shareRelations && !engineText) {
+            // a relation read more than once, written once (SharedRelations): the statement's own names are its
+            // query lets and plan parameters, which its head reads as every part of it does
+            SharedRelations.Frame frame =
+                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+            sharing = frame;
+            try {
+                SqlQuery reads = lower(root);   // first: the reads write the expressions
+                q = SqlWith.prepend(List.copyOf(frame.written), reads);
+            } finally {
+                sharing = null;
+            }
+        } else {
+            q = lower(root);
+        }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(withQueryLets(body)), !engineText);
+        return SubselectPrune.prune(q, !engineText);
     }
 
     /**
@@ -903,6 +964,11 @@ public final class Lowerer {
     // ==================================================================
 
     SqlSelect relation(TypedSpec spec) {
+        // a relation the statement reads more than once: written once, read by name (SharedRelations)
+        SharedRelations.Frame frame = sharing;
+        if (frame != null && frame.nodes.contains(spec) && !frame.lowering.contains(spec)) {
+            return sharedRead(frame, spec);
+        }
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc

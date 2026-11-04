@@ -6,6 +6,7 @@ package com.legend.protocol.ts;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.EnumValue;
 import com.legend.protocol.spec.LambdaFunction;
@@ -139,6 +140,111 @@ public final class TsToPure {
      *  {@code dialect} (Postgres's); a {@link SqlTranslationException}, placed in the text, where it means none. */
     public static ValueSpecification translate(String text, Model model, InputDialect dialect) {
         return new Builder(model, dialect, TsParser.parse(text)).query();
+    }
+
+    /** The prefix of the names {@link #bindShared} binds: the translator's own, as its columns' {@code __ts_}. */
+    public static final String SHARED = "__ts_l";
+
+    /** A translation's lets, in order, and its answer, which reads them. */
+    public record Bound(List<ValueSpecification> lets, ValueSpecification answer) {
+    }
+
+    /**
+     * A TRANSLATION'S REUSED RELATIONS BOUND ONCE (2026-11-04): {@code raw}, a translation, its names not yet resolved,
+     * with each call it reaches from more than one place -- the translator builds a relation once and reads it at each
+     * use, an item a later item reads, a line two items read -- replaced by a fresh name (one {@code taken} does not
+     * hold, then held), that name's {@code let} among the lets, after the lets of the calls it reads. Only a call whose
+     * free names are all in {@code names} (the query's own: its parameters, the lets before it) is bound; one that
+     * reads a lambda's parameter stays where it is.
+     */
+    public static Bound bindShared(ValueSpecification raw, java.util.Set<String> names, java.util.Set<String> taken) {
+        java.util.IdentityHashMap<ValueSpecification, Integer> reads = new java.util.IdentityHashMap<>();
+        countReads(raw, reads);
+        java.util.IdentityHashMap<ValueSpecification, java.util.Set<String>> free = new java.util.IdentityHashMap<>();
+        java.util.IdentityHashMap<ValueSpecification, ValueSpecification> rebuilt = new java.util.IdentityHashMap<>();
+        List<ValueSpecification> lets = new ArrayList<>();
+        ValueSpecification answer = rebuild(raw, reads, free, names, taken, lets, rebuilt);
+        return new Bound(List.copyOf(lets), answer);
+    }
+
+    /** Each node's reads: the parents that name it, each once per place (a node a parent names twice is read twice). */
+    private static void countReads(ValueSpecification root, java.util.IdentityHashMap<ValueSpecification, Integer> reads) {
+        java.util.ArrayDeque<ValueSpecification> todo = new java.util.ArrayDeque<>();
+        java.util.Set<ValueSpecification> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        todo.push(root);
+        seen.add(root);
+        while (!todo.isEmpty()) {
+            for (ValueSpecification c : todo.pop().children()) {
+                reads.merge(c, 1, Integer::sum);
+                if (seen.add(c)) {
+                    todo.push(c);
+                }
+            }
+        }
+    }
+
+    private static ValueSpecification rebuild(ValueSpecification v,
+            java.util.IdentityHashMap<ValueSpecification, Integer> reads,
+            java.util.IdentityHashMap<ValueSpecification, java.util.Set<String>> free, java.util.Set<String> names,
+            java.util.Set<String> taken, List<ValueSpecification> lets,
+            java.util.IdentityHashMap<ValueSpecification, ValueSpecification> rebuilt) {
+        ValueSpecification done = rebuilt.get(v);
+        if (done != null) {
+            return done;
+        }
+        List<ValueSpecification> kids = v.children();
+        ValueSpecification out = v;
+        if (!kids.isEmpty()) {
+            List<ValueSpecification> nk = new ArrayList<>(kids.size());
+            boolean changed = false;
+            for (ValueSpecification k : kids) {
+                ValueSpecification r = rebuild(k, reads, free, names, taken, lets, rebuilt);
+                changed |= r != k;
+                nk.add(r);
+            }
+            out = changed ? v.withChildren(nk) : v;
+        }
+        if (v instanceof com.legend.protocol.spec.AppliedFunction && reads.getOrDefault(v, 0) > 1
+                && names.containsAll(freeNames(v, free))) {
+            String name = fresh(taken);
+            lets.add(call("letFunction", new CString(name), out));
+            out = new Variable(name);
+        }
+        rebuilt.put(v, out);
+        return out;
+    }
+
+    /** The names {@code v} reads that no lambda inside it binds. */
+    private static java.util.Set<String> freeNames(ValueSpecification v,
+            java.util.IdentityHashMap<ValueSpecification, java.util.Set<String>> memo) {
+        java.util.Set<String> known = memo.get(v);
+        if (known != null) {
+            return known;
+        }
+        java.util.Set<String> out = new java.util.HashSet<>();
+        if (v instanceof com.legend.protocol.spec.Variable var) {
+            out.add(var.name());
+        } else {
+            for (ValueSpecification c : v.children()) {
+                out.addAll(freeNames(c, memo));
+            }
+            if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
+                lf.parameters().forEach(p -> out.remove(p.name()));
+            }
+        }
+        java.util.Set<String> frozen = java.util.Collections.unmodifiableSet(out);
+        memo.put(v, frozen);
+        return frozen;
+    }
+
+    /** A name of {@link #SHARED}'s no statement of the query has taken, taken. */
+    private static String fresh(java.util.Set<String> taken) {
+        for (int i = 0; ; i++) {
+            String name = SHARED + i;
+            if (taken.add(name)) {
+                return name;
+            }
+        }
     }
 
     /** A source as R1 reads it: a class's objects (its paths still to be projected), or a relation. */

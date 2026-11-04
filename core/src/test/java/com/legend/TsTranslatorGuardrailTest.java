@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * user's own SQL translated (a source's WITH body and WHERE, a subscript's conditions, a per-point expression,
  * FILTER: {@code extend} and {@code filter} over its lambdas; a class's paths {@code project}ed from {@code getAll}),
  * and bookkeeping -- a column narrowed ({@code select}), named ({@code rename}), N lines' periods put together
- * ({@code concatenate}). A relation operation that states a rule -- a GROUP BY, a join, a window, a sort, a test of a
+ * ({@code concatenate}), a relation read again named once ({@code letFunction}). A relation operation that states a rule -- a GROUP BY, a join, a window, a sort, a test of a
  * value -- is the library's: a word, a line's rule ({@code timeseries::lines::}), never the translator's.
  */
 @Tag("guardrail")
@@ -35,7 +35,10 @@ class TsTranslatorGuardrailTest {
     private static final Set<String> BOOKKEEPING = Set.of(
             "select", "rename", "concatenate",      // columns narrowed and named, N lines' periods together
             "extend", "filter",                     // the user's SQL over its lambdas; a line's constant marker
-            "project", "getAll");                   // a class's paths read
+            "project", "getAll",                    // a class's paths read
+            // a relation the translation reads at more than one place named once (TsToPure.bindShared, 2026-11-04,
+            // the user: "can we do this for real"): a let states no rule, it names a value the translation already built
+            "letFunction");
 
     /** Every relation call the translator writes: {@code call(<name>, ...)}, its first argument as written. */
     private static final Pattern CALL = Pattern.compile("\\bcall\\(([^,()]*(?:\\([^()]*\\))?)[,)]");

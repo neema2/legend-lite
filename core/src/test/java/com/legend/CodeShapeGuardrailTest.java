@@ -241,6 +241,12 @@ class CodeShapeGuardrailTest {
             // streamingGraphRoot -- whether every object carries its identity, and whether a scalar root shows its
             // objects' declared properties alone; set once before lower()
             "Lowerer.objectIdentity", "Lowerer.declaredEgress",
+            // a relation a statement reads more than once written once (2026-11-04, lowering.SharedRelations, the
+            // user: "can we do this for real", ported from the let-sharing branch stacked on #83): shareRelations a
+            // builder flag, same lifecycle as engineText (set once before lower()); sharing the statement's frame
+            // (SharedRelations.Frame), set at lower(List)'s entry and cleared at its exit -- the same per-statement
+            // lifecycle as aliasCounter
+            "Lowerer.shareRelations", "Lowerer.sharing",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`

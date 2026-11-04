@@ -27,6 +27,12 @@ public abstract class SqlRewriter {
         return u;
     }
 
+    /** Post-order hook for a WITH, at every depth (a pass that reshapes a statement's common table expressions:
+     *  SharedRelationsInPlace, ported 2026-11-04 with #83's hook). Default: identity. */
+    protected SqlQuery with(SqlWith w) {
+        return w;
+    }
+
     protected SqlSource source(SqlSource s) {
         return s;
     }
@@ -82,7 +88,7 @@ public abstract class SqlRewriter {
                     return q2 == c.query() ? c : new SqlWith.Cte(c.name(), q2, c.materialized());
                 });
                 SqlQuery b2 = rewrite(w.body());
-                yield cs == w.ctes() && b2 == w.body() ? w : w.with(cs, b2);
+                yield with(cs == w.ctes() && b2 == w.body() ? w : w.with(cs, b2));
             }
         };
     }
