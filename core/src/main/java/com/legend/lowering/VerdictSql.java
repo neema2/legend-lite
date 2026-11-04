@@ -1485,6 +1485,38 @@ public final class VerdictSql {
         throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
     }
 
+    /** {@code row}'s message texts with a Decimal side's {@code D} (upstream's {@code %r} of a Decimal: {@code 3.0D};
+     *  the canon the comparison reads drops it): the EXPECTED text where {@code expected}, the ACTUAL where
+     *  {@code actual} -- each a single value's text (a list's is not spelled per element here); an absent value stays
+     *  absent. The verdict is the row's own, over the canon (2026-11-04, the asserts-as-plan-nodes program: the
+     *  database judge printed {@code 3.0} where the host and upstream print {@code 3.0D}). */
+    public static SqlQuery messageWithDecimals(SqlQuery row, boolean expected, boolean actual) {
+        if (!expected && !actual) {
+            return row;
+        }
+        java.util.function.UnaryOperator<SqlSelect> f = sel -> {
+            List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections().size());
+            for (SqlSelect.Projection p : sel.projections()) {
+                boolean suffixed = expected && EXPECTED.equals(p.alias()) || actual && ACTUAL.equals(p.alias());
+                ps.add(suffixed ? new SqlSelect.Projection(decimalRepr(asText(p.expr())), p.alias(), p.out()) : p);
+            }
+            return sel.withProjections(ps);
+        };
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), f.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return f.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
+    /** A Decimal's text as {@code %r} writes it, its {@code D}; an absent value absent. */
+    private static SqlExpr decimalRepr(SqlExpr text) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, text),
+                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("D")))), null);
+    }
+
     private static SqlSelect sidesAsStrings(SqlSelect sel) {
         List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections().size());
         for (SqlSelect.Projection p : sel.projections()) {

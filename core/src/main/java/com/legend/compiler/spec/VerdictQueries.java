@@ -279,6 +279,16 @@ public final class VerdictQueries {
         return a.size() <= values || a.get(values) instanceof com.legend.compiler.spec.typed.TypedCString;
     }
 
+    /** The message an {@code assert}/{@code assertFalse} under the vector contract fails with: its literal message
+     *  ({@code (3)} admits no other), else upstream's default for the base overload, "Assert failed"
+     *  (2026-11-04, the asserts-as-plan-nodes program: both judges printed the default over a caller's message --
+     *  AssertBarTest's forAll-zip-assert-message). */
+    public static String assertMessage(TypedSpec root) {
+        List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value()
+                : "Assert failed";
+    }
+
     /** (1): rows the relation lane plans. */
     static boolean rowSource(TypedSpec source) {
         if (Type.relationValued(source.info())) {

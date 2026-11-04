@@ -254,8 +254,17 @@ final class DatabaseJudge {
                         com.legend.lowering.VerdictSql.firstValueRow(reprA));
             }
         }
+        // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
+        vq = com.legend.lowering.VerdictSql.messageWithDecimals(vq, !re.many() && decimal(re.kinds().get(ie)),
+                !ra.many() && decimal(ra.kinds().get(ia)));
         return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
                 : message.apply(vq), runOn);
+    }
+
+    /** Whether {@code kind} is a Decimal's (a declared precision one's too): its {@code %r} ends in {@code D}. */
+    private static boolean decimal(com.legend.compiler.element.type.Type kind) {
+        return kind == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || kind instanceof com.legend.compiler.element.type.Type.PrecisionDecimal;
     }
 
     /** The declared class of {@code e} when both {@code e} and {@code a} are class-typed (the expected side's, as the host
@@ -765,12 +774,13 @@ final class DatabaseJudge {
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
             }
-            // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), "Assert failed";
-            // another family's rows keep the count's frame
+            // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), the call's literal
+            // message or "Assert failed"; another family's rows keep the count's frame
             boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
                     || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
-                    assertFamily ? "Assert failed" : null), vector.on(env));
+                    assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root) : null),
+                    vector.on(env));
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

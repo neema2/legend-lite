@@ -1690,7 +1690,8 @@ final class AssertVerdicts {
                 // own reading (allOf(vector, true)); the host's quantifiedRows tested the negated vector against the
                 // family's truth and inverted assertFalse until this item's audit
                 return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
-                        HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true, "Assert failed", hook)));
+                        HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true,
+                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root()), hook)));
             }
             if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
                 // row by row on the host, planned (2026-11-04, the core program): the zip's arms or the relation

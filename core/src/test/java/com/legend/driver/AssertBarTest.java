@@ -118,10 +118,9 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            "forAll-zip-assert-message",
             "forAll-over-range", "forAll-zip-computed-arguments",
             "assertIs-dynamic-type",
-            "decimal-scale", "assertError-over-a-failing-assert", "assert-then-a-query"));
+            "assertError-over-a-failing-assert", "assert-then-a-query"));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
             ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);

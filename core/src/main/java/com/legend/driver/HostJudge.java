@@ -1353,7 +1353,7 @@ final class HostJudge {
                 // every row true holds, as the database arm reads it (allOf(vector, true)); tested against the
                 // family's truth, assertFalse was inverted here until M10c item 5's audit
                 if (!Boolean.TRUE.equals(v)) {
-                    return AssertVerdicts.fail("Assert failed");
+                    return AssertVerdicts.fail(com.legend.compiler.spec.VerdictQueries.assertMessage(root));
                 }
             }
             return AssertVerdicts.ok();

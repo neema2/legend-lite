@@ -72,7 +72,10 @@ class QuantifiedRowsTest {
         assertEquals(Boolean.TRUE, run("{|[1, 2]->zip([2, 3])->forAll(p | assert($p.first < $p.second, 'm'))}"));
         AssertFailed e = assertThrows(AssertFailed.class,
                 () -> run("{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second, 'm'))}"));
-        assertEquals("Assert failed", e.getMessage());
+        // the caller's message, as upstream's assert(condition, message) fails (2026-11-04, the asserts-as-plan-nodes
+        // program: both judges printed the default "Assert failed" here until then; AssertBarTest's
+        // forAll-zip-assert-message)
+        assertEquals("m", e.getMessage());
     }
 
     @Test
