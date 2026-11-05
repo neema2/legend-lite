@@ -83,6 +83,12 @@ public final class VerdictBatch {
         /** The statement's rendered length (the prepare trace's census). */
         int chars(SqlQuery statement);
 
+        /** The most characters a fused statement may have on the body's database ({@code SqlDialect
+         *  .fusedStatementBudget}); a longer group is planned as several fused statements. */
+        default int fusedBudget() {
+            return Integer.MAX_VALUE;
+        }
+
         /** The savepoint that guards a fused statement inside a transaction where the body's database aborts one on a
          *  failing statement (F11, the test-is-the-product plan's B12), or null where none is needed or none exists
          *  ({@code SqlDialect.verdictSavepoint}). */
@@ -526,15 +532,16 @@ public final class VerdictBatch {
                     continue;
                 }
             }
-            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(ps.size());
-            for (Pending p : ps) {
-                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null);
-                verdicts.add(v);
-                members.put(v, p);
+            for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
+                List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
+                for (Pending p : part.getKey()) {
+                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null);
+                    verdicts.add(v);
+                    members.put(v, p);
+                }
+                out.add(new Group(new ExecutionPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
+                        runner.rules()), g.getKey(), false));
             }
-            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, fusedPlan, runner.savepoint(), runner.rules()),
-                    g.getKey(),
-                    false));
         }
         // THE RUNTIME WALL (the deep audit, 2026-11-05): every statement the root loop may send after the plan's
         // rows are read -- a member's own statement (the split rung), a ruled fallback's, a caller's message -- is
@@ -784,6 +791,24 @@ public final class VerdictBatch {
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
+    /** {@code ps}'s fused statement {@code fused}, or -- where its text passes the database's budget
+     *  ({@link Runner#fusedBudget}) -- {@code ps} halved, each half fused and halved again until it fits or is one
+     *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
+     *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
+    private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
+            ExecutionPlan.TdsResult fused, Sessions.Session on) {
+        if (ps.size() == 1 || fused.sql().statement().length() <= runner.fusedBudget()) {
+            return List.of(Map.entry(ps, fused));
+        }
+        List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> out = new ArrayList<>();
+        int half = ps.size() / 2;
+        for (List<Pending> part : List.of(ps.subList(0, half), ps.subList(half, ps.size()))) {
+            out.addAll(withinBudget(part, typed(runner.plan(fusion.fuse(part.stream().map(Pending::query).toList(),
+                    frames), true, on)), on));
+        }
+        return out;
+    }
+
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {
         if (plan instanceof ExecutionPlan.TdsResult t) {
             return t;

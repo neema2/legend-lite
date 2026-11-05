@@ -208,6 +208,16 @@ public interface SqlDialect {
         return null;
     }
 
+    /** The most characters a FUSED verdict statement may have on this database (the verdict batch's statement over
+     *  several asserts, {@code VerdictBatch}): a group whose fused text is longer is planned as several fused
+     *  statements, halved until each fits -- the same verdicts, more statements. Unbounded where the database has no
+     *  limit a body meets; a database with a hard limit on a statement's text or its parse says so (PCT rounds 21-22,
+     *  2026-11-05: ClickHouse refused a 1.3M-character statement at its AST limit, and with the limit raised its
+     *  analyzer took 10-12 GB; SQLite and BigQuery cap a statement near 1M characters). */
+    default int fusedStatementBudget() {
+        return Integer.MAX_VALUE;
+    }
+
     /** {@link #verdictSavepoint}'s three texts. */
     record VerdictSavepoint(String set, String rollbackTo, String release) {
     }

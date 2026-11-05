@@ -374,6 +374,11 @@ final class JudgePlans {
             public int chars(SqlQuery statement) {
                 return env.dialect().render(statement).length();
             }
+
+            @Override
+            public int fusedBudget() {
+                return env.dialect().fusedStatementBudget();
+            }
         };
     }
 

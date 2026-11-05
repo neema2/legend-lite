@@ -44,6 +44,13 @@ import java.util.Set;
  */
 public final class ClickHouse extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
+     *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */
+    @Override
+    public int fusedStatementBudget() {
+        return 100_000;
+    }
+
     /** The settings every statement carries: SQL's NULLs for an outer join's missing side, a bare UNION distinct, a cast
      *  keeping its value's NULL, the zone UTC (the platform's naive-UTC contract). An aggregate's NULL over no row is
      *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}

@@ -67,6 +67,12 @@ import java.util.Set;
  */
 public final class SQLite extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
+    @Override
+    public int fusedStatementBudget() {
+        return 500_000;
+    }
+
     /**
      * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
      * &mdash; the ANSI baseline rendering with SQLite's reserved-word list.

@@ -72,6 +72,12 @@ import java.util.Set;
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
+    @Override
+    public int fusedStatementBudget() {
+        return 500_000;
+    }
+
     /** BigQuery (GoogleSQL; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks; GoogleSQL's reserved
      *  keywords. The {@code BigQuery} dialect quotes every identifier, so the list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('`', Set.of(
