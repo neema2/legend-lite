@@ -20157,6 +20157,13 @@ Found and posted to the user for rulings, not changed:
   multiset.
 - **A stale channel B row** (SQLite, `testDateDiffWithDifferentTimeZones`): the failure now prints `expected: [0]`,
   upstream's own text when a side is not one value (`assertEquals`'s `%s` branch), where the row held `expected: 0`.
+
+Checks for the batch (`c2207e3b`, `880ccd38`): core's full matrix (`//core:core_tests`, `//core:core_tests_judges`,
+56 of 56 under the host, database and both judges) with guardrails and census at `c2207e3b`; core root under all
+three judges, guardrails and census again at `880ccd38`. PCT: channel B DuckDB every suite, SQLite, MariaDB and MySQL
+Essential; channel A SQLite, MariaDB and MySQL Essential (MariaDB and MySQL unprivileged: their embedded servers
+refuse root, as Postgres's). `//spec:corpus_duckdb`: unchanged -- its one difference is `strictdate::testProject`,
+the database pass's nested window function, already recorded as a corpus-phase item.
 - **S138 built.** The acos/asin guard SQLite, MariaDB and MySQL write (they cannot hold NaN, the engine's answer)
   raises `acos of a value outside [-1, 1] is NaN, which this database cannot hold` instead of DuckDB's words; the
   six channel A and six channel B ledger rows re-texted.
