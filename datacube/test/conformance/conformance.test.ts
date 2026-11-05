@@ -4,18 +4,18 @@
 // (BrowserEngine: the WebAssembly planner and DuckDB-WASM) -- and of the tab's grid path (DuckDbEngine.execute), and the
 // answers compared:
 //   json   legend-engine's JSON text, byte for byte, each trace id masked: Java's against Python's and the tab's;
-//   arrow  the ARROW_IPC answer, its schema and its values: Java's against Python's (the tab answers no Arrow execute),
-//          and each host's field names against its own legend.columns, as upstream labels them;
+//   arrow  the ARROW_IPC answer, legend-lite's server's alone (D22, 2026-11-05: the drop-in replacement for
+//          legend-engine): Java's field names against its own legend.columns, as upstream labels them, and Python's
+//          refusal of the format by name (the tab's is the same core's route);
 //   grid   the tab's grid path's values against Java's JSON values, by their meaning (a number by its value, a decimal
 //          by its value whatever its scale, a timestamp by its instant), for the cases that are not refusals;
 //   lite   lite's own execute (D20: /api/lite/v1/execution/execute, legend-engine's request, lite's own Arrow in the
 //          plan's types with the plan record beside it): Java's against Python's, the schema with each field's
 //          metadata, the values, the plan record;
 //   handoff  the tab's rows handed to the planner's writers as DuckDB-WASM's own Arrow IPC (R3: the module's
-//          `...FromArrowOrError` exports) against the same rows handed as JSON text: legend-engine's JSON byte for
-//          byte, and the Arrow answer, its schema and its values, against Java's;
+//          `...FromArrowOrError` export) against the same rows handed as JSON text: legend-engine's JSON byte for byte;
 //   adapters the apps' two adapters (D20: engine-client's LegendEngineExecutor, a connection talked to as legend-engine
-//          -- its JSON and its ARROW_IPC -- and one talked to as lite) on each server, Java's and Python's: the typed
+//          -- its JSON, and on Java's its ARROW_IPC -- and one talked to as lite) on each server, Java's and Python's: the typed
 //          results they give the apps -- each column's name and Pure type, each value's kind and text -- the same, or
 //          the cells that differ named.
 // Every difference found is an entry of the ledger (conformance/ledger.json) or the suite fails; an entry that no longer
@@ -111,8 +111,8 @@ function unfoldBytes(folded: Int8Array): { readonly status: number; readonly typ
   return { status: Number(text(lines[0]! + 1, lines[1]!)), type: text(lines[1]! + 1, lines[2]!), body: bytes.subarray(lines[2]! + 1) };
 }
 
-/** The tab's statement run on its database, its Arrow handed to the planner's writers (R3): both answers. */
-async function handedAsArrow(input: ExecuteInput): Promise<{ readonly json: string; readonly arrow: Uint8Array } | undefined> {
+/** The tab's statement run on its database, its Arrow handed to the planner's JSON writer (R3). */
+async function handedAsArrow(input: ExecuteInput): Promise<{ readonly json: string } | undefined> {
   const plan = await grammar.executePlan(input);
   if (keyedStatement(plan) !== undefined) return undefined;
   // DuckDB's own Arrow IPC stream (the bindings' runQuery: the database's bytes, no JavaScript re-encoding)
@@ -121,15 +121,7 @@ async function handedAsArrow(input: ExecuteInput): Promise<{ readonly json: stri
   }).useUnsafe((bindings, conn) => bindings.runQuery(conn, answerStatement(plan)));
   const arrow = new Int8Array(stream.buffer, stream.byteOffset, stream.byteLength);
   const json = unfoldBytes(planner.exports.executeJsonAnswerFromArrowOrError(plan, arrow));
-  // upstream's Arrow answer is typed from the database's report of its columns: DuckDB-WASM's DESCRIBE (the planner's
-  // describe operation), its column_name and column_type
-  const [describe] = await grammar.hostOperations('DuckDB', [{ op: 'describe', statement: answerStatement(plan) }]);
-  if (describe?.length !== 1) throw new Error('the planner describes a statement in one statement');
-  const described = await grid.run(describe[0]!, 0);
-  const named = (n: string): readonly unknown[] => described.columns.find((c) => c.name === n)?.values ?? [];
-  const reported = JSON.stringify(named('column_name').map((label, i) => [String(label), String(named('column_type')[i])]));
-  const zipped = unfoldBytes(planner.exports.executeArrowAnswerFromArrowOrError(plan, reported, arrow));
-  return { json: new TextDecoder().decode(json.body), arrow: zipped.body };
+  return { json: new TextDecoder().decode(json.body) };
 }
 
 before(async () => {
@@ -208,14 +200,6 @@ async function arrowOf(url: string, input: ExecuteInput, headers: Record<string,
   const listed = metadata.get('legend.columns') ?? '';
   const named = fields === JSON.stringify(JSON.parse(listed || '[]')) ? '' : `fields ${fields} vs legend.columns ${listed}`;
   return { status: r.status, schema, rows: cellsText(toRawTable(table, 0, 0)), named };
-}
-
-/** An ARROW_IPC answer's stream as its schema in words and its rows (arrowOf's reading of a stream in hand). */
-function answerOfArrow(stream: Uint8Array): { readonly schema: string; readonly rows: string } {
-  const { table, metadata } = arrowIpcAnswer(stream);
-  const schema = table.schema.fields.map((f) => `${f.name}: ${String(f.type)}`).join(', ')
-    + ` | metadata ${[...metadata.keys()].sort().join(', ')}`;
-  return { schema, rows: cellsText(toRawTable(table, 0, 0)) };
 }
 
 /** Lite's own execute's answer (D20): its schema in words (each field's type and metadata), its rows, its plan record;
@@ -334,7 +318,10 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
     const adapters = servers.map(([server, at]) => ({
       server,
       engine: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME }),
-      engineArrow: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, serializationFormat: 'ARROW_IPC' }),
+      // legend-engine's ARROW_IPC is legend-lite's server's alone (D22): read on Java's
+      engineArrow: server === 'java'
+        ? new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, serializationFormat: 'ARROW_IPC' })
+        : undefined,
       lite: new LegendEngineExecutor({ ...at, model: MODEL, runtime: RUNTIME, protocol: 'lite' }),
     }));
     let handoffs = 0;
@@ -368,16 +355,12 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
           differ(name, 'json', hosts, firstDifference(traced(j.text), traced(other.text)));
         }
       }
-      // handoff: the tab's rows as Arrow, against its rows as text (its JSON) and against Java's (its Arrow answer)
+      // handoff: the tab's rows as Arrow, against its rows as text (its JSON)
       if (t.refusal === undefined) {
         const handed = await handedAsArrow(input);
         if (handed !== undefined) {
           handoffs++;
           if (traced(handed.json) !== traced(t.text)) differ(name, 'handoff', 'tab', firstDifference(traced(t.text), traced(handed.json)));
-          const mine = answerOfArrow(await arrowIpcStream(handed.arrow));
-          const javas = await arrowOf(javaExecute(), input);
-          if (javas.schema !== mine.schema) differ(name, 'handoff-arrow-schema', 'java/tab', `${javas.schema} vs ${mine.schema}`);
-          else if (javas.rows !== mine.rows) differ(name, 'handoff-arrow-values', 'java/tab', firstDifference(javas.rows, mine.rows));
         }
       }
       // lite: lite's own execute, Java's against Python's (D20)
@@ -392,8 +375,9 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
       // adapters: on each server, the typed result as legend-engine's adapter reads it against lite's (D20)
       for (const { server, engine, engineArrow, lite } of adapters) {
         const l = await adapted(lite, query);
-        // legend-engine's JSON and its ARROW_IPC, each read by the engine adapter, against lite's own
-        for (const [mode, reader] of [['', engine], [' arrow', engineArrow]] as const) {
+        // legend-engine's JSON (and, on Java's, its ARROW_IPC), each read by the engine adapter, against lite's own
+        for (const [mode, reader] of engineArrow === undefined ? [['', engine]] as const
+          : [['', engine], [' arrow', engineArrow]] as const) {
           const e = await adapted(reader, query);
           const hosts = `${server}${mode}`;
           if ('refused' in e || 'refused' in l) {
@@ -404,15 +388,14 @@ describe('the conformance suite: one plan, every host, the same answer', () => {
           else if (e.rows !== l.rows) differ(name, 'adapters-values', hosts, firstDifference(e.rows, l.rows));
         }
       }
-      // arrow: Java's against Python's
+      // arrow: legend-lite's server's alone (D22) -- Java's field names against its own legend.columns; Python's
+      // refusal by name, the core's own route's words (the tab's route is the same)
       const ja = await arrowOf(javaExecute(), input);
+      if (ja.named !== '') differ(name, 'arrow-names', 'java', ja.named);
       const pa = await arrowOf(pythonExecute(), input, auth);
-      for (const [host, a] of [['java', ja], ['python', pa]] as const) {
-        if (a.named !== '') differ(name, 'arrow-names', host, a.named);
+      if (pa.status !== 500 || !(pa.text ?? '').includes("legend-engine's ARROW_IPC answer is served by legend-lite's server alone")) {
+        differ(name, 'arrow-refused', 'python', `status ${pa.status}: ${(pa.text ?? '(answered)').slice(0, 120)}`);
       }
-      if (ja.status !== pa.status) differ(name, 'arrow', 'java/python', `status ${ja.status} vs ${pa.status}`);
-      else if (ja.schema !== pa.schema) differ(name, 'arrow-schema', 'java/python', `${ja.schema} vs ${pa.schema}`);
-      else if (ja.rows !== pa.rows) differ(name, 'arrow-values', 'java/python', firstDifference(ja.rows, pa.rows));
       // grid: the tab's own path against Java's values, by meaning
       if (!name.startsWith('err') && j.status === 200) {
         let planned: string;

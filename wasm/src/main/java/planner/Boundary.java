@@ -50,7 +50,7 @@ public final class Boundary {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
                 (query, runtime, sinkOf) -> {
                     throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
-                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
+                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeLiteAnswer)");
                 }, HELD);
     }
 
@@ -84,27 +84,10 @@ public final class Boundary {
         return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
     }
 
-    /**
-     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
-     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29; upstream's writer since R4 step 3, 2026-11-03): that
-     * plan's answer, the host's report of the result's columns ({@code reported}: {@code [label, type]} pairs, its
-     * database's own type names) and its rows, written as legend-engine writes them -- each field typed from the
-     * report -- as the one zstd frame upstream sends, folded as base64 (Folded.http).
-     */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String reported, String rows) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, reported, rows);
-    }
-
     /** {@link #executeJsonAnswer} from the host's rows as ARROW: the IPC stream its database answered the plan's
      *  statement with, read in place (PureV1Api.jsonAnswer; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3). */
     public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, java.nio.ByteBuffer arrow) {
         return com.legend.server.PureV1Api.jsonAnswer(plan, arrow);
-    }
-
-    /** {@link #executeArrowAnswer} from the host's rows as ARROW (PureV1Api.arrowAnswer; R3). */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String reported,
-            java.nio.ByteBuffer arrow) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, reported, arrow);
     }
 
     /** Lite's own execute's answer from the host's rows as ARROW (PureV1Api.liteAnswer; D20): lite's own Arrow in the
@@ -117,14 +100,6 @@ public final class Boundary {
      *  Arrow of the body written for them. */
     public static com.legend.server.PureV1Api.Answer keyedLiteAnswer(String plan, String keys, java.nio.ByteBuffer arrow) {
         return com.legend.server.PureV1Api.keyedLiteAnswer(plan, keys, arrow);
-    }
-
-    /** {@link #executeArrowAnswer(String, String, java.nio.ByteBuffer)} for a keyed plan a host ran
-     *  (PureV1Api.keyedArrowAnswer; R4): its keys rows, the database's report of the body's result, and the Arrow of
-     *  the body written for the keys. */
-    public static com.legend.server.PureV1Api.Answer keyedArrowAnswer(String plan, String keys, String reported,
-            java.nio.ByteBuffer arrow) {
-        return com.legend.server.PureV1Api.keyedArrowAnswer(plan, keys, reported, arrow);
     }
 
     /** The models a host runs, from their JSON array of texts. */

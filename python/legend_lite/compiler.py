@@ -340,25 +340,11 @@ def execute_json_answer_arrow(plan: str, arrow: Any) -> Answer:
     return Answer(status, content_type, body.decode('utf-8'))
 
 
-def execute_arrow_answer_arrow(plan: str, reported: str, arrow: Any) -> tuple[int, str, bytes]:
-    """Execute's answer in upstream's Arrow format from the rows as ARROW (R3), written as legend-engine writes it
-    (R4 step 3: each field typed from ``reported``, the database's own ``[label, type]`` pairs, read as DuckDB's JDBC
-    driver reports them): its status, media type and body (the zstd frame upstream sends, or a refusal's JSON)."""
-    return _http_bytes(library().call_bytes('lite_execute_arrow_answer_arrow', (plan, reported), arrow))
-
-
 def execute_lite_answer_arrow(plan: str, arrow: Any) -> tuple[int, str, bytes]:
     """Lite's own execute's answer (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md D20: ``/api/lite/v1/execution/execute``)
     from the rows as ARROW: lite's own Arrow in the plan's types, the plan record in its schema's metadata
     (``legend.plan``) -- its status, media type and body (the Arrow stream, or a refusal's JSON)."""
     return _http_bytes(library().call_bytes('lite_execute_lite_answer_arrow', plan, arrow))
-
-
-def keyed_arrow_answer_arrow(plan: str, keys: str, reported: str, arrow: Any) -> tuple[int, str, bytes]:
-    """``execute_arrow_answer_arrow`` for a pivot whose columns its data names (a keyed plan, D18 D): its keys rows (JSON
-    text), the database's report of the body's result (``[label, type]`` pairs, DuckDB's own type names) and the Arrow
-    of the body written for the keys -- upstream's Arrow answer, as legend-lite's server writes it."""
-    return _http_bytes(library().call_bytes('lite_keyed_arrow_answer_arrow', (plan, keys, reported), arrow))
 
 
 def keyed_lite_answer_arrow(plan: str, keys: str, arrow: Any) -> tuple[int, str, bytes]:

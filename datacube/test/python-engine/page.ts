@@ -14,8 +14,9 @@
 //
 // Also: upstream's own Arrow answer (legend-engine 4.145.0's, recorded) read by the engine adapter's reader; the
 // compiler's other answers (a query's types, parse, print) the same on both sides; the same engine talked to as
-// legend-engine -- its JSON and its ARROW_IPC, the edge (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1: Python answers
-// legend-engine's routes too) -- answering the rows it answers as lite, and a call without the token refused by name.
+// legend-engine -- its JSON, the edge (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1: Python answers legend-engine's routes
+// too) -- answering the rows it answers as lite, its ARROW_IPC refused by name (legend-lite's server's alone, D22), and a
+// call without the token refused by name.
 //
 // And A PAGE FROM PYTHON'S ENGINE (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): `__pythonPageDocument`
 // writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
@@ -415,17 +416,17 @@ async function run(): Promise<void> {
     equal(activities.length, 1, 'its activities:');
   });
 
-  await check('an engine talked to as legend-engine -- its JSON, its ARROW_IPC -- answers the rows it answers as lite; a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
+  await check('an engine talked to as legend-engine -- its JSON -- answers the rows it answers as lite; its ARROW_IPC (the server\'s alone), a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
     const asJson = new RemoteRun(new LegendEngineExecutor({ ...engine, authorization: served.authorization }));
     const asArrow = new RemoteRun(new LegendEngineExecutor({ ...engine, serializationFormat: 'ARROW_IPC', authorization: served.authorization }));
     const first = { name: CASES[0]!.name, snapshot: onTheFrame(CASES[0]!.snapshot, served.source) };
     const q = onTheFrame(queries()[0]!.query, served.source);
     const viaLite = await remote.run(q, first.snapshot);
     const viaJson = await asJson.run(q, first.snapshot);
-    const viaArrow = await asArrow.run(q, first.snapshot);
     const typed = (rows: typeof viaLite.rows): unknown => rows.columns.map((c) => [c.name, c.type, c.values]);
     deepEqual(typed(viaJson.rows), typed(viaLite.rows), 'the rows, as legend-engine\'s JSON and as lite:');
-    deepEqual(typed(viaArrow.rows), typed(viaLite.rows), 'the rows, as legend-engine\'s Arrow and as lite:');
+    // legend-engine's ARROW_IPC is legend-lite's server's alone (D22, 2026-11-05): Python's engine refuses it by name
+    await rejects(asArrow.run(q, first.snapshot), /served by legend-lite's server alone/);
     for (const unauthorized of [{ ...engine, serializationFormat: 'ARROW_IPC' as const }, { ...engine, protocol: 'lite' as const }]) {
       await rejects(new RemoteRun(new LegendEngineExecutor(unauthorized)).run(q, first.snapshot), /token/);
     }

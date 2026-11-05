@@ -115,6 +115,22 @@ public final class PureV1Api {
     }
 
     /**
+     * legend-engine's {@code ARROW_IPC} answer's writer, which legend-lite's SERVER alone hands in (the user's ruling
+     * D22, 2026-11-05, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2: the server is the drop-in replacement for
+     * legend-engine, which runs only as a server, so a client in production reading Arrow gets upstream's answer from
+     * it; Python and the tab, the hosts lite is embedded in, refuse the format by name and stay alike). Each makes the
+     * writer of one answer onto {@code out}: under a fixed schema metadata, or one made from the columns the result
+     * announces and the database's report of each (a pivot whose columns its data names).
+     */
+    public interface EngineArrow {
+        com.legend.result.ResultSink fixed(java.io.OutputStream out, Map<String, String> metadata);
+
+        com.legend.result.ResultSink dynamic(java.io.OutputStream out, java.util.function.BiFunction<
+                List<com.legend.executionplan.ExecutionPlan.Column>, @com.legend.base.Nullable List<@com.legend.base.Nullable String>,
+                Map<String, String>> metadata);
+    }
+
+    /**
      * How a host compiles a request's model given as text, for one use: by default compiled for it alone (a server holds
      * nothing: a request has no holder); a host that holds models answers over the one it holds for that text, compiled
      * no more ({@code HeldModels.withText}). The answer is the same either way -- a held model is a function of its
@@ -138,12 +154,20 @@ public final class PureV1Api {
      * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
      */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
-        return route(path, rawQuery, body, runner, Models.COMPILED);
+        return route(path, rawQuery, body, runner, Models.COMPILED, null);
     }
 
     /** {@link #route(String, String, String, Runner)}, a model given as text compiled by {@code models}. */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
             Models models) {
+        return route(path, rawQuery, body, runner, models, null);
+    }
+
+    /** {@link #route(String, String, String, Runner)}, a model given as text compiled by {@code models}; legend-engine's
+     *  {@code ARROW_IPC} answer written by {@code engineArrow}, which the server alone hands in (D22: without one the
+     *  format is refused by name). */
+    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
+            Models models, @com.legend.base.Nullable EngineArrow engineArrow) {
         boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
         return switch (path) {
             case "/api/pure/v1/grammar/grammarToJson/lambda" -> grammarToJsonLambda(body, sourceInformation);
@@ -158,7 +182,7 @@ public final class PureV1Api {
             case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body, models);
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
-                    ? executeArrow(body, runner, models) : execute(body, runner, models);
+                    ? executeArrow(body, runner, models, engineArrow) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/execution/execute" -> executeLite(body, runner, models);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
@@ -442,7 +466,17 @@ public final class PureV1Api {
      * FormatNotSet; measured 2026-10-08). A graph fetch under it is refused by name (upstream's answer unprobed; D57
      * (7)); a value's answer is unprobed. Lite's own Arrow, in the plan's types, is {@link #executeLite}'s (D19).
      */
-    public static Answer executeArrow(String body, Runner runner, Models models) {
+    public static Answer executeArrow(String body, Runner runner, Models models,
+            @com.legend.base.Nullable EngineArrow engineArrow) {
+        if (engineArrow == null) {
+            // D22 (the user, 2026-11-05): the embedded hosts answer legend-engine's JSON and lite's own Arrow, not
+            // legend-engine's Arrow format -- refused by name, in legend-engine's error shape, before anything compiles
+            return answer(500, null, () -> {
+                throw new IllegalArgumentException("legend-engine's ARROW_IPC answer is served by legend-lite's server"
+                        + " alone, the drop-in replacement for legend-engine; this host answers execute as legend-engine's"
+                        + " JSON, or as lite's own Arrow (/api/lite/v1/execution/execute)");
+            });
+        }
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         Answer run = answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
@@ -452,7 +486,7 @@ public final class PureV1Api {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query.target());
                 try {
-                    runner.run(query, runtime, plan -> arrowWriter(query, plan, out));
+                    runner.run(query, runtime, plan -> arrowWriter(query, plan, out, engineArrow));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -582,7 +616,7 @@ public final class PureV1Api {
     /** The Arrow writer of {@code plan}'s answer onto {@code out}, its schema metadata the engine's for the columns
      *  the run announces ({@link #executeArrow}). */
     public static com.legend.result.ResultSink arrowWriter(com.legend.TypedQuery query,
-            com.legend.executionplan.ExecutionPlan plan, java.io.OutputStream out) {
+            com.legend.executionplan.ExecutionPlan plan, java.io.OutputStream out, EngineArrow engineArrow) {
         return switch (plan.answerShape()) {
             case OBJECTS -> throw new IllegalArgumentException(
                     "ARROW_IPC answers a relation query; a graph fetch under it is refused (upstream's answer unprobed)");
@@ -596,35 +630,12 @@ public final class PureV1Api {
                 // program changes anything -- made from the plan's own facts, as every host's is (D18 F, the user
                 // 2026-11-03); made from the announced columns only where the plan states none (a dynamic pivot's)
                 // upstream's writer (R4 step 3, D17): each field typed from the database's report of its column
-                yield stated == null ? new com.legend.result.EngineArrowWriter(out,
+                yield stated == null ? engineArrow.dynamic(out,
                         (columns, reported) -> metadata.apply(dynamicEnvelope(sql, columns, reported)))
-                        : new com.legend.result.EngineArrowWriter(out, metadata.apply(planEnvelope(sql, stated)));
+                        : engineArrow.fixed(out, metadata.apply(planEnvelope(sql, stated)));
             }
             case VALUE -> throw unprobed(query);
         };
-    }
-
-    /**
-     * Execute's answer in upstream's Arrow format for a host that ran {@link #jsonPlan}'s plan's statement itself
-     * (track A, 2026-10-29; the twin of {@link #jsonAnswer}; written as upstream writes it since R4 step 3,
-     * 2026-11-03): that plan (the plan record, its one typed result), the host's REPORT of the result's columns
-     * ({@code reported}: a JSON array of {@code [label, type]} pairs, its database's own type names -- duckdb-python's
-     * {@code description}, DuckDB-WASM's {@code DESCRIBE} -- read as DuckDB's JDBC driver reports them,
-     * {@link com.legend.result.ColumnReport#duckDb}) and the host's rows (a JSON array of objects, each a column's name
-     * and its cell as the host's driver read it), decoded by the plan's columns and written by upstream's writer
-     * ({@link com.legend.result.EngineArrowWriter}: each field typed from the report) under the envelope the plan's
-     * own facts make ({@link #planEnvelope}), as one zstd frame: the JVM's answer. A graph fetch's plan is refused:
-     * ARROW_IPC answers relations; so is a plan for a database whose report is not measured (DuckDB's alone so far).
-     */
-    public static Answer arrowAnswer(String plan, String reported, String rows) {
-        return arrowAnswer(plan, reported, (columns, sink) -> com.legend.result.HostRows.stream(rows, columns, sink));
-    }
-
-    /** {@link #arrowAnswer(String, String, String)} from the host's rows as ARROW: the IPC stream its database
-     *  answered the plan's statement with ({@link com.legend.result.ArrowRows}; docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md
-     *  R3), read in place. */
-    public static Answer arrowAnswer(String plan, String reported, java.nio.ByteBuffer arrow) {
-        return arrowAnswer(plan, reported, (columns, sink) -> com.legend.result.ArrowRows.stream(arrow, columns, sink));
     }
 
     /** The schema metadata legend-engine's Arrow answer carries, as upstream puts it ({@code legend.builder}, the
@@ -638,144 +649,12 @@ public final class PureV1Api {
         return m;
     }
 
-    /**
-     * {@link #arrowAnswer(String, String, java.nio.ByteBuffer)} for a KEYED plan (a pivot whose columns its data names,
-     * D18 D) a host ran: its keys' rows (as {@link #keyedBody} took them), the host's report of the body's result
-     * ({@code reported}: {@code [label, type]} pairs in the body's order, its database's own type names) and the Arrow
-     * the database answered the body with -- the answer's columns the plan record's own steps make
-     * ({@link com.legend.executionplan.KeyedRun#answer}), each field typed from its report and named as the answer
-     * names it (upstream's pivot labels its columns so), the header made from the report as legend-engine makes a
-     * dynamic result's ({@link #dynamicEnvelope}): the JVM's answer. One zstd frame.
-     */
-    public static Answer keyedArrowAnswer(String plan, String keys, String reported, java.nio.ByteBuffer arrow) {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        Answer run = answer(500, "COMPILATION", () -> {
-            com.legend.executionplan.ExecutionPlan.Keyed keyed = hostKeyed(plan);
-            if (keyed.body().target().database().type() != com.legend.database.Databases.named("DuckDB")) {
-                throw new IllegalArgumentException("legend-engine's Arrow answer is typed from the database's JDBC report"
-                        + " of its columns; a host's report is read as DuckDB's driver reports it, and a "
-                        + keyed.body().target().database().type() + " host's is not measured");
-            }
-            com.legend.executionplan.KeyedRun.Answer answer =
-                    com.legend.executionplan.KeyedRun.answer(keyed, keyRows(keys));
-            List<com.legend.executionplan.ExecutionPlan.Column> columns = answer.columns();
-            int n = columns.size();
-            List<String> labels = new ArrayList<>();
-            List<String> types = new ArrayList<>();
-            readPairs(reported, labels, types);
-            if (types.size() != n || com.legend.result.RowDecode.physicalColumns(answer.read()) != n) {
-                throw new IllegalStateException("the body's report names " + types.size() + " columns for the " + n
-                        + " the answer has: a column of several slots (a mixed column) has no legend-engine Arrow type");
-            }
-            // each body column's report placed in the answer's order, named as the answer names it
-            List<com.legend.result.ColumnReport> body = com.legend.result.ColumnReport.duckDb(labels, types);
-            List<com.legend.result.ColumnReport> placedReports =
-                    new ArrayList<>(java.util.Collections.nCopies(n, (com.legend.result.ColumnReport) null));
-            List<@com.legend.base.Nullable String> reportedInOrder = new ArrayList<>(java.util.Collections.nCopies(n, (String) null));
-            for (int i = 0; i < n; i++) {
-                int at = answer.place().get(i);
-                com.legend.result.ColumnReport r = body.get(i);
-                placedReports.set(at, new com.legend.result.ColumnReport(
-                        com.legend.result.CellText.presentedName(columns.get(at).name()), r.driverType(), r.jdbcType(),
-                        r.precision(), r.scale()));
-                reportedInOrder.set(at, types.get(i));
-            }
-            String sql = keyed.body().statement();
-            com.legend.result.EngineArrowWriter writer = new com.legend.result.EngineArrowWriter(out,
-                    (cols, report) -> engineArrowMetadata(sql, dynamicEnvelope(sql, cols, report)));
-            writer.reported(placedReports);
-            try {
-                com.legend.result.ArrowRows.stream(arrow, answer.read(), new com.legend.result.ResultSink() {
-                    @Override
-                    public void columns(List<com.legend.executionplan.ExecutionPlan.Column> read)
-                            throws java.io.IOException {
-                        writer.columns(columns, reportedInOrder);
-                    }
-
-                    @Override
-                    public void batch(com.legend.result.Batch batch) throws java.io.IOException {
-                        com.legend.result.Batch.Builder placed = com.legend.result.Batch.builder(columns, batch.size());
-                        for (int r = 0; r < batch.size(); r++) {
-                            List<Object> cells = new ArrayList<>(java.util.Collections.nCopies(n, null));
-                            for (int i = 0; i < n; i++) {
-                                cells.set(answer.place().get(i), batch.get(r, i));
-                            }
-                            placed.add(cells);
-                        }
-                        writer.batch(placed.build());
-                    }
-
-                    @Override
-                    public void end() throws java.io.IOException {
-                        writer.end();
-                    }
-                });
-            } catch (java.io.IOException e) {
-                throw new java.io.UncheckedIOException(e);
-            }
-            return "";
-        });
-        if (run.status() != 200) {
-            return run;
-        }
-        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
-                Map.of("x-legend-response-format", "FormatNotSet"));
-    }
-
-    /** A host's report ({@code [label, type]} pairs) read into {@code labels} and {@code types}; anything else refused. */
-    private static void readPairs(String reported, List<String> labels, List<String> types) {
-        if (!(Json.parse(reported) instanceof Json.Arr pairs)) {
-            throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
-        }
-        for (Json.Node pair : pairs.items()) {
-            if (!(pair instanceof Json.Arr lt) || lt.items().size() != 2
-                    || !(lt.items().get(0) instanceof Json.Str label) || !(lt.items().get(1) instanceof Json.Str type)) {
-                throw new IllegalArgumentException("a host's report is a JSON array of [label, type] pairs: " + reported);
-            }
-            labels.add(label.value());
-            types.add(type.value());
-        }
-    }
-
     /** A host's rows of a statement whose result columns are {@code columns}, streamed to a sink: as JSON text
      *  ({@link com.legend.result.HostRows}) or as Arrow ({@link com.legend.result.ArrowRows}). */
     @FunctionalInterface
     private interface HostRowsSource {
         void stream(List<com.legend.executionplan.ExecutionPlan.Column> columns, com.legend.result.ResultSink sink)
                 throws java.io.IOException;
-    }
-
-    private static Answer arrowAnswer(String plan, String reported, HostRowsSource rows) {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        Answer run = answer(500, "COMPILATION", () -> {
-            com.legend.executionplan.ExecutionPlan.TdsResult result = hostResult(plan);
-            if (result.shape() != com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION) {
-                throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch is answered in JSON");
-            }
-            if (result.sql().target().database().type() != com.legend.database.Databases.named("DuckDB")) {
-                throw new IllegalArgumentException("legend-engine's Arrow answer is typed from the database's JDBC report"
-                        + " of its columns; a host's report is read as DuckDB's driver reports it, and a "
-                        + result.sql().target().database().type() + " host's is not measured");
-            }
-            List<String> labels = new ArrayList<>();
-            List<String> types = new ArrayList<>();
-            readPairs(reported, labels, types);
-            String sql = result.sql().statement();
-            Map<String, String> metadata = engineArrowMetadata(sql, planEnvelope(sql, result.columns()));
-            try {
-                com.legend.result.EngineArrowWriter writer = new com.legend.result.EngineArrowWriter(out, metadata);
-                writer.reported(com.legend.result.ColumnReport.duckDb(labels, types));
-                rows.stream(result.columns(), writer);
-            } catch (java.io.IOException ex) {
-                throw new java.io.UncheckedIOException(ex);
-            }
-            return "";
-        });
-        if (run.status() != 200) {
-            return run;
-        }
-        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
-                Map.of("x-legend-response-format", "FormatNotSet"));
     }
 
     /** The one typed result a host's plan answers with ({@link #jsonPlan}'s plan record, handed back): read by the plan

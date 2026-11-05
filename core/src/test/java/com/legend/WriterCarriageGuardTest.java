@@ -174,10 +174,6 @@ class WriterCarriageGuardTest {
                     Map.entry("Double.isFinite", 1),
                     Map.entry("scale", 3),
                     Map.entry("Math.", 6)),
-            "ColumnReport.java", Map.ofEntries(
-                    // a DuckDB type name's precision and scale (DECIMAL(p,s)) read as the numbers they spell, as the
-                    // JDBC driver reports them (2026-11-03, R4 step 3: a host's report of its database's columns)
-                    Map.entry("Integer.parseInt", 2)),
             "ArrowRows.java", Map.ofEntries(
                     // a decode's carrier reads, the JDBC session decode's arms over a host's Arrow (2026-11-03,
                     // docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, the core's Arrow reader): an Arrow value read as the

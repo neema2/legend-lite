@@ -13,10 +13,10 @@ The engine has no transport. A browser tab reaches it over HTTP (``WebServer``);
 own channel (``legend_lite.notebook``). Both send it the same calls.
 
 Every answer but execute's rows is legend-lite's own server code (``PureV1Api``, through the native library),
-so this module holds no Legend protocol: it runs the SQL the compiler wrote, and carries HTTP. execute
-answers in upstream's Arrow format (``?serializationFormat=ARROW_IPC``: a zstd-compressed Arrow IPC stream
-whose schema metadata carries the builder, the SQL that ran and the columns), the one format this engine
-declares; DuckDB produces Arrow, so JSON would be the extra conversion.
+so this module holds no Legend protocol: it runs the SQL the compiler wrote, and carries HTTP. execute answers in
+legend-engine's JSON, and lite's own execute (``/api/lite/v1/execution/execute``) in lite's own Arrow, the plan's
+types; legend-engine's Arrow format (``?serializationFormat=ARROW_IPC``) is legend-lite's server's alone, the drop-in
+replacement for legend-engine, and is refused here by the core's own route (D22, 2026-11-05).
 
 Over HTTP, only what the developer's own page sends is answered: the server listens on 127.0.0.1 alone, every call
 for the engine's data carries its one-time token (``Authorization: Bearer <token>``), a request is refused unless its
@@ -353,17 +353,11 @@ class NativePlanner:
     def execute_json_answer_arrow(self, plan: str, arrow: pa.Buffer) -> compiler.Answer:
         return compiler.execute_json_answer_arrow(plan, arrow)
 
-    def execute_arrow_answer_arrow(self, plan: str, reported: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
-        return compiler.execute_arrow_answer_arrow(plan, reported, arrow)
-
     def execute_lite_answer_arrow(self, plan: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
         return compiler.execute_lite_answer_arrow(plan, arrow)
 
     def keyed_lite_answer_arrow(self, plan: str, keys: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
         return compiler.keyed_lite_answer_arrow(plan, keys, arrow)
-
-    def keyed_arrow_answer_arrow(self, plan: str, keys: str, reported: str, arrow: pa.Buffer) -> tuple[int, str, bytes]:
-        return compiler.keyed_arrow_answer_arrow(plan, keys, reported, arrow)
 
     def execute_refusal(self, plan: str, message: str, trace: str) -> compiler.Answer:
         return compiler.execute_refusal(plan, message, trace)
@@ -953,8 +947,10 @@ class Engine:
     def _api(self, path: str, query: str, body: str) -> Answer:
         """An API call's answer, computed on the compiler's pool."""
         try:
-            if path == _EXECUTE:
-                return self._execute(body) if _arrow_requested(query) else self._execute_json(body)
+            # legend-engine's Arrow format is legend-lite's server's alone (D22, 2026-11-05): asked of this engine, the
+            # core's own route refuses it by name, as the tab's does
+            if path == _EXECUTE and not _arrow_requested(query):
+                return self._execute_json(body)
             if path == _LITE_EXECUTE:
                 return self._execute_lite(body)
             answer = self.planner.answer(path, query, body)
@@ -1642,72 +1638,6 @@ class Engine:
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         return _planned({'plan': planned})
-
-    def _execute(self, body: str) -> Answer:
-        """execute in upstream's Arrow format, written as legend-engine writes it (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md
-        R4 step 3, D17): planned as the JSON execute plans (the plan record, over the frames' models or a project's),
-        DuckDB describes its statement (the compiler's ``describe`` operation: DuckDB's own type names, the report
-        legend-engine types its Arrow answer's columns from) and runs it, and its Arrow is handed to the core, which
-        writes upstream's answer -- each field typed from the report, one zstd frame -- as legend-lite's server writes
-        it. One query at a time (the frames are held still while it runs). A pivot whose columns its data names runs as
-        its keyed plan says (``_execute_arrow_keyed``)."""
-        with self.frames.serving() as models:
-            self._noted(models)
-            with self._project_of(body, models) as (served, connection):
-                planned = self.planner.execute_json_plan(body, served)
-                if planned.status != 200:
-                    return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                keys_statement = compiler.keyed_statement(planned.body)
-                if keys_statement is not None:
-                    return self._execute_arrow_keyed(planned.body, keys_statement, connection)
-                statement = compiler.answer_statement(planned.body)
-                try:
-                    (describe,) = _host.statements({'op': 'describe', 'statement': statement})
-                    described = connection.execute(describe)
-                    names = [d[0] for d in described.description]
-                    reported = [[row[names.index('column_name')], row[names.index('column_type')]]
-                                for row in described.fetchall()]
-                    arrow = _ipc_stream(connection.execute(statement).fetch_record_batch())
-                except duckdb.Error as refused:
-                    # the database refusing the plan's statement: answered as legend-engine answers it (D18 B)
-                    answer = self.planner.execute_refusal(planned.body, str(refused),
-                                                          f'{type(refused).__name__}: {refused}')
-                    return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
-        status, content_type, frame = self.planner.execute_arrow_answer_arrow(planned.body, json.dumps(reported), arrow)
-        # upstream's headers for this answer (measured, legend-engine 4.145.0)
-        return Answer(status, content_type, frame, {'x-legend-response-format': 'FormatNotSet'} if status == 200 else {})
-
-    def _execute_arrow_keyed(self, plan: str, keys_statement: str, connection: Any) -> Answer:
-        """A pivot whose columns its data names, in upstream's Arrow format: its keys, then the body the compiler writes
-        for them, described (DuckDB's own type names: the report) and run with the keys bound, in one transaction, as
-        ``_execute_keyed`` runs it -- the body's Arrow and the report handed to the core, which writes upstream's
-        answer as legend-lite's server writes it."""
-        try:
-            _host.run(connection, {'op': 'transaction', 'step': 'begin'})
-            try:
-                keys = [[None if c is None else str(c) for c in row]
-                        for row in connection.execute(keys_statement).fetchall()]
-                written = self.planner.keyed_body(plan, json.dumps(keys))
-                if written.status == 200:
-                    body = json.loads(written.body)
-                    (describe,) = _host.statements({'op': 'describe', 'statement': body['statement']})
-                    described = connection.execute(describe, body['parameters'])
-                    names = [d[0] for d in described.description]
-                    reported = [[row[names.index('column_name')], row[names.index('column_type')]]
-                                for row in described.fetchall()]
-                    arrow = _ipc_stream(connection.execute(body['statement'], body['parameters']).fetch_record_batch())
-            except BaseException:
-                _host.run(connection, {'op': 'transaction', 'step': 'rollback'})
-                raise
-            _host.run(connection, {'op': 'transaction', 'step': 'commit'})
-        except duckdb.Error as refused:
-            answer = self.planner.execute_refusal(plan, str(refused), f'{type(refused).__name__}: {refused}')
-            return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
-        if written.status != 200:
-            return Answer(written.status, written.content_type, written.body.encode('utf-8'))
-        status, content_type, frame = self.planner.keyed_arrow_answer_arrow(plan, json.dumps(keys), json.dumps(reported),
-                                                                           arrow)
-        return Answer(status, content_type, frame, {'x-legend-response-format': 'FormatNotSet'} if status == 200 else {})
 
     def _execute_json(self, body: str) -> Answer:
         """execute in legend-engine's JSON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the compiler plans over the

@@ -248,12 +248,34 @@ public class LegendHttpServer {
             }
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(), body, ConnectionResolver.RUNNER);
+                    exchange.getRequestURI().getRawQuery(), body, ConnectionResolver.RUNNER, PureV1Api.Models.COMPILED,
+                    ENGINE_ARROW);
             // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
         }
     }
+
+    /**
+     * legend-engine's {@code ARROW_IPC} answer as upstream writes it ({@link com.legend.result.EngineArrowWriter}), which
+     * this server alone serves: it is the drop-in replacement for legend-engine, which runs only as a server, so a client
+     * in production reading Arrow gets upstream's answer here (the user's ruling D22, 2026-11-05,
+     * docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md §1.2); the hosts lite is embedded in, Python and the tab, refuse it.
+     */
+    public static final PureV1Api.EngineArrow ENGINE_ARROW = new PureV1Api.EngineArrow() {
+        @Override
+        public com.legend.result.ResultSink fixed(java.io.OutputStream out, java.util.Map<String, String> metadata) {
+            return new com.legend.result.EngineArrowWriter(out, metadata);
+        }
+
+        @Override
+        public com.legend.result.ResultSink dynamic(java.io.OutputStream out, java.util.function.BiFunction<
+                java.util.List<com.legend.executionplan.ExecutionPlan.Column>,
+                java.util.@com.legend.base.Nullable List<@com.legend.base.Nullable String>,
+                java.util.Map<String, String>> metadata) {
+            return new com.legend.result.EngineArrowWriter(out, metadata);
+        }
+    };
 
     /** The CORS answer for an ALLOWED origin (the route's check ran first): it names that origin, never {@code *}. */
     public static void addCorsHeaders(HttpExchange exchange) {

@@ -402,7 +402,8 @@ class PureV1ApiTest {
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                request, ConnectionResolver.RUNNER);
+                request, ConnectionResolver.RUNNER,
+                PureV1Api.Models.COMPILED, LegendHttpServer.ENGINE_ARROW);
         assertEquals(200, a.status(), a.json());
         Map<String, String> liteMeta = com.legend.arrowipc.ArrowReader.open(java.nio.ByteBuffer.wrap(rawBlocks(a.bytes())))
                 .schema().metadata();
@@ -459,7 +460,8 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambdaJson + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                request, ConnectionResolver.RUNNER);
+                request, ConnectionResolver.RUNNER,
+                PureV1Api.Models.COMPILED, LegendHttpServer.ENGINE_ARROW);
         assertEquals(200, a.status(), a.json());
         com.legend.arrowipc.ArrowReader.Stream read = com.legend.arrowipc.ArrowReader.open(
                 java.nio.ByteBuffer.wrap(rawBlocks(a.bytes())));
@@ -552,12 +554,28 @@ class PureV1ApiTest {
      * fetch under it is refused (it is answered in JSON).
      */
     @Test
+    void e8_executeArrow_isTheServersAlone_aHostWithoutItsWriterRefusesByName() {
+        // D22 (the user, 2026-11-05): legend-engine's ARROW_IPC answer is legend-lite's server's alone, the drop-in
+        // replacement for legend-engine; a host given no engine Arrow writer (Python, the tab) refuses the format by
+        // name, in legend-engine's error shape, before anything compiles -- the request need not even be valid
+        PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                "not even JSON", NO_RUN);
+        assertEquals(500, refused.status(), refused.json());
+        Json.Obj said = Json.parseObject(refused.json());
+        assertEquals("error", said.getString("status"));
+        assertTrue(said.getString("message").contains("legend-engine's ARROW_IPC answer is served by legend-lite's"
+                + " server alone"), refused.json());
+        assertTrue(said.getString("message").contains("/api/lite/v1/execution/execute"), refused.json());
+    }
+
+    @Test
     void e8_executeArrow_isOneZstdFrameAroundAnArrowStreamWithTheEnginesMetadata() throws Exception {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                request, ConnectionResolver.RUNNER);
+                request, ConnectionResolver.RUNNER,
+                PureV1Api.Models.COMPILED, LegendHttpServer.ENGINE_ARROW);
         assertEquals(200, a.status(), a.json());
         assertEquals("application/json", a.contentType());
         assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
@@ -600,7 +618,7 @@ class PureV1ApiTest {
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.executeArrow("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", ConnectionResolver.RUNNER,
-                PureV1Api.Models.COMPILED);
+                PureV1Api.Models.COMPILED, LegendHttpServer.ENGINE_ARROW);
         assertEquals(500, graph.status(), graph.json());
         assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
     }
@@ -1025,7 +1043,8 @@ class PureV1ApiTest {
         // the same program in legend-engine's Arrow format (a plan of several steps: its result step's report types
         // the answer, R4's audit fold, 2026-11-03): the same one row, the field as the database reports it
         PureV1Api.Answer arrow = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                "{\"function\":" + write + ",\"model\":" + modelContext + "}", ConnectionResolver.RUNNER);
+                "{\"function\":" + write + ",\"model\":" + modelContext + "}", ConnectionResolver.RUNNER,
+                PureV1Api.Models.COMPILED, LegendHttpServer.ENGINE_ARROW);
         assertEquals(200, arrow.status(), arrow.json());
         com.legend.arrowipc.ArrowReader.Stream staged = com.legend.arrowipc.ArrowReader.open(
                 java.nio.ByteBuffer.wrap(rawBlocks(arrow.bytes())));

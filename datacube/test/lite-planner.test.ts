@@ -72,7 +72,6 @@ function fakeExports(
     sqlJsonOrError: () => 'ERR\nfake\nnot in this fake',
     keyedAnswerOrError: () => 'ERR\nfake\nnot in this fake',
     executeJsonAnswerFromArrowOrError: () => new TextEncoder().encode('ERR\nfake\nnot in this fake') as unknown as Int8Array,
-    executeArrowAnswerFromArrowOrError: () => new TextEncoder().encode('ERR\nfake\nnot in this fake') as unknown as Int8Array,
     warmModelOrError: () => 'OK\n',
   };
 }

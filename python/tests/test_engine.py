@@ -75,16 +75,19 @@ class Served(unittest.TestCase):
         })
 
     def arrow(self, steps):
-        status, headers, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                          self.execute_input(self.query(steps)))
+        """The rows of ``steps`` as lite's own execute answers them (D20): lite's own Arrow, in the plan's types."""
+        status, headers, body = self.post(LITE_EXECUTE, self.execute_input(self.query(steps)))
         self.assertEqual(status, 200, body[:300])
         return headers, read_arrow(body)
 
 
+# lite's own execute (D20); legend-engine's Arrow format is legend-lite's server's alone (D22, 2026-11-05)
+LITE_EXECUTE = '/api/lite/v1/execution/execute'
+
+
 def read_arrow(body):
-    """An ARROW_IPC answer read as upstream writes it: one zstd frame around an Arrow IPC stream."""
-    with pa.input_stream(pa.py_buffer(body), compression='zstd') as stream:
-        return pyarrow.ipc.open_stream(stream).read_all()
+    """Lite's own Arrow answer: one Arrow IPC stream, the plan record in its schema's metadata."""
+    return pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
 
 
 class Calls(Served):
@@ -106,30 +109,39 @@ class Calls(Served):
         self.assertEqual([(c['name'], c['genericType']['rawType']['fullPath']) for c in json.loads(body)['columns']],
                          [('desk', 'String'), ('q', 'Float')])
 
-    def test_execute_answers_upstreams_arrow_with_the_rows_duckdb_computes(self):
+    def test_execute_answers_the_rows_duckdb_computes_as_lite_and_as_legend_engines_json(self):
         headers, rows = self.arrow(GROUP)
-        self.assertEqual((headers['Content-Type'], headers['x-legend-response-format']), ('application/json', 'FormatNotSet'))
+        self.assertEqual(headers['Content-Type'], 'application/vnd.apache.arrow.stream')
         self.assertEqual(rows.to_pylist(), self.table.execute(GROUP).to_pylist())
         self.assertEqual(rows.to_pylist(), [{'desk': 'EQ', 'q': 27.5}, {'desk': 'FX', 'q': 40.75}])
-        metadata = {k.decode(): v.decode() for k, v in rows.schema.metadata.items()}
-        self.assertEqual(list(metadata), ['legend.builder', 'legend.activities', 'legend.columns'])
-        self.assertEqual(json.loads(metadata['legend.columns']), ['desk', 'q'])
-        self.assertEqual(json.loads(metadata['legend.builder']), {'_type': 'tdsBuilder', 'columns': [
+        self.assertIn(b'legend.plan', rows.schema.metadata)
+        # legend-engine's JSON: the builder and the activity as legend-lite's server writes them
+        status, _, body = self.post('/api/pure/v1/execution/execute', self.execute_input(self.query(GROUP)))
+        self.assertEqual(status, 200, body[:300])
+        answer = json.loads(body)
+        self.assertEqual(answer['builder'], {'_type': 'tdsBuilder', 'columns': [
             # the relational spellings as legend-engine writes them (legend-lite's server's builder)
             {'name': 'desk', 'type': 'String', 'relationalType': 'VARCHAR(1024)'},
             {'name': 'q', 'type': 'Float', 'relationalType': 'FLOAT'},
         ]})
-        [activity] = json.loads(metadata['legend.activities'])
-        self.assertEqual(list(activity), ['comment', 'sql'])
+        [activity] = answer['activities']
         self.assertEqual(activity['sql'], self.table.plan(GROUP).sql)
 
-    def test_an_empty_answer_is_its_columns_and_no_batch_as_upstreams(self):
-        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                    self.execute_input(self.query("->filter(x|$x.desk == 'NONE')")))
+    def test_legend_engines_arrow_is_the_servers_alone_refused_here_by_name(self):
+        # D22 (the user, 2026-11-05): legend-lite's server is the drop-in replacement for legend-engine and answers its
+        # ARROW_IPC; this engine, embedded, refuses it by the core's own route, in legend-engine's error shape
+        status, headers, raw = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+                                         self.execute_input(self.query(GROUP)))
+        self.assertEqual((status, headers['Content-Type']), (500, 'application/json'))
+        said = json.loads(raw)
+        self.assertEqual(said['status'], 'error')
+        self.assertIn("legend-engine's ARROW_IPC answer is served by legend-lite's server alone", said['message'])
+
+    def test_an_empty_answer_is_its_columns_and_no_rows(self):
+        status, _, body = self.post(LITE_EXECUTE, self.execute_input(self.query("->filter(x|$x.desk == 'NONE')")))
         self.assertEqual(status, 200, body[:300])
-        with pa.input_stream(pa.py_buffer(body), compression='zstd') as stream:
-            reader = pyarrow.ipc.open_stream(stream)
-            self.assertEqual((reader.schema.names, list(reader)), (['id', 'desk', 'qty'], []))
+        rows = read_arrow(body)
+        self.assertEqual((rows.schema.names, rows.num_rows), (['id', 'desk', 'qty'], 0))
 
     def test_live_the_next_query_reads_the_frame_as_it_is_then(self):
         _, before = self.arrow(GROUP)
@@ -237,7 +249,7 @@ class ProjectQueries(Served):
         self.assertEqual(status, 200, body)
         self.assertEqual([r['values'] for r in json.loads(body)['result']['rows']],
                          [['Halberd Securities'], ['Meridian Capital']])
-        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC', self.project_input())
+        status, _, body = self.post(LITE_EXECUTE, self.project_input())
         self.assertEqual(status, 200, body[:300])
         self.assertEqual(read_arrow(body).column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
         # one database for the project, asked twice; beside the frames, which answer as before
@@ -302,13 +314,13 @@ class Refusals(Served):
         return status, json.loads(raw)
 
     def test_a_query_that_does_not_compile_is_the_engines_compilation_error(self):
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+        status, body = self.error('/api/pure/v1/execution/execute',
                                   self.execute_input(self.query('->select(~[nope])')))
         self.assertEqual((status, body['errorType'], body['status']), (500, 'COMPILATION', 'error'))
 
     def test_a_model_the_engine_does_not_serve_is_refused(self):
         other = self.table.model.replace('trades::DB', 'other::DB')
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+        status, body = self.error('/api/pure/v1/execution/execute',
                                   self.execute_input(self.query(''), model=other))
         self.assertEqual(status, 500)
         self.assertIn('the models it serves', body['message'])
@@ -326,12 +338,12 @@ class Refusals(Served):
         self.assertEqual(answer['result']['columns'], ['desk', 'qty'])
         self.assertEqual([r['values'] for r in answer['result']['rows']],
                          [[d, q] for d, q in sorted(zip(self.df['desk'], self.df['qty']), key=lambda r: r[1])])
-        # a refusal in the engine's shape, as the Arrow answer's
+        # a refusal in the engine's shape
         status, refused = self.error('/api/pure/v1/execution/execute', self.execute_input(self.query('->select(~[nope])')))
         self.assertEqual((status, refused['errorType']), (500, 'COMPILATION'))
 
     def test_the_database_refusing_is_answered_in_the_engines_shape(self):
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+        status, body = self.error('/api/pure/v1/execution/execute',
                                   self.execute_input(self.query('->extend(~[n: x|$x.desk->toOne()->parseInteger()])')))
         self.assertEqual((status, body['code'], body['status']), (500, -1, 'error'))
         self.assertNotIn('errorType', body)

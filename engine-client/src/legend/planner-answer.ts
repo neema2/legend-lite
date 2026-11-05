@@ -30,9 +30,6 @@ export interface PlannerModule {
     // execute's answer from the rows as the Arrow the tab's database answered (R3): the fold's lines and the body, as
     // bytes (`Folded.httpBytes`)
     executeJsonAnswerFromArrowOrError(plan: string, arrow: Int8Array): Int8Array;
-    // upstream's Arrow answer, typed from the database's report of its columns (`reported`: [label, type] pairs,
-    // DuckDB's own type names; R4 step 3)
-    executeArrowAnswerFromArrowOrError(plan: string, reported: string, arrow: Int8Array): Int8Array;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;

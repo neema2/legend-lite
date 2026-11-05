@@ -9,10 +9,9 @@ runtime `<name>/wasm-gc-module-runtime.js`, side by side, as a loader wants them
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//tools/deps:pools.bzl", "check_pool_use")
 
-# The compiler's heap, as the scheduler sees it: //tools/teavm:compile's -Xmx3g (BUILD.bazel, measured there; 2048
-# until 2026-11-03).
+# The compiler's heap, as the scheduler sees it: //tools/teavm:compile's -Xmx2g (BUILD.bazel, measured there).
 def _teavm_memory(os, inputs):
-    return {"cpu": 1, "memory": 3072}
+    return {"cpu": 1, "memory": 2048}
 
 def _teavm_wasm_impl(ctx):
     # TeaVM's class library CORRECTED where lite needs it exact (//third_party/teavm_classlib): its own jar FIRST, so the

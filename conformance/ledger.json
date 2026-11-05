@@ -61,12 +61,5 @@
     "hosts": "python",
     "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\"",
     "why": "The lite adapter reads one typed result over a statement (recordPlan); a pivot whose columns its data names is a keyed plan, refused by name. DataCube plans its pivots static, so none of its queries is one; Query's and Studio's move onto the adapters (D20 (c) step 3) reads it, each column typed by its field's legend.type."
-  },
-  {
-    "case": "pivotDynamic",
-    "check": "adapters-refused",
-    "hosts": "python arrow",
-    "detail": "at 0: \"(answered)\" vs \"the server at <server>: a host's plan is one typed\"",
-    "why": "Added 2026-11-03 with the adapters check's engine-Arrow reader (D21 Q1: the engine adapter read from ARROW_IPC as well as JSON); the same gap as the JSON row above. The lite adapter reads one typed result over a statement (recordPlan); a pivot whose columns its data names is a keyed plan, refused by name. DataCube plans its pivots static, so none of its queries is one; Query's and Studio's move onto the adapters (D20 (c) step 3) reads it, each column typed by its field's legend.type."
   }
 ]

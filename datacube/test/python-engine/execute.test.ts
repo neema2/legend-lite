@@ -6,7 +6,7 @@
 // them: the answer's TEXT, byte for byte (each trace id its own), a whole Float, a Decimal, a DateTime and a value of
 // the session's zone (`now()->hour()`) among its columns. The tab's DuckDB starts in a zone that is not UTC (as a
 // browser in Kathmandu would: +05:45), so a tab whose session was not set up as the server's answers otherwise.
-// Python's ARROW_IPC answer (written by the core's EngineArrowWriter since R4, 2026-11-03) carries the same builder.
+// (Python's engine answers legend-engine's JSON; legend-engine's ARROW_IPC is legend-lite's server's alone, D22.)
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -16,10 +16,8 @@ import { createInterface } from 'node:readline';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { arrowIpcAnswer } from '../../../engine-client/src/arrow-ipc.ts';
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { setUpSession } from '../../../engine-client/src/engine.ts';
-import { arrowResultTable } from '../../../engine-client/src/engine-remote.ts';
 import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import { EngineError } from '../../../engine-client/src/legend/engine.ts';
 import { answer, type PlannerModule } from '../../../engine-client/src/legend/planner-answer.ts';
@@ -27,7 +25,6 @@ import type { RequestBody } from '../../../engine-client/src/legend/planner-prot
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { ExecuteInput, TdsResult } from '../../../engine-client/src/legend/wire.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
-import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
 import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
 import { openDatabase } from '../host/node.ts';
 
@@ -132,9 +129,11 @@ async function input(query: string, parameters = '', values?: ExecuteInput['para
   return { function: lambda, model: { _type: 'text', code: served.model }, ...(values ? { parameterValues: values } : {}) };
 }
 
-/** Python's engine's answer to `asked`, read as the tab reads it: its rows, its builder, its activities; or its refusal. */
-async function onPython(asked: ExecuteInput): Promise<{ builder: unknown; activities: readonly { sql?: string; comment?: string }[]; columns: string[]; rows: unknown[][] }> {
-  const r = await fetch(`${served.url}/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC`, {
+/** Python's engine's answer to `asked` in legend-engine's JSON, read as the tab's is: its builder, its activities, its
+ *  columns and rows; or its refusal, thrown. */
+async function onPython(asked: ExecuteInput): Promise<{ builder: unknown; activities: readonly { sql?: string; comment?: string }[];
+    columns: readonly string[]; rows: readonly (readonly unknown[])[] }> {
+  const r = await fetch(`${served.url}/api/pure/v1/execution/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
     body: JSON.stringify({ clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...asked }),
@@ -143,11 +142,9 @@ async function onPython(asked: ExecuteInput): Promise<{ builder: unknown; activi
     const said = await r.json() as { message: string };
     throw new EngineError(said.message, r.status);
   }
-  const stream = await arrowIpcStream(new Uint8Array(await r.arrayBuffer()));
-  const { rows, activities } = arrowResultTable(stream, 0, 0);
-  const builder = JSON.parse(arrowIpcAnswer(stream).metadata.get('legend.builder')!) as unknown;
-  const columns = rows.columns.map((c) => c.name);
-  return { builder, activities, columns, rows: Array.from({ length: rows.rowCount }, (_, i) => rows.columns.map((c) => c.values[i] ?? null)) };
+  const answer = await r.json() as TdsResult;
+  return { builder: answer.builder, activities: (answer.activities ?? []) as readonly { sql?: string; comment?: string }[],
+    columns: answer.result.columns, rows: answer.result.rows.map((row) => row.values) };
 }
 
 /** The trace comment's form: `-- "executionTraceID" : "<uuid>"`, each answer's own id. */
@@ -220,10 +217,6 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
       assert.equal(n, JSON.stringify(qty));
       assert.equal(s, JSON.stringify(book));
     }
-    // and Python's Arrow answer: the same builder, the same cells
-    const arrow = await onPython(asked);
-    assert.deepEqual(arrow.builder, answer.builder);
-    assert.deepEqual(arrow.rows, answer.result.rows.map((r) => r.values));
   });
 
   it('a parameter bound by its value, as Python binds it', async () => {

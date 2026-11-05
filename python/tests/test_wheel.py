@@ -64,10 +64,9 @@ cube_json = json.loads(urllib.request.urlopen(urllib.request.Request(web.url + "
 tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())->from(" + table.runtime + ")")
 body = json.dumps({"clientVersion": "vX_X_X", "function": tree, "model": {"_type": "text", "code": table.model},
                    "context": {"_type": "BaseExecutionContext"}}).encode()
-answer = urllib.request.urlopen(urllib.request.Request(web.url + "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
+answer = urllib.request.urlopen(urllib.request.Request(web.url + "/api/lite/v1/execution/execute",
                                 body, dict(headers, **{"Content-Type": "application/json"})), timeout=30).read()
-with pa.input_stream(pa.py_buffer(answer), compression="zstd") as stream:
-    rows = pyarrow.ipc.open_stream(stream).read_all().to_pylist()
+rows = pyarrow.ipc.open_stream(pa.py_buffer(answer)).read_all().to_pylist()
 cube.close()
 # the notebook extra: a notebook's cube (no kernel here), its script the loader, and DataCube's module answered over
 # its channel as its page asks for it

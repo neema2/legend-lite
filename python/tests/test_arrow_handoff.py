@@ -1,6 +1,7 @@
 """THE ARROW HANDOFF (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md R3, its exit): a host's rows handed to the core as the
 Arrow its database answered give the answers the same rows give handed over as JSON text -- legend-engine's JSON byte
-for byte, and the Arrow answer value for value -- over the conformance suite's corpus (//conformance), each case planned
+for byte (its Arrow format is legend-lite's server's alone: D22, 2026-11-05) -- over the conformance suite's corpus
+(//conformance), each case planned
 and run as Python's engine plans and runs it (its project database, its DuckDB). The handoff is the core's
 (``compiler.execute_json_answer_arrow``: a pointer and a length, read where pyarrow holds it).
 """
@@ -17,7 +18,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import _host as host, _json, compiler
+from legend_lite import _json, compiler
 from legend_lite.engine import Engine
 
 RUNTIME = 'conf::RT'
@@ -42,14 +43,6 @@ def arrow_bytes(table: pa.Table) -> pa.Buffer:
     with pyarrow.ipc.new_stream(sink, table.schema) as writer:
         writer.write_table(table)
     return sink.getvalue()
-
-
-def arrow_answer(body: bytes) -> pa.Table:
-    """An Arrow answer (one zstd frame of an IPC stream), its schema's trace masked in its metadata."""
-    with pa.CompressedInputStream(pa.BufferReader(body), 'zstd') as stream:
-        table = pyarrow.ipc.open_stream(stream.read()).read_all()
-    metadata = {k: TRACE.sub('executionTraceID', v.decode('utf-8')) for k, v in (table.schema.metadata or {}).items()}
-    return table.replace_schema_metadata(metadata)
 
 
 def body_of(model: str, query: str, runtime: str) -> str:
@@ -96,12 +89,6 @@ class ArrowHandoff(unittest.TestCase):
                         continue
                     rows = compiler.host_rows([d[0] for d in cursor.description], cursor.fetchall())
                     arrow = arrow_bytes(connection.execute(statement).to_arrow_table())
-                    # upstream's Arrow answer is typed from the database's report: DuckDB's own type names
-                    (describe,) = host.statements({'op': 'describe', 'statement': statement})
-                    described = connection.execute(describe)
-                    at = [d[0] for d in described.description]
-                    reported = json.dumps([[r[at.index('column_name')], r[at.index('column_type')]]
-                                           for r in described.fetchall()])
                 with self.subTest(case=name):
                     text = compiler.execute_json_answer(planned.body, rows)
                     from_arrow = compiler.execute_json_answer_arrow(planned.body, arrow)
@@ -110,15 +97,6 @@ class ArrowHandoff(unittest.TestCase):
                     self.assertEqual(text.content_type, from_arrow.content_type)
                     self.assertEqual(TRACE.sub('executionTraceID', text.body),
                                      TRACE.sub('executionTraceID', from_arrow.body))
-                    folded = _answer_bytes(compiler.library().call('lite_execute_arrow_answer', planned.body, reported,
-                                                                    rows))
-                    # the bytes as Python's bytes too (the library reads either where it lies)
-                    status, content_type, arrow_body = compiler.execute_arrow_answer_arrow(planned.body, reported,
-                                                                                         arrow.to_pybytes())
-                    self.assertEqual((200, folded[0], folded[1]), (status, status, content_type))
-                    expected, actual = arrow_answer(folded[2]), arrow_answer(arrow_body)
-                    self.assertEqual(expected.schema.metadata, actual.schema.metadata)
-                    self.assertTrue(expected.equals(actual, check_metadata=True), name)
                     compared += 1
         finally:
             frames.close()
@@ -223,15 +201,6 @@ class ArrowHandoff(unittest.TestCase):
                 compiler.execute_json_answer_arrow(plan, 'not bytes')
         finally:
             frames.close()
-
-
-def _answer_bytes(folded: str) -> tuple[int, str, bytes]:
-    """The base64-folded Arrow answer (``Folded.http``): its status, media type and body bytes."""
-    import base64
-    status, content_type, body = compiler._answer(folded).split('\n', 2)
-    if content_type.endswith(';base64'):
-        return int(status), content_type[:-len(';base64')], base64.b64decode(body)
-    return int(status), content_type, body.encode('utf-8')
 
 
 if __name__ == '__main__':

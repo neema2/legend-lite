@@ -4,7 +4,8 @@ DECIMAL(18,2), a timestamp, a nullable integer) queried at 10 to 1,000,000 rows,
 
     duckdb   -- the planned SQL run on the frames' connection, its Arrow table and nothing else: the ceiling here;
     frames   -- Table.execute, the dataframe API: planned, run, typed by the plan (a pyarrow.Table);
-    arrow    -- the engine's execute in upstream's Arrow format (``serializationFormat=ARROW_IPC``), as DataCube asks;
+    arrow    -- lite's own execute (``/api/lite/v1/execution/execute``: lite's own Arrow, the plan's types; D20) -- until
+                D22 (2026-11-05) the engine's execute in upstream's Arrow format, now legend-lite's server's alone;
     json     -- the engine's execute in legend-engine's JSON: its rows handed to the native planner as DuckDB's Arrow
                 (R4, 2026-11-03: the IPC stream's buffer read where it lies) and spelled by its writer. Until R4 the
                 rows crossed as Python objects and JSON text (compiler.host_rows): 23.6 s at 1,000,000 rows (H0, R3).
@@ -96,7 +97,7 @@ class ExecutorBench(unittest.TestCase):
                 answers['frames'] = table.execute(steps)
 
             def arrow():
-                answers['arrow'] = engine.answer('POST', EXECUTE, 'serializationFormat=ARROW_IPC', body)
+                answers['arrow'] = engine.answer('POST', '/api/lite/v1/execution/execute', '', body)
 
             def rows_json():
                 answers['json'] = engine.answer('POST', EXECUTE, '', body)

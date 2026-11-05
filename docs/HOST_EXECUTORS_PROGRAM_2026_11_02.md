@@ -275,6 +275,16 @@ R2's (the user, 2026-11-02):
     when a real client needs it. The reasons, measured: upstream's pinned 4.145.0 names `ARROW_IPC` in no test; none of
     lite's apps asks for it (D20's rule that a lite server answers upstream's routes is why it is served); its writer
     shares no code with lite's other writers (`CellText`), where upstream's shares only the row read.
+- **D22. legend-engine's `ARROW_IPC` answer is legend-lite's SERVER's alone** (the user, 2026-11-05, after "I love that
+  you think now it's okay to take out of the browser one even though our tenet is that all three deployments/hosts
+  should be the same ... maybe it is worth keeping on the remote server path to mimic engine": "The reason I thought to
+  keep it in server is as drop in replacement for legend-engine which really only can be run as a server, thought if
+  people in production using arrow then this gives them that"). The JVM server answers `?serializationFormat=ARROW_IPC`
+  exactly as upstream writes it (frozen: S136's refusals); Python's engine and the tab -- the hosts lite is embedded in,
+  which no legend-engine client points at -- refuse it by name, the core's own route's words, and stay alike. The one
+  named exception to the three hosts being the same: engine compatibility at the deployment that replaces legend-engine.
+  How: `PureV1Api` names no engine Arrow writer; the server hands one in (`LegendHttpServer.ENGINE_ARROW`), as it hands
+  in its runner, so the tab's WebAssembly and Python's native library no longer compile it (register S137).
 
 ### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
 
@@ -1305,3 +1315,12 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   Every other column the same, type and value. `typed_by_plan` remains for plan-and-run (DataCube talking to Python),
   the next step, its cases posted first. The TeaVM build's heap 2g -> 3g: the tab's planner has grown and its live set
   measured about 1.8 GB, so the action failed for memory at 2g (CI runs it at the same heap).
+- 2026-11-05: D22 built: legend-engine's `ARROW_IPC` answer is the JVM server's alone. `PureV1Api` takes the engine
+  Arrow writer from its host (`EngineArrow`; the server hands in `EngineArrowWriter`), and without one refuses the
+  format by name before anything compiles; the hosts' Arrow-answer entries are deleted (`PureV1Api.arrowAnswer`,
+  `keyedArrowAnswer`, the boundary's and the tab's exports, three native exports, Python's two Arrow routes and its
+  wrappers, `ColumnReport.duckDb`), and Python routes `ARROW_IPC` to the core's refusal. The tab's planner no longer
+  compiles the writer: TeaVM's live set 1.9 -> 1.17 GB, its heap back to 2g (3g since 2026-11-03), the WebAssembly 31 KB
+  smaller. The conformance suite reads Java's `ARROW_IPC` and checks Python's refusal; the ledger 10 -> 9 (Python's
+  engine-Arrow pivot row gone). Register S137 added, S136 the server's. Next: plan-and-run onto lite's own Arrow (its
+  cases posted first), then Q2.

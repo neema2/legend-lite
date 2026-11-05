@@ -109,7 +109,7 @@ class Calls(Widget):
         # the chart's drawing, ECharts' charts among it (ECharts' core is a chunk it shares with the rarer kinds')
         self.assertGreater(len(body), 50_000, render)
 
-    def test_execute_answers_upstream_s_arrow_with_its_header(self):
+    def test_execute_in_legend_engines_arrow_is_the_servers_alone_refused_by_name(self):
         cube = self.cube(name='trades')
         table = datacube._session.frames['trades']
         tree = ll.parse('|' + table.accessor + '->filter(x|$x.qty > 5)->from(' + table.runtime + ')')
@@ -117,8 +117,10 @@ class Calls(Widget):
                            'context': {'_type': 'BaseExecutionContext'}})
         status, kind, headers, answer = self.call(cube, 'POST', '/api/pure/v1/execution/execute',
                                                   'serializationFormat=ARROW_IPC', body)
-        self.assertEqual((status, kind, headers), (200, 'application/json', {'x-legend-response-format': 'FormatNotSet'}))
-        self.assertEqual(answer[:4], b'\x28\xb5\x2f\xfd', 'a zstd frame, as upstream writes it')
+        # D22 (the user, 2026-11-05): legend-lite's server alone answers it, the drop-in replacement for legend-engine
+        self.assertEqual((status, kind), (500, 'application/json'))
+        self.assertIn("legend-engine's ARROW_IPC answer is served by legend-lite's server alone",
+                      json.loads(answer)['message'])
 
     def test_a_call_that_is_not_one_is_answered_never_dropped(self):
         cube = self.cube()

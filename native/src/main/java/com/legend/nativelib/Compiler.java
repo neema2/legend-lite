@@ -373,23 +373,6 @@ public final class Compiler {
         return answerBytes(a, answerLength);
     }
 
-    /** That plan's answer in upstream's Arrow format from the host's rows as ARROW ({@code Boundary.executeArrowAnswer};
-     *  R3; written as legend-engine writes it, each field typed from {@code reported}, the database's own
-     *  {@code [label, type]} pairs: R4 step 3): the zstd frame itself after the fold's lines, never base64. */
-    @CEntryPoint(name = "lite_execute_arrow_answer_arrow")
-    static CCharPointer executeArrowAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer reported,
-            CCharPointer arrow, long length, CLongPointer answerLength) {
-        byte[] a;
-        try {
-            String p = text(plan), r = text(reported);
-            java.nio.ByteBuffer rows = bytes(arrow, length);
-            a = Folded.httpBytes(() -> Boundary.executeArrowAnswer(p, r, rows));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
-        }
-        return answerBytes(a, answerLength);
-    }
-
     /** Lite's own execute's answer from the host's rows as ARROW (D20; {@code Boundary.executeLiteAnswer}): lite's own
      *  Arrow in the plan's types, the plan record in its schema's metadata, folded as bytes. */
     @CEntryPoint(name = "lite_execute_lite_answer_arrow")
@@ -420,38 +403,6 @@ public final class Compiler {
             a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
         }
         return answerBytes(a, answerLength);
-    }
-
-    /** {@code lite_execute_arrow_answer_arrow} for a keyed plan a host ran ({@code Boundary.keyedArrowAnswer}; R4): its
-     *  keys rows (JSON text), the database's report of the body's result ({@code [label, type]} pairs) and the Arrow of
-     *  the body written for the keys, read in place. */
-    @CEntryPoint(name = "lite_keyed_arrow_answer_arrow")
-    static CCharPointer keyedArrowAnswerArrow(IsolateThread thread, CCharPointer plan, CCharPointer keys,
-            CCharPointer reported, CCharPointer arrow, long length, CLongPointer answerLength) {
-        byte[] a;
-        try {
-            String p = text(plan), k = text(keys), r = text(reported);
-            java.nio.ByteBuffer rows = bytes(arrow, length);
-            a = Folded.httpBytes(() -> Boundary.keyedArrowAnswer(p, k, r, rows));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure).getBytes(StandardCharsets.UTF_8);
-        }
-        return answerBytes(a, answerLength);
-    }
-
-    /** That plan's answer in upstream's Arrow format from the rows the host's database answered
-     *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
-    @CEntryPoint(name = "lite_execute_arrow_answer")
-    static CCharPointer executeArrowAnswer(IsolateThread thread, CCharPointer plan, CCharPointer reported,
-            CCharPointer rows) {
-        String a;
-        try {
-            String p = text(plan), d = text(reported), r = text(rows);
-            a = Folded.http(() -> Boundary.executeArrowAnswer(p, d, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
     }
 
     /** The planner's boot layer built for a model now ({@code Boundary.warmModel}; the protocol's {@code warm}, C2). */

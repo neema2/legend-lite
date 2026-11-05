@@ -17531,3 +17531,38 @@ arrow_handoff}_test`, `//python:engine_test` in four parts (68, 35, 12, 217), `/
 2), `//python:notebook_test` in parts (21, and `InMarimo` one test per process: 7 of 8, the eighth the container's
 segfault with HEAD's code too).
 
+## 2026-11-05 — D22: legend-engine's ARROW_IPC answer is legend-lite's server's alone; TeaVM's heap back to 2g
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` §1.2 D22 (the user's ruling of 2026-11-05: the server is the drop-in
+replacement for legend-engine, which runs only as a server; a client in production reading Arrow gets upstream's answer
+there) and §8; register S137.
+- **Why it came up:** TeaVM's build of the tab's planner ran out of its 2 GB heap (raised to 3g on 2026-11-03 as a
+  stopgap). Bisected by hand (`-XX:+UseSerialGC`, `-Xmx1536m`, the planner's jars at each commit): `main` and the branch
+  through `c242086c` compiled at a live set of about 1.17 GB; `5f07e513` (R4 steps 3-4, legend-engine's ARROW_IPC writer)
+  failed, and the tip needed about 1.9 GB. With `EngineArrowWriter` unreachable from the tab (an experiment, reverted),
+  the tip compiled at 1.18 GB: the writer, compiled into the tab through `PureV1Api`'s ARROW_IPC route, was the whole cost
+  (the construct inside it not pinned: neither its rounding nor its encoders; the class's instantiation alone did it).
+- **The change:** `PureV1Api` takes legend-engine's Arrow writer from its host (`EngineArrow`, beside its `Runner`); the
+  server hands in `EngineArrowWriter` (`LegendHttpServer.ENGINE_ARROW`); without one the route refuses the format by
+  name (500, legend-engine's error shape) before anything compiles. Deleted, as the embedded hosts' alone:
+  `PureV1Api.arrowAnswer` (three) and `keyedArrowAnswer` with `readPairs`; `Boundary.executeArrowAnswer` (two) and
+  `keyedArrowAnswer`; the tab's `executeArrowAnswerOrError` and `executeArrowAnswerFromArrowOrError`; the native
+  `lite_execute_arrow_answer`, `lite_execute_arrow_answer_arrow`, `lite_keyed_arrow_answer_arrow`; Python's
+  `_execute`/`_execute_arrow_keyed` routes and wrappers (ARROW_IPC routed to the core's refusal); `ColumnReport.duckDb`.
+- **Measured after:** the tab's planner's live set 1.17 GB (fits `-Xmx1536m`), 8,676 classes, the WebAssembly
+  8,418,497 bytes (31 KB smaller); the Bazel build passes at 2g again.
+- **Tests moved with it:** `PureV1ApiTest` hands the server's writer to its ARROW_IPC cases and pins the host refusal
+  (`e8_executeArrow_isTheServersAlone_aHostWithoutItsWriterRefusesByName`); the conformance suite reads Java's ARROW_IPC
+  and checks Python's refusal by name (ledger 10 -> 9: Python's engine-Arrow pivot row gone); Python's and DataCube's
+  tests read rows through lite's own execute or legend-engine's JSON and pin the refusal.
+
+Ceilings and guards moved, with their reasons in place: `tools/teavm` heap 3g -> 2g (back; the measurement noted
+beside it); `WriterCarriageGuardTest`'s `ColumnReport.java` entry removed (its two `Integer.parseInt` went with
+`duckDb`: a shrink).
+
+Checks: `//core:{core_tests_root,core_tests_server,core_tests_architecture,arrow_writer_test,guardrails}`,
+`//wasm:planner` at 2g, `//datacube:{conformance,python_engine,python_execute,typecheck}_test`, `//datacube:tests`,
+`//query:tests`, `//studio:tests` (218), `//engine-client:tests`, `//python:{frames,bindings,model,host_sql,
+arrow_handoff,markets}_test`, `//python:engine_test` in four parts (69, 35, 12, 217), `//python:headless_test` in three
+(46, 7, 2), `//python:notebook_test`'s non-Marimo part (21), `//python:wheel_test`.
+
