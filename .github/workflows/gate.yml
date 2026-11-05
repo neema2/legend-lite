@@ -65,7 +65,10 @@ jobs:
     # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
     secrets: inherit
     with:
-      runs-on: ubuntu-latest
+      # pinned (2026-11-05): ubuntu-latest moved to an image with no `libxml2` package (its soname 2 is gone), which
+      # LLVM's prebuilt ld.lld links; every Linux lane failed at its setup step ("Package 'libxml2' has no installation
+      # candidate"). 24.04 carries it, as the arm lane's pinned image does
+      runs-on: ubuntu-24.04
       platform: linux
       linux-only-tests: ${{ inputs.linux_only_tests || 'ci-policy' }}
       gates: ${{ inputs.gates }}
