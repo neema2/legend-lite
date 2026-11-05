@@ -930,6 +930,38 @@ final class AssertVerdicts {
         }
     }
 
+    /** {@code a}'s verdict ROW, the database judge's own statement's (an assertError's, S135, 2026-11-05), judged at
+     *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
+     *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
+    static void judgedRowAtItsStep(HostAssert a, List<Object> row,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
+        if (listener == null) {
+            a.enter();
+            DatabaseJudge.verdictOf(a.name(), row);
+            return;
+        }
+        com.legend.judge.CanonicalDivergence.sqlEnter();
+        boolean settled = false;
+        try {
+            a.enter();
+            DatabaseJudge.verdictOf(a.name(), row);
+            settled = true;
+            listener.verdict(a.listenerName(), true, null);
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            settled = true;
+            com.legend.judge.CanonicalDivergence.sqlRaised();
+            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                listener.unjudged(a.listenerName(), af.unjudgedReason());
+            }
+            listener.verdict(a.listenerName(), false, e.getMessage());
+            throw e;
+        } finally {
+            if (!settled) {
+                com.legend.judge.CanonicalDivergence.sqlRaised();
+            }
+        }
+    }
+
     /** The host half's verdict over its sides HELD for the agreement judge: its verdict, or the failure it raised
      *  (an assert that does not hold), never null together. */
     record HostHeld(@com.legend.base.Nullable TypedSide verdict, com.legend.error.@com.legend.base.Nullable AssertFailed failed) {

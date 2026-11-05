@@ -30,9 +30,11 @@ import java.util.List;
  * {@code AssertError.java:68} hands the matcher the raising expression's
  * source info; ours rides the U+001E prefix inside the U+001F envelope),
  * and adjudicates with the pure {@code assertError/4} body's EXACT
- * failure spellings (assertError.pure:24-26). Adjudication of
- * orchestration artifacts is host-side by charter (the
- * {@code judge.PureAsserts} precedent).
+ * failure spellings (assertError.pure:24-26). This is the HOST judge's
+ * comparison; under the database judge and BOTH the database compares
+ * what the function raised in its own verdict statement (the user's
+ * ruling S135, 2026-11-05: the host catches, the database judges;
+ * {@code VerdictSql.assertError}, {@code PlanRunner}'s raising verdict).
  */
 final class AssertErrorNative {
 

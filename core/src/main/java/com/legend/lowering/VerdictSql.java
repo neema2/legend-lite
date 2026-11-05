@@ -1606,6 +1606,113 @@ public final class VerdictSql {
      *  under the host). */
     /** {@code row} with its verdict decided false at planning (a grid pair whose schemas differ): its canons kept for
      *  the message. */
+    /** What running an assertError's function raised, as its verdict statement reads it: its message, line and column,
+     *  each a value or absent (SQL NULL) -- the runner's bound parameters ({@link #bound}), or constants where the
+     *  function raised while it was planned ({@link #raised}). */
+    public record Raised(SqlExpr message, SqlExpr line, SqlExpr column) {
+
+        /** The outcome the runner binds once it ran the function: the three parameters the plan names. */
+        public static Raised bound(String messageParameter, String lineParameter, String columnParameter) {
+            return new Raised(param(messageParameter, SqlType.Scalar.VARCHAR),
+                    param(lineParameter, SqlType.Scalar.BIGINT), param(columnParameter, SqlType.Scalar.BIGINT));
+        }
+
+        /** An error raised while the function was planned: its message, and its position where it carried one. */
+        public static Raised raised(String message, @com.legend.base.Nullable Long line,
+                @com.legend.base.Nullable Long column) {
+            return new Raised(new SqlExpr.StringLit(message), lineOrNull(line), lineOrNull(column));
+        }
+
+        private static SqlExpr lineOrNull(@com.legend.base.Nullable Long n) {
+            return n == null ? new SqlExpr.NullLit(com.legend.sql.SqlTyping.typed(SqlType.Scalar.BIGINT))
+                    : new SqlExpr.IntLit(n);
+        }
+
+        private static SqlExpr param(String name, SqlType type) {
+            return new SqlExpr.PlanParam(name, type == SqlType.Scalar.VARCHAR ? SqlExpr.PlanParam.Kind.STRING
+                    : SqlExpr.PlanParam.Kind.OTHER, true, null, com.legend.sql.SqlTyping.typed(type), null);
+        }
+    }
+
+    /**
+     * ASSERTERROR'S VERDICT ROW (the user's ruling S135, 2026-11-05: the host catches, the database judges): what the
+     * function raised ({@code raised}, read once through a one-row derived table) compared with the expected message,
+     * line and column BY THE DATABASE, and upstream's own failure texts written here -- interpreted AssertError.java's
+     * "No error was thrown", then the assertError/4 body's (assertError.pure:24-26), message first, then line, then
+     * column, each only where it is expected; an expected position over a raise that carried none fails by name, as
+     * upstream's {@code si.line->toOne()} raises on an empty source info. The row is the verdict schema's
+     * ({@link #schema}): its polarity and its message the statement's own.
+     */
+    public static SqlQuery assertError(String expected, @com.legend.base.Nullable Long line,
+            @com.legend.base.Nullable Long column, Raised raised) {
+        OutputCol mOut = new OutputCol("m", SqlType.Scalar.VARCHAR, true);
+        OutputCol lOut = new OutputCol("l", SqlType.Scalar.BIGINT, true);
+        OutputCol cOut = new OutputCol("c", SqlType.Scalar.BIGINT, true);
+        SqlSelect outcome = new SqlSelect(List.of(new SqlSelect.Projection(raised.message(), "m", mOut),
+                new SqlSelect.Projection(raised.line(), "l", lOut), new SqlSelect.Projection(raised.column(), "c", cOut)),
+                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
+                List.of(mOut, lOut, cOut));
+        SqlExpr m = SqlExpr.Column.of("o", mOut);
+        SqlExpr l = SqlExpr.Column.of("o", lOut);
+        SqlExpr c = SqlExpr.Column.of("o", cOut);
+        SqlExpr exp = new SqlExpr.StringLit(expected);
+        List<SqlExpr.Case.When> failures = new ArrayList<>();
+        failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), new SqlExpr.StringLit("No error was thrown")));
+        failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, m, exp), SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.StringLit("Execution error message mismatch.\nThe actual message was \""), m,
+                new SqlExpr.StringLit("\"\nwhere the expected message was:\"" + expected + "\""))));
+        if (line != null || column != null) {
+            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, l), new SqlExpr.StringLit(
+                    "assertError line/column: the caught error carries no source position (a native database error,"
+                            + " or a raise emission without provenance)")));
+        }
+        if (line != null) {
+            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, l, new SqlExpr.IntLit(line)),
+                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Execution error line mismatch. Actual: "),
+                            new SqlExpr.Cast(l, SqlType.Scalar.VARCHAR),
+                            new SqlExpr.StringLit(" where expected: " + line))));
+        }
+        if (column != null) {
+            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, c, new SqlExpr.IntLit(column)),
+                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Execution error column mismatch. Actual: "),
+                            new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR),
+                            new SqlExpr.StringLit(" where expected: " + column))));
+        }
+        SqlExpr message = new SqlExpr.Case(failures, new SqlExpr.NullLit(com.legend.sql.SqlTyping.typed(
+                SqlType.Scalar.VARCHAR)));
+        SqlExpr holds = SqlExpr.Call.of(SqlFn.IS_NULL, message);
+        List<SqlSelect.Projection> ps = List.of(
+                new SqlSelect.Projection(holds, VERDICT, new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(exp, EXPECTED, new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, m, new SqlExpr.StringLit("")), ACTUAL,
+                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
+                new SqlSelect.Projection(new SqlExpr.NullLit(com.legend.sql.SqlTyping.typed(SqlType.Scalar.VARCHAR)),
+                        UNJUDGED, new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
+                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+        return new SqlSelect(ps, false, new SqlSource.Subselect(outcome, "o", null), null, List.of(), null, null,
+                List.of(), null, null, ps.stream().map(SqlSelect.Projection::out).toList());
+    }
+
+    /** {@code row}, a verdict row ({@link #schema}'s columns), as a statement that RAISES its failure (the user's
+     *  ruling S135, 2026-11-05: an assert inside assertError fails as upstream's does, by raising): one Boolean value,
+     *  true where the row holds, the row's message raised where it does not. */
+    public static SqlQuery raisingRow(SqlQuery row) {
+        if (row instanceof SqlWith w) {
+            return w.with(w.ctes(), raisingRow(w.body()));
+        }
+        OutputCol holdsOut = new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false);
+        OutputCol messageOut = new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true);
+        SqlExpr raise = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Column.of("i", holdsOut),
+                new SqlExpr.BoolLit(true))), SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.Column.of("i", messageOut)));
+        OutputCol value = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(raise, "value", value)), false,
+                new SqlSource.Subselect(row, "i", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(value));
+    }
+
     public static SqlQuery decidedFalse(SqlQuery row) {
         java.util.function.UnaryOperator<SqlSelect> f = sel -> sel.withProjections(sel.projections().stream()
                 .map(p -> VERDICT.equals(p.alias()) ? new SqlSelect.Projection(new SqlExpr.BoolLit(false), p.alias(),

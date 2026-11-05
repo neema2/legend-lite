@@ -20028,3 +20028,35 @@ BOTH, `//gates:local`, PCT channel B under all three judges, the corpus lanes (D
      definitions`), and the H2 host pass now lists it in its fail roster. The cause is not yet attributed.
 
   Next: fix (1) in the lowering; re-decide (2)'s witnesses with the reason above; attribute and fix (3).
+
+## 2026-11-05 — assertError: the host catches, the database judges (S135); the database judge has no host hand-off left on PCT or core
+
+The user's ruling S135, after the design spike. What was built:
+
+- **The plan.** A verdict can say `raises` (`ExecutionPlan.Verdict`, written to the plan's JSON). The runner reads its
+  base -- the asserted function's sides -- once, under the group's savepoint. It binds what reading them raised (a
+  database's error or a deferred guard's: message, line, column, each absent where nothing was raised or no position
+  carried) to `__raised_message`, `__raised_line` and `__raised_column`, then runs the verdict's statement
+  (`PlanRunner.raisingVerdict`). Any other exception is a wall, raised as it was. Catching is the runner's
+  orchestration; no Java compares anything under the database judge.
+- **The statement.** `VerdictSql.assertError` compares the outcome with the expected message, line and column, and
+  writes upstream's own texts: "No error was thrown", then assertError/4's message, line and column mismatches. An
+  error raised while the function was planned is the same statement over constants.
+- **An assert inside assertError** (`assertError(|assertEquals(...), m)`) is the database judge's own verdict row, made a
+  statement that RAISES its failure (`VerdictSql.raisingRow`). That statement is the base, caught as any function's;
+  a failure decided at planning is a constant (`VerdictBatch.sole`).
+- **BOTH.** The agreement judge's step is the same raising verdict. The host compares the caught outcome as before
+  (`AssertErrorNative`), the database its row, and the agreement rule decides. The named exception of `084cc1d3` is
+  gone.
+- **Strict.** An assertError the database judge cannot plan as its verdict is refused by name, never judged by the host.
+
+**Checks** (`-Dlegend.diagnostics=judge-declines`):
+
+- Core's full matrix (`//core:core_tests`, `//core:core_tests_judges`: 56 targets) green, then guardrails, census and
+  core's root, driver and exec targets under all three judges again after the two guard fixes:
+  - a broad catch narrowed to the two errors assertError takes;
+  - the row judge moved into the verdict seam, `AssertVerdicts.judgedRowAtItsStep` (ArchitectureTest V3).
+- PCT channel B, all seven lanes, 7/7 under the host judge, the database judge and BOTH.
+- assertError's host hand-offs went from 17 to 0 on core and from 34 to 0 on PCT. Under BOTH, the only remaining line
+  is the host judge's own legacy byte check on `testMixedSortNoComparator`, which is not a database decline.
+- `AssertVerdicts` 1906 -> 1934 (the row judge), re-pinned with its reason.

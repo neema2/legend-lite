@@ -692,6 +692,10 @@ public final class PlanRunner {
     private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
             Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
             throws IOException {
+        if (group.verdicts().stream().anyMatch(ExecutionPlan.Verdict::raises)) {
+            raisingVerdict(group, judging, values, st, sink, inTransaction);
+            return;
+        }
         boolean hostAll = judging == Judging.HOST || judging == Judging.BOTH;
         // a HOST-JUDGED verdict in a database-judged program: its sides and no statement of the database's (no wrapper,
         // no fused statement) -- an assertError's step (ruling N3: Java compares the error in both judge modes)
@@ -733,6 +737,73 @@ public final class PlanRunner {
         }
         if (judging == Judging.DATABASE || judging == Judging.BOTH) {
             databaseVerdicts(group, values, st, sink, inTransaction);
+        }
+    }
+
+    /**
+     * An assertError's verdict (the user's ruling S135, 2026-11-05: the host catches, the database judges): its base --
+     * the asserted function's sides -- read once under the group's savepoint, so the transaction stays live for the
+     * steps after it; what reading it RAISED (a database's error or a deferred guard's, the errors assertError takes) is
+     * the outcome, any other exception a wall raised as it was. The host judge is handed the sides or the error as any
+     * assert's; the database judge's statement is run with the outcome bound to its parameters
+     * ({@link ExecutionPlan.Verdict#RAISED_MESSAGE}, {@code RAISED_LINE}, {@code RAISED_COLUMN}: each absent where the
+     * base raised nothing, the position absent where the raise carried none) and its row handed to the sink.
+     */
+    private static void raisingVerdict(ExecutionPlan.Verdicts group, Judging judging,
+            Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
+            throws IOException {
+        if (group.fused() != null || group.verdicts().size() != 1) {
+            throw new IllegalStateException("a raising verdict is a group of its own: its statement reads what its own"
+                    + " base raised");
+        }
+        ExecutionPlan.Verdict each = group.verdicts().get(0);
+        ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
+        List<Rows> sides = null;
+        RuntimeException raised = null;
+        if (guard != null) {
+            sendStatement(guard.set(), st.home());
+        }
+        boolean read = false;
+        try {
+            sides = hostSides(each, values, st);
+            read = true;
+        } catch (DataError | com.legend.error.ModelException e) {
+            // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
+            raised = e;
+        } finally {
+            if (guard != null) {
+                sendStatement(read ? guard.release() : guard.rollbackTo(), st.home());
+            }
+        }
+        if (judging == Judging.HOST || judging == Judging.BOTH) {
+            if (raised != null) {
+                sink.sidesFailed(each, raised);
+            } else {
+                sink.sides(each, java.util.Objects.requireNonNull(sides));
+            }
+        }
+        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
+            Map<String, PlanParameters.Checked> bound = new HashMap<>(values);
+            PlanParameters.Checked none = new PlanParameters.None();
+            RuntimeException error = raised;
+            bound.put(ExecutionPlan.Verdict.RAISED_MESSAGE,
+                    error != null ? new PlanParameters.One(String.valueOf(error.getMessage())) : none);
+            RaisedErrors.Positioned at = error instanceof DataError d && d.getCause() instanceof RaisedErrors.Positioned p
+                    ? p : null;
+            bound.put(ExecutionPlan.Verdict.RAISED_LINE, at != null ? new PlanParameters.One((long) at.line()) : none);
+            bound.put(ExecutionPlan.Verdict.RAISED_COLUMN,
+                    at != null ? new PlanParameters.One((long) at.column()) : none);
+            if (!(each.wrapper() instanceof ExecutionPlan.TdsResult t)) {
+                throw new IllegalStateException(each.name() + ": a raising verdict's statement is a typed result");
+            }
+            Held h = new Held();
+            result(t, bound, st.on(t.sql()), h);
+            Rows single = collected(h);
+            if (single.rows().size() != 1) {
+                throw new IllegalStateException(each.name() + ": the verdict statement answered "
+                        + single.rows().size() + " rows");
+            }
+            sink.verdict(each, single.rows().get(0));
         }
     }
 

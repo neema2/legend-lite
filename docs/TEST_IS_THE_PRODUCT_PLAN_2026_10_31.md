@@ -620,6 +620,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 
 ## 9. Still open (for the user)
 
+- **N3 is SUPERSEDED (the user, 2026-11-05, register row S135):** "I didn't rule that assertError should fall back to
+  host, I said that if there is some part that needs to be in java bc java needs to orchestrate the catch part that is
+  okay" -- after a design spike, "the host catches, the database judges": the runner catches what the function raised
+  and binds it as parameters into the database judge's own verdict statement (`VerdictSql.assertError`), as option B
+  below; MariaDB and MySQL compare under their sessions' binary collation, as every text verdict does. Built
+  2026-11-05 (docs/GATES.md).
 - **N3, `assertError` (T10) -- RULED: A.** The shape: an `ExpectFailure` step runs the body's sub-plan and the runner captures
   what came back -- the error's message and position (raised by the database, or by the compiler while planning the
   body, O8), or "no error" -- and the outcome is reported through the same verdict path as every assert (today a

@@ -48,8 +48,22 @@ final class AgreementAsserts implements TestDoor.Asserts {
         final ExecutionPlan.Verdict hostVerdict;
         final Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> members;
         AssertVerdicts.@Nullable HostHeld held;
+        /** An assertError's (S135): the step is its raising verdict, and the database half's row is the statement's. */
+        final boolean raising;
+        @Nullable List<Object> raisingRow;
+
+        /** An assertError's step for both judges (S135): the database's raising verdict, whose base the host reads. */
+        One(HostAsserts.Planned host, ExecutionPlan.Verdicts raising) {
+            this.host = host;
+            this.database = null;
+            this.step = raising;
+            this.hostVerdict = raising.verdicts().get(0);
+            this.members = Map.of();
+            this.raising = true;
+        }
 
         One(HostAsserts.Planned host, DatabaseAsserts.@Nullable Each database) {
+            this.raising = false;
             this.host = host;
             this.database = database;
             Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> m = new IdentityHashMap<>();
@@ -151,7 +165,12 @@ final class AgreementAsserts implements TestDoor.Asserts {
             }
             HostAsserts.Planned p = host.planned(i);
             if (p != null) {
-                byStatement.put(i, new One(p, p.assertion().beforeTheArm() != null ? null : database.get(i)));
+                ExecutionPlan.Verdicts raising = HostJudgment.core(p.assertion().check().judgment())
+                        instanceof HostJudgment.AssertError
+                        ? DatabaseAsserts.errorVerdictFor(p, typed.body().get(i), lets, typed.specs(), databaseEnv)
+                        : null;
+                byStatement.put(i, raising != null ? new One(p, raising)
+                        : new One(p, p.assertion().beforeTheArm() != null ? null : database.get(i)));
             }
         }
         return new AgreementAsserts(host, byStatement, branches, sides);
@@ -208,6 +227,20 @@ final class AgreementAsserts implements TestDoor.Asserts {
             return;
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
+        if (one.raising && HostJudgment.core(a.check().judgment()) instanceof HostJudgment.AssertError ae
+                && ae.inner() != null) {
+            // f IS an assert, read as the database's statement that raises its failure (S135): the host compares the
+            // error that statement raised, as it compares any f's -- the inner assert's own verdict is the database's
+            // under both judges
+            AssertVerdicts.HostAssert flat = new AssertVerdicts.HostAssert(a.listenerName(), a.family(), a.wantEqual(),
+                    new HostSides.Check(List.of(), new HostJudgment.AssertError(ae.expected(), ae.line(), ae.column(),
+                            null)));
+            one.held = AssertVerdicts.heldAtItsStep(flat, listener, () -> {
+                rows.get();
+                return List.of();
+            }, rules, null);
+            return;
+        }
         one.held = AssertVerdicts.heldAtItsStep(a, listener,
                 () -> HostSides.shapedBase(a.name(), one.host.sides(), rows.get()), rules,
                 message == null ? null : HostSides.message(one.host.sides(), message));
@@ -219,6 +252,10 @@ final class AgreementAsserts implements TestDoor.Asserts {
     @Nullable TypedSide received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row,
             @Nullable AssertListener listener) {
         One one = of(verdict);
+        if (one.raising) {
+            one.raisingRow = row;
+            return decided(one, listener);
+        }
         ExecutionPlan.Verdict member = one.members.get(verdict);
         if (member != null) {
             java.util.Objects.requireNonNull(one.database).planned().received(member, row);
@@ -253,18 +290,12 @@ final class AgreementAsserts implements TestDoor.Asserts {
                     return held.verdict();
                 },
                 () -> {
+                    if (one.raising) {
+                        // an assertError (S135): the database's statement compared what the function raised
+                        return DatabaseJudge.verdictOf(a.name(), java.util.Objects.requireNonNull(one.raisingRow,
+                                "an assertError's verdict statement answered no row"));
+                    }
                     if (database == null) {
-                        if (HostJudgment.core(a.check().judgment()) instanceof HostJudgment.AssertError) {
-                            // assertError, the one named exception until its design lands (the user, 2026-11-05: "we
-                            // need to first design what assertError actually should be doing"): the host's catch
-                            // decides it, counted as a host step
-                            com.legend.diagnostics.Diagnostics.judgeSend("host-step", a.listenerName());
-                            AssertFailed failed = held.failed();
-                            if (failed != null) {
-                                throw failed;
-                            }
-                            return held.verdict();
-                        }
                         return null;   // the database judge declines: not this shape -- strict, a failure
                     }
                     database.planned().judge(null);

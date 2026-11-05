@@ -285,6 +285,37 @@ public final class VerdictBatch {
         r.steps.add(new Pending(ix, name, row, on, appeal, null));
     }
 
+    /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a
+     *  statement that raises its own failure): its one verdict row, self-contained, with the batch's frames at its head
+     *  and the session it reads; or the failure it was decided with at planning; null where the batch holds no root,
+     *  several, a root of several steps, a fallback, an appeal or a caller's message that reads (no one row decides
+     *  it alone). */
+    public @com.legend.base.Nullable Sole sole() {
+        if (roots.size() != 1 || roots.get(0).steps.size() != 1 || roots.get(0).message != null) {
+            return null;
+        }
+        Step step = roots.get(0).steps.get(0);
+        if (step instanceof Pending p && p.appeal() == null && p.orElse() == null) {
+            return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
+        }
+        if (step instanceof Resolved r && r.reported() && r.failure() instanceof com.legend.error.AssertFailed f
+                && f.unjudgedReason() == null) {
+            return new Sole.Decided(f);
+        }
+        return null;
+    }
+
+    /** {@link #sole}'s answer: a verdict row the database computes, or a failure decided at planning. */
+    public sealed interface Sole permits Sole.Row, Sole.Decided {
+        /** The verdict row ({@code VerdictSql.schema}'s columns) and the session it reads. */
+        record Row(SqlQuery query, Sessions.Session on) implements Sole {
+        }
+
+        /** The assert's failure, decided at planning. */
+        record Decided(com.legend.error.AssertFailed failure) implements Sole {
+        }
+    }
+
     /** The row whose fallback {@link #orElse}'s arm is planning, while it does: a frame, pushed and popped by it. */
     private final java.util.ArrayDeque<Pending> orElseOf = new java.util.ArrayDeque<>(1);
 

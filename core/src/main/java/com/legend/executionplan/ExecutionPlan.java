@@ -239,10 +239,21 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * {@code assert(condition, | message)}), a side the runner never reads on its own: the judge asks for it, through
      * the runner's reader ({@code PlanRunner.ProgramSink#reader}), only where the verdict fails -- upstream evaluates the
      * message only there, so a message that would raise where the assert holds raises nothing (the assert bar,
-     * 2026-11-04); null where the message is the judge's own.
+     * 2026-11-04); null where the message is the judge's own. {@code raises}: an assertError's verdict (the user's
+     * ruling S135, 2026-11-05: the host catches, the database judges) -- the runner reads {@code base}, the asserted
+     * function's sides, under the group's savepoint and binds what reading them RAISED (its message, line and column,
+     * each absent where it raised nothing or carried no position) to the parameters {@link #RAISED_MESSAGE},
+     * {@link #RAISED_LINE} and {@link #RAISED_COLUMN} before it runs the wrapper, the verdict statement comparing them.
      */
     public record Verdict(String name, String arm, List<Side> base,
-            @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message) {
+            @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises) {
+        /** The parameter a raising verdict's statement reads the message its base raised from (absent: none). */
+        public static final String RAISED_MESSAGE = "__raised_message";
+        /** The parameter a raising verdict's statement reads the raise's line from (absent: none or no position). */
+        public static final String RAISED_LINE = "__raised_line";
+        /** The parameter a raising verdict's statement reads the raise's column from (absent: none or no position). */
+        public static final String RAISED_COLUMN = "__raised_column";
+
         public Verdict {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arm, "arm");
@@ -256,6 +267,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                     && !(wrapper instanceof Keyed)) {
                 throw new IllegalArgumentException("a verdict's wrapper answers a relation: the verdict's one row");
             }
+            if (raises && (wrapper == null || message != null)) {
+                throw new IllegalArgumentException("a raising verdict's statement compares what its base raised: it"
+                        + " has one, and its message is the statement's");
+            }
+        }
+
+        /** A verdict that reads its base as any assert does. */
+        public Verdict(String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
+                @com.legend.base.Nullable Side message) {
+            this(name, arm, base, wrapper, message, false);
         }
 
         /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */
