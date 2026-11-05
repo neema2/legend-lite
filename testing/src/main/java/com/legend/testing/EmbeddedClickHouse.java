@@ -74,11 +74,14 @@ public final class EmbeddedClickHouse {
      * {@code max_query_size} (256 KiB by default) and its AST limits are raised on the connection, since a statement's
      * own SETTINGS clause is read only after the limit has refused it (measured 25.8: a query spelling many Floats'
      * text). The driver passes a {@code clickhouse_setting_} property as an HTTP parameter, a server setting. A
-     * product ClickHouse connector (the dialect-leak plan's P5) carries the same.
+     * product ClickHouse connector (the dialect-leak plan's P5) carries the same. {@code max_ast_elements} is 10M, as
+     * the expanded limit (the owner, 2026-11-05: PCT round 21b, equal::testEqualNonPrimitive under the database judge
+     * alone, TOO_BIG_AST at 1M -- the database judge's canon over many nested instances, one map per instance, a
+     * lean-SQL item named in docs/GATES.md).
      */
     public String jdbcUrl(String database) {
         return "jdbc:clickhouse://127.0.0.1:" + port + "/" + database
-                + "?user=default&clickhouse_setting_max_query_size=16777216&clickhouse_setting_max_ast_elements=1000000"
+                + "?user=default&clickhouse_setting_max_query_size=16777216&clickhouse_setting_max_ast_elements=10000000"
                 + "&clickhouse_setting_max_expanded_ast_elements=10000000";
     }
 

@@ -20338,6 +20338,31 @@ inside one it is refused by name with its callers, runs nest. The register's S13
 Checks: `//wasm:planner` builds; `//wasm:round_trip_test`, `//pure-protocol:twins_test` (the two targets CI could not
 build), `//core:core_tests_root`, `//core:guardrails`, `//core:census`: green.
 
+## 2026-11-05 — PCT round 21's regressions: ClickHouse's NOT, a list written twice, ClickHouse's AST limit
+
+Round 21 (c185b047) found two regressions on the lanes; both are fixed, and one limit is raised by the owner's word.
+
+- **ClickHouse reads `NOT (` as its function `not(`** (ca23d78f). The TDS verdict's message, new since round 20,
+  writes `CASE WHEN NOT (SELECT ..) = (SELECT ..)`, which ClickHouse parsed as a call over a bare SELECT and refused:
+  85 relation and 4 standard tests under both judges. The dialect's NOT now brackets its whole operand. Round 21b on
+  the lane (ca23d78f): relation {PASS=464, ERROR=5} and standard {PASS=202, ERROR=3} under both judges, round 20's.
+- **SQLite and BigQuery wrote a list twice** (b59aeedd). A list operation's NULL guard (`CASE WHEN xs IS NULL THEN
+  NULL ELSE <body over xs> END`) wrote the list in the guard and in the body, so a list built from another's elements
+  doubled the statement at every level -- the database judge's canon over nested instances met it:
+  `exists::testExistsInSelect` 1,244,880 characters on BigQuery (past its 1,024K limit, both judges), and past
+  SQLite's 1,000,000 under the database judge with `equal::testEqualNonPrimitive`. The list is now bound once (a
+  one-row derived table on SQLite, a one-row UNNEST of a struct on BigQuery) and read by name. On SQLite (the lane's
+  driver, in process): 264,610 -> 22,954, 1,113,580 -> 608,395 and 337,947 -> 216,965 characters; every SQLite suite
+  green under both judges and the database judge alone. BigQuery's shape is measured on its lane (round 22).
+- **ClickHouse's AST limit raised on the test connection, 1M -> 10M** (the owner's choice, 2026-11-05;
+  `EmbeddedClickHouse`). `equal::testEqualNonPrimitive` under the database judge alone still exceeded 1M AST elements:
+  not doubling now but volume -- 24 side values of nested instances, each instance canonicalized at its construction
+  site as a one-element list mapped and read back at `[0]`, about 1,000 maps (608K characters on SQLite). The expanded
+  limit was already 10M. **A lean-SQL item:** the canon of a single instance written without the list, map and index.
+- Not done now: S137's compatibility rewrite still counts a relation by the literal 1 (the relation is not evaluated);
+  PCT reaches none of the three asserts over a relation, so no lane moves; running the relation as its own statement
+  is corpus-phase work.
+
 ## 2026-11-05 — One H2 for lite, 2.5.252; the referee keeps legend-engine's 2.1.214; no plan names a server version
 
 The user: "I want latest version of H2" (register S141), then, for the replay referee: "Engine's 2.1.214, isolated".
