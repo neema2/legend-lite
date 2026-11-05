@@ -871,11 +871,26 @@ public final class SQLite extends AnsiSqlRenderer {
         };
     }
 
-    /** {@code body}, or NULL for a NULL list (DuckDB's list functions answer NULL there; an aggregate over its no rows
-     *  would be the empty array). */
-    private static SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
-        return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body).append(" END)");
+    /** {@code body} over the list, or NULL for a NULL list (DuckDB's list functions answer NULL there; an aggregate over
+     *  its no rows would be the empty array). The list is written ONCE, bound in a one-row derived table the body reads
+     *  by name (its type the list's own): tested and then read, it was written twice, and a list built from another's
+     *  elements doubled the statement at every level (PCT round 21, 2026-11-05: exists::testExistsInSelect's verdict
+     *  statement, the database judge's canon over a firm's employees, 264K characters here and past SQLite's limit on
+     *  the lane, where DuckDB's list_transform writes it once in 4.7K). A nested binding shadows this one only inside
+     *  its own subquery, which reads its own list. */
+    private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        SqlExpr bound = xs.type() instanceof com.legend.sql.TypeFact.Typed t
+                ? SqlExpr.Column.of(BOUND_LIST, BOUND_VALUE, t.type(), t.nullable(),
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived(BOUND_LIST, BOUND_VALUE);
+        return w -> w.append("(SELECT CASE WHEN ").expr(bound, 4).append(" IS NULL THEN NULL ELSE ")
+                .piece(body.apply(bound)).append(" END FROM (SELECT ").expr(xs, 0).append(" AS ")
+                .append(param(BOUND_VALUE)).append(") AS ").append(aliasIdent(BOUND_LIST)).append(")");
     }
+
+    /** The one-row derived table a list is bound in ({@link #unlessNull}), and its one column. */
+    private static final String BOUND_LIST = "__l";
+    private static final String BOUND_VALUE = "__xs";
 
     private static SqlExpr.Lambda lambdaOf(SqlExpr e, SqlFn fn) {
         if (e instanceof SqlExpr.Lambda l && !l.params().isEmpty()) {
@@ -928,9 +943,9 @@ public final class SQLite extends AnsiSqlRenderer {
      *  elements kept in list order. */
     private SqlWriter.Piece overElements(SqlExpr xs, String e, String o, @com.legend.base.Nullable String i,
             SqlWriter.Piece select, SqlWriter.@com.legend.base.Nullable Piece where) {
-        return unlessNull(xs, w -> {
+        return unlessNull(xs, b -> w -> {
             w.append("(SELECT json_group_array(").piece(select).append(" ORDER BY ").append(param(o)).append(") FROM ")
-                    .piece(elements(xs, e, o, i));
+                    .piece(elements(b, e, o, i));
             if (where != null) {
                 w.append(" WHERE ").piece(where);
             }
@@ -1043,10 +1058,10 @@ public final class SQLite extends AnsiSqlRenderer {
         String e = param("__e");
         SqlWriter.Piece needle = nested(el) ? w -> w.append("json(").expr(m.needle(), 0).append(")")
                 : w -> w.expr(m.needle(), 5);
-        return writer.append("(CASE WHEN ").expr(m.collection(), 4).append(" IS NULL OR ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(m.collection(), "__e", "__eo",
-                        null)).append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle)
-                .append(") END)");
+        // the collection bound once (unlessNull), NULL for a NULL collection or needle
+        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(b, "__e", "__eo", null))
+                .append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle).append(") END)")));
     }
 
     @Override
@@ -2028,10 +2043,10 @@ public final class SQLite extends AnsiSqlRenderer {
                     .piece(elements(a.get(0), "__e", "__o", null)).append(" WHERE " + e + " IS ").expr(a.get(1), 5)
                     .append(")");
             // DuckDB's list_distinct drops NULLs; the first occurrence's order
-            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
-                    .piece(jsonOf(v -> v.append(e), listElement(a.get(0)))).append(" ORDER BY " + o + ") FROM (SELECT "
+            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
+                    .piece(jsonOf(v -> v.append(e), listElement(b))).append(" ORDER BY " + o + ") FROM (SELECT "
                             + e + ", min(" + o + ") AS " + o + " FROM ")
-                    .piece(elements(a.get(0), "__e", "__o", null)).append(" WHERE " + e + " IS NOT NULL GROUP BY " + e
+                    .piece(elements(b, "__e", "__o", null)).append(" WHERE " + e + " IS NOT NULL GROUP BY " + e
                             + "))")));
             // list_append(NULL, v) is [v]
             case LIST_APPEND -> writer.append("json_insert(coalesce(").expr(a.get(0), 0).append(", json_array()),"
@@ -2049,13 +2064,13 @@ public final class SQLite extends AnsiSqlRenderer {
             case LIST_SORT, LIST_SORT_DESC -> {
                 String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
                 SqlType el = listElement(a.get(0));
-                yield writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+                yield writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                         .piece(jsonOf(v -> v.append(e), el)).append(" ORDER BY ").append(elementSort(e, el, dir))
-                        .append(") FROM ").piece(elements(a.get(0), "__e", "__o", null)).append(")")));
+                        .append(") FROM ").piece(elements(b, "__e", "__o", null)).append(")")));
             }
-            case LIST_REVERSE -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
-                    .piece(jsonOf(v -> v.append(e), listElement(a.get(0)))).append(" ORDER BY " + o + " DESC) FROM ")
-                    .piece(elements(a.get(0), "__e", "__o", null)).append(")")));
+            case LIST_REVERSE -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
+                    .piece(jsonOf(v -> v.append(e), listElement(b))).append(" ORDER BY " + o + " DESC) FROM ")
+                    .piece(elements(b, "__e", "__o", null)).append(")")));
             case LIST_TAIL -> writer.piece(overElements(a.get(0), "__e", "__o", null,
                     jsonOf(w -> w.append(e), listElement(a.get(0))), w -> w.append(o + " > 0")));
             case LIST_INIT -> writer.piece(overElements(a.get(0), "__e", "__o", null,
@@ -2068,9 +2083,9 @@ public final class SQLite extends AnsiSqlRenderer {
                             .piece(sliceEnd(a.get(0), a.get(2)))));
             case LIST_FLATTEN -> {
                 SqlType inner = listElement(a.get(0)) instanceof SqlType.Array arr ? arr.element() : null;
-                yield writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+                yield writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                         .piece(jsonOf(v -> v.append(elementRead(inner, "__fi")), inner))
-                        .append(" ORDER BY __fo.key, __fi.key) FROM json_each(").expr(a.get(0), 0)
+                        .append(" ORDER BY __fo.key, __fi.key) FROM json_each(").expr(b, 0)
                         .append(") AS __fo, json_each(__fo.value) AS __fi)")));
             }
             case LIST_ZIP -> writer.piece(zip(a, c));
@@ -2193,11 +2208,11 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append("SELECT json_array(").piece(jsonOf(w -> w.append(elementRead(value)), value))
                     .append(") FROM json_each(").expr(a.get(0), 0).append(") WHERE key = ").expr(a.get(1), 5)
                     .append("), json_array()) END)");
-            case MAP_KEYS -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(key ORDER BY id)"
-                    + " FROM json_each(").expr(a.get(0), 0).append("))")));
-            case MAP_VALUES -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+            case MAP_KEYS -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(key ORDER BY"
+                    + " id) FROM json_each(").expr(b, 0).append("))")));
+            case MAP_VALUES -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                     .piece(jsonOf(v -> v.append(elementRead(value)), value)).append(" ORDER BY id) FROM json_each(")
-                    .expr(a.get(0), 0).append("))")));
+                    .expr(b, 0).append("))")));
             // the later map's keys win, as DuckDB's map_concat
             case MAP_CONCAT -> writer.append("(SELECT json_group_object(__m.__k, ")
                     .piece(jsonOf(w -> w.append("__m.__v"), value))
