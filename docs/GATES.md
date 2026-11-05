@@ -20361,7 +20361,15 @@ Round 21 (c185b047) found two regressions on the lanes; both are fixed, and one 
   (4a492594); the lane then measured the server's analyzer taking 10-12 GB to build the query tree (its stack:
   `QueryTreeBuilder::buildExpression` materializing string constants) and the kernel killing it, the client reading
   only "Query request failed". The limit went back to 1M, whose refusal (`TOO_BIG_AST`) is clean: the statement must
-  shrink -- the canon of a single instance written without the list, map and index.
+  shrink -- the canon of a single instance written without the list, map and index (a lean-SQL item).
+- **A fused verdict statement within the database's budget** (c1bf51fc). A dialect declares the most characters a
+  fused verdict statement may have (`SqlDialect.fusedStatementBudget`, unbounded by default; ClickHouse 100K, SQLite
+  and BigQuery 500K), and the verdict batch plans a group past it as several fused statements, halved until each fits
+  or is one assert (`VerdictBatch.withinBudget`): the same verdicts, every statement planned ahead; DuckDB, H2 and the
+  other databases plan as before. Measured: on SQLite `testEqualNonPrimitive` plans as two statements (largest 340,191);
+  on the ClickHouse lane (round 22b at c1bf51fc) as 28 (largest 135,011 -- six single asserts past the budget, which
+  cannot be halved), every ClickHouse suite green under both judges and under the database judge alone (grammar
+  137/137), no server killed. Core's full matrix, the guards and SQLite's PCT under both settings: green.
 - Not done now: S137's compatibility rewrite still counts a relation by the literal 1 (the relation is not evaluated);
   PCT reaches none of the three asserts over a relation, so no lane moves; running the relation as its own statement
   is corpus-phase work.
