@@ -20128,3 +20128,29 @@ Found and posted to the user for rulings, not changed:
   exact-comparison item).
 - A test body whose last statement reads a value through a class's extent (`m::Price.all()->map(p|$p.a)->sum()`) is
   refused at the walk's closed door. As an assert it runs on the program road.
+
+## 2026-11-05 — Wrap-up, first batch: exact Floats in clean mode (S15/S132), a relation counted as one value refused (S137), the acos/asin guard's reason (S138)
+
+- **S15/S132 built.** Clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone, read
+  from the plan's rules (`JudgingRules.floatTolerance`) by both judges: the host's scalar Float (`Equality.same`) and
+  the database's equality, grid and per-element statements (`VerdictSql.equality`, `gridPair`, `perElement`: the
+  tolerance block is not written in clean mode). The rendered-text float tokens were compatibility-only already.
+  `EqualityWorldsConformanceTest` re-pinned: `0.1 + 0.2` against `0.3` is now a declared divergence of the two
+  worlds in clean mode, and holds under the compatibility rules. `DecimalKindsTest` gains the witness:
+  `assertEquals(0.3, <a DOUBLE column's 0.1 + 0.2>)` fails in clean mode (`actual: 0.30000000000000004`) under every
+  judge, and holds in compatibility mode. `DatabaseJudge`'s pin 824 -> 825 (the rule passed into the plan, one line;
+  nothing evaluated). `DecimalKindsTest` now runs on the platform's engine (a lane's floor re-spells it): naming H2
+  in the test broke the database-owners rule; it had passed on H2 under all three judges before the change.
+- **S137, lite's half, built.** Under the LITE rules the body router refuses `assertSize`, `assertEmpty` and
+  `assertNotEmpty` over a relation at planning, naming the assert to write (`compiler.spec.RelationCountAsserts`).
+  Two core tests said the old thing (`AssertVerdictSpliceTest`): an execute's `$result.values` counted as one
+  carrier now runs under the compatibility rules and is refused in clean mode, and the grid emptiness test reads
+  `$result.values.rows`. Compatibility mode's half (upstream's one-value count) is NOT built: lite counts a literal
+  relation's rows; `[relation-count]` lines under `-Dlegend.diagnostics=judge-declines` measure whether PCT or the
+  corpus reaches it.
+- **S138 built.** The acos/asin guard SQLite, MariaDB and MySQL write (they cannot hold NaN, the engine's answer)
+  raises `acos of a value outside [-1, 1] is NaN, which this database cannot hold` instead of DuckDB's words; the
+  six channel A and six channel B ledger rows re-texted.
+- **The host judge's "legacy byte check"** (the line under BOTH on `testMixedSortNoComparator`) is dead by
+  construction: its rider always declines ("the database judge is the referee") and it reports a census line, never
+  a verdict. Its deletion is the walk deletion's.

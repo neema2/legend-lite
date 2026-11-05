@@ -219,10 +219,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      *   <li>{@link #LITE}: lite's own -- what a product run and every core test judge by.</li>
      *   <li>{@link #COMPILED_PURE_COMPAT}: backwards compatibility with legend-pure's compiled runtime and
      *       legend-engine's goldens (PCT channel B, the corpus), each leniency a register row: S132 (a String's float
-     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text).</li>
+     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text), S15/S132 (a Float within 2 ULP).</li>
      * </ul>
      */
-    public enum JudgingRules { LITE, COMPILED_PURE_COMPAT }
+    public enum JudgingRules {
+        LITE, COMPILED_PURE_COMPAT;
+
+        /** Whether two Floats within 2 ULP are equal: compatibility mode's tolerance alone; lite compares a Float
+         *  exactly (S15/S132, the user's ruling of 2026-11-05, built that day). */
+        public boolean floatTolerance() {
+            return this == COMPILED_PURE_COMPAT;
+        }
+    }
 
     /**
      * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;

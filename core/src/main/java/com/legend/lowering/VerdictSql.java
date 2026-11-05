@@ -139,15 +139,16 @@ public final class VerdictSql {
     private static final String W = "__w";
     private static final String O = "__o";
 
-    /** The equality verdict statement over two framed sides. */
-    public static SqlQuery equality(Side e, Side a) {
+    /** The equality verdict statement over two framed sides; {@code floatTolerance} walks a Float side's cells for
+     *  the 2-ULP tolerance (compatibility mode's alone, S15/S132: clean mode compares a Float exactly). */
+    public static SqlQuery equality(Side e, Side a, boolean floatTolerance) {
         // THE SIDE'S SHAPE FOLLOWS ITS DECLARED MULTIPLICITY (lean ladder rung
         // 3): a side declared exactly one spells its facts straight over its
         // plan — no rows CTE, no aggregate (count is one, first is the value);
         // an optional or many side is a rows CTE folded once. The 2-ULP
         // leniency (a declared-Float side) walks cells positionally, so a
         // Float side keeps the rows form — the general shape, one rule.
-        boolean lenientPossible = e.isFloat() || a.isFloat();
+        boolean lenientPossible = floatTolerance && (e.isFloat() || a.isFloat());
         Folded ef = fold("__e", e, lenientPossible);
         Folded af = fold("__a", a, lenientPossible);
         SqlQuery row = statementOf(ef, af, List.of(), List.of(),
@@ -1135,12 +1136,13 @@ public final class VerdictSql {
 
     /** Two grids of ONE schema (a golden brought to rows against the
      * rendered relation): row canons against row canons, the cells walked
-     * positionally for the declared-Float leniency, each side's empty-is-NULL
-     * columns read as the sentinel. */
-    public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset) {
+     * positionally for the declared-Float leniency where {@code floatTolerance} (compatibility mode's alone,
+     * S15/S132), each side's empty-is-NULL columns read as the sentinel. */
+    public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset, boolean floatTolerance) {
         return statement(gridRowCanons(e, GRID_E), gridRowCanons(a, GRID_A), true, true, multiset,
                 List.of(), List.of(new SqlWith.Cte(GRID_E, e.wrapped()), new SqlWith.Cte(GRID_A, a.wrapped())),
-                gridCellsRowMajor(e, GRID_E), gridCellsRowMajor(a, GRID_A));
+                floatTolerance ? gridCellsRowMajor(e, GRID_E) : null,
+                floatTolerance ? gridCellsRowMajor(a, GRID_A) : null);
     }
 
     private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,

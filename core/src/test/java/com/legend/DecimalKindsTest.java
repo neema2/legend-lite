@@ -10,18 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.error.AssertFailed;
 import com.legend.error.ModelException;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackends;
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Statement;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * EXACT AND APPROXIMATE NUMBERS DECLARED ON THE MODEL (the user, 2026-11-05: "add some tests for decimal and decimal
@@ -40,13 +36,13 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@code CompiledSupport.eq}, interpreted Pure's {@code EqualityUtilities}: {@code BigDecimal.equals}, no
  * canonicalization, unlike Float's), and a Float never equals a Decimal. The model's declarations are refused as the
  * engine's compiler refuses them (CompileContext.newGenericType, its messages): a primitive takes exactly the type
- * variable values it declares, each of its variable's type. Each case runs on DuckDB and on H2, under the lane's judge.
+ * variable values it declares, each of its variable's type. Each case runs on the platform's engine
+ * (a lane's floor re-spells the connection for its database), under the lane's judge.
  */
 class DecimalKindsTest {
 
-    private static String model(DatabaseType db) {
-        String spec = db == DatabaseType.H2 ? "type: H2; specification: LocalH2 { }; auth: DefaultH2;"
-                : "type: DuckDB; specification: DuckDB { }; auth: Test;";
+    /** The model on the platform's engine; a lane's floor re-spells its connection for the lane's database. */
+    private static String model() {
         return """
                 ###Pure
                 import meta::pure::precisePrimitives::*;
@@ -70,19 +66,15 @@ class DecimalKindsTest {
                     id: T.ID, a: T.A, b: T.B, na: T.NA, nb: T.NB, fa: T.FA, fb: T.FB }
                 )
                 ###Connection
-                RelationalDatabaseConnection s::C { store: s::DB; %s }
+                RelationalDatabaseConnection s::C { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
                 Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::C ] ]; }
-                """.formatted(spec);
-    }
-
-    static Stream<DatabaseType> databases() {
-        return Stream.of(DatabaseType.DuckDB, DatabaseType.H2);
+                """;
     }
 
     /** Ten rows: every A is 0.10, B is 0.20 on row 1 and 0.25 elsewhere; NA, NB 0.10, 0.20; FA, FB 0.1, 0.2. */
-    private static Connection seeded(DatabaseType db) throws Exception {
-        Connection c = TestBackends.of(db).open();
+    private static Connection seeded() throws Exception {
+        Connection c = TestBackends.platform().open();
         try (Statement st = c.createStatement()) {
             st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, A DECIMAL(10,2), B DECIMAL(10,2), NA DECIMAL(10,2),"
                     + " NB DECIMAL(10,2), FA DOUBLE, FB DOUBLE)");
@@ -95,77 +87,84 @@ class DecimalKindsTest {
     }
 
     /** Row 1's projection of {@code column}: one value, in a column of its declared type. */
-    private static Lean.Result rowOne(DatabaseType db, Connection c, String column) {
-        return Program.last(model(db), "|m::Price.all()->filter(p|$p.id == 1)->project([p|" + column + "], ['v'])",
+    private static Lean.Result rowOne(Connection c, String column) {
+        return Program.last(model(), "|m::Price.all()->filter(p|$p.id == 1)->project([p|" + column + "], ['v'])",
                 "m::RT", c);
     }
 
-    private static Program.Report judged(DatabaseType db, Connection c, String body) {
-        return Program.run(model(db), body, "m::RT", c);
+    private static Program.Report judged(Connection c, String body) {
+        return Program.run(model(), body, "m::RT", c);
     }
 
     private static final String ROW_ONE = "m::Price.all()->filter(p|$p.id == 1)->toOne()";
 
-    @ParameterizedTest
-    @MethodSource("databases")
+    @Test
     @DisplayName("a Decimal property computes exactly: 0.10 + 0.20 is the Decimal 0.30, carried as a BigDecimal")
-    void decimalIsExact(DatabaseType db) throws Exception {
-        try (Connection c = seeded(db)) {
-            Lean.Result r = rowOne(db, c, "$p.a + $p.b");
+    void decimalIsExact() throws Exception {
+        try (Connection c = seeded()) {
+            Lean.Result r = rowOne(c, "$p.a + $p.b");
             assertEquals("Decimal", r.columns().get(0).type());
             assertEquals(new BigDecimal("0.30"), assertInstanceOf(BigDecimal.class, r.one()));
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("databases")
+    @Test
     @DisplayName("a Float property over a DOUBLE column computes as an IEEE double: 0.1 + 0.2 is 0.30000000000000004")
-    void floatIsDouble(DatabaseType db) throws Exception {
-        try (Connection c = seeded(db)) {
-            Lean.Result r = rowOne(db, c, "$p.fa + $p.fb");
+    void floatIsDouble() throws Exception {
+        try (Connection c = seeded()) {
+            Lean.Result r = rowOne(c, "$p.fa + $p.fb");
             assertEquals("Float", r.columns().get(0).type());
             assertEquals(0.30000000000000004, assertInstanceOf(Double.class, r.one()));
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("databases")
+    @Test
     @DisplayName("a Numeric(10, 2) property is a Decimal: it computes exactly and goes where a Decimal is declared")
-    void numericIsADecimal(DatabaseType db) throws Exception {
-        try (Connection c = seeded(db)) {
-            Lean.Result sum = rowOne(db, c, "$p.na + $p.nb");
+    void numericIsADecimal() throws Exception {
+        try (Connection c = seeded()) {
+            Lean.Result sum = rowOne(c, "$p.na + $p.nb");
             assertEquals("Decimal", sum.columns().get(0).type());
             assertEquals(new BigDecimal("0.30"), assertInstanceOf(BigDecimal.class, sum.one()));
-            Lean.Result twice = rowOne(db, c, "m::twice($p.na)");
+            Lean.Result twice = rowOne(c, "m::twice($p.na)");
             assertEquals("Decimal", twice.columns().get(0).type());
             assertEquals(0, new BigDecimal("0.20").compareTo(assertInstanceOf(BigDecimal.class, twice.one())),
                     String.valueOf(twice.one()));
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("databases")
+    @Test
     @DisplayName("assertEquals holds for a Decimal of the same value and scale; a column's sum and a filter by a Decimal literal are exact")
-    void decimalAssertsHold(DatabaseType db) throws Exception {
-        try (Connection c = seeded(db)) {
-            assertTrue(judged(db, c, "|assertEquals(0.30D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
-            assertTrue(judged(db, c, "|assertEquals(1.00D, m::Price.all()->map(p|$p.a)->sum())").passed());
-            assertTrue(judged(db, c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id))")
+    void decimalAssertsHold() throws Exception {
+        try (Connection c = seeded()) {
+            assertTrue(judged(c, "|assertEquals(0.30D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
+            assertTrue(judged(c, "|assertEquals(1.00D, m::Price.all()->map(p|$p.a)->sum())").passed());
+            assertTrue(judged(c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id))")
                     .passed());
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("databases")
+    @Test
     @DisplayName("upstream's equality: 0.3D is not the column's 0.30D (BigDecimal.equals), and a Float never equals a Decimal")
-    void decimalEqualityIsUpstreams(DatabaseType db) throws Exception {
-        try (Connection c = seeded(db)) {
+    void decimalEqualityIsUpstreams() throws Exception {
+        try (Connection c = seeded()) {
             AssertFailed scale = assertThrows(AssertFailed.class,
-                    () -> judged(db, c, "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+                    () -> judged(c, "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
-                    () -> judged(db, c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+                    () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             assertEquals("\nexpected: 0.3\nactual:   0.30D", kind.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("clean mode compares a Float exactly (0.1 + 0.2 is not 0.3); compatibility mode holds it within 2 ULP")
+    void floatEqualityIsExactInCleanMode() throws Exception {
+        String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
+        try (Connection c = seeded()) {
+            AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
+            assertEquals("\nexpected: 0.3\nactual:   0.30000000000000004", exact.getMessage());
+            assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
+                    .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
         }
     }
 

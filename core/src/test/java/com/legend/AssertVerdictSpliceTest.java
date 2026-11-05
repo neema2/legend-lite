@@ -123,6 +123,12 @@ class AssertVerdictSpliceTest {
         return Program.last(MODEL, query, "e::RT", conn);
     }
 
+    /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
+    private static Lean.Result runCompat(String query) throws SQLException {
+        return Program.last(MODEL, query, "e::RT", conn,
+                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true));
+    }
+
     @Test
     @DisplayName("assertEquals over $result.values reads adjudicates (splice pin)")
     void assertOverExecuteHandleAdjudicates() throws Exception {
@@ -213,13 +219,19 @@ class AssertVerdictSpliceTest {
 
     @Test
     @DisplayName("assertSize envelope rule: $r.values of a relation execute is ONE"
-            + " carrier; a rows read counts rows; assertContains judges membership")
+            + " carrier (upstream's count, backwards-compatibility mode; lite refuses it, S137);"
+            + " a rows read counts rows; assertContains judges membership")
     void sizeEnvelopeAndContains() throws Exception {
-        Object one = run(
-                "{|let result = execute(|e::Person.all()"
+        String envelope = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertSize($result.values, 1);}").one();
+                + " assertSize($result.values, 1);}";
+        Object one = runCompat(envelope).one();
         assertEquals(Boolean.TRUE, one);
+        // lite's own rules refuse the relation counted as one value (register S137, the user's ruling of 2026-11-05)
+        com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
+                () -> run(envelope));
+        assertTrue(refused.getMessage().contains("assertSize over a relation counts the relation as ONE value"),
+                refused.getMessage());
         Object rows = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
@@ -301,19 +313,24 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
-    @DisplayName("§8 leg 1: emptiness of a TABULAR side is its row count")
+    @DisplayName("§8 leg 1: emptiness of a TABULAR side's rows is its row count (the relation itself refused, S137)")
     void gridEmptiness() throws Exception {
         Object notEmpty = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertNotEmpty($result.values);}").one();
+                + " assertNotEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, notEmpty);
         Object emptied = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->filter(p|$p.age > 99)"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertEmpty($result.values);}").one();
+                + " assertEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, emptied);
+        // the relation itself: upstream counts it as one value, so lite's own rules refuse it (register S137)
+        assertThrows(com.legend.error.ModelException.class, () -> run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
+                + " assertNotEmpty($result.values);}"));
     }
 
     @Test

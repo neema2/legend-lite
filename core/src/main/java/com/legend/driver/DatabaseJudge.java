@@ -162,7 +162,7 @@ final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder);
+                            canonicalOrder, env.options().judgingRules().floatTolerance());
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -240,7 +240,8 @@ final class DatabaseJudge {
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
-                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma));
+                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma),
+                env.options().judgingRules().floatTolerance());
         // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
         // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
         // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
@@ -912,7 +913,7 @@ final class DatabaseJudge {
                     == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
                     crossNumberKinds(ek, ak, compat),
-                    ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                    compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT);
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "

@@ -219,7 +219,10 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
             }
-            boolean within = e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
+            // clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone (S15/S132, the
+            // user's ruling of 2026-11-05: "I like our clean float"; built 2026-11-05 after the report found one core
+            // test relying on it, the policy's own pin)
+            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
             if (within) {
                 // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);

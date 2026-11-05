@@ -68,8 +68,8 @@ sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumbe
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: ⏎ expected: 0 ⏎ actual:   []
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ACOS is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ASIN is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
+sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 sqlite	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 sqlite	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
@@ -161,8 +161,8 @@ mariadb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MariaDB value
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MariaDB value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ACOS is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ASIN is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
+mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 mariadb	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 mariadb	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
@@ -200,8 +200,8 @@ mysql	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	In
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MySQL value
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MySQL value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ACOS is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "ASIN is undefined outside [-1,1]" ⏎ where the expected message was:"Unable to compute
+mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 mysql	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 mysql	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2

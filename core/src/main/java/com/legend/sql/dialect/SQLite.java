@@ -1646,7 +1646,10 @@ public final class SQLite extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]"))))
+                // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
+                // engine's answer), and says so -- not DuckDB's words
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))
                 .append(") END)");
     }
 

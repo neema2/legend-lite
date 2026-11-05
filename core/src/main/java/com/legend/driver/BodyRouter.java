@@ -84,6 +84,15 @@ public final class BodyRouter {
             system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
             env = on.withSession(system);
         }
+        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
+            // register S137 (the user's ruling, 2026-11-05): lite refuses a relation counted as one value
+            com.legend.compiler.spec.RelationCountAsserts.refuse(typed.body());
+        } else if (com.legend.diagnostics.Diagnostics.on("judge-declines")) {
+            // compatibility mode's measurement: upstream's one-value count is not built there yet (lite counts rows)
+            for (String fn : com.legend.compiler.spec.RelationCountAsserts.found(typed.body())) {
+                System.err.println("[relation-count] " + fn + " over a relation, counted by its rows");
+            }
+        }
         if (assertsPlanned) {
             // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned
             // on it -- its appeal reads the user's tables on the body's session -- and its sides on the program's
