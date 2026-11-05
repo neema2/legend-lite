@@ -19968,9 +19968,12 @@ the host's read of a side a dialect cannot write raises first.)
 5. **The walk's door is closed by default.** No property means `none`; `-Dlegend.walk.allowed=all` opens it, set by
    the corpus lanes (`spec/corpus.bzl`) until the walk is deleted.
 
-5b. **The plan seeds the system store** wherever a step reads it (`PlanMaker`: an assert's side, its message, a branch's,
-   with no statement of the body seeding it ahead) -- the guard's first catch: planning a side that reads the system
-   metamodel store had seeded the store while planning (`BodyDriver.systemRoute`, now a no-send while planning).
+5b. **The plan seeds the system store** ahead of its first step when a step planned before the program reads it
+   (`ProgramKinds.plannedAhead`, the asserts' steps; `PlanMaker`: an assert's side, its message, a branch's), and a
+   step reading the store with no seed ahead of it is refused by name -- the guard's first catch: planning a side that
+   reads the system metamodel store had seeded the store while planning (`BodyDriver.systemRoute`, now a no-send while
+   planning). (A first form prepended the seed after planning and moved the frame runs' recorded places; the parity
+   tests `systemRoutedPrograms` and `consumedElementReferencePrograms` caught it under the database judge and BOTH.)
 
 **The assertError design spike** (read-only, an independent agent; its write-up in the session's scratchpad, not
 committed): every site classified -- PCT DuckDB 24 sites (8 raised at planning, 9 folded raises, 5 lite-spelled

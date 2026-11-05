@@ -32,4 +32,12 @@ public interface ProgramKinds {
             TypedSpec statement) {
         return null;
     }
+
+    /** The steps planned before the program, which the library places among its statements (a test's asserts, each
+     *  planned by its judge first): the planner reads them ahead of the loop for what the program must hold before
+     *  its first step -- the graph's system store's seed where one of them reads it (2026-11-05, planning sends
+     *  nothing). None where the library plans nothing ahead (the query door's). */
+    default java.util.List<com.legend.executionplan.ExecutionPlan.Node> plannedAhead() {
+        return java.util.List.of();
+    }
 }

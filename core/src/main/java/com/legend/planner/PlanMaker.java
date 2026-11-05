@@ -355,6 +355,14 @@ public final class PlanMaker {
         if (target.database() instanceof ExecutionPlan.Database.System) {
             state.add(SystemRoutes.seeds(query.context(), target, decided.dialect()));
             systemSeeded = true;
+        } else {
+            // a step planned ahead of the program that reads the store -- an assert's side, its message, a branch's
+            // (2026-11-05, planning sends nothing: the side's route had seeded the store while the side was planned)
+            ExecutionPlan.Target ahead = systemTargetOf(kinds.plannedAhead());
+            if (ahead != null) {
+                state.add(SystemRoutes.seeds(query.context(), ahead, decided.dialect()));
+                systemSeeded = true;
+            }
         }
         for (int i = 0; i < body.size(); i++) {
             TypedSpec stmt = body.get(i);
@@ -375,12 +383,9 @@ public final class PlanMaker {
             }
         }
         List<ExecutionPlan.Node> steps = finished(state);
-        ExecutionPlan.Target system = systemSeeded ? null : systemTargetOf(steps);
-        if (system != null) {
-            // a step that reads the graph's system store with no statement of the body seeding it ahead -- an assert's
-            // side, its message, a branch's (the test door's steps): the plan's own seed step first (2026-11-05,
-            // planning sends nothing: the side's route had seeded the store while the side was planned)
-            steps.add(0, SystemRoutes.seeds(query.context(), system, decided.dialect()));
+        if (!systemSeeded && systemTargetOf(steps) != null) {
+            throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
+                    + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
         return new ExecutionPlan.Sequence(steps);
     }

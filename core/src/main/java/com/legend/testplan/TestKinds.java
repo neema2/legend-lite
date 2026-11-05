@@ -110,6 +110,19 @@ final class TestKinds implements ProgramKinds {
         return com.legend.planner.PlanMaker.systemBeside(program.target());
     }
 
+    /** The asserts' steps, as their judge planned them before the program (the statements' in order). */
+    @Override
+    public List<ExecutionPlan.Node> plannedAhead() {
+        List<ExecutionPlan.Node> out = new java.util.ArrayList<>();
+        for (int i = 0; i < body.body().size(); i++) {
+            List<? extends ExecutionPlan.Node> steps = asserts.at(i);
+            if (steps != null) {
+                out.addAll(steps);
+            }
+        }
+        return out;
+    }
+
     @Override
     public boolean plan(ProgramState program, int index, TypedSpec statement, boolean last) {
         EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
