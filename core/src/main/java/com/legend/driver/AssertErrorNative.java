@@ -131,7 +131,8 @@ final class AssertErrorNative {
             // same rules -- a side that raises is that error too
             String message = null;
             try {
-                if (HostJudge.judge(a.inner().check().judgment(), sides, rules) == null) {
+                // the inner assert's sides were read with the step's, its caller's message among them: no reader
+                if (HostJudge.judge(a.inner().check().judgment(), sides, rules, null) == null) {
                     throw new com.legend.error.NotImplementedException(a.inner().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }
