@@ -219,8 +219,12 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
             }
-            return e instanceof Double de && a instanceof Double da
-                    && withinTwoUlp(de, da);
+            boolean within = e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
+            if (within) {
+                // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
+                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
+            }
+            return within;
         }
         if (ek == Type.Primitive.STRING) {
             // S132's float tokens: backwards-compatibility mode alone (a run that asks: ExecuteOptions.withEngineCompat)
@@ -580,6 +584,7 @@ public final class Equality {
                 return null;
             }
             if (withinTwoUlp(en.doubleValue(), an.doubleValue())) {
+                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
                 return null;
             }
             return path + " expected " + en + ", got " + an;

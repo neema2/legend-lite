@@ -20060,3 +20060,28 @@ The user's ruling S135, after the design spike. What was built:
 - assertError's host hand-offs went from 17 to 0 on core and from 34 to 0 on PCT. Under BOTH, the only remaining line
   is the host judge's own legacy byte check on `testMixedSortNoComparator`, which is not a database decline.
 - `AssertVerdicts` 1906 -> 1934 (the row judge), re-pinned with its reason.
+
+## 2026-11-05 — The exact-comparison report; S20 held for a re-ruling; a host witness re-decided
+
+- **The exact-comparison report** (S15/S132 narrowed: clean mode compares Floats exactly, measured first). A print
+  under `-Dlegend.diagnostics=judge-declines` marks each verdict the 2-ULP tolerance decided rather than equality:
+  the host's Float and JSON-number comparisons, a grid's cells, and the database row's lenient flag. Over core's full
+  matrix it fires in ONE test, `EqualityWorldsConformanceTest#declaredDivergences`, the test that pins the tolerance
+  policy itself. No other core assert depends on it. Not covered: the database judge's per-element Float comparison,
+  which carries no lenient flag.
+- **S20 is held for the user's re-ruling.** The ruling "IEEE everywhere" was made on this session's claim that it
+  matches "upstream's compiled Pure and the engine". The engine half was wrong:
+  - legend-engine writes Float literals bare (`LiteralProcessor(format='%s')`), and the database types them, DECIMAL
+    on DuckDB, H2, Postgres, Trino, BigQuery and ClickHouse. So the engine computes `0.1 + 0.2` over literals as
+    `0.3`, as lite does under the numeric charter's Rule 1.
+  - Measured with the change built on DuckDB (literals spelled `0.1E0`): core 5 tests (4 pins of the old behaviour or
+    its SQL text, and Float parameters still bound as decimals), PCT's five DuckDB lanes unchanged, the DuckDB corpus
+    unchanged. The change is not committed.
+- **The host pass's accepted witness for `testCheckedWithCircularConstraints`** re-decided. `382e1767`'s order-view fix
+  made the host compare its unsorted root array as a multiset (compatibility mode, S131), as the database judge does;
+  the divergence (`engine-golden-defect:isDistinct-in-checked-constraint`) is unchanged.
+- **The DuckDB corpus:** green but for `strictdate::testProject`, the database pass's nested window function over a
+  mixed-kind sort (a corpus-phase item).
+
+Checks: core's full matrix green (`//core:census` after the three pins: `Equality` 494 -> 498, `DatabaseJudge`
+823 -> 824, `TdsCompare` 346 -> 350); `//spec:corpus_duckdb`'s rosters green.

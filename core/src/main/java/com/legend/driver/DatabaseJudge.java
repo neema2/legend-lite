@@ -463,6 +463,7 @@ final class DatabaseJudge {
             // the declared 2-ULP Float leniency decided it — counted as
             // host mode counts its own firings
             com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
+            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "database " + name);
         }
         if (holds) {
             return AssertVerdicts.ok();

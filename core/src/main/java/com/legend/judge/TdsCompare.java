@@ -474,7 +474,12 @@ public final class TdsCompare {
             return false;
         }
         try {
-            return Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
+            boolean within = Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
+            if (within) {
+                // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
+                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-cell " + e + " ~ " + a);
+            }
+            return within;
         } catch (NumberFormatException nfe) {
             return false;
         }
