@@ -1559,6 +1559,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return super.variantAwareCast(writer, c);
     }
 
+    /**
+     * {@code NOT (x)}, its operand bracketed whole. ClickHouse reads {@code NOT (} as its function {@code not(}, so an
+     * operand that merely starts with a bracket is cut short: {@code NOT (SELECT ...) = (SELECT ...)} parses as a call
+     * whose argument list is a bare SELECT and is refused (PCT round 21, 2026-11-05: 89 tests' verdict statements, the
+     * TDS message's {@code CASE WHEN NOT} over two counts). Bracketed whole, the call is the whole negation.
+     */
+    private SqlWriter notCall(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        if (3 < parentPrec) {
+            writer.append("(");
+        }
+        writer.append("NOT (").expr(a.get(0), 0).append(")");
+        if (3 < parentPrec) {
+            writer.append(")");
+        }
+        return writer;
+    }
+
     // ==================================================================
     // Scalar functions -- every SqlFn decided here
     // ==================================================================
@@ -1573,7 +1590,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
             case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
-            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NOT -> notCall(writer, c.args(), parentPrec);
             case NEGATE -> negation(writer, c.args());
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
