@@ -474,15 +474,25 @@ final class SqlTextVerdicts {
                             return read == null
                                     ? fail(name + " (sql-text): our text side, a String to one, read no string at"
                                             + " the verdict step")
-                                    : appeal.appeal(read, golden.equals(read));
+                                    : appealed(appeal, read, golden.equals(read));
                         });
                 return ok();
             }
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session(),
-                    row -> appeal.appeal(ours, textEqual));
+                    row -> appealed(appeal, ours, textEqual));
             return ok();
         }
-        return textEqual ? ok() : appeals ? appeal.appeal(ours, textEqual) : textsDiffer(name, golden, ours, decline);
+        return textEqual ? ok() : appeals ? appealed(appeal, ours, textEqual) : textsDiffer(name, golden, ours, decline);
+    }
+
+    /** The appeal heard: compatibility mode's rows after a text mismatch -- the stores it provides, our rows, the
+     *  golden's replay -- plan what they compare while the program runs, the runtime wall's ONE exemption (the owner's
+     *  ruling, 2026-11-05: "the row fallbacks for text mismatches ... only for compatibility"); reached under the
+     *  compatibility rules alone ({@link #appeals}). */
+    private static TypedSide appealed(TextAppeal appeal, String ours, boolean textEqual) {
+        try (var exempt = com.legend.base.RunScope.compatibilityRowsAppeal()) {
+            return appeal.appeal(ours, textEqual);
+        }
     }
 
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
@@ -1906,10 +1916,7 @@ final class SqlTextVerdicts {
         provideStores(env, mappingFqn);
         try {
             com.legend.judge.SqlTypeCensus.probeSuspend(true);
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS);
-                    var __a = appeals(env) ? com.legend.base.RunScope.compatibilityRowsAppeal() : null) {
-            // the runtime wall's one exemption (the owner's ruling, 2026-11-05): compatibility mode's rows after a
-            // text mismatch plan their side while the program runs; in lite's own runs this leg is never reached
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
             rows = JudgePlans.evalSide(rowsRead,
                     letPrefix, specs, env, false, true, hook);
             }

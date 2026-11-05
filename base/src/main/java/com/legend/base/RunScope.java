@@ -66,7 +66,8 @@ public final class RunScope implements AutoCloseable {
         String site = what + " <- " + callers() + ("deep".equals(System.getProperty("legend.runwall.detail"))
                 ? " [test " + System.getProperty("legend.test.current") + "]" : "");
         if (!"report".equals(System.getProperty("legend.runwall"))) {
-            throw new IllegalStateException("the runtime wall: " + what + " while a plan runs (" + site + ")");
+            throw new IllegalStateException("the runtime wall: " + what + " while a plan runs (" + what + " <- "
+                    + callers(24) + ")");
         }
         if (REPORTED.add(site)) {
             System.err.println("[run-wall] " + site);
@@ -75,11 +76,15 @@ public final class RunScope implements AutoCloseable {
 
     /** The nearest callers outside the planning libraries, for the report. */
     private static String callers() {
+        return callers("deep".equals(System.getProperty("legend.runwall.detail")) ? 14 : 4);
+    }
+
+    private static String callers(int depth) {
         return StackWalker.getInstance().walk(frames -> frames
                 .map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "." + f.getMethodName())
                 .filter(n -> !n.startsWith("RunScope.") && !n.startsWith("AnsiSqlRenderer.")
                         && !n.startsWith("Lowerer.") && !n.startsWith("SpecCompiler."))
-                .limit("deep".equals(System.getProperty("legend.runwall.detail")) ? 14 : 4)
+                .limit(depth)
                 .collect(java.util.stream.Collectors.joining(" <- ")));
     }
 }

@@ -338,7 +338,13 @@ final class ArchitectureTest {
             .should().onlyDependOnClassesThat(
                     com.tngtech.archunit.core.domain.JavaClass.Predicates
                             .resideInAnyPackage("com.legend.sql..", "java..")
-                            .or(NULLNESS_ANNOTATIONS))
+                            .or(NULLNESS_ANNOTATIONS)
+                            // the runtime wall (2026-11-05, the deep audit): the renderer's one writer refuses to
+                            // render while a plan runs -- RunScope, JDK-only in base, the scope the runner enters
+                            .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
+                                    com.legend.base.RunScope.class))
+                            .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
+                                    com.legend.base.RunScope.Exemption.class)))
             .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
             .check(CORE_PROD_CLASSES);
     }
@@ -738,6 +744,11 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass
                                     .Predicates.type(
                                             com.legend.model.FunctionId.class))
+                            // the runtime wall (2026-11-05, the deep audit): lowering refuses to lower while a plan
+                            // runs -- RunScope, JDK-only in base, the scope the runner enters
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.base.RunScope.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
@@ -1442,6 +1453,9 @@ final class ArchitectureTest {
                 // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
                 // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
                 "com.legend.exec.Census.UNPLANNED_ASSERTS",
+                // the runtime wall's report mode (2026-11-05, the deep audit): the sites already printed under
+                // -Dlegend.runwall=report, so each prints once -- a diagnostic, never read by a verdict or a plan
+                "com.legend.base.RunScope.REPORTED",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",
