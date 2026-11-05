@@ -1878,8 +1878,20 @@ class BodyRouterParityTest {
                     Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
                             capture::of);
                 } else {
-                    BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect().forServer(session.version()), session, listener,
-                            referee, options, capture::of);
+                    // this test compares the walk with the program road on purpose: it opens the walk's door for its
+                    // own call alone (the door checks itself since 2026-11-05)
+                    String door = System.getProperty("legend.walk.allowed");
+                    System.setProperty("legend.walk.allowed", "all");
+                    try {
+                        BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect().forServer(session.version()),
+                                session, listener, referee, options, capture::of);
+                    } finally {
+                        if (door == null) {
+                            System.clearProperty("legend.walk.allowed");
+                        } else {
+                            System.setProperty("legend.walk.allowed", door);
+                        }
+                    }
                 }
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();

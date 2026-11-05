@@ -20199,3 +20199,34 @@ the database pass's nested window function, already recorded as a corpus-phase i
 
 Checks: core's full matrix (56 targets: the host, database and both judges) green but for the driver package's bar,
 fixed above and re-run under all three judges; census; guardrails; PCT DuckDB channel A and channel B, every suite.
+
+## 2026-11-05 — The deep audit on PR #83, and its small fixes
+
+Two independent read-only audits of this head (the owner's criteria: both judges real with no fallbacks; PCT and core
+passing on the plan with no crossing of planning and execution, at run time too; every assert a real function).
+Their findings, with this session's own view, were posted to the owner; the owner's plan: the small fixes and the
+runtime wall in this PR, the asserts' shared design as its own program (native asserts are lite's way; one design,
+one set of concepts, no per-family special logic).
+
+The small fixes, here:
+
+- **The engine-text arm edited the golden before clean mode's verdict**: the engine's chained-plan warning line is
+  now stripped for compatibility mode's comparison alone (`SqlTextVerdicts`, three sites).
+- **Two latent host fallbacks inside the database judge** fail by name instead: `assertEq` over keyed class
+  instances (`DatabaseJudge`), and two grids whose schemas differ or are unknown (`AssertVerdicts`; the host grid
+  owner decides only under the host judge). The program road's static pass refused both shapes before; the walk
+  (open on the corpus lanes) could reach them. `AssertVerdicts` pin 1934 -> 1938.
+- **The walk checks its own door** (`WalkDoor.check` at `BodyDriver.execute`), so no caller reaches it past a closed
+  door; `BodyRouterParityTest`, which compares the walk with the program road on purpose, opens the door for its own
+  call alone. `BodyDriver` pin 1037 -> 1038.
+
+Not changed, recorded: the `'TDSNull'` sentinel (an expected String `'TDSNull'` equals a null cell under every rule
+set). Lite's canon rewrites upstream's `^TDSNull()` instance, a real null cell in both modes, to the same string,
+so the judge cannot tell the two apart; gating it broke core's tests of `^TDSNull()` reads. Its fix (keeping
+`^TDSNull()` distinct through the canon) belongs to the asserts' shared design. Also recorded for that program:
+compatibility mode's float tokens inside a String within 2 ULP exist on the host judge alone; `assertError` over an
+assert under BOTH has its inner assert judged by the database alone; the relation a compatibility-mode count reads as
+one value is not evaluated.
+
+Checks: core root, judge, driver and integration; root and driver under the database judge and BOTH; census;
+guardrails.

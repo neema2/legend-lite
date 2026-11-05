@@ -673,7 +673,9 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
-        golden = stripChainedPlanWarning(golden);
+        // the engine's chained-plan warning is a golden's own text: stripped for compatibility mode's comparison alone;
+        // in lite's own runs the two texts are the verdict as they are (the deep audit, 2026-11-05)
+        golden = appeals(env) ? stripChainedPlanWarning(golden) : golden;
         // from here every path is THIS arm's verdict — the marker lets
         // the dual-channel probe bucket walk-vs-arm outcomes as the
         // DESIGNED text-vs-rows divergence, never pinned disagreement
@@ -924,7 +926,9 @@ final class SqlTextVerdicts {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        golden = stripChainedPlanWarning(golden);
+        // the engine's chained-plan warning is a golden's own text: stripped for compatibility mode's comparison alone;
+        // in lite's own runs the two texts are the verdict as they are (the deep audit, 2026-11-05)
+        golden = appeals(env) ? stripChainedPlanWarning(golden) : golden;
         boolean textEqual = golden.equals(ours);
         SqlReplayReferee referee = env.replayReferee();
         if (referee == null) {
@@ -1056,7 +1060,9 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
-        golden = stripChainedPlanWarning(golden);
+        // the engine's chained-plan warning is a golden's own text: stripped for compatibility mode's comparison alone;
+        // in lite's own runs the two texts are the verdict as they are (the deep audit, 2026-11-05)
+        golden = appeals(env) ? stripChainedPlanWarning(golden) : golden;
         boolean textEqual = golden.equals(ours);
         SqlReplayReferee referee = env.replayReferee();
         if (referee == null) {

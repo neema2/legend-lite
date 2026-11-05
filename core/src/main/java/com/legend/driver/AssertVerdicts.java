@@ -644,8 +644,13 @@ final class AssertVerdicts {
                         yield arm.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook);
                     }
                     // two grids whose declared schemas differ (a width, a name, a kind) or whose columns the
-                    // planning does not know: the grid owner on the host decides, as before (the SQL form compares
-                    // the cells alone; the M10c item 2 audit's A)
+                    // planning does not know: the grid owner on the host decides under the host judge; the database
+                    // judge has no form for them and fails by name, never handing them to the host (the deep audit,
+                    // 2026-11-05; the program road's static pass refuses the shape before it)
+                    if (env.options().judgeMode() != ExecuteOptions.JudgeMode.HOST) {
+                        yield DatabaseJudge.unjudged(name,
+                                "two grids whose schemas differ or are unknown: the database judge has no form for them");
+                    }
                     yield HostSides.judged(name, HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook),
                             letPrefix, specs, env);
                 }

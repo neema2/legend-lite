@@ -55,6 +55,9 @@ public final class BodyDriver {
             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
+        // the walk's door checks itself (the deep audit, 2026-11-05): no caller reaches the walk past a closed door,
+        // the router's own check (with its reason) only the first
+        WalkDoor.check("the walk entered");
         SpecCompiler specs = typed.specs();
         java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
         ExecEnv env = bodyEnv(typed, runtimeFqn, dialect, session, assertListener, replayReferee, options);

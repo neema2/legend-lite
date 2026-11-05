@@ -983,7 +983,8 @@ final class DatabaseJudge {
                 return databaseVerdict(name, true, args.get(0), args.get(1),
                         letPrefix, specs, env, hook, false, false);
             }
-            return HostJudge.eq(name, args, letPrefix, specs, env, hook);
+            // no host fallback (the deep audit, 2026-11-05): a keyed pair has no identity form in SQL
+            return unjudged(name, "assertEq over keyed class instances: the database judge has no form for their identity");
         }
         @Override public @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
