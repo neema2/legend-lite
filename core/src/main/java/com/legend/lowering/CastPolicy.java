@@ -239,7 +239,14 @@ final class CastPolicy {
         if (tgt == Type.Primitive.DATE) {
             return src == Type.Primitive.STRICT_DATE || src == Type.Primitive.DATE_TIME;
         }
-        return false;
+        // a Decimal to a Decimal of another shape (a literal's own scale, Numeric(p, s), a column's DECIMAL(p, s)) is
+        // a type ASSERTION as Pure's cast is: the value as it is (2026-11-05, the user: "do the cast as part of this
+        // PR" -- 1.25D->cast(@Numeric(10, 2)) answered 1.250000000000000000 through a DECIMAL(38,18) cast; register S140)
+        return decimalKind(src) && decimalKind(tgt);
+    }
+
+    private static boolean decimalKind(Type t) {
+        return t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal;
     }
 
     static boolean isSqlPrimitive(Type t) {

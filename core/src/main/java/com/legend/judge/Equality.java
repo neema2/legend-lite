@@ -200,7 +200,9 @@ public final class Equality {
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
-            boolean eq = decimal(en).equals(decimal(an));
+            // register S139 (the user's ruling, 2026-11-05): lite's own runs compare two Decimals by value, as `==`
+            // does in the database; the scale-sensitive compare is backwards-compatibility mode's
+            boolean eq = rules.decimalScale() ? decimal(en).equals(decimal(an)) : decimal(en).compareTo(decimal(an)) == 0;
             if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
                 // leg 3.0 census: the pair differs by SCALE only — the
                 // witness set for the canon spec's Decimal amendment

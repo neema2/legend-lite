@@ -236,11 +236,13 @@ final class DatabaseJudge {
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
                         re.many(), canonicalOrder,
-                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT, me),
+                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT, me,
+                        com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), re.kinds().get(ie))),
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
-                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma),
+                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
+                        com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), ra.kinds().get(ia))),
                 env.options().judgingRules().floatTolerance());
         // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
         // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's

@@ -20170,3 +20170,25 @@ the database pass's nested window function, already recorded as a corpus-phase i
 - **The host judge's "legacy byte check"** (the line under BOTH on `testMixedSortNoComparator`) is dead by
   construction: its rider always declines ("the database judge is the referee") and it reports a census line, never
   a verdict. Its deletion is the walk deletion's.
+
+## 2026-11-05 — The user's rulings built: Decimal by value in clean mode (S139), a Decimal cast keeps its value (S140); S20 re-ruled IEEE; S136 withdrawn
+
+- **S139.** Lite's own rules compare two Decimals by value in every assert, as the database's `==` does: the host
+  judge by `BigDecimal.compareTo`, the database judge by the Decimal canon with its scale dropped (the fraction's
+  trailing zeros cut: `VerdictSql.decimalByValue`, `Side.decimalByValue`). Compatibility mode keeps compiled Pure's
+  scale-sensitive assert (`JudgingRules.decimalScale`). `PureAssertsTest#numericPolicies` and
+  `EqualityWorldsConformanceTest` re-pinned (the two worlds now agree on `3.0D == 3.00D` in clean mode; the
+  compatibility pin added); `DecimalKindsTest` judges `assertEquals(0.3D, <the column's 0.30>)` holding in clean mode
+  and failing in compatibility mode, and a list of the column's `0.10`s equal to `[0.1D, 0.1D]`. `DatabaseJudge`'s pin
+  825 -> 827 (the rule passed to each side, two lines; nothing evaluated).
+- **The cast.** A cast from one Decimal kind to another (a literal's own scale, `Numeric(p, s)`, a column's
+  `DECIMAL(p, s)`) is a type assertion, as Pure's cast is (`CastPolicy.isWidening`): `1.25D->cast(@Numeric(10, 2))` is
+  `1.25D`, where it answered `1.250000000000000000` through a `DECIMAL(38,18)` cast. A precise primitive's constraints
+  stay unchecked (register S140, the user: "leave the guards off for precision for now").
+- **S20 re-ruled** (the user, 2026-11-05: "yes on IEEE"); not built in this batch: every dialect's Float literal
+  spelling, the platform's literal typing (`SqlTyping.decimalLitType`) and the Float parameter's binding move together,
+  verified on every PCT lane including the cloud ones -- proposed to the user as its own change after this PR.
+- **S136 withdrawn** (the user: "drop s136").
+
+Checks: core root and judge under the host, database and both judges; census. Core's full matrix running at commit
+time.

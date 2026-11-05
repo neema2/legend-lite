@@ -125,12 +125,14 @@ class PureAssertsTest {
     }
 
     @Test
-    @DisplayName("policy: Decimal scale-SENSITIVE (the engine assert seam); 2-ULP doubles only")
+    @DisplayName("policy: Decimal by value in lite (S139), scale-SENSITIVE in compatibility mode (the engine assert seam)")
     void numericPolicies() {
-        // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is
-        // getValue().equals — SCALE-SENSITIVE
-        assertFalse(same(
+        // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value; compatibility mode keeps
+        // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is getValue().equals — SCALE-SENSITIVE
+        assertTrue(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
+        assertFalse(Equality.same(Equality.Typed.of(new BigDecimal("1.50")), Equality.Typed.of(new BigDecimal("1.5")),
+                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT));
         assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
         // X1/X3: NO cross-primitive-kind equality (engine eq requires

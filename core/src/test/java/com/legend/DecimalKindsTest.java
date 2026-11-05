@@ -32,9 +32,9 @@ import org.junit.jupiter.api.Test;
  *   <li>{@code Float} is an IEEE double: compiled Pure carries it as {@code double}, and a DOUBLE column computes
  *       {@code 0.1 + 0.2} as {@code 0.30000000000000004}.</li>
  * </ul>
- * Equality is upstream's: a Decimal equals a Decimal of the same value AND scale (compiled Pure's
- * {@code CompiledSupport.eq}, interpreted Pure's {@code EqualityUtilities}: {@code BigDecimal.equals}, no
- * canonicalization, unlike Float's), and a Float never equals a Decimal. The model's declarations are refused as the
+ * Equality: lite's own rules compare two Decimals by value, as the database's {@code ==} does (S139, the user's
+ * ruling of 2026-11-05); compatibility mode compares them by value AND scale, as both Pure runtimes do
+ * ({@code BigDecimal.equals}); a Float never equals a Decimal. The model's declarations are refused as the
  * engine's compiler refuses them (CompileContext.newGenericType, its messages): a primitive takes exactly the type
  * variable values it declares, each of its variable's type. Each case runs on the platform's engine
  * (a lane's floor re-spells the connection for its database), under the lane's judge.
@@ -144,15 +144,18 @@ class DecimalKindsTest {
     }
 
     @Test
-    @DisplayName("upstream's equality: 0.3D is not the column's 0.30D (BigDecimal.equals), and a Float never equals a Decimal")
-    void decimalEqualityIsUpstreams() throws Exception {
+    @DisplayName("lite compares a Decimal by value (0.3D is the column's 0.30, S139); compatibility mode by value and scale, as Pure; a Float never equals a Decimal")
+    void decimalEqualityByRules() throws Exception {
+        String scaled = "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)";
         try (Connection c = seeded()) {
-            AssertFailed scale = assertThrows(AssertFailed.class,
-                    () -> judged(c, "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+            assertTrue(judged(c, scaled).passed());
+            AssertFailed scale = assertThrows(AssertFailed.class, () -> Program.run(model(), scaled, "m::RT", c,
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)));
             assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             assertEquals("\nexpected: 0.3\nactual:   0.30D", kind.getMessage());
+            assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
         }
     }
 
@@ -165,6 +168,25 @@ class DecimalKindsTest {
             assertEquals("\nexpected: 0.3\nactual:   0.30000000000000004", exact.getMessage());
             assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
                     .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+        }
+    }
+
+    @Test
+    @DisplayName("a cast to Numeric(10, 2) is a type assertion: the value as it is, scale and all (S140)")
+    void castKeepsTheValue() throws Exception {
+        try (Connection c = seeded()) {
+            // judged under the compatibility rules, which compare a Decimal's scale too: 1.25D stays 1.25D
+            assertTrue(Program.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))", "m::RT", c,
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+        }
+    }
+
+    @Test
+    @DisplayName("a list of Decimals compares by value in lite (the column's 0.10s are 0.1D, S139)")
+    void decimalListByValue() throws Exception {
+        try (Connection c = seeded()) {
+            assertTrue(judged(c, "|assertEquals([0.1D, 0.1D], m::Price.all()->filter(p|$p.id <= 2)->map(p|$p.a))")
+                    .passed());
         }
     }
 

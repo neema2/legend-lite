@@ -68,11 +68,34 @@ public final class VerdictSql {
      * column that decides (one of {@code __canon<i>}), whether the side
      * is a collection, and whether its elements order by canon text (the
      * multiset forms) or by arrival (an ordered assert). */
+    /** {@code decimalByValue}: a Decimal side compared by its value, the scale dropped from its canon (register S139,
+     *  lite's own rules); compatibility mode compares the canon as written, scale and all. */
     public record Side(SqlQuery wrapped, String canonColumn, boolean many,
-            boolean byCanonText, boolean isFloat, @com.legend.base.Nullable Message message) {
+            boolean byCanonText, boolean isFloat, @com.legend.base.Nullable Message message, boolean decimalByValue) {
         public Side(SqlQuery wrapped, String canonColumn, boolean many, boolean byCanonText, boolean isFloat) {
-            this(wrapped, canonColumn, many, byCanonText, isFloat, null);
+            this(wrapped, canonColumn, many, byCanonText, isFloat, null, false);
         }
+    }
+
+    /** A Decimal canon's text with its scale dropped ({@code 0.30} and {@code 0.3} one value, {@code 1.00} and
+     *  {@code 1.0} one): the trailing zeros of a fraction cut, then a bare point (S139). */
+    private static SqlExpr decimalValue(SqlExpr canon) {
+        SqlExpr trimmed = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, canon,
+                new SqlExpr.StringLit("0+$"), new SqlExpr.StringLit("")), new SqlExpr.StringLit("[.]$"),
+                new SqlExpr.StringLit(""));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
+                SqlExpr.Call.of(SqlFn.STRPOS, canon, new SqlExpr.StringLit(".")), new SqlExpr.IntLit(0)), trimmed)),
+                canon);
+    }
+
+    /** Whether a side of kind {@code kind} is compared by value, its scale dropped: a Decimal under lite's own rules
+     *  (S139); compatibility mode keeps the scale. */
+    public static boolean decimalByValue(boolean scaleSensitive, Type kind) {
+        return !scaleSensitive && (kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal);
+    }
+
+    private static SqlExpr canonOf(Side s, SqlExpr canon) {
+        return s.decimalByValue() ? decimalValue(canon) : canon;
     }
 
     /**
@@ -1105,7 +1128,7 @@ public final class VerdictSql {
     /** A scalar / collection side's canon rows, each element also written as {@code message} writes it ({@link
      *  Message}): the rows a membership or emptiness verdict's failure message reads. */
     public static SqlQuery writtenRows(SqlQuery wrapped, String canonColumn, boolean many, Message message) {
-        return canonRows(new Side(wrapped, canonColumn, many, false, false, message));
+        return canonRows(new Side(wrapped, canonColumn, many, false, false, message, false));
     }
 
     /** A side's rows for COUNTING only (size / emptiness): no canon needed —
@@ -2110,8 +2133,8 @@ public final class VerdictSql {
     private static SqlQuery inlineFacts(Side s) {
         SqlSelect ws = (SqlSelect) s.wrapped();
         SqlExpr valueRef = ws.projections().get(0).expr();
-        SqlExpr canon = asText(java.util.Objects.requireNonNull(
-                projectionOf(ws, s.canonColumn()), "canon column").expr());
+        SqlExpr canon = canonOf(s, asText(java.util.Objects.requireNonNull(
+                projectionOf(ws, s.canonColumn()), "canon column").expr()));
         List<OutputCol> outs = factOutputs();
         OutputCol seedOut = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
         SqlSource seed = new SqlSource.Subselect(new SqlSelect(
@@ -2194,8 +2217,8 @@ public final class VerdictSql {
             return canonRowsLayered(s, ws, withValues);
         }
         SqlExpr valueRef = ws.projections().get(0).expr();
-        SqlExpr canon = asText(java.util.Objects.requireNonNull(
-                projectionOf(ws, s.canonColumn()), "canon column").expr());
+        SqlExpr canon = canonOf(s, asText(java.util.Objects.requireNonNull(
+                projectionOf(ws, s.canonColumn()), "canon column").expr()));
         // pure has no null VALUE: a NULL row of a value collection is dropped
         // and a NULL scalar reads as the EMPTY collection — the side drops the
         // row, so an empty [] frames '[]' and never counts as a null canon
@@ -2292,7 +2315,7 @@ public final class VerdictSql {
         // 2026-10-21; the grid sides' own fix of 2026-10-20)
         SqlQuery read = order.isEmpty() ? trimmed : SideOrdinal.withOrdinal(trimmed);
         List<OutputCol> readOuts = read.outputs();
-        SqlExpr canon = asText(SqlExpr.Column.of("w", readOuts, s.canonColumn()));
+        SqlExpr canon = canonOf(s, asText(SqlExpr.Column.of("w", readOuts, s.canonColumn())));
         SqlExpr valueRef = SqlExpr.Column.of("w", readOuts, java.util.Objects.requireNonNull(value.alias()));
         SqlExpr rn = rowNumber(readOuts);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);

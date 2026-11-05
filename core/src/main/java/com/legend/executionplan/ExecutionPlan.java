@@ -219,7 +219,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      *   <li>{@link #LITE}: lite's own -- what a product run and every core test judge by.</li>
      *   <li>{@link #COMPILED_PURE_COMPAT}: backwards compatibility with legend-pure's compiled runtime and
      *       legend-engine's goldens (PCT channel B, the corpus), each leniency a register row: S132 (a String's float
-     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text), S15/S132 (a Float within 2 ULP).</li>
+     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text), S15/S132 (a Float within 2 ULP), S139 (a Decimal's scale part of its value).</li>
      * </ul>
      */
     public enum JudgingRules {
@@ -228,6 +228,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** Whether two Floats within 2 ULP are equal: compatibility mode's tolerance alone; lite compares a Float
          *  exactly (S15/S132, the user's ruling of 2026-11-05, built that day). */
         public boolean floatTolerance() {
+            return this == COMPILED_PURE_COMPAT;
+        }
+
+        /** Whether two Decimals of one value and different scales differ ({@code 0.3D} and {@code 0.30D}): compiled
+         *  Pure's assert, compatibility mode's alone; lite compares a Decimal by value (S139, the user's ruling of
+         *  2026-11-05). */
+        public boolean decimalScale() {
             return this == COMPILED_PURE_COMPAT;
         }
     }
