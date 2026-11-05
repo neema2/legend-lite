@@ -123,11 +123,26 @@ public enum OrderView {
                 return of(c.args().get(0), lets, seen, hook);
             }
             // an execute() FRAME returns its query's rows in the query's
-            // order: descend into the lambda's tail expression
-            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
-                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                    && !lam.body().isEmpty()) {
-                return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
+            // order: descend into the lambda's tail expression -- the query a
+            // let binds as well (let query = {|...}; execute($query, ...),
+            // 2026-11-05: the corpus's testCheckedWithCircularConstraints); a
+            // query not in sight is the database's rows, its order INCIDENTAL,
+            // never the language's
+            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()) {
+                TypedSpec query = c.args().get(0);
+                if (query instanceof com.legend.compiler.spec.typed.TypedVariable qv) {
+                    for (int i = lets.size() - 1; i >= 0; i--) {
+                        if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
+                                && l.name().equals(qv.name())) {
+                            query = l.value();
+                            break;
+                        }
+                    }
+                }
+                if (query instanceof com.legend.compiler.spec.typed.TypedLambda lam && !lam.body().isEmpty()) {
+                    return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
+                }
+                return OrderView.INCIDENTAL;
             }
             if (ORDER_DESTROYING.contains(fqn)) {
                 return OrderView.INCIDENTAL;
