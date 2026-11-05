@@ -20141,13 +20141,22 @@ Found and posted to the user for rulings, not changed:
   judge, and holds in compatibility mode. `DatabaseJudge`'s pin 824 -> 825 (the rule passed into the plan, one line;
   nothing evaluated). `DecimalKindsTest` now runs on the platform's engine (a lane's floor re-spells it): naming H2
   in the test broke the database-owners rule; it had passed on H2 under all three judges before the change.
-- **S137, lite's half, built.** Under the LITE rules the body router refuses `assertSize`, `assertEmpty` and
+- **S137 built, both halves.** Under the LITE rules the body router refuses `assertSize`, `assertEmpty` and
   `assertNotEmpty` over a relation at planning, naming the assert to write (`compiler.spec.RelationCountAsserts`).
-  Two core tests said the old thing (`AssertVerdictSpliceTest`): an execute's `$result.values` counted as one
-  carrier now runs under the compatibility rules and is refused in clean mode, and the grid emptiness test reads
-  `$result.values.rows`. Compatibility mode's half (upstream's one-value count) is NOT built: lite counts a literal
-  relation's rows; `[relation-count]` lines under `-Dlegend.diagnostics=judge-declines` measure whether PCT or the
-  corpus reaches it.
+  Under the compatibility rules it counts the relation as ONE value, as upstream does, by replacing it with one value
+  before either judge plans (`assertSize($rel, 1)` holds, `assertSize($rel, 2)` fails `expected size: 2, actual
+  size: 1`, `assertNotEmpty($rel)` holds); `assertEmpty($rel)`, which upstream fails with a message printing the
+  relation itself, is refused by name there. Two core tests said the old thing (`AssertVerdictSpliceTest`): an
+  execute's `$result.values` counted as one carrier now runs under the compatibility rules and is refused in clean
+  mode, and the grid emptiness test reads `$result.values.rows`. PCT DuckDB channel B (every suite) reaches none of
+  the three over a relation (measured with a print before the compatibility half was built).
+- **S136 deferred** (the user, 2026-11-05: not in the wrap-up). It changes no test outcome; the 14 literal-decided
+  errors stay raised by the database from the constant SQL lite writes.
+- **Order tracking** (lite's tests deterministic, S131 compatibility-only) is the next phase
+  (`docs/ORDER_TRACKING_DESIGN_2026_11_05.md`); until it lands, clean mode still compares an unsorted query as a
+  multiset.
+- **A stale channel B row** (SQLite, `testDateDiffWithDifferentTimeZones`): the failure now prints `expected: [0]`,
+  upstream's own text when a side is not one value (`assertEquals`'s `%s` branch), where the row held `expected: 0`.
 - **S138 built.** The acos/asin guard SQLite, MariaDB and MySQL write (they cannot hold NaN, the engine's answer)
   raises `acos of a value outside [-1, 1] is NaN, which this database cannot hold` instead of DuckDB's words; the
   six channel A and six channel B ledger rows re-texted.

@@ -54,6 +54,13 @@ public final class BodyRouter {
         // the lift (the asserts-as-plan-nodes program, step 4): an assert in a value's position is a statement of its own
         // at its place, true where it stood -- every road below sees the lifted body
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
+        // register S137 (the user's ruling, 2026-11-05): a relation passed to assertSize, assertEmpty or assertNotEmpty
+        // is ONE value upstream -- lite's own rules refuse it, the compatibility rules count it as upstream does
+        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
+            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
+        } else {
+            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
+        }
         TypedQuery typed = lifted == given.body() ? given : given.withBody(lifted);
         // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
         // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
@@ -83,15 +90,6 @@ public final class BodyRouter {
             // rule before this, so the tables keep their names)
             system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
             env = on.withSession(system);
-        }
-        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
-            // register S137 (the user's ruling, 2026-11-05): lite refuses a relation counted as one value
-            com.legend.compiler.spec.RelationCountAsserts.refuse(typed.body());
-        } else if (com.legend.diagnostics.Diagnostics.on("judge-declines")) {
-            // compatibility mode's measurement: upstream's one-value count is not built there yet (lite counts rows)
-            for (String fn : com.legend.compiler.spec.RelationCountAsserts.found(typed.body())) {
-                System.err.println("[relation-count] " + fn + " over a relation, counted by its rows");
-            }
         }
         if (assertsPlanned) {
             // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned

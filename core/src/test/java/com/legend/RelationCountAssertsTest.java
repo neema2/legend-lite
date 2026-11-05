@@ -64,10 +64,15 @@ class RelationCountAssertsTest {
     }
 
     @Test
-    @DisplayName("backwards-compatibility mode does not refuse them")
-    void notRefusedInCompat() {
-        // upstream's one-value count is not built there yet: lite counts the rows (a literal relation's emptiness
-        // is refused by name, NotImplemented; an execute's $result.values is counted as one, AssertVerdictSpliceTest)
+    @DisplayName("backwards-compatibility mode counts the relation as ONE value, as upstream does")
+    void upstreamInCompat() {
         assertTrue(run("|assertNotEmpty(" + TWO_ROWS + ")", true).passed());
+        assertTrue(run("|assertSize(" + TWO_ROWS + ", 1)", true).passed());
+        com.legend.error.AssertFailed size = assertThrows(com.legend.error.AssertFailed.class,
+                () -> run("|assertSize(" + TWO_ROWS + ", 2)", true));
+        assertTrue(size.getMessage().contains("expected size: 2, actual size: 1"), size.getMessage());
+        // upstream fails it with '%s is not empty' printing the relation itself, a text lite does not spell: refused
+        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")", true));
+        assertTrue(empty.getMessage().contains("which lite does not spell"), empty.getMessage());
     }
 }
