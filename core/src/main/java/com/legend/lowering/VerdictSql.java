@@ -1654,6 +1654,39 @@ public final class VerdictSql {
         return spelled[0] && !refused[0] ? out : null;
     }
 
+    /** ONE instance carried as a struct (a generic class's, a {@code Pair}: {@code {'first': 1, 'second': 'a'}}), written
+     *  as the host writes an instance with no id -- its fields' texts joined {@code |}, {@code <1|a instanceOf T>}
+     *  (2026-11-04, the assert bar: the database judge alone wrote the pair's canon JSON); null where the plan answers
+     *  no struct of primitive fields. */
+    public static @com.legend.base.Nullable SqlQuery genericInstanceRepr(SqlQuery plan, String typeFqn) {
+        if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
+                || !(ps.projections().get(0).expr().type() instanceof com.legend.sql.TypeFact.Typed ty)
+                || !(ty.type() instanceof SqlType.Struct st) || st.fields().isEmpty()) {
+            return null;
+        }
+        SqlExpr value = SqlExpr.Column.of("w", plan.outputs(), plan.outputs().get(0).name());
+        List<SqlExpr> parts = new ArrayList<>();
+        parts.add(new SqlExpr.StringLit("<"));
+        for (SqlType.Struct.Field f : st.fields()) {
+            if (f.type() instanceof SqlType.Struct || f.type() instanceof SqlType.Array
+                    || f.type() == SqlType.Scalar.JSON) {
+                return null;
+            }
+            if (parts.size() > 1) {
+                parts.add(new SqlExpr.StringLit("|"));
+            }
+            SqlExpr v = new SqlExpr.StructGet(value, f.name());
+            SqlExpr text = f.type() == SqlType.Scalar.BOOLEAN ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
+                    : new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit("null")));
+        }
+        parts.add(new SqlExpr.StringLit(" instanceOf " + typeFqn + ">"));
+        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.CONCAT, parts), "value", out)),
+                false, new SqlSource.Subselect(plan, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
+    }
+
     /** {@code row}, an equality's verdict row over two class sides, its failure message spelled from
      *  {@code expectedRepr} and {@code actualRepr} ({@link #instancesRepr}, each a one-row relation of its
      *  {@code value}: {@link #firstValueRow}) -- upstream's {@code '\nexpected: %r\nactual:   %r'} as the host judge

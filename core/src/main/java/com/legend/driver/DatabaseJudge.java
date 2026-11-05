@@ -250,8 +250,8 @@ final class DatabaseJudge {
         if (expectedClass != null) {
             // two class sides the database serializes as their objects: the failure message spells them as the host
             // judge prints instances, <values instanceOf Type> (2026-11-04, the core program)
-            com.legend.sql.SqlQuery reprE = com.legend.lowering.VerdictSql.instancesRepr(we.plan(), expectedClass);
-            com.legend.sql.SqlQuery reprA = com.legend.lowering.VerdictSql.instancesRepr(wa.plan(),
+            com.legend.sql.SqlQuery reprE = instancesRepr(we.plan(), eSpec, re.many(), expectedClass);
+            com.legend.sql.SqlQuery reprA = instancesRepr(wa.plan(), aSpec, ra.many(),
                     java.util.Objects.requireNonNull(classOf(aSpec)));
             if (reprE != null && reprA != null) {
                 vq = com.legend.lowering.VerdictSql.messageAsInstances(vq,
@@ -320,6 +320,15 @@ final class DatabaseJudge {
     private static @com.legend.base.Nullable String instancesMessage(TypedSpec e, TypedSpec a) {
         String ce = classOf(e);
         return ce != null && classOf(a) != null ? ce : null;
+    }
+
+    /** {@code side}'s instances written for the failure message: one instance of a GENERIC class (a Pair) from its
+     *  struct's fields (VerdictSql.genericInstanceRepr), every other the planned objects' own representation. */
+    private static com.legend.sql.@com.legend.base.Nullable SqlQuery instancesRepr(com.legend.sql.SqlQuery plan,
+            TypedSpec side, boolean many, String classFqn) {
+        return !many && side.info().type() instanceof com.legend.compiler.element.type.Type.GenericType
+                ? com.legend.lowering.VerdictSql.genericInstanceRepr(plan, classFqn)
+                : com.legend.lowering.VerdictSql.instancesRepr(plan, classFqn);
     }
 
     private static @com.legend.base.Nullable String classOf(TypedSpec s) {

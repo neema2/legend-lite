@@ -157,6 +157,12 @@ class AssertBarTest {
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
                     "\nexpected: <1|a instanceOf meta::pure::functions::collection::Pair>\nactual:   <1|b instanceOf"
                             + " meta::pure::functions::collection::Pair>"),
+            new Probe("assertEquals-pair-collections-message",
+                    "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
+                    "\nexpected: [<1|a instanceOf meta::pure::functions::collection::Pair>, <2|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>]\nactual:   [<1|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>, <2|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>]"),
             new Probe("message-not-read-where-assertEmpty-holds",
                     "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",
@@ -196,9 +202,9 @@ class AssertBarTest {
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
             // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it.
-            // 2026-11-04: the database judge alone writes two failing pairs as their JSON documents -- its instance
-            // writer (VerdictSql.instancesRepr) spells an aggregate of objects, not one generic instance
-            "assertEquals-pairs-message",
+            // 2026-11-04: the database judge alone writes a COLLECTION of pairs as their JSON documents (one pair is
+            // written from its struct, VerdictSql.genericInstanceRepr; a list of them has no writer yet)
+            "assertEquals-pair-collections-message",
             // 2026-11-04: admitted at 6038d060 and reverted -- the corpus's 55 test-data generation bodies end in a
             // statement the program cannot plan (a class query under a runtime if()), which the static rule admitted;
             // with the walk closed (the core tests' door) no class admits it

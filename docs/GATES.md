@@ -19875,3 +19875,10 @@ program cannot plan -- where 6038d060's split had made such a message one more s
 messaged assert's message only where its judgment asks for it (`HostSides.fetchChecked`, the same laziness as the
 program road's); the one body passes under both judges. The admission stays reverted: it is unproven either way, and
 its probe stays a gap of the bar.
+
+**Checks at `023f3d7c`:** `//core:core_tests_judges` (the twelve body-running packages and root under the database
+judge alone and BOTH, 26 targets) green beside the host's `//core:core_tests_*`; PCT channel B's seven local suites
+under the database judge alone and BOTH: 7 of 7 each; the DuckDB corpus against the per-element run (`5eac7e30`): every
+status identical in both passes (fail 108 and 111, skip 14 each; moved 3,086 and 3,052, two bodies more on the program
+road), `//spec:corpus_duckdb_verdict` red as at the baseline (the same three database-lost names) -- the 55 test-data
+generation bodies back. The H2 corpus was cut short by a container restart and is re-run below.
