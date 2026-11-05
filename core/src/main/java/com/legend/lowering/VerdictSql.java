@@ -573,7 +573,7 @@ public final class VerdictSql {
      * spelling (the caller declines by name). One statement: the pairs read once, numbered in their own select.
      */
     public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
-            boolean neverEqual, boolean floats) {
+            boolean neverEqual, boolean floats, boolean decimalByValue) {
         SqlQuery numbered = SideOrdinal.withOrdinal(pairs);
         OutputCol valueOut = pairs.outputs().get(0);
         SqlExpr value = SqlExpr.Column.of("__s", numbered.outputs(), valueOut.name());
@@ -583,6 +583,10 @@ public final class VerdictSql {
         SqlExpr ca = LiteralSpelling.leaf(second, actualKind);
         if (ce == null || ca == null) {
             return null;
+        }
+        if (decimalByValue) {
+            ce = decimalValue(ce);
+            ca = decimalValue(ca);
         }
         SqlExpr ok;
         if (neverEqual) {

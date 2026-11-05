@@ -84,8 +84,10 @@ class AssertBarTest {
             // words, each operand spelled by its own kind, an empty source holding
             new Probe("forAll-over-range-fails", "{|range(1, 4)->forAll(i | assertEquals($i, 2))}",
                     "\nexpected: 1\nactual:   2"),
-            new Probe("forAll-decimal-scale", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.00D))}",
-                    "\nexpected: 3.0D\nactual:   3.00D"),
+            // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value, its scale dropped
+            new Probe("forAll-decimal-scale", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.00D))}", null),
+            new Probe("forAll-decimal-value", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.10D))}",
+                    "\nexpected: 3.0D\nactual:   3.10D"),
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
                     "\nexpected: 1D\nactual:   1"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
@@ -108,7 +110,8 @@ class AssertBarTest {
             // .withEngineCompat, the PCT and corpus harnesses; the user, 2026-11-04)
             new Probe("float-looking-strings", "{|assertEquals('x=1.0000000000000002', 'x=1.0')}",
                     "\nexpected: 'x=1.0000000000000002'\nactual:   'x=1.0'"),
-            new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", "\nexpected: 3.0D\nactual:   3.00D"),
+            new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", null),
+            new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "\nexpected: 3.0D\nactual:   3.10D"),
             new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "\nexpected: 1\nactual:   1.0"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)

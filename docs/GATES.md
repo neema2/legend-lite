@@ -20190,5 +20190,12 @@ the database pass's nested window function, already recorded as a corpus-phase i
   verified on every PCT lane including the cloud ones -- proposed to the user as its own change after this PR.
 - **S136 withdrawn** (the user: "drop s136").
 
-Checks: core root and judge under the host, database and both judges; census. Core's full matrix running at commit
-time.
+- **The per-element form too** (an assert inside `forAll`): the database judge's pairs compare a Decimal by value in
+  clean mode (`VerdictSql.perElement`'s `decimalByValue`), found by the assert bar's `forAll-decimal-scale` probe
+  (host held, database failed: the judges disagreed under BOTH). The bar's two scale probes now hold, and two value
+  probes (`3.0D` against `3.10D`) fail with upstream's message. `DatabaseJudge`'s pin 827 -> 828.
+- **IEEE (S20) and order tracking are later steps** (the user, 2026-11-05: "leave IEEE then and Ordering as next
+  steps for later, maybe when we do SQL lean program").
+
+Checks: core's full matrix (56 targets: the host, database and both judges) green but for the driver package's bar,
+fixed above and re-run under all three judges; census; guardrails; PCT DuckDB channel A and channel B, every suite.

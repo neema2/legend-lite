@@ -916,7 +916,8 @@ final class DatabaseJudge {
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
                     crossNumberKinds(ek, ak, compat),
                     compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT);
+                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
+                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek));
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
