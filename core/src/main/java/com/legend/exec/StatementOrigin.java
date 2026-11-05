@@ -107,9 +107,42 @@ public enum StatementOrigin {
         }
     }
 
+    private static final ThreadLocal<java.lang.@com.legend.base.Nullable String> PLANNING = new ThreadLocal<>();
+
+    /** PLANNING SENDS NOTHING, mechanically (2026-11-05, the strict database judge's group 3): while the scope is open
+     *  this thread is planning {@code what} -- a test body's plan, before any of it runs -- and a statement sent is
+     *  refused by name ({@link #sent}), whatever origin mark a site entered inside it. The scope nests: an inner
+     *  scope keeps the outer's name. */
+    public static Planning planning(String what) {
+        String previous = PLANNING.get();
+        PLANNING.set(previous != null ? previous : what);
+        return new Planning(previous);
+    }
+
+    /** Whether this thread is planning ({@link #planning}): a site that would send to prepare what it plans defers
+     *  that statement to the plan instead (the system store's route, whose seed is the plan's own step). */
+    public static boolean isPlanning() {
+        return PLANNING.get() != null;
+    }
+
+    /** A planning scope; closing restores the one before it. */
+    public record Planning(java.lang.@com.legend.base.Nullable String previous) implements AutoCloseable {
+        @Override
+        public void close() {
+            PLANNING.set(previous);
+        }
+    }
+
     /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
-     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. */
+     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. Refused while
+     *  this thread plans ({@link #planning}). */
     public static void sent(String sql) {
+        String planning = PLANNING.get();
+        if (planning != null) {
+            throw new IllegalStateException("a statement sent while planning " + planning + " (planning sends"
+                    + " nothing): [" + current().name().toLowerCase(java.util.Locale.ROOT) + "] "
+                    + (sql.length() > 300 ? sql.substring(0, 300) + "..." : sql));
+        }
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
         java.util.List<String> observed = OBSERVED.get();
         if (observed != null) {

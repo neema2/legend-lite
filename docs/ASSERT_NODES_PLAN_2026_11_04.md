@@ -67,6 +67,42 @@ asserts are inlined like any function.
 
 Then the wall (§2 of the audit) and the lean SQL (§3), then the corpus.
 
+## The rulings of 2026-11-05
+
+1. **The database judge has no fallback.** The user: "The database judge should not have a fallback mode at all, it
+   should hard fail if cannot judge something and then we need to fix." A decline, a silent drop or an UNJUDGED
+   verdict under the database judge (alone or in BOTH) is a failure, never a hand-off to the host. The measurement
+   that sizes the work is `-Dlegend.diagnostics=judge-declines` over core and PCT under both modes: it prints each
+   decline, each host step and each statement a verdict sends after its rows are read (`[judge-send]`).
+2. **assertError is designed before it is reworded.** The user: "I didn't rule that assertError should fall back to
+   host, I said that if the there is some part that needs to be in java bc java needs to orchestrate the catch part
+   that is okay"; "Before we correct any wording we need to first design what assertError actually should be doing - it
+   might turn out host is the only way I don't know but I don't think WE know." So ruling N3's wording in AGENTS.md
+   and the older plans stays until a design spike classifies every assertError of PCT and core:
+   - decided at planning;
+   - a guard lite spells, which the database could judge as error-as-data;
+   - an error the database raises itself, where the catch is Java's.
+3. **After a verdict, the harness may only explain.** Agreed form: once the plan decides FAIL, the harness may explain
+   the failure, never change the verdict. Anything that changes a verdict is in the plan, or is compatibility-only.
+   - The caller's message, read only where an assert fails, explains. It stays.
+   - The split rung re-runs a fused group's asserts one by one to attribute a failure. It explains. It gets a
+     tripwire: a re-run that does not reproduce the failure is a loud lite error, never a pass.
+   - A ruled fallback or appeal that turns a FAIL into a pass changes the verdict. It is compatibility-only:
+     - the rendered text compared as rows (S131's multiset, S132's float tokens);
+     - the engine-text appeal.
+     In clean mode a rendered-text assert is one string comparison the database judges. In compatibility mode the
+     appeals are one named list, each run only after a FAIL, the verdict recording which appeal passed it.
+4. **Lite's tests are deterministic.** The user: "I think no sort order is compatibility only bc I think our tests in
+   lite should always be deterministic and fail if not". S131 becomes compatibility-only. Lite's own test bodies get
+   order tracking: an operation that reads an order the program never defined is refused at planning. The design is
+   `docs/ORDER_TRACKING_DESIGN_2026_11_05.md` (not ratified; its §9 asks three questions).
+5. **Posted, awaiting the user's word:**
+   - A relation in `assertSize` / `assertEmpty` / `assertNotEmpty`. The recommendation: upstream's meaning in
+     compatibility mode (a relation is one value), and a refusal at planning in clean mode, naming `$rel->size()`.
+   - S20, the Float literal's arithmetic. The measurement: `(0.1 + 0.2)->toString()` is `'0.3'` (DuckDB types a small
+     Float literal as an exact DECIMAL), the same sum over a Float column `'0.30000000000000004'`, and `1.0E20 + 0.1`
+     a double. The recommendation: every Float literal a DOUBLE, as S119 rules lite's Float.
+
 ## Progress
 
 | Step | State | Commit |

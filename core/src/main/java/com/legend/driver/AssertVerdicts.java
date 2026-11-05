@@ -2280,6 +2280,14 @@ final class AssertVerdicts {
      *  (a side the database judge cannot read as a String) or the negated family: {@code rows} alone. */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
+        if (env.options().judgingRules() != com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+            // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
+            // verdict; the ruled row comparison is compatibility mode's alone
+            if (textRow == null) {
+                return DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String");
+            }
+            return DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
+        }
         if (!wantEqual || textRow == null) {
             return rows.get();
         }

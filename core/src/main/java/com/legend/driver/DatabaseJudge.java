@@ -406,6 +406,7 @@ final class DatabaseJudge {
     static boolean holdsNow(String name, com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
         com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
         com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, true);
+        com.legend.diagnostics.Diagnostics.judgeSend("holds-now", name);
         List<Object> read = com.legend.judge.VerdictBatch.executeOne(
                 name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
                 runOn.session(), JudgePlans.runner(runOn));
@@ -429,6 +430,7 @@ final class DatabaseJudge {
         // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6), the row self-contained
         // (M8b): its polarity and its message in the statement
         com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, wantEqual);
+        com.legend.diagnostics.Diagnostics.judgeSend("no-batch", name);
         return verdictOf(name, com.legend.judge.VerdictBatch.executeOne(
                 name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
                 runOn.session(), JudgePlans.runner(runOn)));

@@ -21,7 +21,9 @@ import java.util.Set;
  * launcher for a method's test, channel B for a PCT test; a test it does not name -- a dynamic test, a lane whose
  * runner sets none -- is refused under a list). {@code -Dlegend.walk.allowed=none} closes the walk to every test: a lane
  * whose list burned to zero holds no list that could grow back (channel B, 2026-11-03). With no property the door is
- * open (a product, a host that holds no list). The door decides nothing about a body the program road runs.
+ * CLOSED (2026-11-05, the strict database judge's group 3: nothing walks unless a lane says so -- a product, a server
+ * running a user's tests, any new lane); {@code -Dlegend.walk.allowed=all} opens it, the corpus lanes' until the walk
+ * is deleted. The door decides nothing about a body the program road runs.
  */
 final class WalkDoor {
 
@@ -31,8 +33,8 @@ final class WalkDoor {
     /** Refuses the walk for the running test when the lane names an allow list that does not name it; {@code why}
      *  says why the body would walk. */
     static void check(String why) {
-        String list = System.getProperty("legend.walk.allowed");
-        if (list == null) {
+        String list = System.getProperty("legend.walk.allowed", "none");
+        if ("all".equals(list)) {
             return;
         }
         String current = System.getProperty("legend.test.current");

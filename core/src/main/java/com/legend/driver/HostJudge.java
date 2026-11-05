@@ -716,7 +716,7 @@ final class HostJudge {
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
             case HostJudgment.Json js -> jsonOf(js, sides);
-            case HostJudgment.Rendered r -> renderedOf(r, sides);
+            case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
@@ -1740,7 +1740,8 @@ final class HostJudge {
                 new HostJudgment.Rendered(name, wantEqual, form, eForm, aForm, sorted, counted));
     }
 
-    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair) {
+    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         String name = j.name();
         String form = j.form();
         List<Object> ev = AssertVerdicts.decodeSide(pair.get(0));
@@ -1750,9 +1751,13 @@ final class HostJudge {
             // GENERIC FIRST (2026-11-04, the core program): the two strings compared as strings; the ruled policy (an
             // unsorted query's lines as a multiset, S131; float tokens within 2 ULP, S132) only where they differ
             // (measured on the corpus's DuckDB host pass: 240 of 269 texts byte-equal, 25 held by the policy)
-            boolean held = et.equals(at) || com.legend.judge.TdsCompare.renderedText(
-                    j.aForm() != null ? et : at, j.aForm() != null ? at : et,
-                    form, j.sortedOrder());
+            // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
+            // verdict; the ruled row comparison after a failed text is compatibility mode's alone
+            boolean held = et.equals(at)
+                    || rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT
+                            && com.legend.judge.TdsCompare.renderedText(
+                                    j.aForm() != null ? et : at, j.aForm() != null ? at : et,
+                                    form, j.sortedOrder());
             if (held != j.wantEqual()) {
                 return AssertVerdicts.fail(name + " (rendered " + form + "): "
                         + AssertVerdicts.firstTextDiff(et, at));

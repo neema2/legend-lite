@@ -19912,3 +19912,78 @@ assertError should fall back to host, I said that if there is some part that nee
 orchestrate the catch part that is okay". The records' "N3: assertError is host-judged in every mode" misstated the
 ruling: Java may orchestrate assertError's catch; the database judge judges the caught error as any assert. Every
 hand-off to the host under the database judge above is a fallback to remove, next.
+## 2026-11-05 — The strict database judge, measured and switched on; clean mode's texts are the verdict; planning sends nothing, mechanically
+
+**The measurement first** (`-Dlegend.diagnostics=judge-declines`, now also printing `[judge-send]`: each statement a
+verdict sends after the plan's rows are read -- a split rung, a ruled fallback, an appeal, a caller's message -- and
+each host step a database plan holds; and every silent drop of `DatabaseAsserts.planEach`), at `0e2359f3` plus the
+instrumentation, core and PCT channel B under the database judge alone and under BOTH, all green:
+
+| | core DATABASE | core BOTH | PCT DATABASE | PCT BOTH |
+|---|---|---|---|---|
+| `assertError` to the host (host steps and declines) | 21 | 21 | 34 | 34 |
+| any other decline | 1 | 1 | 0 | 0 |
+| UNJUDGED | 20 | 20 | 44 | 0 |
+| split rung | 18 | 18 | 52 | 0 |
+| appeal (engine text) | 24 | 24 | 0 | 0 |
+| ruled fallback (rendered text) | 10 | 10 | 0 | 0 |
+| caller's message (explains only) | 11 | 11 | 0 | 0 |
+| silent drop | 4 | 4 | 0 | 0 |
+
+(Core's two columns are alike because the tests that print these lines set their own judges whatever the lane's
+(the parity tests; `AssertBarTest` runs each probe under all three);
+core's one other decline is `AgreementArmTest`'s own test of the decline. PCT under BOTH shows no UNJUDGED: there
+the host's read of a side a dialect cannot write raises first.)
+
+- **`assertError` is the only assert the database judge hands to the host, on core and PCT alike.** The earlier
+  entry's "one mixed-kind collection" (`testMixedSortNoComparator`) was the HOST judge's own legacy byte check noting a
+  decline; the database judge decides that test.
+- **Every UNJUDGED is a dialect's missing capability.** On PCT: SQLite and H2 lack a list encoding, `regexp_extract_all`
+  over a non-literal pattern, or users; these are already ledgered known failures. On core: the parity tests over a
+  dialect with no unnest or struct placement, which pin that outcome on purpose.
+- **Every split rung reproduces its failure alone.** On PCT: the four DuckDB big-number date tests, H2's lateral joins
+  (no `LATERAL`), and the members a dialect could not spell.
+- **The appeals and ruled fallbacks ran only in core's own clean-mode tests** (the parity tests of that machinery,
+  `RenderedTextTest`). PCT uses none: its rendered texts all equal their goldens as strings.
+- The silent drops are core's parity test of the shapes the host checks leave on the walk.
+
+**What changed, from it** (the user's rulings of 2026-11-05, `docs/ASSERT_NODES_PLAN_2026_11_04.md` "The rulings of
+2026-11-05"):
+
+1. **Strict BOTH.** A database decline or UNJUDGED fails the assert, naming why and what the host said
+   (`AgreementArm.undecided`); the host never decides alone. The one named exception until its design lands:
+   `assertError`, decided by the host's catch and counted as a host step (`AgreementAsserts`).
+2. **Clean mode's texts are the verdict.** Under the LITE rules a rendered text is one string comparison (the host's
+   `renderedOf`, the database's `textFirst`: the database computes the render and the equality), and an engine text
+   is its equality with the golden (`SqlTextVerdicts.decide`: no appeal, no re-run). The rows comparison after a failed
+   text (S131, S132) and the engine-text appeal are compatibility mode's alone. Core's tests of that machinery run their
+   programs under the compatibility rules (`BodyRouterParityTest`'s four, `RenderedTextTest`'s two); `RenderedTextTest`
+   now pins that clean mode fails on differing strings.
+3. **The split rung's tripwire.** A fused statement the database rejected, with every assert holding alone, is a lite
+   error naming the rejection (`VerdictBatch.Planned.judge`): the re-run explains a failure, it never turns one into a
+   pass.
+4. **Planning sends nothing, mechanically.** `StatementOrigin.planning(what)` scopes the router's planning of a test
+   body's asserts and its program; a statement sent inside the scope is refused by name (`StatementOrigin.sent`),
+   whatever origin a site entered.
+5. **The walk's door is closed by default.** No property means `none`; `-Dlegend.walk.allowed=all` opens it, set by
+   the corpus lanes (`spec/corpus.bzl`) until the walk is deleted.
+
+5b. **The plan seeds the system store** wherever a step reads it (`PlanMaker`: an assert's side, its message, a branch's,
+   with no statement of the body seeding it ahead) -- the guard's first catch: planning a side that reads the system
+   metamodel store had seeded the store while planning (`BodyDriver.systemRoute`, now a no-send while planning).
+
+**The assertError design spike** (read-only, an independent agent; its write-up in the session's scratchpad, not
+committed): every site classified -- PCT DuckDB 24 sites (8 raised at planning, 9 folded raises, 5 lite-spelled
+guards, 0 database errors, 2 raising nothing: acos/asin under S119), core 17 (5 folded, 9 guards, 3 raising nothing).
+The database cannot catch an error and return its message (DuckDB's TRY returns NULL and refuses lite's error()).
+Its recommendation, posted to the user for a ruling: the host catches, the database judges (the caught message, line
+and column bound as parameters into an ordinary database verdict). The records' N3 wording stays until the user rules.
+
+**Checks at this commit:** core's full matrix (`//core:core_tests`, `//core:core_tests_judges`: 54 targets) green
+under the host judge, the database judge alone and BOTH but for the integration target, which the guard's first catch
+failed under all three; green after the seed fix (`//core:core_tests_integration`, `//core:core_tests_root`,
+`//core:core_tests_planner`, `//core:guardrails`, `//core:census`). Ledger pins moved with dated reasons:
+`AssertVerdicts` 1900 -> 1906, `HostJudge` 1263 -> 1266, `BodyDriver` 1034 -> 1037, `SqlTextVerdicts` 1542 -> 1562,
+`DatabaseJudge` 821 -> 823 (the measurement's print); `VerdictBatch.rejected` allowlisted (the tripwire's latch).
+PENDING at commit time, recorded in the next entry: the integration and driver targets under the database judge and
+BOTH, `//gates:local`, PCT channel B under all three judges, the corpus lanes (DuckDB, H2).

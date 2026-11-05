@@ -88,6 +88,17 @@ public final class Diagnostics {
         }
     }
 
+    /** {@code judge-declines}, its second half: one line per statement a verdict sends AFTER the plan's rows are read
+     *  -- a split rung, a ruled fallback, an appeal, a caller's message, a verdict statement run with no batch -- and
+     *  per host step the database judge's plan holds (the strict database judge's measurement, 2026-11-05: after the
+     *  plan decides, the harness may only explain a failure, never change the verdict). Measurement only. */
+    public static void judgeSend(String kind, String name) {
+        if (on("judge-declines")) {
+            System.err.println("[judge-send] " + kind + " " + System.getProperty("legend.test.current", "?") + " "
+                    + name);
+        }
+    }
+
     /** {@code dump-sql}; the LEGEND_LITE_DUMP_SQL env flag still turns it on until P7-14 retires the env flags. */
     public static boolean dumpSql() {
         return on("dump-sql") || System.getenv("LEGEND_LITE_DUMP_SQL") != null;

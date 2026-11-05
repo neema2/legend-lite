@@ -253,6 +253,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 }
                 byStatement.put(i, List.of(step.step()));
                 hostSteps.put(step.verdict(), step);
+                com.legend.diagnostics.Diagnostics.judgeSend("host-step", AssertVerdicts.listenerName(
+                        Lets.bare(statement)));
                 continue;
             }
             if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
@@ -461,6 +463,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             java.util.function.IntFunction<@Nullable String> frameStamp, List<TypedSpec> lets) {
         Map<Integer, Each> out = new LinkedHashMap<>();
         if (!plannable(typed, systemRouted)) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "agreement: the body reaches a lineage"
+                    + " scan");
             return out;
         }
         SpecCompiler specs = typed.specs();
@@ -498,6 +502,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     // the host half raises it at its place (a planned raise); the database half declines the rest
                 }
                 if (!built) {
+                    com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", let.name(), "agreement: a let the"
+                            + " database half could not build; every assert after it declined");
                     break;
                 }
                 continue;

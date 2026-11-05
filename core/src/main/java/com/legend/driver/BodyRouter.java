@@ -95,12 +95,16 @@ public final class BodyRouter {
             // composes frames into verdict statements and splices none into an answer (ExecuteFrameTest under the
             // database judge alone)
             boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
-            switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
-                case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
-                // both judges in one plan: each assert's step carries the host's sides and the database's statement
-                case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                        systemRouted);
+            // planning sends nothing (2026-11-05): a statement sent while the asserts are planned is refused by name
+            try (var p = com.legend.exec.StatementOrigin.planning("a test body's asserts")) {
+                switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
+                    case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
+                    case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
+                    // both judges in one plan: each assert's step carries the host's sides and the database's
+                    // statement
+                    case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
+                            systemRouted);
+                }
             }
         }
         TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
@@ -126,8 +130,11 @@ public final class BodyRouter {
             return;
         }
         Census.inc(Census.Key.BODIES_MOVED);
-        TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(),
-                asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted);
+        TestDoor.Planned planned;
+        try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
+            planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(),
+                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted);
+        }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end

@@ -889,7 +889,12 @@ public final class BodyDriver {
                 new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()),
                 new com.legend.executionplan.ExecutionPlan.Servers.Every(), env.dialect().sessionSetup(),
                 java.util.List.of());
-        com.legend.exec.PlanRunner.seedSystemStore(com.legend.planner.SystemRoutes.seeds(ctx, target, env.dialect()), system);
+        if (!com.legend.exec.StatementOrigin.isPlanning()) {
+            // the walk, running as it plans: the store written here; while a program is planned, its own seed step
+            // writes it (PlanMaker: ahead of every step that reads the store), and nothing is sent now
+            com.legend.exec.PlanRunner.seedSystemStore(com.legend.planner.SystemRoutes.seeds(ctx, target,
+                    env.dialect()), system);
+        }
         return system;
     }
 

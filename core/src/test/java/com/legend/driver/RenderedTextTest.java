@@ -19,10 +19,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * A RENDERED TEXT asserted against its golden, generic first (2026-11-04, the core program: every assert on its own
- * merit, a ruled fallback only after it fails): the two strings compare as strings -- under the database judge the
- * database computes the render and the equality -- and only where they differ does the ruled comparison decide, an
- * unsorted query's tokens as a multiset (S131). Run under each judge by the lane ({@code legend.test.judge}).
+ * A RENDERED TEXT asserted against its golden. In lite's own runs the two strings ARE the verdict (the user,
+ * 2026-11-05: after a verdict the harness may only explain a failure) -- under the database judge the database computes
+ * the render and the equality. Only in backwards-compatibility mode does a ruled comparison decide where the strings
+ * differ: an unsorted query's tokens as a multiset (S131). Run under each judge by the lane ({@code legend.test.judge}).
  */
 class RenderedTextTest {
     private static final String MODEL = """
@@ -54,27 +54,43 @@ class RenderedTextTest {
         conn.close();
     }
 
+    /** The names, sorted (lite's own tests read no order the program never defined), joined. */
     private Object run(String golden) throws Exception {
+        return Program.last(MODEL, "{| assertEquals('" + golden
+                + "', r::P.all()->map(p|$p.name)->sort()->joinStrings(','));}", "r::RT", conn).value();
+    }
+
+    /** The names in the query's arrival order, joined, judged in backwards-compatibility mode. */
+    private Object runCompat(String golden) throws Exception {
         return Program.last(MODEL, "{| assertEquals('" + golden + "', r::P.all()->map(p|$p.name)->joinStrings(','));}",
-                "r::RT", conn).value();
+                "r::RT", conn, com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge())
+                        .withEngineCompat(true)).value();
     }
 
     @Test
-    @DisplayName("the strings equal: the generic comparison holds")
+    @DisplayName("the strings equal: the comparison holds")
     void equalStrings() throws Exception {
         assertEquals(Boolean.TRUE, run("ann,bob"));
     }
 
     @Test
-    @DisplayName("the strings differ, the unsorted query's tokens agree: the ruled fallback holds (S131)")
-    void tokensAgree() throws Exception {
-        assertEquals(Boolean.TRUE, run("bob,ann"));
+    @DisplayName("clean mode: the strings differ, so the assert fails -- no comparison after it")
+    void theStringsAreTheVerdict() {
+        AssertFailed e = assertThrows(AssertFailed.class, () -> run("bob,ann"));
+        assertTrue(e.getMessage().contains("bob,ann") && e.getMessage().contains("ann,bob"), e.getMessage());
     }
 
     @Test
-    @DisplayName("the tokens differ: the fallback fails with its own message")
-    void tokensDiffer() {
-        AssertFailed e = assertThrows(AssertFailed.class, () -> run("ann,cy"));
+    @DisplayName("compatibility mode: the strings differ, the unsorted query's tokens agree -- the ruled comparison"
+            + " holds (S131)")
+    void compatTokensAgree() throws Exception {
+        assertEquals(Boolean.TRUE, runCompat("bob,ann"));
+    }
+
+    @Test
+    @DisplayName("compatibility mode: the tokens differ -- the ruled comparison fails with its own message")
+    void compatTokensDiffer() {
+        AssertFailed e = assertThrows(AssertFailed.class, () -> runCompat("ann,cy"));
         assertTrue(e.getMessage().contains("cy"), e.getMessage());
     }
 }

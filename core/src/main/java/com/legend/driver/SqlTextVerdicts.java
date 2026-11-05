@@ -413,6 +413,9 @@ final class SqlTextVerdicts {
                 }
                 return ok();
             }
+            if (!appeals(c.env())) {
+                return textsDiffer(c.name(), golden, ours, c.decline());
+            }
             return java.util.Objects.requireNonNull(c.rerun(), "a golden read at the step with no re-run")
                     .rerun(golden, ours);
         }
@@ -450,7 +453,16 @@ final class SqlTextVerdicts {
         if (decline != null) {
             declined(env, name, decline);
         }
+        boolean appeals = appeals(env);
         com.legend.judge.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active() && !appeals) {
+            // clean mode: the text equality is the verdict row, and a failed row is the assert's failure
+            batch.defer(name, true, collector instanceof BatchTexts bt && ours == bt.token
+                    ? com.legend.lowering.VerdictSql.textEquals(golden,
+                            java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
+                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session());
+            return ok();
+        }
         if (batch != null && batch.active()) {
             if (collector instanceof BatchTexts bt && ours == bt.token) {
                 // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
@@ -470,7 +482,21 @@ final class SqlTextVerdicts {
                     row -> appeal.appeal(ours, textEqual));
             return ok();
         }
-        return textEqual ? ok() : appeal.appeal(ours, textEqual);
+        return textEqual ? ok() : appeals ? appeal.appeal(ours, textEqual) : textsDiffer(name, golden, ours, decline);
+    }
+
+    /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
+     *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
+    private static boolean appeals(BodyDriver.ExecEnv env) {
+        return env.options().judgingRules()
+                == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+    }
+
+    /** A text that differs from its golden, in clean mode: the assert's failure, the first difference named. */
+    private static TypedSide textsDiffer(String name, String golden, String ours,
+            @com.legend.base.Nullable String decline) {
+        return fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
+                : "") + ": " + AssertVerdicts.firstTextDiff(golden, ours));
     }
 
     /**

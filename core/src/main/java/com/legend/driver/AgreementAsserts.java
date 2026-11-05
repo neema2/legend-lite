@@ -254,7 +254,18 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 },
                 () -> {
                     if (database == null) {
-                        return null;   // the database judge declines: not this shape
+                        if (HostJudgment.core(a.check().judgment()) instanceof HostJudgment.AssertError) {
+                            // assertError, the one named exception until its design lands (the user, 2026-11-05: "we
+                            // need to first design what assertError actually should be doing"): the host's catch
+                            // decides it, counted as a host step
+                            com.legend.diagnostics.Diagnostics.judgeSend("host-step", a.listenerName());
+                            AssertFailed failed = held.failed();
+                            if (failed != null) {
+                                throw failed;
+                            }
+                            return held.verdict();
+                        }
+                        return null;   // the database judge declines: not this shape -- strict, a failure
                     }
                     database.planned().judge(null);
                     return AssertVerdicts.ok();

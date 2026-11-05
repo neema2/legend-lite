@@ -516,6 +516,10 @@ public final class VerdictBatch {
         private final java.util.Set<Pending> unspelled;
         private final Map<Integer, List<Object>> rows = new HashMap<>();
         private boolean counted;
+        /** The first fused statement the database rejected, or null: the split rung's tripwire -- a rejection no
+         *  assert reproduces alone is a composition bug, never a pass (2026-11-05: after a verdict the harness may
+         *  only explain a failure). */
+        private com.legend.error.@com.legend.base.Nullable DataError rejected;
 
         private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
                 java.util.Set<Pending> unspelled) {
@@ -558,6 +562,9 @@ public final class VerdictBatch {
             if (rejected == null) {
                 Census.inc(Census.Key.VERDICT_FUSED);
             } else {
+                if (this.rejected == null) {
+                    this.rejected = rejected;
+                }
                 fallback(rejected);
             }
         }
@@ -582,6 +589,7 @@ public final class VerdictBatch {
                 throw decided.failure();
             }
             Pending fallback = (Pending) java.util.Objects.requireNonNull(p.orElse());
+            com.legend.diagnostics.Diagnostics.judgeSend("or-else", fallback.name());
             judge.judge(fallback.name(), executeOne(fallback.name(),
                     com.legend.sql.FrameCtes.attach(fallback.query(), frames), fallback.on(), runner));
         }
@@ -607,6 +615,7 @@ public final class VerdictBatch {
                                 continue;
                             }
                             if (row == null) {
+                                com.legend.diagnostics.Diagnostics.judgeSend("split-rung", p.name());
                                 row = executeOne(p.name(),
                                         com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
                             }
@@ -623,6 +632,7 @@ public final class VerdictBatch {
                                 }
                                 // rung 2a: the row failed — the appeal decides (returns
                                 // on a pass by rows, raises its own failure otherwise)
+                                com.legend.diagnostics.Diagnostics.judgeSend("appeal", p.name());
                                 p.appeal().appeal(row);
                             }
                         } else if (s instanceof Resolved rv) {
@@ -653,12 +663,21 @@ public final class VerdictBatch {
                 }
                 throw failure;   // first-failure sequencing, as before
             }
+            com.legend.error.DataError r = rejected;
+            if (r != null) {
+                // every assert held alone where the fused statement was rejected: the split rung explained nothing, so
+                // the rejection is the fusion's own -- a lite error, never a pass
+                throw new IllegalStateException("the fused verdict statement was rejected and no assert reproduced"
+                        + " the rejection alone (a composition bug in the fused statement): "
+                        + String.valueOf(r.getMessage()).split("\n")[0], r);
+            }
         }
     }
 
     /** The failure of {@code r}, a root that did not hold, with its caller's message: the message's row sent now, at
      *  the root's place, its value the failure's text -- or the error reading it raised. */
     private RuntimeException messaged(Root r) {
+        com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
         try {
             List<Object> row = executeOne(r.listenerName, com.legend.sql.FrameCtes.attach(
                     java.util.Objects.requireNonNull(r.message), frames),

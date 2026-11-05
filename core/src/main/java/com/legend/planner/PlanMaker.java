@@ -247,6 +247,9 @@ public final class PlanMaker {
                     if (verdict.wrapper() != null) {
                         out.addAll(sqls(verdict.wrapper()));
                     }
+                    if (verdict.message() != null) {
+                        out.addAll(sideSqls(verdict.message()));
+                    }
                 }
                 if (v.fused() != null) {
                     out.add(v.fused().sql());
@@ -371,7 +374,27 @@ public final class PlanMaker {
                 planStatement(state, i, stmt, last, door, on);
             }
         }
-        return new ExecutionPlan.Sequence(finished(state));
+        List<ExecutionPlan.Node> steps = finished(state);
+        ExecutionPlan.Target system = systemSeeded ? null : systemTargetOf(steps);
+        if (system != null) {
+            // a step that reads the graph's system store with no statement of the body seeding it ahead -- an assert's
+            // side, its message, a branch's (the test door's steps): the plan's own seed step first (2026-11-05,
+            // planning sends nothing: the side's route had seeded the store while the side was planned)
+            steps.add(0, SystemRoutes.seeds(query.context(), system, decided.dialect()));
+        }
+        return new ExecutionPlan.Sequence(steps);
+    }
+
+    /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
+    private static ExecutionPlan.@Nullable Target systemTargetOf(List<ExecutionPlan.Node> steps) {
+        for (ExecutionPlan.Node step : steps) {
+            for (ExecutionPlan.Sql sql : sqls(step)) {
+                if (sql.target().database() instanceof ExecutionPlan.Database.System) {
+                    return sql.target();
+                }
+            }
+        }
+        return null;
     }
 
     /** Where a plan runs: the runtime's database ({@code Compiler.executesOn}: a null runtime refused there, by name),

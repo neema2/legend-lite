@@ -49,6 +49,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BodyRouterParityTest {
 
     private static final String RT = StorelessRuntime.RUNTIME;
+    /** Whether the programs run under backwards-compatibility rules: an engine-text appeal and a rendered text's ruled
+     *  comparison after a failed text are compatibility mode's alone (the user, 2026-11-05: after a verdict the harness
+     *  may only explain), so the tests of them run their programs, on both roads, under those rules. */
+    private static final ThreadLocal<Boolean> COMPAT = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    private interface Body {
+        void run() throws Exception;
+    }
+
+    private static void inCompatibilityMode(Body body) throws Exception {
+        COMPAT.set(Boolean.TRUE);
+        try {
+            body.run();
+        } finally {
+            COMPAT.remove();
+        }
+    }
     private static final String EXEC = "meta::relational::metamodel::execute::executeInDb(";
 
     /** Every database the platform runs in-process that a test's connection can name (Pure's
@@ -737,6 +754,10 @@ class BodyRouterParityTest {
     @ParameterizedTest
     @MethodSource("backends")
     void gridPairsAndRenderedTextsUnderTheDatabaseJudge(TestBackend backend) throws Exception {
+        inCompatibilityMode(() -> gridPairsAndRenderedTextsUnderTheDatabaseJudgeBody(backend));
+    }
+
+    private void gridPairsAndRenderedTextsUnderTheDatabaseJudgeBody(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         String grid = "#TDS\na,b\n1,x\n2,y\n#";
         String csv = "->meta::relational::tests::csv::toCSV()";
@@ -1203,6 +1224,10 @@ class BodyRouterParityTest {
     @ParameterizedTest
     @MethodSource("backends")
     void engineTextPrograms(TestBackend backend) throws Exception {
+        inCompatibilityMode(() -> engineTextProgramsBody(backend));
+    }
+
+    private void engineTextProgramsBody(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
@@ -1389,6 +1414,10 @@ class BodyRouterParityTest {
     @ParameterizedTest
     @MethodSource("backends")
     void systemRoutedEngineTextPrograms(TestBackend backend) throws Exception {
+        inCompatibilityMode(() -> systemRoutedEngineTextProgramsBody(backend));
+    }
+
+    private void systemRoutedEngineTextProgramsBody(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
@@ -1466,6 +1495,10 @@ class BodyRouterParityTest {
     @ParameterizedTest
     @MethodSource("backends")
     void deferredTextPrograms(TestBackend backend) throws Exception {
+        inCompatibilityMode(() -> deferredTextProgramsBody(backend));
+    }
+
+    private void deferredTextProgramsBody(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         String planLet = "let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, x::RT.runtimeValue, []);";
@@ -1806,7 +1839,8 @@ class BodyRouterParityTest {
             }
             TypedQuery q = typed(ctx, body);
             RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
-            ExecuteOptions options = ExecuteOptions.recording(recorder, null).withJudgeMode(mode);
+            ExecuteOptions options = ExecuteOptions.recording(recorder, null).withJudgeMode(mode)
+                    .withEngineCompat(COMPAT.get());
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
             com.legend.judge.SqlReplayReferee referee = new StubReferee(c);

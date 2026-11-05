@@ -99,6 +99,9 @@ final class AgreementArm implements VerdictArm {
                     if (listener != null) {
                         listener.unjudged(name, unjudged);
                     }
+                    // STRICT (the user, 2026-11-05: "The database judge should not have a fallback mode at all, it
+                    // should hard fail if cannot judge something and then we need to fix"): never the host's alone
+                    throw undecided(name, "could not judge it (" + unjudged + ")", hostFailed);
                 } else if (hostFailed == null) {
                     throw disagreement(name, "the host judge holds, the database judge fails ("
                             + first(f.failure().getMessage()) + ")");
@@ -109,6 +112,7 @@ final class AgreementArm implements VerdictArm {
                 if (listener != null) {
                     listener.declined(name, "database judge: not this shape");
                 }
+                throw undecided(name, "declined it (not this shape)", hostFailed);
             }
             case Errored e -> throw new AssertFailed(name + ": THE JUDGES DID NOT AGREE — the database judge's"
                     + " statement failed (" + e.failure().getClass().getSimpleName() + ": "
@@ -119,6 +123,12 @@ final class AgreementArm implements VerdictArm {
             throw hostFailed;
         }
         return hostHeld;
+    }
+
+    /** The database judge decided nothing: the assert fails naming why, and what the host judge said. */
+    private static AssertFailed undecided(String name, String why, @com.legend.base.Nullable AssertFailed hostFailed) {
+        return new AssertFailed(name + ": THE DATABASE JUDGE " + why + ", where the host judge "
+                + (hostFailed == null ? "holds" : "fails (" + first(hostFailed.getMessage()) + ")"));
     }
 
     private static AssertFailed disagreement(String name, String how) {
