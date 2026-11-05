@@ -163,6 +163,15 @@ class AssertBarTest {
                             + " meta::pure::functions::collection::Pair>]\nactual:   [<1|b instanceOf"
                             + " meta::pure::functions::collection::Pair>, <2|b instanceOf"
                             + " meta::pure::functions::collection::Pair>]"),
+            new Probe("assertSameElements-pairs-message",
+                    "{|assertSameElements([pair(2, 'b'), pair(1, 'a')], [pair(1, 'a'), pair(3, 'c')])}",
+                    "\nexpected: [<1|a instanceOf meta::pure::functions::collection::Pair>, <2|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>]\nactual:   [<1|a instanceOf"
+                            + " meta::pure::functions::collection::Pair>, <3|c instanceOf"
+                            + " meta::pure::functions::collection::Pair>]"),
+            new Probe("assertContains-pairs-message", "{|assertContains([pair(1, 'a')], pair(2, 'b'))}",
+                    "[<1|a instanceOf meta::pure::functions::collection::Pair>] does not contain <2|b instanceOf"
+                            + " meta::pure::functions::collection::Pair>"),
             new Probe("message-not-read-where-assertEmpty-holds",
                     "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",
@@ -201,10 +210,7 @@ class AssertBarTest {
     /** The probes that miss the bar today (2026-11-04, measured at 963e45aa). SHRINK ONLY: delete a line in the change
      *  that closes it. */
     private static final Set<String> GAPS = new LinkedHashSet<>(List.of(
-            // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it.
-            // 2026-11-04: the database judge alone writes a COLLECTION of pairs as their JSON documents (one pair is
-            // written from its struct, VerdictSql.genericInstanceRepr; a list of them has no writer yet)
-            "assertEquals-pair-collections-message"
+            // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it
     ));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,

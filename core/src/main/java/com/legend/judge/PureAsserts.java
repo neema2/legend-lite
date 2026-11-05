@@ -109,12 +109,22 @@ public final class PureAsserts {
      * a->sort())} — the multiset rule IS sort-then-ordered-equal. */
     public static @com.legend.base.Nullable String assertSameElements(
             List<Object> expected, List<Object> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return assertSameElements(expected, actual, null, null, rules);
+    }
+
+    /** With each side's STATIC type, an instance's {@code instanceOf} half (2026-11-05, the assert bar: two lists of
+     *  pairs printed {@code instanceOf ?}). */
+    public static @com.legend.base.Nullable String assertSameElements(List<Object> expected, List<Object> actual,
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type expectedType,
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> es = sorted(expected);
         List<Object> as = sorted(actual);
         if (equal(es, as, rules)) {
             return null;
         }
-        return "\nexpected: " + joined(es) + "\nactual:   " + joined(as);
+        return "\nexpected: " + reprList(es, classFqnOf(expectedType)) + "\nactual:   "
+                + reprList(as, classFqnOf(actualType));
     }
 
     /** {@code assertSize(collection, size)} (assertSize.pure:17). */
@@ -138,7 +148,15 @@ public final class PureAsserts {
     /** {@code assertContains(collection, value)}'s message (assertContains.pure:17-20): the collection as a list of
      *  representations, the value's representation (2026-11-03). */
     public static String containsMessage(List<Object> collection, @com.legend.base.Nullable Object value) {
-        return joined(collection) + " does not contain " + repr(value);
+        return containsMessage(collection, value, null, null);
+    }
+
+    /** With each side's STATIC type, an instance's {@code instanceOf} half. */
+    public static String containsMessage(List<Object> collection, @com.legend.base.Nullable Object value,
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type collectionType,
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type valueType) {
+        return reprList(collection, classFqnOf(collectionType)) + " does not contain "
+                + repr(value, classFqnOf(valueType));
     }
 
     /** {@code assertEmpty(collection)}'s message (assertEmpty.pure:17-20, its own test: {@code '[1, 2] is not

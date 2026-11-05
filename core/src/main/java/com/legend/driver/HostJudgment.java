@@ -182,7 +182,9 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     record Size(boolean envelopeValuesRead) implements HostJudgment {
     }
 
-    record Contains() implements HostJudgment {
+    /** {@code collection} and {@code value}: the two sides' static facts, an instance's {@code instanceOf} half in the
+     *  failure message (2026-11-05, the assert bar: a list of pairs printed {@code instanceOf ?}). */
+    record Contains(SideFacts collection, SideFacts value) implements HostJudgment {
     }
 
     record Tolerance() implements HostJudgment {

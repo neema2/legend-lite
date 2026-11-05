@@ -97,6 +97,13 @@ public final class VerdictSql {
             return of(kind, false, true);
         }
 
+        /** Instances of a GENERIC class (a {@code Pair}) carried as structs of primitive fields -- the caller has seen
+         *  the side's plan answer such a struct: each written as the host writes an instance with no id,
+         *  {@code <1|a instanceOf meta::pure::functions::collection::Pair>} ({@link #genericInstanceRepr}'s rule). */
+        public static Message instances(Type.GenericType kind, boolean sorted) {
+            return new Message(kind, sorted, false);
+        }
+
         private static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted,
                 boolean listed) {
             if (kind == null) {
@@ -1659,19 +1666,39 @@ public final class VerdictSql {
      *  (2026-11-04, the assert bar: the database judge alone wrote the pair's canon JSON); null where the plan answers
      *  no struct of primitive fields. */
     public static @com.legend.base.Nullable SqlQuery genericInstanceRepr(SqlQuery plan, String typeFqn) {
-        if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
-                || !(ps.projections().get(0).expr().type() instanceof com.legend.sql.TypeFact.Typed ty)
-                || !(ty.type() instanceof SqlType.Struct st) || st.fields().isEmpty()) {
+        if (!(plan instanceof SqlSelect ps) || primitiveStruct(ps) == null) {
             return null;
         }
         SqlExpr value = SqlExpr.Column.of("w", plan.outputs(), plan.outputs().get(0).name());
-        List<SqlExpr> parts = new ArrayList<>();
-        parts.add(new SqlExpr.StringLit("<"));
+        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(instanceWritten(value, typeFqn), "value", out)),
+                false, new SqlSource.Subselect(plan, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
+    }
+
+    /** The struct of primitive fields {@code plan}'s value is (a generic class's instance), or null. */
+    public static SqlType.@com.legend.base.Nullable Struct primitiveStruct(SqlSelect plan) {
+        if (plan.projections().isEmpty()
+                || !(plan.projections().get(0).expr().type() instanceof com.legend.sql.TypeFact.Typed ty)
+                || !(ty.type() instanceof SqlType.Struct st) || st.fields().isEmpty()) {
+            return null;
+        }
         for (SqlType.Struct.Field f : st.fields()) {
             if (f.type() instanceof SqlType.Struct || f.type() instanceof SqlType.Array
                     || f.type() == SqlType.Scalar.JSON) {
                 return null;
             }
+        }
+        return st;
+    }
+
+    /** {@code value}, a struct of primitive fields, written as the host writes an instance with no id: its fields'
+     *  texts joined {@code |}, {@code <1|a instanceOf T>}. */
+    private static SqlExpr instanceWritten(SqlExpr value, String typeFqn) {
+        SqlType.Struct st = (SqlType.Struct) ((com.legend.sql.TypeFact.Typed) value.type()).type();
+        List<SqlExpr> parts = new ArrayList<>();
+        parts.add(new SqlExpr.StringLit("<"));
+        for (SqlType.Struct.Field f : st.fields()) {
             if (parts.size() > 1) {
                 parts.add(new SqlExpr.StringLit("|"));
             }
@@ -1681,10 +1708,7 @@ public final class VerdictSql {
             parts.add(SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit("null")));
         }
         parts.add(new SqlExpr.StringLit(" instanceOf " + typeFqn + ">"));
-        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.CONCAT, parts), "value", out)),
-                false, new SqlSource.Subselect(plan, "w", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(out));
+        return new SqlExpr.Call(SqlFn.CONCAT, parts);
     }
 
     /** {@code row}, an equality's verdict row over two class sides, its failure message spelled from
@@ -2094,6 +2118,9 @@ public final class VerdictSql {
     /** {@code value} as the failure message writes it: its kind's representation; an empty side's (Nil) none, as it
      *  holds no element. */
     private static SqlExpr written(Message m, SqlExpr value) {
+        if (m.kind() instanceof Type.GenericType g) {
+            return instanceWritten(value, g.rawFqn());
+        }
         return PlatformTypes.isNil(m.kind()) ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR)
                 : m.listed() && m.kind() == Type.Primitive.STRING ? new SqlExpr.Cast(value, SqlType.Scalar.VARCHAR)
                 : Repr.of(m.kind(), value);

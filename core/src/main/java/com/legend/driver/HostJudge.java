@@ -692,7 +692,7 @@ final class HostJudge {
             case HostJudgment.TdsEquivalent t -> tdsEquivalentOf(t, sides);
             case HostJudgment.GridPair g -> gridPairOf(g, sides, rules);
             case HostJudgment.Size s -> sizeOf(s, sides);
-            case HostJudgment.Contains c -> containsOf(sides, rules);
+            case HostJudgment.Contains c -> containsOf(c, sides, rules);
             case HostJudgment.Tolerance t -> toleranceOf(sides);
             case HostJudgment.Condition c -> conditionOf(c, sides);
             case HostJudgment.AllRows a -> allRowsOf(a, sides);
@@ -899,10 +899,11 @@ final class HostJudge {
     static HostSides.Check planContains(List<TypedSpec> args,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                new HostJudgment.Contains());
+                new HostJudgment.Contains(facts(args.get(0)), facts(args.get(1))));
     }
 
-    private static @com.legend.base.Nullable TypedSide containsOf(List<TypedSide> both, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static @com.legend.base.Nullable TypedSide containsOf(HostJudgment.Contains j, List<TypedSide> both,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> coll = AssertVerdicts.decodeSide(both.get(0));
         List<Object> val = AssertVerdicts.decodeSide(both.get(1));
         if (val.size() != 1) {
@@ -912,7 +913,8 @@ final class HostJudge {
                 com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(x),
                         com.legend.judge.Equality.Typed.of(val.get(0)), rules));
         return member ? AssertVerdicts.ok()
-                : AssertVerdicts.fail(com.legend.judge.PureAsserts.containsMessage(coll, val.get(0)));
+                : AssertVerdicts.fail(com.legend.judge.PureAsserts.containsMessage(coll, val.get(0),
+                        j.collection().type(), j.value().type()));
     }
 
     /** {@code assertEqWithinTolerance(e, a, delta)}: the three sides executed. */
@@ -1273,7 +1275,7 @@ final class HostJudge {
                 ? restrictToKeys(aVals, ik, j.keys()) : aVals;
         String d = com.legend.judge.Equality.sameElements(
                 typedSide(e, j.e()), typedSide(a, j.a()), rules) == null
-                ? null : com.legend.judge.PureAsserts.assertSameElements(e, a, rules);
+                ? null : com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules);
         com.legend.judge.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -1631,7 +1633,7 @@ final class HostJudge {
                 byteVerdict == null ? null : byteVerdict.held(),
                 byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> incidental
-                        ? com.legend.judge.PureAsserts.assertSameElements(e, a, rules)
+                        ? com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules)
                         : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().type(), j.a().type(), rules),
                 () -> com.legend.judge.PureAsserts.notEqualsMessage(e, a));
     }

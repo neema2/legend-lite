@@ -19882,3 +19882,12 @@ under the database judge alone and BOTH: 7 of 7 each; the DuckDB corpus against 
 status identical in both passes (fail 108 and 111, skip 14 each; moved 3,086 and 3,052, two bodies more on the program
 road), `//spec:corpus_duckdb_verdict` red as at the baseline (the same three database-lost names) -- the 55 test-data
 generation bodies back. The H2 corpus was cut short by a container restart and is re-run below.
+
+**The readmission (`e1787913`, "asserts then a query" back on the program road), measured:** the DuckDB corpus against
+`872a5e70`'s run: every status identical in both passes (fail 108 and 111, skip 14 each, moved 3,086 and 3,052),
+`//spec:corpus_duckdb_verdict` red as at the baseline (the same three names). The admission stays.
+
+**The H2 corpus at `872a5e70`:** every status identical in both passes (fail 296 and 354). `//spec:corpus_h2_verdict`
+red on its outside-body register (NEW 21: bodies sending the rendered-text arm's ruled fallback statement); the same
+measured at `5eac7e30` for `calendarAggregations::testMtdValue` (`corpus_one h2 database`), so it predates this work --
+the open H2 reconciliation since `de641baf`.
