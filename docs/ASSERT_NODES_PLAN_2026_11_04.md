@@ -96,7 +96,30 @@ Then the wall (§2 of the audit) and the lean SQL (§3), then the corpus.
    lite should always be deterministic and fail if not". S131 becomes compatibility-only. Lite's own test bodies get
    order tracking: an operation that reads an order the program never defined is refused at planning. The design is
    `docs/ORDER_TRACKING_DESIGN_2026_11_05.md` (not ratified; its §9 asks three questions).
-5. **Posted, awaiting the user's word:**
+5. **Ruled the same day** (the user: "Agree with all except indexof"; register rows S20, S15/S132, S131, S134-S138):
+   - **assertError:** the host catches, the database judges (S135). `f` is planned as any statement; the runner runs
+     its steps in a savepoint and binds the outcome (raised: message, line, column; or no error) as a side both judges
+     compare. The build must force `f` to evaluate fully, count only `f`'s own errors, and carry upstream's texts.
+   - **Compatibility mode is judging only:** one execution semantics, Pure's where lite has it. String `indexOf` stays
+     the engine's 1-based and its PCT tests stay known failures until upstream adds a flag, as for `substring` (S134).
+   - **Floats:** every Float literal a DOUBLE (S20); clean mode compares exactly, compatibility mode within 2 ULP
+     (S15, S132); core's tests that compare a computed Float say `assertEqWithinTolerance` -- measured report-only
+     first.
+   - **Order:** order tracking, report-only first (S131 compatibility-only once it is enforced).
+   - **A relation in assertSize / assertEmpty / assertNotEmpty:** refused at planning in clean mode, upstream's
+     meaning in compatibility mode (S137).
+   - **An error decided by a literal is raised at planning** (S136), checked on the corpus and PCT's channel A.
+   - **The failure message's written texts move to the failure-only message statement**; the verdict row carries
+     pass/fail (the lean-SQL regression of the ladder).
+   - **The split rung stays**, with its tripwire.
+   - **A guard that exists because a database cannot hold a value names that reason** (S138); a guard implementing a
+     Pure error keeps upstream's text.
+   - **Dialect gaps on the SQLite and H2 PCT lanes stay ledgered.**
+
+   The build order: assertError; IEEE literals with the exact-comparison report; the order-tracking report;
+   planning-time literal errors; the relation refusal; the message statement; the guard texts. One full chain at
+   the end.
+6. **Posted earlier, superseded by item 5:**
    - A relation in `assertSize` / `assertEmpty` / `assertNotEmpty`. The recommendation: upstream's meaning in
      compatibility mode (a relation is one value), and a refusal at planning in clean mode, naming `$rel->size()`.
    - S20, the Float literal's arithmetic. The measurement: `(0.1 + 0.2)->toString()` is `'0.3'` (DuckDB types a small
