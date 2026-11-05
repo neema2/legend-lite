@@ -1906,7 +1906,10 @@ final class SqlTextVerdicts {
         provideStores(env, mappingFqn);
         try {
             com.legend.judge.SqlTypeCensus.probeSuspend(true);
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS);
+                    var __a = appeals(env) ? com.legend.base.RunScope.compatibilityRowsAppeal() : null) {
+            // the runtime wall's one exemption (the owner's ruling, 2026-11-05): compatibility mode's rows after a
+            // text mismatch plan their side while the program runs; in lite's own runs this leg is never reached
             rows = JudgePlans.evalSide(rowsRead,
                     letPrefix, specs, env, false, true, hook);
             }

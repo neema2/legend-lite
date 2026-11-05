@@ -536,7 +536,35 @@ public final class VerdictBatch {
                     g.getKey(),
                     false));
         }
-        return new Planned(batch, out, members, unspelled);
+        // THE RUNTIME WALL (the deep audit, 2026-11-05): every statement the root loop may send after the plan's
+        // rows are read -- a member's own statement (the split rung), a ruled fallback's, a caller's message -- is
+        // planned HERE, with the fused statements; the root loop only runs what was planned, never plans
+        Map<Object, Ahead> ahead = new java.util.IdentityHashMap<>();
+        for (Root r : batch) {
+            if (r.message != null) {
+                ahead.put(r, planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn)));
+            }
+            for (Step st : r.steps) {
+                for (Step at = st; at instanceof Pending p; at = p.orElse()) {
+                    ahead.put(p, planAhead(p.name(), p.query(), p.on()));
+                }
+            }
+        }
+        return new Planned(batch, out, members, unspelled, ahead);
+    }
+
+    /** A statement planned ahead of the run (the runtime wall): its plan, or the dialect's refusal of it, raised where
+     *  the root loop reaches it. */
+    private record Ahead(ExecutionPlan.@com.legend.base.Nullable Node plan,
+            com.legend.sql.dialect.@com.legend.base.Nullable DialectCapability refused) {
+    }
+
+    private Ahead planAhead(String name, SqlQuery query, Sessions.Session on) {
+        try {
+            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
+        } catch (com.legend.sql.dialect.DialectCapability e) {
+            return new Ahead(null, e);
+        }
     }
 
     /** The planned batch: its groups, and the judgment over their rows. */
@@ -552,12 +580,26 @@ public final class VerdictBatch {
          *  only explain a failure). */
         private com.legend.error.@com.legend.base.Nullable DataError rejected;
 
+        private final Map<Object, Ahead> ahead;
+
         private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
-                java.util.Set<Pending> unspelled) {
+                java.util.Set<Pending> unspelled, Map<Object, Ahead> ahead) {
             this.batch = batch;
             this.groups = groups;
             this.members = members;
             this.unspelled = unspelled;
+            this.ahead = ahead;
+        }
+
+        /** The statement planned ahead for {@code key} (a pending step, or a root's message), run now on {@code on}. */
+        private List<Object> runAhead(Object key, String name, Sessions.Session on) {
+            Ahead a = java.util.Objects.requireNonNull(ahead.get(key), "a statement the batch did not plan ahead");
+            if (a.refused() != null) {
+                CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
+                        + String.valueOf(a.refused().getMessage()).split("\n")[0]);
+                throw a.refused();
+            }
+            return runPlanned(name, java.util.Objects.requireNonNull(a.plan()), on, runner);
         }
 
         /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
@@ -621,8 +663,7 @@ public final class VerdictBatch {
             }
             Pending fallback = (Pending) java.util.Objects.requireNonNull(p.orElse());
             com.legend.diagnostics.Diagnostics.judgeSend("or-else", fallback.name());
-            judge.judge(fallback.name(), executeOne(fallback.name(),
-                    com.legend.sql.FrameCtes.attach(fallback.query(), frames), fallback.on(), runner));
+            judge.judge(fallback.name(), runAhead(fallback, fallback.name(), fallback.on()));
         }
 
         /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
@@ -647,8 +688,7 @@ public final class VerdictBatch {
                             }
                             if (row == null) {
                                 com.legend.diagnostics.Diagnostics.judgeSend("split-rung", p.name());
-                                row = executeOne(p.name(),
-                                        com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
+                                row = runAhead(p, p.name(), p.on());
                             }
                             try {
                                 judge.judge(p.name(), row);
@@ -683,7 +723,7 @@ public final class VerdictBatch {
                 }
                 if (r.message != null && failure instanceof com.legend.error.AssertFailed af
                         && af.unjudgedReason() == null) {
-                    failure = messaged(r);
+                    failure = messaged(r, this);
                 }
                 CanonicalDivergence.sqlRaised();
                 if (l != null && reported) {
@@ -707,12 +747,10 @@ public final class VerdictBatch {
 
     /** The failure of {@code r}, a root that did not hold, with its caller's message: the message's row sent now, at
      *  the root's place, its value the failure's text -- or the error reading it raised. */
-    private RuntimeException messaged(Root r) {
+    private RuntimeException messaged(Root r, Planned planned) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
         try {
-            List<Object> row = executeOne(r.listenerName, com.legend.sql.FrameCtes.attach(
-                    java.util.Objects.requireNonNull(r.message), frames),
-                    java.util.Objects.requireNonNull(r.messageOn), runner);
+            List<Object> row = planned.runAhead(r, r.listenerName, java.util.Objects.requireNonNull(r.messageOn));
             return new com.legend.error.AssertFailed(String.valueOf(row.get(6)));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
@@ -791,6 +829,12 @@ public final class VerdictBatch {
                     + String.valueOf(e.getMessage()).split("\n")[0]);
             throw e;
         }
+        return runPlanned(name, wrapper, on, runner);
+    }
+
+    /** Run ONE verdict statement already planned ({@code wrapper}) on {@code on} and return its one row: the root
+     *  loop's form, which plans nothing while the program runs (the runtime wall, 2026-11-05). */
+    static List<Object> runPlanned(String name, ExecutionPlan.Node wrapper, Sessions.Session on, Runner runner) {
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
                 new ExecutionPlan.Verdict(name, armOf(name), List.of(), wrapper)), null, runner.rules());
         List<List<Object>> rows = new ArrayList<>(1);
