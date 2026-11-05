@@ -204,11 +204,7 @@ class AssertBarTest {
             // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it.
             // 2026-11-04: the database judge alone writes a COLLECTION of pairs as their JSON documents (one pair is
             // written from its struct, VerdictSql.genericInstanceRepr; a list of them has no writer yet)
-            "assertEquals-pair-collections-message",
-            // 2026-11-04: admitted at 6038d060 and reverted -- the corpus's 55 test-data generation bodies end in a
-            // statement the program cannot plan (a class query under a runtime if()), which the static rule admitted;
-            // with the walk closed (the core tests' door) no class admits it
-            "assert-then-a-query"
+            "assertEquals-pair-collections-message"
     ));
 
     private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
