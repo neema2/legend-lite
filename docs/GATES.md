@@ -20396,10 +20396,24 @@ without the rest of it, so the branch did not build at 2bed81ec and CI failed ev
       outside a verdict row (`testConnectionEqualityTypeDiff`: the lowering has no runtime arm list for a scalar match
       over extension-contributed arms; the graph-fetch plan tests: `instanceOf` over an `ExecutionNode` row). The
       register was last checked on H2 at 624724e2 (11-02). Each row says so.
+    - the judge differential (the last check, never reached on either lane before: DuckDB's database pass stops at
+      `strictdate::testProject`): one unregistered pair, `alloy::testAlloyTestDatGenWithQuotedColumnsForViews` -- the
+      host fails at its frame (`class query under if()` with a runtime condition) before #1, the quantified guard,
+      which the database judge passes before failing at the plan-text assert; DuckDB shows the same pair. A
+      differential-register row.
+    - the unjudged ceiling 5 -> 46 (set 2026-10-14): 41 `null-canon-cell` and 5 JSON-not-byte-equal declines, every
+      one in a test the database judge already lost (45 on the lost register, one failing on both judges). On 2.1.214
+      they failed at planning (`variant navigation reached a dialect without JSON support`) and were never judged;
+      with JSON in the dialect they reach the judge and are declined. A ceiling of work items for the corpus phase,
+      never a fallback; DuckDB's is 0.
+    - the database-lost register's 61 rows that read "no JSON support" carry their measured reasons now (41
+      `null-canon-cell`; 16 where the database judge reads `''` for a JSON-navigated value the host reads as
+      `'STOCK'`, a database-judge canon item for the corpus phase; two verdict statements H2 2.5 refuses on a JSON
+      parameter; two other values the database judge reads differently), each with its 2.1.214 reason kept.
   - PCT's H2 lane, both channels: green.
 
 Checks: //core:core_tests and //core:core_tests_judges (every package under the three judges),
 //core:core_tests_integration_h2, //core:guardrails, //core:census, //spec:spec_tests, //pct:pct_h2,
 //pct:pct_channel_b_h2, //pct:pct_channel_b (DuckDB), //engine-client:plan_runner_test, //wasm:planner: green.
-//spec:corpus_duckdb: green but for `strictdate::testProject`. //spec:corpus_h2: the host pass green but for
-`strictdate::testProject`; the full run with the registers above follows this entry.
+//spec:corpus_duckdb and //spec:corpus_h2 (both passes, every register through the judge differential and the
+unjudged ceiling): green but for `strictdate::testProject`, the regression from before today on both lanes.
