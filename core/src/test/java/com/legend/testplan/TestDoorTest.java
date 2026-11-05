@@ -56,7 +56,7 @@ class TestDoorTest {
     void aBodyIsOneProgramWhoseTargetCarriesNoSetup() {
         TypedQuery body = Compiler.query(Compiler.compileModel(SEEDED),
                 "|x::Firm.all()->project([f|$f.name], ['name'])");
-        ExecutionPlan test = TestDoor.plan(body, "x::RT", Set.of(), null);
+        ExecutionPlan test = TestDoor.plan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(test, "a body through the test door");
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, test.root());
         assertEquals(2, seq.steps().size(), seq.steps().toString());
@@ -83,7 +83,7 @@ class TestDoorTest {
                 + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
                 + "type=meta::relational::runtime::DatabaseType.DuckDB), 0, 1000);\n"
                 + read + ";}");
-        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "seeds, an effect, seeds again");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
         assertEquals(List.of("Setup", "Effect", "Setup", "TdsResult"),
@@ -100,7 +100,7 @@ class TestDoorTest {
                 "{|let x = 1; assertEquals(1, $x);}");
         assertEquals("an assert on the test door's program road: not planned yet (the test-is-the-product plan's"
                 + " M6-M8: an assert its judge planned no verdict step for)", assertThrows(NotImplementedException.class,
-                        () -> TestDoor.plan(body, StorelessRuntime.RUNTIME, Set.of(), null)).getMessage());
+                        () -> TestDoor.plan(body, StorelessRuntime.RUNTIME, Set.of())).getMessage());
     }
 
     private static final String CONN = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
@@ -109,7 +109,7 @@ class TestDoorTest {
 
     private static ExecutionPlan storeless(String body) {
         ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(StorelessRuntime.with("",
-                Databases.PLATFORM)), body), StorelessRuntime.RUNTIME, Set.of(), null);
+                Databases.PLATFORM)), body), StorelessRuntime.RUNTIME, Set.of());
         PlanRoundTrip.assertRoundTrips(plan, body);
         return plan;
     }
@@ -252,7 +252,7 @@ class TestDoorTest {
     void aFrameLetIsRunAtTheLetAndReadAfter() throws Exception {
         TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.values->filter(x|$x.name == 'Acme');}");
-        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "a frame let");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
         assertEquals(List.of("Setup", "Check", "TdsResult"),
@@ -270,7 +270,7 @@ class TestDoorTest {
     void anActivitysCommentIsTheStampOfTheRunBoundWhenThePlanRuns() throws Exception {
         TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
-        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "an activity's comment");
         ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class,
                 assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps().get(2));
@@ -292,7 +292,7 @@ class TestDoorTest {
     void aFrameReadTwiceInAStatementIsItsCteAndReadOncePasted() throws Exception {
         TypedQuery twice = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.values->filter(x|$x.name == 'Acme')->concatenate($r.values);}");
-        ExecutionPlan plan = TestDoor.plan(twice, "x::RT", Set.of(), null);
+        ExecutionPlan plan = TestDoor.plan(twice, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "a frame read twice");
         String sql = plan.answerSql().statement();
         assertTrue(sql.startsWith("WITH frame_r AS"), sql);
@@ -304,7 +304,7 @@ class TestDoorTest {
         }
         TypedQuery once = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.values->filter(x|$x.name == 'Acme');}");
-        String pasted = TestDoor.plan(once, "x::RT", Set.of(), null).answerSql().statement();
+        String pasted = TestDoor.plan(once, "x::RT", Set.of()).answerSql().statement();
         assertFalse(pasted.contains("frame_r"), pasted);
     }
 
@@ -312,8 +312,7 @@ class TestDoorTest {
      *  nothing still seeds (the walk establishes a statement's contexts before any statement). */
     @Test
     void aConstantOnASeededRuntimeSeedsAndAnswers() throws Exception {
-        ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(DUCK), "|'x'"), "x::RT", Set.of(),
-                null);
+        ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(DUCK), "|'x'"), "x::RT", Set.of());
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
         assertEquals(List.of("Setup", "Constant"), steps.stream().map(n -> n.getClass().getSimpleName()).toList());
         try (Connection c = TestBackends.platform().open()) {
@@ -328,7 +327,7 @@ class TestDoorTest {
         TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.values->filter(x|$x.name == $r.activities->at(0)"
                 + "->cast(@meta::relational::mapping::RelationalActivity).sql);}");
-        String sql = TestDoor.plan(body, "x::RT", Set.of(), null).answerSql().statement();
+        String sql = TestDoor.plan(body, "x::RT", Set.of()).answerSql().statement();
         assertFalse(sql.contains("frame_r"), sql);
     }
 
@@ -338,7 +337,7 @@ class TestDoorTest {
         TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
                 + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
-                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+                TestDoor.plan(body, "x::RT", Set.of()).root()).steps();
         assertEquals("#stamp0", ((ExecutionPlan.Check) steps.get(1)).sql().stamp(), "the comment's reader reads it");
     }
 
@@ -356,7 +355,7 @@ class TestDoorTest {
                 }
                 """;
         ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(model),
-                "{| x::comment();\nx::comment();}"), "x::RT", Set.of(), null);
+                "{| x::comment();\nx::comment();}"), "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "a helper's inline run, twice");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
         ExecutionPlan.Sql first = assertInstanceOf(ExecutionPlan.Check.class, steps.get(1)).sql();
@@ -389,7 +388,7 @@ class TestDoorTest {
         TypedQuery body = Compiler.query(Compiler.compileModel(model), "{| let r = meta::pure::router::execute("
                 + "|x::Firm.all()->project([f|$f.name], ['name']), x::M, " + runtime + ", []);\n$r.values;}");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
-                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+                TestDoor.plan(body, "x::RT", Set.of()).root()).steps();
         String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
                 .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
         assertTrue(run.contains("FIRM_R"), run);
@@ -417,7 +416,7 @@ class TestDoorTest {
                 + "|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M, x::RT), x::M, " + runtime + ", []);\n"
                 + "$r.values;}");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
-                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+                TestDoor.plan(body, "x::RT", Set.of()).root()).steps();
         String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
                 .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
         assertTrue(run.contains("FIRM_R"), run);
@@ -441,7 +440,7 @@ class TestDoorTest {
                 + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
                 + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])]))))";
         TypedQuery query = Compiler.query(Compiler.compileModel(model), renamed);
-        String test = TestDoor.plan(query, "x::RT", Set.of(), null).answerSql().statement();
+        String test = TestDoor.plan(query, "x::RT", Set.of()).answerSql().statement();
         assertTrue(test.contains("FIRM_R"), test);
         assertEquals(test, query.executionPlan("x::RT").answerSql().statement(), "one road: the query door's own");
     }

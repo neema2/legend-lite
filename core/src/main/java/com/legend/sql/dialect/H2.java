@@ -14,18 +14,18 @@ import java.util.Set;
  * {@link DuckDb} extending {@link AnsiSqlRenderer}, NEVER
  * {@link EngineStyleH2} (whose output is byte-pinned to the engine's
  * golden TEXT and stays quarantined). This dialect's contract is
- * EXECUTABLE H2 2.1.214 SQL: every spelling here was probed against the
- * real jar or read from its function catalog; anything H2 cannot express
- * inherits the base renderer's LOUD walls and graduates into the
- * declared-gap registry (§9), never a silent wrong answer.
+ * EXECUTABLE SQL for lite's ONE H2, 2.5.252 (the user, 2026-11-05: "I want latest version of H2"; until then core
+ * and the corpus ran 2.1.214, legend-engine's own and patched, and PCT's lane 2.4.240 through a second dialect,
+ * {@code H2Modern}, chosen by the connected server's version; register S141): every spelling here was probed against
+ * the real jar or read from its function catalog; anything H2 cannot express inherits the base renderer's LOUD walls
+ * and graduates into the declared-gap registry (§9), never a silent wrong answer.
  *
  * <p>Capability notes (probed, see the doc's verification addendum):
- * native QUALIFY; NO correlated table-function arguments in any version
- * through 2.4.240 (LATERAL absent — the collection-carrier family walls);
- * NO typed-JSON navigation on 2.1.214 (the engine uses a Java UDF, a
- * route this dialect bans) — 2.3+ HAS it ((j)."field" quoted-key,
- * 1-based [i], typed-JSON values only): {@link H2Modern}, selected by
- * CONNECTED VERSION, spells it natively.
+ * native QUALIFY; NO correlated table-function arguments (LATERAL absent — the collection-carrier family walls);
+ * typed-JSON navigation ({@code (j)."field"}, the key quoted -- an unquoted identifier upcases and silently misses --
+ * and {@code (j)[i]}, ONE-BASED where the IR is zero-based), over typed JSON only (the JSON_ARRAY / JSON_ARRAYAGG /
+ * JSON_OBJECT carriers and JSON columns; a CAST from VARCHAR is not), where legend-engine's 2.1.214 uses a Java
+ * function inside the database, a route this dialect bans.
  */
 public class H2 extends AnsiSqlRenderer {
 
@@ -71,9 +71,9 @@ public class H2 extends AnsiSqlRenderer {
         ps.add(new ConstantLateralsAsRows());
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
-        // a raw grid's column-names report written in place where a WITH holds it (H2 loses its bound names there:
-        // GridReportCtesInline, H2LostCteParameterTest)
-        ps.add(new GridReportCtesInline());
+        // (GridReportCtesInline went 2026-11-05: H2 2.5.252 keeps a bound parameter inside a common table expression
+        // another one reads, which 2.1.214 and 2.2.224 lost -- H2LostCteParameterTest, which pinned the defect, failed
+        // on the new H2 as it was written to, and went with the pass)
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());
@@ -342,11 +342,6 @@ public class H2 extends AnsiSqlRenderer {
         return statement;
     }
 
-    /** The server versions this dialect writes for, as prefixes of the version a session reports: 2.1 and 2.2, the
-     *  engine-parity target (the product's H2 is 2.1.214). A plan written in this dialect records them, and its runner
-     *  refuses a session of another version (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
-    public static final java.util.List<String> SERVERS = java.util.List.of("2.1", "2.2");
-
     /** H2 types a parameter when it prepares the statement — by its neighbour (a decimal beside an integer column is
      *  read as an integer: {@code ID * ?} with 1.5 answers {@code [2, 6]}), or not at all when it stands alone
      *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,
@@ -396,20 +391,6 @@ public class H2 extends AnsiSqlRenderer {
             case DATE_TIME, DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP(9)",
                     RenderedStatement.Digits.NONE);
         };
-    }
-
-    /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation ({@code (j)."f"},
-     *  1-based {@code [i]}), which {@link H2Modern} spells natively; 2.1 and 2.2 -- the engine-parity
-     *  target, {@link #SERVERS} -- keep this dialect's walls. */
-    @Override
-    public SqlDialect forServer(String version) {
-        return SERVERS.stream().anyMatch(version::startsWith) ? this : new H2Modern();
-    }
-
-    /** {@inheritDoc} {@link #SERVERS}: another server's H2 takes {@link H2Modern} ({@link #forServer}). */
-    @Override
-    public java.util.List<String> serverVersions() {
-        return SERVERS;
     }
 
     /** {@inheritDoc} Yes: an embedded engine. */
@@ -588,8 +569,10 @@ public class H2 extends AnsiSqlRenderer {
             case SIN -> writer.function("sin", c.args());
             case COS -> writer.function("cos", c.args());
             case TAN -> writer.function("tan", c.args());
-            case ASIN -> writer.function("asin", c.args());
-            case ACOS -> writer.function("acos", c.args());
+            // outside [-1, 1] the engine's H2 (2.1.214) answers NaN and H2 2.5 raises, as DuckDB does: the domain
+            // guarded, the engine's answer (the DuckDB dialect's own guard)
+            case ASIN -> domainGuarded(writer, "asin", c.args());
+            case ACOS -> domainGuarded(writer, "acos", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case SINH -> writer.function("sinh", c.args());
@@ -636,11 +619,11 @@ public class H2 extends AnsiSqlRenderer {
             case DEGREES -> writer.function("degrees", c.args());
             case REPEAT_STR -> writer.function("repeat", c.args());
             case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
-            case LIST_LENGTH -> writer.function("len", c.args());
+            case LIST_LENGTH -> listLength(writer, c);
             case STRFTIME -> writer.function("formatdatetime", c.args());
             case STRPTIME -> writer.function("parsedatetime", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
-            case JSON_TYPE -> writer.function("json_type", c.args());
+            case JSON_TYPE -> jsonType(writer, c.args().get(0));
             case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
             case JSON_PRETTY -> writer.function("json_pretty", c.args());
             // refused by name (D1, measured 2026-10-13: H2 cannot run DuckDB's spelling)
@@ -1118,7 +1101,7 @@ public class H2 extends AnsiSqlRenderer {
     /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses; {@code fromJson(text)} lowers to it) -- but H2's
      *  CAST from VARCHAR QUOTES the text as a JSON string instead (probed: {@code CAST('[10,20]' AS JSON)} is
      *  {@code "[10,20]"}, a string). The parsing spellings: {@code JSON '...'} for a literal, {@code (x FORMAT JSON)}
-     *  for dynamic text. Until 2026-10-29 only {@link H2Modern} spelled them and this dialect's {@code fromJson}
+     *  for dynamic text. Until 2026-10-29 only {@code H2Modern} spelled them and this dialect's {@code fromJson}
      *  answered a JSON STRING (the result boundary program's track F, the homework README §9): measured that day on
      *  2.1.214 and 2.2.224, both spellings parse there too. TO_VARIANT keeps the quoting CAST
      *  ({@link #variantConstruct}): that IS toVariant's string semantics. */
@@ -1145,6 +1128,15 @@ public class H2 extends AnsiSqlRenderer {
         if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
             return jsonParseCast(writer, c);
         }
+        // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and
+        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes
+        boolean navigation = c.value() instanceof SqlExpr.Call call
+                && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
+                || c.value() instanceof SqlExpr.StructGet;
+        if (navigation && c.target() instanceof com.legend.sql.SqlType.Scalar) {
+            return writer.append("CAST(TRIM(BOTH '\"' FROM CAST(").expr(c.value(), 0).append(" AS VARCHAR)) AS ")
+                    .append(castTypeName(c.target())).append(")");
+        }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // the two rows host mode lost when the byte channel judged): a
         // value whose TYPE FACT is BOOLEAN takes the reference spelling
@@ -1157,6 +1149,77 @@ public class H2 extends AnsiSqlRenderer {
                     .append(" THEN 'false' END");
         }
         return super.variantAwareCast(writer, c);
+    }
+
+    /** {@code JSON_TYPE}: H2 has no {@code json_type} (2026-11-05: the database judge's canon reached it once H2's JSON
+     *  navigation was spelled); its kind read from the SQL standard's {@code IS JSON} predicates and the value's text
+     *  ({@code CAST} to VARCHAR keeps the JSON spelling), named as {@link #jsonKindName} names it -- probed on 2.5.252
+     *  over every kind, a navigation's result included. SQL's NULL answers NULL, as DuckDB's does. */
+    private SqlWriter jsonType(SqlWriter writer, SqlExpr x) {
+        writer.append("(CASE WHEN (").expr(x, 0).append(") IS NULL THEN NULL WHEN (").expr(x, 0)
+                .append(") IS JSON OBJECT THEN ").append(stringLit(jsonKindName(com.legend.sql.JsonKind.OBJECT)))
+                .append(" WHEN (").expr(x, 0).append(") IS JSON ARRAY THEN ")
+                .append(stringLit(jsonKindName(com.legend.sql.JsonKind.ARRAY)));
+        writer.append(" WHEN CAST((").expr(x, 0).append(") AS VARCHAR) = 'null' THEN ")
+                .append(stringLit(jsonKindName(com.legend.sql.JsonKind.NULL)))
+                .append(" WHEN CAST((").expr(x, 0).append(") AS VARCHAR) IN ('true', 'false') THEN ")
+                .append(stringLit(jsonKindName(com.legend.sql.JsonKind.BOOLEAN)))
+                .append(" WHEN CAST((").expr(x, 0).append(") AS VARCHAR) LIKE '\"%' THEN ")
+                .append(stringLit(jsonKindName(com.legend.sql.JsonKind.STRING)))
+                .append(" WHEN REGEXP_LIKE(CAST((").expr(x, 0).append(") AS VARCHAR), '^-?[0-9]+$') THEN ")
+                .append(stringLit(jsonKindName(com.legend.sql.JsonKind.INTEGER)));
+        return writer.append(" ELSE ").append(stringLit(jsonKindName(com.legend.sql.JsonKind.FLOAT))).append(" END)");
+    }
+
+    /** {@code ASIN} and {@code ACOS}: NaN outside the domain, as the engine's H2 answers. The function reads its
+     *  argument CLAMPED to the domain: H2 folds a constant inside a CASE's untaken branch too, and raises on
+     *  {@code acos(2.0)} there (measured on 2.5.252); the CASE picks NaN outside the domain. */
+    private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
+        return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
+                .append("(LEAST(GREATEST(").expr(a.get(0), 0).append(", -1), 1)) ELSE CAST('NaN' AS DOUBLE PRECISION)"
+                        + " END)");
+    }
+
+    /** {@code CARDINALITY} counts a JSON array's elements (probed: 3 for {@code '[1,2,3]'}); an Array-typed cast over
+     *  the list only re-types it and is unwrapped. */
+    private SqlWriter listLength(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().size() != 1) {
+            throw new IllegalArgumentException("LIST_LENGTH takes one list, given " + c.args().size());
+        }
+        SqlExpr arg = c.args().get(0);
+        if (arg instanceof SqlExpr.Cast ac && ac.target() instanceof com.legend.sql.SqlType.Array) {
+            arg = ac.value();
+        }
+        return writer.append("CARDINALITY(").expr(arg, 0).append(")");
+    }
+
+    /** {@code (x)."key"} / {@code (x)[i+1]}: a dynamic key has no spelling (field access is an identifier) and meets
+     *  the base renderer's wall. */
+    @Override
+    protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> args) {
+        if (args.get(1) instanceof SqlExpr.StringLit key) {
+            return writer.append("(").expr(args.get(0), 7).append(").\"")
+                    .append(key.value().replace("\"", "\"\"")).append("\"");
+        }
+        if (args.get(1) instanceof SqlExpr.IntLit ix) {
+            return writer.append("(").expr(args.get(0), 7).append(")[").append(ix.value() + 1).append("]");
+        }
+        return super.variantGet(writer, args);
+    }
+
+    /** A struct value rides the JSON-object carrier: a literal is {@code JSON_OBJECT} (canonical field order), a field
+     *  read is navigation. */
+    @Override
+    protected SqlWriter structLit(SqlWriter writer, SqlExpr.StructLit s) {
+        return writer.append("JSON_OBJECT(")
+                .join(s.fields(), ", ", (w, f) -> w.append(stringLit(f.name())).append(": ").expr(f.value(), 0))
+                .append(")");
+    }
+
+    @Override
+    protected SqlWriter structGet(SqlWriter writer, SqlExpr.StructGet g) {
+        return writer.append("(").expr(g.source(), 7).append(").\"").append(g.field().replace("\"", "\"\""))
+                .append("\"");
     }
 
     private static boolean booleanShaped(SqlExpr e) {
@@ -1213,7 +1276,7 @@ public class H2 extends AnsiSqlRenderer {
                 .append(", 1, ").expr(a.get(2), 0).append(")");
     }
 
-    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its json_type, run on DuckDB's names). */
+    /** {@inheritDoc} Its JSON_TYPE (an emulation, {@link #jsonType}) answers DuckDB's names. */
     @Override
     protected String jsonKindName(com.legend.sql.JsonKind kind) {
         return switch (kind) {

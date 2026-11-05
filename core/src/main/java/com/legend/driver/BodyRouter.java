@@ -129,7 +129,7 @@ public final class BodyRouter {
         Census.inc(Census.Key.BODIES_MOVED);
         TestDoor.Planned planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(),
+            planned = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted);
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
@@ -194,8 +194,7 @@ public final class BodyRouter {
         }
         TestDoor.Planned planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(), TestDoor.Asserts.NONE,
-                    false);
+            planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false);
         }
         boolean toOne = toOneReader(typed);
         return target -> {

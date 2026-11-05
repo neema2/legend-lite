@@ -93,10 +93,10 @@ class RowLoadH2Test {
             // doors, 2026-10-29; SetupRunner's load until then)
             RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a")));
             PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
-                    new com.legend.sql.dialect.H2Modern().render(load.values()))),
+                    new com.legend.sql.dialect.H2().render(load.values()))),
                     new com.legend.executionplan.ExecutionPlan.Target(
                             new com.legend.executionplan.ExecutionPlan.Database.Platform(DatabaseType.H2),
-                            new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of()),
+                            List.of(), List.of()),
                     PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
             assertEquals(before, Census.count(Census.Key.BULK_LOADS));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));

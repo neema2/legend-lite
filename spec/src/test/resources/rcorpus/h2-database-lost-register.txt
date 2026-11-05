@@ -1,13 +1,14 @@
-meta::pure::tds::tests::extensions::testFirstNotNull ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::pure::tds::tests::extensions::testFirstNotNull ||| UNJUDGED in database mode -- null-canon-cell (2026-11-05, H2 2.5.252: the dialect has JSON now, so the database judge gets one statement further and still fails; on 2.1.214: DialectCapability: variant navigation reached a dialect without JSON support)
 meta::relational::graphFetch::tests::simple::testGraphFetchDataTypes ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"bigInt":1000,"b
 meta::relational::graphFetch::tests::simple::testGraphFetchWithGroupByViewAtChild ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"accountPnl":{"p
 meta::relational::graphFetch::tests::simple::testGraphFetchWithViewRootNestedDeep ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"account":{"cate
 meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"employees":[{"a
-meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| DialectCapability: variant navigation reached a dialect without JSON support
-meta::relational::tests::ddl::dropAndCreateTable ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| DataError: Invalid value "INTEGER" for parameter "JSON | ROW" (the verdict statement) (2026-11-05, H2 2.5.252: the dialect has JSON now, so the database judge gets one statement further and still fails; on 2.1.214: DialectCapability: variant navigation reached a dialect without JSON support)
+meta::relational::tests::ddl::dropAndCreateTable ||| DataError: Invalid value "BIGINT" for parameter "JSON | ROW" (the verdict statement) (2026-11-05, H2 2.5.252: the dialect has JSON now, so the database judge gets one statement further and still fails; on 2.1.214: DialectCapability: variant navigation reached a dialect without JSON support)
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::groupBy::testAggToManyWithFilter ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| AssertFailed: expected: [{"_type":"meta::pure::functions::collection::Pair","first":"'\"Banking\"'" (2026-11-05, H2 2.5.252: the host judge newly passes it; the database judge's canon reads a struct field H2 carries as a JSON object, and its text keeps the JSON quotes -- a corpus-phase item)
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV3 ||| DialectCapability: variant navigation reached a dialect without JSON support
@@ -46,7 +47,6 @@ meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnNonTem
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testAllVersionInRangeForBuisnessSnapshotMilestoning ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support

@@ -92,7 +92,7 @@ class ReservedNamesGenerationTest {
     private static com.legend.executionplan.ExecutionPlan.Target target(DatabaseType type) {
         return new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
-                new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());
+                List.of(), List.of());
     }
 
     private static LambdaFunction query(String text) {

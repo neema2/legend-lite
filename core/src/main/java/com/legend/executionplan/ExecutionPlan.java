@@ -924,16 +924,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /**
-     * Where a statement runs: the database; the server versions its statements are written for (a session reporting
-     * another is refused, never run); the statements every connection to it runs first ({@code session}: its settings,
-     * such as the time zone); and the steps that ESTABLISH it once, when its database is opened, before anything else
-     * ({@code setup}: a connection's declared test data, written at plan time for the target's database). Two runs share
-     * an in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9).
+     * Where a statement runs: the database; the statements every connection to it runs first ({@code session}: its
+     * settings, such as the time zone); and the steps that ESTABLISH it once, when its database is opened, before
+     * anything else ({@code setup}: a connection's declared test data, written at plan time for the target's database).
+     * Two runs share an in-memory database when their targets are equal (decision A,
+     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). No server version: every database's statements are spelled alike
+     * for every version lite runs (2026-11-05, one H2; until then H2's plans named the versions they were written for).
      */
-    public record Target(Database database, Servers servers, List<String> session, List<SetupStep> setup) {
+    public record Target(Database database, List<String> session, List<SetupStep> setup) {
         public Target {
             Objects.requireNonNull(database, "database");
-            Objects.requireNonNull(servers, "servers");
             session = List.copyOf(session);
             setup = List.copyOf(setup);
         }
@@ -975,24 +975,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         record System(ConnectionDefinition.DatabaseType type) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");
-            }
-        }
-    }
-
-    /** The server versions a target's statements are written for, as a session reports its version. */
-    public sealed interface Servers permits Servers.Every, Servers.Versions {
-
-        /** Every version: the statements' spelling does not depend on the server's version. */
-        record Every() implements Servers {
-        }
-
-        /** The versions that begin with one of {@code prefixes} (H2's engine-parity spelling: {@code 2.1}, {@code 2.2}). */
-        record Versions(List<String> prefixes) implements Servers {
-            public Versions {
-                prefixes = List.copyOf(prefixes);
-                if (prefixes.isEmpty()) {
-                    throw new IllegalArgumentException("a statement written for some server versions names at least one");
-                }
             }
         }
     }

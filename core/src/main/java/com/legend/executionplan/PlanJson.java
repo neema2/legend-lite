@@ -96,8 +96,6 @@ public final class PlanJson {
 
     enum DatabaseTag { declared, platform, system }
 
-    enum ServersTag { every, versions }
-
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         return named(family, o.getString("_type"), what + " _type");
     }
@@ -409,7 +407,6 @@ public final class PlanJson {
     private static Map<String, Object> target(Target t) {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
-        to.put("servers", servers(t.servers()));
         to.put("session", t.session());
         to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
         return to;
@@ -429,18 +426,6 @@ public final class PlanJson {
             case ExecutionPlan.Database.System s -> {
                 o.put("_type", DatabaseTag.system.name());
                 o.put("databaseType", s.type().name());
-            }
-        }
-        return o;
-    }
-
-    private static Map<String, Object> servers(ExecutionPlan.Servers servers) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        switch (servers) {
-            case ExecutionPlan.Servers.Every e -> o.put("_type", ServersTag.every.name());
-            case ExecutionPlan.Servers.Versions v -> {
-                o.put("_type", ServersTag.versions.name());
-                o.put("prefixes", v.prefixes());
             }
         }
         return o;
@@ -734,8 +719,7 @@ public final class PlanJson {
         for (Json.Node n : t.getArr("setup").items()) {
             setup.add(readSetupStep((Json.Obj) n));
         }
-        return new Target(readDatabase(t.getObj("database")), readServers(t.getObj("servers")),
-                t.getStringArray("session"), setup);
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), setup);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
@@ -745,13 +729,6 @@ public final class PlanJson {
                     ConnectionWire.databaseType(o.getString("databaseType")));
             case system -> new ExecutionPlan.Database.System(
                     ConnectionWire.databaseType(o.getString("databaseType")));
-        };
-    }
-
-    private static ExecutionPlan.Servers readServers(Json.Obj o) {
-        return switch (tag(ServersTag.class, o, "servers")) {
-            case every -> new ExecutionPlan.Servers.Every();
-            case versions -> new ExecutionPlan.Servers.Versions(o.getStringArray("prefixes"));
         };
     }
 

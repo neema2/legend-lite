@@ -83,7 +83,7 @@ final class StressSuites {
         //            fresh took 27 min, shared ~30 s).
         // //core:stress_tool --sessions overrides either lane's default.
         ServiceTestRunner.Sessions policy = c.sessions() != null ? c.sessions()
-                : backend == TestBackends.referee() ? ServiceTestRunner.Sessions.FRESH_PER_TEST
+                : backend.type() == TestBackends.referee().type() ? ServiceTestRunner.Sessions.FRESH_PER_TEST
                         : ServiceTestRunner.Sessions.SHARED;
         // each: a private in-memory database per session, as the backend opens it; H2's carries the engine's own
         // session settings (H2Connector.SETTINGS: NON_KEYWORDS incl VALUE/YEAR, MODE=LEGACY), as the

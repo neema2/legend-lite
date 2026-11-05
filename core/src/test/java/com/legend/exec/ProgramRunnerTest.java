@@ -43,7 +43,7 @@ final class ProgramRunnerTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(Databases.PLATFORM),
-                new ExecutionPlan.Servers.Every(), List.of(), List.of());
+                List.of(), List.of());
     }
 
     @AfterAll
@@ -64,8 +64,7 @@ final class ProgramRunnerTest {
             Sessions.Session body = TestSessions.over(conn);
             Sessions.Session system = TestSessions.over(other);
             ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
-                    new ExecutionPlan.Database.System(Databases.PLATFORM), new ExecutionPlan.Servers.Every(),
-                    List.of(), List.of());
+                    new ExecutionPlan.Database.System(Databases.PLATFORM), List.of(), List.of());
             PlanSessions.Source source = PlanSessions.of(body, null, s -> system);
             assertEquals(Sessions.identity(system), Sessions.identity(source.open(systemTarget)),
                     "the System target opens the opener's session");

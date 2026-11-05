@@ -231,9 +231,11 @@ corpus_lane(
 legend_java_binary(
     name = "corpus_one",
     testonly = True,
-    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt"],
+    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt", "@h2_engine//jar:file"],
     jvm_flags = [
         "--enable-native-access=ALL-UNNAMED",
+        # the replay referee's H2, legend-engine's own (2.1.214), by path (testbackend/EngineH2Referee; 2026-11-05)
+        "-Dlegend.referee.h2.rlocation=$(rlocationpath @h2_engine//jar:file)",
         "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         # the committed rosters, by one of them (MinimalCorpusTest.readRoster)

@@ -220,7 +220,7 @@ class DialectOwnerExclusivityTest {
                 }
             }
         });
-        assertTrue(dialects.containsAll(Set.of("DuckDb", "MySql", "H2Modern", "EngineStyleComposite")),
+        assertTrue(dialects.containsAll(Set.of("DuckDb", "MySql", "H2", "EngineStyleComposite")),
                 "the dialect classes were not all found by their extends chains: " + dialects);
         assertTrue(failures.isEmpty(), "a dialect is decided by asking which class it is: let the dialect answer"
                 + " (a method on SqlDialect it overrides), " + failures);

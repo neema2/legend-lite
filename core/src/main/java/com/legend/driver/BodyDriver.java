@@ -890,7 +890,7 @@ public final class BodyDriver {
                 env.options().systemConnections());
         com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()),
-                new com.legend.executionplan.ExecutionPlan.Servers.Every(), env.dialect().sessionSetup(),
+                env.dialect().sessionSetup(),
                 java.util.List.of());
         if (!com.legend.exec.StatementOrigin.isPlanning()) {
             // the walk, running as it plans: the store written here; while a program is planned, its own seed step

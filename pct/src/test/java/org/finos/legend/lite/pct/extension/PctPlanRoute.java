@@ -46,8 +46,7 @@ final class PctPlanRoute {
         // a lane holding a session (a cloud's) asks the plan's answering target first
         ExecutionPlan plan = com.legend.Execution.run(query, com.legend.test.StorelessRuntime.RUNTIME,
                 PctBackend.executionSource(() -> {
-                    ExecutionPlan planned = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME, features,
-                            PctBackend.serverVersion());
+                    ExecutionPlan planned = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME, features);
                     return planned.sendsTheAnswer() ? planned.answerSql().target() : null;
                 }),
                 PctBackend.planSessions(), com.legend.Execution.Establish.DECLARED_SETUP, features, p -> {
