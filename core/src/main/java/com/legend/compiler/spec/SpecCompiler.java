@@ -79,6 +79,7 @@ public final class SpecCompiler {
      * variant built on top of it.
      */
     public CompiledFunction compile(TypedFunction fn) {
+        com.legend.base.RunScope.planning("type a spec");
         CompiledFunction cached = memo.get(fn);
         if (cached != null) {
             return cached;
@@ -275,6 +276,7 @@ public final class SpecCompiler {
      * (an empty environment, inference mode).
      */
     public TypedSpec typeExpression(ValueSpecification query) {
+        com.legend.base.RunScope.planning("type a spec");
         List<TypedSpec> body = typeQueryBody(query);
         return body.get(body.size() - 1);
     }

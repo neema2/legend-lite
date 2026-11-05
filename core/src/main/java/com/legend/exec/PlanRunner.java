@@ -82,6 +82,14 @@ public final class PlanRunner {
      */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity) throws IOException {
+        // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
+        try (var run = com.legend.base.RunScope.enter()) {
+            streamRun(plan, values, sessions, sink, capacity);
+        }
+    }
+
+    private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            ResultSink sink, int capacity) throws IOException {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
@@ -223,6 +231,14 @@ public final class PlanRunner {
      * a program of that one step.
      */
     public static void program(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            Judging judging, ProgramSink sink) throws IOException {
+        // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
+        try (var run = com.legend.base.RunScope.enter()) {
+            programRun(plan, values, sessions, judging, sink);
+        }
+    }
+
+    private static void programRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             Judging judging, ProgramSink sink) throws IOException {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         ExecutionPlan.Sequence sequence = plan.root() instanceof ExecutionPlan.Sequence s ? s

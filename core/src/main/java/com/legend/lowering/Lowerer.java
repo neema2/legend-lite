@@ -382,6 +382,7 @@ public final class Lowerer {
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        com.legend.base.RunScope.planning("lower a spec");
         if (cellGrids == null) {
             cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
         }
@@ -400,6 +401,7 @@ public final class Lowerer {
      * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
      */
     public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
+        com.legend.base.RunScope.planning("lower a spec");
         TypedSpec root = withQueryLets(body);
         return switch (root) {
             case TypedWrite w when w.destination().isPresent()
@@ -560,6 +562,7 @@ public final class Lowerer {
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
+        com.legend.base.RunScope.planning("lower a spec");
         if (cellGrids == null) {
             cellGrids = cellGrids(List.of(spec));
         }

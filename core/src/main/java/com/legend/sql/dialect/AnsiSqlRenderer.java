@@ -89,6 +89,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** The query after this dialect's passes, written. */
     private SqlWriter write(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a query");
         return query(newWriter(), passed(query), 0);
     }
 
