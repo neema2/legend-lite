@@ -20325,3 +20325,15 @@ PCT's H2 lane runs 2.4.240 (`H2Modern`); the release lists 2.2.224. Swapping eac
   table's note that PCT's 2.4.240 lane is "the engine's own PCT H2 profile" is not what the pinned sources say.
 
 The choice is the owner's (posted 2026-11-05).
+
+## 2026-11-05 — The runtime wall builds for WebAssembly; the wall's own test
+
+CI on `6c70657c` failed 35 of 51 jobs on every OS at one build step: `//wasm:planner` (TeaVM) could not compile
+`RunScope` -- its class library has no `StackWalker` and no `ConcurrentHashMap.newKeySet()` -- and every lane builds
+the WebAssembly planner. `RunScope` now reads its callers off a throwable's trace and dedups the report in a
+`ConcurrentHashMap`; its class comment names the constraint. `RunScopeTest` (new): planning outside a run is free,
+inside one it is refused by name with its callers, runs nest. The register's S135 and S139 rows were still marked
+"build pending" / "in progress"; both were built today (the entries above).
+
+Checks: `//wasm:planner` builds; `//wasm:round_trip_test`, `//pure-protocol:twins_test` (the two targets CI could not
+build), `//core:core_tests_root`, `//core:guardrails`, `//core:census`: green.

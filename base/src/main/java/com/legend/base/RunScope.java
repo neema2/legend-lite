@@ -11,14 +11,17 @@ package com.legend.base;
  * diagnostic; nothing turns the wall off. Strict since 2026-11-05, once the measurement over core and PCT found every
  * site and each was planned ahead (the batch's split rung, ruled fallbacks and caller's messages). No exemption (the
  * owner, 2026-11-05: "yes to zero exemptions please"): compatibility mode's row comparison after a text mismatch plans
- * its rows with the assert and has its stores provided before the program runs.
+ * its rows, and the fixture programs that provide their stores, with the assert, and only runs them at the appeal.
  *
- * <p>JDK-only, as base is: the one place both the runner and the planning libraries can see.
+ * <p>JDK-only, as base is: the one place both the runner and the planning libraries can see -- and within what the
+ * WebAssembly planner's class library has (TeaVM: no {@code StackWalker}, no {@code ConcurrentHashMap.newKeySet}; the
+ * 2026-11-05 CI run failed every lane on {@code //wasm:planner} until the callers were read off a throwable's trace).
  */
 public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
-    private static final java.util.Set<String> REPORTED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> REPORTED =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private static final RunScope SCOPE = new RunScope();
 
     private RunScope() {
@@ -59,7 +62,7 @@ public final class RunScope implements AutoCloseable {
         if (!"report".equals(System.getProperty("legend.runwall"))) {
             throw new Refused("the runtime wall: " + what + " while a plan runs (" + what + " <- " + callers(24) + ")");
         }
-        if (REPORTED.add(site)) {
+        if (REPORTED.putIfAbsent(site, Boolean.TRUE) == null) {
             System.err.println("[run-wall] " + site);
         }
     }
@@ -70,11 +73,19 @@ public final class RunScope implements AutoCloseable {
     }
 
     private static String callers(int depth) {
-        return StackWalker.getInstance().walk(frames -> frames
-                .map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "." + f.getMethodName())
-                .filter(n -> !n.startsWith("RunScope.") && !n.startsWith("AnsiSqlRenderer.")
-                        && !n.startsWith("Lowerer.") && !n.startsWith("SpecCompiler."))
-                .limit(depth)
-                .collect(java.util.stream.Collectors.joining(" <- ")));
+        StringBuilder out = new StringBuilder();
+        int named = 0;
+        for (StackTraceElement f : new Throwable().getStackTrace()) {
+            String n = f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "." + f.getMethodName();
+            if (n.startsWith("RunScope.") || n.startsWith("AnsiSqlRenderer.") || n.startsWith("Lowerer.")
+                    || n.startsWith("SpecCompiler.")) {
+                continue;
+            }
+            if (named++ == depth) {
+                break;
+            }
+            out.append(out.length() == 0 ? "" : " <- ").append(n);
+        }
+        return out.toString();
     }
 }
