@@ -20230,3 +20230,42 @@ one value is not evaluated.
 
 Checks: core root, judge, driver and integration; root and driver under the database judge and BOTH; census;
 guardrails.
+
+## 2026-11-05 — The runtime wall, strict (the deep audit's second item)
+
+The owner's criterion: "closed off at runtime any plan vs exec stuff so they can never cross even through the
+driver". Built in four commits (`735c997f`, `d5509e39`, `3a213607`, this one):
+
+- **The wall.** `com.legend.base.RunScope` (JDK-only; base's charter noted in its BUILD): `PlanRunner.program` and
+  `stream` mark the thread for the run, and the planning seams refuse inside one -- the SQL renderer's one writer
+  (`AnsiSqlRenderer.write`), the lowerer's entries, the spec compiler's `compile` and `typeExpression`. Strict by
+  default; `-Dlegend.runwall=report` prints each site once instead, a diagnostic; nothing turns it off. A refusal
+  names its 24 callers.
+- **The measurement first** (report mode, core's matrix under the three judges and PCT channel B): four mechanisms
+  planned while a plan ran, all in the judge layer, in two driver test classes, none in PCT: a caller's message row,
+  the split rung's per-assert statements, the ruled fallbacks (compatibility mode), and the engine-text appeal
+  (compatibility mode).
+- **Planned ahead.** `VerdictBatch.plan` plans the message rows, the members' own statements and the ruled fallbacks
+  with the fused statements (`Ahead`: the plan, or the dialect's refusal raised where reached); the root loop runs
+  them (`runPlanned`) and plans nothing.
+- **The one exemption**, the owner's ruled exception ("the row fallbacks for text mismatches in the HARNESS only for
+  compatibility"): the engine-text appeal plans the rows it compares, so it is heard through
+  `SqlTextVerdicts.appealed`, which enters `RunScope.compatibilityRowsAppeal`; it is reached under the compatibility
+  rules alone. The first strict corpus run found the appeal's store provision and population read outside a narrower
+  exemption, and a refusal swallowed by the rows leg's "underivable" catch: the exemption now covers the whole appeal.
+- **Guards, dated in place:** Invariants 6a and 6h allow `RunScope`; `RunScope.REPORTED` registered (report mode's
+  dedup); `CATCH_RETURNS_VALUE` 28 -> 29 (`planAhead`'s designed sentinel); `SqlTextVerdicts` pin 1562 -> 1567.
+- **The DuckDB database pass's engine-order register** gains two rows
+  (`functionvariables::testVariableReference{InFilter,InMap}WithSameNameAsThatInParentProject`): the batch now renders
+  each member's own statement at planning, and the test-lane scan-order emulation (`StableScanOrder`) fires on them;
+  the two tests' outcomes are unchanged.
+
+Checks under the strict wall: core's full matrix (`//core:core_tests`, `//core:core_tests_judges`), guardrails,
+census, PCT channel B (every DuckDB suite): green. `//spec:corpus_duckdb`: zero wall refusals in either pass; green
+but for `strictdate::testProject`, the database pass's nested window function (red since before this work, recorded
+above as a corpus-phase item).
+
+Still open from the audit's wall findings: planning opens the system store's session and reads a database's version
+(the "planning sends nothing" guard sits at the runner's send sites, not at session opening); the program road refuses
+some body shapes (a value through a class's extent as the last statement); the ServiceLoader providers are not pinned
+to exec.

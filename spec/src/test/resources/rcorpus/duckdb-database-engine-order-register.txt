@@ -468,7 +468,9 @@ engine-order meta::relational::tests::projection::functionvariables::testProject
 engine-order meta::relational::tests::projection::functionvariables::testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression
 engine-order meta::relational::tests::projection::functionvariables::testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty
 engine-order meta::relational::tests::projection::functionvariables::testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty
+engine-order meta::relational::tests::projection::functionvariables::testVariableReferenceInFilterWithSameNameAsThatInParentProject
 engine-order meta::relational::tests::projection::functionvariables::testVariableReferenceInMapWithNestedFilter
+engine-order meta::relational::tests::projection::functionvariables::testVariableReferenceInMapWithSameNameAsThatInParentProject
 engine-order meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple
 engine-order meta::relational::tests::projection::qualifier::testDerivedWithFiltering
 engine-order meta::relational::tests::projection::qualifier::testDerivedWithFilteringTwoProperties
