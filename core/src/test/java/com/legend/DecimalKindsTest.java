@@ -1,0 +1,209 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.legend.error.AssertFailed;
+import com.legend.error.ModelException;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackends;
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+/**
+ * EXACT AND APPROXIMATE NUMBERS DECLARED ON THE MODEL (the user, 2026-11-05: "add some tests for decimal and decimal
+ * with precision too in the model"). A class says how a number computes by the type it declares, as legend-pure
+ * declares them (m3.pure; precisePrimitives.pure, read in the pinned sources):
+ * <ul>
+ *   <li>{@code Decimal} is exact: compiled Pure carries it as {@code java.math.BigDecimal}
+ *       (TypeProcessor), and a DECIMAL column computes it exactly, so {@code 0.10 + 0.20} is {@code 0.30};</li>
+ *   <li>{@code Numeric(precision, scale)} is a {@code Decimal} with its digits declared
+ *       ({@code Primitive Numeric(precision:Integer[1], scale:Integer[1]) extends Decimal}): it computes as a Decimal
+ *       and goes wherever a Decimal is declared;</li>
+ *   <li>{@code Float} is an IEEE double: compiled Pure carries it as {@code double}, and a DOUBLE column computes
+ *       {@code 0.1 + 0.2} as {@code 0.30000000000000004}.</li>
+ * </ul>
+ * Equality is upstream's: a Decimal equals a Decimal of the same value AND scale (compiled Pure's
+ * {@code CompiledSupport.eq}, interpreted Pure's {@code EqualityUtilities}: {@code BigDecimal.equals}, no
+ * canonicalization, unlike Float's), and a Float never equals a Decimal. The model's declarations are refused as the
+ * engine's compiler refuses them (CompileContext.newGenericType, its messages): a primitive takes exactly the type
+ * variable values it declares, each of its variable's type. Each case runs on DuckDB and on H2, under the lane's judge.
+ */
+class DecimalKindsTest {
+
+    private static String model(DatabaseType db) {
+        String spec = db == DatabaseType.H2 ? "type: H2; specification: LocalH2 { }; auth: DefaultH2;"
+                : "type: DuckDB; specification: DuckDB { }; auth: Test;";
+        return """
+                ###Pure
+                import meta::pure::precisePrimitives::*;
+                Class m::Price
+                {
+                    id: Integer[1];
+                    a: Decimal[1];
+                    b: Decimal[1];
+                    na: Numeric(10, 2)[1];
+                    nb: Numeric(10, 2)[1];
+                    fa: Float[1];
+                    fb: Float[1];
+                }
+                function m::twice(d: Decimal[1]): Decimal[1] { $d * 2 }
+                ###Relational
+                Database s::DB ( Table T (ID INTEGER PRIMARY KEY, A DECIMAL(10,2), B DECIMAL(10,2),
+                    NA DECIMAL(10,2), NB DECIMAL(10,2), FA DOUBLE, FB DOUBLE) )
+                ###Mapping
+                Mapping m::M (
+                  m::Price: Relational { ~mainTable [s::DB] T
+                    id: T.ID, a: T.A, b: T.B, na: T.NA, nb: T.NB, fa: T.FA, fb: T.FB }
+                )
+                ###Connection
+                RelationalDatabaseConnection s::C { store: s::DB; %s }
+                ###Runtime
+                Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::C ] ]; }
+                """.formatted(spec);
+    }
+
+    static Stream<DatabaseType> databases() {
+        return Stream.of(DatabaseType.DuckDB, DatabaseType.H2);
+    }
+
+    /** Ten rows: every A is 0.10, B is 0.20 on row 1 and 0.25 elsewhere; NA, NB 0.10, 0.20; FA, FB 0.1, 0.2. */
+    private static Connection seeded(DatabaseType db) throws Exception {
+        Connection c = TestBackends.of(db).open();
+        try (Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, A DECIMAL(10,2), B DECIMAL(10,2), NA DECIMAL(10,2),"
+                    + " NB DECIMAL(10,2), FA DOUBLE, FB DOUBLE)");
+            for (int i = 1; i <= 10; i++) {
+                st.execute("INSERT INTO T VALUES (" + i + ", 0.10, " + (i == 1 ? "0.20" : "0.25")
+                        + ", 0.10, 0.20, 0.1, 0.2)");
+            }
+        }
+        return c;
+    }
+
+    /** Row 1's projection of {@code column}: one value, in a column of its declared type. */
+    private static Lean.Result rowOne(DatabaseType db, Connection c, String column) {
+        return Program.last(model(db), "|m::Price.all()->filter(p|$p.id == 1)->project([p|" + column + "], ['v'])",
+                "m::RT", c);
+    }
+
+    private static Program.Report judged(DatabaseType db, Connection c, String body) {
+        return Program.run(model(db), body, "m::RT", c);
+    }
+
+    private static final String ROW_ONE = "m::Price.all()->filter(p|$p.id == 1)->toOne()";
+
+    @ParameterizedTest
+    @MethodSource("databases")
+    @DisplayName("a Decimal property computes exactly: 0.10 + 0.20 is the Decimal 0.30, carried as a BigDecimal")
+    void decimalIsExact(DatabaseType db) throws Exception {
+        try (Connection c = seeded(db)) {
+            Lean.Result r = rowOne(db, c, "$p.a + $p.b");
+            assertEquals("Decimal", r.columns().get(0).type());
+            assertEquals(new BigDecimal("0.30"), assertInstanceOf(BigDecimal.class, r.one()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("databases")
+    @DisplayName("a Float property over a DOUBLE column computes as an IEEE double: 0.1 + 0.2 is 0.30000000000000004")
+    void floatIsDouble(DatabaseType db) throws Exception {
+        try (Connection c = seeded(db)) {
+            Lean.Result r = rowOne(db, c, "$p.fa + $p.fb");
+            assertEquals("Float", r.columns().get(0).type());
+            assertEquals(0.30000000000000004, assertInstanceOf(Double.class, r.one()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("databases")
+    @DisplayName("a Numeric(10, 2) property is a Decimal: it computes exactly and goes where a Decimal is declared")
+    void numericIsADecimal(DatabaseType db) throws Exception {
+        try (Connection c = seeded(db)) {
+            Lean.Result sum = rowOne(db, c, "$p.na + $p.nb");
+            assertEquals("Decimal", sum.columns().get(0).type());
+            assertEquals(new BigDecimal("0.30"), assertInstanceOf(BigDecimal.class, sum.one()));
+            Lean.Result twice = rowOne(db, c, "m::twice($p.na)");
+            assertEquals("Decimal", twice.columns().get(0).type());
+            assertEquals(0, new BigDecimal("0.20").compareTo(assertInstanceOf(BigDecimal.class, twice.one())),
+                    String.valueOf(twice.one()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("databases")
+    @DisplayName("assertEquals holds for a Decimal of the same value and scale; a column's sum and a filter by a Decimal literal are exact")
+    void decimalAssertsHold(DatabaseType db) throws Exception {
+        try (Connection c = seeded(db)) {
+            assertTrue(judged(db, c, "|assertEquals(0.30D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
+            assertTrue(judged(db, c, "|assertEquals(1.00D, m::Price.all()->map(p|$p.a)->sum())").passed());
+            assertTrue(judged(db, c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id))")
+                    .passed());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("databases")
+    @DisplayName("upstream's equality: 0.3D is not the column's 0.30D (BigDecimal.equals), and a Float never equals a Decimal")
+    void decimalEqualityIsUpstreams(DatabaseType db) throws Exception {
+        try (Connection c = seeded(db)) {
+            AssertFailed scale = assertThrows(AssertFailed.class,
+                    () -> judged(db, c, "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+            assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
+            AssertFailed kind = assertThrows(AssertFailed.class,
+                    () -> judged(db, c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+            assertEquals("\nexpected: 0.3\nactual:   0.30D", kind.getMessage());
+        }
+    }
+
+    private static ModelException refused(String declaration) {
+        return assertThrows(ModelException.class, () -> Compiler.compileModel(
+                "###Pure\nClass x::A\n{\n  v: " + declaration + "[1];\n}\n"));
+    }
+
+    private static void compiles(String imports, String declaration) {
+        Compiler.compileModel("###Pure\n" + imports + "Class x::A\n{\n  v: " + declaration + "[1];\n}\n");
+    }
+
+    @Test
+    @DisplayName("the precise primitives resolve by their short names, through the core imports or an explicit import")
+    void precisePrimitivesResolveByShortName() {
+        compiles("", "Numeric(10, 2)");
+        compiles("", "Varchar(200)");
+        compiles("", "Int");
+        compiles("import meta::pure::precisePrimitives::*;\n", "Numeric(10, 2)");
+        compiles("", "meta::pure::precisePrimitives::Numeric(10, 2)");
+        // a package the model imports itself comes first: there Varchar is the relational datatype CLASS
+        compiles("import meta::relational::metamodel::datatype::*;\n", "Varchar");
+    }
+
+    @Test
+    @DisplayName("a primitive takes exactly the type variable values it declares, each of its variable's type (the engine's messages)")
+    void typeVariableValuesAreChecked() {
+        assertTrue(refused("Decimal(1)").getMessage().endsWith("Wrong type variables count (1) for type: Decimal"));
+        assertTrue(refused("Float(1)").getMessage().endsWith("Wrong type variables count (1) for type: Float"));
+        assertTrue(refused("Numeric").getMessage().endsWith(
+                "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
+        assertTrue(refused("Numeric()").getMessage().endsWith(
+                "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
+        assertTrue(refused("Numeric(10)").getMessage().endsWith(
+                "Wrong type variables count (1) for type: Numeric(precision:Integer,scale:Integer)"));
+        assertTrue(refused("Varchar").getMessage().endsWith(
+                "Wrong type variables count (0) for type: Varchar(x:Integer)"));
+        assertTrue(refused("Numeric('a', 2)").getMessage().endsWith(
+                "Error for type: Numeric(precision:Integer,scale:Integer), 'a' is not an instance of Integer"));
+    }
+}

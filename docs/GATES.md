@@ -20085,3 +20085,46 @@ The user's ruling S135, after the design spike. What was built:
 
 Checks: core's full matrix green (`//core:census` after the three pins: `Equality` 494 -> 498, `DatabaseJudge`
 823 -> 824, `TdsCompare` 346 -> 350); `//spec:corpus_duckdb`'s rosters green.
+
+## 2026-11-05 — Decimal and Numeric(p, s) on the model: tests, two frontend gaps closed
+
+The user asked for tests of `Decimal` and of a decimal with declared precision on a class
+(`core/src/test/java/com/legend/DecimalKindsTest.java`). Each case runs on DuckDB and H2, under the host, database and
+both judges. Upstream's answers were read in the pinned sources:
+
+- `Decimal` is exact: compiled Pure carries it as a `BigDecimal` (`TypeProcessor`), and a DECIMAL column adds
+  `0.10 + 0.20` to `0.30`. `Float` is a double: a DOUBLE column gives `0.30000000000000004`.
+- `Numeric(precision, scale) extends Decimal` (`precisePrimitives.pure`): it computes as a Decimal and passes where a
+  Decimal is declared.
+- Equality is scale-sensitive in both upstream runtimes: compiled `CompiledSupport.eq` and interpreted
+  `EqualityUtilities` use `BigDecimal.equals`, and a Decimal is never canonicalized the way a Float is. So
+  `assertEquals(0.3D, <the column's 0.30>)` fails with `expected: 0.3D / actual: 0.30D`, and a Float never equals a
+  Decimal. Lite already did both, under every judge.
+
+Two gaps closed, both to exactly the engine's behaviour (no register row):
+
+- **Short names.** No precise primitive (`Numeric`, `Varchar`, `Int`, ...) resolved by its short name, with or without
+  `import meta::pure::precisePrimitives::*;`, so the engine's own SQL-binding model (`decimalIn: Numeric(2, 1)[1]`)
+  did not compile. They are now platform type names (`NameResolver`), found through the core import group's last
+  package as in the engine. A package the model imports itself still comes first:
+  `meta::relational::metamodel::datatype::Varchar` stays the class.
+- **Type-variable values.** Lite accepted and dropped any values: `Decimal(1)`, `Numeric()`, `Numeric(10)`, a bare
+  `Numeric`, `Numeric('a', 2)`. A declared type now takes exactly the values its primitive declares, each of its
+  variable's type (`TypeClassifier.requireTypeVariables`). The engine's messages are used (`CompileContext`):
+  `Wrong type variables count (1) for type: Decimal`, and
+  `Error for type: Numeric(precision:Integer,scale:Integer), 'a' is not an instance of Integer`. The precise
+  primitives' variables are declared verbatim from `precisePrimitives.pure` (`Type.Primitive.typeVariables`), and a
+  user `Primitive P(x:Integer[1])` keeps its own (`ModelBuilder.primitiveTypeVariables`).
+
+Found and posted to the user for rulings, not changed:
+
+- `0.3D == 0.30D` is true in lite, because the database compares the values. Both Pure runtimes say false. So lite's
+  `==` and its `assertEquals` disagree on scale.
+- `1.25D->cast(@Numeric(10, 2))` answers `1.250000000000000000`: the cast changes the scale, where in Pure a cast
+  leaves the value as it is.
+- A precise primitive's constraints (`Numeric(4, 2)` overflowing, `Varchar(5)` too long) are parsed and dropped.
+  Upstream checks them at `cast` and at `^Class(...)` (`cast.pure`'s `testPrimitiveExtensionCastWithConstraintError`).
+- `assertEquals(0.3, <a DOUBLE column's 0.30000000000000004>)` holds, under the 2-ULP tolerance (S15/S132, the
+  exact-comparison item).
+- A test body whose last statement reads a value through a class's extent (`m::Price.all()->map(p|$p.a)->sum()`) is
+  refused at the walk's closed door. As an assert it runs on the program road.
