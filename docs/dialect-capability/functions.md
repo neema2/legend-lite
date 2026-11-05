@@ -6,7 +6,6 @@
 What each dialect does with each function of the SQL IR. The legend, the method and the summary are in [README.md](README.md).
 
 - [H2](#h2)
-- [H2Modern](#h2modern)
 - [Postgres](#postgres)
 - [Snowflake](#snowflake)
 - [Trino](#trino)
@@ -79,8 +78,8 @@ Database types planned with it: H2.
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
-| `ASIN` | spelled | `asin` |  | 4 |
-| `ACOS` | spelled | `acos` |  | 4 |
+| `ASIN` | emulated | `domainGuarded: asin` |  | 4 |
+| `ACOS` | emulated | `domainGuarded: acos` |  | 4 |
 | `ATAN` | spelled | `atan` |  | 3 |
 | `ATAN2` | spelled | `atan2` |  | 3 |
 | `SINH` | spelled | `sinh` |  | 22 |
@@ -168,7 +167,7 @@ Database types planned with it: H2.
 | `JARO_WINKLER` | spelled | `jaro_winkler_similarity` |  | 2 |
 | `DECODE_BASE64` | refused | `decodeBase64 reached H2, which has no from_base64()` |  | 4 |
 | `CURRENT_USER_FN` | spelled | `current_user` |  | 2 |
-| `LIST_LENGTH` | spelled | `len` |  | 27 |
+| `LIST_LENGTH` | emulated | `listLength` |  | 27 |
 | `LIST_ZIP` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_DISTINCT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_APPEND` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 8 |
@@ -206,199 +205,10 @@ Database types planned with it: H2.
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
-| `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | 14 |
-| `JSON_TYPE` | spelled | `json_type` |  | 1 |
+| `VARIANT_GET` | emulated | `variantGet` |  | 14 |
+| `JSON_TYPE` | emulated | `jsonType` |  | 1 |
 | `JSON_ARRAY_LENGTH` | spelled | `json_array_length` |  | 0 |
 | `JSON_PRETTY` | spelled | `json_pretty` |  | 0 |
-
-## H2Modern
-
-Database types planned with it: no database type's own (it extends `H2`). No PCT lane runs it, so its arms have no measured reach.
-
-| function | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `AND` | spelled | `an operator (infix)` | `as H2` | — |
-| `OR` | spelled | `an operator (infix)` | `as H2` | — |
-| `NOT` | spelled | `an operator (notPrefix)` | `as H2` | — |
-| `EQUAL` | emulated | `equalArm` | `as H2` | — |
-| `NOT_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `LESS` | spelled | `an operator (infix)` | `as H2` | — |
-| `LESS_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `GREATER` | spelled | `an operator (infix)` | `as H2` | — |
-| `GREATER_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `PLUS` | spelled | `an operator (infix)` | `as H2` | — |
-| `MINUS` | spelled | `an operator (infix)` | `as H2` | — |
-| `TIMES` | spelled | `an operator (infix)` | `as H2` | — |
-| `DIVIDE` | emulated | `divideAsDoubles` | `as H2` | — |
-| `MOD` | emulated | `modFloored` | `as H2` | — |
-| `REM` | emulated | `modTruncated` | `as H2` | — |
-| `NEGATE` | spelled | `an operator (negation)` | `as H2` | — |
-| `ABS` | spelled | `abs` | `as H2` | — |
-| `IS_NULL` | spelled | `an operator (isNullTest)` | `as H2` | — |
-| `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` | `as H2` | — |
-| `IN` | emulated | `inList` | `as H2` | — |
-| `COALESCE` | spelled | `coalesce` | `as H2` | — |
-| `PARSE_INT` | emulated | `castAs: BIGINT` | `as H2` | — |
-| `CONCAT` | emulated | `concatFlat` | `as H2` | — |
-| `LENGTH` | spelled | `length` | `as H2` | — |
-| `UPPER` | spelled | `upper` | `as H2` | — |
-| `LOWER` | spelled | `lower` | `as H2` | — |
-| `GREATEST` | spelled | `greatest` | `as H2` | — |
-| `LEAST` | spelled | `least` | `as H2` | — |
-| `CONCAT_JOIN` | spelled | `concat` | `as H2` | — |
-| `LIST_FILTER` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_TRANSFORM` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_GET` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_POSITION` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_AT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listExists` | — |
-| `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listForAll` | — |
-| `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as H2, via AnsiSqlRenderer.structInsert` | — |
-| `UNNEST` | refused | `UNNEST reached a dialect without an unnest placement` | `as H2, via AnsiSqlRenderer.unnestProjection` | — |
-| `LIST_FLATTEN` | spelled | `flatten` | `as H2` | — |
-| `JSON_MERGE_PATCH` | refused | `a JSON merge reached H2, which has no json_merge_patch()` | `as H2` | — |
-| `SQRT` | spelled | `sqrt` | `as H2` | — |
-| `CBRT` | spelled | `cbrt` | `as H2` | — |
-| `EXP` | spelled | `exp` | `as H2` | — |
-| `LN` | spelled | `ln` | `as H2` | — |
-| `LOG10` | spelled | `log10` | `as H2` | — |
-| `POW` | spelled | `power` | `as H2` | — |
-| `PI` | spelled | `pi` | `as H2` | — |
-| `SIN` | spelled | `sin` | `as H2` | — |
-| `COS` | spelled | `cos` | `as H2` | — |
-| `TAN` | spelled | `tan` | `as H2` | — |
-| `ASIN` | spelled | `asin` | `as H2` | — |
-| `ACOS` | spelled | `acos` | `as H2` | — |
-| `ATAN` | spelled | `atan` | `as H2` | — |
-| `ATAN2` | spelled | `atan2` | `as H2` | — |
-| `SINH` | spelled | `sinh` | `as H2` | — |
-| `COSH` | spelled | `cosh` | `as H2` | — |
-| `TANH` | spelled | `tanh` | `as H2` | — |
-| `CEILING` | emulated | `bigintOf: ceil` | `as H2` | — |
-| `FLOOR` | emulated | `bigintOf: floor` | `as H2` | — |
-| `ROUND` | emulated | `roundHalfEven` | `as H2` | — |
-| `SIGN` | emulated | `bigintOf: sign` | `as H2` | — |
-| `XOR` | emulated | `xorAsAndOr` | `as H2` | — |
-| `BIT_AND` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_OR` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_XOR` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_LEFT` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_RIGHT` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_NOT` | refused | `bitNot reached H2, which has no xor()` | `as H2` | — |
-| `REGEXP_EXTRACT` | emulated | `regexpExtractArm` | `as H2` | — |
-| `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as H2` | — |
-| `REGEXP_REPLACE` | spelled | `regexp_replace` | `as H2` | — |
-| `REGEXP_FULL_MATCH` | emulated | `regexpFullMatch` | `as H2` | — |
-| `MAP_FROM_LISTS` | spelled | `map` | `as H2` | — |
-| `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as H2` | — |
-| `MAP_EMPTY` | refused | `an empty map reached H2, which has no map type` | `as H2` | — |
-| `MAP_EXTRACT` | spelled | `map_extract` | `as H2` | — |
-| `MAP_KEYS` | spelled | `map_keys` | `as H2` | — |
-| `MAP_VALUES` | spelled | `map_values` | `as H2` | — |
-| `MAP_CONCAT` | spelled | `map_concat` | `as H2` | — |
-| `SUBSTRING` | spelled | `substr` | `as H2` | — |
-| `STRPOS` | spelled | `LOCATE` | `as H2` | — |
-| `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` | `as H2` | — |
-| `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` | `as H2` | — |
-| `MATCHES` | spelled | `regexp_like` | `as H2` | — |
-| `LEFT` | spelled | `left` | `as H2` | — |
-| `RIGHT` | spelled | `right` | `as H2` | — |
-| `LPAD` | emulated | `padWithSpace: lpad` | `as H2` | — |
-| `RPAD` | emulated | `padWithSpace: rpad` | `as H2` | — |
-| `TRIM` | spelled | `trim` | `as H2` | — |
-| `LTRIM` | spelled | `ltrim` | `as H2` | — |
-| `RTRIM` | spelled | `rtrim` | `as H2` | — |
-| `REPLACE` | spelled | `replace` | `as H2` | — |
-| `SPLIT` | spelled | `string_split` | `as H2` | — |
-| `SPLIT_PART` | emulated | `splitPartArm` | `as H2` | — |
-| `TRANSLATE` | emulated | `translate` | `as H2` | — |
-| `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as H2` | — |
-| `REVERSE_STRING` | spelled | `reverse` | `as H2` | — |
-| `ASCII_CODE` | spelled | `ascii` | `as H2` | — |
-| `CHR` | spelled | `chr` | `as H2` | — |
-| `UC_FIRST` | emulated | `firstCharCased: upper` | `as H2` | — |
-| `LC_FIRST` | emulated | `firstCharCased: lower` | `as H2` | — |
-| `ENCODE_BASE64` | refused | `encodeBase64 reached H2, which has no to_base64()` | `as H2` | — |
-| `LEVENSHTEIN` | spelled | `levenshtein` | `as H2` | — |
-| `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as H2` | — |
-| `FORMAT` | emulated | `formatArm` | `as H2` | — |
-| `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as H2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | emulated | `digest: MD5` | `as H2` | — |
-| `SHA1` | emulated | `digest: SHA-1` | `as H2` | — |
-| `SHA256` | emulated | `digest: SHA-256` | `as H2` | — |
-| `RANDOM` | spelled | `RAND` | `as H2` | — |
-| `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
-| `TODAY` | spelled | `current_date` | `as H2` | — |
-| `NOW` | spelled | `now` | `as H2` | — |
-| `DATE_TRUNC_DAY` | emulated | `castAs: DATE` | `as H2` | — |
-| `MAKE_DATE` | spelled | `make_date` | `as H2` | — |
-| `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` | `as H2` | — |
-| `DATE_TRUNC` | emulated | `dateTruncDateGrained` | `as H2` | — |
-| `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
-| `DATE_DIFF` | emulated | `dateDiffArm` | `as H2` | — |
-| `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` | `as H2` | — |
-| `TIMEZONE` | spelled | `timezone` | `as H2` | — |
-| `DATE_AT_TIME` | spelled | `an operator (+)` | `as H2` | — |
-| `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
-| `EPOCH_SECONDS` | emulated | `EXTRACT(EPOCH FROM …)` | `as H2` | — |
-| `EPOCH_MS` | emulated | `CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)` | `as H2` | — |
-| `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as H2` | — |
-| `FROM_EPOCH_MS` | refused | `a date from epoch milliseconds reached H2, which has no epoch_ms()` | `as H2` | — |
-| `DAYNAME` | spelled | `dayname` | `as H2` | — |
-| `MONTHNAME` | spelled | `monthname` | `as H2` | — |
-| `COT` | spelled | `cot` | `as H2` | — |
-| `RADIANS` | spelled | `radians` | `as H2` | — |
-| `DEGREES` | spelled | `degrees` | `as H2` | — |
-| `INT_DIVIDE` | emulated | `CAST(… / … AS BIGINT)` | `as H2` | — |
-| `REPEAT_STR` | spelled | `repeat` | `as H2` | — |
-| `JARO_WINKLER` | spelled | `jaro_winkler_similarity` | `as H2` | — |
-| `DECODE_BASE64` | refused | `decodeBase64 reached H2, which has no from_base64()` | `as H2` | — |
-| `CURRENT_USER_FN` | spelled | `current_user` | `as H2` | — |
-| `LIST_LENGTH` | emulated | `listLength` |  | — |
-| `LIST_ZIP` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_DISTINCT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_APPEND` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SUM` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MIN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MAX` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_AVG` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MEDIAN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MODE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SORT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SORT_DESC` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_TAIL` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_INIT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `RANGE_FN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_PRODUCT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_REDUCE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SLICE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `REPEAT_VALUE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_BOOL_AND` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_BOOL_OR` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` | `as H2` | — |
-| `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.allDistinct` | — |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` | `as H2` | — |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` | `as H2` | — |
-| `STRFTIME` | spelled | `formatdatetime` | `as H2` | — |
-| `STRPTIME` | spelled | `parsedatetime` | `as H2` | — |
-| `PARSE_DATE` | emulated | `castAs: TIMESTAMP` | `as H2` | — |
-| `LIST_REVERSE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `TYPEOF` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `ROUND_HALF_UP` | spelled | `ROUND` | `as H2` | — |
-| `ERROR` | emulated | `errorArm` | `as H2` | — |
-| `FLOOR_RAW` | spelled | `floor` | `as H2` | — |
-| `TO_VARIANT` | emulated | `variantConstruct` | `as H2` | — |
-| `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` | `as H2` | — |
-| `FLOAT_CANON` | emulated | `floatCanonByText` | `as H2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as H2` | — |
-| `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as H2, via AnsiSqlRenderer.variantElements` | — |
-| `VARIANT_GET` | emulated | `variantGet` | `as H2` | — |
-| `JSON_TYPE` | spelled | `json_type` | `as H2` | — |
-| `JSON_ARRAY_LENGTH` | spelled | `json_array_length` | `as H2` | — |
-| `JSON_PRETTY` | spelled | `json_pretty` | `as H2` | — |
 
 ## Postgres
 
@@ -1542,7 +1352,7 @@ Database types planned with it: ClickHouse.
 |---|---|---|---|---:|
 | `AND` | spelled | `an operator (infix)` |  | 204 |
 | `OR` | spelled | `an operator (infix)` |  | 262 |
-| `NOT` | spelled | `an operator (notPrefix)` |  | 61 |
+| `NOT` | emulated | `notCall` |  | 61 |
 | `EQUAL` | emulated | `equalArm` |  | 246 |
 | `NOT_EQUAL` | emulated | `equalArm` |  | 16 |
 | `LESS` | spelled | `an operator (infix)` |  | 125 |

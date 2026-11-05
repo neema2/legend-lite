@@ -1608,12 +1608,21 @@ legend_java_binary(
     ],
 )
 
+# THE STRESS CORPUS'S WALK (2026-11-06, PR #83's CI on 28a27931): the walk's door closed by default at 084cc1d3
+# (2026-11-05), which opened it for the relational corpus's lanes and tools and missed these two lanes and the stress
+# tool -- 461 service queries a lane refused by name (444 a graph fetch, 17 a temporal class read: the query program's
+# rule plans neither as a body's last statement yet, BodyClass.queryProgram), DuckDB 4251 and H2 4224 passing against
+# floors of 4705 and 4676. The stress corpus walks them as the relational corpus walks its own until the program road
+# plans both kinds; a corpus lane, not core's (core's door stays `none`)
+_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=all"]
+
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
 # //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
     memory_mb = 768,
+    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
@@ -1628,6 +1637,7 @@ junit_test(
     name = "stress_suites_h2",
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
+    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
@@ -1643,7 +1653,7 @@ legend_java_binary(
     name = "stress_tool",
     testonly = True,
     # the corpus is core_tests_lib's classpath resources (P3-05)
-    jvm_flags = ["-Duser.timezone=GMT"],
+    jvm_flags = ["-Duser.timezone=GMT"] + _STRESS_WALK_DOOR,
     main_class = "com.legend.integration.StressTool",
     tags = ["manual"],
     runtime_deps = [

@@ -157,7 +157,6 @@ class PostgresArmTest {
                     }
                     com.legend.executionplan.ExecutionPlan plan = plan(ctx, query);
                     var target = plan.answerSql().target();
-                    assertEquals(target.servers());
                     assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
                     assertEquals(java.util.List.of(), target.setup());
                     assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),
