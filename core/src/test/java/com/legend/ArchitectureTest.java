@@ -1070,6 +1070,41 @@ final class ArchitectureTest {
      * normalizer; the build says the same (`//core:exec`'s deps, pinned by tools/deps/core-layers.txt), this rule
      * says it at the class level, where a reach through a type name the build would not list still shows.
      */
+    /**
+     * EXEC'S PLUG-INS ARE EXEC'S OWN (the deep audit, 2026-11-05): {@code ServiceLoader} joins a provider at run time with
+     * no build dependency, so a provider outside {@code com.legend.exec} would reach past {@link #execReachesNoPlanning}
+     * unseen. Every provider the classpath registers for an exec plug-in interface (a database's connector, its driver's
+     * cells, its bulk load) is a class of {@code com.legend.exec}, and the rule above therefore covers it.
+     */
+    @Test
+    void execPluginsAreExecClasses() throws Exception {
+        java.util.List<String> outside = new java.util.ArrayList<>();
+        int providers = 0;
+        for (Class<?> spi : java.util.List.of(com.legend.exec.DatabaseConnector.class, com.legend.exec.DriverCells.class,
+                com.legend.exec.BulkLoad.class)) {
+            java.util.Enumeration<java.net.URL> files =
+                    ArchitectureTest.class.getClassLoader().getResources("META-INF/services/" + spi.getName());
+            while (files.hasMoreElements()) {
+                java.net.URL file = files.nextElement();
+                try (var in = file.openStream()) {
+                    for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                        String provider = line.replaceAll("#.*", "").trim();
+                        if (provider.isEmpty()) {
+                            continue;
+                        }
+                        providers++;
+                        if (!provider.startsWith("com.legend.exec.") || provider.substring(16).contains(".")) {
+                            outside.add(spi.getSimpleName() + " <- " + provider + " (" + file + ")");
+                        }
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(providers > 0, "no exec plug-in provider on the classpath to check");
+        org.junit.jupiter.api.Assertions.assertTrue(outside.isEmpty(),
+                "an exec plug-in provider outside com.legend.exec (move it into exec): " + outside);
+    }
+
     @Test
     void execReachesNoPlanning() {
         java.util.Map<String, java.util.Set<String>> reached = new java.util.TreeMap<>();
