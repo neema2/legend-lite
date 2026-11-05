@@ -20354,11 +20354,14 @@ Round 21 (c185b047) found two regressions on the lanes; both are fixed, and one 
   one-row derived table on SQLite, a one-row UNNEST of a struct on BigQuery) and read by name. On SQLite (the lane's
   driver, in process): 264,610 -> 22,954, 1,113,580 -> 608,395 and 337,947 -> 216,965 characters; every SQLite suite
   green under both judges and the database judge alone. BigQuery's shape is measured on its lane (round 22).
-- **ClickHouse's AST limit raised on the test connection, 1M -> 10M** (the owner's choice, 2026-11-05;
-  `EmbeddedClickHouse`). `equal::testEqualNonPrimitive` under the database judge alone still exceeded 1M AST elements:
-  not doubling now but volume -- 24 side values of nested instances, each instance canonicalized at its construction
-  site as a one-element list mapped and read back at `[0]`, about 1,000 maps (608K characters on SQLite). The expanded
-  limit was already 10M. **A lean-SQL item:** the canon of a single instance written without the list, map and index.
+- **ClickHouse's AST limit: raised 1M -> 10M, then reverted** (`EmbeddedClickHouse`). `equal::testEqualNonPrimitive`
+  under the database judge alone still exceeded 1M AST elements: not doubling now but volume -- 24 side values of
+  nested instances, each instance canonicalized at its construction site as a one-element list mapped and read back
+  at `[0]`, about 1,000 maps; 1,295,968 characters on ClickHouse (608K on SQLite). The owner chose to raise the limit
+  (4a492594); the lane then measured the server's analyzer taking 10-12 GB to build the query tree (its stack:
+  `QueryTreeBuilder::buildExpression` materializing string constants) and the kernel killing it, the client reading
+  only "Query request failed". The limit went back to 1M, whose refusal (`TOO_BIG_AST`) is clean: the statement must
+  shrink -- the canon of a single instance written without the list, map and index.
 - Not done now: S137's compatibility rewrite still counts a relation by the literal 1 (the relation is not evaluated);
   PCT reaches none of the three asserts over a relation, so no lane moves; running the relation as its own statement
   is corpus-phase work.
