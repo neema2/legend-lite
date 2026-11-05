@@ -22,6 +22,9 @@ test_suite(
         # the probe and the planner it also reads are not its inputs (tools/metrics/README.md)
         "//tools/metrics:tools_build_test",
         "//core:core_tests",
+        # the judge matrix (the asserts-as-plan-nodes program, step 7, 2026-11-04): the packages that run bodies, under
+        # the database judge alone and under BOTH
+        "//core:core_tests_judges",
         # the twin's lanes (track T, T-d, 2026-10-29): the integration tests on SQLite and H2, each held to its floor
         "//core:core_tests_lanes",
         # the Arrow writer's round-trip gate (track A, 2026-10-29): lite's Arrow stream against its JSON rows, read by

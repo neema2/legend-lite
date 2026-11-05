@@ -343,9 +343,11 @@ public final class PureAsserts {
             case Number n -> n.toString();
             case Boolean b -> b.toString();
             // THE wire temporal type (D-arc: sql/java.time never escape
-            // the fetch) — %-prefixed engine spelling, UTC-normalized
+            // the fetch) — upstream's toRepresentation, '%' + its toString: a value with a minute carries +0000
+            // (the engine runner, 2026-11-04, the assert bar: %2020-01-01T10:00:00 writes
+            // '%2020-01-01T10:00:00+0000'; the engine spelling dropped the zone)
             case com.legend.values.PureDateLiteral d ->
-                    "%" + d.toEngineString();
+                    "%" + d;
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
                     + " is not modeled (spec: '<id instanceOf Type>' —"

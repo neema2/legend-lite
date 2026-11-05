@@ -143,6 +143,15 @@ class AssertBarTest {
             // is never read while the assert holds
             new Probe("message-not-read-where-the-assert-holds",
                     "{|let x = []->cast(@Integer); assert($x->isEmpty(), | $x->toOne()->toString());}", null),
+            // a DateTime written as upstream's toRepresentation writes it, '%' + its toString: a value with a minute
+            // carries +0000, a written fraction its digits (the engine runner, 2026-11-04)
+            new Probe("assertEquals-datetimes-message", "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:01)}",
+                    "\nexpected: %2020-01-01T10:00:00+0000\nactual:   %2020-01-01T10:00:01+0000"),
+            new Probe("assertEquals-datetime-precision-message",
+                    "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}",
+                    "\nexpected: %2020-01-01T10:00:00.000+0000\nactual:   %2020-01-01T10:00:00+0000"),
+            new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
+                    "\nexpected: %2020-01-01T10\nactual:   %2020-01-01T11"),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",

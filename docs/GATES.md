@@ -19854,3 +19854,24 @@ against the explicit rule's run (`corpus_rules`): every status identical in both
 108 and 111, skip 14 each), the database-lost set identical, `//spec:corpus_duckdb_verdict` red as at the baseline
 (the same three database-lost names: `columnValueDifferenceWithoutPrevalTest`, `testCheckedWithCircularConstraints`,
 `strictdate::testProject`). The H2 corpus was not re-run (its logs carried from the step before).
+
+## 2026-11-04 — The bar's next round (`6038d060`), its corpus regression, and the fix
+
+**Checks at `6038d060`** (reading messages; upstream's message texts under both judges; assertError over an assert;
+assertIs over two primitives; an `if` closing a body; asserts then a query): `//core:core_tests` under the database
+judge alone and BOTH: 28 of 28 each; PCT channel B's seven local suites under the database judge alone and BOTH: 7 of 7
+each; **the DuckDB corpus REGRESSED**: the host pass lost 55 bodies (fail 108 -> 163, newly passing 0) -- the corpus's
+test-data generation bodies, `NotImplementedException: class query under if() with a runtime condition is not
+resolvable yet` -- so the database pass, which runs after the host pass, did not run (`//spec:corpus_duckdb_verdict`:
+"differential passes SHRANK: 990 < 1009"). Nothing reached `main`.
+
+**`25facf2e` did not fix it** (the same 55, measured): it reverted the "asserts then a query" admission
+(`BodyClass.answersAsTheLastStatement`) on a wrong diagnosis, and made the program road's message lazy. **The cause,
+found by running one body (`bazel run //spec:corpus_one -- duckdb host
+meta::relational::testDataGeneration::tests::testSimpleSingleTable`, the stack through `HostAssert.run ->
+HostSides.fetch -> JudgePlans.plannedSide -> StoreResolver.resolveStaticIf`)**: these bodies WALK, and the walk's own
+runner (`HostAssert.run`) fetched every side of a messaged assert first -- the caller's message among them, a query the
+program cannot plan -- where 6038d060's split had made such a message one more side. The fix: the walk reads a
+messaged assert's message only where its judgment asks for it (`HostSides.fetchChecked`, the same laziness as the
+program road's); the one body passes under both judges. The admission stays reverted: it is unproven either way, and
+its probe stays a gap of the bar.

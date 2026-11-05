@@ -860,7 +860,7 @@ final class AssertVerdicts {
             // the arm sent it before the side was deferred and as the program road's step is sent (M10c item 8)
             com.legend.exec.StatementOrigin marked = deferredTextOrigin(check.judgment());
             try (var __o = marked == null ? null : com.legend.exec.StatementOrigin.enter(marked)) {
-                return judge(HostSides.fetch(name(), check.asks(), letPrefix, specs, env),
+                return judge(HostSides.fetchChecked(name(), check, letPrefix, specs, env),
                         env.options().judgingRules());
             }
         }

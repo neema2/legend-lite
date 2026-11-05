@@ -61,9 +61,50 @@ final class HostSides {
             return null;
         }
         // judged by the run's rules (ExecuteOptions.judgingRules), as the program road's step names them
-        PlannedCheck pc = planChecked(name, check, letPrefix, specs, env);
-        return HostJudge.judge(pc.check().judgment(), fetched(name, pc.planned(), env),
+        return HostJudge.judge(check.judgment(), fetchChecked(name, check, letPrefix, specs, env),
                 env.options().judgingRules());
+    }
+
+    /** {@code check}'s sides fetched in place (the walk): a caller's MESSAGE (HostJudgment.Messaged, the check's last
+     *  side) planned and read only where the judgment asks for it -- the assert failing -- as upstream evaluates it only
+     *  there and as the program road reads it (the assert bar, 2026-11-04: the walk's message read first lost the
+     *  corpus's 55 test-data generation bodies, whose messages read a query the program cannot plan). */
+    static List<TypedSide> fetchChecked(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env) {
+        if (!(check.judgment() instanceof HostJudgment.Messaged m) || m.unplanned() != null
+                || m.innerSides() != check.asks().size() - 1) {
+            return fetch(name, check.asks(), letPrefix, specs, env);
+        }
+        List<TypedSide> inner = fetch(name, check.asks().subList(0, m.innerSides()), letPrefix, specs, env);
+        Ask message = check.asks().get(m.innerSides());
+        return lazyLast(inner, () -> fetch(name, List.of(message), letPrefix, specs, env).get(0));
+    }
+
+    /** {@code inner}, then one more side read through {@code last} only where it is asked for (once). */
+    private static List<TypedSide> lazyLast(List<TypedSide> inner, java.util.function.Supplier<TypedSide> last) {
+        int n = inner.size();
+        return new java.util.AbstractList<TypedSide>() {
+            private @com.legend.base.Nullable TypedSide read;
+
+            @Override
+            public TypedSide get(int i) {
+                if (i < n) {
+                    return inner.get(i);
+                }
+                if (i != n) {
+                    throw new IndexOutOfBoundsException(i);
+                }
+                if (read == null) {
+                    read = last.get();
+                }
+                return read;
+            }
+
+            @Override
+            public int size() {
+                return n + 1;
+            }
+        };
     }
 
     /** {@code check}'s sides planned as one verdict's base, with the check they plan: a caller's message whose
@@ -181,32 +222,13 @@ final class HostSides {
         List<TypedSide> inner = shaped(name, new Planned(planned.sides().subList(0, n), planned.base().subList(0, n),
                 planned.on()), rows);
         JudgePlans.PlannedSide asked = planned.sides().get(n);
-        return new java.util.AbstractList<TypedSide>() {
-            private @com.legend.base.Nullable TypedSide read;
-
-            @Override
-            public TypedSide get(int i) {
-                if (i < n) {
-                    return inner.get(i);
-                }
-                if (i != n) {
-                    throw new IndexOutOfBoundsException(i);
-                }
-                if (read == null) {
-                    TypedSide shaped = JudgePlans.shape(asked, message.get());
-                    if (planned.on() != null) {
-                        JudgePlans.toOneReader(asked.root(), shaped);
-                    }
-                    read = shaped;
-                }
-                return read;
+        return lazyLast(inner, () -> {
+            TypedSide shaped = JudgePlans.shape(asked, message.get());
+            if (planned.on() != null) {
+                JudgePlans.toOneReader(asked.root(), shaped);
             }
-
-            @Override
-            public int size() {
-                return n + 1;
-            }
-        };
+            return shaped;
+        });
     }
 
     /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */

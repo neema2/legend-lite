@@ -43,8 +43,25 @@ final class Repr {
             return Scalars.cat(new SqlExpr.StringLit("'"),
                     Scalars.cat(esc, new SqlExpr.StringLit("'")));
         }
-        if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE
-                || t == Type.Primitive.DATE_TIME) {
+        if (t == Type.Primitive.DATE_TIME && x.type() instanceof com.legend.sql.TypeFact.Typed ty
+                && (ty.type() == SqlType.Scalar.TIMESTAMP || ty.type() == SqlType.Scalar.TIMESTAMPTZ)) {
+            // a timestamp as every output of one writes it (LiteralSpelling.dateTimeText: T, the fraction's digits,
+            // +0000) -- upstream's toRepresentation writes '%2020-01-01T10:00:00+0000' (the engine runner, 2026-11-04,
+            // the assert bar), where the VARCHAR cast wrote '2020-01-01 10:00:00'. A value carried another way (a
+            // literal's own text, holding a written precision a timestamp cannot) keeps its text below
+            return Scalars.cat(new SqlExpr.StringLit("%"), LiteralSpelling.dateTimeText(x));
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            // a DateTime carried as its literal's own text (a written precision a timestamp cannot hold: an hour, a
+            // fraction's zeros): Pure's print form of it, the zone where it has a minute (PureDateLiteral.toString:
+            // '2020-01-01T10:00:00.000' prints '...000+0000', '2020-01-01T10' prints itself)
+            SqlExpr text = Scalars.pureToString(t, x);
+            SqlExpr hasMinute = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.LENGTH, text),
+                    new SqlExpr.IntLit(13));
+            return Scalars.cat(new SqlExpr.StringLit("%"), new SqlExpr.Case(java.util.List.of(
+                    new SqlExpr.Case.When(hasMinute, Scalars.cat(text, new SqlExpr.StringLit("+0000")))), text));
+        }
+        if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE) {
             return Scalars.cat(new SqlExpr.StringLit("%"),
                     Scalars.pureToString(t, x));
         }
