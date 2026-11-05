@@ -84,10 +84,6 @@ public final class Sessions {
             return new JdbcStatements(connection(), state(), trace);
         }
 
-        /** The database server's version, as its driver reports it: what a plan's target is written for (B1b: the
-         *  judges read it through the session). Read once per session (D70). */
-        public abstract String version();
-
         /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
          *  joined): the body driver's bracket for a program that writes or stages rows (the doors, 2026-10-29: a
          *  session's own fact, reached without its statements, which only the plan runner takes). */
@@ -104,13 +100,11 @@ public final class Sessions {
         public abstract void close();
     }
 
-    /** A session over a JDBC connection: the owning one, whose state is the connection's and whose version is read
-     *  once. */
+    /** A session over a JDBC connection: the owning one, whose state is the connection's. */
     private static final class Jdbc extends Session {
         private final Connection c;
         private final boolean owning;
         private final SessionState state = new SessionState();
-        private @com.legend.base.Nullable String version;
 
         Jdbc(Connection c, boolean owning) {
             this.c = c;
@@ -125,16 +119,6 @@ public final class Sessions {
         @Override
         public SessionState state() {
             return state;
-        }
-
-        @Override
-        public synchronized String version() {
-            String v = version;
-            if (v == null) {
-                v = Sessions.version(c);
-                version = v;
-            }
-            return v;
         }
 
         @Override
@@ -184,11 +168,6 @@ public final class Sessions {
         @Override
         public Statements statements(@com.legend.base.Nullable ExecutionTrace traced) {
             return owner.statements(traced);
-        }
-
-        @Override
-        public String version() {
-            return owner.version();
         }
 
         @Override
@@ -266,7 +245,7 @@ public final class Sessions {
 
     /** The product name the driver of {@code session} reports: the handle a refusal names. */
     static String product(Session session) {
-        return metadata(session.connection(), true);
+        return product(session.connection());
     }
 
     /** Opens a session on a system connection: the HOST's to configure, apart from every runtime's (the platform holds
@@ -304,7 +283,7 @@ public final class Sessions {
 
     /** {@link #check(Session, DatabaseType)} of the driver's connection (the seam's). */
     static void check(Connection session, DatabaseType declared) {
-        String product = metadata(session, true);
+        String product = product(session);
         if (!jdbcProduct(declared).equals(product)) {
             throw new com.legend.error.NotImplementedException("the query executes on " + declared
                     + " but the session is " + product + " — dialect/connection mismatch");
@@ -378,14 +357,10 @@ public final class Sessions {
         }
     }
 
-    /** The server version {@code session} reports ({@code DatabaseMetaData.getDatabaseProductVersion}). */
-    static String version(Connection session) {
-        return metadata(session, false);
-    }
-
-    private static String metadata(Connection session, boolean product) {
+    /** The database product {@code session} reports (its connector reads it). */
+    private static String product(Connection session) {
         try {
-            return product ? Connectors.product(session) : session.getMetaData().getDatabaseProductVersion();
+            return Connectors.product(session);
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }

@@ -1883,7 +1883,7 @@ class BodyRouterParityTest {
                     String door = System.getProperty("legend.walk.allowed");
                     System.setProperty("legend.walk.allowed", "all");
                     try {
-                        BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect().forServer(session.version()),
+                        BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect(),
                                 session, listener, referee, options, capture::of);
                     } finally {
                         if (door == null) {

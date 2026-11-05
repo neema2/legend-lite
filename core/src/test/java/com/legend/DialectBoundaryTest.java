@@ -181,7 +181,7 @@ class DialectBoundaryTest {
     @Test
     void eachDatabaseDecisionHasOneOwner() throws IOException {
         assertEquals(new TreeMap<>(DIALECT_CONSTRUCTIONS),
-                census(Pattern.compile("\\bnew\\s+(com\\.legend\\.sql\\.dialect\\.)?(H2|H2Modern|DuckDb|Postgres"
+                census(Pattern.compile("\\bnew\\s+(com\\.legend\\.sql\\.dialect\\.)?(H2|DuckDb|Postgres"
                         + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb"
                         + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"

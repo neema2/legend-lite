@@ -29,11 +29,9 @@ public final class TestDoor {
     private TestDoor() {
     }
 
-    /** {@code body}'s plan on {@code runtime}, under {@code features}, for a session whose server is
-     *  {@code serverVersion} (null: the dialect's declared target). */
-    public static ExecutionPlan plan(TypedQuery body, String runtime,
-            Set<Feature> features, @Nullable String serverVersion) {
-        return planned(body, runtime, features, serverVersion).plan();
+    /** {@code body}'s plan on {@code runtime}, under {@code features}. */
+    public static ExecutionPlan plan(TypedQuery body, String runtime, Set<Feature> features) {
+        return planned(body, runtime, features).plan();
     }
 
     /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's spelling) and
@@ -96,26 +94,23 @@ public final class TestDoor {
     }
 
     /** {@link #plan} with the effects' and seeds' ledger texts beside it; no assert planned. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
-            @Nullable String serverVersion) {
-        return planned(body, runtime, features, serverVersion, Asserts.NONE);
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features) {
+        return planned(body, runtime, features, Asserts.NONE);
     }
 
-    /** {@link #planned(TypedQuery, String, Set, String)} with the body's asserts placed as {@code asserts} planned
-     *  them. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
-            @Nullable String serverVersion, Asserts asserts) {
-        return planned(body, runtime, features, serverVersion, asserts, false);
+    /** {@link #planned(TypedQuery, String, Set)} with the body's asserts placed as {@code asserts} planned them. */
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts) {
+        return planned(body, runtime, features, asserts, false);
     }
 
-    /** {@link #planned(TypedQuery, String, Set, String, Asserts)}; {@code systemRouted}: the body reads the system
+    /** {@link #planned(TypedQuery, String, Set, Asserts)}; {@code systemRouted}: the body reads the system
      *  metamodel store and nothing else ({@code BodyClass.systemRouted}), so its program's target is the graph's
      *  SYSTEM database on the runtime's engine ({@link ExecutionPlan.Database.System}; the test-is-the-product plan's
      *  M10a), which the caller's sessions source opens. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
-            @Nullable String serverVersion, Asserts asserts, boolean systemRouted) {
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
+            boolean systemRouted) {
         TestKinds kinds = new TestKinds(body, runtime, asserts);
-        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, serverVersion, kinds, systemRouted);
+        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                 : List.of(plan.root());
         Map<Integer, Effect> effects = byStep(steps, kinds.effects());

@@ -127,19 +127,6 @@ final class JdbcStatements implements Statements {
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
         driver = Connectors.of(target.database().type()).decoding();   // the driver's facts are its connector's (D72)
-        switch (target.servers()) {
-            case ExecutionPlan.Servers.Every every -> {
-                // the spelling depends on no version
-            }
-            case ExecutionPlan.Servers.Versions versions -> {
-                String version = Sessions.version(c);
-                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
-                    throw new com.legend.error.NotImplementedException("the plan's statements are written for "
-                            + target.database().type() + " " + versions.prefixes() + ", and the session is "
-                            + target.database().type() + " " + version + ": not run");
-                }
-            }
-        }
     }
 
     @Override

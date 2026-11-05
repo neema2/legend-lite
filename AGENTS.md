@@ -304,7 +304,8 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
-docs/MONGODB_PLAN_2026_10_16.md); `H2` → `H2Modern`; `EngineStyleH2` →
+docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
+chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
 one a declared database type runs on.
 

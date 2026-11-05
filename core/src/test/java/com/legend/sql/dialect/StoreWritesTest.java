@@ -96,7 +96,7 @@ class StoreWritesTest {
     @Test
     void theMeasuredDatabasesRunEachWrite() throws Exception {
         for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
-                Map.entry(new H2(), "jdbc:h2:mem:store_writes"), Map.entry(new H2Modern(), "jdbc:h2:mem:store_writes_m"))) {
+                Map.entry(new H2(), "jdbc:h2:mem:store_writes"))) {
             SqlDialect d = db.getKey();
             String name = d.getClass().getSimpleName();
             try (Connection c = DriverManager.getConnection(db.getValue())) {
@@ -137,8 +137,7 @@ class StoreWritesTest {
         SqlDml.CreateTempTableAs staged = new SqlDml.CreateTempTableAs("S", source().withWhere(new SqlExpr.Call(
                 SqlFn.GREATER, List.of(stored("s", "AGE"), integer("older")))));
         for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
-                Map.entry(new H2(), "jdbc:h2:mem:store_writes_bound"),
-                Map.entry(new H2Modern(), "jdbc:h2:mem:store_writes_bound_m"))) {
+                Map.entry(new H2(), "jdbc:h2:mem:store_writes_bound"))) {
             SqlDialect d = db.getKey();
             String name = d.getClass().getSimpleName();
             RenderedStatement update = d.renderStatement(bound);

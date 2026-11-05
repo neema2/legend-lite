@@ -89,15 +89,10 @@ public final class PlanMaker {
     }
 
     /** {@code query}'s TYPED plan on {@code runtime}, lowered under the feature flags {@code features}, each declared
-     *  parameter a value the statement binds where it is used, for a session whose server is
-     *  {@code serverVersion} (the caller's session fact, as the legacy seam read it off the connection,
-     *  {@code SqlDialect.forServer}): where the database's spelling depends on the version (H2: 2.1 and 2.2 the
-     *  engine-parity dialect, 2.3 and later the modern one), the plan is written in that version's dialect and names
-     *  that version as what it is for, so its runner accepts the session; null plans for the dialect's declared
-     *  target. The plan path program's step 9, 2026-10-19: the H2 PCT lane runs the modern H2, and a plan for the
-     *  declared target was refused by its runner on every case. */
-    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime,
-            Set<Feature> features, @Nullable String serverVersion) {
+     *  parameter a value the statement binds where it is used. No server version: a database's statements are spelled
+     *  alike for every version lite runs (2026-11-05, one H2; until then H2's plans were written per version, read off
+     *  the caller's session). */
+    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime, Set<Feature> features) {
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);
         List<QueryParameters.Declared> declared = query.parameters();
@@ -106,7 +101,7 @@ public final class PlanMaker {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
             return new ExecutionPlan(declarations(declared, query.context()),
-                    program(query, runtime, slots, features, serverVersion, ProgramState.Door.QUERY,
+                    program(query, runtime, slots, features, ProgramState.Door.QUERY,
                             NO_TEST_KINDS, false));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
@@ -122,11 +117,11 @@ public final class PlanMaker {
         Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
                 withStamps(slots, frames), new ObjectSites()),
                 planned.body().get(planned.body().size() - 1), query.context());
-        Decided decided = decide(l.ctx(), runtime, serverVersion);
+        Decided decided = decide(l.ctx(), runtime);
         SqlDialect dialect = decided.dialect();
         Metamodel metamodel = metamodel(l, dialect);
         ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
-                decided.servers(), metamodel);
+                metamodel);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
@@ -289,17 +284,16 @@ public final class PlanMaker {
     /**
      * THE TEST DOOR's plan (the test-is-the-product plan's M3, B12 item 1): {@code query}'s body planned as a program
      * whatever it holds, each statement holding a test's kind planned by {@code kinds} -- the test-planning
-     * library's, its one caller (ArchitectureTest pins it) -- on {@code runtime}, for a session whose server is
-     * {@code serverVersion}. Its target carries no setup (R17 C6): a test's seeds are steps of its own program.
+     * library's, its one caller (ArchitectureTest pins it) -- on {@code runtime}. Its target carries no setup (R17
+     * C6): a test's seeds are steps of its own program.
      * {@code systemRouted}: the body's statements read the graph's system metamodel store and no user store, so the
      * program's target is the SYSTEM database on the runtime's engine (the test-is-the-product plan's M10a).
      */
-    public static ExecutionPlan testProgram(TypedQuery query, String runtime,
-            Set<Feature> features, @Nullable String serverVersion,
+    public static ExecutionPlan testProgram(TypedQuery query, String runtime, Set<Feature> features,
             ProgramKinds kinds, boolean systemRouted) {
         List<QueryParameters.Declared> declared = query.parameters();
         return new ExecutionPlan(declarations(declared, query.context()),
-                program(query, runtime, slots(declared), features, serverVersion, ProgramState.Door.TEST, kinds,
+                program(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
                         systemRouted));
     }
 
@@ -325,10 +319,9 @@ public final class PlanMaker {
      * value bound in a query of its own.
      */
     private static ExecutionPlan.Node program(TypedQuery query, @Nullable String runtime,
-            List<SqlExpr.PlanParam> slots,
-            Set<Feature> features, @Nullable String serverVersion,
+            List<SqlExpr.PlanParam> slots, Set<Feature> features,
             ProgramState.Door door, ProgramKinds kinds, boolean systemRouted) {
-        Decided decided = decide(query.context(), runtime, serverVersion);
+        Decided decided = decide(query.context(), runtime);
         // a product program reads no system metamodel table (Class.all() inside a write program is not designed); the
         // test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads the
         // metamodel store (M10a: the system tables keep their names in process; the program's own seed step writes
@@ -336,9 +329,9 @@ public final class PlanMaker {
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? new ExecutionPlan.Target(systemRouted
                         ? new ExecutionPlan.Database.System(decided.target().type()) : database(decided.target()),
-                        decided.servers(), decided.dialect().sessionSetup(), List.of())
+                        decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
-                        decided.servers(), Metamodel.NONE);
+                        Metamodel.NONE);
         List<TypedSpec> body = query.body();
         StagedRows.refuseLetsTheWritesChange(body, query.specs());
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
@@ -402,20 +395,15 @@ public final class PlanMaker {
         return null;
     }
 
-    /** Where a plan runs: the runtime's database ({@code Compiler.executesOn}: a null runtime refused there, by name),
-     *  its dialect (for the session's server version where the plan names versions) and the servers it serves. */
-    private record Decided(Target target, SqlDialect dialect, ExecutionPlan.Servers servers) {
+    /** Where a plan runs: the runtime's database ({@code Compiler.executesOn}: a null runtime refused there, by name)
+     *  and its dialect. */
+    private record Decided(Target target, SqlDialect dialect) {
     }
 
-    /** {@link Decided} for {@code runtime} of {@code ctx}, on a server of {@code serverVersion} when one is named. */
-    private static Decided decide(ModelContext ctx, @Nullable String runtime, @Nullable String serverVersion) {
+    /** {@link Decided} for {@code runtime} of {@code ctx}. */
+    private static Decided decide(ModelContext ctx, @Nullable String runtime) {
         Target decided = Compiler.executesOn(ctx, runtime);
-        SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
-        if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
-            dialect = dialect.forServer(serverVersion);
-        }
-        return new Decided(decided, dialect, servers);
+        return new Decided(decided, Databases.dialect(decided.type()));
     }
 
     /** A let before the program's last statement, planned by its KIND (the planner's {@link LetPlanner}, the walk's
@@ -517,16 +505,15 @@ public final class PlanMaker {
     }
 
     /** The graph's SYSTEM database beside {@code home} (a program's own target): a statement reading the system
-     *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine, the servers and the session
-     *  statements {@code home}'s, as the system database is the runtime's engine in this process. */
+     *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine and the session statements
+     *  {@code home}'s, as the system database is the runtime's engine in this process. */
     public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home) {
         ConnectionDefinition.DatabaseType type = switch (home.database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System s -> s.type();
         };
-        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type), home.servers(), home.session(),
-                List.of());
+        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type), home.session(), List.of());
     }
 
     /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3
@@ -812,28 +799,10 @@ public final class PlanMaker {
         };
     }
 
-    /** The servers a plan written for a session of {@code serverVersion} names: where {@code type}'s dialect is written
-     *  for given versions ({@link SqlDialect#serverVersions}: H2's 2.1 and 2.2 the engine-parity dialect, 2.3 and later
-     *  the modern one), that version's {@code major.minor} alone ({@link Databases#majorMinor}), so the plan's runner
-     *  accepts the session the plan was written for (the dialect is {@code SqlDialect.forServer}'s); else the
-     *  dialect's declared servers. A null version is the declared target (the plan path program's step 9, 2026-10-19:
-     *  the H2 PCT lane and channel B's H2 judge run the modern H2, and a plan for the declared target was refused on
-     *  every case). Here, not in {@code Databases}, since main's dialect program Phase 5 (2026-10-16): the database
-     *  owner does not reach the plan's types. */
-    public static ExecutionPlan.Servers serversFor(ConnectionDefinition.DatabaseType type,
-            @Nullable String serverVersion) {
-        List<String> versions = Databases.dialect(type).serverVersions();
-        if (versions == null) {
-            return new ExecutionPlan.Servers.Every();
-        }
-        return new ExecutionPlan.Servers.Versions(
-                serverVersion == null ? versions : List.of(Databases.majorMinor(serverVersion)));
-    }
-
-    /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
+    /** Where the plan runs: the database {@code decided}, the session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(Target decided, String runtime,
-            ModelContext ctx, SqlDialect dialect, ExecutionPlan.Servers servers,
+            ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel) {
         ExecutionPlan.Database database = database(decided);
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
@@ -841,7 +810,7 @@ public final class PlanMaker {
         steps.addAll(metamodel.setup());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
-        return new ExecutionPlan.Target(database, servers, session, steps);
+        return new ExecutionPlan.Target(database, session, steps);
     }
 
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */

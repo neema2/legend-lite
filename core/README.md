@@ -63,7 +63,7 @@ text                                                            [FRONTEND]
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2`→`H2Modern`, `EngineStyle*` | SQL string |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2` (one H2, 2.5.252, since 2026-11-05), `EngineStyle*` | SQL string |
 | K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
 Wired by `com.legend.Compiler.compile(...)`.
@@ -433,6 +433,6 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 - [x] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + checkers (G½: UserCallInliner)
 - [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
 - [x] Phase I: Lowerer + lowering/ + sql/ data records
-- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
+- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2` (`H2Modern` folded into it 2026-11-05), `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
 - [x] Phase K: PlanRunner + exec/ (`exec.Executor` deleted 2026-10-27, the result boundary program's phase 5; the old door 2026-10-29, its track D)
 - [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)

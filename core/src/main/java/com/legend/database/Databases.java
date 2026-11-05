@@ -99,11 +99,4 @@ public final class Databases {
         };
     }
 
-    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
-     *  its runner checks the session's version against. A version with no dot is itself. */
-    public static String majorMinor(String version) {
-        int first = version.indexOf('.');
-        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
-        return second < 0 ? version : version.substring(0, second);
-    }
 }

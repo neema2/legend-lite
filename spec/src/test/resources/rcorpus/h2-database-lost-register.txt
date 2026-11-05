@@ -8,6 +8,7 @@ meta::relational::tests::ddl::dropAndCreateTable ||| DialectCapability: variant 
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::groupBy::testAggToManyWithFilter ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| AssertFailed: expected: [{"_type":"meta::pure::functions::collection::Pair","first":"'\"Banking\"'" (2026-11-05, H2 2.5.252: the host judge newly passes it; the database judge's canon reads a struct field H2 carries as a JSON object, and its text keeps the JSON quotes -- a corpus-phase item)
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV3 ||| DialectCapability: variant navigation reached a dialect without JSON support
@@ -46,7 +47,6 @@ meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnNonTem
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testAllVersionInRangeForBuisnessSnapshotMilestoning ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support

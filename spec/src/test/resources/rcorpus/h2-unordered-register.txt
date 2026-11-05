@@ -1,3 +1,4 @@
+unordered-chain meta::pure::executionPlan::tests::tdsTwoJoinThreeDB
 unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariable
 unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
 unordered-chain meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
@@ -724,6 +725,11 @@ unordered-chain meta::relational::tests::query::filter::exists::testNestedExists
 unordered-chain meta::relational::tests::query::filter::exists::testNotExists
 unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChaining
 unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChainingOnIntegerColumn
+unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDateTimes
+unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDateTimesWithTz
+unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDates
+unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForNumbers
+unordered-chain meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForStrings
 unordered-chain meta::relational::tests::query::filter::in::testContains
 unordered-chain meta::relational::tests::query::filter::in::testContainsOnToManyProperty
 unordered-chain meta::relational::tests::query::filter::in::testContainsOnToOneProperty

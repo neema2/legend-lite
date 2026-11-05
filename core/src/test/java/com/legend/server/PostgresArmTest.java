@@ -79,7 +79,7 @@ class PostgresArmTest {
             com.legend.exec.Statements statements = session.statements();
             statements.check(new com.legend.executionplan.ExecutionPlan.Target(
                     new com.legend.executionplan.ExecutionPlan.Database.Platform(POSTGRES.type()),
-                    new com.legend.executionplan.ExecutionPlan.Servers.Every(), java.util.List.of(),
+                    java.util.List.of(),
                     java.util.List.of()));
             statements.rows("SELECT inet_server_port() AS port, 41 + 1 AS answer", java.util.List.of(),
                     java.util.List.of(), java.util.List.of(
@@ -157,7 +157,7 @@ class PostgresArmTest {
                     }
                     com.legend.executionplan.ExecutionPlan plan = plan(ctx, query);
                     var target = plan.answerSql().target();
-                    assertEquals(new com.legend.executionplan.ExecutionPlan.Servers.Every(), target.servers());
+                    assertEquals(target.servers());
                     assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
                     assertEquals(java.util.List.of(), target.setup());
                     assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),

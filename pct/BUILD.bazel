@@ -164,12 +164,11 @@ test_suite(
     tests = [":pct_duckdb_" + s.lower() for s in _SUITES] + [":pct_discipline"],
 )
 
-# GATE 7 — the relation suite on H2 2.4.240 (LEGENDLITE_PCT_BACKEND=h2 selects
+# GATE 7 — the relation suite on H2 (lite's one H2, 2.5.252 since 2026-11-05; LEGENDLITE_PCT_BACKEND=h2 selects
 # the H2 execution dialect), with H2's OWN expected failures: every failing test
 # named and pinned by its message in Test_LegendLite_H2_RelationFunctions_PCT —
 # legend-engine's shape — so a fix, or a failure swapping for another, fails the
-# run. Given the modern H2 and NO other: two H2s on one classpath would be a
-# coin toss.
+# run.
 # memory_mb 4096, not the rule's 4864 (live peak 3180 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
 # lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 junit_test(
@@ -179,7 +178,7 @@ junit_test(
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
     runtime_deps = [
         ":pct_tests_lib",
-        "@h2_modern//jar",
+        "@h2//jar",
     ],
 )
 
@@ -493,7 +492,7 @@ _CLOUD_TAGS = [
 # lane -> (its ledger classes' name, its suites, the engine's manifest directory or None, data, jvm_flags, deps, tags,
 # env_inherit, target_compatible_with)
 _CHANNEL_B_LANES = {
-    "h2": ("H2", ["Relation"], "h2", [], [], ["@h2_modern//jar"], ["manual"], [], []),
+    "h2": ("H2", ["Relation"], "h2", [], [], ["@h2//jar"], ["manual"], [], []),
     "postgres": ("Postgres", _SUITES, "postgres", _POSTGRES_DATA, _POSTGRES_FLAGS, ["//core:drivers"], ["manual"], [], EMBEDDED_POSTGRES_COMPATIBLE),
     "sqlite": ("SQLite", _SUITES, None, [], [], ["//core:drivers"], ["manual"], [], []),
     "mariadb": (

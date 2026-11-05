@@ -88,7 +88,7 @@ public class MinimalCorpusTest {
             return new Lane(TestBackends.platform().name(),
                     new Ceilings(PLATFORM_STRENGTH, PLATFORM_TEXT_DECIDED, PLATFORM_LENIENCY));
         }
-        if (backend == TestBackends.referee()) {
+        if (backend.type() == TestBackends.referee().type()) {
             return new Lane(backend.name(), new Ceilings(REFEREE_STRENGTH, REFEREE_TEXT_DECIDED, REFEREE_LENIENCY));
         }
         return new Lane(backend.name(), null);

@@ -152,14 +152,6 @@ public final class MongoDbConnector implements DatabaseConnector {
             return state;
         }
 
-        /** A plan's target names no MongoDB server version (its commands are written for every version the
-         *  connector speaks); the body driver, which asks a session its version, is not designed for MongoDB. */
-        @Override
-        public String version() {
-            throw new com.legend.error.NotImplementedException("a MongoDB session's server version: the body driver,"
-                    + " which asks it, is not designed for MongoDB; a plan's MongoDB target names no version");
-        }
-
         @Override
         public void close() {
             client.close();

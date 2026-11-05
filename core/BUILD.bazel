@@ -560,7 +560,8 @@ legend_java_library(
         "//arrow_ipc",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
-        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
+        # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
+        # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
         "@h2//jar",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_test//:org_junit_jupiter_junit_jupiter",

@@ -217,17 +217,14 @@ public final class TypedQuery {
      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
      *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
-        return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
+        return PlanMaker.plan(this, runtime, java.util.Set.of());
     }
 
     /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
-     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name), for a session whose server
-     *  is {@code serverVersion} (the caller's fact, read off its session): where the database's spelling depends on
-     *  the version (H2), the plan is written in that version's dialect and names it as what it is for; null plans for
-     *  the dialect's declared target (2026-10-19, the plan path program's step 9). */
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
-        return PlanMaker.plan(this, runtime, features, serverVersion);
+            java.util.Set<com.legend.platform.Feature> features) {
+        return PlanMaker.plan(this, runtime, features);
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {

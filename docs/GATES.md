@@ -22,7 +22,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl) |
 | `corpus_h2` | 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
 | `pct_duckdb` | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, a suite of one target per PCT suite (`//pct:pct_duckdb_<suite>`, each judged on its own census traffic; Bazel workplan P3-09) |
-| `pct_h2` | 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
+| `pct_h2` | 7 | `//pct:pct_h2` | PCT relation on H2 (2.4.240 until 2026-11-05, lite's one H2 2.5.252 since): 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
 | `pct_postgres` | 7P | `//pct:pct_postgres` | PCT, all five suites, on Postgres 16.15 (one target per suite, `//pct:pct_postgres_<suite>`; P3-09) started by the test JVM from pinned binaries (`@embedded_postgres`, no Docker): 1,249 tests, Postgres's expected failures each pinned by message (`Test_LegendLite_Postgres_*Functions_PCT`), grouped as wrong answers, Postgres's own errors, leg P4's collections and Variant, and named refusals: 267 first measured, 242 after tier 1 (multi-column pivots, the self-referencing exists, half-even rounding to a scale, calendar buckets, whole-partition median/mode/quantile, maxBy/minBy, pow, ordered removeDuplicates), 230 after tier 2 (Variant over jsonb: key and index access, toVariant, parse, typed reads), 145 after tier 3 (lists of scalars as native arrays), 129 after tier 4 (structs and non-scalar lists as jsonb, held flat); its census divergence ceilings measured per suite (Essential 13, Grammar 5, the others 0; P3-09; 12 and 4 until 2026-10-11, when two more tests reached the wire with a struct as jsonb, the by-design class: `PctCensusGate.maxWireDiverge`) |
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
 | (heavy) | 9 | `//pct:pct_channel_b_<lane>` | Channel B on each other database (h2, postgres, sqlite, mariadb, mysql, databricks, snowflake, bigquery, trino, clickhouse), judged against that lane's own channel A ledger (2026-10-11, `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §16); manual, in `//gates:heavy` |
@@ -20337,3 +20337,53 @@ inside one it is refused by name with its callers, runs nest. The register's S13
 
 Checks: `//wasm:planner` builds; `//wasm:round_trip_test`, `//pure-protocol:twins_test` (the two targets CI could not
 build), `//core:core_tests_root`, `//core:guardrails`, `//core:census`: green.
+
+## 2026-11-05 — One H2 for lite, 2.5.252; the referee keeps legend-engine's 2.1.214; no plan names a server version
+
+The user: "I want latest version of H2" (register S141), then, for the replay referee: "Engine's 2.1.214, isolated".
+
+- **One H2 for lite: 2.5.252** (`tools/deps/jars_table.bzl` `h2`, core, the corpus and PCT's lane; `h2_modern` deleted).
+  One dialect: `H2Modern`'s typed-JSON navigation folded into `H2` (`(j)."key"`, one-based `(j)[i]`, struct values on
+  `JSON_OBJECT`, a navigation's scalar cast through its text, `CARDINALITY`), and two spellings new to it: `ACOS`/`ASIN`
+  guarded to NaN outside [-1, 1] with the argument CLAMPED (H2 2.5 raises there, the engine's H2 answers NaN, and H2
+  folds a constant inside a CASE's untaken branch too), and `JSON_TYPE` from the standard's `IS JSON` predicates and the
+  value's text (H2 has no `json_type`; probed over every kind, a navigation's result included).
+- **No server version anywhere.** `SqlDialect.forServer`/`serverVersions`, `ExecutionPlan.Servers` (the plan JSON's
+  `servers`), the runners' version checks (JDBC and MongoDB), `PlanMaker.serversFor`, `Databases.majorMinor`, every
+  planner's `serverVersion` parameter (`TypedQuery.executionPlan`, `TestDoor.plan`/`planned`, `PlanMaker`), the
+  session's `version()` and PCT's `serverVersion()` are deleted; the TypeScript plan runner no longer reads `servers`.
+  The JDBC census's `Sessions` row loses CHECKS (no version is read).
+- **H2 fixed a defect we carried a pass for.** H2 2.5.252 keeps a bound parameter inside a common table expression
+  another one reads; `H2LostCteParameterTest` pinned the defect and said the day it answers 1 its pass goes:
+  `GridReportCtesInline` and the test are deleted.
+- **The replay referee is legend-engine's H2** (`testbackend/EngineH2Referee`): the engine's 2.1.214, a file every test
+  JVM and corpus pass is handed by path (`-Dlegend.referee.h2[.rlocation]`, `@h2_engine//jar:file`) and loads through
+  a class loader of its own that reads `org.h2.` from that jar first; it is never on a classpath and DriverManager never
+  hands it to lite. `TestBackends.referee()` is it; `H2Backend` is lite's H2 alone, its corpus workspaces keeping the
+  engine's extension functions. The H2 lane's goldens now replay on a mirror as every lane's (it was the same-session
+  referee). `SELECT H2VERSION()` keeps answering 2.1.214, now pinned to the engine POM (`EngineH2VersionPinTest` in
+  spec; core's `H2VersionPinTest`, which pinned lite's jar, went).
+- **Measured** (each against the committed records):
+  - core's H2 lane: 13 floor lines went (their tests pass: typed-JSON navigation, zips, a struct); 86 re-measured with
+    their new reasons (`lanes/h2.txt`, its header dated); nothing that passed fails.
+  - the DuckDB corpus: every roster and register unchanged with the engine's referee (with lite's 2.5.252 as referee,
+    acos/asin failed and four accepted calendar divergences lost their witnesses -- the measurement that chose the
+    isolated referee).
+  - the H2 corpus: 19 newly pass (11 from the upgrade: six cross-store graph fetches, four result-sourcing JSON queries,
+    the self-join; 8 from the engine-H2 mirror: `tdsTwoJoinThreeDB` and seven temp-table `in` executions), each now an
+    unordered-chain register row; the database pass's lost register gains `selfJoin::testSelfJoinPropertyMapping` (the
+    host newly passes it; the database judge's canon reads a struct field H2 carries as JSON and keeps its quotes -- a
+    corpus-phase item) and loses `testMilestoningColumnProjectionWithNonMilestonedTable` (both judges pass it now).
+    `strictdate::testProject` fails on the H2 host pass as on DuckDB's database pass, the nested-window regression from
+    before today: left unaccepted on both lanes, a corpus-phase item. The database pass's outside-body register moves
+    55 -> 73 (+23, -5): 21 of the new rows are `fallback=1`, compatibility mode's ruled 2-ULP float comparison run as one
+    statement after the exact one -- H2 2.5 computes these aggregates at a higher precision
+    (`calendarAggregations::testCmeValue`: `0.513122171945701362` where the engine's H2 read `0.5131221719457013`,
+    measured with `//spec:corpus_one`), the exact text differs and the ruled tolerance holds; two `getAll` bodies flush
+    twice. The five that left no longer send outside their artifact.
+  - PCT's H2 lane, both channels: green.
+
+Checks: //core:core_tests and //core:core_tests_judges (every package under the three judges),
+//core:core_tests_integration_h2, //core:guardrails, //core:census, //spec:spec_tests, //pct:pct_h2,
+//pct:pct_channel_b_h2, //pct:pct_channel_b (DuckDB), //engine-client:plan_runner_test, //wasm:planner: green.
+//spec:corpus_duckdb and //spec:corpus_h2: green but for `strictdate::testProject`.

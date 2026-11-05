@@ -82,7 +82,7 @@ public final class Execution {
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
         if (typed.writes()) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features, null);
+            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
             return plan;
@@ -90,11 +90,7 @@ public final class Execution {
         ModelContext ctx = typed.context();
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
         try (com.legend.exec.Sessions.Session session = sessions.open(decided, ctx)) {
-            // a connector whose sessions are its own (MongoDB) writes its commands for every server version it speaks:
-            // its plan names no version, and its session states none (2026-11-03: the door asked it, and refused
-            // every MongoDB query -- channel A's MongoDB lane, 0 of 1,249)
-            String version = com.legend.exec.Connectors.of(decided.type()).ownSessions() ? null : session.version();
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features, version);
+            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
                 // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
@@ -132,9 +128,8 @@ public final class Execution {
 
     /**
      * THE dialect of a program that runs on {@code session}: the database its runtime executes on
-     * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
-     * version ({@code SqlDialect.forServer}). Its session setup is the body's target's, which the plan runner runs
-     * on the connection once (D66, 2026-10-30; until then this entry ran it as setup steps, once per program). The
+     * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}). Its session setup is the
+     * body's target's, which the plan runner runs on the connection once (D66, 2026-10-30; until then this entry ran it as setup steps, once per program). The
      * session is only CHECKED ({@code Sessions.check}): connected to another database than the one declared is
      * refused, never reinterpreted.
      */
@@ -143,10 +138,9 @@ public final class Execution {
             com.legend.exec.Sessions.Session session) {
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
         com.legend.exec.Sessions.check(session, decided.type());
-        String version = session.version();
         // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
         // target's session statements, before the connection's first statement and not again (JudgePlans.target)
-        return com.legend.database.Databases.dialect(decided.type()).forServer(version);
+        return com.legend.database.Databases.dialect(decided.type());
     }
 
     /**

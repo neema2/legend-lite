@@ -46,12 +46,9 @@ final class JudgePlans {
 
     /**
      * The target a judge's plan names: the body's runtime's database (its first declared connection: every
-     * connection of a runtime is of one database type, the one fact a given session is checked against) with the
-     * server versions narrowed to the body's session's ({@code PlanMaker.serversFor}: the env's dialect is the one
-     * the legacy seam chose for that session, {@code SqlDialect.forServer}, so the plan is written for the session
-     * it runs on; found 2026-10-19 by channel B's H2 judge, every case refused "written for H2 [2.1, 2.2], and the
-     * session is H2 2.4"); no session statements and no setup -- the body's session was established by the runner
-     * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#of}).
+     * connection of a runtime is of one database type, the one fact a given session is checked against); no session
+     * statements and no setup -- the body's session was established by the runner that opened it
+     * ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#of}).
      */
     static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
         com.legend.model.ConnectionDefinition.DatabaseType system = SystemDatabase.of(env.ctx()).engineOf(env.session());
@@ -59,25 +56,23 @@ final class JudgePlans {
             // the environment runs on the graph's system database (the walk's route, BodyDriver.openRoute, or a
             // system-routed body's program, M10a): its statements name that target, so a program of such sides and
             // its steps share the one target the runner requires
-            return new ExecutionPlan.Target(new ExecutionPlan.Database.System(system),
-                    PlanMaker.serversFor(system, env.session().version()), env.dialect().sessionSetup(), List.of());
+            return new ExecutionPlan.Target(new ExecutionPlan.Database.System(system), env.dialect().sessionSetup(),
+                    List.of());
         }
-        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version(), env.dialect());
+        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.dialect());
     }
 
-    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided}, the session's server
-     *  {@code version} and the body's {@code dialect}, whose session statements are the target's: the runner runs
+    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided} and the body's
+     *  {@code dialect}, whose session statements are the target's: the runner runs
      *  them on the body's connection once (D66, 2026-10-30; the program entry ran them as setup steps per program,
      *  the doors, 2026-10-29). */
-    static ExecutionPlan.Target target(com.legend.database.Target decided, String version,
-            com.legend.sql.dialect.SqlDialect dialect) {
+    static ExecutionPlan.Target target(com.legend.database.Target decided, com.legend.sql.dialect.SqlDialect dialect) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
-        return new ExecutionPlan.Target(database, PlanMaker.serversFor(decided.type(), version),
-                dialect.sessionSetup(), List.of());
+        return new ExecutionPlan.Target(database, dialect.sessionSetup(), List.of());
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three

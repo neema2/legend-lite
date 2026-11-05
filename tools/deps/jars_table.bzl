@@ -1,7 +1,7 @@
 """THE PRODUCT'S JARS, the table: the third-party jars our programs run with, each fetched by http_jar (jars.bzl).
 
 docs/BUILD_REBUILD_DESIGN_2026_10_05.md, section 5b. These are leaf jars: each is a JDBC driver with no dependency it
-needs at run time, so no Maven resolution is wanted. One is test-only (h2_modern, a PCT lane's H2). rules_jvm_external
+needs at run time, so no Maven resolution is wanted. rules_jvm_external
 stays for the pools that resolve trees (pools.bzl): upstream, the engine runner, TeaVM, test tooling and compiler
 plugins.
 
@@ -32,18 +32,21 @@ JARS = {
         # datacube's one use, the catalog-facts generator, went with DataCube's TypeScript model writer (2026-10-08)
         users = ["warehouse"],
     ),
-    # core's H2
+    # lite's ONE H2 (the user, 2026-11-05: "I want latest version of H2"): core, the corpus and PCT's H2 lane. 2.5.252,
+    # released 2026-09-26. Until then core and the corpus ran 2.1.214 and PCT's lane 2.4.240 (h2_modern, deleted).
     "h2": struct(
+        coordinate = "com.h2database:h2:2.5.252",
+        sha256 = "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20",
+        users = ["core", "pct"],
+    ),
+    # legend-engine's own H2 (its root POM's h2.version), for the test harness's REPLAY REFEREE alone: the referee stands
+    # in for the engine's database when it replays the engine's golden SQL (the user, 2026-11-05: "Engine's 2.1.214,
+    # isolated"). Never on a classpath -- a file every test JVM and corpus pass is handed by path, loaded through a class
+    # loader of its own (testbackend/EngineH2Referee), so lite's 2.5.252 and it never meet.
+    "h2_engine": struct(
         coordinate = "com.h2database:h2:2.1.214",
         sha256 = "d623cdc0f61d218cf549a8d09f1c391ff91096116b22e2475475fce4fbe72bd0",
-        users = ["core"],
-    ),
-    # THE MODERN H2, for the one PCT lane that runs on it (gate 7: PCT relation on H2 2.4.240, the engine's own PCT
-    # H2 profile). An ALTERNATIVE to core's 2.1.214, never beside it. Test-only: no product runs it.
-    "h2_modern": struct(
-        coordinate = "com.h2database:h2:2.4.240",
-        sha256 = "29b70e427cc1c40cdc376283adbb0cc62853073797bb5fe5761f81fe73d57ce0",
-        users = ["pct"],
+        users = ["tools/junit", "spec"],
     ),
     # The server's Postgres arm (ConnectionResolver: jdbc:postgresql://). 42.7.13, released 2026-07-06.
     # Its POM declares checker-qual (annotations only) and waffle-jna (optional: Windows single sign-on). Neither is

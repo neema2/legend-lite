@@ -109,10 +109,9 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const target = JSON.stringify(first!.target);
   if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
   const t = first!.target as { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string };
-    servers?: { _type?: string }; session?: readonly string[]; setup?: readonly unknown[] };
+    session?: readonly string[]; setup?: readonly unknown[] };
   const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
-  if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
   if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
   for (const s of sent) {
     // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by

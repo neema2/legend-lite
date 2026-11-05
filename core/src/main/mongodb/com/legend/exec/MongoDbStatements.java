@@ -14,7 +14,6 @@ import org.bson.BsonDateTime;
 import org.bson.BsonDecimal128;
 import org.bson.BsonDocument;
 import org.bson.BsonDouble;
-import org.bson.BsonInt32;
 import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
@@ -63,19 +62,6 @@ final class MongoDbStatements implements Statements {
                 || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
-        }
-        switch (target.servers()) {
-            case ExecutionPlan.Servers.Every every -> {
-                // the spelling depends on no version
-            }
-            case ExecutionPlan.Servers.Versions versions -> {
-                String version = run(new BsonDocument("buildInfo", new BsonInt32(1))).get("version", BsonNull.VALUE)
-                        .asString().getValue();
-                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
-                    throw new com.legend.error.NotImplementedException("the plan's statements are written for MongoDB "
-                            + versions.prefixes() + ", and the session is MongoDB " + version + ": not run");
-                }
-            }
         }
     }
 

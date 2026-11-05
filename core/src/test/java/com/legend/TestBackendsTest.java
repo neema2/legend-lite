@@ -55,7 +55,9 @@ class TestBackendsTest {
         }
         assertEquals(Databases.implemented(), TestBackends.all().stream().map(TestBackend::type).toList());
         assertSame(TestBackends.of(Databases.PLATFORM), TestBackends.platform());
-        assertSame(TestBackends.of(Databases.REPLAY_REFEREE), TestBackends.referee());
+        // the referee runs on the referee's database, legend-engine's own H2 (2.1.214) loaded apart from lite's
+        // (2026-11-05): another backend object than the lane's, of the same database
+        assertEquals(Databases.REPLAY_REFEREE, TestBackends.referee().type());
     }
 
     @Test

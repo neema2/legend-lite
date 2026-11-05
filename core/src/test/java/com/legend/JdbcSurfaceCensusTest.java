@@ -197,12 +197,13 @@ class JdbcSurfaceCensusTest {
                     "the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the driver's"
                     + " one metadata read kept out of Compiler so the plan surface needs no java.sql): a declared"
                     + " connection's URL opened (DriverManager) or an in-memory database through its connector; the"
-                    + " version a handed session is checked by; the transaction bracket (autocommit off, commit,"
+                    + " transaction bracket (autocommit off, commit,"
                     + " rollback, the session's memo cleared first: D66); the ONE WAY IN since D70 (2026-10-30): a caller's"
                     + " connection enters as an owned session (closed with it) or a borrowed one, a session is shared"
                     + " as a view, and the handle stores ask it whether a kept session is still open. It executes"
-                    + " nothing",
-                    Act.OPENS, Act.CHECKS, Act.TRANSACTS, Act.CLOSES),
+                    + " nothing. CHECKS left 2026-11-05: no plan names a server version (one H2), so no session's"
+                    + " version is read; a handed session's database is its connector's product read",
+                    Act.OPENS, Act.TRANSACTS, Act.CLOSES),
             row("core/src/main/java/com/legend/exec/Connectors.java",
                     "which database a session is on, the driver's product name (the dialect program's Phase 5,"
                     + " 2026-10-16); the connectors found by ServiceLoader",

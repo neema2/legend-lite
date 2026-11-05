@@ -140,11 +140,12 @@ public final class RawSqlBoundary {
      * statement start.
      */
     /** The H2 dialect LEVEL this boundary translates from: the engine's
-     * v2_1_214 extension (its goldens' "upgraded" branch), the same jar the
-     * harness referee runs ({@code H2VersionPinTest} ties this literal to
-     * {@code org.h2.engine.Constants.VERSION}). {@code SELECT H2VERSION()}
-     * on an H2-typed connection — the engine's assertEqualsH2Compatible /
-     * createDbExtensionForH2 version probe — answers with it. */
+     * v2_1_214 extension (its goldens' "upgraded" branch), legend-engine's own
+     * H2 ({@code EngineH2VersionPinTest} in spec ties this literal to the pinned
+     * engine POM's {@code h2.version}; lite's own jar is 2.5.252 since
+     * 2026-11-05). {@code SELECT H2VERSION()} on an H2-typed connection — the
+     * engine's assertEqualsH2Compatible / createDbExtensionForH2 version probe —
+     * answers with it. */
     public static final String H2_DIALECT_VERSION = "2.1.214";
 
     private static final Pattern H2_VERSION_FN =
