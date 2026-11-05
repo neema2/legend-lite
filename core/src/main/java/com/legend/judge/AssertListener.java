@@ -52,4 +52,13 @@ public interface AssertListener {
     default boolean provideStore(String storeFqn) {
         return false;
     }
+
+    /** {@link #provideStore} PLANNED AHEAD (zero exemptions, the owner, 2026-11-05): an engine-text assert planned
+     *  under the compatibility rules whose rows leg would read a mapping over {@code storeFqn} asks while it is
+     *  planned, and the provision it answers -- the one setup's program planned now -- runs where the rows leg reads,
+     *  inside a run that plans nothing; true where it seeded the store. Null: no fixture to provide, or none that can
+     *  be planned ahead. Default: none. */
+    default java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn) {
+        return null;
+    }
 }

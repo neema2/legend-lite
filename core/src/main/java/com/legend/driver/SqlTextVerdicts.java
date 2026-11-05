@@ -84,8 +84,10 @@ final class SqlTextVerdicts {
     /** The two texts a verdict step READ, handed to an arm RE-RUN on a failed comparison (2026-11-04, the core
      *  program): the arm reads them where it would read its sides ({@link #readText}, {@link #oursText}), so its own
      *  processing of the golden (the chained-plan warning, the replay routes) and its appeal see the texts the step
-     *  read. Nothing deferred, nothing collected. */
-    private record Replaying(String golden, String ours) implements Collector {
+     *  read; its appeal reads the rows the arm's planning planned ahead ({@code ahead}, {@link RowsAhead}). Nothing
+     *  deferred, nothing collected, nothing planned. */
+    private record Replaying(String golden, String ours, @com.legend.base.Nullable RowsAhead ahead)
+            implements Collector {
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
                 @com.legend.base.Nullable String decline, TextAppeal appeal, BodyDriver.ExecEnv env) {
@@ -181,6 +183,9 @@ final class SqlTextVerdicts {
         /** The texts the arm holds for the deferred sides: compared by identity, never a text a program spells. */
         final String token = new String("\u0000 our text, read at the verdict step");
         final String goldenToken = new String("\u0000 the golden, read at the verdict step");
+        /** The appeal's rows the arm planned ahead (compatibility mode, a text that may fail), for the arm's re-run
+         *  over the step's texts ({@link Replaying}); null where none was planned. */
+        @com.legend.base.Nullable RowsAhead rowsAhead;
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
@@ -346,7 +351,8 @@ final class SqlTextVerdicts {
             // (the chained-plan warning, the replay routes), so a failed comparison re-runs the arm over the two texts
             // the step read -- the texts compared first, as any equality, the arm's own path only after
             c = c.withRerun((g, o) -> {
-                TypedSide arm = armOf(bare, letPrefix, specs, env.withEngineText(new Replaying(g, o)), hook);
+                TypedSide arm = armOf(bare, letPrefix, specs,
+                        env.withEngineText(new Replaying(g, o, collecting.rowsAhead)), hook);
                 // the arm declining the step's texts: the assert is the plain String equality, which failed
                 return arm != null ? arm : fail(HostJudge.equalsMessage(g, o));
             });
@@ -485,14 +491,13 @@ final class SqlTextVerdicts {
         return textEqual ? ok() : appeals ? appealed(appeal, ours, textEqual) : textsDiffer(name, golden, ours, decline);
     }
 
-    /** The appeal heard: compatibility mode's rows after a text mismatch -- the stores it provides, our rows, the
-     *  golden's replay -- plan what they compare while the program runs, the runtime wall's ONE exemption (the owner's
-     *  ruling, 2026-11-05: "the row fallbacks for text mismatches ... only for compatibility"); reached under the
-     *  compatibility rules alone ({@link #appeals}). */
+    /** The appeal heard: compatibility mode's rows after a text mismatch (the owner's ruling, 2026-11-05: "the row
+     *  fallbacks for text mismatches in the HARNESS only for compatibility"), reached under the compatibility rules
+     *  alone ({@link #appeals}). It plans nothing while the program runs (zero exemptions, the owner, 2026-11-05): our
+     *  rows and the runner's provision of the stores they read were planned with the assert ({@link RowsAhead}), and
+     *  the golden's replay is the referee's text. */
     private static TypedSide appealed(TextAppeal appeal, String ours, boolean textEqual) {
-        try (var exempt = com.legend.base.RunScope.compatibilityRowsAppeal()) {
-            return appeal.appeal(ours, textEqual);
-        }
+        return appeal.appeal(ours, textEqual);
     }
 
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
@@ -1889,9 +1894,101 @@ final class SqlTextVerdicts {
         // batch), and the referee is its APPEAL on a failed text only (a byte-equal text needs none: the user's
         // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
+        RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
         return decide(env, name, golden, ours, textEqual, null, (o, eq) -> rowsLegNow(name, golden, o, eq,
                 referee, rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead, letPrefix, specs,
-                env, hook, query, goldenPlan, planBindings, temps));
+                env, hook, query, goldenPlan, planBindings, temps, ahead));
+    }
+
+    /** The appeal's rows for an arm reaching its verdict under {@code env}: an arm re-run over a step's texts reads
+     *  the rows its planning planned ({@link Replaying}); an arm reached outside any run (planned for the program
+     *  road under either judge, or walked) under the compatibility rules, whose text may fail -- not byte-equal, or a
+     *  text the step reads -- plans them now, with the runner's provision of each store they read
+     *  ({@link com.legend.judge.AssertListener#fixtureAhead}); else none -- inside a run nothing is planned, and an
+     *  appeal with no rows planned is refused there by the runtime wall, by name. */
+    private static @com.legend.base.Nullable RowsAhead rowsAhead(BodyDriver.ExecEnv env, boolean textEqual,
+            TypedSpec rowsRead, @com.legend.base.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable String mappingFqn, List<TypedSpec> letPrefix, SpecCompiler specs,
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        Collector collector = env.engineText();
+        if (collector instanceof Replaying r) {
+            return r.ahead();
+        }
+        if (!appeals(env) || textEqual || com.legend.base.RunScope.running()) {
+            return null;
+        }
+        List<java.util.function.BooleanSupplier> fixtures = new java.util.ArrayList<>();
+        com.legend.judge.AssertListener l = env.assertListener();
+        if (l != null && mappingFqn != null) {
+            for (String store : storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>())) {
+                java.util.function.BooleanSupplier f = l.fixtureAhead(store);
+                if (f != null) {
+                    fixtures.add(f);
+                }
+            }
+        }
+        RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, env, hook),
+                sideAhead(populationRead, letPrefix, specs, env, hook), List.copyOf(fixtures));
+        if (collector instanceof Collecting c) {
+            c.rowsAhead = ahead;
+        }
+        return ahead;
+    }
+
+    /** The appeal's rows PLANNED AHEAD (zero exemptions, the owner, 2026-11-05: "if we can plan ahead and it makes
+     *  sense to only on compatibility path then we should do that"): the runner's provision of the stores they read
+     *  (each setup's program planned), our rows and the page population, each planned as {@link JudgePlans#evalSide}
+     *  plans a side, with the assert -- the appeal at the step provides, runs and shapes them, where the walk's appeal
+     *  did, and plans nothing. */
+    private record RowsAhead(SideAhead rows, SideAhead population, List<java.util.function.BooleanSupplier> fixtures) {
+        /** The stores our rows read, provided by the runner's planned setups, before the rows are read. */
+        void provide() {
+            for (java.util.function.BooleanSupplier f : fixtures) {
+                f.getAsBoolean();
+            }
+        }
+    }
+
+    /** One side of an appeal planned with its assert, or the failure its planning raised -- kept, and raised where the
+     *  appeal reads the side, as the side's evaluation raised it there (our rows: the rows-underivable decline; the
+     *  population: a fault); neither for a side the arm has none of. */
+    private record SideAhead(JudgePlans.@com.legend.base.Nullable PlannedSide side,
+            @com.legend.base.Nullable RuntimeException failure) {
+
+        /** The side run and shaped as {@link JudgePlans#evalSide} evaluates one outside an arm's planning: a constant
+         *  its answer, else its rows through the runner on its session, shaped, the to-one reader checked. */
+        @com.legend.base.Nullable TypedSide read(BodyDriver.ExecEnv env) {
+            if (failure != null) {
+                throw failure;
+            }
+            if (side == null) {
+                return null;
+            }
+            if (side.kind() == JudgePlans.Kind.CONSTANT) {
+                return side.answered();
+            }
+            TypedSide read = JudgePlans.shape(side, JudgePlans.runSide(side, env));
+            JudgePlans.toOneReader(side.root(), read);
+            return read;
+        }
+    }
+
+    /** {@code read} planned as an appeal's side ({@link SideAhead}), outside the arm's planning (the collector defers
+     *  the arm's texts, never these); none for a side the arm has none of. */
+    private static SideAhead sideAhead(@com.legend.base.Nullable TypedSpec read, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        JudgePlans.PlannedSide side = null;
+        RuntimeException failure = null;
+        if (read != null) {
+            try {
+                side = JudgePlans.plannedSide(read, letPrefix, specs, env.withEngineText(null), false, true, hook);
+            } catch (RuntimeException e) {
+                // any planning failure: the side's evaluation at the appeal raised the same, and the rows leg reads
+                // it there (a decline for our rows, a fault for the population) -- kept, never judged here
+                failure = e;
+            }
+        }
+        return new SideAhead(side, failure);
     }
 
     /** The rows leg itself: OUR rows through the one router, the golden replayed
@@ -1909,17 +2006,25 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
-            List<SqlReplayReferee.TempTable> temps) {
+            List<SqlReplayReferee.TempTable> temps, @com.legend.base.Nullable RowsAhead ahead) {
         TypedSide rows;
         boolean priorSuspend = com.legend.judge.SqlTypeCensus
                 .probeSuspended();
-        provideStores(env, mappingFqn);
+        if (ahead == null) {
+            // no rows planned with the assert: the stores' setups planned and run now, which a run refuses by name
+            provideStores(env, mappingFqn);
+        } else {
+            ahead.provide();
+        }
         try {
             com.legend.judge.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            rows = JudgePlans.evalSide(rowsRead,
+            rows = ahead != null ? ahead.rows().read(env) : JudgePlans.evalSide(rowsRead,
                     letPrefix, specs, env, false, true, hook);
             }
+        } catch (com.legend.base.RunScope.Refused e) {
+            // the runtime wall's refusal is never a rows-underivable decline: it fails the body by name
+            throw e;
         } catch (RuntimeException e) {
             // the rows leg is underivable — counted, text stays the
             // contract (§3.7: a counted decline, visible, never silent;
@@ -1938,8 +2043,8 @@ final class SqlTextVerdicts {
             // fails the test loudly — never a decline that rescues the text
             com.legend.judge.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                TypedSide population = JudgePlans.evalSide(populationRead,
-                        letPrefix, specs, env, false, true, hook);
+                TypedSide population = ahead != null ? ahead.population().read(env)
+                        : JudgePlans.evalSide(populationRead, letPrefix, specs, env, false, true, hook);
                 if (population != null) {
                     facts = facts.withPopulation(population);
                 }

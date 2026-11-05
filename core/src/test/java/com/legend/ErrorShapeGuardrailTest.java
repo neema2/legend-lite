@@ -76,7 +76,10 @@ class ErrorShapeGuardrailTest {
             // helper it cannot splice (a call cycle, an un-typeable callee) with
             // its own walls; for the plan arm that is "no producer", the answer
             // it gave before the look-through existed, never a verdict
-            Map.entry("SqlTextVerdicts.java", 2),
+            // 2 -> 3 (2026-11-05, zero exemptions on the runtime wall): sideAhead -- an appeal's side planned with its
+            // assert keeps ANY planning failure and raises it where the appeal reads the side, as the side's evaluation
+            // there raised it (the rows leg's decline, or a fault); nothing judged at the catch
+            Map.entry("SqlTextVerdicts.java", 3),
             // 2026-10-18 (the plan path program's step 6): the agreement gate turns ANY failure of the database
             // judge's arm -- a statement the database rejects, a dialect's refusal, a planner wall -- into the one
             // outcome Errored, raised as a failure naming both judges' verdicts (AgreementArm.agree); the class

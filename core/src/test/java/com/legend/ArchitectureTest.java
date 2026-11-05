@@ -341,10 +341,9 @@ final class ArchitectureTest {
                             .or(NULLNESS_ANNOTATIONS)
                             // the runtime wall (2026-11-05, the deep audit): the renderer's one writer refuses to
                             // render while a plan runs -- RunScope, JDK-only in base, the scope the runner enters
+                            // (its Exemption type went with the one exemption, 2026-11-05: zero exemptions)
                             .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
-                                    com.legend.base.RunScope.class))
-                            .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
-                                    com.legend.base.RunScope.Exemption.class)))
+                                    com.legend.base.RunScope.class)))
             .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
             .check(CORE_PROD_CLASSES);
     }

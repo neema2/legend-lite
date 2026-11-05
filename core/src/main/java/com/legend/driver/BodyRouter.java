@@ -51,17 +51,7 @@ public final class BodyRouter {
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
-        // the lift (the asserts-as-plan-nodes program, step 4): an assert in a value's position is a statement of its own
-        // at its place, true where it stood -- every road below sees the lifted body
-        List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        // register S137 (the user's ruling, 2026-11-05): a relation passed to assertSize, assertEmpty or assertNotEmpty
-        // is ONE value upstream -- lite's own rules refuse it, the compatibility rules count it as upstream does
-        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
-            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
-        } else {
-            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
-        }
-        TypedQuery typed = lifted == given.body() ? given : given.withBody(lifted);
+        TypedQuery typed = lifted(given, options);
         // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
         // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
         BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
@@ -171,6 +161,56 @@ public final class BodyRouter {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's
+     *  position is a statement of its own at its place, true where it stood), and register S137 (the user's ruling,
+     *  2026-11-05: a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value upstream -- lite's own
+     *  rules refuse it, the compatibility rules count it as upstream does). */
+    private static TypedQuery lifted(TypedQuery given, ExecuteOptions options) {
+        List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
+        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
+            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
+        } else {
+            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
+        }
+        return lifted == given.body() ? given : given.withBody(lifted);
+    }
+
+    /**
+     * {@code given} PLANNED NOW, to run later on a session of the same database (zero exemptions, the owner,
+     * 2026-11-05): a runner's fixture program planned with the assert whose compatibility appeal provides it, and run
+     * where the appeal provides it -- inside the body's run, which plans nothing. A body that judges nothing (an effect
+     * or query program, no assert) planned whole by the test door as {@link #execute} plans it; null for any other
+     * (the walk's, an assert's, a system-routed body's), which the caller cannot plan ahead.
+     */
+    public static @Nullable Execution.PlannedProgram planned(TypedQuery given, @Nullable String runtimeFqn,
+            SqlDialect dialect, Sessions.Session session, ExecuteOptions options) {
+        TypedQuery typed = lifted(given, options);
+        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
+        if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM
+                || BodyClass.anAssert(typed, runtimeFqn)) {
+            return null;
+        }
+        TestDoor.Planned planned;
+        try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
+            planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(), TestDoor.Asserts.NONE,
+                    false);
+        }
+        boolean toOne = toOneReader(typed);
+        return target -> {
+            Census.inc(Census.Key.BODIES_MOVED);
+            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null, toOne,
+                    null, null, null, null);
+            try {
+                PlanRunner.program(planned.plan(), Map.of(),
+                        PlanSessions.of(target, null, system -> SystemDatabase.of(typed.context())
+                                .sessionFor(system.type(), options.systemConnections())),
+                        PlanRunner.Judging.HOST, moved);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
     }
 
     /** Whether {@code typed}'s last statement is a to-one reader ({@code toOne()} over a relation): the walk's

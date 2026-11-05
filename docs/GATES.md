@@ -20269,3 +20269,59 @@ Still open from the audit's wall findings: planning opens the system store's ses
 (the "planning sends nothing" guard sits at the runner's send sites, not at session opening); the program road refuses
 some body shapes (a value through a class's extent as the last statement); the ServiceLoader providers are not pinned
 to exec.
+
+## 2026-11-05 — The runtime wall with zero exemptions; one H2 version, measured
+
+The owner: "yes i would like to have zero exceptions please - so if we can plan ahead and it makes sense to only on
+compatibility path then we should do that", then "yes to zero exemptions please".
+
+- **The engine-text appeal plans nothing while a plan runs.** `RunScope.compatibilityRowsAppeal`, its `Exemption` type
+  and its depth are deleted; `SqlTextVerdicts.appealed` hears the appeal plainly. An arm reached outside any run under
+  the compatibility rules whose text may fail (not byte-equal, or a text the verdict step reads) plans its appeal's
+  rows with the assert (`RowsAhead`): our rows and the page population as `JudgePlans.evalSide` plans a side, and the
+  runner's provision of each store the golden's mapping reads (`AssertListener.fixtureAhead`: the one setup's program
+  planned then, `Execution.planProgram` / `BodyRouter.planned`, a body that judges nothing planned whole by the test
+  door). At the step the appeal provides, runs and shapes them where the walk's appeal did, and plans nothing; an arm
+  re-run over a step's texts reads the rows its planning planned (`Replaying`). A side that did not plan keeps its
+  failure and raises it where the appeal reads it, as before (our rows: the rows-underivable decline; the population:
+  a fault). Inside a run, an appeal with no rows planned is refused by the wall, by name. The test is "outside any
+  run" (`RunScope.running()`), not the collector: the database judge plans its arms with no text collector and an
+  active verdict batch, and the first strict corpus run's database pass found 989 refusals there.
+- **The wall's refusal has a type** (`RunScope.Refused`): the rows leg's "underivable" catch rethrows it, so a refusal
+  is never read as a decline (the first strict corpus run had found one swallowed).
+- **Fixtures stay where they were provided.** A first cut provided the appeals' stores before the body's program;
+  `projection::testGroupByWithWindowSubset` failed (its own setup statements drop and recreate tables, and with the
+  fixture's aside already on the search path a drop resolved into the aside: two databases written in one
+  transaction). The fixture's program is planned ahead instead and run at the appeal, as before.
+- **The plug-in rule's record** (`6c70657c`, which landed without one): `ArchitectureTest.execPluginsAreExecClasses`
+  reads every `META-INF/services` file registered for `DatabaseConnector`, `DriverCells` and `BulkLoad` and requires
+  each provider to be a `com.legend.exec` class (four today, all are).
+- **Guards, dated in place:** Invariant 6a no longer names `RunScope.Exemption`; `ErrorShapeGuardrailTest` broad catches in `SqlTextVerdicts`
+  2 -> 3 (`sideAhead` keeps a planning failure for the appeal to raise); `JavaEvalLedgerTest`'s `SqlTextVerdicts` pin
+  1567 -> 1640 (the planning-ahead wiring; nothing evaluated).
+
+Checks under the strict wall, with no exemption: core's full matrix (`//core:core_tests`, `//core:core_tests_judges`),
+`//core:guardrails`, `//core:census`, PCT channel B (every DuckDB suite): green. `//spec:corpus_duckdb`: zero wall
+refusals in either pass; the rosters and registers unchanged; green but for `strictdate::testProject` (the database
+pass's nested window function, red since before this work). The H2 corpus and the other PCT lanes were not re-run.
+
+**One H2 version, measured (the owner's question; nothing changed).** Core and the corpus run H2 2.1.214 (`H2`);
+PCT's H2 lane runs 2.4.240 (`H2Modern`); the release lists 2.2.224. Swapping each way, every other file as committed:
+
+- Core's H2 lane on 2.4.240: 13 floor tests pass (JSON navigation, zips, a struct); none that passed fails but the 11
+  write plans stamped for H2 [2.1, 2.2], refused by the version check; 87 floor tests fail for new reasons (56 reach
+  `sourceUrl`, several read nulls).
+- The H2 corpus's host pass on 2.4.240: six lost, none gained -- `calendarAggregations::testP12WaValue`, `testP52WaValue`,
+  `testPwaValue`, `testUnionWithWtdAndPwa` (H2 2.4 divides decimals at a higher scale: `0.383333333333333334` where the
+  engine's golden, computed on 2.1.214, reads `0.383333333333`), and `acos`/`asin::testFilterUsing*` (H2 2.4 raises on
+  an argument outside [-1, 1] where 2.1.214 answers NaN). The database pass did not run (it follows a green host pass).
+- PCT's H2 lane on 2.1.214: channel A loses 12 (the variant tests: `H2` has no JSON navigation, and no `LEN`); channel
+  B 12 failures unledgered and 4 failing differently.
+- Upstream, read: legend-engine pins `h2.version` 2.1.214 (its root POM), its own H2 PCT included
+  (`legend-engine-xt-relationalStore-h2-PCT` depends on `...-h2-execution-2.1.214`). That H2 is PATCHED: the module
+  replaces `org.h2.value.TypeInfo` and `org.h2.engine.Mode`, and registers Java functions inside the database
+  (`legend_h2_extension_json_navigate`, `_json_parse`, `_reverse_string`, `_jaro_winkler_similarity`,
+  `_edit_distance`, `_split_part`, ...) -- which is how the engine passes the variant tests on 2.1.214. The gate
+  table's note that PCT's 2.4.240 lane is "the engine's own PCT H2 profile" is not what the pinned sources say.
+
+The choice is the owner's (posted 2026-11-05).

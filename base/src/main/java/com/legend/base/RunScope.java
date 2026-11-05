@@ -7,18 +7,17 @@ package com.legend.base;
  *
  * <p>The plan runner enters the scope for each run ({@link #enter}); the planning seams -- the SQL renderer's one
  * writer, the lowerer, the spec compiler -- say what they are about to do ({@link #planning}), and it is refused by
- * name. {@code -Dlegend.runwall=report} prints each site once instead ({@code [run-wall]}), a diagnostic; nothing
- * turns the wall off. Strict since 2026-11-05, once the measurement over core and PCT found every site and each was
- * planned ahead (the batch's split rung, ruled fallbacks and caller's messages), but for the one exemption below.
+ * name ({@link Refused}). {@code -Dlegend.runwall=report} prints each site once instead ({@code [run-wall]}), a
+ * diagnostic; nothing turns the wall off. Strict since 2026-11-05, once the measurement over core and PCT found every
+ * site and each was planned ahead (the batch's split rung, ruled fallbacks and caller's messages). No exemption (the
+ * owner, 2026-11-05: "yes to zero exemptions please"): compatibility mode's row comparison after a text mismatch plans
+ * its rows with the assert and has its stores provided before the program runs.
  *
  * <p>JDK-only, as base is: the one place both the runner and the planning libraries can see.
  */
 public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
-    /** The one exemption's depth: the owner's ruled exception (2026-11-05), compatibility mode's row comparison after
-     *  a text mismatch, which plans the rows it compares while the program runs. */
-    private static final ThreadLocal<int[]> EXEMPT = ThreadLocal.withInitial(() -> new int[1]);
     private static final java.util.Set<String> REPORTED = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final RunScope SCOPE = new RunScope();
 
@@ -36,21 +35,13 @@ public final class RunScope implements AutoCloseable {
         DEPTH.get()[0]--;
     }
 
-    /**
-     * The ONE exemption, by name: compatibility mode's row comparison after a text mismatch (the engine-text appeal),
-     * which the owner ruled the only crossing allowed ("the row fallbacks for text mismatches in the HARNESS only for
-     * compatibility", 2026-11-05). The caller enters it only under the compatibility rules; close it when the rows are
-     * read.
-     */
-    public static Exemption compatibilityRowsAppeal() {
-        EXEMPT.get()[0]++;
-        return () -> EXEMPT.get()[0]--;
-    }
+    /** The wall's refusal, by type: a catch that turns a failure into an answer (a decline, a fallback) rethrows it. */
+    public static final class Refused extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
 
-    /** An exemption's scope: closing it ends the exemption. */
-    public interface Exemption extends AutoCloseable {
-        @Override
-        void close();
+        Refused(String message) {
+            super(message);
+        }
     }
 
     /** Whether a plan is running on this thread. */
@@ -60,14 +51,13 @@ public final class RunScope implements AutoCloseable {
 
     /** A planning seam is about to do {@code what}: refused or reported while a plan runs, per the mode. */
     public static void planning(String what) {
-        if (DEPTH.get()[0] == 0 || EXEMPT.get()[0] > 0) {
+        if (DEPTH.get()[0] == 0) {
             return;
         }
         String site = what + " <- " + callers() + ("deep".equals(System.getProperty("legend.runwall.detail"))
                 ? " [test " + System.getProperty("legend.test.current") + "]" : "");
         if (!"report".equals(System.getProperty("legend.runwall"))) {
-            throw new IllegalStateException("the runtime wall: " + what + " while a plan runs (" + what + " <- "
-                    + callers(24) + ")");
+            throw new Refused("the runtime wall: " + what + " while a plan runs (" + what + " <- " + callers(24) + ")");
         }
         if (REPORTED.add(site)) {
             System.err.println("[run-wall] " + site);

@@ -181,6 +181,31 @@ public final class Execution {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
+    /** A program PLANNED before it runs ({@link #planProgram}): run once, on a session of the database it was planned
+     *  for; running it plans nothing. */
+    @FunctionalInterface
+    public interface PlannedProgram {
+        void run(com.legend.exec.Sessions.Session session);
+    }
+
+    /** {@code typed} PLANNED NOW for a session of {@code sessions}' database, to run later (zero exemptions, the
+     *  owner, 2026-11-05: a test runner's fixture program planned with the assert whose compatibility appeal provides
+     *  it, run where the appeal provides it, inside a run that plans nothing): as {@link #runProgram} plans it, the
+     *  session read for its dialect and version and sent nothing; null for a body that cannot be planned ahead -- one
+     *  holding an assert, or of no moved class (the walk's). */
+    public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions, ExecuteOptions options) {
+        ModelContext ctx = typed.context();
+        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
+            com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                    com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+            return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, session,
+                    options);
+        }
+    }
+
     /** Where a program's last statement answers: the sink for its shape, made once the shape is known (a relation,
      *  a value of one column, a graph fetch's objects) -- a writer at the boundary, as a product answer's
      *  ({@link #run}'s {@code sinkOf}). The body driver streams a planned statement's typed rows through the plan
