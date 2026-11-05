@@ -19990,3 +19990,41 @@ failed under all three; green after the seed fix (`//core:core_tests_integration
 `DatabaseJudge` 821 -> 823 (the measurement's print); `VerdictBatch.rejected` allowlisted (the tripwire's latch).
 PENDING at commit time, recorded in the next entry: the integration and driver targets under the database judge and
 BOTH, `//gates:local`, PCT channel B under all three judges, the corpus lanes (DuckDB, H2).
+
+## 2026-11-05 — The strict database judge's checks, and what the corpus lanes found
+
+**At `0d9b3c0d` plus the regenerated files of this commit:**
+
+- **PCT channel B, all seven lanes, under the host judge, the database judge alone and BOTH:** 7/7 each.
+- **Core:** the full matrix as the entry above, and `0d9b3c0d`'s driver and integration targets under all three judges.
+- **`//gates:local`** (`--lockfile_mode=error`): 464 of 484 pass. Of the 19 failures:
+  - The eight Postgres targets are the container's root (`initdb` refuses root). Run unprivileged
+    (`--strategy=TestRunner=standalone --run_under="<a copy of tools/postgres/as_unprivileged.sh> ubuntu"`, as
+    `docs/CLOUD_SESSIONS.md` says), they pass. Cypher's Postgres parity and `//datacube:verify_app_test` failed only
+    beside the others (a closed connection, a blank page) and passed alone.
+  - Eleven are generated files this program's earlier commits had moved without regenerating, regenerated here
+    (`bazel run //:update_generated`, `bazel run //core:update_ladder`):
+    - `native-claims.tsv`: `sort` claimed by `TdsDesugars` too.
+    - `parser-equivalence`'s ratchet: `own_corpus.matched` 3059 -> 3068, an improvement.
+    - The lean ladder's eight rungs: **the verdict statements grew 10 to 26%** (`r01_constant` 970 -> 1106 characters,
+      `r11_floatLeniency` 11578 -> 14560). Every verdict row now carries the written message columns (`__onew`,
+      `__listw`: upstream's own spelling of each side, from the assert bar's commits) even where it holds. A leanness
+      regression, named for the lean-SQL round: the message's written columns belong to the failure-only message
+      statement the batch already sends lazily, not to the verdict row.
+- **The corpus lanes are RED**, for three causes:
+  1. **H2, five bodies, the split rung's tripwire (this program's change, doing its job).** The fused statement is
+     rejected and every assert holds alone: `testProjectThroughAssociation` and its `AutoMap` twin,
+     `testSubTypeAtRootLevelWithAlloySerializationConfig`, `testIsolationOfCaseStmtTrueFalseFilters`,
+     `testExtractDBsWithSubstituition` (`Column "t3.bookId" not found` and the like). In the fused statement, an
+     assert over a frame joins on the frame's column QUOTED (`"t3"."bookId"`) where its source is `SELECT "t1".*` (H2
+     stores `BOOKID`); alone, the same assert writes it bare and runs. Composing two asserts over one frame changes
+     how the shared column reference is quoted: a real lite composition bug, which the split rung had turned into
+     passes. DuckDB's identifiers ignore case, so only H2 shows it.
+  2. **DuckDB, two witnesses moved (this program's earlier commits).** The database judge's failure message now writes
+     a list as upstream does (elements joined by ", "). `columnValueDifferenceWithoutPrevalTest` and
+     `testCheckedWithCircularConstraints` hold the same divergence as before, with a different witness text in
+     `duckdb-database-accepted-register.txt`.
+  3. **`strictdate::testProject`:** the DuckDB database pass fails it (`window functions are not allowed in window
+     definitions`), and the H2 host pass now lists it in its fail roster. The cause is not yet attributed.
+
+  Next: fix (1) in the lowering; re-decide (2)'s witnesses with the reason above; attribute and fix (3).
