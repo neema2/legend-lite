@@ -45,25 +45,39 @@ final class AgreementAsserts implements TestDoor.Asserts {
         final HostAsserts.Planned host;
         final DatabaseAsserts.@Nullable Each database;
         final ExecutionPlan.Verdicts step;
+        /** The assert's steps, in order: its one step; an assertError over an assert's two (the host's own, then the
+         *  database's raising one). */
+        final List<ExecutionPlan.Verdicts> steps;
         final ExecutionPlan.Verdict hostVerdict;
         final Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> members;
         AssertVerdicts.@Nullable HostHeld held;
         /** An assertError's (S135): the step is its raising verdict, and the database half's row is the statement's. */
         final boolean raising;
+        /** An assertError's verdict whose row is the database half's (its raising step's). */
+        final ExecutionPlan.@Nullable Verdict raisingVerdict;
         @Nullable List<Object> raisingRow;
 
-        /** An assertError's step for both judges (S135): the database's raising verdict, whose base the host reads. */
+        /** An assertError's steps for both judges (S135): the database's raising verdict, whose base the host reads --
+         *  but where the function IS an assert, each judge decides that assert (2026-11-05, the deep audit: "both"
+         *  asks both): the host's own step first, its sides read and judged as the host judge judges an assertError
+         *  over an assert, then the database's raising step, its statement comparing what the database's verdict of the
+         *  inner assert raised; the agreement rule decides once both are in. */
         One(HostAsserts.Planned host, ExecutionPlan.Verdicts raising) {
             this.host = host;
             this.database = null;
+            boolean overAnAssert = HostJudgment.core(host.assertion().check().judgment())
+                    instanceof HostJudgment.AssertError ae && ae.inner() != null;
             this.step = raising;
-            this.hostVerdict = raising.verdicts().get(0);
+            this.steps = overAnAssert ? List.of(host.step(), raising) : List.of(raising);
+            this.hostVerdict = overAnAssert ? host.verdict() : raising.verdicts().get(0);
+            this.raisingVerdict = raising.verdicts().get(0);
             this.members = Map.of();
             this.raising = true;
         }
 
         One(HostAsserts.Planned host, DatabaseAsserts.@Nullable Each database) {
             this.raising = false;
+            this.raisingVerdict = null;
             this.host = host;
             this.database = database;
             Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> m = new IdentityHashMap<>();
@@ -87,6 +101,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 this.step = new ExecutionPlan.Verdicts(verdicts, group.fused(), group.savepoint(), group.rules());
                 this.hostVerdict = both;
             }
+            this.steps = List.of(step);
             this.members = m;
         }
 
@@ -110,8 +125,10 @@ final class AgreementAsserts implements TestDoor.Asserts {
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         Map<ExecutionPlan.Verdict, One> verdicts = new IdentityHashMap<>();
         for (One one : byStatement.values()) {
-            for (ExecutionPlan.Verdict v : one.step.verdicts()) {
-                verdicts.put(v, one);
+            for (ExecutionPlan.Verdicts step : one.steps) {
+                for (ExecutionPlan.Verdict v : step.verdicts()) {
+                    verdicts.put(v, one);
+                }
             }
         }
         // a branch side's asserts are this body's: the runner hands their verdicts back as any other's
@@ -183,7 +200,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             return List.of(b);
         }
         One one = byStatement.get(statement);
-        return one == null ? null : List.of(one.step);
+        return one == null ? null : one.steps;
     }
 
     /** The steps of this body's {@code statements} statements, in order. */
@@ -223,24 +240,13 @@ final class AgreementAsserts implements TestDoor.Asserts {
             @Nullable AssertListener listener, ExecutionPlan.JudgingRules rules) {
         One one = of(verdict);
         if (verdict != one.hostVerdict) {
-            rows.get();
+            if (verdict != one.raisingVerdict) {
+                rows.get();
+            }
+            // the database's raising step is read for the database half: what it raised is its statement's, bound
             return;
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
-        if (one.raising && HostJudgment.core(a.check().judgment()) instanceof HostJudgment.AssertError ae
-                && ae.inner() != null) {
-            // f IS an assert, read as the database's statement that raises its failure (S135): the host compares the
-            // error that statement raised, as it compares any f's -- the inner assert's own verdict is the database's
-            // under both judges
-            AssertVerdicts.HostAssert flat = new AssertVerdicts.HostAssert(a.listenerName(), a.family(), a.wantEqual(),
-                    new HostSides.Check(List.of(), new HostJudgment.AssertError(ae.expected(), ae.line(), ae.column(),
-                            null)));
-            one.held = AssertVerdicts.heldAtItsStep(flat, listener, () -> {
-                rows.get();
-                return List.of();
-            }, rules, null);
-            return;
-        }
         one.held = AssertVerdicts.heldAtItsStep(a, listener,
                 () -> HostSides.shapedBase(a.name(), one.host.sides(), rows.get()), rules,
                 message == null ? null : HostSides.message(one.host.sides(), message));
@@ -253,6 +259,9 @@ final class AgreementAsserts implements TestDoor.Asserts {
             @Nullable AssertListener listener) {
         One one = of(verdict);
         if (one.raising) {
+            if (verdict != one.raisingVerdict) {
+                return null;   // the host's own step: its rows are the host's, read at hostSides
+            }
             one.raisingRow = row;
             return decided(one, listener);
         }
