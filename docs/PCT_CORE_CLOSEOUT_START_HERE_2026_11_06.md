@@ -43,14 +43,14 @@ went -- is closed for core and PCT and still open for the corpus; deleting it is
 5. Lean SQL ("we are going to have to look at these crazy large SQLs after we close PCT and core" -- the user,
    2026-11-06).
 
-**Where it stands (2026-11-06, head `7c93fbc5` on `claude/wizardly-dirac-rw6tim-seam`, PR #83, draft):** round 22
-of the lanes is green on DuckDB, H2, SQLite, Postgres, MongoDB, MariaDB, MySQL, ClickHouse, Trino, Databricks and
-Snowflake, under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's grammar suite (it
-accepted the new list SQL; two rows to confirm at the head, §5.2), CI green on every OS (the corpus lanes are red on one test,
-`strictdate::testProject`, §6.1 step 3), the cloud lanes measuring the session fix (`7c93fbc5`), the records, and the
-user's decision on the channel B judge passes (§4). **All six lane sessions are blocked by the account's weekly usage
-limit until 2026-11-08 03:00 UTC** (§9.2) -- though Snowflake's did resend its round 22 from its logs on 2026-11-06;
-BigQuery's too, on 2026-11-06 (§5.2).
+**Where it stands (2026-11-06, evening): PCT and core are at 100% and LANDED** -- PR #83 merged into `main`
+(`1aa9a34b`). Under the host judge, the database judge and BOTH, on every database (PCT round 24 at the final code:
+140/140 lane targets), core's matrix and lanes 82/82 locally, both corpus lanes green through every register, CI green
+on Linux, Linux-arm, macOS and Windows (GATES, the entry "The final audit, PCT rounds 23 and 24, CI, and the landing").
+The wall between planning and running is total at run time (§7.3). **Next: the corpus burn-down** (the user,
+2026-11-06: "burning down the corpus to as close to 100% passing as possible/makes sense -- same tenets: 100% host and
+database, total separation between plan and exec, real asserts"), then the walk's deletion. §10 is the ordered list of
+everything carried.
 
 ---
 
@@ -719,26 +719,43 @@ baseline round first).
 
 ---
 
-## 10. Named, not fixed (carry these)
+## 10. What follows PCT and core, in order (the user's, 2026-11-06)
 
-- ~~`strictdate::testProject`~~: fixed 2026-11-06 (`2bfbdba4`, `12b2d294`).
-- BigQuery's bound-list shape unverified.
-- The cloud session fix (`7c93fbc5`) unmeasured.
-- ~~Compatibility mode's float tokens inside a String~~: deleted 2026-11-06 (`bf5b2ab4`); S132's row matches the code
-  (`ad6ad27a`), and records the user's option (a) for the corpus phase.
-- `'TDSNull'` sentinel equal to a null cell (the shared assert design).
-- S137's relation not evaluated in compatibility mode.
-- MariaDB's `unlessNull` doubling; SQLite's `LIST_INIT`/`LIST_SLICE` re-reading the list.
-- The instance canon's verbosity (lean SQL).
-- BOTH's per-assert program vs DATABASE's fused program (§4).
-- ~~`RunScope`'s report mode~~: deleted 2026-11-06 (`759c9e1d`); nothing turns the wall off.
-- The wall's one residue, `engine-text-appeal` (§7.3): the compatibility appeal's fixture program and row reads as
-  runs inside the body's run; deleted when they are steps of the body's plan (the corpus phase). Planning code still
-  holds sessions as identities until the walk's deletion (§7.3).
-- Clean mode compares an unsorted grid as a multiset on both judges (S131 "build pending"); the rendered-text failure
-  messages are not upstream's `%r` form and differ by judge; the SQL-text appeal's page-membership and join-fan-out
-  leniencies and `stripChainedPlanWarning` have no register row (the final audit, 2026-11-06, findings 6-8).
-- The pending rulings S13, S17, S121 (2)(4), S125.
+**1. Order tracking (S131's narrowing; ruled 2026-11-05, "ship without" 2026-11-06).** Lite's own tests deterministic: an
+operation that reads an order the program never defined (`first`, `at`, `joinStrings`, `toString` over an unsorted
+relation, an unsorted list asserted in order) refused at planning under the LITE rules; compatibility mode keeps the
+multiset. Design: `docs/ORDER_TRACKING_DESIGN_2026_11_05.md`. First step report-only: count what it would refuse over
+core.
+
+**2. The corpus burn-down** (the user, 2026-11-06), on the same tenets as PCT and core: 100% under the host and the
+database judge, the plan/exec wall, real asserts. Within it:
+- S132 option (a): a rendered text whose rows hold one value spelled two ways fails (the register row);
+- the wall's one residue, `engine-text-appeal` (§7.3): the appeal's fixture program and row reads as steps of the
+  body's plan, then the residue door deleted;
+- register rows the owner rules for the SQL-text appeal's leniencies (page membership, join fan-out,
+  `stripChainedPlanWarning`), and for the JSON byte compare where a dialect cannot place the multiset (H2; the
+  revert `8de75aeb`);
+- the rendered-text failure messages in upstream's `%r` form, the same on both judges;
+- a compatibility-mode rendered text outside a verdict batch is UNJUDGED (strict; never reached on a lane).
+
+**3. Delete the walk.** With it: the walk's transaction bracket outside a run; the `driver`/`judge` split into a plan half
+and a run half with arch rules of their own, planning holding targets instead of sessions (the user, 2026-11-06:
+"split later", with the walk -- the walk shares those classes).
+
+**4. The special-casing audit.**
+
+**5. Lean SQL.** The system metamodel's seed re-sent per test (85% of core's SQL, `docs/CORE_SQL_SIZE_2026_11_04.md`);
+MariaDB's `unlessNull` doubling, SQLite's `LIST_INIT`/`LIST_SLICE` re-reading the list (§7.4); the instance canon's
+verbosity; BOTH's per-assert program against DATABASE's fused one (§4).
+
+**Smaller, carried:** the `'TDSNull'` sentinel equal to a null cell (the shared assert design); a null cell's sort
+position against upstream's TDSNull (the final audit: plausible, unconfirmed); S137's relation not evaluated in
+compatibility mode; a grid report's `__ord` column on a numbered side (unreached); the pending rulings S13, S17,
+S121 (2)(4), S125.
+
+**Closed 2026-11-06:** `strictdate::testProject` (`2bfbdba4`, `12b2d294`); compatibility mode's float tokens inside a
+String (`bf5b2ab4`); BigQuery's bound-list shape (rounds 23-24 green); the cloud session fix (measured on Snowflake,
+`e2db89a6`); `RunScope`'s report mode (deleted, `759c9e1d`); the union order (S142).
 
 ---
 

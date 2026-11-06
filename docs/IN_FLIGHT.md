@@ -3,8 +3,9 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
-**The test-is-the-product program (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83), 2026-11-06:** a session
-picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`.
+**The test-is-the-product program, 2026-11-06:** PCT and core at 100% landed (PR #83 merged, `1aa9a34b`). Active now:
+**the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
+A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).
 
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner

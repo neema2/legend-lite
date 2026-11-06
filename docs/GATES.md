@@ -20527,3 +20527,38 @@ Pin: SqlTextVerdicts 1640 -> 1644.
 **Checks at `759c9e1d`**: core's matrix and lanes, PCT channel A on DuckDB, H2 and SQLite, channel B on DuckDB, H2 and
 SQLite: 82/82 green (no refusal anywhere). Both corpus lanes (`//gates:corpus_duckdb`, `//gates:corpus_h2`): green, every roster and register unchanged. The same 82 and both corpus lanes green at
 `ad6ad27a`'s tree (with the report-only patch).
+
+## 2026-11-06 — The final audit, PCT rounds 23 and 24, CI, and the landing (PR #83 merged)
+
+**The final audit** (two independent read-only reviewers, after `1cba151a`): one tried to break the wall, one read the
+judges' and the SQL's changes. Fixed in `dd19c894`: a star over a numbered union writes the source's columns so the
+ordinal stays the last output (`ad6ad27a` had let it fall mid-row, which the database judge's canon reads by position:
+wrong cells, no error -- `SideOrdinalTest` pins it); a wall refusal is an `Error` (a `catch (RuntimeException)` had
+turned one into a text mismatch); every planning seam guarded and every JDBC/MongoDB statement act checked; the product
+door plans under the planning scope; a system-database statement never runs on the program's own session; a lazy
+session closed stays closed; a failed setup never re-runs; a rendered text on two sessions is that assert's UNJUDGED,
+not the body's abort. Reverted in `8de75aeb`: the JSON multiset made UNJUDGED where the dialect cannot place it -- H2
+places none, and 118 corpus graph-fetch tests passed on the byte compare (stricter than the multiset, never more
+lenient; the owner's to rule). Kept: a dialect wall is raised as itself on both roads (`BodyRouterParityTest`).
+S142 (a concatenation judged in Pure's order) ruled by the owner and recorded (`f9b1c99f`).
+
+**PCT round 23** (`1cba151a`; channel A, channel B under BOTH and under the DATABASE judge alone): SQLite, MariaDB,
+MySQL, MongoDB (A) 50/50 (`channel_b_sqlite_essential` green for the first time, 333/333); Postgres, ClickHouse, Trino
+45/45; Databricks 15/15; BigQuery A 25/25, channel B green but for `filter::testFilterInstance` passing while ledgered
+(the union order) and one BigQuery job-id collision on `equal::testEqualNonPrimitive` (re-run twice: clean). Snowflake
+skipped to round 24. No line names the wall on any lane.
+
+**PCT round 24** (`8de75aeb`, the final code): **140/140 targets green on every database** -- SQLite, MariaDB, MySQL,
+MongoDB 50/50 and Postgres, ClickHouse, Trino 45/45 (both identical to round 23 test by test); Databricks 15/15 (census
+identical to rounds 22-23); Snowflake 15/15 (DATABASE's measured lines byte-identical to BOTH's); BigQuery 15/15, no
+ledger mismatch (the `testFilterInstance` row removed in `dd19c894`). Census per lane, channel B (identical under BOTH
+and DATABASE): SQLite {333,12} {134,3} {458,11} {205} {92,1}; MariaDB {334,11} {137} {456,13} {205} {93}; MySQL
+{333,12} {137} {436,33} {205} {93}; Trino 336/136/469/205/93 pass; ClickHouse 333/137/464/202/93; Postgres
+332/132/467/205/92; Databricks {335,10} {137} {461,8} {205} {93}; Snowflake {335,10} {133,4} {469} {205} {93}; BigQuery
+{330,15} {137} {457,12} {205} {91,2}. Channel A green on every lane, every census line `mismatch=0 untyped=0`.
+
+**Local at the final code:** core's matrix and lanes, PCT A and B on DuckDB, H2 and SQLite 82/82; `//gates:corpus_duckdb`
+and `//gates:corpus_h2` green, every roster and register unchanged. **CI on `2bbb5e11`** (the parser-parity ratchet
+3074 -> 3079, a gain: `RelationCellsSortTest`'s model): all 52 checks green on Linux, Linux-arm, macOS and Windows.
+**PR #83 merged** by the owner (`1aa9a34b`). PCT and core at 100% on the program road under the host and database
+judges, the wall total. What follows: the start page's §10.
