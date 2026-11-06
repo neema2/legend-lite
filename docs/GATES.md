@@ -20462,8 +20462,14 @@ wall" line, no unledgered failure anywhere): DuckDB and H2 (local) green; Postgr
 `4a492594`; ClickHouse 10/10 channel B at `c1bf51fc`; Snowflake 15/15 at `b59aeedd` (resent from its logs after the
 usage limit stopped it: essential {335,10}, grammar {133,4}, relation {469}, standard {205}, unclassified {93}, the
 same under both settings; times within ~10% of round 21 but BOTH relation 647 -> 533 s, BOTH essential and standard
-still ~700 s against 588/596 s in round 18). BigQuery ran round 22 at `b59aeedd` and has not reported (the account's
-weekly usage limit until 2026-11-08 03:00 UTC; its logs on its disk, the handoff §9). The census per lane is the
+still ~700 s against 588/596 s in round 18). BigQuery at `b59aeedd` (resent from its logs): **the bound-list shape accepted** (no refusal in any of its 15 runs;
+`exists::testExistsInSelect` passes under both judges, largest statement 80,958 under BOTH and 360,665 under the
+database judge, against 1,244,880 in round 21); channel A 5/5; channel B essential {330,15}, relation {457,12},
+standard {205}, unclassified {91,2}; grammar red twice: `equal::testEqualNonPrimitive` under the database judge alone
+(its fused statement 2,132,166 characters, past BigQuery's 1,024K -- `b59aeedd` predates the budget, `c1bf51fc`, which
+splits it under 500K), and `filter::testFilterInstance` passing while ledgered as failing under both settings (the
+lane reads it as row order, UNNEST without an ordinal, not a fix). Asked again at `5d870b40`, grammar twice under each
+setting, to confirm the budget and tell a flaky row from a fix. The census per lane is the
 handoff's §5.2.
 
 **One session per held cloud connection** (`7c93fbc5`, the owner's quick win): `CloudBackend.open()` answered a new

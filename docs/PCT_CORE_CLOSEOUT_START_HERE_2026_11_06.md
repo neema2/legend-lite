@@ -45,12 +45,12 @@ went -- is closed for core and PCT and still open for the corpus; deleting it is
 
 **Where it stands (2026-11-06, head `7c93fbc5` on `claude/wizardly-dirac-rw6tim-seam`, PR #83, draft):** round 22
 of the lanes is green on DuckDB, H2, SQLite, Postgres, MongoDB, MariaDB, MySQL, ClickHouse, Trino, Databricks and
-Snowflake, under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's round 22 (it must
-accept a SQL shape never run on BigQuery, §5.4), CI green on every OS (the corpus lanes are red on one test,
+Snowflake, under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's grammar suite (it
+accepted the new list SQL; two rows to confirm at the head, §5.2), CI green on every OS (the corpus lanes are red on one test,
 `strictdate::testProject`, §6.1 step 3), the cloud lanes measuring the session fix (`7c93fbc5`), the records, and the
 user's decision on the channel B judge passes (§4). **All six lane sessions are blocked by the account's weekly usage
 limit until 2026-11-08 03:00 UTC** (§9.2) -- though Snowflake's did resend its round 22 from its logs on 2026-11-06;
-BigQuery's round 22 ran in the background when the limit hit and is on its disk, unreported (asked to resend).
+BigQuery's too, on 2026-11-06 (§5.2).
 
 ---
 
@@ -316,7 +316,7 @@ host judge needs each frame's rows when its let runs; so BOTH reproduces the wal
 | Databricks | `b59aeedd` | 15/15, identical to round 21 |
 | MariaDB, MySQL | `4a492594` | 20/20 |
 | ClickHouse | `c1bf51fc` | 10/10 channel B (grammar 137/137 under the DATABASE judge too, no OOM) |
-| **BigQuery** | `b59aeedd` | **pending** -- requested 2026-11-05 22:2x |
+| **BigQuery** | `b59aeedd` | **the bound-list shape accepted**; channel A 5/5; channel B 4/5 per setting -- grammar red: `testEqualNonPrimitive` under the database judge (2.13M fused, predates the budget) and `testFilterInstance` passing while ledgered (row order?); re-asked at `5d870b40` |
 | Snowflake | `b59aeedd` | 15/15, census unchanged (resent from its logs on 2026-11-06 after the usage limit) |
 
 No lane printed "the runtime wall" or an unledgered failure. Census per lane (BOTH = DATABASE everywhere):
@@ -353,7 +353,10 @@ pending when this was written. Check with `mcp__github__actions_list` (`list_wor
 
 ### 6.1 Phase 1 -- PCT and core at 100% (do these in order)
 
-1. **Collect BigQuery's round 22** (`session_019tku7nRKBygjSBz9QQBGfM`). If BigQuery refuses the bound-list shape
+1. **BigQuery** (`session_019tku7nRKBygjSBz9QQBGfM`): round 22 (resent 2026-11-06) shows the bound-list shape ACCEPTED.
+   Open: grammar's `testEqualNonPrimitive` under the database judge (re-run at the head, where the budget splits it)
+   and `testFilterInstance` passing while ledgered (two runs asked, to tell a flaky row from a fix; a flaky row needs
+   its order fixed, never a ledger toggle). Kept for the record: if BigQuery ever refuses the bound-list shape
    (`UNNEST([STRUCT(xs AS __xs)])` -- a correlated-subquery or struct error), fix it in `BigQuery.unlessNull`
    (alternatives: `(SELECT ... FROM UNNEST(xs) ...)` with a separate null test on a one-row CTE, or skip binding where
    xs is known non-null) and ask the lane again. Then ask it again at the head for the budget (`c1bf51fc`, 500K) and
@@ -761,7 +764,7 @@ baseline round first).
 
 In progress or pending, in the order they serve §6 (D = deferred by the user):
 
-1. Collect BigQuery's round 22 (asked to resend from its logs; Snowflake's is in); measure `c1bf51fc` (BigQuery's budget) and `7c93fbc5`
+1. BigQuery's grammar at the head (asked: the budget's split and `testFilterInstance`'s stability; round 22 is in); measure `c1bf51fc` (BigQuery's budget) and `7c93fbc5`
    (the cloud session fix) on the cloud lanes.
 2. `strictdate::testProject`; CI green on every OS.
 3. Records (GATES round 22, plan §10, IN_FLIGHT, PR #83's description); the register row for compatibility mode's
