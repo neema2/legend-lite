@@ -120,6 +120,26 @@ its period is written as its aggregate (`sum(volume['AAPL'])`, the tile's `.sum`
 |---|---|
 | 1. The facts in the library | Built 2026-11-03: the `timeseries::Words` profile's tags and stereotypes on each word; core's catalog reads them; a test requires the tile's table to say the same |
 | 2. Core reads one item | Built 2026-11-03: `TsParser.item`, `TsTree`, the route `/api/lite/v1/grammar/tsItem`, `LitePlanner.tsItem`; the round trip over every example series |
-| 3. The tile stores text | Waits on decisions 4 and 5 (§3): what the box's text means where it divides by 0 and where it compares |
+| 3. The tile stores text | Decisions 4 and 5 answered 2026-11-06 (4(a) built in core, `497292554`, register S151, pending the user's ruling; 5(a) is SQL's own meaning, no change). The step itself is not started: two facts it needs, measured 2026-11-06, are below (§6) |
 | 4. The problems from the compiler | After 3 |
 | 5. Delete and guard | After 4 |
+
+## 6. Step 3's two open facts (measured 2026-11-06)
+
+1. **The read is asynchronous.** A page is read synchronously at all five of its call sites (`readSaved`: the app's
+   open, open-text and example open, the headless `pageRead` and `pageOpened`), but core's reader is the planner's,
+   and in a browser the planner runs on a worker. So a page of version 7 holding text cannot give the tile its trees at
+   read time: the opening must hydrate them, `await`ing core for each series' text, before the tile's walkers run.
+   Every call site is already in an async function (`openSaved` is async; Python's headless bridge awaits a
+   JavaScript promise, `_headless.py` `call`), so the hydrate step fits each; the edit commands that rewrite a tree
+   (`renameSource`) print the text again from it.
+2. **A series that reads another.** The tile writes a series' #TS item with every `$A` it reads inlined
+   (`tsItemText`: `inlined(series.expr, ts.series)`), so that text is no series' own: stored, a series reading
+   another would lose the reading (edit the one, the other keeps the old formula). The stored text has to be the
+   language's own naming -- a series named by its item (`AS ma50`), read by that name (`ma50 - ma200`; the spec's
+   §7) -- which the tile's writer does not write today, and core's tree reads as a column the hydrate maps to a
+   `ref` where the name is another series'.
+
+So step 3 starts with a writer of a series' own item text (its references by name, its source's columns as the item
+reads them) proved by a round trip -- every example series' own text, read by core and mapped, the tile's tree again --
+before any document changes version.
