@@ -29,8 +29,8 @@ import java.util.Map;
  * fused statement), the host's judgment beside the plan with its judge. The runner reads the sides for the host and the
  * rows for the database at the assert's turn ({@code PlanRunner.Judging.BOTH}); the router's sink judges both and holds
  * the agreement rule ({@link AgreementArm#agree}: the host's verdict of record, the database's checked; a database
- * decline or UNJUDGED told to the listener and the host decides; a database statement that errors a failure naming
- * both), so the walk's agreement arm and this step decide alike.
+ * decline or UNJUDGED told to the listener and a failure of the assert, never the host's verdict alone; a database
+ * statement that errors a failure naming both), so the walk's agreement arm and this step decide alike.
  *
  * <p>As the walk's agreement arm: no batch is held across asserts and every frame runs at its let (the host's check
  * step), each assert's database statement reading the frames' CTEs. Null where the host judge's planner plans an

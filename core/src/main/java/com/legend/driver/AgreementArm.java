@@ -19,7 +19,8 @@ import java.util.function.Supplier;
  * statement's composition, a decode misreading a carrier), never a quiet pass. The routing is the host's: a shape the
  * host arm leaves to the generic path (null) is not put to the database arm. A shape the database arm leaves to the
  * generic path, or reports UNJUDGED (its own wall included: a shape its arm names it cannot judge), is told to the
- * listener and the host decides; a database statement that errors is a failure, since the judges did not agree.
+ * listener and FAILS the assert naming why and what the host said -- the host never decides alone (the user,
+ * 2026-11-05: no fallback mode); a database statement that errors is a failure, since the judges did not agree.
  */
 final class AgreementArm implements VerdictArm {
 
@@ -55,7 +56,7 @@ final class AgreementArm implements VerdictArm {
             return new Failed(e);
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the database judge's arm says it cannot judge (its own wall, named): UNJUDGED by that name --
-            // the host decides, the listener is told; never a disagreement
+            // the listener is told and the assert fails as undecided (agree), never as a disagreement
             return new Failed(AssertFailed.unjudged(first(e.getMessage()), String.valueOf(e.getMessage())));
         } catch (RuntimeException e) {
             return new Errored(e);

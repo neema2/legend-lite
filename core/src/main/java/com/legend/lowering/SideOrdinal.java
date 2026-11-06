@@ -102,6 +102,15 @@ final class SideOrdinal {
                     from.outputs());
         }
         SqlSelect over = s.withFrom(from);
+        if (s.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.Star st
+                && (st.table() == null || st.table().equals(alias))
+                || p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))
+                        && !se.except().contains(ORD))) {
+            // a star over the source already reads its ordinal (SELECT t.*, 1 AS c: the ordinal is among t's outputs);
+            // written again it would be a second column of the name (2026-11-06, H2's corpus: "Duplicate column name
+            // __ord", the milestoning validation tests)
+            return over;
+        }
         List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
         ps.add(new SqlSelect.Projection(ord, ORD, ORD_OUT));
         return over.withProjections(ps);

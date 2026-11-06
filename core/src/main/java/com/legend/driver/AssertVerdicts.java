@@ -163,11 +163,12 @@ final class AssertVerdicts {
      * THE STATIC GATE of the database judge's planner (M7): whether {@code bare} is a shape whose database arm plans
      * its verdict statement without READING a side on the host at its turn. The host checks' own classification
      * ({@link #planHost}, null for the shapes neither judge plans statically: a lineage print, the quantified forms,
-     * the declining judgments) gates first; then the shapes the database
-     * dispatch hands to the host at the assert -- the grid pair of two relation-typed sides ({@code HostJudge
+     * the declining judgments) gates first; then the shapes whose database
+     * arm would READ a side at the assert -- the grid pair of two relation-typed sides ({@code HostJudge
      * .planGridPair}, D3), the rendered-text sides ({@link #renderedArm}), {@code assertEq} over a class-kind side
-     * ({@code HostJudge.eq}, D43) -- which would run their sides where the planner only plans. The walk runs such a
-     * body. Planning only: the host checks plan the sides; nothing is sent.
+     * ({@code HostJudge.eq}, D43) -- which would run their sides where the planner only plans. Such a body is the
+     * walk's, refused by name where the walk's door is closed ({@code WalkDoor}: core and PCT); no shape is handed to
+     * the host judge. Planning only: the host checks plan the sides; nothing is sent.
      */
     static boolean databasePlansWithoutReading(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
