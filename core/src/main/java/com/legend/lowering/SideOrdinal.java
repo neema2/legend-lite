@@ -78,7 +78,10 @@ final class SideOrdinal {
             return keys == null ? null : numbered(s, keys);
         }
         if (s.distinct() || !s.groupBy().isEmpty() || s.having() != null || s.limit() != null
-                || s.offset() != null) {
+                || s.offset() != null || s.projections().stream().anyMatch(p -> aggregates(p.expr()))) {
+            // a grouped, limited or AGGREGATING select (SELECT SUM(x) FROM ..., no GROUP BY: one row of all of its
+            // source's) does not keep its source's rows: no ordinal of its source's passes through it (2026-11-06,
+            // H2's corpus: the union's ordinal written beside a SUM, "must be in the GROUP BY list")
             return null;
         }
         String alias;
@@ -114,7 +117,9 @@ final class SideOrdinal {
      * there too).
      */
     static SqlQuery inBranchOrder(SqlQuery q) {
-        if (!unionUnderPassThrough(q)) {
+        if (!unionUnderPassThrough(q)
+                || q.outputs().stream().anyMatch(o -> ORD.equals(o.name()) || BRANCH.equals(o.name()))) {
+            // no union, or a side that already carries an ordinal (numbered where its plan defined one)
             return q;
         }
         SqlQuery numbered = defined(q);
@@ -130,6 +135,15 @@ final class SideOrdinal {
                 q.outputs());
     }
 
+    /** Whether {@code e} aggregates its select's rows (a reducer or an ordered list aggregate outside a window). */
+    private static boolean aggregates(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        return e instanceof com.legend.sql.SqlAgg.Reducer || e instanceof SqlExpr.OrderedListAgg
+                || e.children().stream().anyMatch(SideOrdinal::aggregates);
+    }
+
     /** Whether {@code q} is a UNION ALL, or a select that keeps its one derived source's rows in order over one. */
     private static boolean unionUnderPassThrough(SqlQuery q) {
         if (q instanceof com.legend.sql.SqlUnion u) {
@@ -137,6 +151,7 @@ final class SideOrdinal {
         }
         return q instanceof SqlSelect s && !s.distinct() && s.orderBy().isEmpty() && s.groupBy().isEmpty()
                 && s.having() == null && s.limit() == null && s.offset() == null
+                && s.projections().stream().noneMatch(p -> aggregates(p.expr()))
                 && s.from() instanceof SqlSource.Subselect sub && unionUnderPassThrough(sub.inner());
     }
 
