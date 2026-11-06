@@ -677,7 +677,11 @@ in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse m
 1. **CI on #81**: main's #88 merged in, #81's branch fast-forwarded to this branch (2026-11-06, `dc8a065f0`).
 2. **W1**, the refusal of observation-counting words on a line of several rows on one date; **Snowflake's passes**
    (SelectMerge, SelectLayers), checked on the account by the Snowflake lanes' session. *Both built 2026-11-06:* W1 as
-   the time model's D8 (register S134); Snowflake's passes in `ec5a43185`, its lanes' run asked of that session.
+   the time model's D8 (register S134); Snowflake's passes in `ec5a43185`, checked on the account the same day by the
+   Snowflake lanes' session (approved by the user there): the ten lanes `//pct:pct_snowflake_*` and
+   `//pct:pct_channel_b_snowflake_*` at `dc8a065f0` and at `ec5a43185`, one test at a time -- no outcome changed (1,165
+   channel A cases and the five channel B ones pass on both, every census line identical), 2,984 s -> 2,957 s. D8
+   widened the same day ("Okay extend the refusal") to every word that reads its line in order (`5beeed931`).
 3. **W3** the answer's spine on one table; **W2** the returns-based pair words as columns of their met table; **W4**
    SelectLayers' follow-ups; **W5** the remaining rows forms.
 4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured;
