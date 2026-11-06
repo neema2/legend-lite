@@ -26,8 +26,6 @@ def _pass_flags(golden):
         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
         "--enable-native-access=ALL-UNNAMED",
         _SCAN_ORDER,
-        # the walk is CLOSED to the corpus (2026-11-06: its allow list burned to zero, every body on the program road)
-        "-Dlegend.walk.allowed=none",
     ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])
 
 def corpus_lane(

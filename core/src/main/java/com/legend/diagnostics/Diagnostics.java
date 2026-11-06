@@ -42,9 +42,6 @@ public final class Diagnostics {
     public static final List<String> NAMES = List.of(
             "dump-sql", "pct-cases", "pct-shapes", "corpus-trace", "detach-trace", "progress", "timing",
             "corpus-containing", "chb-only", "primitives", "plan-sizes",
-            // the walker-deletion program's measurement (2026-11-02): a test body the router would hand to the walk
-            // fails instead, naming why -- every lane run so lists what does not yet run as one plan
-            "forbid-walk",
             // the core program's SQL size (2026-11-03, the user's "core test SQL much smaller than PCT/corpus"): each
             // statement sent, its characters and the test that sent it, before it is sent
             "sql-sizes",

@@ -214,7 +214,6 @@ public class MinimalCorpusTest {
         List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
-        List<String> stayedRows = new ArrayList<>();
         List<String> unplannedRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -235,16 +234,14 @@ public class MinimalCorpusTest {
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
                 long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
-                int stayedBefore = com.legend.exec.Census.STAYED_KINDS.size();
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
                     // a hang) still says which test it was in
                     System.out.println("[corpus2] run " + t.fqn());
                 }
-                // the running test, by its function's full name: the walk's door named the bodies still allowed to
-                // walk by it (its list burned 59 -> 0 and deleted 2026-11-06; the lanes run -Dlegend.walk.allowed=none),
-                // and a refusal names the test it was in
+                // the running test, by its function's full name: the diagnostics name the test they report from (the
+                // walk's door listed the bodies allowed to walk by it until the walk was deleted, 2026-11-06)
                 System.setProperty("legend.test.current", t.fqn());
                 try {
                     r = corpus.run(t);
@@ -308,9 +305,6 @@ public class MinimalCorpusTest {
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
                 for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
                     fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
-                }
-                for (int si = stayedBefore; si < com.legend.exec.Census.STAYED_KINDS.size(); si++) {
-                    stayedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.STAYED_KINDS.get(si));
                 }
                 // one row per label per body: the router plans a body before the walk runs it, and the walk asks the
                 // host planner again about the assert the program road refused -- the same refusal, counted once
@@ -380,9 +374,6 @@ public class MinimalCorpusTest {
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
         System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
         System.out.println("[corpus2] body-router moved=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED));
-        // THE KIND CENSUS of the bodies the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
-        // per test in the TSV; the histogram over the PASSING tests' bodies names what each movement step must admit
-        Files.write(com.legend.testing.TestOutputs.file("corpus2-body-stayed.tsv"), stayedRows);
         // THE UNPLANNED-ASSERT CENSUS (M10c, 2026-11-02): each assert the host planner declined, by its shape, per test
         Files.write(com.legend.testing.TestOutputs.file("corpus2-unplanned-asserts.tsv"), unplannedRows);
         java.util.Map<String, Integer> unplannedHist = new java.util.TreeMap<>();
@@ -393,15 +384,6 @@ public class MinimalCorpusTest {
         for (var e : unplannedHist.entrySet()) {
             System.out.println("[corpus2] unplanned-assert " + e.getValue() + " " + e.getKey());
         }
-        java.util.Map<String, Integer> stayedByKinds = new java.util.TreeMap<>();
-        for (String row : stayedRows) {
-            String[] cols = row.split("\t", 3);
-            if ("PASS".equals(cols[1])) {
-                stayedByKinds.merge(cols[2].isEmpty() ? "(none)" : cols[2], 1, Integer::sum);
-            }
-        }
-        stayedByKinds.entrySet().stream().sorted((x, y) -> Integer.compare(y.getValue(), x.getValue()))
-                .forEach(e -> System.out.println("[corpus2] body-router stayed " + e.getValue() + " " + e.getKey()));
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);

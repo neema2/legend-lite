@@ -75,16 +75,10 @@ public final class Census {
     public static final List<String> FALLBACK_REASONS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
-    /** The kinds of each test body the body router left on the walk, appended as it routes (the test-is-the-product
-     * plan's M9, 2026-11-01): a named list beside {@link Key#BODIES_MOVED}'s count (the lanes attribute them per
-     * test and histogram them, so each movement step is aimed at the kinds holding the most bodies back). */
-    public static final List<String> STAYED_KINDS =
-            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
-
     /** The asserts the host planner declined to plan for the program road, each by the shape it declined (the
-     * test-is-the-product plan's M10c, 2026-11-02): a named list beside {@link #STAYED_KINDS} (the lanes attribute
-     * them per test and histogram them, so the remaining assert shapes are named by count). Measurement, deciding
-     * nothing: the body stays on the walk whatever is written here. */
+     * test-is-the-product plan's M10c, 2026-11-02): a named list (the lanes attribute them per test and histogram
+     * them, so the remaining assert shapes are named by count). Measurement, deciding nothing: a body whose assert
+     * no judge planned is refused by name whatever is written here (the walk it stayed on is deleted, 2026-11-06). */
     public static final List<String> UNPLANNED_ASSERTS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 

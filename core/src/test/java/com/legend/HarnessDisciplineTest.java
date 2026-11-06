@@ -128,7 +128,7 @@ class HarnessDisciplineTest {
             // DISPLAY ordering of statement counts (largest first) — no verdict, no comparison policy
             // 2 -> 3 (2026-11-01, the test-is-the-product plan's M9, the kind census): the bodies the router left on
             // the walk DISPLAYED by kinds, most frequent first — a report line, no verdict, no comparison policy
-            Map.entry("MinimalCorpusTest.java", 3),
+            Map.entry("MinimalCorpusTest.java", 2),   // 3 -> 2 (2026-11-06, the walk deletion: the body-router stayed-kinds histogram and its sort deleted with the walk)
             // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run
             // by name, not a gate): sorted REPORT lines — failures by reason,
             // package, source file, name — a display, never a verdict

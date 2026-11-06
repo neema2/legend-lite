@@ -41,47 +41,6 @@ final class AssertErrorNative {
     private AssertErrorNative() {
     }
 
-    static TypedSide run(TypedNativeCall ae, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env,
-            java.util.Deque<String> frames) {
-        if (!(ae.args().get(0) instanceof TypedLambda f)
-                || !f.parameters().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
-                    "assertError whose function argument is not a"
-                    + " zero-parameter lambda literal");
-        }
-        if (!(ae.args().get(1) instanceof TypedCString exp)) {
-            throw new com.legend.error.NotImplementedException(
-                    "assertError whose message argument is not a string"
-                    + " literal");
-        }
-        String expected = exp.value();
-        Long expectedLine = optionalInt(ae, 2);
-        Long expectedColumn = optionalInt(ae, 3);
-        // the seam: the database's error arrives as DataError whose
-        // CAUSE is the unwrapped (Positioned when the raise was ours)
-        String caughtMessage = null;
-        Throwable caughtCause = null;
-        try {
-            BodyDriver.executeStatements(f.body(),
-                    new ArrayList<>(letPrefix), specs, env);
-        } catch (com.legend.error.DataError e) {
-            caughtMessage = String.valueOf(e.getMessage());
-            caughtCause = e.getCause();
-        } catch (com.legend.error.ModelException e) {
-            // A DEFERRED-BODY guard (the lowering's dynamic validations,
-            // e.g. timeBucket's duration-unit check): interpreted pure
-            // raises these lazily at EVAL, and for the assertError
-            // lambda our lowering IS the eval — the guard's message is
-            // the raised error (spec witness: standard-suite
-            // testTimeBucketSeconds/Minutes/Hours, which the engine's
-            // relational executor passes the same way). Every other
-            // exception kind stays LOUD — walls are never adjudicated.
-            caughtMessage = String.valueOf(e.getMessage());
-        }
-        return judged(expected, expectedLine, expectedColumn, caughtMessage, caughtCause);
-    }
-
     /** The parsed arguments of an {@code assertError} call: {@code f}, the expected message, line and column; the walk's
      *  checks, refused by name where the shape is none the arm takes. */
     record Args(TypedLambda f, String expected, @com.legend.base.Nullable Long line,

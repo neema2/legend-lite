@@ -20682,3 +20682,29 @@ Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:census`, `//core:g
 Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:stress_suites`, `//core:stress_suites_h2`,
 `//core:census`, `//core:guardrails`, `//core:core_tests_driver` (×3 judges), `//core:core_tests_testplan`,
 `//core:core_tests_root` green. Next: the walk's code deleted (step 4).
+
+## 2026-11-06 — The walk deleted
+
+- **Deleted**: the walk's statement-by-statement path (`BodyDriver.execute`, `executeStatements`, the prepared value
+  and its run, the segment walk's staging, script sends and context establishing: `BodyDriver` 1044 -> 820 code lines),
+  `driver/BodyCompiler` (the segment walk), `driver/WalkDoor` and `-Dlegend.walk.allowed` on every lane (core, PCT,
+  corpus, stress, the tools), the walk-only `assertError` runner (`AssertErrorNative.run`), the router's walk branch,
+  the stayed-kinds census (`Census.STAYED_KINDS`, the corpus's `corpus2-body-stayed.tsv` and its histogram) and the
+  `forbid-walk` diagnostic. Found by a reachability pass over the driver package: nothing else became dead.
+- **The router refuses by name** a body no class admits, or whose judge's planner refuses an assert:
+  `NotImplementedException: the program road does not plan this body: <why> [<kinds>] {query rule: <reason>}`. No corpus
+  body, stress body or PCT body reaches it (the corpus logs held no walk-door refusal with the door closed).
+- **`BodyRouterParityTest`** keeps its bodies and runs each on the program road alone: a moved body is planned whole and
+  moved (`assertParity`); a body its judge's planner refuses is refused by name with nothing sent (`assertWalkedAlike`);
+  the walk-only comparisons (the raw-SQL ledger, origins and statements against the walk's) are gone. Goldens the walk
+  read off a body answering a value alone are read through the product's query door (`productText`: a bare
+  `toSQLString`) or off the failure of an assert that cannot hold (`actualOf`: a lineage print, a qualified graph
+  frame). The test-data generator's census carrier, folded in Java by the walk, is refused by name (S143).
+- **Guards**: `BodyDriver` pin 820, `MinimalCorpusTest`'s sort sites 3 -> 2, the mutable-field allowlist loses the
+  segment walk's fields, `BodyDriver.STAGED_GRIDS` (dead) removed, `AGENTS.md`'s body driver paragraph and entry table
+  rewritten.
+
+Checks: `//gates:core` (all but the Postgres tests, which `initdb` refuses to run as root in this container),
+`//gates:checks`, `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_channel_b`, `//core:stress_suites`,
+`//core:stress_suites_h2` green. Next: the driver and judges split into a plan half and a run half (a census of the
+two packages is the first step's input).

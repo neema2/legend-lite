@@ -666,16 +666,9 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
-# THE WALK'S DOOR (the walker-deletion program, 2026-11-03): a core test's body reaches the walk only where the allow
-# list names the test (driver/WalkDoor); the list only shrank. CLOSED 2026-11-04 (the core program: 73 -> 0, the last
-# entry a computed executeInDb text the user ruled a text hole lite does not have): no core test walks, and no list
-# remains that could grow back -- channel B's door since 2026-11-03
-_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
-
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
@@ -724,7 +717,6 @@ junit_test(
 junit_test(
     name = "core_tests_root",
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR,
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -760,7 +752,7 @@ _CORE_LANES = {
     select = ["--select-package=com.legend.integration", "--exclude-classname=.*CorpusDifferentialTest"],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     data = data,
-    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags + _WALK_DOOR,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
     tags = tags,
     target_compatible_with = compatible,
     runtime_deps = [
@@ -788,7 +780,7 @@ _JUDGED_PACKAGES = ["compiler", "driver", "exec", "integration", "judge", "lower
 [junit_test(
     name = "core_tests_" + p + "_judge_" + judge.lower(),
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
@@ -804,7 +796,7 @@ _JUDGED_PACKAGES = ["compiler", "driver", "exec", "integration", "judge", "lower
 [junit_test(
     name = "core_tests_root_judge_" + judge.lower(),
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -1608,22 +1600,12 @@ legend_java_binary(
     ],
 )
 
-# THE STRESS CORPUS'S WALK (2026-11-06, PR #83's CI on 28a27931): the walk's door closed by default at 084cc1d3
-# (2026-11-05), which opened it for the relational corpus's lanes and tools and missed these two lanes and the stress
-# tool -- 461 service queries a lane refused by name (444 a graph fetch, 17 a temporal class read: the query program's
-# rule plans neither as a body's last statement yet, BodyClass.queryProgram), DuckDB 4251 and H2 4224 passing against
-# floors of 4705 and 4676. The stress corpus walked them as the relational corpus walked its own until the program road
-# planned both kinds; closed 2026-11-06 (the walk deletion: a graph fetch and a temporal class read are a query
-# program's answer, BodyClass.queryProgram), as every lane's is
-_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
-
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
 # //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
     memory_mb = 768,
-    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
@@ -1638,7 +1620,6 @@ junit_test(
     name = "stress_suites_h2",
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
-    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
@@ -1654,7 +1635,7 @@ legend_java_binary(
     name = "stress_tool",
     testonly = True,
     # the corpus is core_tests_lib's classpath resources (P3-05)
-    jvm_flags = ["-Duser.timezone=GMT"] + _STRESS_WALK_DOOR,
+    jvm_flags = ["-Duser.timezone=GMT"],
     main_class = "com.legend.integration.StressTool",
     tags = ["manual"],
     runtime_deps = [

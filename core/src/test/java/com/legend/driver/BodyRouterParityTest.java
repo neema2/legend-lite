@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -39,12 +38,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE BODY ROUTER'S PARITY (the test-is-the-product plan's M5; the M5 audit's missing test): a body of a moved class
- * runs on the program road exactly as the walk runs it, observed at every boundary -- the outcome and its message, the
- * raw-SQL ledger the referee mirrors, the answer handed to the caller's sink (its shape, columns and rows), the
- * statement-origin census, the effects census and the database the body leaves -- each body run both ways on a fresh
- * database. A shape the class rule keeps on the walk is pinned as such (each the audit's counterexample). Until M10
- * deletes the walk.
+ * THE BODY ROUTER (the test-is-the-product plan's M5): a body of a moved class is planned whole and runs on the program
+ * road, each on a fresh database -- its outcome and message, its verdicts and census, its answer. Until 2026-11-06 each
+ * body ran on the walk too and every boundary was compared (the raw-SQL ledger, the statement-origin census, the effects
+ * census, the database left); the walk is deleted. A shape no class admits is pinned as such and refused by name.
  */
 class BodyRouterParityTest {
 
@@ -263,10 +260,10 @@ class BodyRouterParityTest {
                 Map.entry("{| assertNotEquals(^x::Lit(value=1), ^x::Lit(value=2));}", "ok"),
                 // the same let-bound instance: decided with no side
                 Map.entry("{| let f = ^x::Lit(value=1); assertIs($f, $f);}", "ok"))) {
-            Run walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(),
+            Run moved = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(),
                     ExecuteOptions.JudgeMode.HOST);
             if (platform) {
-                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+                assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
             }
         }
         for (String body : List.of(
@@ -373,12 +370,9 @@ class BodyRouterParityTest {
         String body = "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                 + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}";
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        for (boolean router : List.of(false, true)) {
-            Run run = run(backend, ctx, body, router, "select 1");
-            assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"),
-                    (router ? "the router: " : "the walk: ") + run.outcome);
-            assertEquals(1, run.verdicts.size(), "the first assert reported, the second raised: " + run.verdicts);
-        }
+        Run run = run(backend, ctx, body, "select 1");
+        assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"), run.outcome);
+        assertEquals(1, run.verdicts.size(), "the first assert reported, the second raised: " + run.verdicts);
     }
 
     /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk):
@@ -737,19 +731,14 @@ class BodyRouterParityTest {
                 // a Float-declared expected against an Integer-declared actual: the expected's kinds type both
                 "{| assertEquals(#TDS\na\n1.5\n#, #TDS\na\n1\n#);}")) {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
-            Run walked = run(backend, ctx, "x::RT", body, false, "select 1", List.of(),
-                    ExecuteOptions.JudgeMode.DATABASE);
-            Run routed = run(backend, ctx, "x::RT", body, true, "select 1", List.of(),
+            Run routed = run(backend, ctx, "x::RT", body, "select 1", List.of(),
                     ExecuteOptions.JudgeMode.DATABASE);
             // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
-            // that differ decide false at planning, kinds that differ are spelled in the expected's -- each the walk's
-            // outcome and verdicts
-            assertEquals(walked.moved + 1, routed.moved, "the router left the body on the walk: " + body);
-            assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
-            assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
+            // that differ decide false at planning, kinds that differ are spelled in the expected's
+            assertEquals(1, routed.moved, "the router moved the body: " + body);
             if (body.contains("#TDS")) {
-                assertTrue(walked.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
-                        + walked.outcome);
+                assertTrue(routed.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
+                        + routed.outcome);
             }
         }
     }
@@ -789,9 +778,9 @@ class BodyRouterParityTest {
                         + " $r.values->toOne()" + csv + ");}", "ok"),
                 // the rendered text under assertSameElements: the lines a multiset
                 java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}", "ok"))) {
-            Run walked = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
+            Run moved = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
                     ExecuteOptions.JudgeMode.DATABASE);
-            assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+            assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
         }
     }
 
@@ -805,12 +794,11 @@ class BodyRouterParityTest {
     void lineagePrograms(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         // the system database seeded once per graph (systemRoutedPrograms)
-        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM", FIRM_ROWS);
         String scan = "let s = meta::pure::lineage::scanRelations::scanRelations({|x::Firm.all()->project([f|$f.name],"
                 + " ['name'])}, x::M, []);";
         String print = "$s->meta::pure::lineage::scanRelations::relationTreeAsString()";
-        String golden = text(run(backend, ctx, "x::RT", "{| " + scan + " " + print + ";}", false,
-                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String golden = actualOf(backend, ctx, "x::RT", scan, print, FIRM_ROWS);
         assertTrue(golden.startsWith("root\n") && golden.contains("------> (t) FIRM"), golden);
         String held = "{| " + scan + " assertEquals('" + pure(golden) + "', " + print + ");}";
         String failed = "{| " + scan + " assertEquals('" + pure(golden.replace("FIRM", "FIRMS")) + "', " + print + ");}";
@@ -825,8 +813,7 @@ class BodyRouterParityTest {
                 + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();";
         String columnTexts = "$f->map(t|$t.column.owner->cast(@meta::relational::metamodel::relation::Table).name->toOne()"
                 + " + '.' + $t.column.name->toOne() + ' <' + $t.context + '>')->sort()";
-        String columnGolden = text(run(backend, ctx, "x::RT", "{| " + columns + " " + columnTexts
-                + "->joinStrings(', ');}", false, "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String columnGolden = actualOf(backend, ctx, "x::RT", columns, columnTexts + "->joinStrings(', ')", FIRM_ROWS);
         assertTrue(columnGolden.contains("FIRM.NAME"), columnGolden);
         StringBuilder goldenList = new StringBuilder("[");
         for (String one : columnGolden.split(", ")) {
@@ -838,31 +825,10 @@ class BodyRouterParityTest {
         for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
             for (var c : List.of(java.util.Map.entry(held, "ok"), java.util.Map.entry(failed, "AssertFailed"),
                     java.util.Map.entry(rows, "ok"), java.util.Map.entry(scanColumns, "ok"))) {
-                // the walk evaluates the scan's let on the body's session (one SESSION statement to set it up) and
-                // routes the assert's side to the system session; the program has ONE target, the system database --
-                // the one difference M10a makes for a body (systemRoutedPrograms' store-free case): every outcome,
-                // verdict, answer and statement text the same
-                Run walked = run(backend, ctx, "x::RT", c.getKey(), false, "select count(*) from FIRM", FIRM_ROWS, mode);
-                Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS, mode);
-                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
-                assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
-                assertEquals(walked.answer, moved.answer, "the answer: " + c.getKey());
-                assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                assertEquals(walked.census, moved.census, "the verdict census: " + c.getKey());
-                assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + c.getKey());
-                assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + c.getKey());
-                long[] w = originsOf(walked.origins);
-                long[] m = originsOf(moved.origins);
-                for (int i = 0; i < w.length; i++) {
-                    long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
-                    assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
-                            + " the body session's setup: " + c.getKey() + "\n  walked: " + walked.statements
-                            + "\n  moved:  " + moved.statements);
-                }
-                List<String> walkedSql = new ArrayList<>(walked.statements);
-                walkedSql.removeIf(s -> s.startsWith("[session]"));
-                assertEquals(walkedSql, moved.statements, "the statements sent, the body session's setup aside: "
-                        + c.getKey());
+                // the program has ONE target, the system database (M10a; systemRoutedPrograms' store-free case)
+                Run moved = run(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
+                assertEquals(1, moved.moved, "the router moved the body: " + c.getKey());
             }
         }
     }
@@ -884,44 +850,18 @@ class BodyRouterParityTest {
                     java.util.Map.entry("{| let e = ^x::Key(k='c', v=3); x::assertSame($e, ^x::Key(k='c', v=4));}",
                             "ok"))) {
                 assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, c.getKey()), "x::RT", true), c.getKey());
-                Run walked = run(backend, ctx, "x::RT", c.getKey(), false, "select count(*) from FIRM", FIRM_ROWS, mode);
-                if (walked.outcome.startsWith("DialectCapability")) {
+                Run moved = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
+                        mode);
+                if (moved.outcome.startsWith("DialectCapability")) {
                     // a keyed instance's canon needs the dialect's struct and list encodings: a dialect without them
-                    // walls the pair on both roads alike (the walk's own answer, raised by the root loop at the flush).
-                    // Under the DATABASE judge the planning pass defers the row (nothing rendered: PLANNED, the family
-                    // counted), the segment's close finds no member the dialect spells (VerdictBatch.plan's split rung
-                    // catches the DialectCapability) and carries the segment as a step with no statement, whose root
-                    // loop raises the dialect's refusal at the member's place (2026-11-03, the database judge on par
-                    // with the host: until then close gave the body back to the walk, M8's note)
-                    Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS,
-                            mode);
-                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
-                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                    // either road carries the wall as a step's raise: the body moves under both judges
-                    assertEquals(walked.moved + 1, moved.moved, "the body's road under the wall: " + c.getKey());
+                    // walls the pair, raised by the root loop. Under the DATABASE judge the planning pass defers the row
+                    // (nothing rendered: PLANNED, the family counted), the segment's close finds no member the dialect
+                    // spells (VerdictBatch.plan's split rung catches the DialectCapability) and carries the segment as a
+                    // step with no statement, whose root loop raises the dialect's refusal at the member's place
+                    // (2026-11-03, the database judge on par with the host)
                     continue;
                 }
-                if (mode == ExecuteOptions.JudgeMode.DATABASE && c.getValue().equals("AssertFailed")) {
-                    // the walk's own quirk for a helper whose deferred verdict fails: prepareValue answers the inlined
-                    // assert's value (true) as the statement's value before the batch's flush judges it, where a
-                    // statement-root assert answers nothing on a failure -- the program road answers nothing, as for
-                    // every failing assert; every other boundary the same (the walk's deletion removes the quirk)
-                    Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS,
-                            mode);
-                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
-                    assertTrue(walked.outcome.startsWith("AssertFailed"), c.getKey() + " -> " + walked.outcome);
-                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                    assertEquals(walked.census, moved.census, "the verdict census: " + c.getKey());
-                    assertEquals(walked.origins, moved.origins, "the statement-origin census: " + c.getKey());
-                    assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + c.getKey());
-                    continue;
-                }
-                walked = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
-                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
-                if (backend.type().name().equals("DuckDB")) {
-                    assertTrue(walked.outcome.startsWith(c.getValue()), "DuckDB judges: " + c.getKey() + " -> "
-                            + walked.outcome);
-                }
+                assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
             }
         }
     }
@@ -965,22 +905,15 @@ class BodyRouterParityTest {
                     java.util.Map.entry("{| #TDS\nx\n1\n9\n#.rows->forAll(r| assert($r.getInteger('x') > 0,"
                             + " 'positive'));}", "ok"))) {
                 assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, c.getKey()), RT, true), c.getKey());
-                Run walked = run(backend, ctx, RT, c.getKey(), false, "select 1", List.of(), mode);
-                if (walked.outcome.startsWith("DialectCapability")) {
+                Run moved = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(), mode);
+                if (moved.outcome.startsWith("DialectCapability")) {
                     // the vector form's predicate vector unnests the collection: a dialect without an unnest placement
-                    // walls it on both roads alike (the walk's own answer). Either road carries the raise as a step
-                    // (moved): the host's at the assert's turn; the database judge's arm raises at planning as the
-                    // first root of its segment, which closes as a decided step whose root loop raises it (2026-11-03,
-                    // the database judge on par with the host: until then the body went back to the walk, M7's gap).
-                    // The outcome and the verdicts are the walk's.
-                    Run moved = run(backend, ctx, RT, c.getKey(), true, "select 1", List.of(), mode);
-                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
-                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
-                    assertEquals(walked.moved + 1, moved.moved, "the body's road under the wall: " + c.getKey());
+                    // walls it, the raise carried as a step (moved): the host's at the assert's turn; the database
+                    // judge's arm raises at planning as the first root of its segment, which closes as a decided step
+                    // whose root loop raises it (2026-11-03, the database judge on par with the host)
                     continue;
                 }
-                walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(), mode);
-                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+                assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
             }
         }
     }
@@ -1031,9 +964,9 @@ class BodyRouterParityTest {
                 assertEquals(expected, BodyClass.of(typed(ctx, body), "x::RT", true), body);
                 for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST,
                         ExecuteOptions.JudgeMode.DATABASE)) {
-                    Run walked = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
-                    assertEquals("ok", walked.outcome, body);
-                    assertEquals(0, originsOf(walked.origins)[StatementOrigin.SYSTEM.ordinal()],
+                    Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+                    assertEquals("ok", moved.outcome, body);
+                    assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
                             "nothing sent to the system session: " + body);
                 }
             }
@@ -1065,14 +998,10 @@ class BodyRouterParityTest {
                 + " assertEquals(['FIRM', 'TFIRM'], x::DB.schemas.tables.name->sort());"
                 + " assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}";
         assertMixedParity(backend, ctx, "x::RT", mixed, "select count(*) from FIRM", FIRM_ROWS);
-        Run walked = run(backend, ctx, "x::RT", mixed, false, "select count(*) from FIRM", FIRM_ROWS,
+        Run routed = run(backend, ctx, "x::RT", mixed, "select count(*) from FIRM", FIRM_ROWS,
                 ExecuteOptions.JudgeMode.DATABASE);
-        Run routed = run(backend, ctx, "x::RT", mixed, true, "select count(*) from FIRM", FIRM_ROWS,
-                ExecuteOptions.JudgeMode.DATABASE);
-        assertEquals(walked.moved + 1, routed.moved, "under the database judge the mixed body moves: " + mixed);
-        assertEquals(walked.outcome, routed.outcome, "outcome: " + mixed);
-        assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + mixed);
-        assertEquals("ok", walked.outcome, mixed);
+        assertEquals(1, routed.moved, "under the database judge the mixed body moves: " + mixed);
+        assertEquals("ok", routed.outcome, mixed);
     }
 
     /** M10c item 7c: the corpus's setup helper -- a seed form mapped over executeInDb, unfolded into the body by the
@@ -1088,9 +1017,9 @@ class BodyRouterParityTest {
                 + " assertEquals(['Cyl'], $result.values.rows.values);}";
         assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
         for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
-            Run walked = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
-            assertEquals("ok", walked.outcome, body);
-            assertEquals(0, originsOf(walked.origins)[StatementOrigin.SYSTEM.ordinal()],
+            Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", moved.outcome, body);
+            assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
                     "nothing sent to the system session: " + body);
         }
         // the data computed: the walk evaluates it as a statement; the program road refuses by name, so the body stays
@@ -1155,7 +1084,7 @@ class BodyRouterParityTest {
         // the graph's system database is opened and seeded ONCE per graph by whichever road first touches it (the
         // walk's route and the router's program share the one SystemDatabase): seeded here first, so neither run of a
         // pair carries the seeding's statements in its census -- a run-order fact, not a road difference
-        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM", FIRM_ROWS);
         for (String body : List.of(
                 "{| assertEquals('M', x::M.name);}",
                 "{| let m = x::M; assertEquals('M', $m.name); assertSize($m.classMappings, 2);}",
@@ -1175,21 +1104,9 @@ class BodyRouterParityTest {
         String storeFree = "{| assertEquals('ABC', 'abc'->toUpper()); assertEquals('M', x::M.name);}";
         assertTrue(BodyClass.systemRouted(typed(ctx, storeFree), "x::RT"));
         for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
-            Run walked = run(backend, ctx, "x::RT", storeFree, false, "select count(*) from FIRM", FIRM_ROWS, mode);
-            Run moved = run(backend, ctx, "x::RT", storeFree, true, "select count(*) from FIRM", FIRM_ROWS, mode);
-            assertEquals(walked.outcome, moved.outcome, "outcome: " + storeFree);
-            assertEquals(walked.answer, moved.answer, "the answer: " + storeFree);
-            assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + storeFree);
-            assertEquals(walked.census, moved.census, "the verdict census: " + storeFree);
-            assertEquals(walked.database, moved.database, "the database left: " + storeFree);
-            long[] w = originsOf(walked.origins);
-            long[] m = originsOf(moved.origins);
-            for (int i = 0; i < w.length; i++) {
-                long allowed = i == StatementOrigin.BODY.ordinal() || i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
-                assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
-                        + " the body session's setup and the per-session fusion: " + storeFree + "\n  walked: "
-                        + walked.statements + "\n  moved:  " + moved.statements);
-            }
+            Run moved = run(backend, ctx, "x::RT", storeFree, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", moved.outcome, "outcome: " + storeFree);
+            assertEquals(1, moved.moved, "the router moved the body: " + storeFree);
         }
         // a user store's read beside a system read, each in a statement of its own (per-statement routing,
         // 2026-11-03): the system statement on the graph's system database, the user's on the body's, one program --
@@ -1217,9 +1134,12 @@ class BodyRouterParityTest {
                 + " let d = meta::relational::testDataGeneration::getRelationalCSVDataFromQuery($query, $mapping);"
                 + " assertEquals(1, $d.tables->size()); assertEquals('FIRM', $d.tables->at(0).table);}";
         assertFalse(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "a binding consumed: " + censusBody);
-        assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier stays on the walk");
-        assertEquals("ok", run(backend, ctx, "x::RT", censusBody, false, "select count(*) from FIRM", FIRM_ROWS,
-                ExecuteOptions.JudgeMode.HOST).outcome, "the census body on the walk");
+        assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier: no class admits it");
+        // the test-data generator's census carrier was folded in Java by the walk; with the walk deleted (2026-11-06)
+        // the body is refused by name (lite offers no test-data generator yet: S143)
+        assertTrue(run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST).outcome.startsWith(
+                        "NotImplementedException: the program road does not plan this body"), "the census body refused");
     }
 
     /** M10b: the ENGINE-TEXT asserts on the program road -- the two texts a verdict step's constant sides, a byte-equal
@@ -1239,11 +1159,10 @@ class BodyRouterParityTest {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
-        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
-                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         assertTrue(ours.startsWith("select "), ours);
         String frameSql = text(run(backend, ctx, "x::RT", "{| let r = " + EXECUTE
-                + "; meta::relational::mapping::sqlRemoveFormatting($r);}", false, "select count(*) from FIRM",
+                + "; meta::relational::mapping::sqlRemoveFormatting($r);}", "select count(*) from FIRM",
                 FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
         assertTrue(frameSql.startsWith("select "), frameSql);
         // another spelling of the same query (the rows agree), and the same spelling over other rows
@@ -1266,9 +1185,9 @@ class BodyRouterParityTest {
                             + pure(ours) + "', " + producer + ");}",
                     "{| let r = " + EXECUTE + "; meta::relational::functions::asserts::assertSameSQL('"
                             + pure(frameSql) + "', $r);}")) {
-                Run walked = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS, mode);
-                assertEquals("ok", walked.outcome, "the text equal holds: " + equal);
-                assertEquals(0, originsOf(walked.origins)[oursLeg], "no rows leg for an equal text: " + equal);
+                Run moved = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertEquals("ok", moved.outcome, "the text equal holds: " + equal);
+                assertEquals(0, originsOf(moved.origins)[oursLeg], "no rows leg for an equal text: " + equal);
             }
             // the text differing, the rows agreeing: the appeal replays and the referee says MATCH -- the assert holds
             Run matched = assertParity(backend, ctx, "x::RT",
@@ -1332,8 +1251,11 @@ class BodyRouterParityTest {
         for (var c : List.of(java.util.Map.entry(inline, "$r.values->toOne()"),
                 java.util.Map.entry(letBound, "$r.values->toOne()"), java.util.Map.entry(filtered, "$r"),
                 java.util.Map.entry(qualified, "$r"))) {
-            String golden = text(run(backend, ctx, "x::RT", "{| " + c.getKey() + " " + c.getValue() + ";}", false,
-                    "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+            // the qualified frame's golden read off an assert's failure (the body answering the frame's value alone is
+            // not planned: a serialize leaf over a whole variable)
+            String golden = c.getKey() == qualified ? actualOf(backend, ctx, "x::RT", c.getKey(), c.getValue(), FIRM_ROWS)
+                    : text(run(backend, ctx, "x::RT", "{| " + c.getKey() + " " + c.getValue() + ";}",
+                            "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
             assertTrue(golden.contains(c.getKey() == qualified ? "Acme!" : "Acme"), "the value bound: " + golden);
             for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST,
                     ExecuteOptions.JudgeMode.DATABASE)) {
@@ -1346,20 +1268,15 @@ class BodyRouterParityTest {
             }
         }
         // two frames over ONE lambda with different pairs, each read: upstream reads each frame with its own binding;
-        // the walk's frames share one environment's query lets, so the earlier frame's readers read the later binding
-        // (`$r1` reads '?': the walk's defect) -- the walk's, by name, both roads alike (the item's audit F1)
+        // the walk's frames shared one environment's query lets (`$r1` read '?': the walk's defect, the item's audit
+        // F1) -- refused by name by the class rule, the walk that ran it deleted (2026-11-06)
         String twice = "let func = {s: String[1]|x::Firm.all()->" + tagged + "->from(x::M, x::RT.runtimeValue)};"
                 + " let r1 = meta::legend::executeLegendQuery($func, [pair('s', '!')],"
                 + " ^meta::pure::runtime::ExecutionContext(), []);"
                 + " let r2 = meta::legend::executeLegendQuery($func, [pair('s', '?')],"
                 + " ^meta::pure::runtime::ExecutionContext(), []);";
-        String g1 = text(run(backend, ctx, "x::RT", "{| " + twice + " $r1;}", false, "select count(*) from FIRM",
-                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
-        String g2 = text(run(backend, ctx, "x::RT", "{| " + twice + " $r2;}", false, "select count(*) from FIRM",
-                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
-        assertTrue(g1.contains("Acme?") && g2.contains("Acme?"), "the walk's shared binding: " + g1 + " / " + g2);
-        assertNull(BodyClass.of(typed(ctx, "{| " + twice + " assertEquals('" + pure(g1) + "', $r1);"
-                + " assertEquals('" + pure(g2) + "', $r2);}"), "x::RT", true), "the walk's, by the class rule");
+        assertNull(BodyClass.of(typed(ctx, "{| " + twice + " assertEquals('x', $r1); assertEquals('y', $r2);}"),
+                "x::RT", true), "refused by the class rule");
         // the PRODUCT's door: a query whose graph tree reads a let -- planned (an unbound variable before this item)
         typed(ctx, "{| let s = '!'; x::Firm.all()->" + tagged + ";}").plan("x::RT");
     }
@@ -1387,7 +1304,7 @@ class BodyRouterParityTest {
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     ExecuteOptions.JudgeMode.DATABASE);
         }
-        Run held = run(backend, ctx, "x::RT", "{| " + seeded + " assertSize($r.values.rows, 3);}", true,
+        Run held = run(backend, ctx, "x::RT", "{| " + seeded + " assertSize($r.values.rows, 3);}",
                 "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
         assertEquals("ok", held.outcome, "the frame reads the seeded rows: " + held.statements);
         String rtd = "let runtime = x::testRuntime(); let cs = $runtime.connectionStores->at(0);"
@@ -1427,11 +1344,10 @@ class BodyRouterParityTest {
 
     private void systemRoutedEngineTextProgramsBody(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM", FIRM_ROWS);
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
-        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
-                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         String equal = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours) + "', " + producer + ");}";
         String appealed = "{| assertEquals('M', x::M.name); assertEquals('"
                 + pure("SELECT" + ours.substring("select".length())) + "', " + producer + ");}";
@@ -1443,7 +1359,7 @@ class BodyRouterParityTest {
                 + " ['name']), x::M, x::RT.runtimeValue, []);";
         String nav = "$p.rootExecutionNode.executionNodes->at(0)->cast(@meta::relational::mapping::SQLExecutionNode)"
                 + ".sqlQuery->toOne()";
-        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}", false,
+        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}",
                 "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
         String deferred = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('" + pure(planSql) + "', "
                 + nav + ");}";
@@ -1456,40 +1372,19 @@ class BodyRouterParityTest {
                 java.util.Map.entry(deferredAppealed, "ok"), java.util.Map.entry(deferredDiverged, "AssertFailed"))) {
             String body = c.getKey();
             assertTrue(BodyClass.systemRouted(typed(ctx, body), "x::RT"), "system-routed: " + body);
-            Run walked = run(backend, ctx, "x::RT", body, false, "select count(*) from FIRM", FIRM_ROWS,
+            Run moved = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     ExecuteOptions.JudgeMode.HOST);
-            Run moved = run(backend, ctx, "x::RT", body, true, "select count(*) from FIRM", FIRM_ROWS,
-                    ExecuteOptions.JudgeMode.HOST);
-            assertTrue(walked.outcome.startsWith(c.getValue()), body + " -> " + walked.outcome);
-            assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
-            assertEquals(walked.answer, moved.answer, "the answer: " + body);
-            assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + body);
-            assertEquals(walked.census, moved.census, "the verdict census: " + body);
-            assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
-            assertEquals(walked.database, moved.database, "the database left: " + body);
-            assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
-            long[] w = originsOf(walked.origins);
-            long[] m = originsOf(moved.origins);
-            for (int i = 0; i < w.length; i++) {
-                long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
-                assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
-                        + " the body session's setup: " + body + "\n  walked: " + walked.statements
-                        + "\n  moved:  " + moved.statements);
-            }
-            List<String> walkedSql = new ArrayList<>(walked.statements);
-            walkedSql.removeIf(st -> st.startsWith("[session]"));
-            List<String> movedSql = new ArrayList<>(moved.statements);
-            movedSql.removeIf(st -> st.startsWith("[session]"));
-            assertEquals(walkedSql, movedSql, "the statements sent, the body session's setup aside: " + body);
+            assertTrue(moved.outcome.startsWith(c.getValue()), body + " -> " + moved.outcome);
+            assertEquals(1, moved.moved, "the router moved the body: " + body);
         }
         for (String a : List.of(appealed, deferredAppealed)) {
-            Run matched = run(backend, ctx, "x::RT", a, true, "select count(*) from FIRM", FIRM_ROWS,
+            Run matched = run(backend, ctx, "x::RT", a, "select count(*) from FIRM", FIRM_ROWS,
                     ExecuteOptions.JudgeMode.HOST);
             assertTrue(matched.verdicts.toString().contains("refereed MATCH"), matched.verdicts.toString());
             assertTrue(originsOf(matched.origins)[StatementOrigin.REFEREE_OURS.ordinal()] >= 1,
                     "the rows leg read the user's table: " + matched.statements);
         }
-        Run failed = run(backend, ctx, "x::RT", deferredDiverged, true, "select count(*) from FIRM", FIRM_ROWS,
+        Run failed = run(backend, ctx, "x::RT", deferredDiverged, "select count(*) from FIRM", FIRM_ROWS,
                 ExecuteOptions.JudgeMode.HOST);
         assertTrue(failed.outcome.contains("diverged"), "the appeal fails with the arm's message: " + failed.outcome);
     }
@@ -1512,13 +1407,12 @@ class BodyRouterParityTest {
                 + " ['name']), x::M, x::RT.runtimeValue, []);";
         String nav = "$p.rootExecutionNode.executionNodes->at(0)->cast(@meta::relational::mapping::SQLExecutionNode)"
                 + ".sqlQuery->toOne()";
-        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}", false,
+        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}",
                 "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
         assertTrue(planSql.startsWith("select "), planSql);
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
-        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
-                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         String replaced = ours.replace("\"root\"", "\"r\"");
         assertTrue(!ours.equals(replaced), ours);
         String replace = "->replace('\"root\"', '\"r\"')";
@@ -1532,9 +1426,9 @@ class BodyRouterParityTest {
                 "{| assertEquals('" + pure(replaced) + "', " + producer + replace + ");}",
                 "{| meta::relational::functions::asserts::assertSameSQL('" + pure(replaced) + "', " + producer
                         + replace + ");}")) {
-            Run walked = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS,
+            Run moved = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS,
                     ExecuteOptions.JudgeMode.HOST);
-            assertEquals("ok", walked.outcome, "the text equal holds: " + equal);
+            assertEquals("ok", moved.outcome, "the text equal holds: " + equal);
         }
         // our text's one statement runs under the origin the arm marks (REFEREE_OURS in the toSQLString arm): the
         // census agrees because the step is sent under that mark
@@ -1591,51 +1485,84 @@ class BodyRouterParityTest {
     }
 
     /** {@code body}, an engine-text assert whose OUR text is a side the plan reads, under the database judge
-     *  (2026-11-04, the core program): the walk reads our text by its own statement under the arm's mark and then sends
-     *  the verdict; the program computes it inside the verdict row. Everything the parity test observes is the walk's
-     *  but those statements: the program sends the walk's statements less the one {@code REFEREE_OURS} read. */
+     *  (2026-11-04, the core program): the program computes our text inside the verdict row (the walk read it by a
+     *  statement of its own under the arm's mark, one statement more, until the walk was deleted, 2026-11-06). */
     private static void assertParityTextInRow(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup) throws Exception {
-        ExecuteOptions.JudgeMode mode = ExecuteOptions.JudgeMode.DATABASE;
-        assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true), "a moved class's: " + body);
-        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
-        Run moved = run(backend, ctx, runtime, body, true, check, setup, mode);
-        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
-        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
-        assertEquals(walked.answer, moved.answer, "the answer: " + body);
-        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
-        assertEquals(walked.database, moved.database, "the database left: " + body);
-        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body);
-        assertEquals(walked.census, moved.census, "the verdict census: " + body);
-        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
-        long[] w = originsOf(walked.origins);
-        long[] m = originsOf(moved.origins);
-        w[StatementOrigin.REFEREE_OURS.ordinal()]--;
-        assertArrayEquals(w, m, "the statement-origin census, less the walk's read of our text: " + body
-                + "\n  walked: " + walked.statements + "\n  moved:  " + moved.statements);
-        assertEquals(walked.statements.size() - 1, moved.statements.size(), "one statement fewer: " + body);
+        assertParity(backend, ctx, runtime, body, check, setup, ExecuteOptions.JudgeMode.DATABASE);
     }
 
-    /** {@code body} is a moved class's, yet the router leaves it to the walk by a named rule of its judge's planner:
-     *  the two runs are the walk's twice, alike in everything, and the router moved nothing. */
+    /** {@code body} is a moved class's, yet its judge's planner refuses it by a named rule: the router refuses the body
+     *  by name at planning and sends nothing (it walked until the walk was deleted, 2026-11-06). */
     private static void assertWalkedAlike(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         assertNotNull(BodyClass.of(typed(ctx, body), runtime, true), "the body is a moved class's: " + body);
-        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
-        Run routed = run(backend, ctx, runtime, body, true, check, setup, mode);
-        assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
-        assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
-        assertEquals(walked.census, routed.census, "the verdict census: " + body);
-        assertEquals(walked.origins, routed.origins, "the statement-origin census: " + body);
-        // nothing sent while the router planned and refused: the statements are the walk's, in its order
-        assertEquals(stampsAsParameters(walked.statements), stampsAsParameters(routed.statements),
-                "the statements sent: " + body);
-        assertEquals(walked.moved, routed.moved, "the router walked the body: " + body);
+        Run routed = run(backend, ctx, runtime, body, check, setup, mode);
+        assertTrue(routed.outcome.startsWith("NotImplementedException: the program road does not plan this body"),
+                "refused by name: " + body + " -> " + routed.outcome);
+        assertEquals(0, routed.moved, "the router moved nothing: " + body);
+        assertEquals(List.of(), routed.statements, "nothing sent while the router planned and refused: " + body);
     }
 
     /** A text as a Pure string literal's body. */
     private static String pure(String text) {
         return text.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    /** The one text {@code query} answers through the PRODUCT's query door ({@link Execution#run}: what a service
+     *  serves), on a fresh database the harness first sends {@code setup} to -- a golden the walk read off a body
+     *  answering the query alone until the walk was deleted (2026-11-06; the router refuses a value through a class's
+     *  extent as a body's answer: BodyClass.answered). */
+    private static String productText(TestBackend backend, ModelContext ctx, String runtime, String query,
+            List<String> setup) throws Exception {
+        try (Connection c = backend.open()) {
+            try (Statement st = c.createStatement()) {
+                for (String sql : setup) {
+                    st.execute(sql);
+                }
+            }
+            Capture capture = new Capture();
+            Sessions.Session session = Sessions.borrowed(c);
+            Execution.run(typed(ctx, query), runtime, Execution.Source.given(session),
+                    com.legend.exec.PlanSessions.of(session), Execution.Establish.AS_GIVEN,
+                    p -> capture.of(p.answerShape()));
+            return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), ""));
+        }
+    }
+
+    /** The text {@code expr} evaluates to after {@code lets} on the program road, read off the failure of an assert
+     *  that cannot hold ({@code assertEquals}'s {@code actual:} line, its representation unescaped): a golden the walk
+     *  read off a body answering {@code expr} alone until it was deleted (2026-11-06), where neither the router nor the
+     *  product's door answers that value as a body's answer. */
+    private static String actualOf(TestBackend backend, ModelContext ctx, String runtime, String lets, String expr,
+            List<String> setup) throws Exception {
+        Run run = run(backend, ctx, runtime, "{| " + lets + " assertEquals('no such text', " + expr + ");}",
+                "select count(*) from FIRM", setup, ExecuteOptions.JudgeMode.HOST);
+        String marker = "\nactual:   ";
+        int from = run.outcome.lastIndexOf(marker);
+        assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
+                + run.outcome);
+        String shown = run.outcome.substring(from + marker.length());
+        if (shown.startsWith("[") && shown.endsWith("]")) {
+            shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
+        }
+        assertTrue(shown.length() >= 2 && shown.startsWith("'") && shown.endsWith("'"), "one text: " + shown);
+        StringBuilder text = new StringBuilder();
+        for (int i = 1; i < shown.length() - 1; i++) {
+            char ch = shown.charAt(i);
+            if (ch == '\\' && i + 1 < shown.length() - 1) {
+                char next = shown.charAt(++i);
+                text.append(switch (next) {
+                    case 'n' -> '\n';
+                    case 't' -> '\t';
+                    case 'r' -> '\r';
+                    default -> next;
+                });
+            } else {
+                text.append(ch);
+            }
+        }
+        return text.toString();
     }
 
     /** The one text a body answered, read off the capture's rendering ({@code ... row[<text>] end}). */
@@ -1660,12 +1587,9 @@ class BodyRouterParityTest {
                 + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
                 + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".comment->toOne()->length());}";
-        assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
-        Run walked = run(backend, ctx, "x::RT", body, false, "select count(*) from FIRM", FIRM_ROWS);
-        Run moved = run(backend, ctx, "x::RT", body, true, "select count(*) from FIRM", FIRM_ROWS);
-        assertEquals("ok", walked.outcome);
-        assertTrue(walked.statements.stream().anyMatch(s -> STAMP_LITERAL.matcher(s).find()),
-                "the walk's side spells the run's comment: " + walked.statements);
+        Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST);
+        assertEquals("ok", moved.outcome);
         assertFalse(moved.statements.stream().anyMatch(s -> STAMP_LITERAL.matcher(s).find()),
                 "the moved side binds the comment, never spelling it: " + moved.statements);
     }
@@ -1685,19 +1609,12 @@ class BodyRouterParityTest {
                 "{| [1, 2]->map(i| [3]->map(j| assertEquals($i, $i))); true;}")) {
             ModelContext ctx = Compiler.compileModel(model(backend, false));
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
-            Run walked = run(backend, ctx, body, false, "select 1");
-            Run routed = run(backend, ctx, body, true, "select 1");
-            // MOVED 2026-11-04 (the core program): each runs on the program road with the walk's outcome and verdicts
-            // -- the nested quantification unrolled recursively by the host's planner; an assert no arm plans raises at
-            // its turn the error the walk's generic path raises lowering it (HostAsserts: NoRule's "not as a scalar").
-            // The census differs by construction there (the walk enters the arm and falls through; the program road
-            // raises at planning): pinned as the program road's own, not the walk's
-            assertEquals(walked.moved + 1, routed.moved, "the router left the body on the walk: " + body);
-            assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
-            assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
-            if (walked.outcome.equals("ok")) {
-                assertEquals(walked.census, routed.census, "the verdict census: " + body);
-            } else {
+            Run routed = run(backend, ctx, body, "select 1");
+            // MOVED 2026-11-04 (the core program): each runs on the program road -- the nested quantification unrolled
+            // recursively by the host's planner; an assert no arm plans raises at its turn (HostAsserts: NoRule's "not
+            // as a scalar"), counted as a planned raise
+            assertEquals(1, routed.moved, "the router moved the body: " + body);
+            if (!routed.outcome.equals("ok")) {
                 assertEquals("{not-attempted (pre-arm) raised=1}", routed.census,
                         "the program road's census of a planned raise: " + body);
             }
@@ -1740,86 +1657,40 @@ class BodyRouterParityTest {
         assertParity(backend, ctx, runtime, body, check, setup, ExecuteOptions.JudgeMode.HOST);
     }
 
-    /** {@code body} (a moved class's under {@code mode}'s judge) run on the walk and on the router, each on a fresh
-     *  database: every boundary observed the same. */
+    /** {@code body} (a moved class's under {@code mode}'s judge) run by the router on a fresh database: planned whole
+     *  and run as one plan. Until 2026-11-06 it ran on the walk too, every boundary compared; the walk is deleted. */
     private static Run assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
             List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
-        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
-        Run moved = run(backend, ctx, runtime, body, true, check, setup, mode);
-        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
-        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
-        assertEquals(walked.answer, moved.answer, "the answer: " + body);
-        assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body + "\n  walked: "
-                + walked.statements + "\n  moved:  " + moved.statements);
-        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
-        assertEquals(walked.database, moved.database, "the database left: " + body);
-        assertEquals(stampsAsParameters(walked.statements), stampsAsParameters(moved.statements),
-                "the statements sent (origin and text, in order; a frame's trace stamp as the plan binds it): " + body);
-        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body + " (" + walked.outcome
-                + ")");
-        assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
-        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
-        return walked;
+        Run moved = run(backend, ctx, runtime, body, check, setup, mode);
+        assertEquals(1, moved.moved, "the router moved the body: " + body);
+        return moved;
     }
 
     /** {@code body}, a MIXED body (a statement on the graph's system database beside the body's own: per-statement
-     *  routing, 2026-11-03), run on the walk and on the router: every boundary observed the same but WHEN the body
-     *  session's own statements run -- the walk sends them before its first statement on that session, the program
-     *  when it opens the session (one SESSION statement, its place in the order). The system database is seeded first,
-     *  so neither run carries its once-per-graph seed. */
+     *  routing, 2026-11-03), run by the router: planned whole and run as one plan. The system database is seeded
+     *  first, so the run carries no once-per-graph seed. (It ran on the walk too until the walk was deleted,
+     *  2026-11-06.) */
     private static void assertMixedParity(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup) throws Exception {
-        run(backend, ctx, runtime, "{| assertEquals('M', x::M.name);}", false, check, setup);
-        assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true), "a moved class's: " + body);
-        Run walked = run(backend, ctx, runtime, body, false, check, setup, ExecuteOptions.JudgeMode.HOST);
-        Run moved = run(backend, ctx, runtime, body, true, check, setup, ExecuteOptions.JudgeMode.HOST);
-        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
-        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
-        assertEquals(walked.answer, moved.answer, "the answer: " + body);
-        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
-        assertEquals(walked.database, moved.database, "the database left: " + body);
-        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body);
-        assertEquals(walked.census, moved.census, "the verdict census: " + body);
-        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
-        java.util.function.Function<List<String>, List<String>> noSession = l -> stampsAsParameters(l).stream()
-                .filter(t -> !t.startsWith("[session]")).toList();
-        assertEquals(noSession.apply(walked.statements), noSession.apply(moved.statements),
-                "the statements sent but the body session's own: " + body);
-        long[] w = originsOf(walked.origins);
-        long[] m = originsOf(moved.origins);
-        for (int i = 0; i < w.length; i++) {
-            long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
-            assertTrue(Math.abs(w[i] - m[i]) <= allowed, "the statement-origin census differs beyond the body"
-                    + " session's own statement: " + body + "\n  walked: " + walked.origins + "\n  moved:  "
-                    + moved.origins);
-        }
+        run(backend, ctx, runtime, "{| assertEquals('M', x::M.name);}", check, setup);
+        assertParity(backend, ctx, runtime, body, check, setup, ExecuteOptions.JudgeMode.HOST);
     }
 
-    /** The walk's spelling of a frame's trace stamp (the run's comment, a literal in the activity rows it registered
-     *  after the run) replaced by {@code <stamp>}, and the plan's (the parameter the run's check step binds, R17 C4;
-     *  M9c) likewise: the one designed difference in a side reading a frame's activities. */
+    /** A frame's trace stamp spelled as a literal (the run's comment, as the walk spelled it in the activity rows it
+     *  registered after the run): the program binds the stamp as a parameter the run's check step binds (R17 C4; M9c)
+     *  and never spells it. */
     private static final java.util.regex.Pattern STAMP_LITERAL =
             java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
-    private static final java.util.regex.Pattern STAMP_PARAMETER =
-            java.util.regex.Pattern.compile("CAST\\(\\? AS VARCHAR\\)|\\?");
-
-    private static List<String> stampsAsParameters(List<String> statements) {
-        List<String> out = new ArrayList<>(statements.size());
-        for (String s : statements) {
-            out.add(STAMP_PARAMETER.matcher(STAMP_LITERAL.matcher(s).replaceAll("<stamp>")).replaceAll("<stamp>"));
-        }
-        return out;
-    }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
             String database, long moved, List<String> statements, List<String> verdicts, String census) {
     }
 
-    private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
+    private static Run run(TestBackend backend, ModelContext ctx, String body, String check)
             throws Exception {
-        return run(backend, ctx, RT, body, router, check, List.of());
+        return run(backend, ctx, RT, body, check, List.of());
     }
 
     /** The statement-origin deltas a {@link Run} printed ({@code Arrays.toString}), as numbers again. */
@@ -1832,12 +1703,12 @@ class BodyRouterParityTest {
         return out;
     }
 
-    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
+    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup) throws Exception {
-        return run(backend, ctx, runtime, body, router, check, setup, ExecuteOptions.JudgeMode.HOST);
+        return run(backend, ctx, runtime, body, check, setup, ExecuteOptions.JudgeMode.HOST);
     }
 
-    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
+    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         try (Connection c = backend.open()) {
             try (Statement st = c.createStatement()) {
@@ -1882,25 +1753,8 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
-                if (router) {
-                    Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
-                            capture::of);
-                } else {
-                    // this test compares the walk with the program road on purpose: it opens the walk's door for its
-                    // own call alone (the door checks itself since 2026-11-05)
-                    String door = System.getProperty("legend.walk.allowed");
-                    System.setProperty("legend.walk.allowed", "all");
-                    try {
-                        BodyDriver.execute(unreadAsStatements(q), runtime, backend.dialect(),
-                                session, listener, referee, options, capture::of);
-                    } finally {
-                        if (door == null) {
-                            System.clearProperty("legend.walk.allowed");
-                        } else {
-                            System.setProperty("legend.walk.allowed", door);
-                        }
-                    }
-                }
+                Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
+                        capture::of);
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
             }

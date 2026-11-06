@@ -87,11 +87,11 @@ class CodeShapeGuardrailTest {
             "VerdictBatch.rejected",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
-            "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
+            "PureV1Writer.firstObject",
             "ProgramFrames.ownStamp", "BodyRouter.opened",
             // (2026-11-01, the test-is-the-product plan's M6) the body router's last judged verdict: one moved body's
             // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
-            // answers it (the walk's Segments.last, beside it above, until M10 deletes both)
+            // answers it (the walk's Segments.last beside it until the walk was deleted, 2026-11-06)
             "BodyRouter.lastVerdict",
             // (2026-11-04, the assert bar) the body router's reader: the running program's, handed by the runner before
             // its first step and taken back when its session closes (PlanRunner.ProgramSink#reader) -- one moved body's
@@ -142,15 +142,6 @@ class CodeShapeGuardrailTest {
             // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
             // driver's nested Established.dirty before, moved to the seam
             "SessionState.dirty",
-            // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
-            // the open effect segment — its sink and the ordinals of the body's
-            // statements it spans — and whether the last statement was a value;
-            // each is replaced whole when the compiler closes the segment. Same
-            // lifecycle as one body's compile; nothing outlives it
-            "BodyCompiler.sink",
-            "BodyCompiler.effectFrom",
-            "BodyCompiler.effectTo",
-            "BodyCompiler.lastIsValue",
             "EngineStyleH2.frameDepth",
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth

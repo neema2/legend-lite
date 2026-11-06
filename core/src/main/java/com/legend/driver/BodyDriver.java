@@ -38,44 +38,6 @@ public final class BodyDriver {
     private BodyDriver() {
     }
 
-    /** The G½→H→I→J→K back half over a query TYPED ONCE ({@link TypedQuery}: its statements typed as a query body,
-     * by the spec compiler the driver then compiles every helper through), on {@code session} -- the one entry for a
-     * program hands it here through the body router when no moved class holds it ({@link Execution#runProgram},
-     * {@link BodyRouter}; track B's B2, 2026-10-29: until then the driver typed the resolved AST itself for each of
-     * three entries). {@code assertListener} observes every statement-root assert
-     * verdict (the runner's scoring seam — judging stays here, in one place); {@code replayReferee} is the registered
-     * SQL-replay referee (SQLTEXT charter §2 — same registration seam, same nullable carriage; production passes
-     * neither); the execute OPTIONS ride the environment and the result — no static slot. {@code answer}, when
-     * given, takes the body's last statement's answer as a stream ({@link Execution.Answer}: the doors, 2026-10-29;
-     * until then the last side came back materialized); the driver returns nothing. */
-    public static void execute(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            com.legend.exec.Sessions.Session session,
-            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
-            ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
-        // the walk's door checks itself (the deep audit, 2026-11-05): no caller reaches the walk past a closed door,
-        // the router's own check (with its reason) only the first
-        WalkDoor.check("the walk entered");
-        SpecCompiler specs = typed.specs();
-        java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
-        ExecEnv env = bodyEnv(typed, runtimeFqn, dialect, session, assertListener, replayReferee, options);
-        // a program that writes a store table runs in ONE transaction (docs/WRITES_DESIGN_2026_10_18.md §4): its
-        // writes all land or none do; a caller's open transaction is joined, not committed. So does one that stages
-        // rows: its staged tables are the transaction's (SqlDml.CreateTempTableAs.staged)
-        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-        if (typedBody.stream().anyMatch(s -> com.legend.resolver.StagedRows.rowsOf(s) != null
-                || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
-            com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
-            ExecEnv tx = env;
-            tx.session().inTransaction(() -> BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs,
-                    tx, answer));
-            return;
-        }
-        BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
-    }
-
     /** A body's environment at its start, as the walk makes it: the execution OPTIONS (the per-call ones ride each
      *  execute call's own from -- the engine's exeCtx overload binds them onto its bound context; the caller's ride
      *  the environment), the listeners, the query's protocol statements. The body router plans an assert program's
@@ -182,12 +144,6 @@ public final class BodyDriver {
             return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, b, effectSink, engineText,
                     failureMessage, appealOn);
         }
-        /** Block-compiler stage 3: the effect natives' sends land in this sink (an
-         * effect segment under construction) instead of the connection. */
-        ExecEnv withEffectSink(com.legend.exec.@com.legend.base.Nullable EffectSink sink) {
-            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, sink,
-                    engineText, failureMessage, appealOn);
-        }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()), session, assertListener, replayReferee, o, trace,
@@ -260,66 +216,12 @@ public final class BodyDriver {
         }
     }
 
-    /**
-     * A BODY — lets and one result expression, or a sequence with effects (corpus
-     * setup functions: {@code executeInDb} statements) — compiles to ONE artifact
-     * ({@link BodyCompiler}): frames, verdict rows, scripts, prepared values, the
-     * fragment map. A statement-position call to an effectful function expands as a
-     * statement sequence in a FRESH call frame (parameters bound as lets; closed
-     * bodies make frames capture-proof — no &alpha;-renaming needed). Value
-     * evaluation still ALWAYS lowers to SQL; only the sequencing lives host-side.
-     */
-    static @com.legend.base.Nullable TypedSide executeStatements(
-            java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
-            SpecCompiler specs, ExecEnv env0) {
-        // THE BLOCK COMPILER (stages 1–4, 2026-09-22): every body is walked ONCE by the
-        // segment walk — verdict segments (deferred rows under the database judge; the
-        // host arm judges at once, it has no batch), effect segments as scripts, values
-        // prepared at compile and run at the segment's close. The statement-by-statement
-        // loop that preceded it is deleted (stage 4); a body no arm claims walls loudly.
-        return BodyCompiler.execute(stmts, letPrefix, specs, env0);
-    }
-
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.judge.VerdictBatch newVerdictBatch(ExecEnv env) {
         return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch,
                 com.legend.lowering.VerdictSql::either, com.legend.lowering.VerdictSql::selfContained, DatabaseJudge::verdictOf, JudgePlans.runner(env),
                 env.trace());
-    }
-
-    /** A statement at VALUE position, PREPARED — the compile phases only (helper
-     * inlining, native staging, the inlined root's re-classification, store
-     * resolution, the cross-store wall) with nothing run (block-compiler stage 2,
-     * 2026-09-21: the loop and the compiler share this ONE preparation; the loop
-     * runs it at once, the compiler at the artifact's run). Exactly one of
-     * {@code verdict} (an inlined assert root, already adjudicated into the
-     * batch), {@code contextOwner} (assertError's arm), {@code forcedFrame}
-     * (execute at value position: the eager frame run IS the value) or the
-     * resolved {@code body} decides the run. */
-    record PreparedValue(java.util.List<TypedSpec> body, ExecEnv env,
-            java.util.List<TypedSpec> lets,
-            @com.legend.base.Nullable TypedSide verdict,
-            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
-            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame,
-            /** the session's temporary table a staged let's rows are computed into (Pure.Lite.STAGE), null for
-             *  any other value */
-            @com.legend.base.Nullable String stagedInto) {
-        PreparedValue(java.util.List<TypedSpec> body, ExecEnv env, java.util.List<TypedSpec> lets,
-                @com.legend.base.Nullable TypedSide verdict,
-                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
-                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
-            this(body, env, lets, verdict, contextOwner, forcedFrame, null);
-        }
-
-        /** This relation's rows, run into the session's temporary table {@code table}. */
-        PreparedValue stagedInto(String table) {
-            if (verdict != null || contextOwner != null || forcedFrame != null) {
-                throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement that is not a"
-                        + " query of the database");
-            }
-            return new PreparedValue(body, env, lets, null, null, null, table);
-        }
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members
@@ -419,120 +321,6 @@ public final class BodyDriver {
         return isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
                 com.legend.compiler.spec.typed.TypedNativeCall nc && assertsPackageNative(nc)
                 && com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).isPresent() ? preRoot : null;
-    }
-
-    static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
-            java.util.List<TypedSpec> letPrefix, java.util.Map<String, ExecFrame> execFrames,
-            SpecCompiler specs, ExecEnv env) {
-        java.util.List<TypedSpec> lets = new java.util.ArrayList<>(letPrefix);
-        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
-        single.add(stmt);
-        var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
-                spliceHook(execFrames, letPrefix, specs, env));
-        java.util.List<TypedSpec> body = new java.util.ArrayList<>(
-                stmtInliner.inlineBody(single));                      // Phase G½
-        env.queryLets().putAll(stmtInliner.queryLets());
-        final java.util.List<TypedSpec> stageEnv = body;
-        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, com.legend.planner.EnginePlans.nativeRoutines(specs, env.plan())));
-
-        TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
-        while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
-            preRoot = pf.source();
-        }
-        preRoot = foldPairProjection(preRoot);
-        // a helper call that β-reduced to an ASSERT-family root (the
-        // corpus's runLegendTest(f, vars, expected) wrappers: lets +
-        // one assert): the verdict is World 1's exactly as for a
-        // statement-root assert — adjudicate the inlined root
-        // — scoped to the STRING ENTRY's reads (a TypedJsonResult /
-        // TypedJsonAccess in the inlined statement): every other
-        // helper-wrapped assert keeps its existing route (the SQL-text
-        // arms adjudicate those downstream; adjudicating them here as
-        // plain equality regressed ~200 text-golden flips, 2026-09-03)
-        // — and to an assert over CLASS VALUES (toPostgresModel's
-        // assertConversion(expected:Node, input): assertEquals of two
-        // constructed instances — the struct verdict of batch 53; no
-        // SQL-text arm can judge a struct, so nothing downstream is
-        // displaced)
-        if (isHelperAssertRoot(bare, preRoot)) {
-            TypedSide inlinedVerdict = AssertVerdicts.tryAdjudicate(
-                    preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
-                    spliceHook(execFrames, letPrefix, specs, env));
-            if (inlinedVerdict != null) {
-                return new PreparedValue(body, env, lets, inlinedVerdict, null, null);
-            }
-        }
-        // $plan.processingTemplateFunctions — the ExecutionPlan class
-        // property (executionPlan.pure:67): every relational node
-        // carries relationalPlanSupportFunctions(connection), deduped
-        // plan-wide (executionPlan_generation.pure:215)
-        // CATALOG DISPATCH at the statement's value position (§4AG
-        // — ladder migration #22, zero function-name if-checks):
-        // CONTEXT_OWNER rows run their registered ARM (assertError:
-        // f's body runs in the database under the arm's catch);
-        // HANDLE rows run their registered FORCE (execute: the eager
-        // frame run IS the value); everything the plan reader can
-        // answer ($plan navigation — the engine's own plan API,
-        // evaluated over the PLAN NODE MODEL) returns its value.
-        if (preRoot instanceof com.legend.compiler.spec.typed
-                        .TypedNativeCall cat) {
-            if (com.legend.builtin.NativeFn.ContextOwner.of(cat.callee().id()).isPresent()) {
-                return new PreparedValue(body, env, lets, null, cat, null);
-            }
-            if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(cat.callee().id())) {
-                return new PreparedValue(body, env, lets, null, null, cat);
-            }
-        }
-        com.legend.resolver.StoreResolver resolver =
-                com.legend.planner.BodyPlanner.resolver(specs, env.plan());
-        body = com.legend.planner.BodyPlanner.resolvedToExecute(resolver, body, env.plan());              // Phase H
-        // the statement's env is widened LAST, after resolution — the loop's own order
-        // (computing it before resolution changed a lowering: an order dependence
-        // in the shared state the inliner touches, measured 2026-09-21, owed)
-        return new PreparedValue(body, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
-                lets, null, null, null);
-    }
-
-    /** The body's LAST value statement answered to the caller's sink (the doors, 2026-10-29): a planned statement
-     *  streams through the plan runner as the service's answer would ({@link JudgePlans#streamResult}); a side the
-     *  driver computes (a staged let's rows, an adjudicated verdict, assertError's, a frame's) is written as host
-     *  rows ({@link JudgePlans#host}). Nothing materialized is handed back. */
-    static void answerValue(PreparedValue pv, SpecCompiler specs, Execution.Answer answer) {
-        if (pv.stagedInto() != null || pv.verdict() != null || pv.contextOwner() != null
-                || pv.forcedFrame() != null) {
-            TypedSide side = runValue(pv, specs, new java.util.ArrayDeque<>());
-            if (side != null) {
-                JudgePlans.host(side, answer);
-            }
-            return;
-        }
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
-                com.legend.exec.StatementOrigin.STATEMENT)) {
-            executeTyped(pv.body(), pv.env(), false, answer);
-        }
-    }
-
-    /** Run a prepared value statement: the run phase only. */
-    static @com.legend.base.Nullable TypedSide runValue(PreparedValue pv, SpecCompiler specs,
-            java.util.Deque<String> frames) {
-        if (pv.stagedInto() != null) {
-            return stageRows(pv.body(), java.util.Objects.requireNonNull(pv.stagedInto()), pv.env());
-        }
-        TypedSide verdict = pv.verdict();
-        if (verdict != null) {
-            return verdict;
-        }
-        if (pv.contextOwner() != null) {
-            return AssertErrorNative.run(pv.contextOwner(), pv.lets(), specs, pv.env(), frames);
-        }
-        if (pv.forcedFrame() != null) {
-            return buildFrame(pv.forcedFrame(), pv.lets(), true, true, specs, pv.env(), null).result();
-        }
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
-                com.legend.exec.StatementOrigin.STATEMENT)) {
-            return executeTyped(pv.body(), pv.env());
-        }
     }
 
     /** The statement's env widened with the tableReplace maps of every
@@ -845,36 +633,6 @@ public final class BodyDriver {
      * harness semantics). {@code fromChain} carries the unwrapped
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
-    /** A statement's execution contexts are ESTABLISHED before it runs:
-     * every from() under it seeds its connection's inline test data (the
-     * engine runs a LocalH2 connection's testDataSetupSqls when it opens
-     * the connection, before the query) — once, here, for every route the
-     * statement then takes (frames, plan text, verdict sides). */
-    static void establishContexts(TypedSpec statement, ExecEnv env) {
-        // ONCE PER SESSION, keyed by the seed's SOURCES (com.legend.testplan.Seeds, their one owner since the
-        // test-is-the-product plan's M3e: the test door's program plans them as Setup steps): a session that already
-        // established exactly these sources, and has run no WRITING statement since, is in the established state
-        com.legend.testplan.Seeds.Sources key = com.legend.testplan.Seeds.sources(statement, env.runtimeFqn(),
-                env.ctx());
-        if (key.namesNothing()) {
-            return;   // nothing names test data
-        }
-        com.legend.exec.SessionState state = env.session().state();
-        if (state.established(key)) {
-            return;
-        }
-        // the seeds as the plan side's setup steps (CsvSeed.planned: the one owner of their form, the plan's target
-        // takes the same), run by the plan runner on the body's session under the SEED origin, each recorded for the
-        // referee's ledger as it was asked (the doors, 2026-10-29; until then SetupRunner sent them on the session's
-        // statements)
-        java.util.List<com.legend.setup.CsvSeed.Planned> planned = com.legend.testplan.Seeds.planned(statement,
-                env.runtimeFqn(), env.ctx(), env.dialect());
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-            com.legend.exec.PlanRunner.setUp(planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList(),
-                    env.target(), env.planSessions(), (i, rows) -> record(env, planned.get(i).text(), rows));
-        }
-        state.establish(key);
-    }
 
     /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading
      * the metamodel store executes on the GRAPH's own system database —
@@ -944,85 +702,9 @@ public final class BodyDriver {
         return new TypedSide.Scalar(count, write.info().type());
     }
 
-    /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE; StagedRows.table, which
-     *  a write plan's staging names too). */
-    static String stagedTable(String let) {
-        return com.legend.resolver.StagedRows.table(let);
-    }
-
-    /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
-     *  turn among the program's statements, into the session's temporary table {@code table}, which every statement
-     *  after the let reads ({@link com.legend.resolver.StagedRows}). */
-    private static TypedSide stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
-        Prelude p = prelude(body, env, null, false);
-        if (p.answered() != null) {
-            throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement the database does"
-                    + " not query");
-        }
-        ExecEnv planned = p.plannedEnv();
-        com.legend.compiler.element.type.Type.RelationType late = com.legend.compiler.element.type.Type.schemaView(
-                p.plannedRoot().info().type());
-        boolean grid = late != null && late.isLateBound();
-        // a raw grid's rows (the seam program's S3c, 2026-10-30): no column is named, the table takes the ones its
-        // query answers; any other relation's columns named as the staged relation names them, which the
-        // statements after read by name
-        com.legend.sql.SqlQuery plan = com.legend.planner.BodyPlanner.lowerAndPrepare(p.body(), planned.plan(), planned.ctx(), planned.dialect(),
-                false, !grid);
-        // (a grid's table a plain temporary one: it outlives the commits of the statements after it, which a
-        // body's effects and verdicts make one by one, and is dropped when the body ends, dropTables)
-        String sql = planned.dialect().render(grid ? new com.legend.sql.SqlDml.CreateTempTableAs(table, plan)
-                : com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
-                com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
-        record(planned, sql, false);
-        sendUpdate(planned, sql);
-        return new TypedSide.Scalar(null, p.plannedRoot().info().type());
-    }
-
-    private static final java.util.concurrent.atomic.AtomicLong STAGED_GRIDS = new java.util.concurrent.atomic.AtomicLong();
-
-    /** The temporary table a staged raw grid's rows are held in: the let's name under the platform's prefix and a
-     *  number of its own, so a table whose drop failed (BodyCompiler drops it however the body ends; a drop can fail
-     *  on a session the failure left unusable) is never the next body's. */
-    static String stagedGridTable(String let) {
-        return stagedTable(let) + "_" + STAGED_GRIDS.incrementAndGet();
-    }
-
-    /** {@code tables} dropped on the body's session, whatever the database does with staged tables as a transaction
-     *  ends (a staged raw grid's table is a plain temporary one). */
-    static void dropTables(ExecEnv env, java.util.List<String> tables) {
-        for (String t : tables) {
-            String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
-                    com.legend.sql.NameQuoting.BARE));
-            record(env, sql, false);
-            sendUpdate(env, sql);
-        }
-    }
-
-    /** The raw read of a staged raw grid's temporary table, in the session's dialect (a plain {@code SELECT *} of
-     *  it; StagedRows.gridBoundTo binds the let to it). */
-    static String stagedGridRead(String table, ExecEnv env) {
-        return env.dialect().render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table(table, table,
-                java.util.List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE)));
-    }
-
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */
     static String storeOf(java.util.List<TypedSpec> body, ExecEnv env) {
         return com.legend.resolver.StagedRows.storeOf(body, env.ctx(), env.runtimeFqn());
-    }
-
-    /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes
-     *  them back with its writes), unless the database drops them as the transaction ends
-     *  (SqlDialect.dropsStagedTablesWithTheirTransaction). */
-    static void dropStaged(ExecEnv env, java.util.List<String> tables) {
-        if (env.dialect().dropsStagedTablesWithTheirTransaction()) {
-            return;
-        }
-        for (String t : tables) {
-            String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
-                    com.legend.sql.NameQuoting.BARE));
-            record(env, sql, false);
-            sendUpdate(env, sql);
-        }
     }
 
     /** A change the body sends -- a store write, a staged table made or dropped -- as a plan's update on the body's
@@ -1272,7 +954,6 @@ public final class BodyDriver {
         return side;
     }
 
-
     /** The plan-execution tail of {@link #executeTyped}: V11 canon
      * wrap (when a rider asks) + the one Executor call. */
     /** A side's plan after the canon wrap (leg 3.1): what database mode
@@ -1467,44 +1148,6 @@ public final class BodyDriver {
         return query;
     }
 
-    /** Send an effect segment as ONE script (the dialect brackets it), then record its
-     * statements for the referee's ledger: all of them on success; on a failure the
-     * ones before the statement the engine names (H2), or none when the segment rolled
-     * back as a unit (DuckDB). The failure is re-raised naming the segment. */
-    static void sendScript(ExecEnv env, com.legend.exec.EffectSink sink, String where) {
-        java.util.List<com.legend.exec.EffectSink.Entry> entries = sink.entries();
-        java.util.List<String> texts = entries.stream().map(com.legend.exec.EffectSink.Entry::executed).toList();
-        // the dialect's bracket only when this send OWNS the transaction; inside a
-        // caller's (the harness's attempt) the statements run bare and the caller unwinds
-        boolean bracketed = env.session().ownsTransaction();
-        try {
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-                sendRaw(env, bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");
-            }
-        } catch (com.legend.error.DataError e) {
-            String abort = env.dialect().scriptAbort();
-            if (bracketed && abort != null) {
-                // the bracket the failure left open: closed before anything else runs
-                sendRaw(env, abort);
-            }
-            java.util.OptionalInt failing = env.dialect().failingStatement(String.valueOf(e.getMessage()), texts);
-            int applied = failing.isPresent() ? failing.getAsInt() : 0;
-            for (int i = 0; i < applied; i++) {
-                String rec = entries.get(i).recorded();
-                if (rec != null) {
-                    record(env, rec, entries.get(i).query());
-                }
-            }
-            throw com.legend.testplan.EffectSegment.failed(e, where, failing, texts.size());
-        }
-        for (com.legend.exec.EffectSink.Entry en : entries) {
-            String rec = en.recorded();
-            if (rec != null) {
-                record(env, rec, en.query());
-            }
-        }
-    }
-
     static TypedSide executeInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
@@ -1584,7 +1227,6 @@ public final class BodyDriver {
         sendPlanned(body, call, env);
         return new TypedSide.Scalar(null, call.info().type());
     }
-
 
     /** One toDDL string-generator call — engine golden spellings
      * (testDDL.pure:42-45); createTableStatement renders from the

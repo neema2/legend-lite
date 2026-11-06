@@ -568,7 +568,8 @@ final class ArchitectureTest {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.driver")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
-            .as("step C, M5: the body driver (the walk) is the body router's alone")
+            .as("step C, M5: the body driver (its environment and the planning the judges share; the walk it ran is"
+                    + " deleted, 2026-11-06) is the driver package's alone")
             .check(CORE_PROD_CLASSES);
         noClasses()
             .that().resideOutsideOfPackage("com.legend.driver")
@@ -1280,7 +1281,7 @@ final class ArchitectureTest {
     /**
      * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
      * docs/RESULT_BOUNDARY_START_HERE.md, the track B block).</strong> A test body is a sequence of plans: the driver
-     * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
+     * ({@code BodyDriver}; {@code BodyCompiler} until the walk was deleted, 2026-11-06), the judges and their arms, the seed and error natives and the
      * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
      * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
      * on {@code java.sql} or a driver's own API. The funnel above licensed root as a package until 2026-10-30 (D69:
@@ -1484,9 +1485,6 @@ final class ArchitectureTest {
                 "com.legend.exec.Census.COUNTS",
                 "com.legend.exec.Census.KEYED",
                 "com.legend.exec.Census.FALLBACK_REASONS",
-                // the kinds of each body the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
-                // appended by the router, read by the corpus lanes' histogram only -- measurement, never a verdict
-                "com.legend.exec.Census.STAYED_KINDS",
                 // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
                 // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
                 "com.legend.exec.Census.UNPLANNED_ASSERTS",

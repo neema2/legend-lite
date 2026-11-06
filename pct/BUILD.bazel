@@ -456,11 +456,6 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
     jvm_flags = [
         "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
         "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
-        # the walk's door CLOSED on DuckDB (the walker-deletion program, 2026-11-03): channel B's allow list burned to
-        # zero, so every body runs on the program road and a body that would walk is refused by name (driver/WalkDoor);
-        # every other database's channel B lane (below) runs closed too (ChannelB.run sets it), measured so on
-        # 2026-11-03 (round 14): no body refused on any lane
-        "-Dlegend.walk.allowed=none",
     ],
     select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
     upstream = True,

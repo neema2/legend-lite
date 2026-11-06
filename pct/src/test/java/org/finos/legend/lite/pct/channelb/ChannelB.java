@@ -191,9 +191,6 @@ public final class ChannelB {
         // unscoped suite.
         String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
-        // the walk CLOSED on every lane, by construction (2026-11-03, the channel B audit: a lane whose target set no
-        // property walked freely): every body runs on the program road, and one that would walk is refused by name
-        System.setProperty("legend.walk.allowed", "none");
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {
                 continue;
@@ -268,7 +265,7 @@ public final class ChannelB {
         } catch (Declined d) {
             return new Outcome(fqn, Status.DECLINED, d.getMessage());
         }
-        // the running test, by its function's full name: the walk's door names the bodies still allowed to walk by it
+        // the running test, by its function's full name: the diagnostics name the test they report from
         System.setProperty("legend.test.current", fqn);
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             var lambda = new LambdaFunction(List.of(), body);

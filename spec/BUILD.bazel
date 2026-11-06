@@ -240,8 +240,6 @@ legend_java_binary(
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         # the committed rosters, by one of them (MinimalCorpusTest.readRoster)
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
-        # the walk is closed to the corpus's tools as to its lanes (spec/corpus.bzl, 2026-11-06)
-        "-Dlegend.walk.allowed=none",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -265,8 +263,6 @@ legend_java_binary(
         "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
-        # the walk is closed to the corpus's tools as to its lanes (spec/corpus.bzl, 2026-11-06)
-        "-Dlegend.walk.allowed=none",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -297,8 +293,6 @@ legend_java_binary(
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
-        # the walk is closed to the corpus's tools as to its lanes (spec/corpus.bzl, 2026-11-06)
-        "-Dlegend.walk.allowed=none",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",

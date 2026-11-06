@@ -228,8 +228,8 @@ public final class JUnitMain {
                 if (id.isTest() && bazel.excluded.contains(id.getUniqueIdObject())) {
                     overrun.incrementAndGet();
                 }
-                // the running test, as its class and method: what a guard under test names it by (the walk's door,
-                // 2026-11-03: the tests still allowed to walk are listed by it); a sequential run's one current test
+                // the running test, as its class and method: what a diagnostic names it by (the walk's door listed
+                // tests by it until the walk was deleted, 2026-11-06); a sequential run's one current test
                 if (id.isTest() && id.getSource().orElse(null)
                         instanceof MethodSource ms) {
                     System.setProperty("legend.test.current", ms.getClassName() + "#" + ms.getMethodName());

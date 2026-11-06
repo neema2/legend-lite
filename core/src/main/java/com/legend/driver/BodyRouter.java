@@ -119,20 +119,8 @@ public final class BodyRouter {
                     + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]")
                     + (bodyClass == null && BodyClass.lastRefusal() != null
                             ? " {query rule: " + BodyClass.lastRefusal() + "}" : "");
-            if (com.legend.diagnostics.Diagnostics.on("forbid-walk")) {
-                // the walker-deletion program's measurement: the body fails here, naming why it would walk
-                throw new IllegalStateException("forbid-walk: " + why + " test="
-                        + System.getProperty("legend.test.current"));
-            }
-            // the walk's door: a lane that lists the tests still allowed to walk refuses every other (2026-11-03)
-            WalkDoor.check(why);
-            if (runtimeFqn != null) {
-                // the kinds that kept the body on the walk, for the lanes' census (M9); nothing decided by them
-                Census.STAYED_KINDS.add(BodyKinds.of(typed, runtimeFqn, bodyClass == null ? null
-                        : mode.name().toLowerCase(java.util.Locale.ROOT) + "-unplanned-assert"));
-            }
-            BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
-            return;
+            // the walk is deleted (2026-11-06): a body the program road does not plan is refused by name
+            throw new com.legend.error.NotImplementedException("the program road does not plan this body: " + why);
         }
         Census.inc(Census.Key.BODIES_MOVED);
         TestDoor.Planned planned;
