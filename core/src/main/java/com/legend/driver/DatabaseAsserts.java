@@ -180,6 +180,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 } else if (kind == LetPlanner.Kind.ALIAS) {
                     frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
                             java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                } else if (kind == LetPlanner.Kind.STAGED_GRID) {
+                    // a raw grid staged across a later effect: read from the table the test door stages it
+                    // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
+                    letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                            com.legend.planner.PlanMaker.gridRead(
+                                    com.legend.resolver.StagedRows.gridTable(let.name(), i), benv.dialect()),
+                            (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
+                            let.info()));
                 } else {
                     PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs, benv.plan());
                     letPrefix.add(let);
@@ -487,6 +495,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         String of = java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame));
                         frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(of)));
                         frameSegment.put(let.name(), java.util.Objects.requireNonNull(frameSegment.get(of)));
+                    } else if (kind == LetPlanner.Kind.STAGED_GRID) {
+                        // a raw grid staged across a later effect: read from the table the test door stages it
+                        // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
+                        letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                com.legend.planner.PlanMaker.gridRead(
+                                        com.legend.resolver.StagedRows.gridTable(let.name(), i), pre.dialect()),
+                                (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
+                                let.info()));
                     } else {
                         PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
                                 pre.plan());
@@ -627,6 +643,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     } else if (kind == LetPlanner.Kind.ALIAS) {
                         frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
                                 java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                    } else if (kind == LetPlanner.Kind.STAGED_GRID) {
+                        // a raw grid staged across a later effect: read from the table the test door stages it
+                        // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
+                        letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                com.legend.planner.PlanMaker.gridRead(
+                                        com.legend.resolver.StagedRows.gridTable(let.name(), i), benv.dialect()),
+                                (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
+                                let.info()));
                     } else {
                         PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
                                 benv.plan());

@@ -416,12 +416,41 @@ public final class PlanMaker {
                     LetPlanner.aliasOf(let.value(), state.frames()::relationFrame)));
             case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
                     + " query door refuses it, the test door's library plans it");
-            case STAGED_GRID -> throw new NotImplementedException("a raw read bound by a let"
-                    + " and read after a later effect: its rows held at the let's turn are the T12 kind the"
-                    + " test-is-the-product plan's M9 plans");
+            case STAGED_GRID -> stagedGridLet(state, i, let);
             case VALUE -> state.let(let);
             case STAGED -> stagedLet(state, i, let);
         }
+    }
+
+    /** A STAGED RAW GRID (the walk deletion, 2026-11-06; the walk's since the seam program's S3c): a raw read bound by
+     *  a let and read after a later effect, its rows held at the let's turn in a temporary table of the session --
+     *  {@code CREATE TEMPORARY TABLE ... AS} its authored text, which the dialect's boundary translator writes in the
+     *  session's language -- and the let bound to a raw read of that table, which the statements after (and the asserts'
+     *  planners, by the same name: {@link StagedRows#gridTable}) read. */
+    private static void stagedGridLet(ProgramState state, int i, TypedLet let) {
+        com.legend.compiler.spec.typed.TypedRawSqlRelation raw =
+                (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let);
+        String table = StagedRows.gridTable(let.name(), i);
+        // the grid lowered on the product's statement road, as a staged let's rows are (the Lowerer's raw relation:
+        // the one seam that carries authored text), its columns the database's own
+        TypedQuery query = state.query();
+        ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), raw), state.runtime(), i,
+                state.features(), state.frames());
+        Prepared.Planned sp = ProductStatements.planned(st);
+        Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
+                withStamps(state.slots(), state.frames()), state.sites());
+        SqlQuery grid = lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), query.context()));
+        ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table, grid,
+                List.of(), true)), state.target(), null);
+        state.add(new ExecutionPlan.Update(stagedSql, null));
+        state.stage(table);
+        state.let(StagedRows.gridBoundTo(let.name(), gridRead(table, state.dialect()), raw, let.info()));
+    }
+
+    /** The raw read of a staged raw grid's table in {@code dialect}: a plain {@code SELECT *} of it. */
+    public static String gridRead(String table, SqlDialect dialect) {
+        return dialect.render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table(table, table,
+                List.of(), false, Map.of(), com.legend.sql.NameQuoting.BARE)));
     }
 
     /** STAGED ROWS: a let's rows computed at its statement's turn into a temporary table of the session, which the

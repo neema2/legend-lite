@@ -162,6 +162,14 @@ final class HostAsserts implements TestDoor.Asserts {
                             // an alias of a relation frame: the same frame under the let's name (the walk's rule)
                             frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
                                     java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                        } else if (kind == LetPlanner.Kind.STAGED_GRID) {
+                            // a raw grid staged across a later effect: read from the table the test door stages it
+                            // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
+                            letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                    com.legend.planner.PlanMaker.gridRead(
+                                            com.legend.resolver.StagedRows.gridTable(let.name(), i), env.dialect()),
+                                    (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
+                                    let.info()));
                         } else {
                             PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
                                     env.plan());

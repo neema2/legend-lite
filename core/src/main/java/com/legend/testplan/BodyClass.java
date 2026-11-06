@@ -731,6 +731,13 @@ public enum BodyClass {
         return arg instanceof TypedNativeCall ec && NativeFn.Handle.isExecute(ec.callee().id());
     }
 
+    /** Whether an assert program holds a let of {@code kind} before its last statement: a VALUE let (spliced into its
+     *  readers), or a raw grid STAGED across a later effect (the test door stages it at its turn: PlanMaker's
+     *  stagedGridLet, the walk deletion, 2026-11-06). */
+    private static boolean admittedLet(LetPlanner.Kind kind) {
+        return kind == LetPlanner.Kind.VALUE || kind == LetPlanner.Kind.STAGED_GRID;
+    }
+
     /** {@code -Dlegend.diagnostics=body-class}: the assert program's rule that refused a body, by statement (the walk
      *  deletion's measurement, 2026-11-06; prints, decides nothing). */
     private static void assertRefusal(int statement, String why) {
@@ -790,8 +797,8 @@ public enum BodyClass {
             if (assertRoot) {
                 anAssert = true;
             } else if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
-                    && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
-                            effectMemo, name -> false) == LetPlanner.Kind.VALUE)
+                    && !(statement instanceof TypedLet let && admittedLet(LetPlanner.kind(let, body, i, query.specs(),
+                            effectMemo, name -> false)))
                     && !check(statement, systemClasses, ctx, query, checkMemo)) {
                 assertRefusal(i, "a statement before the last that plans a step and is no check");
                 return false;
