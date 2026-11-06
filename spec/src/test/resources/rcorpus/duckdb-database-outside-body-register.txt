@@ -1,5 +1,6 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject ||| statement=1
 meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
+meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| fallback=1
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=21
 meta::relational::testDataGeneration::tests::testConstant ||| statement=1 tdg=4
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1 tdg=8
@@ -34,13 +35,52 @@ meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| 
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1 tdg=60
 meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1 tdg=38
 meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=17
+meta::relational::tests::advanced::forcedselfjoin::isolationTest ||| fallback=1
+meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline ||| fallback=1
 meta::relational::tests::ddl::dropAndCreateTempTable ||| other=2
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WaValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPrioryearValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPymtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPyqtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPytdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdValue ||| fallback=1
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue ||| fallback=1
+meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter ||| fallback=1
+meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter1 ||| fallback=1
+meta::relational::tests::mapping::distinct::testDistinctMappingWithFullDenormSelfJoins ||| fallback=1
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression ||| value=1
+meta::relational::tests::mapping::inheritance::relational::testGetAll ||| flushes=2
+meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| flushes=2
+meta::relational::tests::mapping::union::partial::testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToColumn ||| fallback=1
+meta::relational::tests::mapping::union::specialUnion::testFilteredProjectWithPostTdsOperations ||| fallback=1
+meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| fallback=1
+meta::relational::tests::mapping::union::specialUnion::testProjectWithPostTdsOperations ||| fallback=1
+meta::relational::tests::mapping::union::testUnionViewJoins ||| fallback=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath ||| statement=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath ||| statement=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter ||| statement=1
 meta::relational::tests::milestoning::distinct::testDistinctUsageAtRootOfMilestonedQuery ||| statement=1
+meta::relational::tests::postProcessor::testSqlRealiasFreeMarker ||| fallback=1
+meta::relational::tests::projection::function::concatenate::testConcatenateWithFilter ||| fallback=1
 meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple ||| statement=1
+meta::relational::tests::projection::view::testJoinThroughView ||| fallback=1
+meta::relational::tests::projection::view::testJoinToView ||| fallback=1
+meta::relational::tests::projection::view::testUnionOnViewsMapping ||| fallback=1
+meta::relational::tests::projection::view::testViewOnView ||| fallback=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
+meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector ||| fallback=1
+meta::relational::tests::tds::tdsRestrict::testLowerProjectColsNotEliminatedWithSort ||| fallback=1
+meta::relational::validation::complex::validateComplexValidation8 ||| fallback=1
+meta::relational::validation::showcase::standalone::validateAllConstraints ||| fallback=1
 meta::relational::validation::tests::milestoning::testValidateQueryWithUnion ||| statement=1
