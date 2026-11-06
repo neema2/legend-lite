@@ -301,7 +301,7 @@ Line numbers drift. Find the code by class and method.
 
 - `DuckDb`'s pass list, in order: …, `OuterJoinSubqueryFilters`, **`SelectMerge`**, **`SelectLayers`**,
   [`StableScanOrder`], `VariantEgress`, then StoredReads.
-- H2: `ProjectionWrapsFold`, `SelectMerge`, `SelectLayers`, `SharedRelationsInPlace.bindingAValue()`.
+- H2: `ProjectionWrapsFold`, `SelectMerge`, `SelectLayers` (`SharedRelationsInPlace.bindingAValue()` went 2026-11-06, W6).
 - SQLite: `QualifyToSubselect`, `SelectMerge`, `SelectLayers`, `ConstantKeysAsExpressions`, ….
 - Postgres: …, `SelectMerge`, `SelectLayers`, `ConstantKeysAsExpressions`, `RootNumericTypes`.
 - MongoDB writes a shared relation in place at each read.
@@ -570,25 +570,18 @@ says a rank against every value of a window), and returns over a span.
 
 ### W6. Reconcile with `claude/cte-let-sharing` when #83 lands
 
-That branch (`364c3e473`, `564f98829`, `cffdfcb34`) is stacked on #83 and holds the same let-sharing this branch
-ported in `4c3a2cfbe`.
+**Done 2026-11-06.** #83 landed on main (with #89); main was merged here (`1fd588f02`), so the let sharing lives in one
+place, this branch's port (`4c3a2cfbe`), now beside #83's planner: main had moved `BodyDriver.lowererFor` into
+`planner/BodyPlanner`, and `sharingRelations` moved with it. `claude/cte-let-sharing` (`364c3e473`, `564f98829`,
+`cffdfcb34`) is superseded: nothing of it is left to land, and its owed gate is this branch's CI. Its one finding the
+port had not carried, the grid report's case of `SharedRelationsInPlace.binds`, is moot: main's H2 2.5.252 keeps a
+bound value inside a `WITH` another one reads (main deleted `GridReportCtesInline` and `H2LostCteParameterTest` with
+it), so H2's `SharedRelationsInPlace.bindingAValue()` went too -- on H2 a shared relation that binds a value is one
+`WITH`, as everywhere, and `SharedRelationsInPlaceTest` runs that statement on H2 with its value bound and reads its
+rows. `SharedRelationsInPlace` keeps `all()`: MongoDB's pipeline has no `WITH`, and the database judge composes a side
+into a verdict of its own. What the merge measured (four guard pins, the register renumbering, two semantic
+conflicts) is in its commit.
 
-- Expect conflicts in `Lowerer` (shareRelations, sharing, sharedRead, lower(List) with a Frame), `SqlRewriter.with`,
-  `SharedRelationsInPlace`, `BodyDriver.sharingRelations`, `SqlWith.SHARED_PREFIX`, `FreeVars`, and the two tests.
-- Keep one implementation. The port left out #83's grid-report case of `SharedRelationsInPlace.binds`, because this
-  stack has no BodyPlanner, ProductStatements or GridReport.
-- The parser-equivalence ratchet moved +2 for the ported tests on both branches.
-- **That branch's gate is owed.** Its first full `//gates:core` + `//gates:checks` run found 13 failures,
-  all fixed in `564f98829` (one real bug: a bare read of a single table or raw grid made a `WITH` broke the grid's
-  column report, `TaggedListTest`; four guard findings; #83's own stale `native-claims.tsv`, regenerated in
-  `cffdfcb34` and labelled as #83's; seven Postgres targets that cannot run as root). The rerun was stopped on
-  2026-11-04 to free the checkout and never finished. Also owed: the PCT and corpus lanes on DuckDB and H2, one at a
-  time, because those nest a statement's `WITH` inside larger statements.
-- **#83 has moved on.** Its branch, `claude/wizardly-dirac-rw6tim-seam`, is past the base `claude/cte-let-sharing` sits
-  on (`bf5b2ab43` on 2026-11-06), so that branch needs rebasing or merging before its gate means anything.
-- **Why H2 copies a shared relation back in place:** H2 loses a bound parameter's value inside a `WITH` that another
-  `WITH` reads. So on H2 a shared relation that binds a parameter is written at each read
-  (`SharedRelationsInPlace.bindingAValue()`). MongoDB has no `WITH` at all, so it writes every shared relation in place.
 - **The register numbers collided; settled 2026-11-06 at main's merge.** #83 landed with its own rows S128 to S142;
   this branch's rows were renumbered past them, every citation with them (`docs/SEMANTICS_REGISTER.md`'s note of
   2026-11-06): the branch's retired S128 is S143, and its S129 to S134 are S144 to S149 (frame offsets computed by the

@@ -4,7 +4,6 @@
 package com.legend.sql.dialect;
 
 import com.legend.sql.AliasPrefix;
-import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSource;
@@ -14,38 +13,31 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * A relation the statement reads more than once, written back where each read stands (2026-11-04): the lowering
  * writes it once, a common table expression {@code __let<n>} ({@link SqlWith#SHARED_PREFIX}) at the statement's head
- * that each read names ({@code lowering.SharedRelations}). This pass is for a database that cannot hold it there:
- * MongoDB's pipeline has no common table expressions ({@link #all}), and H2 loses a placeholder's value inside a common
- * table expression another one reads ({@link #bindingAValue}; the defect #83's GridReportCtesInline exists for,
- * its {@code H2LostCteParameterTest}). Such an expression is a derived table at each read, as the lowering wrote it before
+ * that each read names ({@code lowering.SharedRelations}). This pass is for a statement that cannot hold it there:
+ * MongoDB's pipeline has no common table expressions, and the database judge composes a side into a verdict of its own
+ * ({@link #all}). (H2 2.1 and 2.2 lost a placeholder's value inside a common table expression another one reads, and a
+ * shared relation that bound one was written in place there; H2 2.5.252, main's since 2026-11-05, keeps it, and that
+ * case went on 2026-11-06.) Such an expression is a derived table at each read, as the lowering wrote it before
  * it was shared, and the statement holds as many copies as reads. Each copy's aliases are prefixed ({@link
  * AliasPrefix}): a statement's aliases are unique ({@code SourceSpelling}). An expression read by another written in
  * place is written in place inside it first, in the WITH's order.
  */
 public final class SharedRelationsInPlace extends SqlRewriter {
 
-    private final Predicate<SqlQuery> which;
     private final int[] copies = {0};
 
-    private SharedRelationsInPlace(Predicate<SqlQuery> which) {
-        this.which = which;
+    private SharedRelationsInPlace() {
     }
 
     /** Every shared relation written in place: a database with no common table expressions; and a statement the
      *  database judge composes into a verdict of its own (BodyDriver.wrapSide, 2026-11-06), where it is a derived
      *  table, which cannot hold a WITH of its own on every database. */
     public static SharedRelationsInPlace all() {
-        return new SharedRelationsInPlace(q -> true);
-    }
-
-    /** Each shared relation whose query binds a placeholder written in place (H2). */
-    static SharedRelationsInPlace bindingAValue() {
-        return new SharedRelationsInPlace(SharedRelationsInPlace::binds);
+        return new SharedRelationsInPlace();
     }
 
     /** Every WITH, at any depth, after its parts are rewritten. */
@@ -55,7 +47,7 @@ public final class SharedRelationsInPlace extends SqlRewriter {
         List<SqlWith.Cte> kept = new ArrayList<>();
         for (SqlWith.Cte c : w.ctes()) {
             SqlQuery query = substituted(c.query(), inPlace);
-            if (c.name().startsWith(SqlWith.SHARED_PREFIX) && which.test(query)) {
+            if (c.name().startsWith(SqlWith.SHARED_PREFIX)) {
                 inPlace.put(c.name(), query);
             } else {
                 kept.add(new SqlWith.Cte(c.name(), query, c.materialized()));
@@ -84,18 +76,5 @@ public final class SharedRelationsInPlace extends SqlRewriter {
                 return s;
             }
         }.rewrite(q);
-    }
-
-    /** Whether {@code q} binds a value when it is written: a plan parameter. */
-    private static boolean binds(SqlQuery q) {
-        boolean[] found = {false};
-        new SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr e) {
-                found[0] |= e instanceof SqlExpr.PlanParam;
-                return e;
-            }
-        }.rewrite(q);
-        return found[0];
     }
 }

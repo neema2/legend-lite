@@ -4,17 +4,21 @@
 package com.legend.sql.dialect;
 
 import com.legend.Compiler;
+import com.legend.testcases.PlanCases;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A relation the statement reads more than once is one common table expression at its head ({@code
- * lowering.SharedRelations}, 2026-11-04), but where H2 would lose a bound value inside it ({@link
- * H2LostCteParameterTest}) it is written back at each read ({@link SharedRelationsInPlace}); one that binds nothing
- * stays shared on H2 too.
+ * lowering.SharedRelations}, 2026-11-04) on every database that holds one, H2 too: H2 2.1 and 2.2 lost a bound value
+ * inside a common table expression another one reads, and such a relation was written back at each read there
+ * ({@link SharedRelationsInPlace}) until main's H2 2.5.252, which keeps it (2026-11-06: the statement below runs on it,
+ * its value bound, and answers its rows). MongoDB's pipeline has none, and writes every shared relation in place.
  */
 class SharedRelationsInPlaceTest {
 
@@ -52,12 +56,23 @@ class SharedRelationsInPlaceTest {
             "{min: Integer[1] | s::selfJoined(#>{s::DB.T}#->select(~[ID, AGE])->filter(r|$r.AGE > $min))}";
 
     @Test
-    void aSharedRelationThatBindsAValueIsWrittenAtEachReadOnH2() {
+    void aSharedRelationThatBindsAValueIsWrittenOnceOnH2AndAnswersItsRows() throws Exception {
         String h2 = statement("H2", WITH_PARAMETER);
-        assertFalse(h2.contains("__let"), h2);
-        assertEquals(2, h2.split("\\?", -1).length - 1, h2);
-        // each copy's aliases its own
-        assertTrue(h2.contains("\"s0_t0\"") && h2.contains("\"s1_t0\""), h2);
+        assertTrue(h2.startsWith("WITH __let0 AS ("), h2);
+        assertEquals(1, h2.split("\\?", -1).length - 1, h2);
+        var plan = Compiler.query(Compiler.compileModel(model("H2")), WITH_PARAMETER).executionPlan("s::RT");
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:shared_relations_in_place")) {
+            try (var st = c.createStatement()) {
+                st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, AGE INTEGER)");
+                st.execute("INSERT INTO T VALUES (1, 10), (2, 20), (3, 30)");
+            }
+            // the rows over AGE > 15, each joined to itself: the bound value held inside the WITH its reads name
+            String text = PlanCases.write(plan, c, Map.of("min", 15L), PlanCases.Written.CSV::writer);
+            java.util.List<String> lines = java.util.List.of(text.split("\r\n"));
+            assertEquals("ID,AGE", lines.get(0), text);
+            assertEquals(java.util.List.of("2,20", "3,30"), lines.subList(1, lines.size()).stream().sorted().toList(),
+                    text);
+        }
     }
 
     @Test

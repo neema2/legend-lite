@@ -78,9 +78,8 @@ public class H2 extends AnsiSqlRenderer {
         ps.add(new SelectMerge());
         // and a chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers());
-        // a shared relation that binds a value written in place: H2 loses a bound name inside a WITH
-        // (SharedRelationsInPlace, 2026-11-04)
-        ps.add(SharedRelationsInPlace.bindingAValue());
+        // (SharedRelationsInPlace.bindingAValue went 2026-11-06, with main's H2 2.5.252: a shared relation that binds a
+        // value stays one WITH, as everywhere -- SharedRelationsInPlaceTest runs it on H2 and reads its rows)
         // (GridReportCtesInline went 2026-11-05: H2 2.5.252 keeps a bound parameter inside a common table expression
         // another one reads, which 2.1.214 and 2.2.224 lost -- H2LostCteParameterTest, which pinned the defect, failed
         // on the new H2 as it was written to, and went with the pass)
