@@ -3463,3 +3463,26 @@ Status lives in the plan's Progress table (rule 0b.16).
     `own_corpus.matched` 3017 -> 3020. The new test's model (`model::E`, `store::DB`, `model::M`) joined the own corpus
     and matches. The desk's local runs missed it (the parity lane was not among them), and PR #87's CI caught it
     (run 41483336882: `OwnCorpusParityTest` and `update_ratchets_test` on every OS).
+- **The rebase onto `main` (2026-11-06), cross-area, on `stress_test/landing`:** rebased onto `upstream/main`
+  `2cfab7658` (228 commits; the merge of `stress_test/report` kept), every one of the branch's 74 commits applied with
+  its diff unchanged but two.
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's): main's own
+    count had moved 3009 -> 3079, so the branch's two moves are now 3079 -> 3087 -> 3090, each commit saying so.
+    Measured: `[own-parity] MATCH=3090, REFERENCE_REJECTED=263, diffs=0`.
+  - `core/src/main/java/com/legend/sql/dialect/H2.java` (core's): main's H2 2.5.252 (`53b52c805`) guards `ASIN` and
+    `ACOS` to NaN outside [-1, 1], and its `ELSE` also took an absent argument to NaN. So `VN_Acos` and `VN_Asin` (an
+    absent `rateOpt` through `map`) answered `true` where the engine's H2 answers null, and `//core:stress_suites_h2`
+    passed 5517 against its floor of 5519. They were the only two services the rebase moved on either stress lane. A
+    NULL now falls through to NULL, as SQLite's and MariaDB's guards do (`d8bd6f8fd`). DuckDB's, Postgres's and
+    Snowflake's guards have the same `ELSE` shape; DuckDB answers these two services null, and nothing here probes
+    why.
+  - `.github/workflows/engine-verdict.yml`: the Linux shards on `ubuntu-24.04`, as gate.yml since `99a004061`
+    (ubuntu-latest's image has no libxml2). `docs/GATES.md`'s heavy row: `engine_stress` has 16 shards, not 8
+    (`ca3e790f2`).
+  - The measures: both stress lanes' pass lists are identical, test by test, to the branch's own run before the
+    rebase (`f907f921d`): DuckDB 5614, H2 5519. Green: `//gates:local`, `//gates:stress`, `//gates:parser_equivalence`,
+    `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//pct:pct_h2`, `//core:core_tests_judges`. This desk's known reds
+    are left out: every `update_*` diff test and `//tools/java_run:pins_test`, where fc.exe cannot open the
+    case-sensitive clone (each pair compared directly, all identical), and three datacube browser tests
+    (`live_channel_test`, `live_soak_test`, `page_app_test`) that run past their limit here even alone and depend on no
+    file the branch changes (`bazel query`).
