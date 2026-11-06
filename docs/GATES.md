@@ -20586,8 +20586,10 @@ on both lanes, host and database judges green:
 
 Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:guardrails`, `//core:census`, `//spec:all` green.
 
-What remains on the walk (`walk-allowed.txt`): 24 bodies both judges walk (metadata reads, DDL and temp tables,
-`loadCsv`, post-processor hooks, paginate and slice with variables, a few failing or verdictless) and 35 only the
-database judge walks: 14 a check statement (a `println`) over a frame the database judge does not run at its let,
-2 an engine-text assert whose expected text is computed (`replace`), and 19 SQL- or plan-text asserts reached
-through helper lets (the relational mapper's, the datetime plan tests', `planToString`, `toSQLString`).
+What remains on the walk (`walk-allowed.txt`): 26 bodies both judges walk (metadata reads, DDL and temp tables,
+`loadCsv`, post-processor hooks, paginate and slice with variables, two engine-text asserts whose expected text is
+computed by `replace`, a few failing or verdictless) and 33 only the database judge walks (measured with
+`-Dlegend.diagnostics=judge-declines`): 14 a check statement (a `println`) over a frame the database judge does not
+run at its let; 19 refused by its static pass -- SQL or plan text reached through a helper let (the relational
+mapper's 10, the datetime plan tests' 5, `planToString`, `toSQLString`, `toSQL(...).sql`) and `toCSV()` of an
+`executeInDbToTDS` result.
