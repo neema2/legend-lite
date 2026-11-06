@@ -7,7 +7,7 @@
 #
 # WHY A MATRIX. //scripts/corpus:engine_stress (then 8 shards, each one JVM at -Xmx6g, tagged resources:memory:7168)
 # took about 90 minutes on a 20-core desk at four JVMs (about 6 JVM-hours for 6,055 testables, 2026-10-31). A public
-# repository's ubuntu-latest has 4 vCPUs, 16 GB and a 6-hour job limit: two JVMs at most, and one job would need 3 to
+# repository's standard Linux runner has 4 vCPUs, 16 GB and a 6-hour job limit: two JVMs at most, and one job would need 3 to
 # 4.5 hours, too near the limit. So each job runs one eighth of the testables (run.py --shard K/8, every eighth one:
 # engine_stress's shards K and K + 8 of its sixteen), and the merge job makes one verdict of the eight
 # (scripts/corpus/verdicts.py). The merge fails if a shard is missing or a testable was judged twice, so a lost job is
@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: "Where the engine runs: linux (ubuntu-latest), linux-arm (ubuntu-24.04-arm), macos (macos-15, arm64, one JVM a job: 7 GB) or windows (windows-2022)."
+        description: "Where the engine runs: linux (ubuntu-24.04), linux-arm (ubuntu-24.04-arm), macos (macos-15, arm64, one JVM a job: 7 GB) or windows (windows-2022)."
         default: linux
         type: choice
         options: [linux, linux-arm, macos, windows]
@@ -41,8 +41,10 @@ concurrency:
 jobs:
   shard:
     name: shard ${{ matrix.shard }} of 8 (${{ inputs.platform }})
-    # the runners gate.yml uses for each platform (macos-15 since 2026-11-02: GitHub retires the macos-14 image that day)
-    runs-on: ${{ fromJSON('{"linux":"ubuntu-latest","linux-arm":"ubuntu-24.04-arm","macos":"macos-15","windows":"windows-2022"}')[inputs.platform] }}
+    # the runners gate.yml uses for each platform (macos-15 since 2026-11-02: GitHub retires the macos-14 image that day;
+    # ubuntu-24.04 since 2026-11-06, as gate.yml since 99a004061: ubuntu-latest's image has no libxml2 package, which the
+    # prerequisites step below installs for LLVM's ld.lld)
+    runs-on: ${{ fromJSON('{"linux":"ubuntu-24.04","linux-arm":"ubuntu-24.04-arm","macos":"macos-15","windows":"windows-2022"}')[inputs.platform] }}
     # one slice is about 760 testables: under an hour at two JVMs, and macOS's one JVM about twice that
     timeout-minutes: 240
     defaults:
