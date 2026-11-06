@@ -7,7 +7,6 @@ import com.legend.ExecuteOptions;
 import com.legend.Execution;
 import com.legend.TypedQuery;
 import com.legend.planner.CrossStoreGuard;
-import com.legend.planner.MetamodelSeeds;
 import com.legend.planner.PlanMaker;
 import com.legend.planner.QueryParameters;
 
@@ -823,30 +822,31 @@ public final class BodyDriver {
      * engine, the host's system connection, its tables read through the
      * route's renames (2026-10-11). The route is the planner's, a fact of the body's plan (the seam program's S2h and
      * S4a, 2026-10-31: the database and store it reads, the tables' names its plan is written with, a body mixing
-     * the store with a user store refused by name); the session -- opened and seeded once per graph -- is the
-     * driver's, opened here once the body is planned, and names the tables as planned. {@code env} as it is where
-     * the body reads no system store. */
+     * the store with a user store refused by name); the session -- one per graph -- is the driver's, opened here once
+     * the body is planned, and seeded by the plan side's own seed step ({@link #systemRoute}). {@code env} as it is
+     * where the body reads no system store. */
     private static ExecEnv openRoute(com.legend.planner.SystemRoutes.@com.legend.base.Nullable Route route,
             ExecEnv env) {
         if (route == null) {
             return env;
         }
-        SystemDatabase.Route opened = systemRoute(env, route);
-        java.util.Map<String, String> planned = com.legend.planner.SystemRoutes.renames(route);
-        if (!opened.renames().equals(planned)) {
-            throw new IllegalStateException("the system database on " + route.engine() + " names the store's tables "
-                    + opened.renames() + ", its plan " + planned);
-        }
-        return env.withSession(opened.session());
+        return env.withSession(systemRoute(env, route));
     }
 
-    /** The graph's system database for {@code route}'s engine, opened and written once per graph ({@link SystemDatabase}):
-     *  the walk's route ({@link #openRoute}) and a system-routed body's program (the router, M10a) open the same
-     *  session object. */
-    static SystemDatabase.Route systemRoute(ExecEnv env, com.legend.planner.SystemRoutes.Route route) {
+    /** The graph's system database for {@code route}'s engine ({@link SystemDatabase}, opened once per graph), with the
+     *  store written on it by the plan side's own seed step ({@code SystemRoutes.seeds}) through the runner, once: the
+     *  walk's route ({@link #openRoute}) and a system-routed body's program (the router, M10a; its plan carries the
+     *  step) reach the same session object and the same seed record, whichever comes first. Deleted with the walk. */
+    static com.legend.exec.Sessions.Session systemRoute(ExecEnv env, com.legend.planner.SystemRoutes.Route route) {
         ModelContext ctx = env.ctx();
-        return SystemDatabase.of(ctx).routeFor(route.engine(), env.dialect(), route.store(),
-                table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections());
+        com.legend.exec.Sessions.Session system = SystemDatabase.of(ctx).sessionFor(route.engine(),
+                env.options().systemConnections());
+        com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
+                new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()),
+                new com.legend.executionplan.ExecutionPlan.Servers.Every(), env.dialect().sessionSetup(),
+                java.util.List.of());
+        com.legend.exec.PlanRunner.seedSystemStore(com.legend.planner.SystemRoutes.seeds(ctx, target, env.dialect()), system);
+        return system;
     }
 
     /** The system store's route for a body the class rule found system-routed ({@code BodyClass.systemRouted}):

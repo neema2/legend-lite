@@ -28,6 +28,18 @@ final class HostJudge {
             boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
             String detail,
             java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage) {
+        return finish(family, wantEqual, hostHeld, byteHeld, detail, hostMessage, () -> {
+            throw new IllegalStateException(family + ": an assertNotEquals with no sides to name");
+        });
+    }
+
+    /** {@link #finish} where the assert may be {@code assertNotEquals}: {@code notEqualMessage} its upstream
+     *  message over the two sides. */
+    static TypedSide finish(String family, boolean wantEqual,
+            boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
+            String detail,
+            java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage,
+            java.util.function.Supplier<String> notEqualMessage) {
         if (byteHeld != null) {
             com.legend.judge.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
@@ -41,7 +53,7 @@ final class HostJudge {
             return AssertVerdicts.ok();
         }
         if (!wantEqual) {
-            return AssertVerdicts.fail("assertNotEquals: both sides are equal");
+            return AssertVerdicts.fail(notEqualMessage.get());
         }
         String d = hostMessage.get();
         if (d == null) {
@@ -64,6 +76,15 @@ final class HostJudge {
     // phantom: message and judgment from different lattices with the
     // probe unfired — structurally impossible here).
 
+    /** A grid side's declared column kinds, in order; none for a side that is no grid (its cells keep their own). */
+    private static List<com.legend.compiler.element.type.Type> columnKinds(TypedSide.@com.legend.base.Nullable Tabular grid) {
+        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
+        if (grid != null) {
+            grid.columns().forEach(c -> kinds.add(c.pureType()));
+        }
+        return kinds;
+    }
+
     /** The FLAT-CELLS verdict for a pair with at least one TABULAR
      * AssertVerdicts.side (both-wrapped pairs took the grid-pair arm earlier). */
     static TypedSide tdsRowValuesVerdict(String name,
@@ -79,23 +100,23 @@ final class HostJudge {
         boolean mixedFlatVsTds =
                 (flat.bareRowStampE() && af.grid() != null && flat.wrappedRelationStampA())
                 || (flat.bareRowStampA() && ef.grid() != null && flat.wrappedRelationStampE());
-        // the grid's DECLARED column types decide each cell (step 2b)
-        TypedSide.Tabular g = af.grid() != null ? af.grid() : ef.grid();
-        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
-        if (g != null) {
-            g.columns().forEach(c -> kinds.add(c.pureType()));
-        }
+        // each side's cells typed by ITS OWN declaration (step 2b): a grid's declared column types decide its cells
+        // (the engine's boundary rule on the wire), a literal's cells keep their own kinds -- never the peer's
+        // declaration stamped on them (the user's ruling, 2026-11-03: Integer 1 against a Float column's 1.0 differs)
+        List<com.legend.compiler.element.type.Type> eKinds = columnKinds(ef.grid());
+        List<com.legend.compiler.element.type.Type> aKinds = columnKinds(af.grid());
         boolean hostHeld;
         if (mixedFlatVsTds) {
             hostHeld = false;
         } else {
-            List<com.legend.judge.Equality.Typed> te = com.legend.judge.Equality.grid(e, kinds);
-            List<com.legend.judge.Equality.Typed> ta = com.legend.judge.Equality.grid(a, kinds);
+            List<com.legend.judge.Equality.Typed> te = com.legend.judge.Equality.grid(e, eKinds);
+            List<com.legend.judge.Equality.Typed> ta = com.legend.judge.Equality.grid(a, aKinds);
             hostHeld = com.legend.judge.Equality.ordered(te, ta) == null;
             if (!hostHeld && incidental && e.size() == a.size()) {
                 // ROW COHESION (audit 9): the incidental-order fallback
                 // matches ROW TUPLES of the grid's width — cross-row
                 // cell shuffles must FAIL; width 1 = the pool multiset
+                TypedSide.Tabular g = af.grid() != null ? af.grid() : ef.grid();
                 int w = g != null ? g.columns().size() : 1;
                 hostHeld = com.legend.judge.Equality.rowMultiset(
                         te, ta, w > 1 && e.size() % w == 0 ? w : 1);
@@ -126,8 +147,8 @@ final class HostJudge {
                 // row, never a disagreement rescue.
                 if (!byteHeld && hostHeld
                         && com.legend.judge.Equality.differByLeniencyOnly(
-                                com.legend.judge.Equality.grid(e, kinds),
-                                com.legend.judge.Equality.grid(a, kinds))) {
+                                com.legend.judge.Equality.grid(e, eKinds),
+                                com.legend.judge.Equality.grid(a, aKinds))) {
                     com.legend.judge.CanonicalDivergence.sqlUlpPolicy(
                             "grid " + com.legend.judge.TdsCompare
                                     .firstCanonDiff(es, as2));
@@ -143,8 +164,9 @@ final class HostJudge {
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
                         : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
-                                com.legend.judge.Equality.grid(e, kinds),
-                                com.legend.judge.Equality.grid(a, kinds))));
+                                com.legend.judge.Equality.grid(e, eKinds),
+                                com.legend.judge.Equality.grid(a, aKinds))),
+                () -> PureAsserts.notEqualsMessage(e, a));
     }
 
     /** The TDSRow.values failure narrative — the host lattice's text
@@ -513,6 +535,12 @@ final class HostJudge {
             return v;
         }
         var out = new java.util.LinkedHashMap<String, Object>();
+        // the CLASSIFIER first, then the keys -- upstream's equal on objects (EqualityUtilities: the classifiers
+        // compared before the equality keys): a C and its subclass D with equal keys differ (the user's ruling,
+        // 2026-11-03: never more lenient than upstream)
+        if (m.containsKey("__type")) {
+            out.put("__type", m.get("__type"));
+        }
         for (var k : keys.keys()) {
             Object val = m.get(k.name());
             if (val != null) {
@@ -676,7 +704,6 @@ final class HostJudge {
             case HostJudgment.Rendered r -> renderedOf(r, sides);
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
-            case HostJudgment.CellPool c -> cellPoolOf(c, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides);
         };
     }
@@ -827,8 +854,7 @@ final class HostJudge {
         boolean heldSize = n instanceof Number num
                 && num.longValue() == actual;
         return heldSize ? AssertVerdicts.ok()
-                : AssertVerdicts.fail("assertSize: expected " + n + ", got "
-                        + actual);
+                : AssertVerdicts.fail("expected size: " + n + ", actual size: " + actual);
     }
 
     /** {@code assertContains(coll, value)}: both sides executed, the lattice judges
@@ -855,8 +881,7 @@ final class HostJudge {
                 com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(x),
                         com.legend.judge.Equality.Typed.of(val.get(0))));
         return member ? AssertVerdicts.ok()
-                : AssertVerdicts.fail("assertContains: " + coll
-                        + " does not contain " + val.get(0));
+                : AssertVerdicts.fail(com.legend.judge.PureAsserts.containsMessage(coll, val.get(0)));
     }
 
     /** {@code assertEqWithinTolerance(e, a, delta)}: the three sides executed. */
@@ -955,8 +980,8 @@ final class HostJudge {
         boolean held = empty == wantEmpty;
         return held ? AssertVerdicts.ok()
                 : AssertVerdicts.fail(wantEmpty
-                        ? "collection is not empty"
-                        : "collection is empty");
+                        ? com.legend.judge.PureAsserts.notEmptyMessage(AssertVerdicts.decodeSide(er))
+                        : "Expected non-empty collection");
     }
 
     /** The host arm, chosen once per adjudication by the router. */
@@ -979,10 +1004,6 @@ final class HostJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // the grid owner over both grids executed in definition order (planGridPair reads the order view itself)
             return HostSides.judged(name, planGridPair(name, wantEqual, args, letPrefix, hook), letPrefix, specs, env);
-        }
-        @Override public @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return HostJudge.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook);
         }
         @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -1109,8 +1130,8 @@ final class HostJudge {
                 && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
                         instanceof String wireType) {
             boolean ok = j.acceptedTypes().contains(wireType);
-            return ok ? AssertVerdicts.ok() : AssertVerdicts.fail("expected an instance of " + type
-                    + ", actual: " + wireType);
+            return ok ? AssertVerdicts.ok() : AssertVerdicts.fail("expected " + com.legend.judge.PureAsserts.repr(v,
+                    wireType) + " to be an instance of " + type + ", actual: " + wireType);
         }
         String d = com.legend.judge.PureAsserts.assertInstanceOf(v, type);
         return d == null ? AssertVerdicts.ok() : AssertVerdicts.fail(d);
@@ -1145,7 +1166,7 @@ final class HostJudge {
     private static TypedSide isOf(HostJudgment.Is j, List<TypedSide> one) {
         Object c2 = AssertVerdicts.one(AssertVerdicts.decodeSide(one.get(0)), j.name() + " condition");
         return Boolean.TRUE.equals(c2) ? AssertVerdicts.ok()
-                : AssertVerdicts.fail("assertIs: the element references differ");
+                : AssertVerdicts.fail(j.name() + ": the element references differ");
     }
 
     /** {@code assertSameElements(e, a)}: the multiset form — a tabular side's loose
@@ -1434,48 +1455,6 @@ final class HostJudge {
                 + " not a number: " + v);
     }
 
-    /** The cell-pool multiset of the sorted flat-cells idiom: a grid side's cells against
-     * the pool. Null = neither side is a grid (the ordinary equality continues). The walk's run of
-     * {@link #planCellPool}. */
-    static @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return HostSides.run(name, planCellPool(name, cellsE, cellsA, letPrefix, specs, env, hook), letPrefix, specs,
-                env);
-    }
-
-    /** The cell pool PLANNED (M10c item 9): its two sides asked as the walk asks them, judged as a cell multiset
-     *  where at least one is planned as a grid -- a side comes back a grid exactly where it is planned as one
-     *  ({@link JudgePlans.Kind#TABULAR} or {@code KEYED}, read by planning the side); null where neither is (the
-     *  generic equality continues, its sides other asks). Planning a side sends nothing but where its root is a kind
-     *  the prelude answers by running it (an effect, a store write, an effectful map) or the splice hook's eager inline
-     *  execute: no pool reaches either (the sorted operand is a table read, the other side a literal; the program roads
-     *  plan only statements whose kinds are exactly an assert), the engine-text arm's planning carries the same
-     *  exposure (the item's audit, LOW-2/3). */
-    static HostSides.@com.legend.base.Nullable Check planCellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<HostSides.Ask> asks = List.of(canonAsk(cellsE, hook), canonAsk(cellsA, hook));
-        for (HostSides.Ask a : asks) {
-            JudgePlans.Kind k = JudgePlans.plannedSide(a.arg(), letPrefix, specs, env, a.identity(), a.fold(),
-                    a.hook()).kind();
-            if (k == JudgePlans.Kind.TABULAR || k == JudgePlans.Kind.KEYED) {
-                return new HostSides.Check(asks, new HostJudgment.CellPool(name));
-            }
-        }
-        return null;
-    }
-
-    /** {@code j} judged over the pool's two shaped sides: the cell multiset, as the walk judges it. */
-    private static TypedSide cellPoolOf(HostJudgment.CellPool j, List<TypedSide> pair) {
-        SideFetch ef0 = sideCanonOf(pair.get(0), false);
-        SideFetch af0 = sideCanonOf(pair.get(1), false);
-        if (ef0.grid() == null && af0.grid() == null) {
-            throw new IllegalStateException(j.name() + ": a cell pool planned over a grid read no grid");
-        }
-        return tdsRowValuesSameElements(j.name(), ef0, af0);
-    }
-
     /** {@code assertEquals} / {@code assertNotEquals}: both sides executed under the canon
      * riders; a grid side takes the flat-cells verdict; a keyed class pair is restricted
      * to its key tree; the lattice judges ordered or as a multiset beside the byte
@@ -1549,12 +1528,14 @@ final class HostJudge {
                 byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> incidental
                         ? com.legend.judge.PureAsserts.assertSameElements(e, a)
-                        : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().type(), j.a().type()));
+                        : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().type(), j.a().type()),
+                () -> com.legend.judge.PureAsserts.notEqualsMessage(e, a));
     }
 
     /** {@code assertJsonStringsEqual(golden, actual)}: both strings executed, parsed, the
-     * engine's semantics judged over the structures (object keys order-insensitive, arrays
-     * order-sensitive; an incidental-order root as a multiset). Null = a non-string shape. */
+     * engine's semantics judged over the structures (json-simple's equals, CompiledSupport.jsonStringEquals: object
+     * keys order-insensitive, arrays order-sensitive, an object never an array; an incidental-order root as a
+     * multiset). Null = a non-string shape. */
     static @com.legend.base.Nullable TypedSide jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -1588,13 +1569,8 @@ final class HostJudge {
                     "golden JSON does not parse: " + e.getMessage(), e);
         }
         Object actual = com.legend.sql.Json.parse(ajson);
-        // pure's [x] ≡ x at the ROOT: the engine serializes a
-        // one-element result as the bare object; an enveloping
-        // array bridges exactly that case (harness parity)
-        if (!(expected instanceof List)
-                && actual instanceof List<?> al && al.size() == 1) {
-            actual = al.get(0);
-        }
+        // no [x] for x (the user's ruling, 2026-11-03): a result serialized otherwise than the engine serializes it
+        // is the serializer's to fix.
         // D3 for graph results: an INCIDENTAL-order chain (a root
         // read with no sort) has SQL arrival order on BOTH sides —
         // the golden's is H2's, ours DuckDB's — so the ROOT array

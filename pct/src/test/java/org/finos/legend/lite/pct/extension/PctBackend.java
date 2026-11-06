@@ -138,6 +138,63 @@ public final class PctBackend {
         };
     }
 
+    /**
+     * The session source channel A's queries run through THE PRODUCT DOOR on ({@link PctPlanRoute},
+     * {@code Execution.run}; 2026-11-03), each session the one the plan route's sessions chose for the plan
+     * ({@link #planSessions}): an in-process lane's a new private session of its own, the query's declared setup run on
+     * it by the door; a lane whose sessions are its connector's (MongoDB) the connector's own for the declared
+     * connection; a server lane's a new SYSTEM session per query (the one that holds a session's own tables --
+     * ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session statements make for
+     * the system metamodel store), closed after; but where the backend holds a session (a cloud's) and the plan's
+     * session statements are its dialect's options alone, the held one ({@code planned}: the target the query's plan
+     * answers on, null for a constant -- asked of such a lane alone). Round 14 measured why (2026-11-03): a plain lane
+     * session, as the door's first route opened, lost getAll::testBasic on ClickHouse (a temporary table lives in its
+     * HTTP session) and Snowflake (no current schema).
+     */
+    public static com.legend.Execution.Source executionSource(
+            java.util.function.Supplier<com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target> planned) {
+        TestBackend backend = backend();
+        if (ownSessions(backend)) {
+            return (target, ctx) -> {
+                if (!(target instanceof com.legend.database.Target.Declared d) || d.connections().size() != 1) {
+                    throw new IllegalStateException("the " + name() + " lane's query names no one declared connection: "
+                            + target);
+                }
+                return com.legend.exec.Connectors.of(backend.type()).open(d.connections().get(0));
+            };
+        }
+        if (backend.inProcess()) {
+            return (target, ctx) -> {
+                try {
+                    return com.legend.testbackend.TestSessions.owning(backend.open());
+                } catch (SQLException e) {
+                    throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
+                            + e.getMessage(), e);
+                }
+            };
+        }
+        return (target, ctx) -> {
+            try {
+                Connection held = backend.held();
+                if (held != null) {
+                    com.legend.executionplan.ExecutionPlan.Target t = planned.get();
+                    if (t == null || optionsOnly(t)) {
+                        com.legend.exec.Sessions.Session s = heldSession;
+                        if (s == null) {
+                            s = com.legend.testbackend.TestSessions.over(held);
+                            heldSession = s;
+                        }
+                        return com.legend.exec.Sessions.view(s);
+                    }
+                }
+                return com.legend.testbackend.TestSessions.owning(backend.openSystem());
+            } catch (SQLException e) {
+                throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
+                        + e.getMessage(), e);
+            }
+        };
+    }
+
     /** Whether a plan's session statements are its dialect's own options alone (ALTER SESSION, run on any session
      *  again as on a new one): a plan that makes a table of the session's own (the system metamodel store's) runs on
      *  a new session, which drops the table when it closes. */

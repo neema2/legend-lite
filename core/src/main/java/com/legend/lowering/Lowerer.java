@@ -572,6 +572,17 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
+            // the value of an engine execute(...) (the splice's mark): the
+            // engine JsonBuilder's cardinality rule, exactly one object bare
+            // and zero or several as the array -- the scalar position's fold
+            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
+            // "the right clean thing in lite, the backward-compatible thing
+            // in compatibility mode"): lite's own root stays the array, and
+            // the streaming root (one object per row) never folds
+            if (g.engineExecuteCardinality() && !streamingGraphRoot) {
+                return conformJsonEgress(SnapshotEnvelope.fold(
+                        serializeGraph(g.asArrayWrapped(), false)));
+            }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.

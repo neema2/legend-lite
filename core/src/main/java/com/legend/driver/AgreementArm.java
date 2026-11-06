@@ -229,14 +229,6 @@ final class AgreementArm implements VerdictArm {
     }
 
     @Override
-    public @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return agree(name, env, () -> host.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook),
-                () -> database.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook));
-    }
-
-    @Override
     public TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

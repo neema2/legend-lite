@@ -72,13 +72,6 @@ interface VerdictArm {
             com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** The sorted flat-cells idiom of {@code assertEquals} ({@code $r.values.rows.values->sort()}
-     * against a pool): the CELL-POOL multiset. Null (the host arm) = neither side is a grid,
-     * the ordinary equality continues. */
-    @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
-
     /** The GRID PAIR: {@code assertEquals} / {@code assertNotEquals} over two statically relation-typed sides
      * (D3: the grid owner judges, never a byte decline); {@code sorted}: the actual side's order view is SORTED, so
      * the rows compare in order (else as a row multiset). The host arm is the grid owner over both grids executed
@@ -88,9 +81,9 @@ interface VerdictArm {
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text, cell-pool
-     * and grid-pair routes declined; {@code incidental}: the actual side's order is SQL arrival
-     * order (the judgment is order-insensitive); {@code gridPair}: a side is statically tabular. */
+    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text and grid-pair routes declined;
+     * {@code incidental}: the actual side's order is SQL arrival order (the judgment is order-insensitive);
+     * {@code gridPair}: a side is statically tabular. */
     TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);

@@ -584,7 +584,7 @@ public final class VerdictQueries {
      * root rule, decided at compile time. Null when the text does not
      * parse (the golden itself is defective — named, never guessed). */
     public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedCString
-            canonicalJsonGolden(String text, boolean rootMany) {
+            canonicalJsonGolden(String text) {
         Object parsed;
         try {
             parsed = com.legend.sql.Json.parseOne(text);
@@ -592,33 +592,8 @@ public final class VerdictQueries {
             return null;   // the parser's own refusal; anything else stays loud
         }
         String canon = com.legend.sql.Json.canonical(parsed);
-        if (rootMany && parsed instanceof java.util.Map) {
-            canon = "[" + canon + "]";
-        }
         return new com.legend.compiler.spec.typed.TypedCString(canon,
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
-    }
-
-    /** A JSON golden's ROOT ARRAY as its elements' canonical texts (a
-     * literal String collection) — the peer of a document whose root order
-     * the chain does not define (an unsorted graph fetch: the root objects
-     * are a multiset). Null when the golden is not an array. */
-    public static @com.legend.base.Nullable TypedSpec jsonRootElements(String text) {
-        Object parsed;
-        try {
-            parsed = com.legend.sql.Json.parseOne(text);
-        } catch (IllegalStateException malformed) {
-            return null;
-        }
-        if (!(parsed instanceof List<?> elements)) {
-            return null;
-        }
-        List<TypedSpec> out = new ArrayList<>(elements.size());
-        for (Object e : elements) {
-            out.add(new TypedCString(com.legend.sql.Json.canonical(e), scalar(Type.Primitive.STRING)));
-        }
-        return new TypedCollection(out, new ExprType(Type.Primitive.STRING,
-                new Multiplicity.Bounded(out.size(), out.size())));
     }
 
     /** {@code instanceOf(value, Type)} as a typed call — the meaning of

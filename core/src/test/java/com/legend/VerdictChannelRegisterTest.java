@@ -47,6 +47,9 @@ class VerdictChannelRegisterTest {
             // was a second definition of "equal float"; deleted)
             "spec/src/test/java/com/legend/harness/RefereeVerify.java",
             // the judges and their tests under com.legend.judge since 2026-10-30 (D71)
+            "core/src/test/java/com/legend/judge/EqualityJsonStrictTest.java",
+            // 2026-11-03, the user's ruling "no sort can be multiset compare" restored: an unsorted chain's root
+            // array a multiset again, its test back beside the strict object-vs-array one
             "core/src/test/java/com/legend/judge/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/judge/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/judge/PureAssertsTest.java");

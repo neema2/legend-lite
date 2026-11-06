@@ -301,6 +301,9 @@ class ChannelBEssentialTest {
         // failure is corroborated by a reference channel. Stays zero.
         assertTrue(trueWireBug == 0,
                 "TRUE wire-bug census grew from ZERO: " + trueWireBug);
+        // the EXACT gate (2026-11-03): every failure ledgered with its text, every ledgered test failing
+        ChannelBLedger.judge("Essential", out, ChannelBLedger.of(org.finos.legend.lite.pct.extension.PctBackend.name(),
+                "Essential"));
     }
 
     /** The engine's relational essential manifest exclusions (its relational

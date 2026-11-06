@@ -60,11 +60,11 @@ public final class BodyRouter {
         boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
         // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so its
         // asserts are planned on the system database's session (the walk's route for each side) and its program's
-        // target is that database, which the sessions source below opens -- the same session object, seeded once per
-        // graph
+        // target is that database, which the sessions source below opens -- the same session object, which the plan's
+        // own seed step writes once per graph (SystemRoutes.seeds; nothing is sent before the plan runs)
         boolean systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
                 && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
-        SystemDatabase.Route systemRoute = null;
+        Sessions.Session system = null;
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
@@ -75,14 +75,10 @@ public final class BodyRouter {
             BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
             com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
                     java.util.Objects.requireNonNull(runtimeFqn));
-            systemRoute = BodyDriver.systemRoute(on, route);
-            // the session names the store's tables as the plan is written (the walk's check, openRoute): in
-            // process neither renames; a server engine is refused by the class rule before this
-            if (!systemRoute.renames().equals(com.legend.planner.SystemRoutes.renames(route))) {
-                throw new IllegalStateException("the system database on " + route.engine() + " names the store's"
-                        + " tables " + systemRoute.renames() + ", its plan " + com.legend.planner.SystemRoutes.renames(route));
-            }
-            env = on.withSession(systemRoute.session());
+            // opened, not written: the program's seed step writes the store (a server engine is refused by the class
+            // rule before this, so the tables keep their names)
+            system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
+            env = on.withSession(system);
         }
         if (assertsPlanned) {
             // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned
@@ -133,13 +129,11 @@ public final class BodyRouter {
             // the graph's system database for a step that names it: the body's own target when the body is
             // system-routed, else the second, read-only session a statement reading the system store alone runs on
             // (per-statement routing, 2026-11-03), opened when a step first asks
-            Sessions.Session system = systemRoute == null ? null : systemRoute.session();
+            Sessions.Session routed = system;
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    system != null ? target -> system
-                            : target -> BodyDriver.systemRoute(java.util.Objects.requireNonNull(bodyEnv,
-                                    "a step names the system database in a body planned with no environment"),
-                                    BodyDriver.systemRouteOf(typed.context(),
-                                            java.util.Objects.requireNonNull(runtimeFqn))).session();
+                    routed != null ? target -> routed
+                            : target -> SystemDatabase.of(typed.context()).sessionFor(target.type(),
+                                    options.systemConnections());
             PlanRunner.program(plan, Map.of(),
                     PlanSessions.of(session, null, systemSessions),
                     database != null ? PlanRunner.Judging.DATABASE
@@ -252,6 +246,9 @@ public final class BodyRouter {
             if (database == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
             }
+            if (database.hostStep(verdict) != null) {
+                return;   // an assertError's step under the database judge: judged at its sides (ruling N3)
+            }
             database.received(verdict, row, listener);
             lastVerdict = AssertVerdicts.ok();
         }
@@ -279,7 +276,7 @@ public final class BodyRouter {
                 agreement.hostSides(verdict, () -> rows, listener);
                 return;
             }
-            HostAsserts.Planned p = assertOf(verdict);
+            HostAsserts.Planned p = hostPlanned(verdict);
             judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows));
         }
 
@@ -294,9 +291,23 @@ public final class BodyRouter {
                 }, listener);
                 return;
             }
-            judged(assertOf(verdict), () -> {
+            judged(hostPlanned(verdict), () -> {
                 throw failure;
             });
+        }
+
+        /** The host's planned assert {@code verdict} is: the host judge's, or, under the database judge, an
+         *  assertError's step (ruling N3: Java compares the error in both judge modes). */
+        private HostAsserts.Planned hostPlanned(ExecutionPlan.Verdict verdict) {
+            if (database != null) {
+                HostAsserts.Planned step = database.hostStep(verdict);
+                if (step == null) {
+                    throw new IllegalStateException("host sides for a verdict the database judge planned: "
+                            + verdict.name());
+                }
+                return step;
+            }
+            return assertOf(verdict);
         }
 
         private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides) {
@@ -317,6 +328,13 @@ public final class BodyRouter {
             return planned.frameRuns().contains(step) ? com.legend.exec.StatementOrigin.LET
                     : databaseGroups.contains(step) ? com.legend.exec.StatementOrigin.BODY
                     : deferredTextOrigins.get(step);
+        }
+
+        /** Whether the program's step {@code step} is the graph's system store's seed step (the planner's). */
+        private boolean systemStore(int step) {
+            return planned.plan().root() instanceof ExecutionPlan.Sequence s
+                    && s.steps().get(step) instanceof ExecutionPlan.Setup u
+                    && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
         }
 
         private HostAsserts.Planned assertOf(ExecutionPlan.Verdict verdict) {
@@ -373,6 +391,10 @@ public final class BodyRouter {
         @Override
         public void seeded(int step, List<Boolean> answeredRows) {
             List<String> texts = planned.seeds().get(step);
+            if (texts == null && systemStore(step)) {
+                // the graph's system store's seeds are no body's: the walk's ledger recorded none of them
+                return;
+            }
             if (texts == null || answeredRows.size() > texts.size()) {
                 throw new IllegalStateException("seed step " + step + " of a moved body ran "
                         + answeredRows.size() + " statement(s) with " + (texts == null ? "no" : texts.size())

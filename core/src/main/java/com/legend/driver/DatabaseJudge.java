@@ -453,8 +453,23 @@ final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false), t.scalarRow(false)),
-                a.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false),
+                t.scalarRow(false), toleranceArithmetic(args)), a.on(env));
+    }
+
+    /** The kind {@code assertEqWithinTolerance}'s three sides compute in: BIGINT where all three are Integers, DOUBLE
+     *  where one is a Float (the database's Float), else DECIMAL (a Decimal, or a Number the database holds exactly)
+     *  -- never DOUBLE for exact kinds (the user's ruling, 2026-11-03). */
+    private static com.legend.sql.SqlType toleranceArithmetic(List<TypedSpec> args) {
+        boolean allInteger = true;
+        for (TypedSpec s : args.subList(0, 3)) {
+            com.legend.compiler.element.type.Type t = s.info().type();
+            if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                return com.legend.sql.SqlType.Scalar.DOUBLE;
+            }
+            allInteger &= t == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+        }
+        return allInteger ? com.legend.sql.SqlType.Scalar.BIGINT : new com.legend.sql.SqlType.Decimal(38, 18);
     }
 
     /** A side the pipeline ANSWERED as a host constant (a TDG seed string, a
@@ -590,10 +605,6 @@ final class DatabaseJudge {
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
                     false);
         }
-        @Override public TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);
-        }
         @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
@@ -712,39 +723,11 @@ final class DatabaseJudge {
         TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
                 .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
-        // the engine's bare-object print applies to a serialize DOCUMENT
-        // whose root is many-valued — never to a RESULT ENVELOPE
-        // ({"builder":…,"values":…}, executeLegendQuery's contract:
-        // always one object; the many-ness lives inside "values") —
-        // read off the planned side's root object
-        boolean rootMany = ja.side() != null && !AssertVerdicts.planIsEnvelope(ja.side().plan())
-                && AssertVerdicts.serializedRootMany(actualJson, letPrefix, hook);
-        // bucket 9: an unsorted many-valued root is a MULTISET of root objects
-        if (rootMany && ja.why() == null
-                && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
-            TypedSpec elements = com.legend.compiler.spec.VerdictQueries
-                    .jsonRootElements(goldenText);
-            if (elements != null) {
-                SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
-                if (jr.why() == null) {
-                    com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
-                            jr.textRowsMany(), ja.textRows());
-                    boolean placeable;
-                    try {
-                        env.dialect().render(mq);
-                        placeable = true;
-                    } catch (com.legend.sql.dialect.DialectCapability wall) {
-                        placeable = false;
-                    }
-                    if (placeable) {
-                        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
-                        return runVerdict(name, true, mq, ja.on(env));
-                    }
-                }
-            }
-        }
-        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
-                goldenText, rootMany);
+        // the golden as written (the user's ruling, 2026-11-03: no [x] for x -- a document serialized otherwise than
+        // the engine serializes it is the serializer's to fix). An unsorted root's order is the host's root multiset
+        // (HostJudge.jsonOf); this statement's own root-multiset form (bucket 9) was gated by the deleted rootMany
+        // sniff, so a text that is not byte-equal is unjudged here (VerdictSql.jsonText) and the host decides
+        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenText);
         if (golden == null) {
             return unjudged(name, "json golden does not parse");
         }

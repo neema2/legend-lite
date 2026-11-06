@@ -67,10 +67,21 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     private final Map<Integer, String> frameStamps;
 
     private DatabaseAsserts(Map<Integer, List<ExecutionPlan.Verdicts>> byStatement,
-            Map<ExecutionPlan.Verdict, Segment> byVerdict, Map<Integer, String> frameStamps) {
+            Map<ExecutionPlan.Verdict, Segment> byVerdict, Map<Integer, String> frameStamps,
+            Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.byVerdict = byVerdict;
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
+        this.hostSteps = hostSteps;
+    }
+
+    /** The assertErrors' steps by their verdict (ruling N3: the comparison is Java's in both judge modes, so the step
+     *  is the host planner's, its sides read and judged by the host's rule at the assert's turn). */
+    private final Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps;
+
+    /** The assertError step {@code verdict} is, or null: a verdict of the database's segments. */
+    HostAsserts.@Nullable Planned hostStep(ExecutionPlan.Verdict verdict) {
+        return hostSteps.get(verdict);
     }
 
     /**
@@ -95,12 +106,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
-        if (typed.body().stream().anyMatch(st -> scan.kinds(st).contains(QueryDoor.TestOnly.ASSERT_ERROR))) {
-            // an assertError beside the database judge's segments: the walk runs it at its segment's close, before the
-            // flush -- the walk's under this judge, by name, until its step is placed among the segment's groups
-            com.legend.exec.Census.unplannedAssert("database: an assertError beside the segment's verdicts");
-            return null;
-        }
+        Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps = new IdentityHashMap<>();
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>();
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
@@ -168,6 +174,30 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 com.legend.exec.Census.unplannedAssert("database: a check over a frame not run at its let");
                 return null;
             }
+            if (QueryDoor.assertErrorRoot(statement, specs)) {
+                // ruling N3 under the database judge: assertError's comparison is Java's in both judge modes, so its
+                // step is the host planner's (HostAsserts.planAssertError), placed at its turn -- the walk runs it at
+                // its segment's close, so the segment before it closes here and the next opens after it
+                if (walled) {
+                    byStatement.put(i, List.of());
+                    continue;
+                }
+                batch.fragments(fragments);
+                if (!close(batch, segment, lastAssert, env, byStatement, byVerdict)) {
+                    return null;
+                }
+                segment++;
+                batch = BodyDriver.newVerdictBatch(env);
+                benv = env.withVerdictBatch(batch);
+                HostAsserts.Planned step = HostAsserts.planAssertError(statement, Lets.bare(statement), letPrefix,
+                        frames, specs, env);
+                if (step == null) {
+                    return null;
+                }
+                byStatement.put(i, List.of(step.step()));
+                hostSteps.put(step.verdict(), step);
+                continue;
+            }
             if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
                 continue;
             }
@@ -217,7 +247,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // the shape by name; kept as the guard behind it)
             return null;
         }
-        return new DatabaseAsserts(byStatement, byVerdict, frameStamps);
+        return new DatabaseAsserts(byStatement, byVerdict, frameStamps, hostSteps);
     }
 
     /**
@@ -277,6 +307,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 continue;
             }
             if (kinds.contains(QueryDoor.TestOnly.EFFECT)) {
+                segment++;
+                continue;
+            }
+            if (QueryDoor.assertErrorRoot(statement, specs)) {
+                // the main pass closes the segment at an assertError (its step is the host's, ruling N3): numbered
+                // alike here, so a frame's stamp is bound in the same segment on both passes
                 segment++;
                 continue;
             }

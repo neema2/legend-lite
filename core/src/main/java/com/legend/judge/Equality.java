@@ -215,10 +215,54 @@ public final class Equality {
             return e instanceof Double de && a instanceof Double da
                     && withinTwoUlp(de, da);
         }
-        if (ek == Type.Primitive.STRING || ek == Type.Primitive.BOOLEAN) {
+        if (ek == Type.Primitive.STRING) {
+            return e.equals(a) || (e instanceof String es && a instanceof String as && floatTokensWithinTwoUlp(es, as));
+        }
+        if (ek == Type.Primitive.BOOLEAN) {
             return e.equals(a);
         }
         return e.equals(a);   // dates: the literal's own equality
+    }
+
+    /** A float's text in a rendered string: digits, a point and digits, an optional exponent. */
+    private static final java.util.regex.Pattern FLOAT_TOKEN =
+            java.util.regex.Pattern.compile("-?\\d+\\.\\d+(?:[eE][-+]?\\d+)?");
+
+    /** S15 widened (the user's ruling, 2026-11-03, "allow float tolerance"): two strings -- a rendered grid's text
+     *  (toCSV, toString, a join), a message -- are equal where they differ ONLY in float tokens each pair of which is
+     *  within 2 ULP ({@link #withinTwoUlp}): the text between the floats exact, the tokens in order, an integer never
+     *  a float. The database computes a Float in doubles (5.590000000000001 where the engine's golden prints 5.59). */
+    static boolean floatTokensWithinTwoUlp(String e, String a) {
+        java.util.regex.Matcher me = FLOAT_TOKEN.matcher(e);
+        java.util.regex.Matcher ma = FLOAT_TOKEN.matcher(a);
+        int ie = 0;
+        int ia = 0;
+        boolean anyTolerated = false;
+        while (true) {
+            boolean fe = me.find();
+            boolean fa = ma.find();
+            if (fe != fa) {
+                return false;
+            }
+            String te = fe ? e.substring(ie, me.start()) : e.substring(ie);
+            String ta = fa ? a.substring(ia, ma.start()) : a.substring(ia);
+            if (!te.equals(ta)) {
+                return false;
+            }
+            if (!fe) {
+                return anyTolerated;
+            }
+            String ne = me.group();
+            String na = ma.group();
+            if (!ne.equals(na)) {
+                if (!withinTwoUlp(Double.parseDouble(ne), Double.parseDouble(na))) {
+                    return false;
+                }
+                anyTolerated = true;
+            }
+            ie = me.end();
+            ia = ma.end();
+        }
     }
 
     private static boolean structural(Object e, Object a) {

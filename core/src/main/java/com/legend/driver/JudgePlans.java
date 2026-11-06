@@ -221,11 +221,17 @@ final class JudgePlans {
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS;
                 columns = java.util.List.of(hostColumn("json", "String", one));
                 com.legend.json.Json.Node parsed = com.legend.json.Json.parse(g.json());
-                if (!(parsed instanceof com.legend.json.Json.Arr items)) {
-                    throw new IllegalStateException("a graph side's JSON is an array of objects; got " + g.json());
-                }
-                for (com.legend.json.Json.Node item : items.items()) {
-                    rows.add(hostRow(com.legend.json.Json.toCompact(item)));
+                if (parsed instanceof com.legend.json.Json.Obj sole) {
+                    // an engine execute()'s values of exactly one object, serialized bare (the engine JsonBuilder's
+                    // cardinality rule, compatibility only: TypedSerializeGraph.engineExecuteCardinality): one object
+                    rows.add(hostRow(com.legend.json.Json.toCompact(sole)));
+                } else if (parsed instanceof com.legend.json.Json.Arr items) {
+                    for (com.legend.json.Json.Node item : items.items()) {
+                        rows.add(hostRow(com.legend.json.Json.toCompact(item)));
+                    }
+                } else {
+                    throw new IllegalStateException("a graph side's JSON is an array of objects or one object; got "
+                            + g.json());
                 }
             }
         }

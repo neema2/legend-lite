@@ -181,6 +181,10 @@ class HarnessDisciplineTest {
             // decline-witness list sorts for stable console diffs —
             // the SAME display-ordering class; no comparison flows
             // through it (FULL_RESIDUE_CENSUS_2026_08_30.md §0).
+            // 7 -> 5 (2026-11-03, the user's ruling, judges never more lenient than upstream): the rendered-text
+            // and order-leniency probes deleted with the policies they measured; 5 -> 7 (2026-11-03, the user's
+            // ruling "no sort can be multiset compare" restored: an unsorted side may compare as a multiset, so the
+            // rendered-text probe's two-sided line sort is back with the policy it measures)
             Map.entry("CanonicalDivergence.java", 7),
             // (MetamodelWalk.java: its 3 record-accessor `.distinct()`
             // sites left with the resolvePrimaryKey arm — metamodel-as-
@@ -199,12 +203,18 @@ class HarnessDisciplineTest {
             // (WholeTestFlip, the old runner and the walk: DELETED in
             // batch 115 — their rows left this list)
             // 4 -> 3 -> 2 (JUDGING_TWO_MODES step 2a/2b): the row-multiset
-            // match and its pool moved to Equality
+            // match and its pool moved to Equality; 2 -> 0 (2026-11-03, the user's ruling: a grid's rows compare in
+            // order, the rendered text exactly -- the multiset and token-pool paths deleted); 0 -> 2 (2026-11-03, the
+            // user's ruling "no sort can be multiset compare" restored: an unsorted render's lines and tokens compare
+            // as a multiset again, a sorted one in order)
             Map.entry("TdsCompare.java", 2),
             // ---- src/main/com/legend/driver (step C, D73, 2026-10-30; the D73 audit): the judges' arms sat at
             // the root, which this guard never walked; the root dissolved into a package the walk now covers. ----
             // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
-            // order-insensitive equality -- comparison policy, two-sided, the same on each side
+            // order-insensitive equality -- comparison policy, two-sided, the same on each side; 4 -> 2
+            // (2026-11-03, the user's ruling: the flat-cells byte channel compares in order -- assertSameElements
+            // keeps its own sort, upstream's sort-then-compare); 2 -> 4 (2026-11-03, the user's ruling "no sort can be
+            // multiset compare" restored: an INCIDENTAL actual side's flat-cells byte channel sorts both sides again)
             Map.entry("HostJudge.java", 4),
             // (BodyDriver: 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings
             // left for the planner with the engine's plan text (EnginePlans, below); 1 -> 0 (2026-10-31, S4a): the

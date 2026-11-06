@@ -275,7 +275,7 @@ final class HostAsserts implements TestDoor.Asserts {
      * an error. Null where f holds a statement before its last that is no let, or its side is on a session the body
      * cannot reach: the walk.
      */
-    private static @Nullable Planned planAssertError(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
+    static @Nullable Planned planAssertError(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
         String name = AssertVerdicts.listenerName(bare);
         if (!(bare instanceof com.legend.compiler.spec.typed.TypedNativeCall ae)) {
@@ -293,14 +293,29 @@ final class HostAsserts implements TestDoor.Asserts {
         if (body.isEmpty()) {
             return null;
         }
+        // f's WHOLE body is the sub-plan (ruling N3): Pure runs each of f's lets at its turn, so a let that does work
+        // is read as a side in f's order, before the last statement -- the first error any of them raises is the
+        // answer; a let that does no work cannot raise (LetPlanner.doesNoWork). A read let is spliced where it is read
+        // as well (S129).
         List<TypedSpec> before = new ArrayList<>(letPrefix);
+        List<TypedSpec> working = new ArrayList<>();
         for (TypedSpec st : body.subList(0, body.size() - 1)) {
-            if (!(st instanceof TypedLet)) {
+            if (!(st instanceof TypedLet let)) {
                 return null;
+            }
+            TypedSpec rhs = LetPlanner.rhs(let);
+            if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && (com.legend.builtin.NativeFn.Handle.runsAFrame(nc.callee().id())
+                            || com.legend.builtin.Pure.Lite.STAGE.equals(nc.callee().qualifiedName()))) {
+                // a frame or a staged let inside f: not a side; the walk's (the door names it)
+                return null;
+            }
+            if (!LetPlanner.doesNoWork(let.value(), before, env.ctx())) {
+                working.add(let.value());
             }
             before.add(st);
         }
-        TypedSpec side = Lets.bare(body.get(body.size() - 1));
+        working.add(Lets.bare(body.get(body.size() - 1)));
         BodyDriver.ExecEnv at;
         AssertVerdicts.SpliceHook hook;
         try {
@@ -309,7 +324,10 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE);
         }
-        List<HostSides.Ask> asks = List.of(new HostSides.Ask(side, false, false, hook));
+        List<HostSides.Ask> asks = new ArrayList<>(working.size());
+        for (TypedSpec side : working) {
+            asks.add(new HostSides.Ask(side, false, false, hook));
+        }
         HostSides.Planned sides;
         RuntimeException caught = null;
         try {

@@ -221,14 +221,14 @@ public final class PlanRunner {
                 Statements st = opened(session, on);
                 ExecutionPlan.Target system = shape.system();
                 if (system == null) {
-                    Routes rt = new Routes(st, null);
+                    Routes rt = new Routes(st, null, null);
                     bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
                 } else {
                     // a statement reading the graph's system metamodel store beside the body's: its own session, read
                     // only, outside the program's transaction (the walker-deletion program's per-statement routing,
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
-                        Routes rt = new Routes(st, opened(systemSession, system));
+                        Routes rt = new Routes(st, opened(systemSession, system), systemSession);
                         bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
                     }
                 }
@@ -256,7 +256,7 @@ public final class PlanRunner {
 
     /** Where a program's statements run: the program's own session, and the graph's system database's where a
      *  statement names that target beside the program's (read only: no write, effect or seed is planned there). */
-    private record Routes(Statements home, @Nullable Statements system) {
+    private record Routes(Statements home, @Nullable Statements system, Sessions.@Nullable Session systemSession) {
         /** The session {@code sql} runs on: the system database's where it names that target and the program has a
          *  second session for it; the program's otherwise. */
         Statements on(ExecutionPlan.Sql sql) {
@@ -290,8 +290,13 @@ public final class PlanRunner {
                     sqls.add(e.sql());
                 }
                 case ExecutionPlan.Setup u -> {
-                    writesHome(u.target(), "a seed step");
-                    target = sameTarget(target, u.target());
+                    if (u.target().database() instanceof ExecutionPlan.Database.System) {
+                        // the graph's system store's own seeds: the one write its database takes, once per session
+                        systemStore(u);
+                        system = sameTarget(system, u.target());
+                    } else {
+                        target = sameTarget(target, u.target());
+                    }
                 }
                 case ExecutionPlan.TdsResult t -> {
                     results++;
@@ -327,12 +332,21 @@ public final class PlanRunner {
                 : new ProgramShape(target, changes, snapshot, results > 0, system);
     }
 
-    /** A write, an effect or a seed step names {@code target}: refused on the graph's system database, which is read
-     *  only beside a program's own target (its rows are the graph's, written once by its holder). */
+    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Setup#SYSTEM_STORE},
+     *  the planner's), never a body's test data: refused by name otherwise. */
+    private static void systemStore(ExecutionPlan.Setup seeds) {
+        if (!seeds.key().equals(ExecutionPlan.Setup.SYSTEM_STORE)) {
+            throw new IllegalStateException("a seed step on the graph's system database that is not the system store's"
+                    + " own: the database holds the graph's metamodel and nothing else");
+        }
+    }
+
+    /** A write or an effect names {@code target}: refused on the graph's system database, which is read only beside a
+     *  program's own target (its rows are the graph's, written once by the store's seed step). */
     private static void writesHome(ExecutionPlan.Target target, String what) {
         if (target.database() instanceof ExecutionPlan.Database.System s) {
             throw new IllegalStateException(what + " on the graph's system database (" + s.type() + "): it is read"
-                    + " only, written once by its holder");
+                    + " only, written once by the system store's own seed step");
         }
     }
 
@@ -498,7 +512,14 @@ public final class PlanRunner {
                 }
                 sink.effectRan(i);
             }
-            case ExecutionPlan.Setup u -> seed(u, i, session, st, sink);
+            case ExecutionPlan.Setup u -> {
+                // the system store's seeds on the system database's session where it is a second one; every other seed
+                // step on the program's
+                boolean beside = rt.systemSession() != null
+                        && u.target().database() instanceof ExecutionPlan.Database.System;
+                seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
+                        beside ? Objects.requireNonNull(rt.system()) : st, answered -> sink.seeded(i, answered));
+            }
             case ExecutionPlan.TdsResult t -> {
                 // the program's answering statement is a statement of the body on its own, as the walk marks a
                 // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
@@ -539,12 +560,20 @@ public final class PlanRunner {
     private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
             Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
             throws IOException {
-        if (judging == Judging.HOST || judging == Judging.BOTH) {
+        boolean hostAll = judging == Judging.HOST || judging == Judging.BOTH;
+        // a HOST-JUDGED verdict in a database-judged program: its sides and no statement of the database's (no wrapper,
+        // no fused statement) -- an assertError's step (ruling N3: Java compares the error in both judge modes)
+        boolean hostOnly = !hostAll && group.fused() == null
+                && group.verdicts().stream().anyMatch(v -> v.wrapper() == null && !v.base().isEmpty());
+        if (hostAll || hostOnly) {
             // F11 for the host's reads: inside the program's transaction a side whose failure the program may survive
             // (an assertError's) is read under the group's savepoint, so the transaction stays live for the steps after
             // it; the program's transaction is its own target's
             ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
             for (ExecutionPlan.Verdict each : group.verdicts()) {
+                if (!hostAll && (each.wrapper() != null || each.base().isEmpty())) {
+                    continue;
+                }
                 List<Rows> sides;
                 if (guard != null) {
                     sendStatement(guard.set(), st.home());
@@ -1065,18 +1094,31 @@ public final class PlanRunner {
         st.execute(statement);
     }
 
-    /** A program's seed step (B12), its place {@code step}: skipped where the session holds its key's seeds and has
-     *  run no write since; run otherwise, step by step as a target's setup is, and its key recorded. {@code sink} is
-     *  told which of its statements ran, and whether each answered rows -- on a failure, those before it, as the walk
-     *  records a setup's statements as each runs (the M5 audit's S1). */
-    private static void seed(ExecutionPlan.Setup seeds, int step, Sessions.Session session, Statements st,
-            ProgramSink sink) {
+    /** The graph's system store's seed step ({@link ExecutionPlan.Setup#SYSTEM_STORE}) on {@code system}, the graph's
+     *  system database's session, once (the seeds' memo): the body driver's walk reaching that session runs the program
+     *  road's own step through here, so whichever road comes first writes the store, once. Deleted with the walk. */
+    public static void seedSystemStore(ExecutionPlan.Setup seeds, Sessions.Session system) {
+        if (!(seeds.target().database() instanceof ExecutionPlan.Database.System)) {
+            throw new IllegalStateException("the system store's seeds name the graph's system database");
+        }
+        systemStore(seeds);
+        seed(seeds, system, opened(system, seeds.target()), answered -> { });
+    }
+
+    /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
+     *  otherwise, step by step as a target's setup is, and its key recorded. {@code ran} is told which of its
+     *  statements ran, and whether each answered rows -- on a failure, those before it, as the walk records a setup's
+     *  statements as each runs (the M5 audit's S1). The system store's seeds are sent under the SYSTEM mark, as its
+     *  holder sent them; every other seed under SEED. */
+    private static void seed(ExecutionPlan.Setup seeds, Sessions.Session session, Statements st,
+            java.util.function.Consumer<List<Boolean>> ran) {
         SeedKey key = new SeedKey(seeds.key());
         if (session.state().established(key)) {
             return;
         }
         List<Boolean> answered = new ArrayList<>(seeds.steps().size());
-        try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
+        boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
+        try (var origin = StatementOrigin.enter(system ? StatementOrigin.SYSTEM : StatementOrigin.SEED)) {
             for (ExecutionPlan.SetupStep each : seeds.steps()) {
                 switch (each) {
                     case ExecutionPlan.SetupStep.Statement s -> {
@@ -1093,7 +1135,7 @@ public final class PlanRunner {
                 }
             }
         } finally {
-            sink.seeded(step, List.copyOf(answered));
+            ran.accept(List.copyOf(answered));
         }
         session.state().establish(key);
     }

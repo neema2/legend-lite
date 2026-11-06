@@ -553,23 +553,6 @@ final class AssertVerdicts {
                     com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
                     yield ra;
                 }
-                // a bare no-key sort() over a FLAT-CELLS side
-                // (`$result.values.rows.values->sort()` — the strictdate
-                // testProject idiom, a mixed Integer/StrictDate pool):
-                // the assert compares the pools under ONE total order,
-                // i.e. cell-multiset equality — the flat-cells multiset
-                // verdict (both channels judge order-insensitively);
-                // sorting a mixed-type cell pool is never a SQL column
-                TypedSpec cellsE = bareSortOverCells(args.get(0));
-                TypedSpec cellsA = bareSortOverCells(args.get(1));
-                if (wantEqual && (cellsE != null || cellsA != null)) {
-                    // the sorted flat-cells idiom IS the cell-pool multiset
-                    TypedSide pool = arm.cellPool(name, cellsE != null ? cellsE : args.get(0),
-                            cellsA != null ? cellsA : args.get(1), letPrefix, specs, env, hook);
-                    if (pool != null) {
-                        yield pool;
-                    }
-                }
                 // D3 — the GRID-PAIR arm: both sides statically
                 // relation-stamped execute as grids; the grid owner
                 // (TdsCompare.grids: columns ordered, rows under the
@@ -1129,17 +1112,6 @@ final class AssertVerdicts {
                 HostSides.Check rendered = renderedPlan(name, wantEqual, args, letPrefix, hook, true);
                 if (rendered != null) {
                     yield rendered;
-                }
-                TypedSpec cellsE = bareSortOverCells(args.get(0));
-                TypedSpec cellsA = bareSortOverCells(args.get(1));
-                if (wantEqual && (cellsE != null || cellsA != null)) {
-                    // the sorted flat-cells idiom (M10c item 9): the cell pool where a side is planned as a grid; else
-                    // the generic equality below, as the walk continues
-                    HostSides.Check pool = HostJudge.planCellPool(name, cellsE != null ? cellsE : args.get(0),
-                            cellsA != null ? cellsA : args.get(1), letPrefix, specs, env, hook);
-                    if (pool != null) {
-                        yield pool;
-                    }
                 }
                 if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {
@@ -1780,19 +1752,6 @@ final class AssertVerdicts {
         return s.length() <= 600 ? s : s.substring(0, 600) + "…(" + s.length() + " chars)";
     }
 
-    /** {@code sort(<flat cells>)} — a one-argument collection sort over
-     * a statically table-shaped side; the cells, or null. */
-    static @com.legend.base.Nullable TypedSpec bareSortOverCells(TypedSpec s) {
-        if (s instanceof TypedNativeCall c
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::collection::sort")
-                && c.args().size() == 1
-                && tabularShaped(c.args().get(0))) {
-            return c.args().get(0);
-        }
-        return null;
-    }
-
     /** A side's per-ROW canon texts via the grid policy owner: a
      * grid side reads its harvested row canons; a value peer frames
      * rows from its literal-channel element canons ({@link
@@ -1846,104 +1805,6 @@ final class AssertVerdicts {
     // POLICIES stay with their one production owner (TdsCompare).
 
 
-
-    /** Is the serialized query's ROOT many-valued? Read from the typed
-     * chain (through lets and the envelope splice) at its serialize node —
-     * the engine prints a one-element result of a many-valued root as a
-     * bare object, so a golden written bare stands for one element. */
-    static boolean serializedRootMany(TypedSpec s, List<TypedSpec> lets,
-            @com.legend.base.Nullable SpliceHook hook) {
-        TypedSpec chain = chaseLets(s, lets);
-        if (chain instanceof TypedNativeCall lq
-                && com.legend.builtin.NativeFn.Handle.of(lq.callee().id()).orElse(null)
-                        == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY) {
-            // executeLegendQuery's result IS the envelope ({"builder":…,
-            // "values":…}) — always one object; the root's many-ness lives
-            // inside "values", the bare-object rule never applies
-            return false;
-        }
-        if (chain instanceof com.legend.compiler.spec.typed.TypedVariable v && hook != null) {
-            TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
-            TypedSpec spliced = hook.apply(read, java.util.Set.of());
-            if (spliced != read) {
-                chain = spliced;
-            }
-        } else if (hook != null) {
-            chain = hook.apply(chain, java.util.Set.of());
-        }
-        com.legend.compiler.spec.typed.TypedSerialize ser = findSerialize(chain);
-        return ser != null && ser.source().info().multiplicity().isMany();
-    }
-
-    /** Is the planned side a RESULT ENVELOPE — its root projection a JSON
-     * object carrying the engine's {@code builder} key? A plan fact (the
-     * envelope is built by JsonEmission.result), read off the IR. */
-    static boolean planIsEnvelope(com.legend.sql.SqlQuery plan) {
-        // the planned side is the canon WRAP over the value select over the
-        // document's own select: descend while the root projection is a
-        // plain column read over a subselect
-        com.legend.sql.SqlQuery q = plan;
-        for (int depth = 0; depth < 4 && q instanceof com.legend.sql.SqlSelect s
-                && !s.projections().isEmpty(); depth++) {
-            com.legend.sql.SqlExpr root = s.projections().get(0).expr();
-            while (root instanceof com.legend.sql.SqlExpr.Cast c) {
-                root = c.value();
-            }
-            if (root instanceof com.legend.sql.SqlExpr.JsonObject j) {
-                for (int i = 0; i + 1 < j.kv().size(); i += 2) {
-                    if (j.kv().get(i) instanceof com.legend.sql.SqlExpr.StringLit k
-                            && k.value().equals("builder")) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            // executeLegendQuery's envelope is spelled as a CONCAT whose first
-            // piece is the literal '{"builder":…' (JsonEmission.result)
-            if (root instanceof com.legend.sql.SqlExpr.Call call
-                    && (call.fn() == com.legend.sql.SqlFn.CONCAT
-                            || call.fn() == com.legend.sql.SqlFn.CONCAT_JOIN)
-                    && !call.args().isEmpty()
-                    && call.args().get(0) instanceof com.legend.sql.SqlExpr.StringLit first) {
-                return first.value().startsWith("{\"builder\":");
-            }
-            if (root instanceof com.legend.sql.SqlExpr.Column
-                    && s.from() instanceof com.legend.sql.SqlSource.Subselect sub) {
-                q = sub.inner();
-                continue;
-            }
-            return false;
-        }
-        return false;
-    }
-
-    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSerialize findSerialize(
-            TypedSpec s) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedSerialize ts) {
-            return ts;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedJsonResult) {
-            // a RESULT ENVELOPE ({"builder":…,"values":…}) is always one
-            // object — the root's many-ness lives inside "values"; the
-            // bare-object rule is the serialize document's alone
-            return null;
-        }
-        if (s instanceof TypedNativeCall c && !c.args().isEmpty()
-                && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                && !lam.body().isEmpty()) {
-            var found = findSerialize(lam.body().get(lam.body().size() - 1));
-            if (found != null) {
-                return found;
-            }
-        }
-        for (TypedSpec ch : s.children()) {
-            var found = findSerialize(ch);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
-    }
 
     /** The referee's gates for a verified chain, derived ONCE from the
      * typed chain by the arm that owns the verdict (Phase 0.5): the

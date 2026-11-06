@@ -191,6 +191,9 @@ public final class ChannelB {
         // unscoped suite.
         String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
+        // the walk CLOSED on every lane, by construction (2026-11-03, the channel B audit: a lane whose target set no
+        // property walked freely): every body runs on the program road, and one that would walk is refused by name
+        System.setProperty("legend.walk.allowed", "none");
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {
                 continue;
