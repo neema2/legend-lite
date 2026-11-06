@@ -2436,6 +2436,90 @@ function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K�
     ->without(~rows_l)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
+// The rows forms to date (W5, 2026-11-06), `all` in #TS: each its line form's table function over t's rows from the
+// key's first, its ramp the line form's (a count of the window's values, so t's rows before the value's first point,
+// which hold none, count for nothing -- the prefix rule), the answer a point where the value is, the D8 check in it;
+// zscores' window the whole line, as its line form's.
+function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::mean(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::sum<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::sum(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::min<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::min(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::max<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::max(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::range<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::range(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 0, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::std<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::std(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::var<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::var(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::drawdown(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 0, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::max_drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::maxDrawdown(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 0, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::zscores<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::zscores(over($key, [$date->ascending()], rows(unbounded(), unbounded())), $value, 0, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
 // The rows forms of the words over a calendar span, and of a few more (R7 part 3, 2026-11-04): the line form's own
 // table function on t, its answer a point where the value is -- the line form's line is every point of the value -- and
 // none elsewhere. A value is none where it is no point (a source's column a point of every row; a word's answer none on

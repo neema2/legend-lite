@@ -1243,6 +1243,45 @@ class TsIslandTest {
     }
 
     @Test
+    void wordsToDateAreColumnsOfTheirLinesTable() throws Exception {
+        // W5 (2026-11-06): a word over its line from its first point to each date ("all", timeseries::Scope) is a
+        // column of its line's own table -- its line form's table function over the table's rows, the ramp a count of
+        // the window's values -- so a word of a word to date reads the inner word's points alone: the line forms'
+        // answers, and no join
+        String q = "|#TS{SELECT mean(CLOSE['AAA'], all) AS m, std(CLOSE['AAA'], all) AS s,"
+                + " max_drawdown(CLOSE['AAA'], all) AS md, max(diff(CLOSE['AAA'], 2), all) AS hi FROM PRICES ON DAY BY SYMBOL}#";
+        for (TestBackend backend : TestBackends.inProcess()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            assertClose(each(AAA.length, i -> mean(AAA, 0, i)), column(got, null, null, "m"), of + "the mean to date");
+            assertClose(each(AAA.length, i -> i == 0 ? null : sampleStd(AAA, 0, i)), column(got, null, null, "s"),
+                    of + "the deviation to date, from the second day");
+            assertClose(each(AAA.length, i -> {
+                double peak = AAA[0];
+                double deepest = 0;
+                for (int k = 0; k <= i; k++) {
+                    peak = Math.max(peak, AAA[k]);
+                    deepest = Math.min(deepest, AAA[k] / peak - 1);
+                }
+                return deepest;
+            }), column(got, null, null, "md"), of + "the deepest fall to date");
+            // diff over two days has points from the third day: the most of them to date, none before
+            assertClose(each(AAA.length, i -> {
+                if (i < 2) {
+                    return null;
+                }
+                double most = Double.NEGATIVE_INFINITY;
+                for (int k = 2; k <= i; k++) {
+                    most = Math.max(most, AAA[k] - AAA[k - 2]);
+                }
+                return most;
+            }), column(got, null, null, "hi"), of + "the most two-day change to date, from the third day");
+        }
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertFalse(sql.contains(" JOIN "), "every word a column of AAA's table: " + sql);
+    }
+
+    @Test
     void anAnswerOfALineAndALineMetFromItIsThatLinesRows() throws Exception {
         // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
         // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values

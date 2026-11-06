@@ -530,6 +530,15 @@ explicit call (`correlation(x, y), lag(x), returns(x)`: 9,469 -> 7,338 character
 `correlation(x, y, 63), lag(x, 1), returns(x, 1)` byte for byte). `rows::returns`' own default deleted. No example
 changed (each names its window); the test `TsIslandTest.aDefaultIsReadAsTheCallItsBodyIs`.
 
+**Built 2026-11-06, to date:** `rows::` forms for `w: Scope` (`all`) of mean, sum, min, max, range, std, var,
+drawdown, max_drawdown and zscores, each its line form's table function over the table's rows from the key's first
+(each ramp counts the window's values, so rows before the value's first point, which hold none, count for nothing),
+the points mask and the D8 check. Ten words over every instrument 25,485 -> 7,695 characters, 10 joins -> 0; words of
+words to date (`max_drawdown(mean(x, 20), all)`, `std(diff(x, 5), all)`) 5 joins -> 2; under SAMPLE BY 9,822 ->
+3,832, 4 joins -> 0; every answer identical. The test `TsIslandTest.wordsToDateAreColumnsOfTheirLinesTable` (values
+against Java, no join). Left of W5: calendar spans for count, product, vol_swap_volatility, dickey_fuller, half_life,
+percentiles, median, percentile, returns, up_capture and down_capture; `percentilesPeriod` and `quantilePeriod`.
+
 ### W6. Reconcile with `claude/cte-let-sharing` when #83 lands
 
 That branch (`364c3e473`, `564f98829`, `cffdfcb34`) is stacked on #83 and holds the same let-sharing this branch
