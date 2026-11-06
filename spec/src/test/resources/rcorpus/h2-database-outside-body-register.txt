@@ -1,5 +1,4 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject ||| statement=1
-meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone ||| fallback=2
 meta::pure::tds::tests::extensions::testFirstNotNull ||| fallback=1
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| fallback=1

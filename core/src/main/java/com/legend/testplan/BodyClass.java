@@ -453,6 +453,9 @@ public enum BodyClass {
         boolean statementFrame = false;
         ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         boolean sentBefore = false;
+        // the seed sources established so far with no write since (the test door's own established set, TestKinds.seed:
+        // a let naming them again plans no seed step)
+        Set<Seeds.Sources> seeded = new HashSet<>();
         // the names the frames' query lambdas bind themselves (their parameters, their top-level lets), so far
         Set<String> frameNames = new HashSet<>();
         for (int i = 0; i < body.size(); i++) {
@@ -468,6 +471,15 @@ public enum BodyClass {
                 // the segment's fused statement is placed at its last assert where the walk flushes it later, so a
                 // seed after either would land on the other side of it (the M5 audit's B1, the item's audit F2/F3).
                 // An assert holding inline data stays refused: its planner plans an assert whose kinds are its alone
+                if (kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS)) {
+                    seeded.add(Seeds.sources(statement, runtime, ctx));
+                }
+            } else if (statement instanceof TypedLet && !last && kinds.contains(QueryDoor.TestOnly.INLINE_SEEDS)
+                    && seeded.contains(Seeds.sources(statement, runtime, ctx))) {
+                // the SAME sources a let established earlier, with no write since: the test door plans no seed step for
+                // it (TestKinds.seed's established set), so nothing lands between the asserts -- a second frame over
+                // the first's inline data (the corpus burn-down, 2026-11-06: paginate::testPaginated,
+                // union::rootLevel::testSpecialUnion_m2m2r)
                 kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
             }
             // whether this statement sends (an effect, a frame let, an assert): no later let's seeds are admitted
@@ -484,11 +496,13 @@ public enum BodyClass {
                 if (statement instanceof TypedLet || !literalEffect(call, body.subList(0, i))) {
                     return false;
                 }
+                seeded.clear();   // a write: the sources established before it are established no longer
                 continue;
             }
             if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && !(statement instanceof TypedLet)
                     && seedFormEffectMap(value, body.subList(0, i))) {
                 // a seed form mapped over an effect (M10c item 7c): the test door plans its texts as one script
+                seeded.clear();
                 continue;
             }
             if (statement instanceof TypedLet let && !last) {
@@ -716,6 +730,14 @@ public enum BodyClass {
             // executionPlan, by an execute's runtime argument): a value let the program splices, no system read (M10b;
             // the same test routes the body; through helpers, constructions and chains: items 7, 7b)
             boolean consumedBinding = consumption.consumedElementLet(i);
+            if (!systemRouted && kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT))
+                    && plannedEffect(statement, body.subList(0, i))) {
+                // a database effect the test door writes as a statement of its own, as the frame and effect programs
+                // admit it (a literal effect, a text form mapped over one): the corpus's setup helpers unfolded before
+                // the asserts (the corpus burn-down, 2026-11-06; the walk-deletion analysis's group A). A system-routed
+                // body's effects would target the user's connection beside the program's own: not admitted
+                continue;
+            }
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
                     || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
@@ -1160,6 +1182,18 @@ public enum BodyClass {
      *  $connection))} with {@code sqls} a {@code setUpDataSQLs} form whose data folds over {@code lets}: the corpus's
      *  setup helpers, unfolded into the body by the resolver's statement inliner): the test door plans its texts as the
      *  effect script the walk sends (M10c item 7c; {@code Seeds.seedForm}, one reader for both roads). */
+    /** Whether {@code statement} is a database effect the test door writes as a statement of its own: not a let, and
+     *  either a literal effect ({@link #literalEffect}) or a text form mapped over one ({@link #seedFormEffectMap}). */
+    private static boolean plannedEffect(TypedSpec statement, List<TypedSpec> lets) {
+        if (statement instanceof TypedLet) {
+            return false;
+        }
+        if (statement instanceof TypedNativeCall call && NativeFn.Effect.isDbEffect(call.callee().id())) {
+            return literalEffect(call, lets);
+        }
+        return seedFormEffectMap(statement, lets);
+    }
+
     static boolean seedFormEffectMap(TypedSpec value, List<TypedSpec> lets) {
         // a text form whose texts the planner spells -- a seed form's (item 7c) or a DDL text collection's (the corpus
         // burn-down, 2026-11-06) -- mapped over the one effect the door writes

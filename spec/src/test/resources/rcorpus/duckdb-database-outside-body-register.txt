@@ -1,5 +1,4 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject ||| statement=1
-meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=21
 meta::relational::testDataGeneration::tests::testConstant ||| statement=1 tdg=4
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1 tdg=8
