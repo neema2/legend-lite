@@ -630,9 +630,20 @@ class BodyRouterParityTest {
         // road with the walk closed): a frame with no assert after it is a frame program answering its last statement
         assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, "{| let r = " + EXECUTE
                 + "; $r.values.rows->size();}"), "x::RT", true));
+        // MOVED 2026-11-06 (the walk deletion): size(execute(...)) -- the test door runs the execute where it stands as a
+        // check step and the splice folds its size to the Result envelope's 1
+        assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, "{| assertEquals(1, " + EXECUTE
+                + "->size());}"), "x::RT", true));
+        // ... and through a helper an assert calls (the test door scans the statement inlined, as the program plans it)
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, "{| let r = " + EXECUTE
+                + "; assertEquals(1, x::oneExec()); assertSize($r.values.rows, 2);}"), "x::RT", true));
+        // ... bound by a let (F3), its run at the let's turn
+        assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, "{| let n = " + EXECUTE
+                + "->size(); assertEquals(1, $n);}"), "x::RT", true));
+        // ... and through a value let (its run at the let's turn)
+        assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, "{| let r = " + EXECUTE
+                + "; let n = x::oneExec(); assertEquals(1, $n); assertSize($r.values.rows, 2);}"), "x::RT", true));
         for (String body : List.of(
-                // the one inline shape the splice runs at planning: size(execute(...))
-                "{| assertEquals(1, " + EXECUTE + "->size());}",
                 // an effect let (its value a raw grid)
                 "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                         + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let x = " + EXEC
@@ -663,11 +674,6 @@ class BodyRouterParityTest {
                 // an assert calls (the rule's reach into the helper is blind to no callee: one memo per predicate)
                 "{| let r = meta::pure::router::execute(|x::aFirm(), x::M, x::RT.runtimeValue, []);"
                         + " assertSize($r.values, 1);}",
-                "{| let r = " + EXECUTE + "; assertEquals(1, x::oneExec()); assertSize($r.values.rows, 2);}",
-                "{| let r = " + EXECUTE + "; let n = x::oneExec(); assertEquals(1, $n); assertSize($r.values.rows,"
-                        + " 2);}",
-                // F3: the eager inline shape bound by a let
-                "{| let n = " + EXECUTE + "->size(); assertEquals(1, $n);}",
                 // the M9c audit's F2: a store write inside a side runs where its side is planned, inside the walk's
                 // transaction; a body it reaches stays on the walk
                 "{| let r = " + EXECUTE + "; assertEquals(2, #>{x::DB.FIRM}#->filter(f|$f.ID <= 2)"

@@ -216,15 +216,17 @@ final class HostAsserts implements TestDoor.Asserts {
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
                 if (p != null && bodyEnv != null && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
-                    // an engine-text assert of a system-routed body: its arm planned again on the body's environment,
-                    // the walk's -- its appeal reads the user's tables on the body's session -- its sides on the
-                    // program's (they name the program's one target, the system database: M10c item 10). Sound because
-                    // a system-routed body is an assert program: no frame, so no splice hook binds the two environments
+                    // an engine-text assert of a system-routed body: its arm planned on the program's environment, its
+                    // compatibility APPEAL on the body's -- the user's tables, the referee, the store provision
+                    // (ExecEnv.appealOn: the database judge's split, the host's since 2026-11-06; until then the whole
+                    // arm was planned again on the body's environment, where a text side reading the metamodel -- a
+                    // runtime's table-replace pairs -- does not plan). Sound because a system-routed body is an assert
+                    // program: no frame, so no splice hook binds the two environments
                     if (!frames.isEmpty()) {
                         throw new IllegalStateException("a system-routed body with a frame let: its engine-text arm"
-                                + " and its sides would be planned on two environments over one frame");
+                                + " and its appeal would be planned on two environments over one frame");
                     }
-                    p = planAssert(statement, bare, letPrefix, frames, specs, bodyEnv, env);
+                    p = planAssert(statement, bare, letPrefix, frames, specs, env.withAppealOn(bodyEnv), env);
                 }
                 if (p != null && !AssertVerdicts.oneTextOrigin(p.assertion().check().judgment())) {
                     // an unroll whose parts' texts carry different statement origins: one step cannot be sent under

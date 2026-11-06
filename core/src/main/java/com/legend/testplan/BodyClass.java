@@ -767,7 +767,12 @@ public enum BodyClass {
                 // body's effects would target the user's connection beside the program's own: not admitted
                 continue;
             }
-            if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
+            // a let whose value holds asserts only below its root -- a helper's own guards (the lift made every assert in
+            // a value's position a statement of its own: AssertLift) -- is a value let, spliced into its readers as the
+            // walk splices it (the walk deletion, 2026-11-06: testConvertAlias's newState(), whose converter map
+            // validates itself with asserts)
+            boolean guardedLet = statement instanceof TypedLet && kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT));
+            if (!assertRoot && !kinds.isEmpty() && !guardedLet || StatementEffects.containsTdgGenerator(statement)
                     || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
@@ -1120,7 +1125,9 @@ public enum BodyClass {
             // a side or a value let reading the system store: its side is routed to the graph's system database and
             // runs there beside the body's own (per-statement routing, 2026-11-03; a system-routed body's one target
             // since M10a) -- a statement reading BOTH stores is refused by the class rules (Stores.BOTH)
-            return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
+            // an eager inline execute (size(execute(...))) is the test door's check step at its assert's turn and the
+            // splice's folded 1 (2026-11-06): no kind that keeps the body on the walk
+            return null;
         }
         if (kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS || kind == Kind.TDG_GENERATOR) {
             // a store write inside a side or a value let: the side planner runs it where it plans it (the walk at
@@ -1128,7 +1135,7 @@ public enum BodyClass {
             // the walk's (the M9c audit's F2); the census and generator carriers: folded by the walk alone (M10a, M10b)
             return kind;
         }
-        return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
+        return null;
     }
 
     /** The kind {@code n} is that keeps a FRAME's query off the program road, named, or null: the kinds the product's

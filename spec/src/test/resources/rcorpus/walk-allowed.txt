@@ -5,8 +5,5 @@
 # lane (the host judge 26 of them, the database judge 59), less the test data generator's tests, which the user ruled
 # skipped (2026-11-06, S143: lite offers no test data generator yet; they are accepted non-passes, the
 # accepted rosters' not-offered:test-data-generator rows). When the list is empty the walk is deleted.
-meta::relational::functions::toPostgresModel::tests::testConvertAlias
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS
 meta::relational::tests::ddl::dropAndCreateTempTable
-meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor
-meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect

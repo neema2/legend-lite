@@ -747,7 +747,11 @@ public final class BodyDriver {
             public com.legend.compiler.spec.ResultEnvelopeSplice.View
                     inlineExecute(com.legend.compiler.spec.typed
                             .TypedNativeCall ec, boolean eager) {
-                ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
+                // an eager read (size(execute(...))) PLANNED for the program road runs nothing here: the test door
+                // places the execute's run as a check step at its assert's turn, and the splice folds the size to the
+                // envelope's 1 (2026-11-06); the walk runs it where it stands, as before
+                ExecFrame f = buildFrame(ec, letPrefix, eager && !com.legend.exec.StatementOrigin.isPlanning(), specs,
+                        env);
                 return new com.legend.compiler.spec.ResultEnvelopeSplice
                         .View(f.chain(), f.relationRooted(), f.sourceExec());
             }

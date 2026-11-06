@@ -142,6 +142,12 @@ final class TestKinds implements ProgramKinds {
         }
         // the statement's seeds, as the walk establishes its contexts before every statement (M3e)
         seed(program, statement);
+        if (statement instanceof TypedLet eagerLet && !last) {
+            // an execute(...) a value let reads eagerly (size(execute(...)), through the helpers it calls) runs at the
+            // let's turn, as Pure evaluates the let (2026-11-06)
+            eagerReads(program, index, new UserCallInliner(program.query().specs())
+                    .inlineBody(List.of(eagerLet.value())).get(0));
+        }
         if (!last && statement instanceof TypedNativeCall ec && NativeFn.Handle.runsAFrame(ec.callee().id())) {
             // a FRAME RUN AS A STATEMENT of its own (an unread frame let's execute(...), the user's ruling of
             // 2026-11-02; a program with no assert holds one since 2026-11-06, "do all including last row"): its query
@@ -156,6 +162,11 @@ final class TestKinds implements ProgramKinds {
         if (kinds.isEmpty()) {
             return false;
         }
+        if (statement instanceof TypedLet && kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))) {
+            // a value let whose asserts are a helper's own guards below its root (BodyClass.assertProgram): planned as
+            // any value let, spliced into its readers (2026-11-06)
+            return false;
+        }
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE)) && !last) {
             frame(program, index, (TypedLet) statement);
             return true;
@@ -164,7 +175,11 @@ final class TestKinds implements ProgramKinds {
                 || QueryDoor.assertErrorRoot(statement, program.query().specs())) {
             // a statement-root assert its judge planned (M6), or an assertError (its function's body the step's side,
             // 2026-11-03): its verdict step(s) at its turn -- none where the judge absorbed it into a later statement's
-            // groups (the database judge's segment, M7)
+            // groups (the database judge's segment, M7); an execute(...) its sides read eagerly (size(execute(...))) run
+            // where it stands first, as a check (2026-11-06)
+            // (read through the user functions it calls: the statement as the program plans it, inlined)
+            eagerReads(program, index, new UserCallInliner(program.query().specs())
+                    .inlineBody(List.of(statement)).get(0));
             List<? extends ExecutionPlan.Node> steps = asserts.at(index);
             if (steps != null) {
                 steps.forEach(program::add);
@@ -246,6 +261,27 @@ final class TestKinds implements ProgramKinds {
                     new java.io.FileNotFoundException(file.toString()));
         }
         return file.toAbsolutePath().toString();
+    }
+
+    /** Each {@code size(execute(...))} in {@code statement} (BodyClass.eagerInlineExecute): the execute's query run
+     *  where it stands as a check, its rows dropped -- Pure evaluates it, and the splice folds its size to the Result
+     *  envelope's 1 (2026-11-06; the walk ran it at the side's planning). */
+    private void eagerReads(ProgramState program, int index, TypedSpec statement) {
+        if (BodyClass.eagerInlineExecute(statement)) {
+            TypedSpec arg = ((TypedNativeCall) statement).args().get(0);
+            while (arg instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                arg = f.source();
+            }
+            TypedQuery query = program.query();
+            PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
+                    program.frames().planRows());
+            FramePlanner.FrameChain fc = FramePlanner.chain((TypedNativeCall) arg, program.lets(), query.specs(), env);
+            program.add(eagerRun(program, index, fc, program.frames().newStamp()));
+            return;
+        }
+        for (TypedSpec c : statement.children()) {
+            eagerReads(program, index, c);
+        }
     }
 
     /** Whether a CHECK after the frame let at {@code index} reads the frame {@code name} -- a statement that is no let
