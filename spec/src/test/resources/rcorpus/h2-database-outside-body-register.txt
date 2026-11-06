@@ -45,13 +45,11 @@ meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProp
 meta::relational::tests::mapping::inheritance::relational::testGetAll ||| flushes=2
 meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| flushes=2
 meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| fallback=2
-meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| fallback=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath ||| statement=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath ||| statement=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter ||| statement=1
 meta::relational::tests::milestoning::distinct::testDistinctUsageAtRootOfMilestonedQuery ||| statement=1
 meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple ||| statement=1
-meta::relational::tests::query::association::mixed::testAssociationMixed ||| fallback=1
 meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter ||| fallback=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
