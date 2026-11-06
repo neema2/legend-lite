@@ -744,39 +744,6 @@ public final class BodyDriver {
         return env.dialect().render(b == null ? plan : com.legend.sql.FrameCtes.attach(plan, b.frames()));
     }
 
-    static @com.legend.base.Nullable TypedSide evalValue(TypedSpec value,
-            java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return evalValue(value, letPrefix, specs, env, false, null);
-    }
-
-    /** F13c: {@code identity} asks for the identity lane -- assert-CONDITION sides (the value is a boolean; the
-     *  in-SQL eq/equal arm needs instance identity to compile the engine's equality relation). V7 batch 2:
-     *  {@code hook} non-null threads the statement loop's
-     * result-envelope splice into the verdict side evaluation — the
-     * SAME {@code UserCallInliner} hook ordinary statements get, so an
-     * assert side reading an execute() frame compiles the spliced
-     * chain (never a raw variable read). */
-    static @com.legend.base.Nullable TypedSide evalValue(TypedSpec value,
-            java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            boolean identity,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> hook) {
-        // the addDriverTablePkForProject option is part of the EXECUTION
-        // a LITERAL-ONLY side (a golden text, a seed CSV, a bare number — measured 167 of
-        // 168 sides, 2026-09-22) is a compile-time constant: the compiler folds it, nothing
-        // is sent; everything else executes as before (Literals never guesses)
-        java.util.List<TypedSpec> inlined = com.legend.planner.BodyPlanner.inlinedSide(value, letPrefix, specs, env.plan(), hook);
-        TypedSide constant = foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1));
-        if (constant != null) {
-            return constant;
-        }
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
-            return executeTyped(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), env, identity);
-        }
-    }
-
     /** The folded constant as the result the wire would have produced, or null. */
     private static @com.legend.base.Nullable TypedSide foldedSide(TypedSpec value,
             java.util.List<TypedSpec> lets) {

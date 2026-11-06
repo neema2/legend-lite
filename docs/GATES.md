@@ -20708,3 +20708,7 @@ Checks: `//gates:core` (all but the Postgres tests, which `initdb` refuses to ru
 `//gates:checks`, `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_channel_b`, `//core:stress_suites`,
 `//core:stress_suites_h2` green. Next: the driver and judges split into a plan half and a run half (a census of the
 two packages is the first step's input).
+- **Orphans** (a reachability pass that also reads annotated return types, which the first pass missed):
+  `AssertVerdicts.tryAdjudicate` (the walk's statement-root entry) with `batched` and `flush`, `BodyDriver.evalValue`;
+  pins `AssertVerdicts` 1884, `BodyDriver` 800. Branches only the walk took inside live methods (the eager frame run,
+  the effect arms, the host sides' own fetches) go with the plan/run split.

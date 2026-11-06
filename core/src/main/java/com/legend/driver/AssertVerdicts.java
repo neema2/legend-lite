@@ -45,56 +45,6 @@ final class AssertVerdicts {
             java.util.Set<String>, TypedSpec> {
     }
 
-    /** Null = not a statement-root assert this arm owns (generic path
-     * continues); otherwise the verdict (TRUE, or the spec's failure
-     * raised as the runner's failure). */
-    static @com.legend.base.Nullable TypedSide tryAdjudicate(TypedSpec bare,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> rawHook) {
-        com.legend.judge.AssertListener l = env.assertListener();
-        com.legend.judge.VerdictBatch batch = env.verdictBatch();
-        if (batch != null) {
-            return batched(batch, bare, letPrefix, specs, env, rawHook);
-        }
-        if (l == null) {
-            return adjudicate(bare, letPrefix, specs, env, rawHook);
-        }
-        // the listener observes the arm's OWN outcomes only: a non-null
-        // verdict = pass; a raise out of an owned adjudication = fail
-        // (side-evaluation errors fail the same test either way — the
-        // detail says which). Judgment itself is untouched.
-        boolean settled = false;
-        com.legend.judge.CanonicalDivergence.sqlEnter();   // census: a new assert, no family yet
-        try {
-            TypedSide v = adjudicate(bare, letPrefix, specs, env,
-                    rawHook);
-            settled = true;
-            if (v != null) {
-                l.verdict(listenerName(bare), true, null);
-            }
-            return v;
-        } catch (com.legend.error.AssertFailed
-                | com.legend.error.DataError e) {
-            // the seam: a FALSE verdict or a side-evaluation data error
-            // fails the same test either way — the detail says which
-            settled = true;
-            com.legend.judge.CanonicalDivergence.sqlRaised();
-            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                l.unjudged(listenerName(bare), af.unjudgedReason());
-            }
-            l.verdict(listenerName(bare), false, e.getMessage());
-            throw e;
-        } finally {
-            if (!settled) {
-                // any other exit (a wall, a not-implemented shape) leaves
-                // without a verdict: counted for the census, never caught
-                com.legend.judge.CanonicalDivergence.sqlRaised();
-            }
-        }
-    }
-
     /**
      * The database judge's classification of {@code bare} as a PLAN (the test-is-the-product plan's M7): the arm run
      * under {@code env}'s batch -- a collector, nothing sent -- so its verdict statements DEFER into the open root, a
@@ -393,50 +343,6 @@ final class AssertVerdicts {
     private static boolean rawGrid(TypedSpec grid) {
         return com.legend.compiler.element.type.Type.schemaView(grid.info().type())
                 instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound();
-    }
-
-    /** Leg 3.4: the assert's verdict statements DEFER into the body's batch
-     * (VerdictBatch); a decided outcome or a raise is a step in order,
-     * reported at the flush. Any other exit (a wall) flushes what came
-     * before — those verdicts were already the body's — then surfaces. */
-    private static @com.legend.base.Nullable TypedSide batched(com.legend.judge.VerdictBatch batch,
-            TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> rawHook) {
-        com.legend.judge.CanonicalDivergence.sqlEnter();
-        batch.open(listenerName(bare));
-        TypedSide v = null;
-        RuntimeException deferred = null;
-        boolean settled = false;
-        try {
-            v = adjudicate(bare, letPrefix, specs, env, rawHook);
-            settled = true;
-        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            settled = true;
-            deferred = e;
-        } finally {
-            if (!settled) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
-                batch.discard();
-                flush(batch, env);
-            }
-        }
-        if (deferred != null) {
-            batch.resolve(deferred);
-            batch.close();
-            return ok();
-        }
-        if (v == null) {
-            batch.discard();
-            return null;
-        }
-        batch.close();
-        return v;
-    }
-
-    static void flush(com.legend.judge.VerdictBatch batch, BodyDriver.ExecEnv env) {
-        batch.flush(env.assertListener());
     }
 
     /** A statement-root HELPER call: a user function that is neither a root engine-text arm nor a verdict native
@@ -2033,8 +1939,6 @@ final class AssertVerdicts {
     // rendered-text forms, and the grid-pair route. The comparison
     // POLICIES stay with their one production owner (TdsCompare).
 
-
-
     /** The referee's gates for a verified chain, derived ONCE from the
      * typed chain by the arm that owns the verdict (Phase 0.5): the
      * extent-subset fact, the ORDER VIEW (ends in a sort = order is
@@ -2630,8 +2534,6 @@ final class AssertVerdicts {
         }
         return v;
     }
-
-
 
     /** A JSON assert side's ONE document text: a GRAPH result's JSON
      * IS the {@code String[1]} (a serialize execute's {@code .values}
