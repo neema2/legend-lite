@@ -16854,3 +16854,27 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
     like `macos-14`, the architecture the rosters and goldens were minted on.
     - `//tools/guards:workflows_test` (actionlint) is green.
     - Whether every macOS lane passes on macOS 15 is shown by this PR's CI, the first run on the new image.
+
+## 2026-11-06 — The timeseries branch's CI on #81: the corpus lanes' regressions from 4c3a2cfbe, fixed
+
+The timeseries branch's code commits of 2026-11-04 (`b7d69d98b` to `8b948df5d`) had run no CI until #81's branch was
+fast-forwarded to them (the user, 2026-11-06: "Yes, push to #81's branch"). Run 42156188850 (`dc8a065f0`) and run
+42181188360 (`72200a18b`) found, on every OS:
+
+1. **`//spec:corpus_duckdb` and `//spec:corpus_h2`: graph fetches lost in database mode** (8 on DuckDB, 9 on H2), each
+   `ClassCastException: SqlWith cannot be cast to SqlSelect`. `4c3a2cfbe` writes a relation a statement reads twice
+   once, as `WITH __let<n>`; the database judge composes each side into a verdict statement of its own
+   (`lowering/VerdictSql`), which casts the side to a `SELECT`. Fixed in `72200a18b`: `BodyDriver.planValue` writes a
+   database-judge side's shared relations back in place first (`SharedRelationsInPlace.all()`). Both lanes' lost
+   registers back to the committed ones.
+2. **`//core:census`: BodyDriver's ledger pin.** `72200a18b`'s five lines; the pin moved 2321 -> 2326 with the reason
+   (`b54facfa8`).
+3. **`//spec:corpus_duckdb`: `testUnionWithQualifiedProperty` failed the host judge on every runner** (passing here):
+   its graph fetch unions two mappings' rows, the golden's employee order is H2's insertion order, and a shared WITH
+   let DuckDB order the rows otherwise. Fixed in the commit that adds this entry: the test lanes' scan-order emulation
+   (`StableScanOrder`, behind `legend.exec.engineScanOrder`) writes a statement's shared relations in place before it
+   keys the scans, as legend-engine pastes a let at each read. Its two engine-order registers (host and database)
+   gain one line each, `testExistsAsNullWithSubType`: with its let pasted, that statement has a scan the emulation
+   keys (an order it lacked, added; the test passes either way).
+4. **`//datacube:bundle_budget_test`**: R7 part 3's rows forms took the timeseries tile to 126,834 of 126,500 bytes;
+   raised with the user's word ("Sure raise it"), `5beeed931` and `aa4980178`.

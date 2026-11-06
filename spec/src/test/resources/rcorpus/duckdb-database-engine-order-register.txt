@@ -595,6 +595,7 @@ engine-order meta::relational::tests::projection::enumeration::testProjectWithIf
 engine-order meta::relational::tests::projection::enumeration::testProjectWithIfWhereOneSideIsEnumLiteral
 engine-order meta::relational::tests::projection::enumeration::testProjectionWithEnumQualifierParameter
 engine-order meta::relational::tests::projection::enumeration::testProjectionWithEnumThroughAssociation
+engine-order meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 engine-order meta::relational::tests::projection::exists::testSimpleExists
 engine-order meta::relational::tests::projection::filter::in::testDeepContains
 engine-order meta::relational::tests::projection::filter::in::testDeepContainsWithMultipleProject
