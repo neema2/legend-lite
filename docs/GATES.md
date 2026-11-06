@@ -20477,7 +20477,9 @@ unclosable proxy per call, the platform keys its session by the connection objec
 made a new session per test and re-sent the session statements (`SET TimeZone`) before every test -- on Snowflake one
 of the database judge's two statements per test, ~0.3-0.5 s each. One view per held session now; channel A's own
 workaround (`PctBackend.heldSession`) stays, its comment updated. Checks: //core:core_tests_lib and //pct:all build;
-the cloud lanes measure it after the limit (expected: ~343 `session` statements per suite down to about one).
+measured on Snowflake at `5d870b40` (channel B essential, DATABASE judge, `sql-sizes`): `session` statements 343 -> 1 per
+suite, census unchanged {335,10}, 293 -> 265 s (-10%; the estimate of "about half" was wrong: a session statement costs
+~0.16 s there, and the suite's 358 `body` statements sum 4,413,833 characters -- the time is the SQL's size).
 
 **Also on the branch:** `78554443`, another session's fix of CI on `28a27931` (`PostgresArmTest` compile, broken by
 `53b52c80`; the stress suites' walk door; three generated files regenerated). CI's corpus lanes stay red on

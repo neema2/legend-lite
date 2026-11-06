@@ -361,9 +361,9 @@ pending when this was written. Check with `mcp__github__actions_list` (`list_wor
    (alternatives: `(SELECT ... FROM UNNEST(xs) ...)` with a separate null test on a one-row CTE, or skip binding where
    xs is known non-null) and ask the lane again. Then ask it again at the head for the budget (`c1bf51fc`, 500K) and
    the session fix (`7c93fbc5`).
-2. **Snowflake's round 22 is in (15/15, resent 2026-11-06).** One round at the head to measure
-   `7c93fbc5` (channel B under the DATABASE judge should drop from ~0.87 s/test to about half: one statement per test
-   instead of two). Databricks too (`session_01757FUtRcj12NGhvSxL6A1b`).
+2. **Snowflake's round 22 is in (15/15, resent 2026-11-06); the session fix is verified there** (343 -> 1 session
+   statement per suite, essential 293 -> 265 s, census unchanged; §7.6). Databricks and BigQuery see the same fix at
+   their next round.
 3. **`strictdate::testProject`** (`meta::relational::tests::mapping::dates::strictdate::testProject`): red on both
    corpus lanes, so CI's corpus lanes are red. DuckDB's database pass: `DataError: Parser Error: window functions are
    not allowed in window definitions` (a nested window in the verdict SQL); H2's host pass: `DialectCapability: LIST_AT
@@ -537,11 +537,12 @@ statements go once per suite; `PctBackend`'s comment updated. Only the cloud lan
 use `CloudBackend`; the in-process lanes open a fresh private database per test on purpose (isolation), and the
 embedded servers open a new connection per test, where the setting is a local round trip.
 
-**Verifying it (not done yet -- the lanes are blocked until 2026-11-08, §9.2):** on Snowflake, channel B essential under
-the DATABASE judge with `-Dlegend.diagnostics=sql-sizes`: the count of `[sql-size] ... session` lines should fall from
-~343 to about one per suite, and the suite's time from ~301 s toward ~150 s (one statement per test). Check that the
-census is unchanged (a held session's memo now spans tests: a test that changes a session setting would leak into the
-next -- none is known; the cloud lanes run storeless expressions, `CloudBackend`'s class comment).
+**Verified on Snowflake (2026-11-06, `5d870b40`, channel B essential under the DATABASE judge with
+`-Dlegend.diagnostics=sql-sizes`):** `session` statements 343 -> **1** per suite (the first statement of the suite);
+census unchanged {335,10}; no ledger block, no wall line; the suite **293 -> 265 s (-10%)**. The estimate before the
+measurement ("about half") was WRONG: a session statement costs Snowflake ~0.16 s, the bodies dominate -- 358 `body`
+statements summing **4,413,833 characters** (~12K each; 6 `fallback`). Snowflake's time is now the SQL's size, which is
+the lean-SQL work below, not round trips.
 
 **What is next for speed, in the user's order** (none before PCT and core close, and no parallelism yet):
 1. Make BOTH plan the DATABASE judge's fused program and drop the DATABASE-alone pass (§4): one channel B pass
