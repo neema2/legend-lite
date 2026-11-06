@@ -1294,7 +1294,18 @@ public final class BodyDriver {
             com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        return planned(planBare(value, letPrefix, specs, env, rider, hook), rider);
+        BarePlan b = planBare(value, letPrefix, specs, env, rider, hook);
+        if (b.answered() == null) {
+            // a relation the statement reads more than once, which the lowering writes once at the statement's head
+            // (WITH __let<n>, lowering.SharedRelations, 2026-11-04), written back where each read stands: database
+            // mode composes the side into a verdict statement of its own (VerdictSql), as a derived table or a wrapped
+            // select, and a WITH cannot sit there -- the corpus's database judge cast nine graph fetches' WITH to a
+            // SELECT (2026-11-06, CI on #81). The side's rows are the same; the host judge and the program's own
+            // statements keep the WITH.
+            b = new BarePlan(null, com.legend.sql.dialect.SharedRelationsInPlace.all().rewriteRoot(b.plan()), b.root(),
+                    b.declaredInfo(), b.env(), b.storeFree());
+        }
+        return planned(b, rider);
     }
 
     /** The host judge's side on the plan path (the plan path program's step 6, 2026-10-18): planned exactly as

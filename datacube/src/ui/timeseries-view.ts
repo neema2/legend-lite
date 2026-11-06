@@ -19,7 +19,9 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { hasTimeOfDay, isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
 import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
+import type { TsShown } from '../cube.ts';
 import type { RunOutcome } from '../runner.ts';
+import { tsSeriesQuery } from '../timeseries-ts.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   marksName, MAX_HIST_BINS, projectionName, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, MIN_PROJECTION_WINDOW, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
@@ -67,6 +69,8 @@ export interface TsGrid {
   format(value: Scalar, column: string, type: string | undefined): string;
   /** A query as the compiler prints it, for a person to read (the Query window: the next phases' 2). */
   print(query: Lambda): Promise<string>;
+  /** A #TS query over grids as the one statement a person would write (Show #TS, D12), or why it has none. */
+  tsStatement?(query: Lambda): Promise<TsShown>;
 }
 
 /** Grids opened over one model of their tables, for a series that combines them: each cube's source over the model. */
@@ -1633,7 +1637,7 @@ export class TimeseriesView {
     const window = this.#window();
     const asks = tileAsks(spec);
     const opened: Opened = new Map();
-    const written: { readonly ask: TsAsk; pure?: string; sql?: string }[] = asks.map((ask) => ({ ask }));
+    const written: { readonly ask: TsAsk; pure?: string; sql?: string; ts?: string }[] = asks.map((ask) => ({ ask }));
     const sections = new Map<'chart' | 'panel', HTMLElement[]>([['chart', []], ['panel', []]]);
     const jobs = asks.map(async (ask, i) => {
       const told = written[i]!;
@@ -1652,6 +1656,15 @@ export class TimeseriesView {
       const over = ran !== undefined && (ran.window.from !== undefined || ran.window.to !== undefined)
         ? el(doc, 'div', 'dc-ts-hint', `Asked of the dates ${ran.window.from ?? 'from the first'} to ${ran.window.to ?? 'the last'}.`) : undefined;
       const copies = el(doc, 'div', 'dc-ts-row');
+      // a series' points: the series as one #TS statement too (Show #TS, D12), first, as a person would write it
+      const series = ask.kind === 'series' ? spec.series.find((s) => s.id === ask.series) : undefined;
+      const statement = series === undefined ? undefined : el(doc, 'pre', 'dc-ts-code dc-ts-statement', 'Writing…');
+      if (statement !== undefined) {
+        copies.append(button(doc, 'Copy #TS', 'The series as one #TS statement', () => {
+          if (told.ts === undefined) this.#say([`Query ${i + 1} is not one #TS statement: ${statement.textContent ?? ''}`], true);
+          else void this.#copy(told.ts, `Query ${i + 1}'s #TS copied.`);
+        }));
+      }
       copies.append(
         button(doc, 'Copy Pure', 'Its query as the compiler prints it', () => {
           if (told.pure === undefined) this.#say([`Query ${i + 1} is not written: ${pure.textContent ?? ''}`], true);
@@ -1661,7 +1674,9 @@ export class TimeseriesView {
           if (told.sql === undefined) this.#say([`Query ${i + 1} has no SQL: ${sql.textContent ?? ''}`], true);
           else void this.#copy(told.sql, `Query ${i + 1}'s SQL copied.`);
         }));
-      box.append(summary, ...(over ? [over] : []), el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), sql, copies);
+      box.append(summary, ...(over ? [over] : []),
+        ...(statement === undefined ? [] : [el(doc, 'div', 'dc-ts-field-label', '#TS'), statement]),
+        el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), sql, copies);
       sections.get(ask.serves === 'chart' ? 'chart' : 'panel')!.push(box);
       try {
         // as it was sent, or as it would be: written by the one function every round writes it by (askQuery)
@@ -1670,12 +1685,19 @@ export class TimeseriesView {
         if (grid === undefined) throw new Error('its grid is not on the page');
         told.pure = await grid.print(query);
         pure.textContent = told.pure;
+        if (series !== undefined && statement !== undefined) {
+          const shown = await this.#statementOf(grid, spec, series, window, opened);
+          if (shown.statement !== undefined) told.ts = shown.statement;
+          statement.textContent = shown.statement ?? `Not one statement: ${shown.refused}.`;
+        }
       } catch (e) {
         pure.textContent = `Not written: ${e instanceof Error ? e.message : String(e)}`;
+        if (statement !== undefined) statement.textContent = pure.textContent;
       }
     });
     void Promise.allSettled(jobs).then(() => putAway(opened));
     const all = (): string => written.map((w, i) => [`// ${i + 1}. ${w.ask.what} -- for ${TS_SERVES_WORDS[w.ask.serves]}`,
+      ...(w.ts === undefined ? [] : [`-- as one #TS statement`, w.ts]),
       w.pure ?? `// not written`, `-- its SQL`, w.sql ?? `-- not run`].join('\n')).join('\n\n');
     const copyAll = el(doc, 'div', 'dc-ts-row');
     copyAll.append(button(doc, 'Copy all', 'Every query: its Pure and its SQL', () => void this.#copy(all(), `${asks.length} queries copied.`)));
@@ -1706,8 +1728,22 @@ export class TimeseriesView {
     this.#open('Queries', tabs, ...panels.map(([, , panel]) => panel));
   }
 
+  /**
+   * SHOW #TS (D12; the user, 2026-10-31: "the Show #TS of the grid to actually show that single statement view"): a
+   * series as the one #TS statement a person would write -- each grid it reads a flat source named by WITH
+   * (`WITH px AS (SELECT ... FROM MarketQuote WHERE ...)`) -- printed by core (protocol/ts TsShow) from the query the
+   * tile sends (tsSeriesQuery: its grids bound by let, the island reading them). A grid the flat form cannot say yet (a
+   * calculated column, an enumeration's names) is refused by name: the box's Pure is then the query as it is sent, never
+   * an approximation.
+   */
+  async #statementOf(grid: TsGrid, spec: TimeseriesSpec, series: TsSeries, window: TsWindow, opened: Opened): Promise<TsShown> {
+    if (grid.tsStatement === undefined) return { refused: 'its grid\'s planner is legend-engine\'s, which has no #TS' };
+    const on = await this.#inputsOn(sourcesOf(spec, inlined(series.expr, spec.series)), opened);
+    return grid.tsStatement(tsSeriesQuery(on.inputs, spec, series, readsAnchor(spec, series) ? window.from : undefined));
+  }
+
   /** DATACUBE'S PURE LIBRARY (pure-library.ts; the user, 2026-10-26): the functions its queries call by name
-   *  (`datacube::ts::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
+   *  (`timeseries::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
    *  click. Its text is a chunk of its own (pure-library-text.ts), read as the planner reads it. */
   #libraryPanel(): HTMLElement {
     const doc = this.#doc;

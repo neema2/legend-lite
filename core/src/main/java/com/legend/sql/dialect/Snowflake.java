@@ -197,13 +197,17 @@ public final class Snowflake extends AnsiSqlRenderer {
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
      * expression (Snowflake reads an integer one as a position); and the root's DECIMAL(p,s) and HUGEINT columns
-     * cast to their declared types. QUALIFY and star exclusion are native.
+     * cast to their declared types. QUALIFY and star exclusion are native. A select over one subselect merged into it
+     * where the answer is kept (SelectMerge), and a chain of windowed levels laid out again, each value once
+     * (SelectLayers), after the explosions as SQLite has them (the user, 2026-11-06: "Enable and run in the warm
+     * session that can connect to snowflake" -- rendered here, its answers checked on the account).
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
+                new SelectMerge(), new SelectLayers(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
@@ -2646,6 +2650,11 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed()) {
+            // not measured on Snowflake (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
+            throw new DialectCapability("a window frame offset the database computes reached Snowflake, where it is"
+                    + " not yet measured");
+        }
         if (frame != null && w.orderBy().isEmpty()) {
             if (!(frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
                     && frame.to() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing)) {
@@ -2881,6 +2890,9 @@ public final class Snowflake extends AnsiSqlRenderer {
                     "INTERVAL '" + p.n() + " " + p.unit() + "' PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     "INTERVAL '" + f.n() + " " + f.unit() + "' FOLLOWING";
+            // refused before a frame is written (windowCall): not yet measured on Snowflake
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 

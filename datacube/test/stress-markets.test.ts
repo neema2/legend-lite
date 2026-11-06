@@ -6,7 +6,8 @@
 // is, every figure the database's. The model is the markets project as the site serves it (BUILD.bazel
 // :markets_project, config.json `projects[]`): the one trading model, the Deephaven line's text
 // (//scripts/corpus:trading_model), and the sample's days as its Data; the example page over it
-// (examples/markets-classes.ts) opened the page's way, every series of it run.
+// (examples/markets-classes.ts) opened the page's way, every series of it run, and each answer held to its frozen
+// answer (timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6, step 1).
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -26,9 +27,11 @@ import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { marksQuery, seriesQuery, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
+import { tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import type { TimeseriesSpec, TsAnnotation } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 
 /** The markets project as config.json lists it: its model files, each as the site serves it. */
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
@@ -56,6 +59,8 @@ let rows: TsInputs;
 const measured: Record<string, number> = {};
 /** How many lines each split series of the example page drew, by its tile and its id. */
 const drawn = new Map<string, number>();
+/** Each series of the example page, its answer frozen, by its tile and its id. */
+const answers = new Map<string, Frozen>();
 
 /** `$x.a.b...`: a path of properties from the row. */
 const path = (...names: string[]): ValueSpecification => names.reduce<ValueSpecification>((v, n) => property(v, n), variable('x'));
@@ -292,11 +297,89 @@ describe('the example page over the classes, opened the page\'s way', () => {
         const t = await projectEngine.execute(plan, 0);
         const values = t.columns.find((c) => c.name === TS_VALUE)!.values as unknown[];
         const lines = series.split !== undefined ? new Set(t.columns.find((c) => c.name === TS_SPLIT)!.values as unknown[]).size : 1;
+        // a column's own aggregate (`volume.sum`: a sector's day of volume) is one value a date and line, a frequency
+        // or none (docs/TS_LANGUAGE_BUILD_2026_10_30.md P6: its writer had read each row as a point there)
+        const dates = t.columns.find((c) => c.name === TS_DATE)!.values as unknown[];
+        const split = t.columns.find((c) => c.name === TS_SPLIT)?.values as unknown[] | undefined;
+        const at = dates.map((d, i) => `${String(d).slice(0, 10)}|${split ? String(split[i]) : ''}`);
+        if (JSON.stringify(series.expr).includes('"fn":"') || v.spec.grain !== undefined) {
+          assert.equal(new Set(at).size, at.length, `${series.id} (${series.name}): one value a date and line`);
+        }
         assert.ok(values.filter((x) => x !== null).length >= 20 * lines, `${series.id} (${series.name}): ${values.length} rows, ${lines} lines`);
         drawn.set(`${v.id} ${series.id}`, lines);
+        answers.set(`${v.id} ${series.id}`, frozenOf(t, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, drawnColumns(q)));
       }
     });
   }
+
+  it('each series is one #TS statement over the classes, and reads back to the same rows (Show #TS, D12)', async () => {
+    const said: string[] = [];
+    const unshown = new Map<string, number>();
+    for (const v of marketsClassesPage().views) {
+      if (v.kind !== 'timeseries') continue;
+      const inputs: TsInputs = new Map(v.spec.sources.map((src) => [src.alias, { snapshot: opened.get(src.cube)!.snapshot, filter: undefined }] as const));
+      const planner = opened.get(v.spec.sources[0]!.cube)!.planner;
+      for (const series of v.spec.series) {
+        const sent = tsSeriesQuery(inputs, v.spec, series);
+        const shown = await planner.tsStatement(sent);
+        if (shown.statement === undefined) {
+          unshown.set(shown.refused, (unshown.get(shown.refused) ?? 0) + 1);
+          continue;
+        }
+        // the grids' class paths named once, by WITH: no let, no Pure
+        assert.match(shown.statement, /^WITH \w+ AS \(SELECT .* FROM \w+::\w+/, shown.statement);
+        const alone = lambda([], tsIsland(shown.statement));
+        assert.equal((await planner.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
+        const want = await projectEngine.execute(await planner.plan(sent), 0);
+        const got = await projectEngine.execute(await planner.plan(alone), 0);
+        assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
+          `${v.id} ${series.id}: ${shown.statement}`);
+        said.push(shown.statement);
+      }
+    }
+    assert.ok(said.length >= 7, `${said.length} statements`);
+    // the series not one statement yet, by reason: each count only allowed to shrink (D12). None since A6
+    // (2026-11-03): an enumeration read as its values' names prints as its cast to text, CAST(side AS text)
+    assert.deepEqual(Object.fromEntries(unshown), {});
+  });
+
+  it('a grid with calculated columns is one #TS statement too, each column its Postgres, read back to the same rows (A6)', async () => {
+    // what a person types into the grid's calculated-column box, read by the compiler (the grid's own lambdas): a
+    // division (a Float's, never Postgres's integer one), text joined (+ as ||), an if (a CASE)
+    const base = referenced.get('px')!.snapshot;
+    const derived = [
+      { name: 'turnover', lambda: await corpus.parse('x|$x.closePrice->toOne() * $x.volume->toOne() / 1000000') },
+      { name: 'listing', lambda: await corpus.parse("x|$x.ticker->toOne() + '@' + $x.exchange->toOne()") },
+      { name: 'tone', lambda: await corpus.parse('x|if($x.closePrice > 100.0, |1.0, |-1.0)') },
+    ];
+    const inputs: TsInputs = new Map([['px', { snapshot: { ...base, derived, columns: [...base.columns,
+      { name: 'turnover', type: 'Float' }, { name: 'listing', type: 'String' }, { name: 'tone', type: 'Float' }] }, filter: undefined }]]);
+    const ts: TimeseriesSpec = {
+      sources: [{ alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
+      series: [
+        { id: 'A', expr: parseExpr('mean(turnover.sum, 21)'), split: 'listing' },
+        { id: 'B', expr: parseExpr('tone[sector="Energy"].sum') },
+      ],
+      grain: 'day',
+    };
+    for (const series of ts.series) {
+      const sent = tsSeriesQuery(inputs, ts, series);
+      const shown = await corpus.tsStatement(sent);
+      if (shown.statement === undefined) assert.fail(`${series.id}: ${shown.refused}`);
+      assert.match(shown.statement, / \|\| '@' \|\| .* AS listing, CASE WHEN /, shown.statement);
+      const alone = lambda([], tsIsland(shown.statement));
+      assert.equal((await corpus.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
+      const want = await projectEngine.execute(await corpus.plan(sent), 0);
+      const got = await projectEngine.execute(await corpus.plan(alone), 0);
+      assert.ok(want.columns[0]!.values.length > 20, `${series.id}: ${want.columns[0]!.values.length} rows`);
+      assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
+        `${series.id}: ${shown.statement}`);
+    }
+  });
+
+  it('every series of the page answers as it was frozen', () => {
+    holdFrozen('TS_ANSWERS', answers, 'markets-classes-answers');
+  });
 
   it('the trades tile reads both grids, and its notional by sector a line per sector the bank trades in', async () => {
     const v = marketsClassesPage().views.find((x) => x.id === 'trades-vs-close')!;

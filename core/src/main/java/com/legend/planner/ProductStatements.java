@@ -334,7 +334,11 @@ public final class ProductStatements {
      *  declared parameters, {@code sites} the program's object-id minter. */
     public static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
             boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
-        Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
+        // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
+        // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04; the merge of main on
+        // 2026-11-06 kept it on the test road alone, BodyPlanner.lowererFor -- the second review's finding 1)
+        Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites)
+                .sharingRelations(!p.env().postProcessors().extractCtes());
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
         return postProcessed(plan, p.env());
     }

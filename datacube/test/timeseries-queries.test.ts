@@ -27,7 +27,7 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { asc, col as column, collection, colSpec, fn as call, from, functionsCalled, lambda, lit, minus, Relation, toJson } from '../../pure-protocol/src/index.ts';
+import { asc, col as column, collection, colSpec, fn as call, from, lambda, lit, minus, Relation, toJson, walk, type Lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
@@ -106,6 +106,11 @@ const rolling = (x: Line, w: number, f: (vals: number[]) => number | null): Line
   if (vals.some((v) => v === null)) return null;
   return f(vals as number[]);
 });
+// gs-quant's ramp (helper.apply_ramp: an integer window w is Window(w, w), its series' first w points dropped): a line
+// from its (w + 1)-th point -- each windowed word's answer of w observations (docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+const ramp = <T>(x: readonly T[], w: number): T[] => x.slice(w);
+// the same, its points kept in place: none in the first w
+const ramped = (x: Line, w: number): Line => x.map((v, i) => (i < w ? null : v));
 const avg = (v: number[]): number => v.reduce((a, b) => a + b, 0) / v.length;
 const sd = (v: number[]): number => {
   const m = avg(v);
@@ -183,6 +188,21 @@ function spec(exprs: Record<string, string>, more: Partial<TimeseriesSpec> = {},
 async function run(query: { query: unknown }): Promise<ResultTable> {
   return engine.execute(await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]), 0);
 }
+
+/** The #TS text a tile's query sends (P6: its every figure the platform's #TS builder's). */
+function islandText(q: Lambda): string {
+  let text = '';
+  walk(q, (n) => {
+    if (n._type === 'classInstance' && n.type === 'TS') text = (n.value as { ts: string }).ts;
+  });
+  return text;
+}
+
+/** The language's spelling of a tile function where it differs: SQL's per-point forms (timeseries-ts.ts); every word
+ *  is the language's own, gs-quant's (docs/TS_ONE_TREE_PLAN_2026_10_31.md D2, R3). */
+const TS_NAMES: Readonly<Record<string, string>> = {
+  log: 'ln(', floor: 'CASE WHEN', ceil: 'CASE WHEN', not: 'CASE WHEN',
+};
 
 function values(t: ResultTable, name: string): unknown[] {
   const c = t.columns.find((x) => x.name === name);
@@ -305,7 +325,7 @@ describe('a column along the dates', () => {
     close(got(TS_VALUE), weeks.map((w) => of(w).at(-1)!), 'close', 1e-12);
     // a function inside a candle runs over its sources' dates: a 5-day mean's candle, the week's first, most, least, last
     const m = 'mean(close[AAA], 5)';
-    const mean5 = rolling(AAA, 5, avg);
+    const mean5 = ramped(rolling(AAA, 5, avg), 5);
     const mt = await run(seriesQuery(inputs, spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }), spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }).series[0]!));
     const has = (w: string): number[] => mean5.filter((v, i) => v !== null && weekOf(DAYS[i]!) === w) as number[];
     const shown = weeks.filter((w) => has(w).length > 0);
@@ -386,15 +406,15 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'lag(close[AAA], 3)' }))).values, lagged(AAA, 3), 'lag');
   });
 
-  it('rolling mean, sum, min, max, range, standard deviation and variance: drawn once the window is full', async () => {
-    close((await line(spec({ A: 'mean(close[AAA], 5)' }))).values, rolling(AAA, 5, avg), 'mean');
-    close((await line(spec({ A: 'moving_average(close[AAA], 5)' }))).values, rolling(AAA, 5, avg), 'moving_average');
-    close((await line(spec({ A: 'sum(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => v.reduce((a, b) => a + b, 0)), 'sum');
-    close((await line(spec({ A: 'min(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.min(...v)), 'min');
-    close((await line(spec({ A: 'max(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.max(...v)), 'max');
-    close((await line(spec({ A: 'range(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.max(...v) - Math.min(...v)), 'range');
-    close((await line(spec({ A: 'std(close[AAA], 6)' }))).values, rolling(AAA, 6, sd), 'std', 1e-7);
-    close((await line(spec({ A: 'var(close[AAA], 6)' }))).values, rolling(AAA, 6, (v) => sd(v) ** 2), 'var', 1e-7);
+  it('rolling mean, sum, min, max, range, standard deviation and variance: drawn from the point after the first full window (gs-quant\'s ramp)', async () => {
+    close((await line(spec({ A: 'mean(close[AAA], 5)' }))).values, ramp(rolling(AAA, 5, avg), 5), 'mean');
+    close((await line(spec({ A: 'moving_average(close[AAA], 5)' }))).values, ramp(rolling(AAA, 5, avg), 5), 'moving_average');
+    close((await line(spec({ A: 'sum(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => v.reduce((a, b) => a + b, 0)), 4), 'sum');
+    close((await line(spec({ A: 'min(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.min(...v)), 4), 'min');
+    close((await line(spec({ A: 'max(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.max(...v)), 4), 'max');
+    close((await line(spec({ A: 'range(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.max(...v) - Math.min(...v)), 4), 'range');
+    close((await line(spec({ A: 'std(close[AAA], 6)' }))).values, ramp(rolling(AAA, 6, sd), 6), 'std', 1e-7);
+    close((await line(spec({ A: 'var(close[AAA], 6)' }))).values, ramp(rolling(AAA, 6, (v) => sd(v) ** 2), 6), 'var', 1e-7);
   });
 
   it('from the start (w=0): a running total, a running mean', async () => {
@@ -405,10 +425,11 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('z-scores over a window, and over every observation', async () => {
     const want = AAA.map((v, i) => (i < 9 ? null : (v - avg(AAA.slice(i - 9, i + 1))) / sd(AAA.slice(i - 9, i + 1))));
-    close((await line(spec({ A: 'zscores(close[AAA], 10)' }))).values, want, 'rolling z', 1e-7);
-    const m = avg(AAA);
-    const s = sd(AAA);
-    close((await line(spec({ A: 'zscores(close[AAA])' }))).values, AAA.map((v) => (v - m) / s), 'z', 1e-7);
+    close((await line(spec({ A: 'zscores(close[AAA], 10)' }))).values, ramp(want, 10), 'rolling z', 1e-7);
+    // with no window, to date (D2's look-ahead rule, R7: docs/SEMANTICS_REGISTER.md S150, 2026-11-06): each date's
+    // z-score against the line's values to it, none at its first
+    close((await line(spec({ A: 'zscores(close[AAA])' }))).values,
+      AAA.map((v, i) => (i === 0 ? null : (v - avg(AAA.slice(0, i + 1))) / sd(AAA.slice(0, i + 1)))), 'z', 1e-7);
   });
 
   it('volatility: the annualized standard deviation of returns, in percent (gs-quant: 20% is 20)', async () => {
@@ -423,26 +444,29 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   // the user, 2026-10-26 (pure-library.ts): the tile's mean, returns and volatility are calls of DataCube's Pure library,
   // planned over the model with the library after it -- and a query that calls none over the model as it is
-  it('mean, returns and volatility call DataCube\'s Pure library by name, which a plan request carries beside its model; a query calling none carries none', async () => {
+  // P6 (docs/TS_LANGUAGE_BUILD_2026_10_30.md): a series is its #TS query, every figure of it the platform's builder's
+  // library call (core's TsIslandTest holds which); what the tile sends is the island, and the library beside its model
+  it('a series is its #TS query, which a plan request carries with the library beside its model', async () => {
     const ts = spec({ A: 'volatility(close[AAA], 10) + mean(close[AAA], 5)' });
     const of = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
-    const called = functionsCalled(of.query);
-    for (const f of ['datacube::ts::returns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
+    for (const f of ['volatility(', 'mean(']) assert.ok(islandText(of.query).includes(f), `the query calls ${f}`);
     // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
     const model = planner.source().model;
     const asked = await planner.planRequest(of.query);
     assert.equal(asked.model, model);
     assert.equal(asked.library, DATACUBE_LIBRARY);
+    // a level too: every series is a #TS query, its lines the language's
     const plain = seriesQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, {}, {});
-    assert.ok(![...functionsCalled(plain.query)].some((f) => f.startsWith('datacube::')), 'a level calls no library function');
     assert.equal((await planner.planRequest(plain.query)).model, model);
-    assert.equal((await planner.planRequest(plain.query)).library, undefined);
+    assert.equal((await planner.planRequest(plain.query)).library, DATACUBE_LIBRARY);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
-    const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations are each a #TS query that plans: a count or a calendar period, a base the line\'s first or as of the first date shown', async () => {
+    const calls = async (expr: string, anchor?: string): Promise<string> => {
       const ts = spec({ A: expr });
-      return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
+      const q = seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query;
+      await planner.plan(q);
+      return islandText(q);
     };
     const want: readonly [string, string, string?][] = [
       ['diff(close[AAA], 2)', 'diff'], ['diff(close[AAA], 1m)', 'diffPeriod'], ['lag(close[AAA], 3)', 'lag'],
@@ -484,14 +508,20 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['vol_swap_volatility(close[AAA], 1m)', 'volSwapVolatilityPeriod'], ['append(close[CCC], close[AAA])', 'append'],
       ['prepend(close[CCC], close[AAA])', 'prepend'],
     ];
-    for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
+    // the library function each is (the second column) is the platform's builder's to call: core's TsIslandTest
+    for (const [expr, , anchor] of want) {
+      const text = await calls(expr, anchor);
+      const fn = /^([a-z_]+)\(/.exec(expr)![1]!;
+      assert.ok(text.includes(TS_NAMES[fn] ?? `${fn}(`), `${expr}${anchor ? ` from ${anchor}` : ''} as #TS: ${text}`);
+      if (anchor !== undefined) assert.ok(text.includes(`from => '${anchor}'`), `${expr} from ${anchor}: ${text}`);
+    }
   });
 
   it('a person\'s own query calls the library over the table: its mean as the tile\'s', async () => {
     const source = input.snapshot.source.query;
     const query = lambda([], new Relation(source)
       .filter(lambda(['x'], call('equal', column('x', 'symbol'), lit.string('AAA'))))
-      .call('datacube::ts::mean', call('over', colSpec('symbol'), collection([asc('day')]), call('rows', lit.integer(-4), lit.integer(0))),
+      .call('timeseries::mean', call('over', colSpec('symbol'), collection([asc('day')]), call('rows', lit.integer(-4), lit.integer(0))),
         colSpec('close'), lit.integer(5), colSpec('m'))
       .sort([call('descending', colSpec('day'))])
       .node);
@@ -505,11 +535,11 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
     const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
       ->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))
-      ->datacube::ts::tradedValue(~close, ~volume, ~pv)
+      ->timeseries::tradedValue(~close, ~volume, ~pv)
       ->extend(over(~symbol, [~day->ascending()]), ~[x0:{p,w,r|$p->lag($r).t}, y0:{p,w,r|$p->lag($r).close}, x1:{p,w,r|$p->lead($r).t}, y1:{p,w,r|$p->lead($r).close}])
-      ->datacube::ts::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
-      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.month, ~mi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.quarter, ~qi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.week, ~wi)
-      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.day, ~di)
+      ->timeseries::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
+      ->timeseries::periodIndex(~day, timeseries::Grain.month, ~mi)->timeseries::periodIndex(~day, timeseries::Grain.quarter, ~qi)->timeseries::periodIndex(~day, timeseries::Grain.week, ~wi)
+      ->timeseries::periodIndex(~day, timeseries::Grain.day, ~di)
       ->sort([~day->ascending()])`)), 0);
     close(values(t, 'pv').map(num), AAA.map((v, i) => v * VOL[i]!), 'price times volume', 1e-9);
     const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
@@ -520,6 +550,32 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.deepEqual(values(t, 'qi').map(num), DAYS.map((d) => date(d).getUTCFullYear() * 4 + Math.floor(date(d).getUTCMonth() / 3)));
     assert.deepEqual(values(t, 'wi').map(num), DAYS.map((d) => Math.floor((Date.parse(`${d}T00:00:00Z`) - Date.UTC(1970, 0, 5)) / (7 * 86_400_000))));
     assert.deepEqual(values(t, 'di').map(num), DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000));
+  });
+
+  // the platform step (the user, 2026-10-28: "do timeseries RIGHT and EXPERT on platform"): the alignment the tile wrote
+  // as joins and windows, the library's functions -- a column with gaps put onto every date by step, zero and time
+  it('a person\'s own Pure: a column with gaps put onto every date by step, zero and time, by name', async () => {
+    const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
+    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
+      ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close > 102, |$x.close, |[])])
+      ->timeseries::fillStep(~symbol, ~day, ~g, ~g, ~st)
+      ->timeseries::fillZero(~g, ~z)
+      ->timeseries::fillTime(~symbol, ~day, ~g, ~t, ~t, ~g, ~tm)
+      ->sort([~day->ascending()])`)), 0);
+    const g = AAA.map((v) => (v > 102 ? v : null));
+    const has = g.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0);
+    assert.ok(has.length >= 3 && has.length < g.length && has[0]! > 0, 'gaps to fill, before the first one too');
+    const lastAt = (i: number): number | undefined => [...has].reverse().find((j) => j <= i);
+    const nextAt = (i: number): number | undefined => has.find((j) => j >= i);
+    close(values(t, 'st').map(num), g.map((_, i) => g[lastAt(i) ?? has[0]!]!), 'step: its last value, before its first its first', 0);
+    close(values(t, 'z').map(num), g.map((v) => v ?? 0), 'zero', 0);
+    const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
+    close(values(t, 'tm').map(num), g.map((_, i) => {
+      const a = lastAt(i);
+      const b = nextAt(i);
+      if (a === undefined || b === undefined) return null;
+      return a === b ? g[a]! : g[a]! + ((g[b]! - g[a]!) * (at[i]! - at[a]!)) / (at[b]! - at[a]!);
+    }), 'time: linear between its values before and after, none outside them', 1e-9);
   });
 
   // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a
@@ -549,7 +605,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const rolledPeak = AAA.map((_, i) => Math.max(...AAA.slice(Math.max(0, i - 4), i + 1)));
     const rolledDd = AAA.map((v, i) => v / rolledPeak[i]! - 1);
     close((await line(spec({ A: 'max_drawdown(close[AAA], 5)' }))).values,
-      rolledDd.map((_, i) => (i < 4 ? null : Math.min(...rolledDd.slice(i - 4, i + 1)))), 'rolling max drawdown', 1e-9);
+      ramp(rolledDd.map((_, i) => (i < 4 ? null : Math.min(...rolledDd.slice(i - 4, i + 1)))), 5), 'rolling max drawdown', 1e-9);
   });
 
   it('correlation, beta and covariance of two instruments\' returns', async () => {
@@ -626,10 +682,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 8)' }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
     close((await line(spec({ A: 'correlation(close[AAA], lag(close[BBB], 3), 8)' }))).values,
       pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 'correlation on a lag', 1e-7);
-    const mb = rolling(BBB, 5, avg);
+    const mb = ramped(rolling(BBB, 5, avg), 5);
     close((await line(spec({ A: 'residual(close[AAA], mean(close[BBB], 5), 8)' }))).values,
-      pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual on a mean', 1e-7);
-    close((await line(spec({ A: 'hedge_ratio(close[AAA], mean(close[BBB], 5), 8)' }))).values, pairs(AAA, mb, 8, slope), 'hedge ratio on a mean', 1e-7);
+      ramp(pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 5), 'residual on a mean', 1e-7);
+    close((await line(spec({ A: 'hedge_ratio(close[AAA], mean(close[BBB], 5), 8)' }))).values, ramp(pairs(AAA, mb, 8, slope), 5), 'hedge ratio on a mean', 1e-7);
   });
 
   it('a series read by another: $A', async () => {
@@ -643,8 +699,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('Bollinger bands: k deviations either side of the moving average', async () => {
     const l = await line(spec({ A: 'bollinger_bands(close[AAA], 5, 2)' }));
-    close(l.lower!, rolling(AAA, 5, (v) => avg(v) - 2 * sd(v)), 'lower', 1e-7);
-    close(l.upper!, rolling(AAA, 5, (v) => avg(v) + 2 * sd(v)), 'upper', 1e-7);
+    close(l.lower!, ramp(rolling(AAA, 5, (v) => avg(v) - 2 * sd(v)), 5), 'lower', 1e-7);
+    close(l.upper!, ramp(rolling(AAA, 5, (v) => avg(v) + 2 * sd(v)), 5), 'upper', 1e-7);
   });
 
   it('RSI of Wilder\'s smoothed averages of the gains and the losses (gs-quant\'s)', async () => {
@@ -773,10 +829,14 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     close(b.upper!, band(2), 'upper 2w', 1e-7);
   });
 
-  it('winsorize and a Sharpe ratio over a count: within the limit of every value\'s mean; the mean return over its deviation, annualized', async () => {
-    const m = avg(AAA);
-    const s = sd(AAA);
-    close((await line(spec({ A: 'winsorize(close[AAA], 1)' }))).values, AAA.map((v) => Math.min(Math.max(v, m - s), m + s)), 'winsorize', 1e-9);
+  it('winsorize and a Sharpe ratio over a count: within the limit of the mean to date; the mean return over its deviation, annualized', async () => {
+    // to date (S150, 2026-11-06): each value held within the limit of the line's values to it, the first kept
+    close((await line(spec({ A: 'winsorize(close[AAA], 1)' }))).values, AAA.map((v, i) => {
+      if (i === 0) return v;
+      const m = avg(AAA.slice(0, i + 1));
+      const s = sd(AAA.slice(0, i + 1));
+      return Math.min(Math.max(v, m - s), m + s);
+    }), 'winsorize', 1e-9);
     const r = simple(AAA);
     close((await line(spec({ A: 'sharpe_ratio(close[AAA], 10)' }))).values, DAYS.map((_, i) => {
       const vals = r.slice(Math.max(0, i - 9), i + 1).filter((v) => v !== null) as number[];
@@ -964,15 +1024,37 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     }), 'time', 1e-9);
   });
 
+  // the platform step (the user, 2026-10-28): a person's own Pure puts two series on one calendar as the tile's align
+  // does -- Pure's own join, then the library's fills -- and answers as the tile does
+  it('a person\'s own Pure: two calendars joined and CCC filled by step and by time, as the tile\'s align', async () => {
+    const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
+    const days = 'meta::pure::functions::date::DurationUnit.DAYS';
+    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')->select(~[day, close])->rename(~close, ~a)
+      ->join(${source}->filter(x|$x.symbol == 'CCC')->select(~[day, close])->rename(~day, ~cday)->rename(~close, ~c),
+        meta::pure::functions::relation::JoinKind.LEFT, {l,r|$l.day == $r.cday})
+      ->extend(~[ln:x|'one', ta:x|dateDiff(%1970-01-01, $x.day->toOne(), ${days}), tc:x|if($x.cday->isEmpty(), |[], |dateDiff(%1970-01-01, $x.cday->toOne(), ${days}))])
+      ->timeseries::fillStep(~ln, ~day, ~c, ~c, ~cs)
+      ->timeseries::fillTime(~ln, ~day, ~c, ~tc, ~ta, ~c, ~ct)
+      ->extend(~[step:x|$x.a->toOne() - $x.cs->toOne(), time:x|if($x.ct->isEmpty(), |[], |$x.a->toOne() - $x.ct->toOne())])
+      ->sort([~day->ascending()])`)), 0);
+    close(values(t, 'step').map(num), (await line(aligned('step'))).values, 'step, as the tile\'s', 1e-9);
+    close(values(t, 'time').map(num), (await line(aligned('time'))).values, 'time, as the tile\'s', 1e-9);
+  });
+
   it('nan and zero: every date, none where CCC has none -- or 0 there', async () => {
     close((await line(aligned('nan'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : null)), 'nan', 1e-9);
     close((await line(aligned('zero'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : v)), 'zero', 1e-9);
   });
 
-  it('step before a series\' first value: its first (gs-quant\'s ffill, then bfill)', async () => {
+  // R12 (ruled 2026-10-31): step is prev -- gs-quant's ffill, without its bfill (a line's first value before it starts,
+  // the future read; docs/SEMANTICS_REGISTER.md S145)
+  it('step before a series\' first value: none (gs-quant\'s ffill, never its bfill: R12)', async () => {
     const l = await line(spec({ A: 'close[AAA] - mean(close[CCC], 3)' }, { align: 'step' } as Partial<TimeseriesSpec>));
     const mean3 = (j: number): number => (CCC[j]! + CCC[j - 3]! + CCC[j - 6]!) / 3;
-    close(l.values, AAA.map((v, i) => v - mean3(Math.max(6, before(i)))), 'bfilled', 1e-9);
+    // the mean's first value at CCC's fourth date (gs-quant's ramp of 3), none before it (the tile's answer keeps the date)
+    const first = own[3]!;
+    assert.deepEqual(l.dates, DAYS);
+    close(l.values, AAA.map((v, i) => (i < first ? null : v - mean3(before(i)))), 'stepped forward only', 1e-9);
   });
 
   it('a line per symbol: each its own dates and CCC\'s', async () => {
@@ -1003,10 +1085,11 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
 
   it('three parts under step: each its last value at or before each date, a lag of CCC on CCC\'s own dates', async () => {
     const l = await line(spec({ A: 'close[AAA] - close[CCC] + lag(close[CCC], 1)' }, { align: 'step' } as Partial<TimeseriesSpec>));
+    // the lag's first value at CCC's second date, none before it (R12: never backfilled)
+    const first = own[1]!;
     assert.deepEqual(l.dates, DAYS);
-    // the lag's first value at CCC's second date (bfilled before it)
-    const lag = (i: number): number => { const j = own.indexOf(before(i)); return CCC[own[Math.max(1, j) - 1]!]!; };
-    close(l.values, AAA.map((v, i) => v - CCC[before(i)]! + lag(i)), 'three parts', 1e-9);
+    const lag = (i: number): number => { const j = own.indexOf(before(i)); return CCC[own[j - 1]!]!; };
+    close(l.values, AAA.map((v, i) => (i < first ? null : v - CCC[before(i)]! + lag(i))), 'three parts', 1e-9);
   });
 
   // the Phase 1 review's 3: gs-quant's if_ is of the flags' dates -- each x or y there, none where that one has none --
@@ -1026,14 +1109,16 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     const plain = await line(spec({ A: 'interpolate(close[CCC], close[AAA])' }));
     assert.deepEqual(plain.dates, own.map((i) => DAYS[i]!), 'intersect, gs-quant\'s default');
     // x: AAA at or above its median (filter drops those below), onto CCC's every third -- gs-quant's __interpolate_step
-    // written out: from x's value as of the first date asked (its first, before it starts), each date asked its own
-    // value, else the one before among them
+    // written out: from x's value as of the first date asked (none before x starts: gs-quant's its first, a later value,
+    // R12), each date asked its own value, else the one before among them
     const m = [...AAA].sort((a, b) => a - b)[AAA.length / 2]!;
     const xs = DAYS.map((_, i) => i).filter((i) => AAA[i]! >= m);
     assert.ok(own.some((i) => !xs.includes(i)) && xs.some((i) => !own.includes(i)), 'each has dates the other lacks');
     const step = await line(spec({ A: `interpolate(filter(close[AAA], less_than, ${m}), close[CCC], step)` }));
-    let current = AAA[xs.filter((j) => j <= own[0]!).at(-1) ?? xs[0]!]!;
+    const asOf = xs.filter((j) => j <= own[0]!).at(-1);
+    let current: number | null = asOf === undefined ? null : AAA[asOf]!;
     const want = own.map((i) => (xs.includes(i) ? (current = AAA[i]!) : current));
+    assert.equal(want[0], null, 'x starts after the first date asked: none there');
     assert.deepEqual(step.dates, own.map((i) => DAYS[i]!));
     close(step.values, want, 'step over the dates asked', 1e-12);
     // y begun later, on a date x has none of: x's value as of it, from x's own dates before it -- never the next date
@@ -1108,13 +1193,13 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     assert.deepEqual(l.dates, kept.map(([, i]) => DAYS[i]!));
     close(l.values, kept.map(([v]) => v), 'filtered', 0);
     const meanOf = await line(spec({ A: 'mean(filter(close[AAA], greater_than, 102), 3)' }));
-    close(meanOf.values, rolling(kept.map(([v]) => v), 3, avg), 'a window over the dates left', 1e-9);
-    const m3 = rolling(AAA, 3, avg);
+    close(meanOf.values, ramp(rolling(kept.map(([v]) => v), 3, avg), 3), 'a window over the dates left', 1e-9);
+    const m3 = ramp(rolling(AAA, 3, avg), 3);
     const after = await line(spec({ A: 'filter(mean(close[AAA], 3), greater_than, 102)' }));
     close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
     const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
     assert.deepEqual(empty.dates, DAYS.slice(2), 'empty: the dates of none dropped');
-    // every other operator, each a value of datacube::ts::FilterOperator (the enum round's review, 2026-10-28)
+    // every other operator, each a value of timeseries::FilterOperator (the enum round's review, 2026-10-28)
     const at = AAA[7]!;
     const ops: [string, (v: number) => boolean][] = [['less_than', (v) => v < at], ['l_equals', (v) => v <= at],
       ['g_equals', (v) => v >= at], ['equals', (v) => v === at], ['not_equals', (v) => v !== at]];
@@ -1126,7 +1211,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
 
   it('product, geometrically_aggregate and weighted_sum', async () => {
     close((await line(spec({ A: 'product(close[AAA] / 100, 5)' }))).values,
-      rolling(AAA.map((v) => v / 100), 5, (v) => v.reduce((a, b) => a * b, 1)), 'product of 5', 1e-9);
+      ramp(rolling(AAA.map((v) => v / 100), 5, (v) => v.reduce((a, b) => a * b, 1)), 5), 'product of 5', 1e-9);
     close((await line(spec({ A: 'geometrically_aggregate(returns(close[AAA]))' }))).values,
       AAA.map((v, i) => (i === 0 ? null : v / AAA[0]! - 1)), 'compounded', 1e-9);
     close((await line(spec({ A: 'weighted_sum(close[AAA], 0.6, close[BBB], 0.4)' }))).values,
@@ -1241,10 +1326,11 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     }
     await assert.rejects(line(spec({ A: 'trend(close[AAA])' })), /give the tile a frequency/);
     await assert.rejects(line(spec({ A: 'trend(close[AAA], additive, week)' }, { grain: 'week' })), /a week is no cycle of weeks/);
-    // the library's (2026-10-27): trend and seasonallyAdjusted, by name
-    for (const [text, f] of [['trend(close[AAA], additive, month)', 'trend'], ['seasonally_adjusted(close[AAA], additive, month)', 'seasonallyAdjusted']] as const) {
+    // each the language's of the same name, its cycle counted in SAMPLE BY's weeks
+    for (const text of ['trend(close[AAA], additive, month)', 'seasonally_adjusted(close[AAA], additive, month)']) {
       const ts = spec({ A: text }, { grain: 'week' });
-      assert.ok(functionsCalled(seriesQuery(inputs, ts, ts.series[0]!).query).has(`datacube::ts::${f}`), `${text} calls ${f}`);
+      const island = islandText(seriesQuery(inputs, ts, ts.series[0]!).query);
+      assert.ok(island.includes(`${text.slice(0, text.indexOf('('))}(`) && island.includes('SAMPLE BY 1w'), island);
     }
   });
 });
@@ -1307,9 +1393,10 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
     assert.equal(q.shade, true);
     assert.equal(q.level, false);
     const t = await run(q);
-    const mean5 = rolling(AAA, 5, avg);
+    const mean5 = ramped(rolling(AAA, 5, avg), 5);
     const flag: Line = AAA.map((v, i) => (mean5[i] === null ? null : v > mean5[i]! ? 1 : 0));
-    assert.deepEqual(values(t, TS_VALUE).map(num).reverse(), flag);
+    // the dates the close and its mean both have: the mean's from its sixth (gs-quant's ramp)
+    assert.deepEqual(values(t, TS_VALUE).map(num).reverse(), ramp(flag, 5));
     // the runs, as plain arithmetic: a run of the same flag, from its first date to its last
     const runOf = flag.map((f, i) => {
       if (f !== 1) return null;
@@ -1321,8 +1408,8 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
       return [DAYS[a]!, DAYS[Math.min(b + 1, DAYS.length - 1)]!] as const;
     });
     const day = (n: string): (string | null)[] => values(t, n).map((d) => (d === null ? null : String(d).slice(0, 10))).reverse();
-    assert.deepEqual(day(TS_FROM), runOf.map((r) => r?.[0] ?? null), 'each run\'s first date');
-    assert.deepEqual(day(TS_TO), runOf.map((r) => r?.[1] ?? null), 'and the date after its last');
+    assert.deepEqual(day(TS_FROM), ramp(runOf.map((r) => r?.[0] ?? null), 5), 'each run\'s first date');
+    assert.deepEqual(day(TS_TO), ramp(runOf.map((r) => r?.[1] ?? null), 5), 'and the date after its last');
     assert.ok(runOf.every((r) => r === null || r[0] < r[1] || r[1] === DAYS.at(-1)), 'every run of a width, but one of the last date alone');
     assert.ok(new Set(runOf.filter((r) => r !== null).map((r) => r![0])).size >= 2, 'more than one run in the fixture');
   });
@@ -1343,26 +1430,24 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
 describe('a window by its rows: percentile ranks, medians and percentiles', () => {
   it('percentiles: each value\'s rank among its window\'s, 0 to 100 -- over 10, from the start, over 2w', async () => {
     close((await line(spec({ A: 'percentiles(close[AAA], 10)' }))).values,
-      AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 'over 10', 1e-12);
+      ramp(AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 10), 'over 10', 1e-12);
     close((await line(spec({ A: 'percentiles(close[AAA])' }))).values, AAA.map((v, i) => rankIn(AAA.slice(0, i + 1), v)), 'from the start', 1e-12);
     const start = onBy(DAYS[0]!, 2, 'w');
     close((await line(spec({ A: 'percentiles(close[AAA], 2w)' }))).values, DAYS.map((d, i) => (d < start ? null
       : rankIn(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), AAA[i]!))), 'over 2w', 1e-12);
     // a constant series: every value equal to every other, each the middle of its window
-    close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : 50)), 'all equal', 1e-12);
+    close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : 50)), 5), 'all equal', 1e-12);
   });
 
   it('median and percentile: pandas\' quantile over each window, a percentile of the whole series a line', async () => {
-    close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 'median of 5', 1e-12);
-    close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 'median of 4: the two middle ones\' mean', 1e-12);
-    close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), '90th of 10', 1e-12);
+    close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 5), 'median of 5', 1e-12);
+    close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, ramp(AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 4), 'median of 4: the two middle ones\' mean', 1e-12);
+    close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, ramp(AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), 10), '90th of 10', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
     // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
     // other (the E9 review's 5)
-    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query);
-    assert.ok(calls('percentile(close[AAA], 25)').has('datacube::ts::quantileOfLine'), 'one aggregate a line');
-    assert.ok(!calls('percentile(close[AAA], 25)').has('datacube::ts::quantile'), 'no self-join');
-    const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function datacube::ts::quantileOfLine'));
+    // (the builder's call of it is the platform's: core's TsFunctions writes quantileOfLine for a whole line)
+    const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function timeseries::quantileOfLine'));
     assert.equal((body.slice(0, body.indexOf('\n}\n')).match(/->join\(/g) ?? []).length, 1, 'one join: the line\'s figure');
     // over a calendar period: the values after two weeks back, to this one, from the first date two weeks on
     const start = onBy(DAYS[0]!, 2, 'w');
@@ -1501,18 +1586,18 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
       }
     };
     // the line's own figures
-    same(await ask('->datacube::ts::summaryStatistics(~symbol, ~day, ~t, ~close, ~close, ~close, ~n, ~d0, ~d1, ~f, ~l, ~lo, ~la, ~hi, ~ha, ~m, ~s, ~dy, ~ch, ~pc)'),
+    same(await ask('->timeseries::summaryStatistics(~symbol, ~day, ~t, ~close, ~close, ~close, ~n, ~d0, ~d1, ~f, ~l, ~lo, ~la, ~hi, ~ha, ~m, ~s, ~dy, ~ch, ~pc)'),
       await tile(statsQuery(long, ts, A)), [['n', statName('count')], ['d0', statName('from')], ['d1', statName('to')], ['f', statName('first')], ['l', statName('last')],
         ['lo', statName('low')], ['la', statName('lowAt')], ['hi', statName('high')], ['ha', statName('highAt')], ['m', statName('mean')], ['s', statName('std')],
         ['dy', statName('days')], ['ch', statName('change')], ['pc', statName('pct')]], 1e-12);
     // a seasonality: by the week of the year, each year its week's last; and each year from its first value
     const seaCols = [['y', TS_SEA_YEAR], ['p', TS_SEA_PLACE], ['v', TS_VALUE], ['lo', TS_SEA_LOW], ['hi', TS_SEA_HIGH], ['mn', TS_SEA_MEAN], ['sp', TS_SEA_SPAN], ['ly', TS_SEA_LATEST]] as const;
     for (const compare of [undefined, 'rebase', 'percent'] as const) {
-      same(await ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, datacube::ts::Grain.day, datacube::ts::Compare.${compare ?? 'none'}, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
+      same(await ask(`->timeseries::seasonality(~symbol, ~day, ~t, ~close, timeseries::Grain.day, timeseries::Compare.${compare ?? 'none'}, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
         await tile(seasonalityQuery(long, compare === undefined ? ts : { ...ts, view: { compare } }, A, 1)), seaCols, 1e-12);
     }
     // a projection: the line over its last 60 values, three months on
-    same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, meta::pure::functions::date::DurationUnit.DAYS, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
+    same(await ask('->timeseries::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, meta::pure::functions::date::DurationUnit.DAYS, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
       await tile(projectionQuery(long, ts, { kind: 'projection', series: A.id, window: 60, ahead: '3m' })),
       [['d0', TS_PJ_FROM], ['v0', TS_PJ_FROM_VALUE], ['d1', TS_PJ_LAST], ['v1', TS_PJ_LAST_VALUE], ['d2', TS_PJ_END], ['v2', TS_PJ_END_VALUE], ['sl', TS_PJ_SLOPE], ['k', TS_PJ_N]], 1e-9);
     // an option it does not have is refused when the query compiles -- the type checker's, in its words -- never
@@ -1521,17 +1606,17 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const refused = async (calls: string, said: RegExp): Promise<void> => {
       await assert.rejects(own.plan(await own.parse(`|${source}${calls}`)), said);
     };
-    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.Day, datacube::ts::Compare.none, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
-      /enumeration datacube::ts::Grain has no value 'Day'/);
-    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.day, datacube::ts::Compare.rebased, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
-      /enumeration datacube::ts::Compare has no value 'rebased'/);
-    await refused('->datacube::ts::periodIndex(~day, datacube::ts::Grain.months, ~i)', /enumeration datacube::ts::Grain has no value 'months'/);
-    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.Log, ~r)", /enumeration datacube::ts::Returns has no value 'Log'/);
+    await refused('->timeseries::seasonality(~symbol, ~day, ~symbol, ~close, timeseries::Grain.Day, timeseries::Compare.none, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration timeseries::Grain has no value 'Day'/);
+    await refused('->timeseries::seasonality(~symbol, ~day, ~symbol, ~close, timeseries::Grain.day, timeseries::Compare.rebased, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration timeseries::Compare has no value 'rebased'/);
+    await refused('->timeseries::periodIndex(~day, timeseries::Grain.months, ~i)', /enumeration timeseries::Grain has no value 'months'/);
+    await refused("->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.Log, ~r)", /enumeration timeseries::Returns has no value 'Log'/);
     // and a word where an option is: refused by its type, not compared
-    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'log', ~r)", /Returns/);
+    await refused("->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'log', ~r)", /Returns/);
     // a valid one folds to the branch it names: the others never reach the SQL (a statistic of a calendar period: its
     // mean's AVG alone, no SUM, MAX, MIN or VAR beside it)
-    const plan = JSON.stringify(await own.plan(await own.parse(`|${source}->datacube::ts::windowPeriod(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.WEEKS, datacube::ts::Statistic.mean, ~m)`)));
+    const plan = JSON.stringify(await own.plan(await own.parse(`|${source}->timeseries::windowPeriod(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.WEEKS, timeseries::Statistic.mean, ~m)`)));
     assert.ok(plan.includes('AVG('), 'its mean');
     for (const other of ['SUM(', 'MAX(', 'MIN(', 'VAR_SAMP(', 'STDDEV_SAMP(', 'COUNT(']) assert.ok(!plan.includes(other), `no ${other} beside it`);
   });
@@ -1932,8 +2017,12 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close(l.upper!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
   });
 
-  it('the technicals of a high, a low and a close, and the statistics against a benchmark, call the library by name', () => {
-    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query);
+  it('the technicals of a high, a low and a close, and the statistics against a benchmark, are each a #TS query that plans', async () => {
+    const calls = async (text: string): Promise<string> => {
+      const q = seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query;
+      await packs.plan(q);
+      return islandText(q);
+    };
     const want: readonly [string, string][] = [
       ['atr(high[P], low[P], close[P], 14)', 'atr'], ['stochastic(high[P], low[P], close[P], 14)', 'stochastic'],
       ['keltner_channels(high[P], low[P], close[P], 20, 10, 2)', 'keltnerChannels'], ['donchian_channels(high[P], low[P], 20)', 'donchianChannels'],
@@ -1949,7 +2038,10 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['lead_lag(close[P], close[Q], 1, 1m)', 'leadLagPeriod'], ['dickey_fuller(close[P], 2m)', 'dickeyFullerPeriod'],
       ['half_life(close[P], 2m)', 'halfLifePeriod'],
     ];
-    for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
+    for (const [expr] of want) {
+      const fn = /^([a-z_]+)\(/.exec(expr)![1]!;
+      assert.ok((await calls(expr)).includes(`${fn}(`), `${expr} as #TS`);
+    }
   });
 
   it('donchian_channels: the lowest low and the highest high of the last w', async () => {
@@ -2200,8 +2292,10 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     let total = 0;
     close((await packLine('obv(close[P], volume[P])', weekly)).values,
       WC.map((c, i) => (i === 0 ? 0 : (total += Math.sign(c - WC[i - 1]!) * WV[i]!))), 'weekly OBV', 0);
+    // the tile's weekly VWAP is a rolling sum of the weeks' sums (sum(sum(traded), 3) / sum(sum(volume), 3)): gs-quant's
+    // sum of 3, from the fourth week (its ramp)
     close((await packLine('vwap(close[P], volume[P], 3)', weekly)).values,
-      WV.map((_, i) => (i < 2 ? null : WPV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0) / WV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0))), 'weekly VWAP', 1e-12);
+      ramp(WV.map((_, i) => (i < 2 ? null : WPV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0) / WV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0))), 3), 'weekly VWAP', 1e-12);
   });
 
   // the Phase 4 review's 3 and 8: a long and a short (weights summing to 0) is a basket as any; a price of none makes
@@ -2322,12 +2416,13 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
     close(await tickLine('basket(close[S], 0.6, close[B], 0.4, rebalance=weekly)'), out, 'weekly basket', 1e-9);
   });
 
-  // the conversion's second review (2026-10-28): a projection of date-times counts its time in seconds -- its line by
-  // least squares on each day's last tick's time, ahead a week's seconds, its slope a day's
-  it('a projection of date-times: its time in seconds, its end a week of them past the last tick, its slope a day\'s', async () => {
+  // the conversion's second review (2026-10-28) fit a daily projection of date-times on each day's last tick's time;
+  // since the timeseries language's ruling 9 (2026-10-30) a period of a day is dated at its day, and the line drawn is
+  // of days: its least squares on them, ahead a week of them, its slope a day's
+  it('a projection of date-times at a daily frequency: its line on its days, its end a week past the last, its slope a day\'s', async () => {
     const ts = spec({ A: 'close[S]' }, { grain: 'day' });
     const t = await engine.execute(await tickPlanner.plan(projectionQuery(ticks, ts, { kind: 'projection', series: 'A', window: 5, ahead: '1w' }).query), 0);
-    const xs = T.slice(-5);
+    const xs = DAYS_T.slice(-5).map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
     const ys = SC.slice(-5);
     const mx = avg(xs);
     const my = avg(ys);

@@ -125,7 +125,8 @@ class TempTableAsTest {
     /** One line, a literal's own newline kept: only the layout's newlines go. */
     @Test
     void aQueryOnOneLine() {
-        SqlSelect inner = values("a\nb", "c");
+        // a LIMIT keeps the subselect a level of its own on every dialect (SelectMerge merges a plain one, 2026-11-04)
+        SqlSelect inner = values("a\nb", "c").withLimit(1L);
         SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(inner, "s", null));
         for (SqlDialect d : List.<SqlDialect>of(new DuckDb(), new H2(), new SQLite(), new Postgres())) {
             String name = d.getClass().getSimpleName();

@@ -265,6 +265,12 @@ async function spikeLine(text: string, out: string, symbol = 'AAA'): Promise<Map
   return new Map(dates.flatMap((d, i) => (symbols[i] === symbol ? [[d, values[i]!] as const] : [])));
 }
 
+/** A spike line under gs-quant's ramp (helper.apply_ramp: a window of w observations drops its line's first w points),
+ *  as today's words answer since the oracle's O1 (docs/TS_GSQUANT_ORACLE_2026_11_01.md): its dates from the (w + 1)-th. */
+function ramped(m: Map<string, number | null>, w: number): Map<string, number | null> {
+  return new Map([...m].sort(([a], [b]) => a.localeCompare(b)).slice(w));
+}
+
 function same(got: Map<string, number | null>, want: Map<string, number | null>, what: string, tolerance = 1e-9): void {
   assert.deepEqual([...got.keys()].sort(), [...want.keys()].sort(), `${what}: the same dates`);
   for (const [d, w] of want) {
@@ -283,13 +289,13 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('multi-step windows (zscores): a mean and a deviation, then a row\'s figure', async () => {
-    same(await spikeLine('$prices->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), await today('zscores(close[AAA], 10)'), 'zscores');
+    same(ramped(await spikeLine('$prices->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), 10), await today('zscores(close[AAA], 10)'), 'zscores');
   });
 
   it('several outputs (bollinger_bands): lower, upper and width', async () => {
     const q = '$prices->spike::bollinger(~symbol, ~day, ~close, 5, 2.0, ~lo, ~hi, ~wd)';
-    same(await spikeLine(q, 'lo'), await today('bollinger_bands(close[AAA], 5, 2)', TS_LOWER), 'lower');
-    same(await spikeLine(q, 'hi'), await today('bollinger_bands(close[AAA], 5, 2)', TS_UPPER), 'upper');
+    same(ramped(await spikeLine(q, 'lo'), 5), await today('bollinger_bands(close[AAA], 5, 2)', TS_LOWER), 'lower');
+    same(ramped(await spikeLine(q, 'hi'), 5), await today('bollinger_bands(close[AAA], 5, 2)', TS_UPPER), 'upper');
   });
 
   it('a base over the whole line (index): its first value', async () => {
@@ -298,14 +304,14 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 
   it('two tables of different columns, aligned (pairOf), then two columns of one (correlation of their returns)', async () => {
     const returns = (s: string, r: string): string =>
-      `$prices->filter(x|$x.symbol == '${s}')->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.simple, ~${r})`;
+      `$prices->filter(x|$x.symbol == '${s}')->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~${r})`;
     const q = `${returns('AAA', 'ra')}->select(~[symbol, day, ra])->spike::pairOf(~symbol, ~day, ~ra, ${returns('BBB', 'rb')}->select(~[symbol, day, rb])->rename(~symbol, ~sb), ~sb, ~day, ~rb, ~ra2, ~rb2)`
       + '->spike::correlation(~symbol, ~day, ~ra2, ~rb2, 10, ~c)';
     same(await spikeLine(q, 'c'), await today('correlation(close[AAA], close[BBB], 10)'), 'correlation');
   });
 
   it('a self-join over each window (percentiles)', async () => {
-    same(await spikeLine('$prices->spike::percentiles(~symbol, ~day, ~close, 5, ~pr)', 'pr'), await today('percentiles(close[AAA], 5)'), 'percentiles');
+    same(ramped(await spikeLine('$prices->spike::percentiles(~symbol, ~day, ~close, 5, ~pr)', 'pr'), 5), await today('percentiles(close[AAA], 5)'), 'percentiles');
   });
 
   it('a window of a calendar period (mean over 2w): the line joined to itself on dates', async () => {
@@ -329,7 +335,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('a partition by the line and a figure of its own (consecutive), over a library call (diff)', async () => {
-    same(await spikeLine('$prices->datacube::ts::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
+    same(await spikeLine('$prices->timeseries::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
       await today('consecutive(diff(close[AAA]))'), 'consecutive');
   });
 
@@ -355,7 +361,7 @@ describe('the Pure library spike: the gaps, as they are today', () => {
     const t = await engine.execute(await spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'ts_m', 'z']);
     assert.ok(column(t, 'ts_m').every((v) => num(v) === 1), 'the caller\'s ts_m untouched');
-    same(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'),
+    same(ramped(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), 10),
       await today('zscores(close[AAA], 10)'), 'zscores beside a caller\'s ts_m');
   });
 

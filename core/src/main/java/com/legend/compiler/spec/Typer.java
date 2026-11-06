@@ -211,7 +211,7 @@ final class Typer {
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, source -> synth(source, env), ctx, env), env);
+                    synth(SqlIslands.desugar(si, this, ctx, env), env);
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"
@@ -1048,6 +1048,13 @@ final class Typer {
                     TypedFunction::definition);
             if (res.exact().size() == 1) {
                 fns = res.exact();
+            } else if (res.exact().size() > 1) {
+                // legend-pure's spelling of overloads that differ only in a relation's column types (register S146):
+                // it names them all, so the reference is ambiguous and refused (the A2 review, 2026-11-03)
+                throw new com.legend.error.ResolutionException("'" + ref.fullPath() + "' names "
+                        + res.exact().size() + " functions that differ only in a relation's column types: name one by"
+                        + " its id that spells the columns (" + String.join(", ", res.exact().stream()
+                                .map(f -> f.id().toString()).toList()) + ")");
             } else if (res.baseExists()) {
                 // BASE-EXISTS is the safety property: a misspelled or
                 // absent base still fails the lookup and throws below.

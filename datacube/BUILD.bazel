@@ -208,6 +208,12 @@ _EXTRA_ENV = {
     "stress-markets": {
         "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
         "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+        # every series of the class page, its answer frozen (test/timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md)
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/markets-classes-answers.json)",
+    },
+    # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
+    "timeseries-ts-parity": {
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
     },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
@@ -250,6 +256,8 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # every gallery series both ways, the tile's writer and #TS (docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity",
     # the timeseries over the trading model's classes, its rows the markets sample's (2026-10-27, Phase 6)
     "stress-markets",
     # the Pure library spike: one function of each family against today's writer (2026-10-27)
@@ -290,6 +298,12 @@ _EXTRA_DATA = {
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
+        "test/fixtures/timeseries/markets-classes-answers.json",
+        "test/timeseries-frozen.ts",
+    ],
+    "timeseries-ts-parity": [
+        "test/fixtures/timeseries/gallery-answers.json",
+        "test/timeseries-frozen.ts",
     ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
@@ -364,6 +378,7 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    "timeseries-ts-parity",
     "stress-markets",
     "pure-library-spike",
     "timeseries-view-dom",
@@ -659,6 +674,9 @@ _HEADLESS_LEFT_OUT = {
     # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
     # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
     "timeseries-queries": "a picked File, read as the page's stream",
+    # every gallery series' tile query against its #TS answer, the samples read in as timeseries-queries' are
+    # (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity": "a picked File, read as the page's stream",
     # the Pure library spike's prices read in as timeseries-queries' are (2026-10-27)
     "pure-library-spike": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
@@ -734,6 +752,49 @@ node_test(
     tags = ["manual"],
     data = [":src"],
     entry_point = "test/model-scale.measure.ts",
+    wasm = True,
+)
+
+# A MEASUREMENT, not a test (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6): the SQL a timeseries tile's queries
+# plan to -- its bytes, its CASEs copied, its windows -- and DuckDB's time to run it. Manual: `bazel test
+# //datacube:timeseries_sql_measure --test_output=all` prints its numbers; each query's SQL is in its undeclared outputs.
+node_test(
+    name = "timeseries_sql_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    entry_point = "test/timeseries-sql.measure.ts",
+    wasm = True,
+)
+
+# Real examples of the timeseries language over the markets project's classes (docs/TS_LANGUAGE_BUILD_2026_10_30.md;
+# the user, 2026-10-30): each #TS query's design beside the tile's writer drawing the same chart over the page's saved
+# grids (MarketQuote and Trade through stress::AllMapping), planned and answered on DuckDB-WASM. Manual, in //gates:heavy:
+# `bazel test //datacube:ts_examples_measure --test_output=all` prints each query's Pure and its last rows.
+node_test(
+    name = "ts_examples_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        ":markets_project",
+        "demo/config.json",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    env = {
+        "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+    },
+    entry_point = "test/ts-examples.measure.ts",
     wasm = True,
 )
 
@@ -916,6 +977,69 @@ java_run(
     deps = [":offer_facts_main"],
 )
 
+# THE CATALOG, EXPORTED (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S5): the library's enumerations, its words
+# and the guide's page of them, read from the library as core compiles it (TsCatalogExport) -- never parsed from its
+# text by a tool of their own; diff-tested below
+legend_java_library(
+    name = "ts_catalog_main",
+    srcs = ["tools/ts-catalog/TsCatalogExport.java"],
+    deps = [
+        "//core:compiler",
+        "//core:planner",
+        "//core:protocol",
+    ],
+)
+
+java_run(
+    name = "ts_catalog",
+    srcs = [":timeseries_model"],
+    outs = [
+        "generated/library-enums.gen.ts",
+        "generated/ts-words.gen.ts",
+        "generated/ts-words.gen.md",
+    ],
+    arguments = [
+        "$(execpath :timeseries_model)",
+        "$(execpath generated/library-enums.gen.ts)",
+        "$(execpath generated/ts-words.gen.ts)",
+        "$(execpath generated/ts-words.gen.md)",
+    ],
+    main_class = "tscatalog.TsCatalogExport",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_catalog_main"],
+)
+
+# THE #TS DOCUMENTS' EXAMPLES, WRITTEN FROM THEIR ONE SOURCE (docs/TS_V1_PROGRAM_2026_11_01.md A9): each marked sql
+# block of the spec and of the guide rewritten from docs/timeseries/examples.sql, which //core:ts_documents_test runs
+# (bazel run //docs:update_ts_examples writes them back)
+legend_java_library(
+    name = "ts_examples_doc_main",
+    srcs = ["tools/ts-catalog/TsExamplesDoc.java"],
+)
+
+java_run(
+    name = "ts_examples_doc",
+    srcs = [
+        "//docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md",
+        "//docs:TIMESERIES_LANGUAGE_2026_10_29.md",
+        "//docs:timeseries/examples.sql",
+    ],
+    outs = [
+        "generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md",
+        "generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md",
+    ],
+    arguments = [
+        "$(execpath //docs:timeseries/examples.sql)",
+        "$(execpath //docs:TIMESERIES_LANGUAGE_2026_10_29.md)",
+        "$(execpath generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md)",
+        "$(execpath //docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md)",
+        "$(execpath generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md)",
+    ],
+    main_class = "tscatalog.TsExamplesDoc",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_examples_doc_main"],
+)
+
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",
@@ -956,10 +1080,47 @@ js_run_binary(
     tool = ":test_imports_tool",
 )
 
+# the timeseries project's library copied into this package: js_run_binary copies its inputs to the output tree, and
+# takes none from another package
+copy_file(
+    name = "timeseries_model",
+    src = "//projects:timeseries/model.pure",
+    out = "timeseries_model.pure",
+)
+
+
+# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): the timeseries
+# project's model (//projects:timeseries/model.pure, package timeseries::; the user, 2026-10-30: not DataCube's) the
+# source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
+# diff-tested below
+
+js_binary(
+    name = "library_text_tool",
+    entry_point = "tools/library-text.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_text",
+    srcs = [":timeseries_model"],
+    outs = ["library_text_generated.ts"],
+    args = [
+        "$(rootpath :timeseries_model)",
+        package_name() + "/library_text_generated.ts",
+    ],
+    tool = ":library_text_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
+        "src/generated/library-enums.ts": "generated/library-enums.gen.ts",
+        "src/generated/ts-words.ts": "generated/ts-words.gen.ts",
+        "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",
     },

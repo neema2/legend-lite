@@ -17,6 +17,7 @@
 // catalog and its reader alone -- the expression language and the rules against a grid's columns are the viewer's
 // (timeseries-expr.ts), fetched with the first timeseries tile.
 
+import { LIBRARY_ENUMS } from './generated/library-enums.ts';
 import type { TimeGrain } from './chart-spec.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -421,7 +422,8 @@ export interface TsSignature {
 
 const W = (fallback: number): TsParamShape => ({ name: 'w', kind: 'span', default: fallback, min: 0 });
 const OBS: TsParamShape = { name: 'obs', kind: 'span', default: 1, min: 1 };
-const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'] };
+// an option the library takes, its words the library's enumeration's (generated/library-enums.ts: one source)
+const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: LIBRARY_ENUMS.Returns };
 const num = (name: string, fallback: number, min?: number): TsParamShape =>
   ({ name, kind: 'number', default: fallback, ...(min !== undefined ? { min } : {}) });
 /** A whole number of observations alone (a recursion's: Wilder's smoothing counts them). */
@@ -433,7 +435,7 @@ const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0
 const SPREAD_BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, above: 0, below: 1 };
 const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
 /** A seasonal decomposition's model and its cycle (gs-quant's SeasonalModel and Frequency). */
-const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: ['additive', 'multiplicative'] };
+const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: LIBRARY_ENUMS.SeasonalModel };
 const CYCLE: TsParamShape = { name: 'freq', kind: 'word', default: 'year', words: ['year', 'quarter', 'month', 'week'] };
 
 /** A true range's series: a candle's high, low and close. */
@@ -455,11 +457,11 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'intersect', words: ['intersect', 'nan', 'zero', 'step'] }] },
   // gs-quant's remaining functions (the next phases' 1, 2026-10-26)
   if: { series: 3, params: [] }, not: one(), compare: { series: 2, params: [] },
-  filter: one({ name: 'operator', kind: 'word', default: 'empty', words: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'] }, num('value', 0)),
+  filter: one({ name: 'operator', kind: 'word', default: 'empty', words: LIBRARY_ENUMS.FilterOperator }, num('value', 0)),
   product: one(W(0)), geometrically_aggregate: one(), weighted_sum: { series: 'many', params: [] },
-  smooth_spikes: one(num('threshold', 0.5, 0), { name: 'type', kind: 'word', default: 'percentage', words: ['percentage', 'absolute'] }),
+  smooth_spikes: one(num('threshold', 0.5, 0), { name: 'type', kind: 'word', default: 'percentage', words: LIBRARY_ENUMS.ThresholdType }),
   excess_returns: { series: 2, params: [] }, vol_swap_volatility: one(W(0)),
-  consecutive: one({ name: 'direction', kind: 'word', default: 'positive', words: ['positive', 'negative'] }),
+  consecutive: one({ name: 'direction', kind: 'word', default: 'positive', words: LIBRARY_ENUMS.Direction }),
   trend: one(SEASONAL_MODEL, CYCLE), seasonally_adjusted: one(SEASONAL_MODEL, CYCLE),
   union: { series: 2, params: [] }, append: { series: 2, params: [] }, prepend: { series: 2, params: [] },
   first: one(), last: one(), count: one(), day: one(), month: one(), year: one(), quarter: one(), weekday: one(),
@@ -479,7 +481,7 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   vwap: { series: 2, reads: ['price', 'volume'], params: [W(20)] },
   tracking_error: AGAINST, information_ratio: AGAINST, up_capture: AGAINST, down_capture: AGAINST,
   total_return: { series: 2, reads: ['price', 'dividends'], params: [] },
-  basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: ['daily', 'weekly', 'monthly'] }] },
+  basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: LIBRARY_ENUMS.Rebalance }] },
   lead_lag: { series: 2, params: [{ name: 'lag', kind: 'whole', default: 1, min: -252, max: 252 }, W(63)] },
   dickey_fuller: one(W(0)), half_life: one(W(0)),
 };

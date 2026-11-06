@@ -232,6 +232,51 @@ public final class Lowerer {
         return this;
     }
 
+    /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
+     *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
+     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
+     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  cteExtractionPostProcessor: {@link #sharingRelations}). */
+    private boolean shareRelations = true;
+    /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
+    private @com.legend.base.Nullable SharedRelations.Frame sharing;
+
+    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
+     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
+     *  expressions of its own spelling. */
+    public Lowerer sharingRelations(boolean on) {
+        this.shareRelations = on;
+        return this;
+    }
+
+    /** {@code spec}, a relation the statement reads more than once: lowered the first time it is read, its rows a
+     *  common table expression of the statement's head; each read the expression by name. Written where it stands at
+     *  each read instead: a relation whose order the statement keeps (an ORDER BY at its top: a sort before a
+     *  positional read; a union's members, which a graph envelope serializes in their order, {@link
+     *  UnionSerialOrder}; a common table expression carries no order), and a bare read of one source (a raw grid, a
+     *  table: no larger than a reference to it, and a raw grid's report reads the grid as it is written). */
+    private SqlSelect sharedRead(SharedRelations.Frame frame, TypedSpec spec) {
+        SqlSource.Cte cte = frame.read.get(spec);
+        if (cte == null) {
+            SqlSelect body;
+            frame.lowering.add(spec);
+            try {
+                body = relation(spec);
+            } finally {
+                frame.lowering.remove(spec);
+            }
+            if (!body.orderBy().isEmpty() || UnionSerialOrder.surfaces(body) || SharedRelations.bare(body)) {
+                frame.nodes.remove(spec);
+                return body;
+            }
+            String name = SqlWith.SHARED_PREFIX + frame.written.size();
+            frame.written.add(new SqlWith.Cte(name, body));
+            cte = new SqlSource.Cte(name, name, body.outputs());
+            frame.read.put(spec, cte);
+        }
+        return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
+    }
+
     /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
      * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
     private boolean engineExistsJoinForm;
@@ -386,9 +431,27 @@ public final class Lowerer {
         if (cellGrids == null) {
             cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
         }
+        TypedSpec root = withQueryLets(body);
+        SqlQuery q;
+        if (sharing == null && shareRelations && !engineText) {
+            // a relation read more than once, written once (SharedRelations): the statement's own names are its
+            // query lets and plan parameters, which its head reads as every part of it does
+            SharedRelations.Frame frame =
+                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+            sharing = frame;
+            try {
+                SqlQuery reads = lower(root);   // first: the reads write the expressions
+                q = SqlWith.prepend(List.copyOf(frame.written), reads);
+            } finally {
+                sharing = null;
+            }
+        } else {
+            q = lower(root);
+        }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(withQueryLets(body)));
+        // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
+        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
     }
 
     /**
@@ -443,7 +506,7 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source)));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -930,7 +993,23 @@ public final class Lowerer {
     // Relation ops
     // ==================================================================
 
+    /** Each table read's declared primary key, by the alias it is read under ({@link KeyedCounts}). */
+    private final java.util.Map<String, List<String>> tableKeys = new java.util.HashMap<>();
+
+    /** {@code table}, its key noted under its alias ({@link #tableKeys}). */
+    private SqlSource.Table keyed(TypedTableReference t, SqlSource.Table table) {
+        if (!t.key().isEmpty()) {
+            tableKeys.put(table.alias(), t.key());
+        }
+        return table;
+    }
+
     SqlSelect relation(TypedSpec spec) {
+        // a relation the statement reads more than once: written once, read by name (SharedRelations)
+        SharedRelations.Frame frame = sharing;
+        if (frame != null && frame.nodes.contains(spec) && !frame.lowering.contains(spec)) {
+            return sharedRead(frame, spec);
+        }
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
@@ -971,10 +1050,10 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
                             com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
-                    : SqlSelect.starOf(
+                    : SqlSelect.starOf(keyed(t,
                     new SqlSource.Table(t.table(), nextAlias(),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()))));
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline
@@ -1636,6 +1715,10 @@ public final class Lowerer {
                                     || neg.args().get(0) instanceof TypedCFloat
                                     || neg.args().get(0) instanceof TypedCDecimal)) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
+            } else if (argSpec instanceof TypedNativeCall && rowFree(argSpec)) {
+                // a constant the database computes (a library word's parameter made into one, 90 / 100: the frame
+                // offset's rule, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1) -- it reads no row
+                extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
             } else if (argSpec instanceof TypedCast vc
                     && vc.source() instanceof TypedVariable) {
                 // $x->cast(@T)->plus(): the grouped VALUES cast before
@@ -1940,6 +2023,12 @@ public final class Lowerer {
                     return null;
                 }
             }
+        }
+        // the copies the columns write, their rules' included (Fold.overCopied): past the budget, and where the base
+        // isolated reads as it did, the retry over the isolated base reads the projection by name (no miss to report:
+        // the retry's reads are a subselect's columns)
+        if (Fold.overCopied(base, ps) != null) {
+            return null;
         }
         return target.withProjections(ps);
     }
@@ -2929,6 +3018,11 @@ public final class Lowerer {
                                 over.frame()),
                         a.name(), Fold.named(contract, a.name())));
             }
+            // the copies the window columns write (Fold.overCopied): past the budget, and where the base isolated reads as it
+            // did, isolated and read by name
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
+            }
             return b.withProjections(ps);
         });
         // a class-extent window closes its select (TypedExtendWindow
@@ -2947,6 +3041,9 @@ public final class Lowerer {
                 ps.add(new SqlSelect.Projection(
                         Windows.windowize(aggValue(b, a), List.of(), List.of(), null),
                         a.name(), Fold.named(contract, a.name())));
+            }
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
             }
             return b.withProjections(ps);
         });
@@ -2981,7 +3078,10 @@ public final class Lowerer {
                             : k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
                                     : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
-        return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
+        // a bound the database computes (a parameter, arithmetic over one) lowered as any scalar: it reads no row
+        ColumnResolver none = scopedResolver(base, null);
+        return new Over(parts, keys, over.frame().map(f -> Windows.sqlFrame(f, v -> scalar(refusingFail(v), none)))
+                .orElse(null));
     }
 
     /**
@@ -3021,7 +3121,7 @@ public final class Lowerer {
                 // an ALIAS whose defining expression must substitute (a raw
                 // FROM-qualified ref binds to nothing).
                 args.add(resolveOrThrow(base, p.property()));
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), fn.readsFrame() ? over.frame() : null);
             }
@@ -3085,7 +3185,7 @@ public final class Lowerer {
                             + "' needs a property access naming its column");
                 }
                 List<SqlExpr> args = new ArrayList<>();
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
                 // a ranking reads the partition, never a frame (WindowFn.readsFrame)
                 return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), null);
@@ -3150,14 +3250,52 @@ public final class Lowerer {
         return e;
     }
 
+    /** {@code spec}, a value that reads no row (a frame's or a lag's offset), refused when planned where it fails
+     *  unconditionally -- a {@code fail(message)} outside any {@code if}'s branches (in its condition, or none), which
+     *  would raise on every row: its
+     *  message the refusal's (a library's word that tables its parameters, a decomposition's cycle of a SAMPLE BY's
+     *  period, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1d). */
+    private static TypedSpec refusingFail(TypedSpec spec) {
+        if (spec instanceof TypedNativeCall nc
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(nc.callee().id())) {
+            String message = !nc.args().isEmpty() && nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, message);
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedIf ti) {
+            // its condition is evaluated whatever it answers; its branches are not
+            refusingFail(ti.condition());
+        } else {
+            spec.children().forEach(Lowerer::refusingFail);
+        }
+        return spec;
+    }
+
+    /** Whether {@code spec} reads no row: literals, and functions of them (a lambda of no parameter among them, an
+     *  {@code if}'s branch) -- a value the database computes once for every row. */
+    private static boolean rowFree(TypedSpec spec) {
+        return switch (spec) {
+            case TypedVariable ignored -> false;
+            case com.legend.compiler.spec.typed.TypedLambda l -> l.parameters().isEmpty()
+                    && l.children().stream().allMatch(Lowerer::rowFree);
+            case com.legend.compiler.spec.typed.TypedPropertyAccess ignored -> false;
+            default -> spec.children().stream().allMatch(Lowerer::rowFree);
+        };
+    }
+
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
-     * refs are the window params; anything else is LOUD, never dropped.
+     * refs are the window params; a value that reads no row (a library word's
+     * parameter, arithmetic over one: the frame offset's rule,
+     * docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1, S1d) lowered as
+     * any scalar, the database's to compute; anything else is LOUD, never
+     * dropped.
      */
-    private static void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args) {
+    private void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args, SqlSelect base) {
         for (TypedSpec a : call.args()) {
             if (a instanceof TypedCInteger c) {
                 args.add(new SqlExpr.IntLit(c.value().longValue()));
+            } else if (a instanceof TypedNativeCall && rowFree(a)) {
+                args.add(scalar(refusingFail(a), scopedResolver(base, null)));
             } else if (!(a instanceof TypedVariable)) {
                 throw new IllegalStateException("window function argument of kind "
                         + a.getClass().getSimpleName() + " is not supported (literals only)");
@@ -3862,6 +4000,11 @@ public final class Lowerer {
                 yield ie;
             }
             case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
+            // isEmpty/isNotEmpty over read(row, ~[a, b]) (2026-11-02): the rule takes the read's cells, each column
+            // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
+            case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
+                    verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
+                            .map(c -> scalar(c, columns)).toList(), features, implementations));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the

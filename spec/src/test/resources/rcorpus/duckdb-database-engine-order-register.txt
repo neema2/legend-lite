@@ -302,8 +302,6 @@ engine-order meta::relational::tests::mapping::tree::testProjectionDeeperInlined
 engine-order meta::relational::tests::mapping::tree::testQuerySimple
 engine-order meta::relational::tests::mapping::tree::testQueryWithOr
 engine-order meta::relational::tests::mapping::tree::testQueryWithResultWithAnd
-engine-order meta::relational::tests::mapping::union::extend::testChainedUnionsWithMultipleAggregation
-engine-order meta::relational::tests::mapping::union::extend::testChainedUnionsWithMultipleAggregationWithAdditionalColumn
 engine-order meta::relational::tests::mapping::union::extend::testProjectThroughAsso
 engine-order meta::relational::tests::mapping::union::extend::testProjectThroughAssoWithAssociationMapping
 engine-order meta::relational::tests::mapping::union::extend::testProjectThroughAssoWithJoinInMapping
@@ -319,8 +317,6 @@ engine-order meta::relational::tests::mapping::union::partial::testProjectAutoMa
 engine-order meta::relational::tests::mapping::union::partial::testProjectShareSet
 engine-order meta::relational::tests::mapping::union::partial::testSimpleQueryTo
 engine-order meta::relational::tests::mapping::union::testChainedUnions
-engine-order meta::relational::tests::mapping::union::testChainedUnionsWithMultipleAggregation
-engine-order meta::relational::tests::mapping::union::testChainedUnionsWithMultipleAggregationWithAdditionalColumn
 engine-order meta::relational::tests::mapping::union::testProjectThroughAsso
 engine-order meta::relational::tests::mapping::union::testProjectThroughAssoWithAssociationMapping
 engine-order meta::relational::tests::mapping::union::testProjectThroughAssoWithJoinInMapping

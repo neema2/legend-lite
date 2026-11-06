@@ -691,6 +691,11 @@ public final class DuckDb extends AnsiSqlRenderer {
                         // IQ island, 2026-10-17: a LEFT JOIN condition's scalar subquery of the null-supplying side,
                         // which DuckDB cannot plan, filters that side before the join
                         new OuterJoinSubqueryFilters()));
+        // a select over one subselect merged into it where the answer is kept: DuckDB plans every level (SelectMerge)
+        ps.add(new SelectMerge());
+        // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
+        // (SelectLayers, 2026-11-04, #169)
+        ps.add(new SelectLayers());
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
             ps.add(new StableScanOrder());
         }

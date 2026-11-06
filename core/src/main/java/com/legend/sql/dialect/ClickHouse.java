@@ -56,9 +56,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
      *  makes {@code groupArray} a NULLABLE array, which ClickHouse refuses (measured). And a CASE's branch runs only
      *  where its guard holds: the planner's merge of a subquery's expressions into its reader's drops that (a guarded
-     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off. */
+     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off; and so is
+     *  the plan's push-down of a filter below a join, which runs a WHERE's guarded branch where the WHERE's own AND
+     *  would not (W9, 2026-11-06: a #TS answer's FILTER of dates after latest - 3y, a WHERE over a join once SelectMerge
+     *  lifted it there, raised its date guard on four of the timeseries documents' examples; with the push-down off
+     *  each answers as without the merge). */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
-            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0";
+            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
+            + " query_plan_filter_push_down = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -156,8 +161,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
-                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
-                new RootNumericTypes());
+                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
+                // a select over one subselect merged into it where the answer is kept, and a chain of windowed levels
+                // laid out again, each value once (W9, 2026-11-06, as on the other dialects: the timeseries documents'
+                // 26 runnable examples the same answers, most 2-8x faster -- guide-14 22.8 -> 3.6 s, spec-14 23.0 ->
+                // 3.9 s -- with the filter push-down off, SETTINGS)
+                new SelectMerge(), new SelectLayers(), new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
     /**
@@ -786,21 +795,30 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** A branch that IS the raise is cast to the CASE's own type (the raise is an Int64, which a CASE of another type
-     *  refuses). */
+     *  refuses); and the branches share a type as a list's members do ({@link #unified}: a Float literal, a Decimal by
+     *  its digits, beside a computed Float64 is its Float64 -- "There is no supertype for types Decimal(2, 1), Float64"
+     *  otherwise, measured on four of the timeseries documents' examples in ClickHouse 25.8, W9 2026-11-06). */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         SqlType slot = typeOf(c);
+        List<SqlExpr> members = new ArrayList<>();
+        c.whens().forEach(w -> members.add(w.then()));
+        if (c.otherwise() != null) {
+            members.add(c.otherwise());
+        }
+        java.util.function.BiConsumer<SqlWriter, SqlExpr> unify = unified(members);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
+            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot, unify));
         }
         if (c.otherwise() != null) {
-            writer.append(" ELSE ").piece(branch(c.otherwise(), slot));
+            writer.append(" ELSE ").piece(branch(c.otherwise(), slot, unify));
         }
         return writer.append(" END");
     }
 
-    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot) {
+    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot,
+            java.util.function.BiConsumer<SqlWriter, SqlExpr> unify) {
         if (isRaise(e) && slot instanceof SqlType.Array) {
             // a list-typed raise: the raise is the size of an empty list of the slot's type
             String type = castTypeName(slot);
@@ -810,7 +828,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             String type = castTypeName(slot);
             return w -> w.append("CAST(").expr(e, 0).append(" AS " + type + ")");
         }
-        return w -> w.expr(e, 0);
+        return w -> unify.accept(w, e);
     }
 
     @Override
@@ -2613,6 +2631,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> b;
             case SqlExpr.WindowCall.Frame.Bound.Following f -> b;
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> b;
+            // an interval frame keeps literal bounds (Frames.intervalBound): never beside a computed one
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
         };
     }
 
@@ -2634,6 +2657,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed() && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE) {
+            // a RANGE frame of offsets is rewritten here (nullsAtEdge, fractionalRange) by its numbers; a ROWS frame's
+            // computed offset is ClickHouse's own (measured 2026-10-31: an expression and a parameter taken)
+            throw new DialectCapability("a RANGE window frame offset the database computes reached ClickHouse,"
+                    + " whose RANGE frames of offsets are rewritten by their numbers");
+        }
         if (frame != null && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE
                 && (isInterval(frame.from()) || isInterval(frame.to()))) {
             w = epochFramed(w, frame);

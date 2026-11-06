@@ -306,6 +306,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
+        "src/main/java/com/legend/server/TsTree.java",
     ],
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
 )
@@ -320,6 +321,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
     deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":execution_plan", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":setup", ":sql_dialect"],
@@ -493,6 +495,20 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
+            # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
+            # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
+            "src/test/java/com/legend/integration/TimeseriesLibraryTest.java",
+            # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
+            # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
+            "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the documents' examples are :ts_documents_test's alone: they read the timeseries project's file and the
+            # examples (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A9)
+            "src/test/java/com/legend/integration/TsDocumentsTest.java",
+            # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
+            # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
+            "src/test/java/com/legend/integration/TsLineSpikeTest.java",
+            # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
+            "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -1087,6 +1103,111 @@ junit_test(
     data = _SQL_PARITY_DATA,
     jvm_flags = _SQL_PARITY_FLAGS,
     select = ["--select-class=com.legend.integration.SqlParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B):
+# timeseries::, the timeseries project's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
+# test's input as the linked projects' files are -- compiles (a body generic over relations typed where a call reaches
+# it: register S112), and a person's Pure calling it answers as
+# arithmetic on every in-process database (a calendar period's as-of join where the dialect writes one)
+junit_test(
+    name = "timeseries_library_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TimeseriesLibraryTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE, v0 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): a #TS{...}# query over a class, a WITH source,
+# a table and a variable answers as the timeseries library's calls written in Pure, on every in-process database, and
+# every refusal says its fix
+junit_test(
+    name = "ts_island_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE ON POSTGRES (docs/TS_V1_PROGRAM_2026_11_01.md B1): the island's cases on the embedded
+# Postgres server, not in-process, each query in a workspace of its own. In the core lane where the embedded server
+# runs, as the other Postgres targets; as root, run it through tools/postgres/as_unprivileged.sh (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "ts_island_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
+# (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
+# documents name them, or is listed with why (only allowed to shrink)
+junit_test(
+    name = "ts_documents_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsDocumentsTest.java"],
+    data = [
+        "//docs:timeseries/examples.sql",
+        "//projects:timeseries/model.pure",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+    ],
+    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",
@@ -1937,3 +2058,54 @@ core_layer_queries(not_layers = {
 })
 
 guards_package()
+
+# SPIKE (2026-10-31, evidence for docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md): the language's functions as
+# line-level Pure against today's #TS. Manual: no gate runs it; `bazel test //core:ts_line_spike_test --test_output=all`.
+junit_test(
+    name = "ts_line_spike_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsLineSpikeTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsLineSpikeTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# PROBE (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1): each database's window frame offsets -- a
+# constant expression, a bound parameter, a negative offset, a reversed window: the in-process three and the embedded
+# Postgres (MariaDB's, MySQL's and ClickHouse's drivers are //pct's alone, tools/deps/jars_table.bzl). Manual: no gate runs it;
+# `bazel test //core:frame_offset_probe_test --test_output=all`, as root under a copy of
+# tools/postgres/as_unprivileged.sh outside the workspace (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "frame_offset_probe_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "-Dprobe.servers=Postgres",
+    ],
+    select = ["--select-class=com.legend.sql.dialect.FrameOffsetProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)

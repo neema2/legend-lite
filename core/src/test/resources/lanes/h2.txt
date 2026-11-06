@@ -8,7 +8,6 @@
 # A line whose reason opens 'not run <date>:' PINS its test as not run on the lane (the run says so): a failure that
 # would end the run; it moves only with a dated justification.
 UserFunctionIntegrationTest$RelationGeneric#aChainOfCallsIsTypedOnceEach	not run 2026-10-29 (T-d2): twenty chained calls of a window-extending generic function lower to twenty nested derived tables; H2's planner re-plans every level per candidate plan (QueryExpressionIndex.getQuery) and exhausts the 512 MB heap in Select.getPlanSQL, which JUnit rethrows as unrecoverable, ending the run; passes on DuckDB and SQLite; the start page's track F
-CorrelatedRelationCheckerTest#aCorrelatedMapToOneIsAScalarSubquery	measured 2026-10-29: Column "_tds0.id" not found; SQL statement:  SELECT "_tds0"."id" AS "id", (SELECT "t1"."value" AS "value" FROM ( SELECT 
 CorrelatedRelationCheckerTest#aRootMapToOneOverAWindowFilter	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
 CypherIslandIntegrationTest#aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
 CypherIslandIntegrationTest#aWriteOverADomainModelGoesThroughItsMappings	measured 2026-10-29: Table "LEGEND_STAGE__CYPHER_STAGE1" already exists; SQL statement: CREATE LOCAL TEMPORARY TABLE legend_stage__cypher_sta

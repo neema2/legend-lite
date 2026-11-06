@@ -461,8 +461,19 @@ final class Scalars {
         Pure.AT_COLLECTION_DEFAULT_IF_EMPTY.forEach(f -> RULES.put(f, (n, args) -> listValued(n.args().get(0))   // col unless empty
                 ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0))), args.get(1))), args.get(0)) : SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), args.get(1))));
+        // read(row, ~[a, b]) (2026-11-02): the row's values in several columns. It is no SQL list: isEmpty and
+        // isNotEmpty over it read the cells themselves (the Lowerer hands them over, Lowerer.overCells), no column
+        // with a value / some column with one, which every database spells; any other use is refused by name
+        RULES.put(com.legend.model.FunctionId.of(Pure.READ__T_1__COL_SPEC_ARRAY_1), (n, args) -> {
+            throw new com.legend.error.NotImplementedException("read over several columns, " + n.args().size()
+                    + " of them, is read by isEmpty or isNotEmpty over a row's cells (a filter's or an extend's row);"
+                    + " read each column with read(row, ~name) for any other use");
+        });
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_EMPTY) {
-            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+            RULES.put(f, (n, args) -> overCells(n)
+                    ? args.stream().<SqlExpr>map(c -> SqlExpr.Call.of(SqlFn.IS_NULL, c))
+                            .reduce((a, b) -> SqlExpr.Call.of(SqlFn.AND, a, b)).orElseThrow()
+                    : args.get(0) instanceof SqlExpr.TaggedList tl
                     ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
                     : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
@@ -473,7 +484,10 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.IS_NULL, args));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_NOT_EMPTY) {
-            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+            RULES.put(f, (n, args) -> overCells(n)
+                    ? args.stream().<SqlExpr>map(c -> SqlExpr.Call.of(SqlFn.IS_NOT_NULL, c))
+                            .reduce((a, b) -> SqlExpr.Call.of(SqlFn.OR, a, b)).orElseThrow()
+                    : args.get(0) instanceof SqlExpr.TaggedList tl
                     ? SqlExpr.Call.of(SqlFn.GREATER, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
                     : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.GREATER, List.of(
@@ -2727,6 +2741,16 @@ final class Scalars {
      */
     private static boolean listValued(TypedSpec arg) {
         return arg.info().multiplicity().isMany();
+    }
+
+    /** Is {@code call} an {@code isEmpty} or {@code isNotEmpty} over a {@code read(row, ~[a, b])}? Its lowered
+     *  arguments are then the read's cells, one per column ({@link Lowerer}'s arm for it), not the read. */
+    static boolean overCells(TypedNativeCall call) {
+        return (Pure.AT_COLLECTION_IS_EMPTY.contains(call.callee().id())
+                        || Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(call.callee().id()))
+                && call.args().size() == 1
+                && call.args().get(0) instanceof TypedNativeCall read
+                && read.callee().id().equals(com.legend.model.FunctionId.of(Pure.READ__T_1__COL_SPEC_ARRAY_1));
     }
 
 

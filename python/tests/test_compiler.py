@@ -162,6 +162,31 @@ class Compiling(unittest.TestCase):
             held.plan(ll.parse(GROUP), 'trades::RT')
         held.close()
 
+    def test_the_planner_protocols_hold_over_a_library_holds_the_model_over_it(self):
+        # the protocol's hold with its library (A5, 2026-11-06): answered as planner-answer.ts answers it, by
+        # lite_hold_model_over, the library a layer of its own -- never the model alone, which cannot see the library
+        from legend_lite._planner import answer
+        lib = library()
+        over = '###Pure\nfunction lib::twice(x: Number[1]): Number[1] { $x * 2 }\n'
+        held = answer(lib, {'id': 1, 'kind': 'hold', 'model': MODEL, 'library': over})
+        self.assertTrue(held['ok'], held)
+        handle = _answer(held['answer'])
+        try:
+            query = '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])'
+            typed = lib.call('lite_relation_type_text_held', handle, query)
+            self.assertFalse(typed.startswith('ERR\n'), typed)
+            self.assertIn('twice', typed)
+        finally:
+            lib.call('lite_release_model', handle)
+        alone = answer(lib, {'id': 2, 'kind': 'hold', 'model': MODEL})
+        handle = _answer(alone['answer'])
+        try:
+            refused = lib.call('lite_relation_type_text_held', handle,
+                               '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')
+            self.assertTrue(refused.startswith('ERR\n'), 'the model alone has no lib::twice')
+        finally:
+            lib.call('lite_release_model', handle)
+
     def test_a_held_model_answers_a_datacube_planners_worker_as_the_tab_does(self):
         # the headless host answers DataCube's `relationType` and `testData` with these, over the same Boundary functions
         # as the tab's relationTypeHeldOrError and testDataSqlOrError (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3)

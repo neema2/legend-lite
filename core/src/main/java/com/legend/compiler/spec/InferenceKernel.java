@@ -1279,6 +1279,7 @@ public final class InferenceKernel {
         int n = args.size();
         List<FunctionMatch.TypeFit> types = new ArrayList<>(n);
         List<FunctionMatch.MultFit> mults = new ArrayList<>(n);
+        java.util.Map<String, Type.RelationType> rows = relationRows(c, args);
         for (int i = 0; i < n; i++) {
             ExprType a = args.get(i);
             TypedParameter p = c.parameters().get(i);
@@ -1291,10 +1292,80 @@ public final class InferenceKernel {
                     || paramMultScore(p.multiplicity(), a.multiplicity(), a.type()) < 0) {
                 return null;
             }
-            types.add(typeFit(p.type(), a.type(), anyConcrete));
+            // a column specification of a relation argument's row, its column's type that row's (m3 binds T first)
+            FunctionMatch.TypeFit columnFit = columnSpecFit(p.type(), a.type(), rows, anyConcrete);
+            if (columnFit == REFUSED) {
+                return null;
+            }
+            types.add(columnFit != null ? columnFit : typeFit(p.type(), a.type(), anyConcrete));
             mults.add(multFit(p.multiplicity(), a.multiplicity(), true));
         }
         return new FunctionMatch(types, mults);
+    }
+
+    /** A column specification's fit that refuses the candidate ({@link #columnSpecFit}). */
+    private static final FunctionMatch.TypeFit REFUSED = FunctionMatch.TypeFit.of(FunctionMatch.Kind.NULL);
+
+    /** Each type parameter a candidate's relation parameter is ({@code x: Relation<T>}), bound to its argument's row:
+     *  the rows its column specifications read. */
+    private static java.util.Map<String, Type.RelationType> relationRows(TypedFunction c, List<ExprType> args) {
+        java.util.Map<String, Type.RelationType> rows = new java.util.HashMap<>();
+        for (int i = 0; i < args.size(); i++) {
+            ExprType a = args.get(i);
+            if (a != null && c.parameters().get(i).type() instanceof Type.GenericType g
+                    && Overloads.genericRawIs(g, RELATION_FQN) && g.arguments().size() == 1
+                    && g.arguments().get(0) instanceof Type.TypeVar v) {
+                Type.RelationType row = Type.schemaView(a.type());
+                if (row != null) {
+                    rows.putIfAbsent(v.name(), row);
+                }
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * A {@code ColSpec<X⊆T>} formal against a column specification of {@code T}'s row ({@code ~key}, its column's type
+     * unknown until the call is unified): ranked as m3 ranks the type argument once {@code T} is bound -- a concrete
+     * column ({@code (?:All)}, a wildcard name) by its type against the column's type in the row, which must fit it
+     * ({@link #REFUSED} where it does not); a type parameter ({@code L}) as non-concrete. Null where the formal or the
+     * argument is no such column specification (the ordinary fit).
+     */
+    private FunctionMatch.@com.legend.base.Nullable TypeFit columnSpecFit(Type formal, Type actual,
+            java.util.Map<String, Type.RelationType> rows, boolean anyConcrete) {
+        if (!(formal instanceof Type.GenericType fg) || !Overloads.genericRawIs(fg, PlatformTypes.COL_SPEC)
+                || fg.arguments().size() != 1 || !(fg.arguments().get(0) instanceof Type.SchemaAlgebra sa)
+                || sa.op() != Type.Op.SUBSET || !(sa.right() instanceof Type.TypeVar t)
+                || !(actual instanceof Type.GenericType ag) || !Overloads.genericRawIs(ag, PlatformTypes.COL_SPEC)
+                || ag.arguments().size() != 1 || !(ag.arguments().get(0) instanceof Type.RelationType named)
+                || named.columns().size() != 1) {
+            return null;
+        }
+        Type.RelationType row = rows.get(t.name());
+        Type.Column column = row == null ? null : row.columns().stream()
+                .filter(c -> c.name().equals(named.columns().get(0).name())).findFirst().orElse(null);
+        if (column == null) {
+            return null;
+        }
+        FunctionMatch.TypeFit argument = switch (sa.left()) {
+            case Type.RelationType w when w.columns().size() == 1 && w.columns().get(0).name().equals("?") -> {
+                Type want = w.columns().get(0).type();
+                if (want instanceof Type.TypeVar) {
+                    yield FunctionMatch.TypeFit.NON_CONCRETE;
+                }
+                if (!conformsForWildcard(column.type(), want)) {
+                    yield REFUSED;
+                }
+                yield typeFit(want, column.type(), anyConcrete);
+            }
+            case Type.TypeVar ignored -> FunctionMatch.TypeFit.NON_CONCRETE;
+            default -> null;
+        };
+        if (argument == null || argument == REFUSED) {
+            return argument;
+        }
+        return new FunctionMatch.TypeFit(FunctionMatch.Kind.SIMPLE, 0, List.of(), List.of(), List.of(argument),
+                List.of());
     }
 
     /** The one candidate m3's literal order ranks first ({@code Any} concrete); null on a tie. */
@@ -1382,10 +1453,65 @@ public final class InferenceKernel {
             case Type.FunctionType ff -> actual instanceof Type.FunctionType af
                     ? functionTypeFit(ff, af, anyConcrete)
                     : FunctionMatch.TypeFit.of(FunctionMatch.Kind.FUNCTION);
-            case Type.RelationType ignored -> FunctionMatch.TypeFit.of(FunctionMatch.Kind.RELATION);
+            case Type.RelationType rf -> relationTypeFit(rf, actual, anyConcrete);
             case Type.SchemaAlgebra ignored -> FunctionMatch.TypeFit.NULL;
             default -> nominalTypeFit(formal, actual, anyConcrete);
         };
+    }
+
+    /** Whether a relation value's columns fit a relation formal's, as m3's {@code TypeMatch.newRelationTypeMatch}
+     *  requires (legend-pure m3 navigation/generictype/match/TypeMatch.java:436): every column the formal names is
+     *  the value's (the value may have more: {@code _RelationType.alignColumnSets} keeps the value's columns the
+     *  formal names), each fitting by type (a value's {@code key:String} does not fit {@code key:All}; a type
+     *  parameter fits any). Closes PARK-10's relation-columns part (2026-11-03, 2a). */
+    private boolean relationColumnsAccept(Type.GenericType formal, Type actual) {
+        if (formal.arguments().size() != 1 || !(formal.arguments().get(0) instanceof Type.RelationType rf)) {
+            return true;
+        }
+        Type.RelationType value = Type.schemaView(actual);
+        if (value == null) {
+            return true;
+        }
+        for (Type.Column f : rf.columns()) {
+            Type.Column v = value.columns().stream().filter(c -> sameColumn(c.name(), f.name())).findFirst()
+                    .orElse(null);
+            if (v == null || paramTypeScore(f.type(), v.type()) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** m3's {@code RelationTypeMatch} (TypeMatch.java:158, built by {@code newRelationTypeMatch}): an exact match
+     *  where the two relation types are equal; else, column by column in name order ({@code alignColumnSets} sorts
+     *  both sets by name), each formal column's type match against the value's column of its name, then their
+     *  multiplicities -- so a concrete column type ({@code key:All}) out-ranks a type parameter ({@code key:K}).
+     *  Lite had matched every relation formal alike, and tied two such overloads (PARK-10, its relation-columns
+     *  part, closed 2026-11-03). */
+    private FunctionMatch.TypeFit relationTypeFit(Type.RelationType formal, Type actual, boolean anyConcrete) {
+        Type.RelationType value = Type.schemaView(actual);
+        if (value == null) {
+            return FunctionMatch.TypeFit.of(FunctionMatch.Kind.RELATION);
+        }
+        if (value.columns().equals(formal.columns())) {
+            return FunctionMatch.TypeFit.EXACT;
+        }
+        List<FunctionMatch.TypeFit> columns = new ArrayList<>();
+        List<FunctionMatch.MultFit> mults = new ArrayList<>();
+        List<Type.Column> sorted = formal.columns().stream()
+                .sorted(java.util.Comparator.comparing(Type.Column::name)).toList();
+        for (Type.Column f : sorted) {
+            Type.Column v = value.columns().stream().filter(c -> sameColumn(c.name(), f.name())).findFirst()
+                    .orElse(null);
+            if (v == null) {
+                columns.add(FunctionMatch.TypeFit.NULL);
+                mults.add(FunctionMatch.MultFit.NULL);
+                continue;
+            }
+            columns.add(typeFit(f.type(), v.type(), anyConcrete));
+            mults.add(multFit(f.multiplicity(), v.multiplicity(), true));
+        }
+        return new FunctionMatch.TypeFit(FunctionMatch.Kind.RELATION, 0, columns, mults, List.of(), List.of());
     }
 
     /** The distance of a fit only a platform rule accepts, not the class lattice (a relation into the legacy
@@ -1668,7 +1794,7 @@ public final class InferenceKernel {
                     (actual instanceof Type.EnumType ae && ae.fqn().equals(fe.fqn())) ? 2 : -1;
 
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) ->
-                    Type.isRelation(actual) ? 1 : -1;
+                    Type.isRelation(actual) && relationColumnsAccept(g, actual) ? 1 : -1;
             // TDS = schema-erasing relation nominal (must agree with the
             // unify arm; score as a subtype-grade match).
             case Type.GenericType g

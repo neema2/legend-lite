@@ -8,6 +8,13 @@ load("//tools/legend:defs.bzl", "legend_graph_test", "legend_library")
 # THE DEPENDENCY GRAPH: each project and the projects it may refer to (CONTRACT.md, "Dependencies"). This is the one
 # source of truth (each MANIFEST.md's opening paragraph says the same in prose, unchecked: G17 keeps Markdown out of
 # every verdict). A project depends only on a lower layer.
+# the timeseries project's one file, read as it is by DataCube (its page's library text and option table) and by
+# core's //core:timeseries_library_test (docs/TS_LANGUAGE_BUILD_2026_10_30.md P1)
+exports_files(
+    ["timeseries/model.pure"],
+    visibility = ["//visibility:public"],
+)
+
 PROJECT_DEPS = {
     # layer 0
     "core-account": [],
@@ -24,6 +31,10 @@ PROJECT_DEPS = {
     "core-units": [],
     # the property-graph profile (docs/CYPHER_STUDY_2026_10_15.md §5.6): one Profile, no dependencies
     "graph": [],
+    # the timeseries library (the user, 2026-10-30: not DataCube's; docs/TS_LANGUAGE_BUILD_2026_10_30.md P1): functions
+    # and their option enumerations over any table, no store, no dependencies; DataCube, the core's library test and
+    # the #TS{...}# island read its model.pure
+    "timeseries": [],
     # layer 1
     "cash-core": ["core-account", "core-types"],
     "client-core": ["core-geo", "core-party"],

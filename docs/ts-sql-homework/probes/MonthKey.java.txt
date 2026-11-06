@@ -1,0 +1,50 @@
+import java.sql.*;
+import java.time.*;
+import java.util.*;
+
+/** For one database: (d - n months, d] as a numeric RANGE frame over key = month number * 31 + day of month - 1, against
+ *  the true window (Java's LocalDate.minusMonths, which clamps to the month's end), every business day 2020-2024. */
+public class MonthKey {
+    public static void main(String[] a) throws Exception {
+        String url = a[0], user = a.length > 1 ? a[1] : null, pass = a.length > 2 ? a[2] : null;
+        String key = System.getProperty("key");
+        List<LocalDate> days = new ArrayList<>();
+        for (LocalDate d = LocalDate.of(2020, 1, 2); !d.isAfter(LocalDate.of(2024, 12, 31)); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) days.add(d);
+        }
+        try (Connection c = user == null ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, pass);
+             Statement s = c.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS fr_days");
+            if (System.getProperty("create") != null) {
+                s.execute(System.getProperty("create"));
+            } else {
+                s.execute("CREATE TABLE fr_days (d DATE)");
+                try (PreparedStatement p = c.prepareStatement("INSERT INTO fr_days VALUES (?)")) {
+                    for (LocalDate d : days) { p.setObject(1, d); p.addBatch(); }
+                    p.executeBatch();
+                }
+            }
+            StringBuilder line = new StringBuilder();
+            for (int n : new int[] {3, 6, 12}) {
+                Map<LocalDate, Long> truth = new HashMap<>();
+                for (LocalDate d : days) {
+                    LocalDate lo = d.minusMonths(n);
+                    truth.put(d, days.stream().filter(x -> x.isAfter(lo) && !x.isAfter(d)).count());
+                }
+                String q = "SELECT CAST(d AS " + System.getProperty("text", "VARCHAR(10)") + "), count(*) OVER (ORDER BY " + key + " RANGE BETWEEN " + (n * 31 - 1)
+                        + " PRECEDING AND CURRENT ROW) FROM fr_days";
+                try (ResultSet r = s.executeQuery(q)) {
+                    int wrong = 0, rows = 0;
+                    while (r.next()) {
+                        rows++;
+                        if (r.getLong(2) != truth.get(LocalDate.parse(r.getString(1)))) wrong++;
+                    }
+                    line.append(String.format("  %2d months: %s", n, wrong == 0 ? "exact on " + rows : wrong + " of " + rows + " wrong"));
+                } catch (SQLException e) {
+                    line.append(String.format("  %2d months: refused (%s)", n, e.getMessage().lines().findFirst().orElse("").substring(0, Math.min(90, e.getMessage().lines().findFirst().orElse("").length()))));
+                }
+            }
+            System.out.println(line);
+        }
+    }
+}

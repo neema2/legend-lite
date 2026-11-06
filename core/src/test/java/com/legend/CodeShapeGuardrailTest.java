@@ -211,6 +211,14 @@ class CodeShapeGuardrailTest {
             // parser-cursor family, scoped to one parse), and CypherToPure's fresh-name counter, scoped to one
             // translation (the SqlToPure.fresh shape)
             "CypherLexer.at", "CypherLexer.line", "CypherLexer.column", "CypherParser.at", "CypherToPure.fresh",
+            // #TS island, 2026-10-30 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): TsParser's token cursor (the
+            // SqlParser.at family above, scoped to one parse) and TsToPure's fresh-name counter, scoped to one
+            // query's build (the SqlToPure.fresh shape)
+            "TsParser.at", "TsToPure.fresh",
+            // #TS functions, 2026-10-30 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P4): TsFunctions.Lib's line as one call's
+            // library calls grow it, and the periods-a-year column it adds once and reuses -- scoped to one function's
+            // writing (the builder's own lines are records, a new one per step)
+            "TsFunctions.line", "TsFunctions.perYear",
             // Cypher island PR2, 2026-10-15 (docs/CYPHER_STUDY_2026_10_15.md §12.5.1): CypherToPure's depth of the
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)
@@ -291,6 +299,12 @@ class CodeShapeGuardrailTest {
             // streamingGraphRoot -- whether every object carries its identity, and whether a scalar root shows its
             // objects' declared properties alone; set once before lower()
             "Lowerer.objectIdentity", "Lowerer.declaredEgress",
+            // a relation a statement reads more than once written once (2026-11-04, lowering.SharedRelations, the
+            // user: "can we do this for real", ported from the let-sharing branch stacked on #83): shareRelations a
+            // builder flag, same lifecycle as engineText (set once before lower()); sharing the statement's frame
+            // (SharedRelations.Frame), set at lower(List)'s entry and cleared at its exit -- the same per-statement
+            // lifecycle as aliasCounter
+            "Lowerer.shareRelations", "Lowerer.sharing",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`

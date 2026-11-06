@@ -1966,9 +1966,9 @@ SQLite	SQLite	reducer	AVG	spelled	AVG		10
 SQLite	SQLite	reducer	MIN	spelled	MIN		11
 SQLite	SQLite	reducer	MAX	spelled	MAX		11
 SQLite	SQLite	reducer	ANY_VALUE	emulated	aggregateArgs: min(…)		0
-SQLite	SQLite	reducer	STDDEV_SAMP	emulated	aggregateArgs: stdev(…)		2
+SQLite	SQLite	reducer	STDDEV_SAMP	emulated	aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)		2
 SQLite	SQLite	reducer	STDDEV_POP	emulated	populationVariance: sqrt(…)		5
-SQLite	SQLite	reducer	VAR_SAMP	emulated	aggregateArgs: variance(…)		2
+SQLite	SQLite	reducer	VAR_SAMP	emulated	aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)		2
 SQLite	SQLite	reducer	VAR_POP	emulated	populationVariance		2
 SQLite	SQLite	reducer	MEDIAN	emulated	median		6
 SQLite	SQLite	reducer	MODE	emulated	json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...		6
@@ -1987,8 +1987,8 @@ SQLite	SQLite	reducer	BOOL_AND	emulated	aggregateArgs: min(…)		0
 SQLite	SQLite	reducer	BOOL_OR	emulated	aggregateArgs: max(…)		0
 SQLite	SQLite	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
 SQLite	SQLite	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
-SQLite	SQLite	reducer	VARIANCE	emulated	aggregateArgs: variance(…)		0
-SQLite	SQLite	reducer	STDDEV	emulated	aggregateArgs: stdev(…)		0
+SQLite	SQLite	reducer	VARIANCE	emulated	aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)		0
+SQLite	SQLite	reducer	STDDEV	emulated	aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)		0
 SQLite	SQLite	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 SQLite	SQLite	reducer	RANK	not_here	is a window function: windowCall writes it		0
 SQLite	SQLite	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0

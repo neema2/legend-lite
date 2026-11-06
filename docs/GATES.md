@@ -20562,3 +20562,47 @@ and `//gates:corpus_h2` green, every roster and register unchanged. **CI on `2bb
 3074 -> 3079, a gain: `RelationCellsSortTest`'s model): all 52 checks green on Linux, Linux-arm, macOS and Windows.
 **PR #83 merged** by the owner (`1aa9a34b`). PCT and core at 100% on the program road under the host and database
 judges, the wall total. What follows: the start page's §10.
+
+## 2026-11-06 — The timeseries branch's CI on #81: the corpus lanes' regressions from 4c3a2cfbe, fixed
+
+The timeseries branch's code commits of 2026-11-04 (`b7d69d98b` to `8b948df5d`) had run no CI until #81's branch was
+fast-forwarded to them (the user, 2026-11-06: "Yes, push to #81's branch"). Run 42156188850 (`dc8a065f0`) and run
+42181188360 (`72200a18b`) found, on every OS:
+
+1. **`//spec:corpus_duckdb` and `//spec:corpus_h2`: graph fetches lost in database mode** (8 on DuckDB, 9 on H2), each
+   `ClassCastException: SqlWith cannot be cast to SqlSelect`. `4c3a2cfbe` writes a relation a statement reads twice
+   once, as `WITH __let<n>`; the database judge composes each side into a verdict statement of its own
+   (`lowering/VerdictSql`), which casts the side to a `SELECT`. Fixed in `72200a18b`: `BodyDriver.planValue` writes a
+   database-judge side's shared relations back in place first (`SharedRelationsInPlace.all()`). Both lanes' lost
+   registers back to the committed ones.
+2. **`//core:census`: BodyDriver's ledger pin.** `72200a18b`'s five lines; the pin moved 2321 -> 2326 with the reason
+   (`b54facfa8`).
+3. **`//spec:corpus_duckdb`: `testUnionWithQualifiedProperty` failed the host judge on every runner** (passing here).
+   A first fix, `5bdffbcc9` (the test lanes' scan-order emulation writing a statement's shared relations in place),
+   moved the failure, not its cause: run 42190923965 failed it on the database judge on Linux and on the host judge on
+   Windows. The cause, read in the SQL (`LEGEND_LITE_DUMP_SQL`, `//spec:corpus_one`): a graph fetch's members
+   serialize in branch order, a key the lowering adds to a union under the envelope (`UnionSerialOrder`,
+   `list(... ORDER BY u_serial_ord__)`); since `4c3a2cfbe` the test's person union is read twice, so it was one
+   `WITH`, the envelope read `SELECT * FROM __let<n>`, found no union, and wrote `json_group_array` with no order --
+   in product SQL too, not only in the test lanes; which order DuckDB gave was the runner's. Fixed by the commit that
+   corrects this entry: `Lowerer.sharedRead` writes a union's relation at each read, as it does one with an ORDER BY
+   (a common table expression carries no order), and `UnionSerialOrder` keys a star member (`SELECT *, -i AS
+   u_serial_ord__ FROM __let<n>`, a member shared by name). `5bdffbcc9` reverted, its two register lines with it.
+   The test now failed here before the fix (with the union in place and its members shared) and passes after it.
+4. **`//datacube:bundle_budget_test`**: R7 part 3's rows forms took the timeseries tile to 126,834 of 126,500 bytes;
+   raised with the user's word ("Sure raise it"), `5beeed931` and `aa4980178`.
+
+Run 42200094861 (`16eb248ef`, the fix of finding 3 and W2) found:
+
+5. **`//spec:corpus_duckdb` green** on Linux and Windows: finding 3's fix holds there.
+6. **`//parser-equivalence:update_ratchets_test` (the checks lane, every OS) and `OwnCorpusParityTest` (the
+   parser_equivalence lane, every OS)**: `own_corpus.matched` 3025 -> 3026. The own corpus counts the Pure models inside
+   core's Java tests, and `16eb248ef`'s `LetSharingTest.UNIONED` is one more that joins and matches the referee byte for
+   byte. Re-blessed (`bazel run //parser-equivalence:update_ratchets`) by the commit that adds this line.
+7. **`//datacube:verify_layout_test` on Linux only**: 15 of 16 checks pass; the one that fails is a timing budget ("no
+   task over 100 ms, nor two over 50 ms, while a tile is dragged"), 127 ms dragging a tile between bands on the
+   runner. No commit of the run touches the layout or the drag; here, at `e0f840b15`, it passes with every drag 0 ms
+   (16 of 16): the runner's load, not a regression; nothing changed for it.
+
+Run 42207084841 (`f4fa15e81`): **every lane green on every OS** ("gates green"), the corpus lanes on Linux, Windows
+and macOS among them.

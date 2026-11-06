@@ -187,7 +187,7 @@ public final class BodyPlanner {
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone());
+                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read

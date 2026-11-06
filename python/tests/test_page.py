@@ -971,15 +971,17 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'no series reads S'):
             tile.swap('S', 'T')
         q = tile.query('B')
-        self.assertTrue(q['pure'].lstrip().startswith('|'), q['pure'])
+        # a lambda, braced where it binds its grids first (`{| let px = ...; #TS{...}#...}`: the tile's #TS, 2026-10-31)
+        self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['pure'])
         self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
         self.assertIn('SELECT', q['sql'].upper())
         both = tile.table()
         # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
         self.assertEqual(list(both.columns), ['T close', 'mean(close[T], 2)'], "named as the screen's Data tab names its columns")
         self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
-        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[0]), 'a mean of two has none on the first date')
-        self.assertEqual(list(both['mean(close[T], 2)'].iloc[1:]), [10.5, 11.5, 12.5])
+        # gs-quant's mean of two: its first two points dropped (helper.apply_ramp; docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[:2]).all(), 'a mean of two has none on the first two dates')
+        self.assertEqual(list(both['mean(close[T], 2)'].iloc[2:]), [11.5, 12.5])
         self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
         # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
         # base its first date shown; frame and query as the screen draws them, every date, that base
@@ -1082,13 +1084,13 @@ class Document(Paged):
             ('correlations', 'B', 'B', 'correlations'), ('calendar', 'A', None, 'calendar')])
         for q in asked:
             self.assertNotIn('refused', q, q['what'])
-            self.assertTrue(q['pure'].lstrip().startswith('|'), q['what'])
+            self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['what'])  # braced where it binds its grids first
             self.assertIn('SELECT', q['sql'].upper(), q['what'])
         self.assertEqual(asked[1]['what'], 'Series A (close[S]): its points')
         self.assertIn("'S'", asked[1]['pure'])
-        # a return is a call of DataCube's Pure library (datacube/src/pure-library.ts), planned over the model with it
-        # after
-        self.assertIn('datacube::ts::returns', asked[2]['pure'])
+        # a return is #TS's returns (2026-10-31, the tile's #TS), which the compiler writes as the timeseries library's
+        # call (timeseries::returns), planned over the model with the library after it (datacube/src/pure-library.ts)
+        self.assertIn('#TS{SELECT returns(', asked[2]['pure'])
         # a view's question with them, as the screen asks it: after the series', before the panel's
         tile.options(view={'mode': 'histogram'})
         kinds = [(q['kind'], q.get('series')) for q in tile.queries()]
@@ -1225,7 +1227,7 @@ class Document(Paged):
         self.assertEqual(made[0].title, 'Two')
         # each formula's Pure, as the tile writes it
         self.assertEqual([p[0] for p in printed], ['A', 'B', 'C'])
-        self.assertTrue(all('datacube::ts::' in p[1] or '#>{' in p[1] for p in printed), printed)
+        self.assertTrue(all('timeseries::' in p[1] or '#>{' in p[1] for p in printed), printed)
         typescript = tile.code('typescript')
         self.assertIn("kind: 'addTimeseries'", typescript)
         self.assertIn('export function withTile(page: PageDocument, sheet: string)', typescript)

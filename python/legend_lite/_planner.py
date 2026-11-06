@@ -34,12 +34,24 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
 }
 
+# a kind's form when its request names a library the model is compiled over (the protocol's ``hold``'s ``library``,
+# docs/TS_V1_PROGRAM_2026_11_01.md A5): planner-answer.ts's ``holdModelOverOrError``, the library held as a layer
+OVER: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
+    'hold': ('lite_hold_model_over', lambda m: (m['model'], m['library'])),
+}
+
+
+def function(request: dict[str, Any]) -> tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]:
+    """The native function answering ``request`` and its arguments: its kind's, or its kind's over a library."""
+    kind = request['kind']
+    return OVER[kind] if request.get('library') is not None and kind in OVER else KINDS[kind]
+
 
 def answer(lib: Library, request: dict[str, Any]) -> dict[str, Any]:
     """One planner request answered as planner-worker.ts answers it: the function's tagged answer (a refusal is one too),
     or, when the call itself fails, the worker's failure."""
     try:
-        name, args = KINDS[request['kind']]
+        name, args = function(request)
         return {'id': request.get('id'), 'ok': True, 'answer': lib.call(name, *args(request))}
     except Exception as e:  # noqa: BLE001 -- the worker answers its own failure, as planner-worker.ts's catch does
         return {'id': request.get('id'), 'ok': False, 'error': f'{type(e).__name__}: {e}'}

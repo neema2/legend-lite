@@ -491,7 +491,7 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
  *  is read by as it opens; no startup file added). Measured 410,869.
  *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
- *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
+ *  library (pure-library.ts: timeseries::mean, the returns, volatility), its text with the planner, which takes it
  *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
  *  file added). Measured 412,861.
  *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's
@@ -499,8 +499,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page is read by as it opens; no startup file added). Measured 413,496.
  *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
  *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
- *  the merge). Measured 430,054. */
-const BUDGET = 430_500;
+ *  the merge). Measured 430,054.
+ *  430,500 -> 431,000 (2026-10-30, the timeseries language's P5, docs/TS_LANGUAGE_BUILD_2026_10_30.md: a query holding a
+ *  #TS{...}# island is planned over the timeseries library, every figure of the island being the library's
+ *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509. */
+const BUDGET = 431_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -706,8 +709,11 @@ const BUDGET = 430_500;
  *  date). Measured 400,965.
  *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 417,953. */
-const ENGINE_BUDGET = 418_500;
+ *  same date). Measured 417,953.
+ *  418,500 -> 419,000 (2026-11-01, the library's text, which the engine page carries for its timeseries -- the
+ *  timeseries budget's note of the same date: O1's ramp and O2's compare, 0.8 KB gzipped). Measured 418,511; S4 (the
+ *  planner resolving the library) takes the text out. */
+const ENGINE_BUDGET = 419_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -838,8 +844,35 @@ const CHART_BUDGET = 303_500;
  *  the last views as its functions (summaryStatistics, seasonality, projection, tradedValue, linearAt, periodIndex, in
  *  its text), the writer's enumeration values (timeseries-query.ts libraryOption), the program of a page of its own
  *  (timeseries-code.ts) and each formula's Pure under it (ui/timeseries-view.ts #codePanel), docs/TIMESERIES_REVIEW_2026_10_25.md
- *  §19-§20 -- the headroom ~2%). Measured 100,296. */
-const TIMESERIES_BUDGET = 102_000;
+ *  §19-§20 -- the headroom ~2%). Measured 100,296.
+ *  102,000 -> 114,000 (2026-11-01, the user: "Should this stuff all live in pure or in java?" -- the library defines the
+ *  language, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1 to S1e: the 81 words of #TS and its line rules
+ *  (timeseries::line::, timeseries::lines::) in the library's text, about 10.6 KB of it gzipped; and the user's "Why
+ *  would we not match gs-quant": O1's ramp and O2's compare, docs/TS_GSQUANT_ORACLE_2026_11_01.md, 0.8 KB -- the
+ *  headroom ~2%). Measured 111,691. The text leaves the client with the one-tree plan's S4 (the planner resolves the
+ *  timeseries project itself, docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a), and this budget falls by its size then.
+ *  114,000 -> 118,500 (2026-11-03, the user's "Java parses and binds; Pure decides" and the time model's rulings,
+ *  docs/TS_TIME_MODEL_2026_11_02.md, "Okay let's go" -- the language's last rules in the library's text, about 4.3 KB of
+ *  it gzipped: A1's moves of 2026-11-02 (the answer's assembly, the spine, the words' name conventions, about 1.6 KB),
+ *  and today's D1 (lines with several rows on a date: perPeriod, single, most), D4 (moments meeting days refused: the
+ *  meet and union forms by the periods' types), 2a (the All key's overloads of meet, periodsOf, onto and each) and R7
+ *  (the rows forms, timeseries::rows::), about 2.7 KB; the viewer and the generated words 0.3 KB -- found by the local
+ *  gate of the A2 review, the headroom ~2%). Measured 116,279. Still falls by the text's size with S4 (#130).
+ *  118,500 -> 126,500 (2026-11-03, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 1: each word's facts -- its label,
+ *  family, unit, level, bounds, gs-quant's name and how lite's differs, a sentence on it and on its parameters, the
+ *  words a picker finds it by -- moved from the tile's table into the library as timeseries::Words tags, about 7.6 KB of
+ *  the library's text gzipped; the tile's own copy is deleted with its grammar, A3 step 5, and the text leaves the wire
+ *  with A5). Measured 123,986.
+ *  126,500 -> 128,000 (2026-11-06, the user: "Sure raise it", asked after CI on #81 found it over): R7 part 3's rows
+ *  forms (the calendar spans, the pair words, sum since a date; 2026-11-04, no CI then) took it to 126,834, and the time
+ *  model's D8 (a word that reads its line in order refused on a line with several rows on a date: lines::once,
+ *  lines::untied and each such word's check, 2026-11-06) to 127,852 -- about 1.0 KB of the library's text gzipped.
+ *  Measured 127,852; the headroom ~0.1%, A5 taking the text off the wire.
+ *  128,000 -> 130,500 (2026-11-06, the roadmap's W3, the user: "keep going don't stop until we do the whole roadmap"):
+ *  timeseries::lines::within, the answer's spine on the line whose rows hold every other's (spec-13: 5 joins 4), 0.2 KB
+ *  of the library's text gzipped. Measured 128,096; the headroom ~2% again, as before the raise above, for the rows
+ *  forms the roadmap's W2 and W5 add until A5. */
+const TIMESERIES_BUDGET = 130_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1086,8 +1119,14 @@ const EXAMPLE_BUDGET = 4_000;
  *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
  *  box's style, app.css .dc-ts-draw). Measured 429,265.
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 446,209. */
-const WIDGET_BUDGET = 446_500;
+ *  same date). Measured 446,209.
+ *  446,500 -> 447,000 (2026-10-30, main -- PR #80, the plan path -- merged into the timeseries platform branch: main's
+ *  module and the branch's together, the library enumerations among the branch's, src/generated/library-enums.ts;
+ *  neither measured alone). Measured 446,637.
+ *  447,000 -> 447,600 (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A3 step 1 and A9: the timeseries library's text,
+ *  src/pure-library-text.ts, carries each word's facts as tags, and the word rank with its enumeration Order; A5 takes
+ *  the library's text off the wire). Measured 447,016. */
+const WIDGET_BUDGET = 447_600;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

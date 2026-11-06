@@ -50,6 +50,15 @@ test_suite(
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
+        # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
+        # and a person's Pure calling it answers as arithmetic (2026-10-28)
+        "//core:timeseries_library_test",
+        # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
+        "//core:ts_island_test",
+        # every example of the #TS spec and the guide for quants runs, or is listed with why (A9, 2026-11-03)
+        "//core:ts_documents_test",
+        # the #TS{...}# island's cases on the embedded Postgres 16 (docs/TS_V1_PROGRAM_2026_11_01.md B1)
+        "//core:ts_island_postgres_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
@@ -341,6 +350,15 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the timeseries SQL's measurement (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md, the SQL's size, 2026-10-30):
+        # manual, its numbers printed
+        "//datacube:timeseries_sql_measure",
+        "//datacube:ts_examples_measure",
+        # the library-defines-the-language spike and C1's frame-offset probe (2026-10-31,
+        # docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3 and §3a): manual evidence, run by hand; found in no lane
+        # by the lane guard on PR #86 (2026-11-01)
+        "//core:ts_line_spike_test",
+        "//core:frame_offset_probe_test",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",

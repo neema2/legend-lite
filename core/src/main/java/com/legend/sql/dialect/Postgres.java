@@ -264,6 +264,9 @@ public final class Postgres extends AnsiSqlRenderer {
                 new WholePartitionOrderedSets(),
                 new SubstringClamp(), new StringCountsAsInt(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES),
                 new QualifyToSubselect(true),
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new SelectMerge(), new SelectLayers(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
@@ -1813,6 +1816,16 @@ public final class Postgres extends AnsiSqlRenderer {
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
     }
 
+    /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's
+     *  refusals) raised as a boolean,
+     *  as a CASE's raising branch takes its CASE's type: the raise is text here ({@link #raise}), and Postgres refuses
+     *  a condition of text ("argument of WHERE must be type boolean", measured on 16, B1 2026-11-06). */
+    @Override
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return e instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(call.args(), SqlType.Scalar.BOOLEAN)) : super.booleanOperand(writer, e, prec);
+    }
+
     /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
@@ -2384,6 +2397,10 @@ public final class Postgres extends AnsiSqlRenderer {
                     frameInterval(p.n(), p.unit()) + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     frameInterval(f.n(), f.unit()) + " FOLLOWING";
+            // an offset the database computes: written by writeBound (measured 2026-10-31: Postgres 16 takes an
+            // expression and a parameter, refuses a negative offset)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 

@@ -81,7 +81,10 @@ class OwnDialectCensusTest {
                     "IqIslandRoundTripTest.java",
                     // the reference checks, 2026-10-21 (REVIEWED): the wrong-arity cases' generic class, the
                     // declared extension LITE-DESIGN-function-types-generics (§11) by purpose
-                    "ReferenceIntegrityTest.java");
+                    "ReferenceIntegrityTest.java",
+                    // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S146, the user's 2a): a
+                    // user function's id spelling its relation's columns, its fixture two such overloads
+                    "SignatureMangleTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -149,8 +152,11 @@ class OwnDialectCensusTest {
                     // enumeration, and test::digestsOf, an enumeration's value passed on whole (signatures 21 -> 23);
                     // 15 -> 16 (2026-10-28, REVIEWED, enumeration mappings): test::ofFamily, a mapped enumeration's
                     // column filtered by a generic body (signatures 23 -> 24); 16 -> 17 (2026-10-28, REVIEWED, the
-                    // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 17),
+                    // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20); 17 -> 19
+                    // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a): aColumnsTypePicksTheOverload
+                    // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
+                    // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect
@@ -161,7 +167,9 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("IqIslandRoundTripTest.java", 1),
                     // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject; 1 -> 2
                     // the same day (the independent audit): a class extending its own type parameter, a crash's guard
-                    java.util.Map.entry("ReferenceIntegrityTest.java", 2));
+                    java.util.Map.entry("ReferenceIntegrityTest.java", 2),
+                    // 0 -> 1 (2026-11-03, REVIEWED, S146): the id-spelling fixture, two overloads by a column's type
+                    java.util.Map.entry("SignatureMangleTest.java", 1));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);

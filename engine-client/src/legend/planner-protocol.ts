@@ -32,7 +32,9 @@ export type RequestKind = (typeof REQUEST_KINDS)[number];
 /** A request, as the planner writes it. */
 export type RequestBody =
   // a model held: compiled the first time its text is, the answer its handle
-  | { readonly kind: 'hold'; readonly model: string }
+  // `library`: a library the model is compiled over, held by the module as a layer of its own, compiled once for every
+  // model held over it (core's Compiler.compileModel(model, library); docs/TS_V1_PROGRAM_2026_11_01.md A5)
+  | { readonly kind: 'hold'; readonly model: string; readonly library?: string }
   | { readonly kind: 'release'; readonly handle: number }
   // a query's Pure text planned against a model held
   | { readonly kind: 'plan'; readonly handle: number; readonly query: string; readonly runtime: string }

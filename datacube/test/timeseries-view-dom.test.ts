@@ -70,6 +70,7 @@ before(async () => {
     },
     format: (value) => (typeof value === 'number' ? value.toFixed(2) : String(value)),
     print: (query) => planner.print(query),
+    tsStatement: (query) => planner.tsStatement(query),
   };
 });
 
@@ -308,7 +309,8 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       // its periods: where the close is above its 21-day mean, each from its first date to the next, from which it no
       // longer holds (its own last at the line's end) -- a run of one date a day wide (the E9 review's 4)
       const spx = of('SPX');
-      const mean = spx.closes.map((_, i) => (i < 20 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
+      // the 21-day mean from the 22nd close (gs-quant's ramp: docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+      const mean = spx.closes.map((_, i) => (i < 21 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
       const holds = spx.closes.map((c, i) => mean[i] !== null && c > mean[i]!);
       const runs: [string, string][] = [];
       holds.forEach((h, i) => {
@@ -708,7 +710,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       const asks = (): HTMLElement[] => [...pop().querySelectorAll<HTMLElement>('.dc-ts-ask')];
       const said = (a: HTMLElement): string => a.querySelector('summary span')!.textContent ?? '';
       const status = (a: HTMLElement): string => a.querySelector('.dc-ts-ask-status')!.textContent ?? '';
-      const code = (a: HTMLElement): string[] => [...a.querySelectorAll('.dc-ts-code')].map((c) => c.textContent ?? '');
+      // its Pure and its SQL (a series' #TS statement beside them is the next test's)
+      const code = (a: HTMLElement): string[] => [...a.querySelectorAll('.dc-ts-code:not(.dc-ts-statement)')].map((c) => c.textContent ?? '');
       // by the one rule Python's queries() reads (timeseries-query.ts tileAsks): the chart's, then the panel's
       assert.deepEqual(asks().map(said), [
         "1. Source px's dates: its latest and earliest, where each range button starts",
@@ -729,9 +732,11 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.deepEqual(asks().map(status), ['ran', 'ran', 'ran', 'ran', 'ran', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet']);
       assert.deepEqual(asks().map((a) => a.hasAttribute('open')), [true, true, true, false, false, false, false, false, false, false], "the chart's open");
       await until(() => asks().every((a) => code(a)[0] !== 'Writing…'), 'every query written');
-      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
+      // a lambda as the compiler prints one -- a series' braced, its sources bound by let before its #TS query (P6)
+      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\{?\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
       const [pureA, sqlA] = code(asks()[1]!);
       assert.match(pureA!, /'SPX'/);
+      assert.match(pureA!, /let px = [\s\S]*#TS\{SELECT /, 'its source bound, its series the #TS query');
       assert.match(sqlA!, /select/i, 'the SQL its rows were read by');
       assert.match(code(asks()[5]!)[1]!, /^Not asked yet: the Drawdowns tab asks for it when shown\.$/);
       assert.match(code(asks()[5]!)[0]!, /'SPX'/, 'written as its tab would ask it');
@@ -749,6 +754,39 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       await until(() => asks().length === 10 && status(asks()[5]!) === 'ran', 'the drawdowns asked');
       await until(() => code(asks()[5]!)[0] !== 'Writing…', 'written');
       assert.match(code(asks()[5]!)[1]!, /select/i, 'the SQL it ran');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // D12 (the user, 2026-10-31: "the Show #TS of the grid to actually show that single statement view")
+  it('Query: a series\' points as one #TS statement too, its grid named by WITH, in its own box, copied and among all', async () => {
+    const { root, windows, view } = viewer(SPEC);
+    const written = clipboardOf(root);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Query').click();
+      const pop = (): HTMLElement => windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const asks = (): HTMLElement[] => [...pop().querySelectorAll<HTMLElement>('.dc-ts-ask')];
+      const statement = (a: HTMLElement): string | undefined => a.querySelector('.dc-ts-statement')?.textContent ?? undefined;
+      // the same window and tabs: the series' points (asks 2 and 3) say their statement above their Pure, no other ask does
+      assert.deepEqual([...pop().querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].map((t) => t.textContent),
+        ['Queries', 'Library', 'Python', 'TypeScript']);
+      assert.deepEqual(asks().map((a) => statement(a) !== undefined), [false, true, true, false, false, false, false, false, false, false]);
+      await until(() => asks().every((a) => statement(a) !== 'Writing…'), 'every statement written');
+      const statements = asks().map(statement).filter((t): t is string => t !== undefined);
+      for (const t of statements) {
+        assert.match(t, /^WITH px AS \(SELECT \* FROM \S+\) SELECT .* AS ts_value FROM px ON date/, t);
+        assert.doesNotMatch(t, /\$px|let /, 'no Pure: one statement');
+      }
+      assert.match(statements[0]!, /close\[symbol = 'SPX'\]/);
+      assert.deepEqual([...asks()[1]!.querySelectorAll('.dc-ts-field-label')].map((l) => l.textContent), ['#TS', 'Pure', 'SQL']);
+      windowButton(asks()[1]!, 'Copy #TS').click();
+      await until(() => written.length === 1, 'its statement copied');
+      assert.equal(written[0], statements[0]);
+      windowButton(pop(), 'Copy all').click();
+      await until(() => written.length === 2, 'every query copied');
+      for (const t of statements) assert.ok(written[1]!.includes(`-- as one #TS statement\n${t}`), 'each statement among them');
     } finally {
       view.dispose();
     }
@@ -772,7 +810,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       // its text a chunk of its own (pure-library-text.ts), read as the planner reads it
       await until(() => program(1) !== 'Reading…', 'the library read');
       assert.equal(program(1), DATACUBE_LIBRARY);
-      assert.match(program(1), /function datacube::ts::volatility</);
+      assert.match(program(1), /function timeseries::volatility</);
       windowButton(windows, 'Copy Library').click();
       await until(() => written.length === 1, 'the library copied');
       assert.equal(written[0], DATACUBE_LIBRARY);

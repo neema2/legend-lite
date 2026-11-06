@@ -24,7 +24,7 @@
 import { ExactNumber, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { Planner } from './cube.ts';
+import type { Planner, TsShown } from './cube.ts';
 import type { RemoteExecutor } from '../../engine-client/src/engine-remote.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import type { LevelScope } from './query.ts';
@@ -95,6 +95,8 @@ export interface QueryRunner {
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
   /** A query as Pure text for a person to read: the compiler's print (E4 or its twin). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
+  /** A #TS query over grids as one statement (D12): its planner's, where it has one (legend-lite's). */
+  tsStatement?(query: Lambda, signal?: AbortSignal): Promise<TsShown>;
 }
 
 /**
@@ -116,6 +118,7 @@ export function lensed(runner: QueryRunner, lens: QueryLens): QueryRunner {
     relationType: (query, signal) => runner.relationType(lens(query), signal),
     parse: (text, signal) => runner.parse(text, signal),
     print: (query, style, signal) => runner.print(query, style, signal),
+    ...(runner.tsStatement ? { tsStatement: (query: Lambda, signal?: AbortSignal) => runner.tsStatement!(query, signal) } : {}),
   };
 }
 
@@ -163,6 +166,7 @@ export function rebased(runner: QueryRunner, live: ValueSpecification, copy: Val
     relationType: (query, signal) => runner.relationType(rebase(query, live, copy), signal),
     parse: (text, signal) => runner.parse(text, signal),
     print: (query, style, signal) => runner.print(query, style, signal),
+    ...(runner.tsStatement ? { tsStatement: (query: Lambda, signal?: AbortSignal) => runner.tsStatement!(query, signal) } : {}),
   };
 }
 
@@ -226,6 +230,11 @@ export class PlanAndRun implements QueryRunner {
 
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string> {
     return this.host.planner.print(query, style, signal);
+  }
+
+  tsStatement(query: Lambda, signal?: AbortSignal): Promise<TsShown> {
+    const planner = this.host.planner;
+    return planner.tsStatement ? planner.tsStatement(query, signal) : Promise.resolve({ refused: 'this grid\'s planner is legend-engine\'s, which has no #TS' });
   }
 }
 
