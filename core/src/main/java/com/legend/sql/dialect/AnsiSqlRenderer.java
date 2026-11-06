@@ -1711,6 +1711,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A writer for this dialect: its {@link SqlWriter#expr} writes a sub-expression in this dialect's spelling. */
     protected final SqlWriter newWriter() {
+        com.legend.base.RunScope.planning("render a statement");
         return new SqlWriter(this::expr);
     }
 
@@ -1817,6 +1818,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 // a TEMPORARY table: the one ANSI spelling every target here accepts
@@ -1855,6 +1857,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
                 SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
@@ -1884,6 +1887,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
             // dialect renders it)

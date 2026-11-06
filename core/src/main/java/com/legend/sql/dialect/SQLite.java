@@ -3106,6 +3106,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateSchema cs -> "SELECT 1;";
             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
@@ -3135,6 +3136,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** Rows in and out of a table, named as {@link #tableName} names it. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
                 SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))

@@ -500,9 +500,17 @@ public final class VerdictBatch {
                 if (!(r.steps.get(i) instanceof Pending p && p.orElse() instanceof Pending f)) {
                     continue;
                 }
-                if (p.appeal() != null || f.orElse() != null || f.appeal() != null || f.on() != p.on()) {
+                if (p.appeal() != null || f.orElse() != null || f.appeal() != null) {
                     throw new IllegalStateException("verdict batch: a ruled row in a shape no rule plans as one row: "
                             + p.name());
+                }
+                if (f.on() != p.on()) {
+                    // the texts on one session, the rows they render on another (a side routed to the graph's system
+                    // database): no one statement holds both, and two would be the fallback ruled out -- this assert
+                    // UNJUDGED by name, the batch's other asserts judged (the final audit, 2026-11-06)
+                    r.steps.set(i, new Resolved(unjudged(p.name(), "a rendered text and its rows on two sessions"),
+                            true));
+                    continue;
                 }
                 com.legend.sql.dialect.DialectCapability genericRefused = planAhead(p.name(), p.query(), p.on()).refused();
                 com.legend.sql.dialect.DialectCapability ruledRefused = planAhead(f.name(), f.query(), p.on()).refused();
@@ -627,6 +635,13 @@ public final class VerdictBatch {
             com.legend.sql.dialect.@com.legend.base.Nullable DialectCapability refused) {
     }
 
+    /** An assert the database judge cannot judge, named {@code why} at planning: counted UNJUDGED, the assert's own
+     *  failure, which the root loop reports to the listener at its place. */
+    private static com.legend.error.AssertFailed unjudged(String name, String why) {
+        CanonicalDivergence.sqlUnjudged(name, why);
+        return com.legend.error.AssertFailed.unjudged(why, name + ": UNJUDGED in database mode -- " + why);
+    }
+
     private Ahead planAhead(String name, SqlQuery query, Sessions.Session on) {
         try {
             return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
@@ -665,10 +680,12 @@ public final class VerdictBatch {
         private List<Object> runAhead(Object key, String name, Sessions.Session on,
                 PlanRunner.@com.legend.base.Nullable SideReader reader) {
             Ahead a = java.util.Objects.requireNonNull(ahead.get(key), "a statement the batch did not plan ahead");
-            if (a.refused() != null) {
+            com.legend.sql.dialect.DialectCapability refused = a.refused();
+            if (refused != null) {
+                // counted UNJUDGED, raised as itself (as orElseDecides)
                 CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
-                        + String.valueOf(a.refused().getMessage()).split("\n")[0]);
-                throw a.refused();
+                        + String.valueOf(refused.getMessage()).split("\n")[0]);
+                throw refused;
             }
             ExecutionPlan.Node plan = java.util.Objects.requireNonNull(a.plan());
             return reader != null ? readPlanned(name, plan, reader) : runPlanned(name, plan, on, runner);
@@ -736,11 +753,15 @@ public final class VerdictBatch {
                 throw new IllegalStateException("verdict batch: a ruled row left as a statement of its own: " + p.name());
             }
             if (decided.failure() instanceof com.legend.sql.dialect.DialectCapability refused) {
+                // counted UNJUDGED (the census), raised as the dialect's own refusal: a dialect wall is raised as
+                // itself on both roads (BodyRouterParityTest's quantified programs), never turned into a verdict
                 CanonicalDivergence.sqlUnjudged(p.name(), "dialect-capability: "
                         + String.valueOf(refused.getMessage()).split("\n")[0]);
             }
             throw decided.failure();
         }
+
+
 
         /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
          *  split rung, lazily, nothing sent past the first failure), a resolved step's failure; each root's verdict to

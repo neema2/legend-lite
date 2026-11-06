@@ -2993,6 +2993,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  one BigQuery refuses it, measured), unqualified; a key is declared NOT ENFORCED. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
@@ -3023,6 +3024,7 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** A DELETE needs a WHERE clause in GoogleSQL. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
             return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
         }

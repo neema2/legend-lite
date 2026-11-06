@@ -50,9 +50,12 @@ final class JdbcDecodeCases {
         List<List<Object>> out = new ArrayList<>();
         // checked against its database first, as the runner checks every session (the timestamp re-read is its fact)
         JdbcStatements st = new JdbcStatements(c, new SessionState());
-        st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
-                List.of(), List.of()));
-        st.rows(sql, List.of(), List.of(), columns, out::add);
+        // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+                    List.of(), List.of()));
+            st.rows(sql, List.of(), List.of(), columns, out::add);
+        }
         return out;
     }
 

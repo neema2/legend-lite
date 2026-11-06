@@ -418,6 +418,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);

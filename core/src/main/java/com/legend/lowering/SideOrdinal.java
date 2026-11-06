@@ -102,16 +102,27 @@ final class SideOrdinal {
                     from.outputs());
         }
         SqlSelect over = s.withFrom(from);
-        if (s.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.Star st
-                && (st.table() == null || st.table().equals(alias))
-                || p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))
-                        && !se.except().contains(ORD))) {
-            // a star over the source already reads its ordinal (SELECT t.*, 1 AS c: the ordinal is among t's outputs);
-            // written again it would be a second column of the name (2026-11-06, H2's corpus: "Duplicate column name
-            // __ord", the milestoning validation tests)
-            return over;
+        // a star over the source is spelled as the source's own columns (SELECT t.*, 1 AS c: t's columns, then c):
+        // over the numbered source a star would read the ordinal too, in the middle of the outputs -- a second column
+        // of the name beside the one written last (2026-11-06, H2's corpus: "Duplicate column name __ord"), or, read
+        // in place, an ordinal that is not the last output, which every reader of a numbered side reads by position
+        // (CanonicalRenderSql; a union's branches lined up by position: the final audit, 2026-11-06)
+        List<SqlSelect.Projection> ps = new ArrayList<>(s.projections().size() + 1);
+        for (SqlSelect.Projection p : s.projections()) {
+            List<String> except = p.expr() instanceof SqlExpr.Star st && (st.table() == null || st.table().equals(alias))
+                    ? List.of()
+                    : p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))
+                            ? se.except() : null;
+            if (except == null) {
+                ps.add(p);
+                continue;
+            }
+            for (OutputCol o : s.from().outputs()) {
+                if (!except.contains(o.name()) && !ORD.equals(o.name())) {
+                    ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, o), o.name(), o));
+                }
+            }
         }
-        List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
         ps.add(new SqlSelect.Projection(ord, ORD, ORD_OUT));
         return over.withProjections(ps);
     }

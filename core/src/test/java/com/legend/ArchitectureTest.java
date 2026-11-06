@@ -1334,8 +1334,11 @@ final class ArchitectureTest {
                     + ".statements)") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    // statementsOf: the session's own unguarded form, package-private (THE WALL, 2026-11-06: the
+                    // final audit -- a class of the seam's package calling it would pass the name check alone)
                     return call.getTarget().getOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
-                            && call.getTarget().getName().equals("statements");
+                            && (call.getTarget().getName().equals("statements")
+                                    || call.getTarget().getName().equals("statementsOf"));
                 }
             })
             .as("the doors: the plan runner is the one caller of a session's statements (Statements, "

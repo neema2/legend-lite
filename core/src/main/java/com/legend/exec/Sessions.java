@@ -205,8 +205,14 @@ public final class Sessions {
             this.open = open;
         }
 
-        /** The session beneath, opened now if it is not yet. */
+        /** Whether this session was closed: it opens nothing after (the final audit, 2026-11-06). */
+        private final java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean();
+
+        /** The session beneath, opened now if it is not yet; refused once this session is closed. */
         synchronized Session opened() {
+            if (closed.get()) {
+                throw new IllegalStateException("a session opened on first use, reached after it was closed");
+            }
             Session o = opened.get();
             if (o == null) {
                 o = open.get();
@@ -231,7 +237,8 @@ public final class Sessions {
         }
 
         @Override
-        public void close() {
+        public synchronized void close() {
+            closed.set(true);
             Session o = ifOpened();
             if (o != null) {
                 o.close();

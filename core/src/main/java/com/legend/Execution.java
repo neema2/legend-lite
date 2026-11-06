@@ -82,7 +82,7 @@ public final class Execution {
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
         if (typed.writes()) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
+            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
             return plan;
@@ -90,7 +90,7 @@ public final class Execution {
         ModelContext ctx = typed.context();
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
         try (com.legend.exec.Sessions.Session session = sessions.open(decided, ctx)) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
+            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
                 // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
@@ -101,6 +101,15 @@ public final class Execution {
             };
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
             return plan;
+        }
+    }
+
+    /** {@code typed}'s plan, made under the wall's planning scope (THE WALL's rule 2, the final audit, 2026-11-06):
+     *  no session opens and no run starts while the product's query is planned. */
+    private static com.legend.executionplan.ExecutionPlan planned(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, java.util.Set<com.legend.platform.Feature> features) {
+        try (var planning = com.legend.base.RunScope.plans("a query")) {
+            return typed.executionPlan(runtimeFqn, features);
         }
     }
 

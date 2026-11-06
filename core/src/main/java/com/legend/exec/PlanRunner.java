@@ -258,7 +258,7 @@ public final class PlanRunner {
                 Statements st = opened(session, on);
                 ExecutionPlan.Target system = shape.system();
                 if (system == null) {
-                    Routes rt = new Routes(st, null, null);
+                    Routes rt = new Routes(st, on.database() instanceof ExecutionPlan.Database.System, null, null);
                     sink.reader(side -> sideRows(side, checked, rt));
                     try {
                         bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
@@ -270,7 +270,7 @@ public final class PlanRunner {
                     // only, outside the program's transaction (the walker-deletion program's per-statement routing,
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
-                        Routes rt = new Routes(st, opened(systemSession, system), systemSession);
+                        Routes rt = new Routes(st, false, opened(systemSession, system), systemSession);
                         sink.reader(side -> sideRows(side, checked, rt));
                         try {
                             bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
@@ -303,12 +303,25 @@ public final class PlanRunner {
 
     /** Where a program's statements run: the program's own session, and the graph's system database's where a
      *  statement names that target beside the program's (read only: no write, effect or seed is planned there). */
-    private record Routes(Statements home, @Nullable Statements system, Sessions.@Nullable Session systemSession) {
-        /** The session {@code sql} runs on: the system database's where it names that target and the program has a
-         *  second session for it; the program's otherwise. */
+    private record Routes(Statements home, boolean homeIsSystem, @Nullable Statements system,
+            Sessions.@Nullable Session systemSession) {
+        /** The session {@code sql} runs on: the system database's where it names that target -- the program's own
+         *  where the program runs there, else its second session -- and the program's otherwise. A statement naming
+         *  the system database in a program that opened none for it is refused by name, never run on the user's
+         *  session (the final audit, 2026-11-06: a row read on demand through the program's reader is routed here
+         *  with no target check of its own). */
         Statements on(ExecutionPlan.Sql sql) {
-            return system != null && sql.target().database() instanceof ExecutionPlan.Database.System ? system
-                    : home;
+            if (sql.target().database() instanceof ExecutionPlan.Database.System s) {
+                if (homeIsSystem) {
+                    return home;
+                }
+                if (system == null) {
+                    throw new IllegalStateException("a statement on the graph's system database (" + s.type()
+                            + ") in a program that planned none there: never run on the program's own session");
+                }
+                return system;
+            }
+            return home;
         }
     }
 

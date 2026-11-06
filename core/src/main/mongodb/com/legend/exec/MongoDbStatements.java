@@ -58,6 +58,7 @@ final class MongoDbStatements implements Statements {
 
     @Override
     public void check(ExecutionPlan.Target target) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
                 || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
@@ -67,6 +68,7 @@ final class MongoDbStatements implements Statements {
 
     @Override
     public boolean execute(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         run(command(statement));
         return false;
     }
@@ -75,6 +77,7 @@ final class MongoDbStatements implements Statements {
      *  server that is no replica set has none across commands), so a snapshot is asked of it only as {@code NONE}. */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (snapshot != ExecutionPlan.Keyed.Snapshot.NONE) {
             throw new IllegalStateException("a " + snapshot + " snapshot asked of a MongoDB session: its keyed plans"
                     + " take none");
@@ -86,18 +89,21 @@ final class MongoDbStatements implements Statements {
      *  refused by name. */
     @Override
     public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a write plan's step on MongoDB: a program that changes a"
                 + " store is not designed for MongoDB (its writes are the bulk load alone)");
     }
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
                 + " changes a store is not designed for MongoDB");
     }
 
     @Override
     public boolean ownsTransaction() {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
                 + " changes a store is not designed for MongoDB");
     }
@@ -106,12 +112,14 @@ final class MongoDbStatements implements Statements {
      *  roster, a deferred relation's columns, a wire-decided kind) are not designed for MongoDB; refused by name. */
     @Override
     public List<Reported> columns(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a statement's reported columns asked of a MongoDB session:"
                 + " the body driver's schema probes are not designed for MongoDB");
     }
 
     @Override
     public List<Reported> describe(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a statement described before running asked of a MongoDB"
                 + " session: the body driver's schema probes are not designed for MongoDB");
     }
@@ -120,6 +128,7 @@ final class MongoDbStatements implements Statements {
     @Override
     public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a relation of the columns its result reports asked of a"
                 + " MongoDB session: a raw grid is an authored SQL text, which a MongoDB database does not run");
     }
@@ -128,6 +137,7 @@ final class MongoDbStatements implements Statements {
      *  load of a plan's rows is refused by name. */
     @Override
     public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a bulk load of a plan's rows asked of a MongoDB session: its"
                 + " databases are the connector's own, and a plan sets none up");
     }
@@ -135,6 +145,7 @@ final class MongoDbStatements implements Statements {
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
             while (cursor.hasNext()) {
                 rows.row(text(cursor.next()));
@@ -149,6 +160,7 @@ final class MongoDbStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
             while (cursor.hasNext()) {
                 cells.row(MongoDbDecode.row(cursor.next(), columns));

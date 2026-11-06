@@ -323,12 +323,6 @@ bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSine
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 bigquery	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 bigquery	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
-# two instances in another order: BigQuery writes a literal list of instances as a UNION ALL, whose rows it returns
-# in any order, and the database judge numbers a side's rows by arrival -- so on a run either judge may read them
-# out of order (rounds 16-17 the host, round 19 the database judge: THE JUDGES DISAGREE). Channel A fails it on every
-# lane (main's lists). The text is the expected side, which every failing form prints (2026-11-03, round 19); the
-# fix, the list's order through its unnest on both judges, is open.
-bigquery	Grammar	meta::pure::functions::collection::tests::filter::testFilterInstance	expected: [<i1 instanceOf meta::pure::functions::collection::tests::model::CO_Person>, <i2 instanceOf meta::pure::functions::collection::tests::model::CO_Person>]
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
 bigquery	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 bigquery	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery

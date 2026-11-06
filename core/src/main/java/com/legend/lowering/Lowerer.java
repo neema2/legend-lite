@@ -463,6 +463,7 @@ public final class Lowerer {
      *  not be (PR #67's review, 2026-10-22: Postgres staged a table declared {@code (ID, NAME)} and made
      *  {@code (NAME, ID)} with each value under the other's name). */
     public SqlQuery namedColumns(SqlQuery rows) {
+        com.legend.base.RunScope.planning("lower a spec");
         if (!(rows instanceof SqlSelect s) || !s.projections().isEmpty()) {
             return rows;
         }

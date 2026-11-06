@@ -22,7 +22,7 @@ package com.legend.base;
  * <p>Nothing turns the wall off: there is no report mode (the measurement of 2026-11-06 listed every crossing over
  * core, PCT and both corpus lanes; each was fixed or named a residue). The session's openers and statements are the
  * JDBC census's seam ({@code JdbcSurfaceCensusTest}): no other class in core's main sources reaches a driver, so the
- * rules hold for every road. {@code WallTest} tries each crossing and is refused.
+ * rules hold for every road. {@code RunScopeTest} tries each crossing and is refused.
  *
  * <p>JDK-only, as base is: the one place both the runner and the planning libraries can see -- and within what the
  * WebAssembly planner's class library has (TeaVM: no {@code StackWalker}, no {@code ConcurrentHashMap.newKeySet}; the
@@ -70,8 +70,11 @@ public final class RunScope implements AutoCloseable {
         DEPTH.get()[0]--;
     }
 
-    /** The wall's refusal, by type: a catch that turns a failure into an answer (a decline, a fallback) rethrows it. */
-    public static final class Refused extends IllegalStateException {
+    /** The wall's refusal, by type: an {@link Error}, so no {@code catch (RuntimeException)} or {@code catch (Exception)}
+     *  -- a decline, a fallback, a "not this shape" -- can turn a crossing into an answer (the final audit,
+     *  2026-11-06: the compatibility re-run arm's catch had made one a text mismatch). A crossing is a bug of lite's,
+     *  never a verdict. */
+    public static final class Refused extends Error {
         private static final long serialVersionUID = 1L;
 
         Refused(String message) {

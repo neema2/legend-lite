@@ -168,6 +168,7 @@ public final class StoreResolver {
     public List<TypedSpec> resolve(List<TypedSpec> body,
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
+        com.legend.base.RunScope.planning("resolve a body");
         return resolve(body, driverRuntimeFqn, explicitMappingFqn,
                 List.of());
     }
@@ -178,6 +179,7 @@ public final class StoreResolver {
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
+        com.legend.base.RunScope.planning("resolve a body");
         // LAZY: runtime consulted only when a class fetch needs a
         // mapping; the runtime rides ALONGSIDE an explicit mapping
         // (self-sourced M2M upstream needs the candidate set)

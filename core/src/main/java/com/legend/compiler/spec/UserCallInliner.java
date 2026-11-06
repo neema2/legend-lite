@@ -202,6 +202,7 @@ public final class UserCallInliner {
      *  are reduced before the mark, exactly as in every statement's run, so a let's construction keeps one site
      *  across the program's statements: one object. Null: a body that is the whole query, no mark. */
     public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement) {
+        com.legend.base.RunScope.planning("inline a body");
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see

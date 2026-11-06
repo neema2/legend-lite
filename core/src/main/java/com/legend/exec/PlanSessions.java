@@ -89,14 +89,21 @@ public final class PlanSessions {
      *  statement, on a database that has none. */
     public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
         Source source = of(session);
-        boolean[] established = {false};
+        // [0] established, [1] a setup that failed: never run again on the same source (some of its steps ran)
+        boolean[] state = {false, false};
         return new Source() {
             @Override
             public Sessions.Session open(ExecutionPlan.Target t) {
-                synchronized (established) {
-                    if (!established[0]) {
+                synchronized (state) {
+                    if (state[1]) {
+                        throw new IllegalStateException("the session's setup failed on its first open, and is not run"
+                                + " again (some of its steps ran)");
+                    }
+                    if (!state[0]) {
+                        state[1] = true;
                         establish(session, target);
-                        established[0] = true;
+                        state[1] = false;
+                        state[0] = true;
                     }
                 }
                 return source.open(t);
