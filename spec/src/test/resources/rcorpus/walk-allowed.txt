@@ -21,7 +21,6 @@ meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameter
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone
-meta::pure::executionPlan::tests::testModelConnectionJoin
 meta::relational::functions::toPostgresModel::tests::testConvertAlias
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS
 meta::relational::tests::ddl::dropAndCreateTable

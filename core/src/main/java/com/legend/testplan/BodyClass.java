@@ -711,6 +711,15 @@ public enum BodyClass {
         return arg instanceof TypedNativeCall ec && NativeFn.Handle.isExecute(ec.callee().id());
     }
 
+    /** {@code -Dlegend.diagnostics=body-class}: the assert program's rule that refused a body, by statement (the walk
+     *  deletion's measurement, 2026-11-06; prints, decides nothing). */
+    private static void assertRefusal(int statement, String why) {
+        if (java.util.Arrays.asList(System.getProperty("legend.diagnostics", "").split(",")).contains("body-class")) {
+            System.err.println("[body-class] assert rule " + System.getProperty("legend.test.current", "?")
+                    + " statement " + statement + ": " + why);
+        }
+    }
+
     private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan, boolean systemRouted) {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
@@ -742,6 +751,15 @@ public enum BodyClass {
                     || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
+                assertRefusal(i, !assertRoot && !kinds.isEmpty() ? "kinds " + kinds + " ("
+                        + (statement instanceof TypedNativeCall nc ? "native " + nc.callee().qualifiedName()
+                                : statement instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                                        ? "user call " + uc.callee().qualifiedName()
+                                        : statement.getClass().getSimpleName())
+                        + (systemRouted ? ", system-routed" : "") + ")"
+                        : StatementEffects.containsTdgGenerator(statement) ? "the test data generator"
+                        : !consumedBinding && storesOf(statement, query, i) == Stores.BOTH ? "both stores"
+                        : "a side of another kind");
                 return false;
             }
             if (assertRoot) {
@@ -750,6 +768,7 @@ public enum BodyClass {
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
                             effectMemo, name -> false) == LetPlanner.Kind.VALUE)
                     && !check(statement, systemClasses, ctx, query, checkMemo)) {
+                assertRefusal(i, "a statement before the last that plans a step and is no check");
                 return false;
             }
         }

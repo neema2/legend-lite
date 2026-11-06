@@ -30,6 +30,8 @@ import java.util.Map;
  *   <li>{@code judge-declines}: print each assert the database judge declines or leaves UNJUDGED, with the running
  *       test's name (the core program's 100% check, 2026-11-04: a decline under BOTH is the host's to decide, so a
  *       green run alone does not show the database judge decided every assert)</li>
+ *   <li>{@code body-class}: print the assert program's class rule that refused a body, by statement (the walk
+ *       deletion's measurement, 2026-11-06)</li>
  * </ul>
  */
 public final class Diagnostics {
@@ -47,7 +49,10 @@ public final class Diagnostics {
             // statement sent, its characters and the test that sent it, before it is sent
             "sql-sizes",
             // the core program's 100% check (2026-11-04): each database-judge decline or UNJUDGED, with its test
-            "judge-declines");
+            "judge-declines",
+            // the walk deletion's measurement (2026-11-06): the assert program's class rule that refused a body
+            // (testplan/BodyClass, which reads the switch by name: the test-planning library depends on no switchboard)
+            "body-class");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 
