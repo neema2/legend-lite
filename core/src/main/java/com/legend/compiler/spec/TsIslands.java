@@ -11,7 +11,6 @@ import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.protocol.sql.InputLanguages;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
 import com.legend.protocol.ts.TsCatalog;
@@ -63,8 +62,9 @@ public final class TsIslands {
         SqlToPure.Sources sources = SqlIslands.sources(island, source -> typer.synth(source, env), model, env,
                 new java.util.TreeSet<>());
         try {
+            // the SQL a #TS statement holds: Postgres's but for / (TsSql: nothing where the divisor is 0, S151)
             return TsToPure.translate(island.sql(), new Facts(new TypedOnce(sources, island, typer, env), model),
-                    java.util.Objects.requireNonNull(InputLanguages.of(IslandLanguage.SQL, null)));
+                    com.legend.protocol.ts.TsSql.INSTANCE);
         } catch (SqlTranslationException e) {
             throw SqlIslands.refusal(island, e);
         }

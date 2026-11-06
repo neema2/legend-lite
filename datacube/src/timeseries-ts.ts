@@ -155,7 +155,8 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
       const [p, v] = [daily.text(expr.args[0]!), daily.text(expr.args[1]!)];
       items = [`(${p} * ${v}) AS ts_a0`, `${v} AS ts_a1`];
       const w = span(paramOf(expr, 'w'));
-      item = `(sum(sum(${own(0)}), ${w}) / nullif(sum(sum(${own(1)}), ${w}), 0))`;
+      // #TS's / gives nothing where the divisor is 0 (core's TsSql, S151): no nullif of the tile's own
+      item = `(sum(sum(${own(0)}), ${w}) / sum(sum(${own(1)}), ${w}))`;
     } else {
       const roles = expr.fn === 'ohlc' ? CANDLE : TS_SIGNATURES[expr.fn].reads!;
       items = expr.args.map((a, i) => `${daily.text(a)} AS ts_a${i}`);
@@ -266,7 +267,8 @@ function writer(ts: TimeseriesSpec, expr: TsExpr, split: string | undefined, gra
           case '+': case '-': case '*':
             return `(${l} ${e.op} ${r})`;
           case '/':
-            return `(${l} / nullif(${r}, 0))`;
+            // nothing where the divisor is 0: #TS's own / (core's TsSql, S151)
+            return `(${l} / ${r})`;
           case 'and': case 'or':
             return `(CASE WHEN ${l} IS NULL OR ${r} IS NULL THEN NULL WHEN (${l} <> 0) ${e.op.toUpperCase()} (${r} <> 0) THEN 1 ELSE 0 END)`;
           default: {

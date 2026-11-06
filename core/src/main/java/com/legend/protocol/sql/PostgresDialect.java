@@ -21,12 +21,14 @@ import java.util.List;
  * {@link PostgresAggregates}; the dialect program's D11, 2026-10-18, moved them out of {@link SqlToPure}), which read
  * the translator throughout ({@link SqlToPure.At}'s place).
  */
-public final class PostgresDialect implements InputDialect {
+public class PostgresDialect implements InputDialect {
 
     /** The one Postgres dialect: it has no options. */
     public static final PostgresDialect INSTANCE = new PostgresDialect();
 
-    private PostgresDialect() {
+    /** One dialect is Postgres's but for a rule of its own: the SQL a #TS statement holds ({@code protocol.ts.TsSql},
+     *  its {@code /}). */
+    protected PostgresDialect() {
     }
 
     @Override

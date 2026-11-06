@@ -863,6 +863,26 @@ class TsIslandTest {
         return Math.max(m - limit * s, Math.min(m + limit * s, x));
     }
 
+    /**
+     * A3's decision 4(a) (register S151): #TS's {@code /} gives nothing where the divisor is 0, on every database --
+     * in an item and a source's WHERE alike (TsSql: Postgres's SQL but for /) -- where Postgres raises: a
+     * chart of a ratio draws its other dates.
+     */
+    @Test
+    void aDivisionByZeroIsNothingThereAndTheRestStands() throws Exception {
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE / (CLOSE - CLOSE) AS z, CLOSE / 2 AS h,"
+                    + " CLOSE / 0 AS c FROM PRICES ON DAY BY SYMBOL}#");
+            assertEquals(List.of(), got.stream().filter(r -> r.get("z") != null || r.get("c") != null).toList(),
+                    backend + ": nothing where the divisor is 0");
+            assertClose(each(AAA.length, i -> AAA[i] / 2), column(got, "SYMBOL", "AAA", "h"), backend + ": the rest");
+            List<Map<String, String>> kept = rows(backend, "|#TS{SELECT CLOSE AS c FROM (PRICES WHERE CLOSE / 0 IS NULL)"
+                    + " ON DAY BY SYMBOL}#");
+            assertEquals(AAA.length + BBB.length, kept.size(), backend + ": a WHERE's division by 0 is nothing, never an"
+                    + " error");
+        }
+    }
+
     @Test
     void linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused() throws Exception {
         // the time model's D1 (ruled 2026-11-03): PRICES read with no BY has two rows on each date (AAA's and BBB's).
