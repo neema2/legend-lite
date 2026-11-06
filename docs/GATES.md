@@ -16883,3 +16883,15 @@ fast-forwarded to them (the user, 2026-11-06: "Yes, push to #81's branch"). Run 
    The test now failed here before the fix (with the union in place and its members shared) and passes after it.
 4. **`//datacube:bundle_budget_test`**: R7 part 3's rows forms took the timeseries tile to 126,834 of 126,500 bytes;
    raised with the user's word ("Sure raise it"), `5beeed931` and `aa4980178`.
+
+Run 42200094861 (`16eb248ef`, the fix of finding 3 and W2) found:
+
+5. **`//spec:corpus_duckdb` green** on Linux and Windows: finding 3's fix holds there.
+6. **`//parser-equivalence:update_ratchets_test` (the checks lane, every OS) and `OwnCorpusParityTest` (the
+   parser_equivalence lane, every OS)**: `own_corpus.matched` 3025 -> 3026. The own corpus counts the Pure models inside
+   core's Java tests, and `16eb248ef`'s `LetSharingTest.UNIONED` is one more that joins and matches the referee byte for
+   byte. Re-blessed (`bazel run //parser-equivalence:update_ratchets`) by the commit that adds this line.
+7. **`//datacube:verify_layout_test` on Linux only**: 15 of 16 checks pass; the one that fails is a timing budget ("no
+   task over 100 ms, nor two over 50 ms, while a tile is dragged"), 127 ms dragging a tile between bands on the
+   runner. No commit of the run touches the layout or the drag; here, at `e0f840b15`, it passes with every drag 0 ms
+   (16 of 16): the runner's load, not a regression; nothing changed for it.
