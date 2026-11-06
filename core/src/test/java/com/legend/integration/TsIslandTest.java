@@ -1196,6 +1196,30 @@ class TsIslandTest {
         assertFalse(sql.contains("GROUP BY"), "no grouping of periods: " + sql);
     }
 
+    @Test
+    void aValueATableMetFromItsBaseCarriesIsReadThere() throws Exception {
+        // 2026-11-06 (found by W3's test): s's table met AAA and BBB, so AAA's close is a column of it; t reads AAA's close
+        // again beside s, and cov pairs s with it. s's table meets AAA's line again, its column of AAA's close not
+        // carried twice -- before, the two copies clashed ("the column '__ts_base_0' already exists")
+        for (TestBackend backend : TestBackends.inProcess()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s,"
+                    + " lag(s, 1) * CLOSE['AAA'] AS t FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> i == 0 ? null : (AAA[i - 1] - BBB[i - 1]) * AAA[i]),
+                    column(got, null, null, "t"), of + "t, AAA's close by yesterday's s");
+        }
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> pair = rows(backend, "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s,"
+                    + " cov(s, CLOSE['AAA'], 3) AS c FROM PRICES ON DAY BY SYMBOL}#");
+            double[] s = new double[AAA.length];
+            for (int i = 0; i < AAA.length; i++) {
+                s[i] = AAA[i] - BBB[i];
+            }
+            assertClose(each(AAA.length, i -> i < 2 ? null : covariance(s, AAA, i - 2, i)), column(pair, null, null, "c"),
+                    backend + ": the covariance of s and AAA over three days");
+        }
+    }
+
     /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */
     private static double covariance(double[] x, double[] y, int from, int to) {
         double mx = 0;

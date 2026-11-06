@@ -83,6 +83,7 @@ final class TsLines {
         /** The one of {@code lines} whose rows hold every other's periods -- the others met from it, of its key --
          *  or null where none does: the Writer made them, and knows. */
         @com.legend.base.Nullable Line containing(List<Line> lines);
+
     }
 
     /**
@@ -390,6 +391,14 @@ final class TsLines {
      * broadcast); each period dated at its latest line's. The first line's columns kept, each other's value carried.
      */
     static Line joined(Writer w, List<Valued> nodes, SqlAst.Pos pos, @com.legend.base.Nullable String fill) {
+        return joined(w, nodes, pos, fill, java.util.Set.of());
+    }
+
+    /** ... the first line's table carrying {@code carried}, value columns of lines met to make it (each named for its
+     *  value alone): a value it carries already is its column there, the line still met, its column not carried twice
+     *  (2026-11-06: {@code lag(s, 1) * CLOSE['AAA']}, s met from AAA, clashed on AAA's column). */
+    static Line joined(Writer w, List<Valued> nodes, SqlAst.Pos pos, @com.legend.base.Nullable String fill,
+            java.util.Set<String> carried) {
         if (fill != null) {
             return aligned(w, nodes, fill, pos);
         }
@@ -400,6 +409,8 @@ final class TsLines {
         List<Line> distinct = new ArrayList<>();
         List<List<String>> values = distinct(order, distinct);
         Line left = distinct.get(0);
+        java.util.Set<String> has = new java.util.HashSet<>(carried);
+        has.addAll(values.get(0));
         for (int d = 1; d < distinct.size(); d++) {
             Line r = distinct.get(d);
             String p = w.fresh("jp");
@@ -409,7 +420,8 @@ final class TsLines {
             rel = call("rename", rel, new ColSpec(r.at()), new ColSpec(a));
             rel = call("rename", rel, new ColSpec(r.part()), new ColSpec(l));
             List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(p), new ColSpec(a), new ColSpec(l)));
-            values.get(d).forEach(v -> kept.add(new ColSpec(v)));
+            values.get(d).stream().filter(v -> !has.contains(v)).forEach(v -> kept.add(new ColSpec(v)));
+            has.addAll(values.get(d));
             rel = call("select", rel, new ColSpecArray(kept));
             // the library's meeting (timeseries::lines::meet, by the line's kind beside the first): on the period, and
             // the instrument where both are lines per instrument; dated at the later date

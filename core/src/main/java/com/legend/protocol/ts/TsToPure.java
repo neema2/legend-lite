@@ -1021,6 +1021,10 @@ public final class TsToPure {
              *  turn): its parts' of its own key column (a line of no instrument has its own, ONE_LINE), by the very base --
              *  a meeting keeps the periods every part has. */
             private final Map<TsLines.Line, java.util.Set<TsLines.Line>> within = new java.util.IdentityHashMap<>();
+            /** Each met line's base, the value columns it carries: its first part's (and what that one carries),
+             *  each other part's (TsLines.joined) -- a value's column is named for it alone, fresh, so a name it
+             *  carries is that very value. */
+            private final Map<TsLines.Line, java.util.Set<String>> carried = new java.util.IdentityHashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -1125,8 +1129,11 @@ public final class TsToPure {
                         TsLines.Line from = pointed.getOrDefault(v.line(), v.line());
                         pointed.put(v.line(), points(new TsLines.Valued(from, v.value())).line());
                     }
+                    TsLines.Valued first = read.stream().filter(v -> v.line().byInstrument()).findFirst()
+                            .orElse(read.get(0));
                     m = TsLines.joined(this, read.stream().map(v -> new TsLines.Valued(
-                            java.util.Objects.requireNonNull(pointed.get(v.line())), v.value())).toList(), pos, null);
+                            java.util.Objects.requireNonNull(pointed.get(v.line())), v.value())).toList(), pos, null,
+                            carried.getOrDefault(base(first.line()), java.util.Set.of()));
                     mets.put(List.copyOf(key), m);
                     // its rows' periods are every part's of its key (an INNER meeting), and so those parts' bases'
                     java.util.Set<TsLines.Line> in = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -1138,6 +1145,10 @@ public final class TsToPure {
                         }
                     }
                     within.put(m, in);
+                    java.util.Set<String> cs = new java.util.HashSet<>(carried.getOrDefault(base(first.line()),
+                            java.util.Set.of()));
+                    read.forEach(v -> cs.add(v.value()));
+                    carried.put(m, cs);
                 }
                 return newest(m);
             }
