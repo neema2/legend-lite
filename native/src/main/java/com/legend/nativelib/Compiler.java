@@ -104,6 +104,21 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** {@code Boundary.holdModelOver}: the handle that names {@code model} over {@code library}, the library compiled
+     *  once per isolate. */
+    @CEntryPoint(name = "lite_hold_model_over")
+    static CCharPointer holdModelOver(IsolateThread thread, CCharPointer model, CCharPointer library) {
+        String a;
+        try {
+            String m = text(model);
+            String l = text(library);
+            a = Folded.of(() -> Integer.toString(Boundary.holdModelOver(m, l)));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** {@code Boundary.releaseModel}: the model let go of once. */
     @CEntryPoint(name = "lite_release_model")
     static CCharPointer releaseModel(IsolateThread thread, CCharPointer handle) {

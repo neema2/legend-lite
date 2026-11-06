@@ -1534,13 +1534,13 @@ class Engine:
         library = asked.get('library')
         if library is None:
             return self.planner.plan(asked['lambda'], held, asked['runtime'])
-        text = f'{held.model}\n{library}'
         with self._with_library_lock:
             kept = self._with_library.pop(held.model, None)
-            if kept is None or kept.model != text:
+            if kept is None or kept.over != library:
                 if kept is not None:
                     kept.close()
-                kept = compiler.HeldModel(text)
+                # the library a layer the compiler holds once, whatever models are held over it (A5)
+                kept = compiler.HeldModel(held.model, over=library)
             self._with_library[held.model] = kept
             while len(self._with_library) > _WITH_LIBRARY:
                 self._with_library.pop(next(iter(self._with_library))).close()

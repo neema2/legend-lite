@@ -144,11 +144,15 @@ class HeldModel:
     """A model the compiler holds: compiled once, when it is made, and planned and typed against as often as asked,
     each time paying for the query alone (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9). The same text held twice is
     the one model, compiled once. Held until ``close()`` (or the end of a ``with`` block); a model that does not compile
-    is refused when it is made, and nothing is held. Safe from several threads: one plans against it at a time."""
+    is refused when it is made, and nothing is held. Safe from several threads: one plans against it at a time.
+    ``over``: a library the model is compiled over (DataCube's Pure library), held by the compiler as a layer of its own,
+    compiled once for every model held over it (docs/TS_V1_PROGRAM_2026_11_01.md A5); the answer is the one text's."""
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, over: str | None = None) -> None:
         self.model = model
-        self._handle: str | None = _answer(library().call('lite_hold_model', model))
+        self.over = over
+        self._handle: str | None = _answer(library().call('lite_hold_model', model) if over is None
+                                           else library().call('lite_hold_model_over', model, over))
 
     def _held(self) -> str:
         if self._handle is None:

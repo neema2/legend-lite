@@ -163,8 +163,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    *  calls the library -- its text fetched then, a chunk of its own: what plans such a query, this one's model held as
    *  it is for every other. */
   #library: Promise<LitePlanner> | undefined;
-  /** It is that planner: its model has the library already. */
-  #ofLibrary = false;
+  /** It is that planner: its model has the library already -- `withLibrary(model, library)`, the text every question
+   *  names it by -- held as the model compiled over the library, a layer the module compiles once (A5). */
+  #ofLibrary: { readonly model: string; readonly library: string } | undefined;
 
   constructor(options: LitePlannerOptions) {
     this.#options = options;
@@ -408,7 +409,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (this.#held !== undefined && this.#held.generation === this.#t.generation) return this.#held.handle;
     const model = this.#options.model;
     if (this.#useWorker()) this.#ensureWorker();
-    const handle = this.#call({ kind: 'hold', model }).then((held) => Number(decode(held, model)));
+    // over the library: the model and the library apart, so the module compiles the library once for every model held
+    // over it (A5); it holds the two as the one text this planner names, so a question naming that text finds them
+    const request: RequestBody = this.#ofLibrary === undefined ? { kind: 'hold', model }
+      : { kind: 'hold', model: this.#ofLibrary.model, library: this.#ofLibrary.library };
+    const handle = this.#call(request).then((held) => Number(decode(held, model)));
     const held = { handle, generation: this.#t.generation };
     this.#held = held;
     handle.catch(() => {
@@ -483,7 +488,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** The planner of `query`: this one, or -- a query calling DataCube's Pure library -- the one over this one's model
    *  with the library after it, on the same module and worker. */
   async #over(query: Lambda): Promise<LitePlanner> {
-    if (this.#ofLibrary || !callsLibrary(query)) return this;
+    if (this.#ofLibrary !== undefined || !callsLibrary(query)) return this;
     if (this.#library === undefined) {
       const options = this.#options;
       const made = loadLibrary().then((library) => {
@@ -491,7 +496,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
           ...(options.mapping === undefined ? {} : { mapping: options.mapping }),
           ...(options.enumerations === undefined ? {} : { enumerations: options.enumerations }),
         });
-        over.#ofLibrary = true;
+        over.#ofLibrary = { model: options.model, library };
         return over;
       });
       this.#library = made;
@@ -552,7 +557,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const { model, runtime } = this.#options;
     // a query calling DataCube's Pure library: the library beside its model, which the host plans it over after the
     // model it holds of that text (Python's engine: the model admitted by its own rule, the library by its text)
-    const library = !this.#ofLibrary && callsLibrary(query) ? { library: await loadLibrary() } : {};
+    // a planner over the library sends the two apart too, so its host holds the library once beside every model (A5)
+    if (this.#ofLibrary !== undefined) {
+      return { lambda: toJson(this.#overMapping(query)), model: this.#ofLibrary.model, runtime,
+        library: this.#ofLibrary.library };
+    }
+    const library = callsLibrary(query) ? { library: await loadLibrary() } : {};
     return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
   }
 

@@ -9,6 +9,7 @@ import type { RequestBody } from './planner-protocol.ts';
 export interface PlannerModule {
   readonly exports: {
     holdModelOrError(model: string): string;
+    holdModelOverOrError(model: string, library: string): string;
     releaseModelOrError(handle: number): string;
     planHeldOrError(handle: number, query: string, runtime: string): string;
     relationTypeHeldOrError(handle: number, query: string): string;
@@ -34,7 +35,8 @@ export interface PlannerModule {
 /** One request, answered by the module's export of the same name: the export's own tagged answer, every kind folded. */
 export function answer(m: PlannerModule, r: RequestBody): string {
   switch (r.kind) {
-    case 'hold': return m.exports.holdModelOrError(r.model);
+    case 'hold': return r.library === undefined ? m.exports.holdModelOrError(r.model)
+      : m.exports.holdModelOverOrError(r.model, r.library);
     case 'release': return m.exports.releaseModelOrError(r.handle);
     case 'plan': return m.exports.planHeldOrError(r.handle, r.query, r.runtime);
     case 'relationType': return m.exports.relationTypeHeldOrError(r.handle, r.query);

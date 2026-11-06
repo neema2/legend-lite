@@ -25,7 +25,10 @@ import java.util.function.IntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -96,6 +99,11 @@ class TimeseriesLibraryTest {
 
     /** The table, the library's own section, and a runtime on {@code backend}'s session, as it declares it. */
     private static String model(TestBackend backend) throws java.io.IOException {
+        return own(backend) + library();
+    }
+
+    /** The model's own text: the table and a runtime on {@code backend}'s session, as it declares it. */
+    private static String own(TestBackend backend) {
         return STORE + """
                 ###Connection
                 RelationalDatabaseConnection ts::Conn
@@ -105,7 +113,7 @@ class TimeseriesLibraryTest {
                 }
                 ###Runtime
                 Runtime ts::RT { mappings: []; connections: [ ts::DB: [ c: ts::Conn ] ]; }
-                """.formatted(backend.connectionBody()) + library();
+                """.formatted(backend.connectionBody());
     }
 
     /** {@code c} given the prices: the table as {@code backend}'s dialect writes it, and its rows bound. */
@@ -229,6 +237,61 @@ class TimeseriesLibraryTest {
         // its elements: a body generic over relations has no check of its own (Compiler.compileAllBodies, S112)
         List<?> errors = Compiler.compileErrors(model(TestBackends.platform()));
         assertEquals(List.of(), errors, "the library compiles");
+    }
+
+    /**
+     * THE LIBRARY AS A LAYER (docs/TS_V1_PROGRAM_2026_11_01.md A5, the user's option (c), 2026-11-06: "on the wire but
+     * compiled once and held"): a model compiled over the library ({@code Compiler.compileModel(model, library)})
+     * answers as the one text does -- the same SQL, the same rows, on every in-process database -- and two models over
+     * it share one compile of it, its elements the same objects in both (the one text parses them anew each time); a
+     * model element the library defines too is refused, as the one text refuses it.
+     */
+    @Test
+    void aModelOverTheLibraryAsALayerAnswersAsTheOneText() throws Exception {
+        String query = "|" + PRICES + """
+                  ->timeseries::mean(over(~SYMBOL, [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~m)
+                  ->timeseries::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, timeseries::Returns.log, ~lr)
+                  ->select(~[SYMBOL, DAY, m, lr])
+                  ->sort([~SYMBOL->ascending(), ~DAY->ascending()])""";
+        String library = library();
+        for (TestBackend backend : TestBackends.inProcess()) {
+            com.legend.compiler.element.ModelContext layered = Compiler.compileModel(own(backend), library);
+            com.legend.compiler.element.ModelContext one = Compiler.compileModel(own(backend) + library);
+            assertEquals(Compiler.query(one, query).plan("ts::RT").sql(), Compiler.query(layered, query).plan("ts::RT")
+                    .sql(), backend + ": the same SQL");
+            assertEquals(rows(backend, one, query), rows(backend, layered, query), backend + ": the same rows");
+            // a #TS island's SQL the same but for where a refusal the library raises is placed: in the library's own
+            // text, its line there, where the one text places it after the model's lines
+            String island = "|#TS{SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL}#";
+            String oneSql = Compiler.query(one, island).plan("ts::RT").sql();
+            String layeredSql = Compiler.query(layered, island).plan("ts::RT").sql();
+            assertEquals(oneSql.replaceAll("'\\d+:\\d+'", "'at'"), layeredSql.replaceAll("'\\d+:\\d+'", "'at'"),
+                    backend + ": a #TS island's SQL the same");
+            long line = 1 + library.substring(0, library.indexOf("|fail('a word that reads its line in order"))
+                    .chars().filter(ch -> ch == '\n').count();
+            assertTrue(layeredSql.contains("'" + line + ":"), backend + ": D8's refusal placed at the library's own line "
+                    + line + ": " + layeredSql);
+        }
+        com.legend.compiler.element.ModelContext a = Compiler.compileModel(STORE, library);
+        com.legend.compiler.element.ModelContext b = Compiler.compileModel(STORE + """
+                ###Pure
+                Class ts::Other { name: String[1]; }
+                """, library);
+        assertSame(a.findFunctionDefinitions("timeseries::line::mean").get(0),
+                b.findFunctionDefinitions("timeseries::line::mean").get(0), "one compile of the library for both models");
+        assertNotSame(Compiler.compileModel(STORE + library).findFunctionDefinitions("timeseries::line::mean").get(0),
+                a.findFunctionDefinitions("timeseries::line::mean").get(0), "the one text compiles the library anew");
+        String twice = STORE + """
+                ###Pure
+                Enum timeseries::Returns { simple }
+                """;
+        com.legend.error.LegendCompileException layeredRefusal = assertThrows(
+                com.legend.error.LegendCompileException.class, () -> Compiler.compileModel(twice, library));
+        com.legend.error.LegendCompileException oneRefusal = assertThrows(
+                com.legend.error.LegendCompileException.class, () -> Compiler.compileModel(twice + library));
+        assertTrue(layeredRefusal.getMessage().contains("Duplicated element 'timeseries::Returns'"),
+                layeredRefusal.getMessage());
+        assertTrue(oneRefusal.getMessage().contains("Duplicated element 'timeseries::Returns'"), oneRefusal.getMessage());
     }
 
     @Test

@@ -79,6 +79,71 @@ public final class Compiler {
     }
 
     /**
+     * {@code model} compiled over a LIBRARY it depends on -- a project's text, such as the timeseries library
+     * ({@code projects/timeseries/model.pure}) -- held as a layer of its own: the library's elements parsed,
+     * name-resolved, normalized and checked ONCE per process, content-addressed by the hash of its text as the boot
+     * layer is, and entered into the model's index as the boot layer's elements are. The answer is
+     * {@code compileModel(model + "\n" + library)}'s, its time aside -- a model's compile pays for its own elements
+     * alone (docs/TS_V1_PROGRAM_2026_11_01.md A5, the user's option (c), 2026-11-06: "on the wire but compiled once
+     * and held") -- and for one thing more exact: a place in the library (a refusal it raises names where) is its line
+     * in the library's own text, where the one text counts the model's lines before it. An element of {@code model} that the library defines too is refused, as the one text refuses it:
+     * "Duplicated element", or a signature repeated (the integrity check over a held layer, ModelIntegrity.check).
+     */
+    public static ModelContext compileModel(String model, String library) {
+        Objects.requireNonNull(model, "model");
+        Library lib = library(Objects.requireNonNull(library, "library"));
+        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.Dialect.LEGEND_LITE);
+        try {
+            java.util.Set<String> known = new java.util.HashSet<>(bootFqns());
+            known.addAll(lib.names());
+            Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed, known, null), null,
+                    lib.model().elements());
+            return PureModelContext.from(layer.model(), layer.index(), null, lib.checked().without(layer.adopted()),
+                    com.legend.lowering.PlatformRegistrations.current());
+        } catch (com.legend.error.ModelException e) {
+            java.util.Optional<String> where = e.element() == null ? java.util.Optional.empty()
+                    : parsed.position(e.element());
+            if (where.isEmpty()) {
+                throw e;
+            }
+            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+        }
+    }
+
+    /** The libraries held (a process holds the few it is given: one, the timeseries library, in practice). */
+    private static final com.legend.cache.ContentStore LIBRARIES = new com.legend.cache.ContentStore(4);
+
+    /**
+     * A LIBRARY LAYER: its own elements as Phase E left them, the integrity of the library and the boot layer under
+     * it (checked once, the library against the boot layer), and the names a model over it may use.
+     */
+    private record Library(NormalizedModel model, PureModelContext.CheckedLayer checked, java.util.Set<String> names) {
+    }
+
+    private static Library library(String text) {
+        return LIBRARIES.getOrCompute(com.legend.cache.Hash.ofUtf8(text), () -> {
+            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.Dialect.LEGEND_LITE);
+            // the library alone over the boot layer, checked strictly (a library that does not compile is refused
+            // whole, as compileModel refuses a model): the layer's own elements, then the boot layer's
+            Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed, bootFqns(), null), null, List.of());
+            NormalizedModel own = new NormalizedModel(List.copyOf(layer.model().elements().subList(0, layer.own())),
+                    layer.model().imports(), layer.model().legacySurfaces());
+            PureModelContext checked = PureModelContext.from(layer.model(), layer.index(), null,
+                    boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
+            java.util.Set<String> names = new java.util.LinkedHashSet<>();
+            for (com.legend.model.PackageableElement el : parsed.elements()) {
+                // a model over the library names its elements as NameResolver knows a graph's own: by path, and a
+                // function also by its signature's id
+                names.add(el.qualifiedName());
+                if (el instanceof com.legend.model.FunctionDefinition fd) {
+                    names.add(com.legend.model.SignatureMangle.mangle(fd));
+                }
+            }
+            return new Library(own, PureModelContext.layerOf(checked), java.util.Collections.unmodifiableSet(names));
+        });
+    }
+
+    /**
      * A model given as protocol records -- read from its JSON ({@code ModelReader}), as a client sends a
      * {@code PureModelContextData} -- compiled as {@link #compileModel(String)} compiles a text: the records go into the
      * compiler's model through the one door ({@code ModelFromProtocol}, the converters the parser uses), never printed
@@ -258,9 +323,10 @@ public final class Compiler {
      * the gate adds the layer's products to that same index; {@code adopted}
      * are the boot ids this graph declares itself with the platform's body
      * (the platform's own Pure, Phase 3b item 1b: empty for a bare layer). */
-    private record Layer(NormalizedModel model, ModelBuilder index, java.util.Set<com.legend.model.FunctionId> adopted) {
+    private record Layer(NormalizedModel model, ModelBuilder index, java.util.Set<com.legend.model.FunctionId> adopted,
+            int own) {
         Layer(NormalizedModel model, ModelBuilder index) {
-            this(model, index, java.util.Set.of());
+            this(model, index, java.util.Set.of(), model.elements().size());
         }
     }
 
@@ -446,6 +512,15 @@ public final class Compiler {
      */
     private static Layer normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls) {
+        return normalizeWithSystem(resolved, walls, List.of());
+    }
+
+    /** {@link #normalizeWithSystem(ParsedModel, Map)} over a library's prepared elements too ({@link Library}): they
+     *  join the normalized model after the graph's own and before the boot layer's, as a library's text after a model's
+     *  would. */
+    private static Layer normalizeWithSystem(ParsedModel resolved,
+            java.util.@com.legend.base.Nullable Map<String, String> walls,
+            List<com.legend.model.PackageableElement> library) {
         Boot boot = boot();
         ParsedModel graph = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
                 withoutPreludeShadows(resolved));
@@ -477,9 +552,11 @@ public final class Compiler {
                 : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
                         graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls);
         NormalizedModel sys = boot.model();
-        List<com.legend.model.PackageableElement> elements =
-                new java.util.ArrayList<>(user.model().elements().size() + sys.elements().size());
+        List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
+                user.model().elements().size() + library.size() + sys.elements().size());
         elements.addAll(user.model().elements());
+        int graphs = elements.size();
+        elements.addAll(library);
         for (com.legend.model.PackageableElement el : sys.elements()) {
             if (!(el instanceof com.legend.model.FunctionDefinition fd
                     && adopted.contains(com.legend.model.FunctionId.of(fd)))) {
@@ -489,7 +566,7 @@ public final class Compiler {
         // the compiled mappings carry their own facts (poisons, unions, the
         // nullable census) — the layer union has nothing else to merge
         return new Layer(new NormalizedModel(elements, user.model().imports(),
-                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index(), adopted);
+                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index(), adopted, graphs);
     }
 
     private static <V> java.util.Map<String, V> union(

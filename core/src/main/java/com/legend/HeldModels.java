@@ -37,6 +37,16 @@ public final class HeldModels {
         return models.hold(Hash.ofUtf8(model), () -> Compiler.compileModel(model));
     }
 
+    /**
+     * Hold {@code model} compiled over {@code library} ({@code Compiler.compileModel(model, library)}: the library a
+     * layer the process compiles once, whatever models are held over it). Held as the one text {@code model + "\n" +
+     * library} is -- the same model, the answer the one text's -- so a request naming that text ({@link #withText}, a
+     * pure/v1 question's model) finds it, compiled no more.
+     */
+    public int hold(String model, String library) {
+        return models.hold(Hash.ofUtf8(model + "\n" + library), () -> Compiler.compileModel(model, library));
+    }
+
     /** Let go of {@code handle} once; its model goes with its last holder. */
     public void release(int handle) {
         models.release(handle);
