@@ -243,6 +243,9 @@ legend_java_binary(
         # the walk's door is closed by default (2026-11-05): the corpus's tools walk as its lanes do (its allow list,
         # 2026-11-06, spec/corpus.bzl)
         "-Dlegend.walk.allowed=classpath:rcorpus/walk-allowed.txt",
+        # THE WALL's named residue, as the lanes open it (spec/corpus.bzl): the engine-text appeal's runs inside the
+        # body's run, until they are steps of its plan
+        "-Dlegend.wall.residue=engine-text-appeal",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -302,6 +305,9 @@ legend_java_binary(
         # the walk's door is closed by default (2026-11-05): the corpus's tools walk as its lanes do (its allow list,
         # 2026-11-06, spec/corpus.bzl)
         "-Dlegend.walk.allowed=classpath:rcorpus/walk-allowed.txt",
+        # THE WALL's named residue, as the lanes open it (spec/corpus.bzl): the engine-text appeal's runs inside the
+        # body's run, until they are steps of its plan
+        "-Dlegend.wall.residue=engine-text-appeal",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",

@@ -182,7 +182,8 @@ final class TestKinds implements ProgramKinds {
     private void frame(ProgramState program, int index, TypedLet let) {
         TypedNativeCall ec = (TypedNativeCall) LetPlanner.rhs(let);
         ProgramFrames frames = program.frames();
-        if (!asserts.runsFrames()) {
+        boolean lazy = !asserts.runsFrames();
+        if (lazy && !readByCheck(index, let.name())) {
             // the database judge (M7): the frame is never run at its let; its readers reference its CTE inside the
             // fused statement the asserts' planner composed, and its activity comment is that statement's stamp,
             // which the planner names and the fused step binds -- adopted here so every statement's lowering binds it
@@ -201,11 +202,41 @@ final class TestKinds implements ProgramKinds {
         String minted = asserts.frameStamp(index);
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
-        frameRuns.add(program.size());
-        program.add(eagerRun(program, index, fc, stamp));
+        if (!lazy) {
+            frameRuns.add(program.size());
+            program.add(eagerRun(program, index, fc, stamp));
+        }
+        // a frame the database judge does not run at its let but a CHECK reads (a println: a statement that is no
+        // assert, 2026-11-06): registered for its readers as the host road's frames are, LAZY -- the check's own
+        // statement runs it and binds its stamp as its own (no run at the let: the walk sent none either); the asserts
+        // still read it inside their fused statement
         FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE : cte(program, index, fc);
         frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
-                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte));
+                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte,
+                lazy ? stamp : null));
+    }
+
+    /** Whether a CHECK after the frame let at {@code index} reads the frame {@code name} -- a statement that is no let
+     *  and has no test-only kind (a {@code println}), reading the frame or a let after it whose value reads it. */
+    private boolean readByCheck(int index, String name) {
+        List<TypedSpec> statements = body.body();
+        Set<String> names = new HashSet<>(Set.of(name));
+        for (int i = index + 1; i < statements.size(); i++) {
+            TypedSpec s = statements.get(i);
+            if (s instanceof TypedLet l) {
+                if (!Collections.disjoint(com.legend.compiler.spec.typed.FreeVars.of(l.value()), names)) {
+                    names.add(l.name());
+                }
+                continue;
+            }
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(s);
+            kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
+            kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
+            if (kinds.isEmpty() && !Collections.disjoint(com.legend.compiler.spec.typed.FreeVars.of(s), names)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The frame's EAGER RUN: its query, run at the let as a {@code Check} (its rows dropped) under the renames of the
