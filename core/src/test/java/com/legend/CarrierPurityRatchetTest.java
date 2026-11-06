@@ -121,7 +121,10 @@ class   CarrierPurityRatchetTest {
             // struct reaches a cell), and its all-NULL channel one more; the text flatten's LIST reducer goes with
             // L2.
             // 5 -> 4 (track L's L2, 2026-10-29): the spelling carrier's sort went.
-            "new SqlExpr\\.OrderedListAgg\\(", 4,
+            // 4 -> 3 (2026-11-06, the corpus's strictdate::testProject): a list over its rows has ONE construction
+            // (ValueCollections.overCells: every array one ordered aggregate over the cells, the rank struct's too),
+            // the row-major flatten's and the sort's over its renumbered cells (TaggedLists.sortRows).
+            "new SqlExpr\\.OrderedListAgg\\(", 3,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
             // unwraps from its singleton transform; Phase 4 channel B),

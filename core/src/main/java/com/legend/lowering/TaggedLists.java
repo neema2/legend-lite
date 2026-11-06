@@ -253,18 +253,14 @@ final class TaggedLists {
     private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());
-        String g = SqlExpr.TaggedList.ROW_COMPARABLE + "_g";
-        boolean struct = cells.outputs().stream().anyMatch(o -> o.name().equals(g));
-        List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of();
+        // the comparable's columns in the cells' order: __cmp, or a rank across kinds' __cmp_<field> columns
         List<SqlSelect.SortKey> keys = new ArrayList<>(5);
-        if (struct) {
-            for (String f : rankFields) {
-                keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_COMPARABLE + "_" + f), true,
-                        SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+        for (OutputCol o : cells.outputs()) {
+            if (o.name().equals(SqlExpr.TaggedList.ROW_COMPARABLE)
+                    || o.name().startsWith(SqlExpr.TaggedList.ROW_COMPARABLE + "_")) {
+                keys.add(new SqlSelect.SortKey(c.apply(o.name()), true, SqlSelect.SortKey.NullOrder.NULLS_LAST,
+                        null));
             }
-        } else {
-            keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_COMPARABLE), true,
-                    SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
         }
         keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
         List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
@@ -276,35 +272,8 @@ final class TaggedLists {
         }
         SqlSelect sorted = new SqlSelect(renumbered, false, new SqlSource.Subselect(cells, alias, null), null,
                 List.of(), null, null, List.of(), null, null, cells.outputs());
-        // the arrays: ordered aggregates over the renumbered cells, as a list over its rows builds them
-        String r = alias + "r";
-        var rc = SqlExpr.Column.lookup(r, sorted.outputs());
-        java.util.function.Function<SqlExpr, SqlExpr> agg = value -> new SqlExpr.ScalarSubquery(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value,
-                        rc.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
-                false, new SqlSource.Subselect(sorted, r, null), null, List.of(), null, null, List.of(), null, null,
-                List.of()));
-        SqlExpr comparable;
-        if (struct) {
-            List<SqlExpr.StructLit.Field> fields = new ArrayList<>(rankFields.size());
-            for (String f : rankFields) {
-                String name = SqlExpr.TaggedList.ROW_COMPARABLE + "_" + f;
-                OutputCol out = sorted.outputs().stream().filter(o -> o.name().equals(name)).findFirst()
-                        .orElseThrow();
-                fields.add(new SqlExpr.StructLit.Field(f, rc.apply(name), out.type()));
-            }
-            comparable = agg.apply(new SqlExpr.StructLit(fields));
-        } else {
-            comparable = agg.apply(rc.apply(SqlExpr.TaggedList.ROW_COMPARABLE));
-        }
-        List<SqlExpr.TaggedList.Channel> channels = new ArrayList<>(tl.channels().size());
-        for (int k = 0; k < tl.channels().size(); k++) {
-            SqlExpr.TaggedList.Channel ch = tl.channels().get(k);
-            channels.add(new SqlExpr.TaggedList.Channel(ch.kind(), ch.slot(),
-                    agg.apply(rc.apply(SqlExpr.TaggedList.ROW_CHANNEL(k)))));
-        }
-        return new SqlExpr.TaggedList(tl.positions(), agg.apply(rc.apply(SqlExpr.TaggedList.ROW_TAG)), comparable,
-                channels, new SqlExpr.ScalarSubquery(sorted));
+        // the arrays: ordered aggregates over the renumbered cells, the one construction of a list over its rows
+        return ValueCollections.overCells(sorted, tl.slots(), alias + "r");
     }
 
     /**

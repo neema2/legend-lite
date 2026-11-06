@@ -248,11 +248,21 @@ final class ValueCollections {
         }
         SqlSelect cellsRel = new SqlSelect(cells, false, from, null, List.of(), null, null, List.of(), null, null,
                 cellOuts);
-        // the arrays: ordered aggregates over the cells
-        String v = alias.get();
+        return overCells(cellsRel, channels, alias.get());
+    }
+
+    /**
+     * A LIST OVER ITS ROWS from its cells relation (one row per element: {@link SqlExpr.TaggedList#ROW_POSITION}
+     * 1..n, {@link SqlExpr.TaggedList#ROW_TAG}, the comparable's scalar columns, each channel's value): every array an
+     * ordered aggregate over the cells by position -- the tags, each channel's values, and the comparable (a rank
+     * across kinds built as a struct inside its own aggregate, so no struct reaches a cell: H2 has none) -- and the
+     * positions {@code 1..n}. The one construction of such a list: the row-major flatten's
+     * ({@link #rowMajorTaggedList}), and a sort's over its renumbered cells ({@code TaggedLists.sortRows}).
+     */
+    static SqlExpr.TaggedList overCells(SqlSelect cellsRel, List<SqlType.Tagged.Slot> channels, String v) {
         var vCell = SqlExpr.Column.lookup(v, cellsRel.outputs());
-        java.util.function.Function<String, SqlExpr> agg = name -> new SqlExpr.ScalarSubquery(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(vCell.apply(name),
+        java.util.function.Function<SqlExpr, SqlExpr> agg = value -> new SqlExpr.ScalarSubquery(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value,
                         vCell.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
                 false, new SqlSource.Subselect(cellsRel, v, null), null, List.of(), null, null, List.of(), null,
                 null, List.of()));
@@ -267,25 +277,21 @@ final class ValueCollections {
         List<SqlExpr.TaggedList.Channel> listChannels = new ArrayList<>(channels.size());
         for (int j = 0; j < channels.size(); j++) {
             listChannels.add(new SqlExpr.TaggedList.Channel(channels.get(j).kind(), channels.get(j).type(),
-                    agg.apply(SqlExpr.TaggedList.ROW_CHANNEL(j))));
+                    agg.apply(vCell.apply(SqlExpr.TaggedList.ROW_CHANNEL(j)))));
         }
-        SqlExpr comparable;
-        if (struct) {
-            List<SqlExpr.StructLit.Field> fields = new ArrayList<>(4);
-            for (int f = 0; f < rankFields.size(); f++) {
-                fields.add(new SqlExpr.StructLit.Field(rankFields.get(f),
-                        vCell.apply(SqlExpr.TaggedList.ROW_COMPARABLE + "_" + rankFields.get(f)), rankTypes.get(f)));
+        // the rank across kinds: its fields the cells' __cmp_<field> columns, in their order
+        String rankPrefix = SqlExpr.TaggedList.ROW_COMPARABLE + "_";
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(4);
+        for (OutputCol o : cellsRel.outputs()) {
+            if (o.name().startsWith(rankPrefix)) {
+                fields.add(new SqlExpr.StructLit.Field(o.name().substring(rankPrefix.length()), vCell.apply(o.name()),
+                        o.type()));
             }
-            comparable = new SqlExpr.ScalarSubquery(new SqlSelect(
-                    List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(new SqlExpr.StructLit(fields),
-                            vCell.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
-                    false, new SqlSource.Subselect(cellsRel, v, null), null, List.of(), null, null, List.of(), null,
-                    null, List.of()));
-        } else {
-            comparable = agg.apply(SqlExpr.TaggedList.ROW_COMPARABLE);
         }
-        return new SqlExpr.TaggedList(positions, agg.apply(SqlExpr.TaggedList.ROW_TAG), comparable, listChannels,
-                new SqlExpr.ScalarSubquery(cellsRel));
+        SqlExpr comparable = agg.apply(fields.isEmpty() ? vCell.apply(SqlExpr.TaggedList.ROW_COMPARABLE)
+                : new SqlExpr.StructLit(fields));
+        return new SqlExpr.TaggedList(positions, agg.apply(vCell.apply(SqlExpr.TaggedList.ROW_TAG)), comparable,
+                listChannels, new SqlExpr.ScalarSubquery(cellsRel));
     }
 
     /** A star frame's projections spelled out: one per output, the source's own column (the frame reads it so). */
