@@ -14,7 +14,8 @@ import java.util.List;
  * quoted ({@code "Amt"}), and the dialect spells each as its queries reference it ({@code SqlDialect.storedName}).
  */
 public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable, SqlDml.DeleteAll,
-        SqlDml.CreateTempTableAs, SqlDml.InsertSelect, SqlDml.Update, SqlDml.DeleteWhere, SqlDml.Merge {
+        SqlDml.CreateTempTableAs, SqlDml.InsertSelect, SqlDml.Update, SqlDml.DeleteWhere, SqlDml.Merge,
+        SqlDml.LoadCsv {
 
     /** {@code INSERT INTO [schema.]table [(columns)] VALUES (row), ...};
      *  {@code columns} empty: every column in declared order. */
@@ -32,6 +33,19 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
     record InsertFromTable(@com.legend.base.Nullable String schema, String table, NameQuoting quoting,
                            List<String> columns, java.util.Set<String> quotedColumns, String source) implements SqlDml {
         public InsertFromTable {
+            columns = List.copyOf(columns);
+            quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
+        }
+    }
+
+    /** {@code INSERT INTO [schema.]table (columns) SELECT * FROM <the dialect's CSV reader over file>}: a CSV file's
+     *  rows into a table ({@code loadCsvToDbTable}, the user's ruling of 2026-11-06), the DATABASE reading and parsing
+     *  the file -- the statement names the file's local path, never its rows. Its first line a header, dropped; its
+     *  cells text the database casts into the columns, positionally (legend-engine's H2 loads it with {@code CSVREAD}).
+     *  A dialect whose database reads no file refuses it by name. */
+    record LoadCsv(@com.legend.base.Nullable String schema, String table, NameQuoting quoting, List<String> columns,
+                   java.util.Set<String> quotedColumns, String file) implements SqlDml {
+        public LoadCsv {
             columns = List.copyOf(columns);
             quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
         }

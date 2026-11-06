@@ -2654,6 +2654,8 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " reached MongoDb: a store write is not shaped on MongoDb");
             case com.legend.sql.SqlDml.Merge m -> throw new DialectCapability("a merge reached MongoDb: a store write"
                     + " is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.LoadCsv lc -> throw new DialectCapability("a CSV file's load reached MongoDb:"
+                    + " its bulk load of a file is not shaped yet");
         };
     }
 

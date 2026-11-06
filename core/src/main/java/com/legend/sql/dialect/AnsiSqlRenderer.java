@@ -1882,7 +1882,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
+            case com.legend.sql.SqlDml.LoadCsv lc -> "INSERT INTO " + ddlQualified(lc.schema(), lc.table(), lc.quoting())
+                    + dmlColumns(lc.columns(), lc.quotedColumns()) + " SELECT * FROM " + csvSource(lc.file()) + ";";
         };
+    }
+
+    /** The table this dialect's database reads a CSV file's rows from ({@link com.legend.sql.SqlDml.LoadCsv}): every
+     *  cell text, the first line a header. Refused by the base: a dialect whose database reads a local file spells its
+     *  own reader (DuckDB's {@code read_csv}, H2's {@code CSVREAD}); a remote database's is its bulk load, designed
+     *  when its lane needs one (the user, 2026-11-06). */
+    protected String csvSource(String file) {
+        throw new DialectCapability("a CSV file's load reached " + getClass().getSimpleName() + ": this dialect's"
+                + " database reads no file yet");
     }
 
     @Override
@@ -1899,6 +1910,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).statement();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
             case com.legend.sql.SqlDml.Merge m -> merge(m).statement();
+            case com.legend.sql.SqlDml.LoadCsv lc -> new RenderedStatement(render(lc), List.of());
         };
     }
 

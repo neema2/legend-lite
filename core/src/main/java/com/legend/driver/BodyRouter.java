@@ -138,7 +138,7 @@ public final class BodyRouter {
         TestDoor.Planned planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(),
-                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted);
+                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.resources());
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
@@ -202,7 +202,8 @@ public final class BodyRouter {
         }
         TestDoor.Planned planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false);
+            planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
+                    options.resources());
         }
         boolean toOne = toOneReader(typed);
         return target -> {

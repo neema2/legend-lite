@@ -1204,7 +1204,7 @@ public enum BodyClass {
 
     /** Whether {@code query}'s body, holding no assert, has a statement that is a database effect whose String
      *  arguments are not all literals ({@link #literalEffect}): a text the database would compute before the effect is
-     *  written -- a text hole, which lite does not have. {@code loadCsvToDbTable} is not one (its CSV a test resource). */
+     *  written -- a text hole, which lite does not have. */
     private static boolean computedEffectText(TypedQuery query, QueryDoor.Scan scan) {
         List<TypedSpec> body = query.body();
         boolean computed = false;
@@ -1215,7 +1215,6 @@ public enum BodyClass {
             }
             TypedSpec value = statement instanceof TypedLet let ? let.value() : statement;
             computed |= value instanceof TypedNativeCall call && NativeFn.Effect.isDbEffect(call.callee().id())
-                    && NativeFn.Effect.of(call.callee().id()).orElse(null) != NativeFn.Effect.LOAD_CSV_TO_DB_TABLE
                     && !literalEffect(call, body.subList(0, i));
         }
         return computed;
@@ -1227,11 +1226,9 @@ public enum BodyClass {
     }
 
     /** Whether {@code call}, a database effect, is one the test door writes: each String argument a literal (folded
-     *  over {@code lets}, the statements before it), and not {@code loadCsvToDbTable} (its CSV a test resource). */
+     *  over {@code lets}, the statements before it) -- a {@code loadCsvToDbTable}'s, the CSV file's resource path, which
+     *  its statement names for the database to read (the user's ruling, 2026-11-06). */
     static boolean literalEffect(TypedNativeCall call, List<TypedSpec> lets) {
-        if (NativeFn.Effect.of(call.callee().id()).orElse(null) == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-            return false;
-        }
         for (TypedSpec arg : EffectPlanner.stringArgs(call)) {
             if (!(Literals.fold(arg, lets) instanceof String)) {
                 return false;

@@ -43,7 +43,13 @@ final class CsvLoad {
                     "test resource '" + path + "': this execution carries no"
                     + " resource resolver (ExecuteOptions.resources)");
         }
-        String[] lines = resources.apply(path).split("\r?\n");
+        String text;
+        try {
+            text = java.nio.file.Files.readString(resources.apply(path));
+        } catch (java.io.IOException e) {
+            throw new com.legend.error.DataError("test resource '" + path + "'", e);
+        }
+        String[] lines = text.split("\r?\n");
         List<String[]> rows = new java.util.ArrayList<>();
         for (int i = 1; i < lines.length; i++) {   // the header row is dropped
             if (lines[i].strip().isEmpty()) {

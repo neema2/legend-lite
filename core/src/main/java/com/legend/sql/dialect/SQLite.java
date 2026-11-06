@@ -3160,6 +3160,8 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.Update u -> super.render(u);
             case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
             case com.legend.sql.SqlDml.Merge m -> super.render(m);
+            // (a CSV file's load: the base's statement, its reader refused until SQLite's is designed)
+            case com.legend.sql.SqlDml.LoadCsv lc -> super.render(lc);
         };
     }
 

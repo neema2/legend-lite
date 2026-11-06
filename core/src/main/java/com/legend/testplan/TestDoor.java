@@ -109,7 +109,15 @@ public final class TestDoor {
      *  M10a), which the caller's sessions source opens. */
     public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
-        TestKinds kinds = new TestKinds(body, runtime, asserts);
+        return planned(body, runtime, features, asserts, systemRouted, null);
+    }
+
+    /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the run's test-input resource resolver (a
+     *  resource's path to its local file), which a CSV load's statement names the file through (2026-11-06). */
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
+            boolean systemRouted,
+            java.util.function.@Nullable Function<String, java.nio.file.Path> resources) {
+        TestKinds kinds = new TestKinds(body, runtime, asserts, resources);
         ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                 : List.of(plan.root());

@@ -9,7 +9,8 @@ package com.legend;
  * thread-local died here, batch 122).
  *
  * @param recorder  the raw-SQL ledger the executor appends to (null = none)
- * @param resources the test-input resource resolver (path → text; null = none)
+ * @param resources the test-input resource resolver (a resource's path → its local file; null = none): a CSV load's
+ *                  statement names the file, which the database reads (2026-11-06)
  * @param systemConnections the host's system connections, by engine: a query reading the system metamodel store on a
  *                  server engine runs on that engine's (SystemDatabase); an in-process engine needs none
  * @param engineCompat backwards-compatibility mode ({@link #withEngineCompat}): the judges' leniencies that meet
@@ -17,7 +18,7 @@ package com.legend;
  */
 public record ExecuteOptions(
         com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
-        java.util.function.@com.legend.base.Nullable Function<String, String> resources,
+        java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources,
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
         java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType, com.legend.exec.Sessions.Opener>
@@ -40,7 +41,7 @@ public record ExecuteOptions(
 
     public ExecuteOptions(
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
-            java.util.function.@com.legend.base.Nullable Function<String, String> resources,
+            java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources,
             java.util.Set<com.legend.platform.Feature> features) {
         this(recorder, resources, features, JudgeMode.HOST, java.util.Map.of(), false);
     }
@@ -84,10 +85,10 @@ public record ExecuteOptions(
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the
      * test-input resource resolver its CSV loads read through (Phase 2d;
-     * path → text, loud when absent — the reference checkout stays spec,
+     * a resource's path → its local file, loud when absent — the reference checkout stays spec,
      * never runtime): the caller owns both, the executor keeps neither. */
     public static ExecuteOptions recording(com.legend.sql.dialect.RawSqlBoundary.Recorder r,
-            java.util.function.@com.legend.base.Nullable Function<String, String> resources) {
+            java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources) {
         return new ExecuteOptions(r, resources, java.util.Set.of());
     }
 }

@@ -39,7 +39,6 @@ meta::relational::tests::functions::fetchDbMetaData::testFetchDbSchemasMetaData
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbTablesMetaData
 meta::relational::tests::functions::pureToSqlQuery::testReAliasMergedJoinOperations
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
-meta::relational::tests::loadCsv::testLoadCsv
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
 meta::relational::tests::mapping::embedded::testExistsWithEmbeddedWithPostProcessor
 meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements

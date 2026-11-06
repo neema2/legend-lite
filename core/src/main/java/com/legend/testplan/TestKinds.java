@@ -92,10 +92,16 @@ final class TestKinds implements ProgramKinds {
     /** The body this program plans: a statement's stores decide its target (per-statement routing). */
     private final TypedQuery body;
 
-    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts) {
+    /** The test-input resource resolver (a resource's path to its local file; null: none), which a CSV load's
+     *  statement names the file through (2026-11-06). */
+    private final java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources;
+
+    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts,
+            java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources) {
         this.scan = new QueryDoor.Scan(body, runtime);
         this.asserts = asserts;
         this.body = body;
+        this.resources = resources;
     }
 
     /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
@@ -214,6 +220,21 @@ final class TestKinds implements ProgramKinds {
         frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
                 !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte,
                 lazy ? stamp : null));
+    }
+
+    /** The local file the test-input resource {@code path} names, refused by name where the run has no resolver or
+     *  the file is missing (at planning, before anything is sent). */
+    private String resourceFile(String path) {
+        if (resources == null) {
+            throw new NotImplementedException("test resource '" + path + "': this execution carries no"
+                    + " resource resolver (ExecuteOptions.resources)");
+        }
+        java.nio.file.Path file = resources.apply(path);
+        if (!java.nio.file.Files.isRegularFile(file)) {
+            throw new com.legend.error.DataError("test resource '" + path + "': no file at " + file,
+                    new java.io.FileNotFoundException(file.toString()));
+        }
+        return file.toAbsolutePath().toString();
     }
 
     /** Whether a CHECK after the frame let at {@code index} reads the frame {@code name} -- a statement that is no let
@@ -350,11 +371,6 @@ final class TestKinds implements ProgramKinds {
         for (Prepared.Effect e : effects) {
             TypedNativeCall call = e.call();
             effect = NativeFn.Effect.of(call.callee().id()).orElseThrow();
-            if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-                throw new NotImplementedException("loadCsvToDbTable on the test door's program road:"
-                        + " its CSV is a test resource, read where the body runs (R17 C10: the walk's until its body's"
-                        + " class moves)");
-            }
             List<String> values = new ArrayList<>();
             for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
                 if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
@@ -364,7 +380,9 @@ final class TestKinds implements ProgramKinds {
                             + " lite does not have -- write a computed value with a store write (the user's ruling,"
                             + " 2026-11-04)");
                 }
-                values.add(folded);
+                // a CSV load names its resource's LOCAL FILE, which the database reads (the user's ruling,
+                // 2026-11-06: the plan holds the file's path, never its rows)
+                values.add(effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE ? resourceFile(folded) : folded);
             }
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));

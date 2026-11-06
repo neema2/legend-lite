@@ -184,6 +184,14 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
+    /** {@inheritDoc} H2's {@code CSVREAD} over the file (2026-11-06). */
+    @Override
+    protected String csvSource(String file) {
+        // H2's CSVREAD, as legend-engine's H2 loads a CSV file (loadValuesToDbTableForH2): the first line the column
+        // names (no column list given), every cell text the INSERT casts into its column
+        return "CSVREAD(" + stringLit(file) + ", NULL, 'charset=UTF-8')";
+    }
+
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
      *  generator tests, ReservedNamesGenerationTest). A program's staged rows are a LOCAL table, TRANSACTIONAL and
      *  dropped ON COMMIT: H2's {@code CREATE TEMPORARY TABLE} commits the open transaction and makes a table every
