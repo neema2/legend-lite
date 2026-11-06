@@ -26,13 +26,8 @@ def _pass_flags(golden):
         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
         "--enable-native-access=ALL-UNNAMED",
         _SCAN_ORDER,
-        # the walk's door is closed by default (2026-11-05): the corpus walks only the bodies its allow list names
-        # (2026-11-06, the list only shrinks; the test data generator's tests are not on it -- S143, the user's
-        # ruling) until the list is empty and the walk is deleted -- the rcorpus phase's work
-        "-Dlegend.walk.allowed=classpath:rcorpus/walk-allowed.txt",
-        # THE WALL's named residue (2026-11-06): compatibility mode's engine-text appeal provides its fixtures and
-        # reads our rows as runs inside the body's run, until they are steps of its plan -- the rcorpus phase's work
-        "-Dlegend.wall.residue=engine-text-appeal",
+        # the walk is CLOSED to the corpus (2026-11-06: its allow list burned to zero, every body on the program road)
+        "-Dlegend.walk.allowed=none",
     ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])
 
 def corpus_lane(

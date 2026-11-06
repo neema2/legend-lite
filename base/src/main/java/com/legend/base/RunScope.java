@@ -15,8 +15,9 @@ package com.legend.base;
  *   check -- are taken inside a plan's run alone ({@link #statement}: the session's one door to them).</li>
  *   <li><b>A run starts no run.</b> A run started inside a run is refused ({@link #enter}): every statement a run
  *   sends is a step of its plan, read by the runner (a caller's message, a split rung's row: the program's reader).
- *   The one exception is a NAMED RESIDUE ({@link #residue}): a crossing the platform still carries, closed unless the
- *   lane opens its door ({@code -Dlegend.wall.residue=<name>,...}), deleted by name with the code that needs it.</li>
+ *   No exception: the one named residue the wall carried, the engine-text appeal's runs inside a body's run, was
+ *   deleted with its door on 2026-11-06 (its rows read by the program's reader, its fixtures provided before the
+ *   body's run).</li>
  * </ol>
  *
  * <p>Nothing turns the wall off: there is no report mode (the measurement of 2026-11-06 listed every crossing over
@@ -32,20 +33,19 @@ public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
     private static final ThreadLocal<Slot> PLANNING = ThreadLocal.withInitial(Slot::new);
-    private static final ThreadLocal<Slot> RESIDUE = ThreadLocal.withInitial(Slot::new);
     private static final RunScope SCOPE = new RunScope();
 
     private RunScope() {
     }
 
-    /** A thread's named scope: what it plans, or the residue in force; null for none. */
+    /** A thread's named scope: what it plans; null for none. */
     private static final class Slot {
         @Nullable String name;
     }
 
     /**
      * A plan starts running on this thread; close it when the run ends. Refused while this thread plans (rule 2), and
-     * inside a run (rule 4) unless a residue whose door is open is in force.
+     * inside a run (rule 4).
      */
     public static RunScope enter() {
         String planning = PLANNING.get().name;
@@ -54,12 +54,8 @@ public final class RunScope implements AutoCloseable {
                     + " <- " + callers(12));
         }
         if (DEPTH.get()[0] > 0) {
-            String residue = RESIDUE.get().name;
-            if (residue == null || !open(residue)) {
-                throw new Refused("the wall: a run started inside a run (every statement a run sends is a step of its"
-                        + " plan)" + (residue == null ? "" : "; the residue '" + residue + "' is closed on this lane")
-                        + " <- " + callers(12));
-            }
+            throw new Refused("the wall: a run started inside a run (every statement a run sends is a step of its"
+                    + " plan) <- " + callers(12));
         }
         DEPTH.get()[0]++;
         return SCOPE;
@@ -148,44 +144,6 @@ public final class RunScope implements AutoCloseable {
             throw new Refused("the wall: " + act + " outside a plan's run"
                     + (planning == null ? "" : " (while " + planning + " is planned)") + " <- " + callers(12));
         }
-    }
-
-    /**
-     * Rule 4's exception: the NAMED RESIDUE {@code name} is in force until the scope closes -- a run it starts inside
-     * a run is admitted where the lane opens its door ({@code -Dlegend.wall.residue} lists it), refused by name
-     * elsewhere. A residue is a crossing the platform still carries, named here so it cannot hide and deleted with the
-     * code that needs it.
-     */
-    public static Residue residue(String name) {
-        Slot slot = RESIDUE.get();
-        String previous = slot.name;
-        slot.name = name;
-        return new Residue(previous);
-    }
-
-    /** A residue scope; closing restores the one before it. */
-    public static final class Residue implements AutoCloseable {
-        private final @Nullable String previous;
-
-        private Residue(@Nullable String previous) {
-            this.previous = previous;
-        }
-
-        @Override
-        public void close() {
-            RESIDUE.get().name = previous;
-        }
-    }
-
-    /** Whether the lane opens the door of residue {@code name}. */
-    private static boolean open(String name) {
-        String doors = System.getProperty("legend.wall.residue", "");
-        for (String d : doors.split(",")) {
-            if (d.strip().equals(name)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** The nearest callers outside the wall's own seams, for a refusal's message. */

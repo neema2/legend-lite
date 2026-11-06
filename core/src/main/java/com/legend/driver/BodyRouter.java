@@ -158,6 +158,10 @@ public final class BodyRouter {
                     routed != null ? target -> routed
                             : target -> SystemDatabase.of(typed.context()).sessionFor(target.type(),
                                     options.systemConnections());
+            if (listener != null) {
+                // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
+                listener.beforeRun();
+            }
             PlanRunner.program(plan, Map.of(),
                     PlanSessions.of(session, null, systemSessions),
                     database != null ? PlanRunner.Judging.DATABASE
@@ -525,8 +529,9 @@ public final class BodyRouter {
                             new Multiplicity.Bounded(m.lower(), upper).text(), false);
                 }
                 case RELATION -> JudgePlans.holding(sink, toOneReader, 0, "", toOneReader);
-                case OBJECTS -> throw new IllegalStateException("a moved body answered objects: no moved class"
-                        + " answers a graph");
+                // a graph fetch's objects, one per row (the query program's answer since 2026-11-06, the stress
+                // lanes' service queries): the product's streaming graph root, no cardinality the walk held on it
+                case OBJECTS -> sink;
             };
         }
 

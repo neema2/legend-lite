@@ -242,8 +242,9 @@ public class MinimalCorpusTest {
                     // a hang) still says which test it was in
                     System.out.println("[corpus2] run " + t.fqn());
                 }
-                // the running test, by its function's full name: the walk's door names the bodies still allowed to
-                // walk by it (rcorpus/walk-allowed.txt, 2026-11-06), as channel B names a PCT test
+                // the running test, by its function's full name: the walk's door named the bodies still allowed to
+                // walk by it (its list burned 59 -> 0 and deleted 2026-11-06; the lanes run -Dlegend.walk.allowed=none),
+                // and a refusal names the test it was in
                 System.setProperty("legend.test.current", t.fqn());
                 try {
                     r = corpus.run(t);
@@ -732,7 +733,7 @@ public class MinimalCorpusTest {
     // every referee outcome named: every assert's verdict identical, LITERAL 1411 -> 1413, DIFFERENTIAL+literal 841 ->
     // 840, DIFFERENTIAL-only 170 -> 169.
     // DuckDB differential 1009 -> 990 (2026-11-06, S143, the user's ruling: lite offers no test data generator yet):
-    // the generator's 66 corpus tests no longer walk (rcorpus/walk-allowed.txt) and are accepted non-passes, the
+    // the generator's 66 corpus tests no longer walk (the corpus walk list, now deleted) and are accepted non-passes, the
     // accepted roster's not-offered:test-data-generator rows; 19 of them were passes a referee row verdict witnessed.
     // Measured after: DIFFERENTIAL+literal 821, DIFFERENTIAL-only 169, SPELLING 22, CARDINALITY 27, LITERAL 1373. The
     // H2 lane's floor holds as it is (its differential 964 >= 944).

@@ -6,6 +6,7 @@ package com.legend.testplan;
 import com.legend.TypedQuery;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.UserCallInliner;
 import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedLet;
@@ -145,8 +146,7 @@ final class TestKinds implements ProgramKinds {
         if (statement instanceof TypedLet eagerLet && !last) {
             // an execute(...) a value let reads eagerly (size(execute(...)), through the helpers it calls) runs at the
             // let's turn, as Pure evaluates the let (2026-11-06)
-            eagerReads(program, index, new UserCallInliner(program.query().specs())
-                    .inlineBody(List.of(eagerLet.value())).get(0));
+            eagerReads(program, index, eagerLet.value());
         }
         if (!last && statement instanceof TypedNativeCall ec && NativeFn.Handle.runsAFrame(ec.callee().id())) {
             // a FRAME RUN AS A STATEMENT of its own (an unread frame let's execute(...), the user's ruling of
@@ -178,8 +178,7 @@ final class TestKinds implements ProgramKinds {
             // groups (the database judge's segment, M7); an execute(...) its sides read eagerly (size(execute(...))) run
             // where it stands first, as a check (2026-11-06)
             // (read through the user functions it calls: the statement as the program plans it, inlined)
-            eagerReads(program, index, new UserCallInliner(program.query().specs())
-                    .inlineBody(List.of(statement)).get(0));
+            eagerReads(program, index, statement);
             List<? extends ExecutionPlan.Node> steps = asserts.at(index);
             if (steps != null) {
                 steps.forEach(program::add);
@@ -267,6 +266,19 @@ final class TestKinds implements ProgramKinds {
      *  where it stands as a check, its rows dropped -- Pure evaluates it, and the splice folds its size to the Result
      *  envelope's 1 (2026-11-06; the walk ran it at the side's planning). */
     private void eagerReads(ProgramState program, int index, TypedSpec statement) {
+        // read through the user functions it calls -- the statement inlined, as the program plans it -- only where one
+        // reaches a size(execute(...)): inlining a statement reaching none plans nothing here and may raise where its
+        // judge's planner does not (2026-11-06: the corpus's testConvertSubqueryPredicates, an inlined helper's union
+        // typed against a query specification)
+        if (!StatementEffects.reaches(statement, BodyClass::eagerInlineExecute, program.query().specs(),
+                new java.util.HashMap<>())) {
+            return;
+        }
+        eagerReadsIn(program, index, new UserCallInliner(program.query().specs()).inlineBody(List.of(statement))
+                .get(0));
+    }
+
+    private void eagerReadsIn(ProgramState program, int index, TypedSpec statement) {
         if (BodyClass.eagerInlineExecute(statement)) {
             TypedSpec arg = ((TypedNativeCall) statement).args().get(0);
             while (arg instanceof com.legend.compiler.spec.typed.TypedFrom f) {
@@ -280,7 +292,7 @@ final class TestKinds implements ProgramKinds {
             return;
         }
         for (TypedSpec c : statement.children()) {
-            eagerReads(program, index, c);
+            eagerReadsIn(program, index, c);
         }
     }
 

@@ -314,6 +314,24 @@ public final class PureTestRunner implements AutoCloseable {
         return () -> provideFixture(storeFqn, conn, ran, shared, (fqn, target) -> planned.run(target));
     }
 
+    /** The setups {@code body} calls at its top level (testGroupByWithWindowSubset runs
+     *  {@code contractmoneyscenario::setUp()} as its first statement): the stores such a call seeds are the body's
+     *  own, seeded where the body seeds them, never a fixture's provided ahead of its run (2026-11-06: a fixture set
+     *  aside before the body's own setup puts its tables where that setup's drops resolve). */
+    private Set<String> setupsCalled(PureTests.TestCase t) {
+        Set<String> setups = new LinkedHashSet<>();
+        fixturesByStore().values().forEach(setups::addAll);
+        // the body's names resolved, before any inlining (Compiler.resolveQuery inlines a user call's statements)
+        Set<String> called = new LinkedHashSet<>();
+        for (ValueSpecification s : Compiler.resolveNames(List.copyOf(t.fn().body()), t.imports(), ctx)) {
+            if (s instanceof com.legend.protocol.spec.AppliedFunction f && f.parameters().isEmpty()
+                    && setups.contains(f.function())) {
+                called.add(f.function());
+            }
+        }
+        return called;
+    }
+
     /** {@link #provideFixture} with {@code program} the setup's run on the session it is given. */
     private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
             java.util.Collection<String> ran, boolean shared,
@@ -500,6 +518,9 @@ public final class PureTestRunner implements AutoCloseable {
         Map<Integer, String> refereedAhead = new HashMap<>();
         Map<Integer, String> unjudgedAhead = new HashMap<>();
         boolean[] refereeMatched = {false};
+        // the fixtures the body's planned appeals ask for, provided before its run (AssertListener.beforeRun)
+        List<java.util.function.BooleanSupplier> pendingFixtures = new ArrayList<>();
+        Map<String, java.util.function.@com.legend.base.Nullable BooleanSupplier> fixturesAhead = new HashMap<>();
         observer.bodyStarting(conn, effectful);
         boolean passed = false;
         try {
@@ -554,9 +575,44 @@ public final class PureTestRunner implements AutoCloseable {
                             @Override
                             public java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(
                                     String storeFqn) {
+                                // one provision per store, however many appeals ask for it
+                                if (fixturesAhead.containsKey(storeFqn)) {
+                                    return fixturesAhead.get(storeFqn);
+                                }
                                 boolean shared = !facts.seedsInlineCsv();
-                                return PureTestRunner.this.fixtureAhead(storeFqn, conn,
-                                        shared ? setupsDone : setupCandidates(t.pkg()), shared, options);
+                                java.util.Collection<String> ran = shared ? setupsDone : setupCandidates(t.pkg());
+                                // a setup the body calls itself seeds its own stores, where the body seeds them:
+                                // never a fixture's to provide ahead of the body's run
+                                java.util.function.BooleanSupplier provision = setupsCalled(t).containsAll(
+                                        fixturesByStore().getOrDefault(storeFqn, List.of())) ? null
+                                        : PureTestRunner.this.fixtureAhead(storeFqn, conn, ran, shared, options);
+                                java.util.function.BooleanSupplier once = null;
+                                if (provision != null) {
+                                    // provided once: before the body's run (beforeRun), and the appeal's own ask
+                                    // then answers what that provision answered
+                                    java.util.concurrent.atomic.AtomicReference<Boolean> provided =
+                                            new java.util.concurrent.atomic.AtomicReference<>();
+                                    once = () -> {
+                                        Boolean done = provided.get();
+                                        if (done == null) {
+                                            done = provision.getAsBoolean();
+                                            provided.set(done);
+                                        }
+                                        return done;
+                                    };
+                                    pendingFixtures.add(once);
+                                }
+                                fixturesAhead.put(storeFqn, once);
+                                return once;
+                            }
+
+                            @Override
+                            public void beforeRun() {
+                                // the fixtures the planned appeals asked for, each a run of its own before the body's
+                                for (java.util.function.BooleanSupplier f : pendingFixtures) {
+                                    f.getAsBoolean();
+                                }
+                                pendingFixtures.clear();
                             }
                         },
                         referee, options);

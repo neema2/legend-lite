@@ -374,18 +374,25 @@ final class AssertVerdicts {
         return false;
     }
 
-    /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}
-     *  (a late-bound grid's text is a keyed statement the program road does not place: {@code renderedValueVerdict}'s
-     *  raw-grid branch); a rendered value is any. */
+    /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}, or a
+     *  RAW grid -- its text a keyed statement ({@code renderedValueVerdict}'s raw-grid branch, {@code Render.gridCsv}),
+     *  which the program road places as a verdict's keyed wrapper since the seam program's S3c (the walk deletion,
+     *  2026-11-06: testExecuteInDbToTDS); a rendered value is any. */
     static boolean renderedStatic(List<TypedSpec> args, List<TypedSpec> letPrefix) {
         java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
         for (TypedSpec a : args.subList(0, 2)) {
             var r = com.legend.compiler.spec.VerdictQueries.renderedSide(a, chase);
-            if (r != null && r.grid() && !staticGrid(r.value())) {
+            if (r != null && r.grid() && !staticGrid(r.value()) && !rawGrid(r.value())) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** Whether {@code grid}'s columns exist only when the plan runs: a raw grid (its relation type late-bound). */
+    private static boolean rawGrid(TypedSpec grid) {
+        return com.legend.compiler.element.type.Type.schemaView(grid.info().type())
+                instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound();
     }
 
     /** Leg 3.4: the assert's verdict statements DEFER into the body's batch

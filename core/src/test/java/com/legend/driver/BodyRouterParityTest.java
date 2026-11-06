@@ -60,19 +60,10 @@ class BodyRouterParityTest {
 
     private static void inCompatibilityMode(Body body) throws Exception {
         COMPAT.set(Boolean.TRUE);
-        // compatibility mode's engine-text appeal runs inside the body's run: THE WALL's named residue, whose door these
-        // bodies open as the corpus lanes do (2026-11-06; refused on every other core test)
-        String doors = System.getProperty("legend.wall.residue");
-        System.setProperty("legend.wall.residue", SqlTextVerdicts.ENGINE_TEXT_APPEAL);
         try {
             body.run();
         } finally {
             COMPAT.remove();
-            if (doors == null) {
-                System.clearProperty("legend.wall.residue");
-            } else {
-                System.setProperty("legend.wall.residue", doors);
-            }
         }
     }
     private static final String EXEC = "meta::relational::metamodel::execute::executeInDb(";
@@ -325,9 +316,7 @@ class BodyRouterParityTest {
                 // otherwiseTestQualifierPropertyConstantExpression, which the store resolver refuses on the program road
                 "{| my::P.all()->map(p|$p.name);}",
                 // a to-one reader through a let (B4)
-                "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}",
-                // a temporal class read (S2): the exists-join form
-                "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}")) {
+                "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}")) {
             assertNull(BodyClass.of(typed(ctx, body), RT), body);
         }
         // MOVED 2026-11-03 (the core program: core's tests of these shapes -- executeInDb's let-bound grids,
@@ -340,7 +329,10 @@ class BodyRouterParityTest {
                 "{| ^my::P(name='x');}",
                 // a value statement before the last (B3): a CHECK, run for what it raises, its rows dropped, as the
                 // walk runs it (MOVED 2026-11-06, the user: "do all including last row" -- an unread let's value is one)
-                "{| 'abc'->toUpper(); 'end';}")) {
+                "{| 'abc'->toUpper(); 'end';}",
+                // a temporal class read as the answer (S2, MOVED 2026-11-06 with the stress lanes' service queries):
+                // the product's own statement, the exists-join form a frame's query plans
+                "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}")) {
             assertEquals(BodyClass.QUERY_PROGRAM, BodyClass.of(typed(ctx, body), RT), body);
         }
     }

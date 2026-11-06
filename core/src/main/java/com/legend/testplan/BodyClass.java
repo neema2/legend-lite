@@ -900,8 +900,15 @@ public enum BodyClass {
                 continue;
             }
             Kind[] found = new Kind[1];
+            boolean last = i == body.size() - 1;
             if (StatementEffects.reaches(statement, n -> {
                         Kind kind = anotherWay(n, systemClasses, ctx);
+                        // a graph fetch and a temporal class read as the body's ANSWER (2026-11-06, the walk deletion's
+                        // stress lanes: a service's query, 444 graph fetches and 17 temporal reads): the product's own
+                        // statement, the one a frame's query plans (frameQueryKind) -- what the service serves
+                        if (last && (kind == Kind.GRAPH || kind == Kind.TEMPORAL)) {
+                            return false;
+                        }
                         // the product's statement plans these too (2026-11-03, the core program, each measured on the
                         // program road by core's tests): a raw grid (executeInDb's rows, the product's keyed result,
                         // ProductStatements), an object built inside the statement (InstanceIdentityTest's keyed
@@ -975,7 +982,10 @@ public enum BodyClass {
         // (Class.all()->size(), a mapping's set implementations) is the product's statement, routed to the system
         // database (2026-11-03, the core program: the metamodel stores' tests, measured on the program road)
         Set<String> systemClasses = systemClasses(query.context());
-        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll all
+        // a graph fetch's serialized answer reads its class's extent as the product's statement does (2026-11-06, the
+        // stress lanes' service queries): the one JSON value a frame's graph fetch answers too
+        boolean graph = answer instanceof TypedSerialize || answer instanceof TypedSerializeGraph;
+        if (!graph && !Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll all
                 && !systemClasses.contains(all.classFqn()) && !SystemMetamodel.isSystemElement(all.classFqn()),
                 query.specs(), new HashMap<>())) {
             return false;

@@ -1612,9 +1612,10 @@ legend_java_binary(
 # (2026-11-05), which opened it for the relational corpus's lanes and tools and missed these two lanes and the stress
 # tool -- 461 service queries a lane refused by name (444 a graph fetch, 17 a temporal class read: the query program's
 # rule plans neither as a body's last statement yet, BodyClass.queryProgram), DuckDB 4251 and H2 4224 passing against
-# floors of 4705 and 4676. The stress corpus walks them as the relational corpus walks its own until the program road
-# plans both kinds; a corpus lane, not core's (core's door stays `none`)
-_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=all"]
+# floors of 4705 and 4676. The stress corpus walked them as the relational corpus walked its own until the program road
+# planned both kinds; closed 2026-11-06 (the walk deletion: a graph fetch and a temporal class read are a query
+# program's answer, BodyClass.queryProgram), as every lane's is
+_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
 
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are

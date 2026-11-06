@@ -20652,3 +20652,33 @@ an effect), `testWithParameterToClassNestedSelect` (`execute(...)->size()` run w
 
 Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:census`, `//core:guardrails`, `//core:core_tests_driver`
 (×3 judges), `//core:core_tests_testplan` green; the core gate runs next.
+
+## 2026-11-06 — Every lane's walk closed; THE WALL's named residue deleted
+
+- **The corpus walks nothing**: its list burned to 0 and was deleted (`rcorpus/walk-allowed.txt`); the corpus lanes,
+  `corpus_one`, the Postgres tool and the consumption probe run `-Dlegend.walk.allowed=none`, as core and PCT do.
+- **The stress lanes walk nothing**: a graph fetch and a temporal class read are a query program's ANSWER
+  (`BodyClass.queryProgram`; the product's own statement, the one a frame's query plans), and the router passes a
+  graph's objects through to the writer (`case OBJECTS`); 443 graph fetches and 17 temporal reads the stress lanes
+  walked run on the program road. `_STRESS_WALK_DOOR` is `none`; the lanes pass 4705 (DuckDB) and 4676 (H2), their
+  floors, as they did walking.
+- **THE WALL has no exception** (`RunScope`: rule 4, a run starts no run): the engine-text appeal's runs inside a
+  body's run, the one named residue, are gone with their door (`RunScope.residue`, `-Dlegend.wall.residue`,
+  `SqlTextVerdicts.ENGINE_TEXT_APPEAL`). The appeal's rows were already read by the running program's reader; the
+  last nested run, an appeal's fixture provision, is provided before the body's run (`AssertListener.beforeRun`), once
+  per store -- and not at all for a setup the body calls itself (`testGroupByWithWindowSubset` runs
+  `contractmoneyscenario::setUp()` first: on DuckDB the fixture's aside, provided before the body's own setup, held the
+  tables that setup's drops resolved to). The body's names are read through the compiler's own first pass
+  (`Compiler.resolveNames`, split out of `resolveQuery`; no new protocol construction).
+- **Fixes**: an assert statement is inlined at planning only where it reaches a `size(execute(...))` (inlining every one
+  raised on `testConvertSubqueryPredicates`, a DuckDB pass); a rendered raw grid (`executeInDb`'s late-bound rows) is
+  planned by the database arm.
+- **Records**: rosters unchanged (DuckDB 108, H2 273). Database outside-body registers: `testWithParameterToClassNestedSelect`
+  (`statement=1`: its `size(execute(...))` runs at the let's turn, as Pure evaluates it), measured counts refreshed.
+  Database host-compared registers: `testReAliasMergedJoinOperations` (fails as before; its failure is now the store
+  resolver's wall, judged at its step). Pins moved, dated: `SqlTextVerdicts` 1649, `AssertVerdicts` 1960. One parity
+  pin moved: a temporal answer is a query program.
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:stress_suites`, `//core:stress_suites_h2`,
+`//core:census`, `//core:guardrails`, `//core:core_tests_driver` (×3 judges), `//core:core_tests_testplan`,
+`//core:core_tests_root` green. Next: the walk's code deleted (step 4).

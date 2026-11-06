@@ -61,4 +61,10 @@ public interface AssertListener {
     default java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn) {
         return null;
     }
+
+    /** The body is planned and its run is next (the walk deletion's step 3, 2026-11-06): the fixtures its planned
+     *  appeals asked for ({@link #fixtureAhead}) are provided HERE, each a run of its own before the body's -- never a
+     *  run inside it (THE WALL's rule 4) -- and the appeal's own provision is then a no-op. Default: nothing. */
+    default void beforeRun() {
+    }
 }
