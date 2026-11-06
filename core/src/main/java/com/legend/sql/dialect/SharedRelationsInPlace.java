@@ -27,7 +27,7 @@ import java.util.function.Predicate;
  * AliasPrefix}): a statement's aliases are unique ({@code SourceSpelling}). An expression read by another written in
  * place is written in place inside it first, in the WITH's order.
  */
-final class SharedRelationsInPlace extends SqlRewriter {
+public final class SharedRelationsInPlace extends SqlRewriter {
 
     private final Predicate<SqlQuery> which;
     private final int[] copies = {0};
@@ -36,8 +36,10 @@ final class SharedRelationsInPlace extends SqlRewriter {
         this.which = which;
     }
 
-    /** Every shared relation written in place: a database with no common table expressions. */
-    static SharedRelationsInPlace all() {
+    /** Every shared relation written in place: a database with no common table expressions; and a statement the
+     *  database judge composes into a verdict of its own (BodyDriver.wrapSide, 2026-11-06), where it is a derived
+     *  table, which cannot hold a WITH of its own on every database. */
+    public static SharedRelationsInPlace all() {
         return new SharedRelationsInPlace(q -> true);
     }
 
