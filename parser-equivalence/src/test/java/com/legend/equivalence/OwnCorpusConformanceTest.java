@@ -264,7 +264,7 @@ class OwnCorpusConformanceTest {
                 // 9 -> 10 (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable<T>, a
                 // function declared to answer a table whose body answers a number, refused by name
                 // (UserFunctionIntegrationTest.aBodyOfNoTableIsRefused)
-                // 10 -> 12 (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S131, the user's 2a: overloads by a relation's
+                // 10 -> 12 (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a: overloads by a relation's
                 // column type, lite's dialect, ruled): RelationGeneric's aColumnsTypePicksTheOverload (test::pick<K> beside
                 // test::pick of key:All) and SignatureMangleTest's fixture of the same two
                 Map.entry("PURE-DIALECT-generics", 12),
@@ -300,7 +300,7 @@ class OwnCorpusConformanceTest {
                 // 23 -> 24 (2026-10-28, REVIEWED, the user's "enums that have mappings like in the database its 'A'"):
                 // RelationGeneric's anEnumerationMappedToTheDatabasesCodes (test::ofFamily<T,F>, ColSpec<F⊆T>), an
                 // enumeration's value a generic body compares a mapped column to, read as the database's code
-                // 24 -> 25 (2026-11-03, REVIEWED, S131, the user's 2a): RelationGeneric's
+                // 24 -> 25 (2026-11-03, REVIEWED, S146, the user's 2a): RelationGeneric's
                 // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T> beside ColSpec<L⊆T>)
                 Map.entry("PURE-DIALECT-signatures", 25),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),

@@ -28,6 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * discovery.
  */
 class EqualityWorldsConformanceTest {
+    /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
+    private static final com.legend.executionplan.ExecutionPlan.JudgingRules LITE =
+            com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
+
 
     private static Connection conn;
 
@@ -51,7 +55,7 @@ class EqualityWorldsConformanceTest {
 
     private static void agree(boolean expected, String pureA, String pureB,
             Object javaA, Object javaB) throws Exception {
-        assertEquals(expected, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB)),
+        assertEquals(expected, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
                 "World 1 moved: " + pureA + " == " + pureB);
         assertEquals(expected, world2(pureA, pureB),
                 "World 2 moved: " + pureA + " == " + pureB);
@@ -62,7 +66,7 @@ class EqualityWorldsConformanceTest {
     private static void diverge(boolean world1, @com.legend.base.Nullable Object world2,
             String pureA, String pureB, Object javaA, Object javaB,
             String reason) throws Exception {
-        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB)),
+        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
                 "World 1 moved (" + reason + "): " + pureA + " == " + pureB);
         assertEquals(world2, world2(pureA, pureB),
                 "World 2 moved (" + reason + "): " + pureA + " == " + pureB);
@@ -101,18 +105,19 @@ class EqualityWorldsConformanceTest {
         // STATIC [] == [] arm answers true, this pins the RUNTIME path)
         diverge(true, null, "[]->head()", "[]->head()", null, null,
                 "SQL NULL vs pure true — recorded Phase-2 residual");
-        // R1 widening: the 2-ULP arithmetic leniency is World 1's
-        // DECLARED numeric policy (outside the byte channel — R0);
-        // World 2's IEEE compare is exact. R3's census decides
-        // retire-vs-keep; a healed row tightens here.
         // NUMERIC CHARTER Rule 1 (2026-09-17): Float literals render BARE
         // (the engine's own literal processor) and the database adds them
         // in DECIMAL — 0.1 + 0.2 IS 0.3 in SQL on both backends, the engine's
-        // relational verdict; the interpreter's double arithmetic
-        // (0.30000000000000004) is World 1's 2-ULP policy. Both worlds answer
-        // true, each for its own reason, and each is pinned.
-        diverge(true, true, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
-                "2-ULP declared policy vs the database's DECIMAL arithmetic over bare literals");
+        // relational verdict (S20, held for the user's re-ruling 2026-11-05).
+        // World 1 over the double arithmetic (0.30000000000000004): clean mode
+        // compares a Float EXACTLY (S15/S132, the user's ruling of 2026-11-05,
+        // built that day), so the two worlds diverge here; the 2-ULP tolerance
+        // is compatibility mode's alone, pinned below.
+        diverge(false, true, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
+                "clean mode's exact Float vs the database's DECIMAL arithmetic over bare literals");
+        assertEquals(true, Equality.same(Equality.Typed.of(0.1d + 0.2d), Equality.Typed.of(0.3d),
+                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT),
+                "compatibility mode's 2-ULP tolerance holds 0.1 + 0.2 as 0.3");
         // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for
         // decimals (both engine lanes lower == to SQL) while the
         // interpreted ASSERT judgment is scale-sensitive
@@ -124,9 +129,12 @@ class EqualityWorldsConformanceTest {
         // cross-primitive-kind FALSE; SQL '=' coerces TRUE
         diverge(false, true, "8", "8D", 8L, new java.math.BigDecimal("8"),
                 "SQL numeric coercion vs engine same-kind-only eq");
-        diverge(false, true, "3.0d", "3.00d",
-                new java.math.BigDecimal("3.0"),
-                new java.math.BigDecimal("3.00"),
-                "SQL scale-blind '=' vs engine assert-seam equals");
+        // register S139 (the user's ruling, 2026-11-05): lite's own rules compare a Decimal by value, so the two worlds
+        // agree; compatibility mode keeps the engine assert seam's scale-sensitive equals
+        agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
+        assertEquals(false, Equality.same(Equality.Typed.of(new java.math.BigDecimal("3.0")),
+                Equality.Typed.of(new java.math.BigDecimal("3.00")),
+                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT),
+                "compatibility mode: the engine assert seam's scale-sensitive equals");
     }
 }

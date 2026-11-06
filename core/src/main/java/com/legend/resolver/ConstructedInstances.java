@@ -116,6 +116,9 @@ final class ConstructedInstances {
     /** Registered rows not yet computed ({@link com.legend.plan.LazyRows}). */
     private final Map<String, com.legend.plan.LazyRows> pending = new LinkedHashMap<>();
 
+    /** tree id -> the cells of its rows that are plan parameters ({@link com.legend.plan.LazyRows.Parameter}). */
+    private final Map<String, List<com.legend.plan.LazyRows.Parameter>> parametersById = new LinkedHashMap<>();
+
     /** Moves {@code id}'s pending rows into place (none: not registered). */
     private void materialize(String id) {
         com.legend.plan.LazyRows lazy = pending.remove(id);
@@ -123,8 +126,15 @@ final class ConstructedInstances {
             Map<String, List<List<String>>> rows = lazy.rows();
             if (rows != null) {
                 rowsById.put(id, rows);
+                parametersById.put(id, lazy.parameters());
             }
         }
+    }
+
+    /** The cells of {@code id}'s rows that are plan parameters (none for an unknown id). */
+    List<com.legend.plan.LazyRows.Parameter> parametersFor(String id) {
+        materialize(id);
+        return parametersById.getOrDefault(id, List.of());
     }
 
     private java.util.function.@com.legend.base.Nullable Function<

@@ -1,0 +1,80 @@
+fqn	metamodel_statements	user_statements	statements_naming_both	metamodel_tables
+meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode	0	7	0	
+meta::pure::executionPlan::tests::testViewToTDS	0	7	0	
+meta::relational::functions::toPostgresModel::tests::testConvertAlias	68	12	1	activities,class_mappings,classes,column_contexts,data_types,databases,enum_value_mappings,enum_value_sources,enumeration_mappings,functions,group_by_mappings,mapping_includes,mapping_includes_closure,mapping_store_resolutions,mappings,plan_connection_sqls,plan_connections,plan_function_parameters,plan_node_closure,plan_nodes,plan_template_functions,plans,properties,property_mappings,relation_tree_node_columns,relation_tree_nodes,relation_trees,relational_elements,results,schemas,set_ancestry,value_specifications,view_column_mappings,vs_primary_key_columns
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews	10	8	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy	1	3	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy	1	3	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy	2	3	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy	2	3	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy	2	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy	2	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy	1	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy	1	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTableMultipleStartRows_Alloy	2	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy	1	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testSimpleViewRootToJoin_Alloy	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testTableToTDSMultipleJoins	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithConcatenate	8	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithJoinAndUnion	8	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevelsWithStringHashing_Alloy	2	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevels_Alloy	2	1	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy	2	7	0	relational_elements
+meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy	6	7	0	relational_elements
+meta::relational::testDataGeneration::tests::TestDatGenForNestedViews	10	35	0	relational_elements
+meta::relational::testDataGeneration::tests::testConstant	1	8	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning	1	12	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates	1	12	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning	1	9	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates	2	24	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning	2	9	0	relational_elements
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates	2	12	0	relational_elements
+meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel	2	64	0	relational_elements
+meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin	2	40	0	relational_elements
+meta::relational::testDataGeneration::tests::testQualifier	2	46	0	relational_elements
+meta::relational::testDataGeneration::tests::testSelfJoin	2	40	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleSingleTable	1	8	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert	1	8	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin	4	30	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleTwoTable	1	20	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows	2	20	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleViewRoot	2	27	0	relational_elements
+meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin	2	30	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins	2	74	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTDSSimple	4	14	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions	4	14	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate	8	18	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy	4	14	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy	4	23	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion	8	55	0	relational_elements
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable	4	24	0	relational_elements
+meta::relational::testDataGeneration::tests::testUnion	2	109	0	relational_elements
+meta::relational::testDataGeneration::tests::testUnionToUnion	2	114	0	relational_elements
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels	2	64	0	relational_elements
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing	2	64	0	relational_elements
+meta::relational::testDataGeneration::tests::testUnionViewOnView	2	48	0	relational_elements
+meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin	6	27	0	relational_elements
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg	0	11	0	
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteFilter	0	12	0	
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteFilter	0	12	0	
+meta::relational::tests::ddl::testCreateTempTableStatement	0	7	0	
+meta::relational::tests::ddl::testSetupDataSqlGeneration	0	1	0	
+meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes	0	1	0	
+meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString	0	1	0	
+meta::relational::tests::functions::pureToSqlQuery::testReAliasMergedJoinOperations	0	7	0	
+meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_DB2	0	9	0	
+meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_H2	0	2	0	
+meta::relational::tests::mapping::embedded::testExistsWithEmbeddedWithPostProcessor	0	17	0	
+meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly	1	17	0	class_mappings,mapping_includes_closure,mappings
+meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements	0	7	0	
+meta::relational::tests::postProcessor::testReplaceTableMultiplePostProcessor	0	15	0	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessor	0	2	0	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessorWithExists	0	2	0	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessorWithView	0	2	0	
+meta::relational::tests::postProcessor::testReplaceTablesPostProcessor	0	2	0	
+meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor	0	2	0	
+meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect	0	20	0	
+meta::relational::tests::tds::tdsRestrict::testRestrictWithPostProcessor	0	16	0	

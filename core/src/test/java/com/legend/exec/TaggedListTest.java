@@ -58,7 +58,8 @@ class TaggedListTest {
     private static List<Object> values(Connection c, String q) throws Exception {
         ExecutionPlan plan = query(q).executionPlan("s::RT");
         PlanRoundTrip.assertRoundTrips(plan, q);
-        return PlanRunner.rows(plan, java.util.Map.of(), PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target())).rows()
+        return PlanRunner.rows(plan, java.util.Map.of(), (plan.sendsTheAnswer() ? PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c),
+                plan.answerSql().target()) : PlanSessions.of(com.legend.testbackend.TestSessions.over(c)))).rows()
                 .stream().map(r -> r.get(0)).toList();
     }
 
@@ -291,6 +292,42 @@ class TaggedListTest {
         }
     }
 
+    /** A failing multiset over a raw grid fails under each judge, the database judge deciding it (2026-11-04, the core
+     *  program: a keyed verdict step; until then the database judge refused the body and, under BOTH, the host decided
+     *  alone). A raw grid's order is incidental, so each comparison is a multiset. The words agree where the canon's
+     *  text order is the host's canonical order (Strings); where it is not (numbers, mixed kinds) the database judge
+     *  prints its side in canon-text order, {@code [11, 2]} where the host prints {@code [2, 11]} -- an open finding
+     *  (docs/GATES.md, 2026-11-04): the host's order needs each element's kind, which the lowering knows and the canon
+     *  text does not carry (a date and an Integer both spell {@code 2014}). */
+    @Test
+    void aFailingMultisetOverARawGridFailsUnderEachJudge() throws Exception {
+        String[][] cases = {
+                {"select * from (select 1 as A, \\'x\\' as B union all select 2, \\'y\\') t order by A",
+                        "[1, 'x', 2, 'z']", "\nexpected: [1, 2, 'x', 'z']\nactual:   [1, 2, 'x', 'y']"},
+                {"select 10 as A union all select 2", "[2, 11]", "\nexpected: [2, 11]\nactual:   [2, 10]"},
+                {"select \\'b\\' as A union all select \\'a\\'", "['a', 'c']",
+                        "\nexpected: ['a', 'c']\nactual:   ['a', 'b']"},
+                {"select 10 as A, \\'b\\' as B union all select 2, \\'a\\'", "[2, 'a', 11, 'b']",
+                        "\nexpected: [2, 11, 'a', 'b']\nactual:   [2, 10, 'a', 'b']"}};
+        try (Connection c = TestBackends.platform().open()) {
+            for (String[] q : cases) {
+                String let = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                        + "let rs = meta::relational::metamodel::execute::executeInDb('" + q[0] + "', $c);\n";
+                for (com.legend.ExecuteOptions.JudgeMode mode : List.of(com.legend.ExecuteOptions.JudgeMode.HOST,
+                        com.legend.ExecuteOptions.JudgeMode.DATABASE, com.legend.ExecuteOptions.JudgeMode.BOTH)) {
+                    Exception failed = assertThrows(Exception.class, () -> Program.last(
+                            StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                            let + "assertEquals(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                            com.legend.ExecuteOptions.NONE.withJudgeMode(mode)), mode + " " + q[1]);
+                    if (mode != com.legend.ExecuteOptions.JudgeMode.DATABASE || q[1].startsWith("['")) {
+                        assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
@@ -313,10 +350,36 @@ class TaggedListTest {
                     CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                     com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH));
             assertEquals(true, both.one());
+            // and under the database judge alone (the core program's 100% check, 2026-11-04: under BOTH a database
+            // decline is the host's to decide, so the BOTH case alone does not show the database judge decides it)
+            Lean.Result database = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                    CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.ExecuteOptions.JudgeMode.DATABASE));
+            assertEquals(true, database.one());
             // a row's cells read in a lambda are on the variant carrier: the literal list meets them there
             assertEquals(List.of(true, false), Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     CONN_LET + "$rs.rows->map(r | [1, 'x'] == $r.values);}", StorelessRuntime.RUNTIME, c)
                     .rows().stream().map(r -> r.get(0)).toList());
+            // and under any operation over the rows, as any column is read (the planner-driver seam program's S3c,
+            // 2026-10-31: the rows are the lists of their cells, the grid's report): a filter keeps the one row
+            assertEquals(1L, program(c, "$rs.rows->filter(r | [2, 'y'] == $r.values)->size();"));
+            // a row read both as its cells and by a column's name: refused by name, never a guess
+            Exception mixed = assertThrows(Exception.class, () -> program(c,
+                    "$rs.rows->map(r | ([1, 'x'] == $r.values) && ($r.A == 1));"));
+            assertTrue(String.valueOf(mixed.getMessage()).contains("both as its cells"), mixed.toString());
+            // the S3c audit (2026-10-31): one grid's names and cells in one statement are one grid's reports (until
+            // then two reports' grids were compared by their rendered text, each with an alias of its own, and refused
+            // as two grids)
+            assertEquals(6L, program(c, "$rs.columnNames->size() + $rs.rows.values->size();"));
+            // a second grid read by a column's name keeps its columns beside one read as cells (until then the
+            // statement-wide decision made every raw grid of the statement its rows' cells)
+            assertEquals(10L, program(c, "let rs2 = meta::relational::metamodel::execute::executeInDb("
+                    + "'select 9 as Z', $c);\n"
+                    + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
+                    + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
+            // a raw grid's text is refused by name: its header is written from columns that exist only when it runs
+            Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
+            assertTrue(String.valueOf(text.getMessage()).contains("toString over a raw grid"), text.toString());
         }
     }
 }

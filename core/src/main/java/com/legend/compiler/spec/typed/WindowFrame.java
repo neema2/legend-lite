@@ -53,7 +53,7 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
          * its shape, since its sign is known only when the database works it out: {@code -(e)} is {@code e} before the
          * current row ({@link #preceding}), anything else {@code value} after it. Upstream reads the direction from the
          * sign of the value it computed; where the two differ the database's check refuses
-         * (docs/SEMANTICS_REGISTER.md, S129).
+         * (docs/SEMANTICS_REGISTER.md, S144).
          */
         record Offset(TypedSpec value) implements Bound {
 
@@ -160,7 +160,7 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
      * window writes its span once its arguments are substituted ({@code -(6 * 31 - 1)}) -- is the number it spells,
      * worked exactly; null where it is anything else (a parameter, a column, a division, a float) or overflows a long.
      * The frame is then the literal one: its direction the number's sign and its order checked when it is lowered, as
-     * legend-engine reads a frame from the numbers it computes while it plans (docs/SEMANTICS_REGISTER.md S129). Only a
+     * legend-engine reads a frame from the numbers it computes while it plans (docs/SEMANTICS_REGISTER.md S144). Only a
      * frame's bound is folded here, never a row's value.
      */
     static java.lang.@com.legend.base.Nullable Long spelled(TypedSpec arg) {

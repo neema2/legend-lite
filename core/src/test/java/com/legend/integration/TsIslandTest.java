@@ -1148,7 +1148,7 @@ class TsIslandTest {
     @Test
     void stepIsPrevAndNeitherFillsALinesStart() throws Exception {
         // FILL(STEP) is FILL(PREV) (R12, ruled 2026-10-31: gs-quant's step also gives a line's first value before it
-        // starts, the future read; docs/SEMANTICS_REGISTER.md S130): none before BBB's first value either way
+        // starts, the future read; docs/SEMANTICS_REGISTER.md S145): none before BBB's first value either way
         String from = " FROM PRICES a ON DAY BY SYMBOL, (PRICES WHERE DAY >= DATE '2024-01-24') b ON DAY BY SYMBOL";
         for (TestBackend backend : deep()) {
             List<Map<String, String>> step = rows(backend, "|#TS{SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d" + from

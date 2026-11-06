@@ -1,0 +1,19 @@
+{
+  "provenance": "legend-engine 4.145.0 (the engine runner's jars, @maven_runner), asked 2026-11-01 by docs/test-is-product-homework/probes/m5-answer-probe.java.txt over m5-answers.pure (H2, LocalH2 testDataSetupSqls); PlanGenerator then PlanExecutor, the DEFAULT serializer for a streaming result, the constant's value through the engine's object mapper for a ConstantResult",
+  "answers": [
+    {"query": "|print('x', 1)", "refused": "EngineException: Function does not exist 'print(String[1],Integer[1])'"},
+    {"query": "|true", "resultType": {"_type": "dataType", "dataType": "Boolean"}, "constant": true},
+    {"query": "|'abc'", "resultType": {"_type": "dataType", "dataType": "String"}, "result": "ConstantResult"},
+    {"query": "|[1, 2, 3]->map(x|$x * 2)", "resultType": {"_type": "dataType", "dataType": "Integer"}, "constant": [2, 4, 6]},
+    {"query": "|[]", "resultType": {"_type": "dataType", "dataType": "meta::pure::metamodel::type::Nil"}, "constant": []},
+    {"query": "|my::P.all()->map(p|$p.name)->from(my::M, my::R)", "resultType": {"_type": "dataType", "dataType": "String"},
+     "DEFAULT": {"builder": {"_type": "dataTypeBuilder", "type": "String"}, "sql": "select \"root\".NAME from PERSON as \"root\"", "result": {"columns": ["NAME"], "rows": [{"values": ["a"]}, {"values": ["b"]}, {"values": ["c"]}]}}},
+    {"query": "|my::P.all()->map(p|$p.age)->from(my::M, my::R)", "resultType": {"_type": "dataType", "dataType": "Integer"},
+     "DEFAULT": {"builder": {"_type": "dataTypeBuilder", "type": "Integer"}, "sql": "select \"root\".AGE from PERSON as \"root\"", "result": {"columns": ["AGE"], "rows": [{"values": [10]}, {"values": [null]}, {"values": [30]}]}}},
+    {"query": "|my::P.all()->filter(p|$p.name == 'z')->map(p|$p.name)->from(my::M, my::R)", "resultType": {"_type": "dataType", "dataType": "String"},
+     "DEFAULT": {"builder": {"_type": "dataTypeBuilder", "type": "String"}, "result": {"columns": ["NAME"], "rows": []}}},
+    {"query": "|my::P.all()->toOne().name->from(my::M, my::R)", "resultType": {"_type": "dataType", "dataType": "String"},
+     "DEFAULT": {"builder": {"_type": "dataTypeBuilder", "type": "String"}, "sql": "select \"root\".NAME from PERSON as \"root\"", "result": {"columns": ["NAME"], "rows": [{"values": ["a"]}, {"values": ["b"]}, {"values": ["c"]}]}},
+     "note": "the engine's execute holds no to-one contract on toOne() over a class's extent: three rows answered"}
+  ]
+}

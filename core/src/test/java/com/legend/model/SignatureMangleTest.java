@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A user function's id spells its relation parameters' columns (register S131, the user's 2a, 2026-11-03), so two
+ * A user function's id spells its relation parameters' columns (register S146, the user's 2a, 2026-11-03), so two
  * overloads that differ only in a column's type are two functions; a reference resolves by lite's id, and by
  * legend-pure's own spelling ({@code FunctionDescriptor}: a relation its raw type alone) to exactly the declarations
  * that spelling names.

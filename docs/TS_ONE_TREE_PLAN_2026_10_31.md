@@ -362,7 +362,7 @@ dashboard, tile kinds).
   6. ~~**A word's broadcast**~~ -- **moved to the library 2026-11-03 (2a).** A line of no instrument's key is
      `timeseries::All`, so `helpers::each` (and the meeting functions `meet`, `periodsOf`, `onto`) are picked by the
      keys' types: the translator always calls one function, and `timeseries::Keyed` is gone. It needed overloads by a
-     relation column's type and by a column specification's column type (register S131).
+     relation column's type and by a column specification's column type (register S146).
   7. **The refusal of a line of no instrument accrued beside lines per instrument** (`TsWords.timed`: a timed
      basket's member), refused by name with its fix. Writing it would be `helpers::each`'s timed twin, a second
      branch on a line's kind, for a case no page uses. Pinned by
@@ -381,7 +381,7 @@ dashboard, tile kinds).
 - **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). First run 119 of 210 agree; O1 (a
   window's first value) and O2 (compare) then matched to gs-quant (the user, 2026-11-01: "Why would we not match
   gs-quant for 1&2?"): 145 agree, 1 differs -- R12's one departure, gs-quant's step backfilling a line's start
-  (`docs/SEMANTICS_REGISTER.md` S130).
+  (`docs/SEMANTICS_REGISTER.md` S145).
 - **Step 8** (the guide from the catalog): done, docs/timeseries/WORDS.md, written by core's export. The tile's option
   values (src/generated/library-enums.ts) and its words (src/generated/ts-words.ts) come from the same export; the
   regex tool is gone.

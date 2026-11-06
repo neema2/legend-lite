@@ -3,9 +3,8 @@
 
 package com.legend;
 
-import com.legend.driver.BodyDriver;
-
 import com.legend.compiler.element.ModelContext;
+import com.legend.driver.BodyRouter;
 
 /**
  * THE EXECUTION FRONT DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a query planned by
@@ -68,23 +67,49 @@ public final class Execution {
             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
+        return run(typed, runtimeFqn, sessions, planSessions, establish, java.util.Set.of(), sinkOf, batchRows);
+    }
+
+    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source, Establish,
+     *  java.util.function.Function, int)} under the query's FEATURE FLAGS: upstream's execution context carries them
+     *  per query (its {@code ExecutionOptionContext}'s {@code FeatureFlagOption}), and the lowering reads them (2026-11-03:
+     *  the one door's own parameter, so a caller that sets a flag -- the PCT, the user's ruling of 2026-09-12 -- runs
+     *  through the door, never around it). */
+    public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
+            com.legend.exec.PlanSessions.Source planSessions, Establish establish,
+            java.util.Set<com.legend.platform.Feature> features,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
+            int batchRows) throws java.io.IOException {
         if (typed.writes()) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn);
+            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
             return plan;
         }
         ModelContext ctx = typed.context();
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, java.util.Set.of(),
-                    session.version());
+        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
+        try (com.legend.exec.Sessions.Session session = sessions.open(decided, ctx)) {
+            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target());
+                // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
+                case DECLARED_SETUP -> plan.sendsTheAnswer()
+                        ? com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target())
+                        : com.legend.exec.PlanSessions.of(session);
                 case AS_GIVEN -> com.legend.exec.PlanSessions.of(session);
             };
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
             return plan;
+        }
+    }
+
+    /** {@code typed}'s plan, made under the wall's planning scope (THE WALL's rule 2, the final audit, 2026-11-06):
+     *  no session opens and no run starts while the product's query is planned. */
+    private static com.legend.executionplan.ExecutionPlan planned(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, java.util.Set<com.legend.platform.Feature> features) {
+        try (var planning = com.legend.base.RunScope.plans("a query")) {
+            return typed.executionPlan(runtimeFqn, features);
         }
     }
 
@@ -111,22 +136,18 @@ public final class Execution {
     }
 
     /**
-     * THE dialect of a program that runs on {@code session}: the database its runtime executes on
-     * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
-     * version ({@code SqlDialect.forServer}). Its session setup is the body's target's, which the plan runner runs
-     * on the connection once (D66, 2026-10-30; until then this entry ran it as setup steps, once per program). The
-     * session is only CHECKED ({@code Sessions.check}): connected to another database than the one declared is
-     * refused, never reinterpreted.
+     * THE dialect of a program: the database its runtime executes on ({@link Compiler#executesOn}, upstream's
+     * {@code createDbConfig(connection.type)}), read from the model alone. Its session setup is the body's target's,
+     * which the plan runner runs on the connection once (D66, 2026-10-30; until then this entry ran it as setup
+     * steps, once per program). The session is not read here (THE WALL, 2026-11-06: until then this entry CHECKED it
+     * outside every run): the runner checks every session it is handed against each statement's target before the
+     * statement runs ({@code JdbcStatements.check}), so a session on another database than the one declared is
+     * refused there, never reinterpreted.
      */
-    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Session session) {
-        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
-        com.legend.exec.Sessions.check(session, decided.type());
-        String version = session.version();
+    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn) {
         // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
         // target's session statements, before the connection's first statement and not again (JudgePlans.target)
-        return com.legend.database.Databases.dialect(decided.type()).forServer(version);
+        return Compiler.dialectOf(ctx, runtimeFqn);
     }
 
     /**
@@ -161,6 +182,28 @@ public final class Execution {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
+    /** A program PLANNED before it runs ({@link #planProgram}): run once, on a session of the database it was planned
+     *  for; running it plans nothing. */
+    @FunctionalInterface
+    public interface PlannedProgram {
+        void run(com.legend.exec.Sessions.Session session);
+    }
+
+    /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the
+     *  owner, 2026-11-05: a test runner's fixture program planned with the assert whose compatibility appeal provides
+     *  it, run where the appeal provides it, inside a run that plans nothing): as {@link #runProgram} plans it, with
+     *  no session at all (THE WALL, 2026-11-06: until then a session was opened and checked to plan it); null for a
+     *  body that cannot be planned ahead -- one holding an assert, or of no moved class (the walk's). */
+    public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, ExecuteOptions options) {
+        ModelContext ctx = typed.context();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+        return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, options);
+    }
+
     /** Where a program's last statement answers: the sink for its shape, made once the shape is known (a relation,
      *  a value of one column, a graph fetch's objects) -- a writer at the boundary, as a product answer's
      *  ({@link #run}'s {@code sinkOf}). The body driver streams a planned statement's typed rows through the plan
@@ -182,7 +225,16 @@ public final class Execution {
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
-        BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
+        // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+        if (program != body) {
+            typed = typed.withBody(program);
+        }
+        // the test door's router (the test-is-the-product plan's M5, R16): a body of a moved class runs whole as one plan,
+        // every other is walked
+        BodyRouter.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
     }
 }

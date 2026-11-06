@@ -320,8 +320,10 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             switch (el) {
                 case ClassDefinition cd -> putAtId(classes,
                         internElement(cd.qualifiedName()), cd);
-                case com.legend.model.PrimitiveExtensionDefinition pe ->
-                        primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
+                case com.legend.model.PrimitiveExtensionDefinition pe -> {
+                    primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
+                    primitiveTypeVariables.put(pe.qualifiedName(), pe.typeVariables());
+                }
                 case AssociationDefinition ad -> putAtId(associations,
                         internElement(ad.qualifiedName()), ad);
                 case EnumDefinition ed -> putAtId(enums,
@@ -484,6 +486,16 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
 
     /** Precise primitives: extension FQN → declared base type name (chains allowed). */
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();
+
+    /** Precise primitives: extension FQN → its declared type variables ({@code Primitive P(x:Integer[1])}). */
+    private final java.util.Map<String, List<com.legend.protocol.ParameterDefinition>> primitiveTypeVariables =
+            new java.util.LinkedHashMap<>();
+
+    /** The type variables a declared primitive extension declares; empty when {@code fqn} declares none or is not
+     *  a declared primitive extension. */
+    public List<com.legend.protocol.ParameterDefinition> primitiveTypeVariables(String fqn) {
+        return primitiveTypeVariables.getOrDefault(fqn, List.of());
+    }
 
     /**
      * The BASE {@link Type.Primitive} behind a primitive-extension FQN,

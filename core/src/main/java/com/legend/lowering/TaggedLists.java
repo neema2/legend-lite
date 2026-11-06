@@ -217,7 +217,7 @@ final class TaggedLists {
 
     /** The list reversed. */
     static SqlExpr.TaggedList reverse(SqlExpr.TaggedList tl) {
-        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions()));
+        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions())).withOrder(tl.order().reversed());
     }
 
     /**
@@ -226,6 +226,9 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        if (tl.rows() != null) {
+            return sortRows(tl, alias);
+        }
         SqlExpr unnested = SqlExpr.Call.of(SqlFn.UNNEST, tl.positions());
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
@@ -234,7 +237,43 @@ final class TaggedLists {
                 new SqlExpr.OrderedListAgg(p, tl.comparableAt(p)), "s", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
-        return tl.withPositions(new SqlExpr.ScalarSubquery(outer));
+        return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
+    }
+
+    /**
+     * A list over its rows sorted (a relation's cells, {@code $t.rows.values->sort()}): its CELLS renumbered by the
+     * comparable, ties by position (a stable sort's), so the sorted list is again a list over its rows, its positions
+     * {@code 1..n} in its own order and every array an aggregate over the renumbered cells -- no array read, no
+     * lambda: its root reads the cells (every database, H2's list-less dialect included), where reordering the
+     * positions read the comparable array at each one ({@code LIST_AT}), which H2 refuses, and nested the cells'
+     * own numbering inside the root's order (2026-11-06, the corpus's strictdate::testProject on both lanes). The
+     * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
+     * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
+     */
+    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
+        SqlSelect cells = cellsOf(tl);
+        var c = SqlExpr.Column.lookup(alias, cells.outputs());
+        // the comparable's columns in the cells' order: __cmp, or a rank across kinds' __cmp_<field> columns
+        List<SqlSelect.SortKey> keys = new ArrayList<>(5);
+        for (OutputCol o : cells.outputs()) {
+            if (o.name().equals(SqlExpr.TaggedList.ROW_COMPARABLE)
+                    || o.name().startsWith(SqlExpr.TaggedList.ROW_COMPARABLE + "_")) {
+                keys.add(new SqlSelect.SortKey(c.apply(o.name()), true, SqlSelect.SortKey.NullOrder.NULLS_LAST,
+                        null));
+            }
+        }
+        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
+        List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
+        for (OutputCol o : cells.outputs()) {
+            renumbered.add(o.name().equals(SqlExpr.TaggedList.ROW_POSITION)
+                    ? new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), keys, null), o.name(), o)
+                    : new SqlSelect.Projection(c.apply(o.name()), o.name(), o));
+        }
+        SqlSelect sorted = new SqlSelect(renumbered, false, new SqlSource.Subselect(cells, alias, null), null,
+                List.of(), null, null, List.of(), null, null, cells.outputs());
+        // the arrays: ordered aggregates over the renumbered cells, the one construction of a list over its rows
+        return ValueCollections.overCells(sorted, tl.slots(), alias + "r");
     }
 
     /**
@@ -500,21 +539,27 @@ final class TaggedLists {
                 new OutputCol("__p", SqlType.Scalar.INTEGER, false))),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "__p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
-        SqlExpr tag = tl.tagAt(p);
-        List<SqlExpr.Case.When> index = new ArrayList<>();
-        for (int k = 0; k < slots.size(); k++) {
-            index.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
-                    new SqlExpr.IntLit(k)));
-        }
+        // the slot index is the tag less one (the tags are 1..K), read once: a database that writes the unnested
+        // position at each read of it (Snowflake, SQLite, MariaDB, MySQL) wrote the position list per channel in a CASE
+        SqlExpr index = SqlExpr.Call.of(SqlFn.MINUS, tl.tagAt(p), new SqlExpr.IntLit(1));
         List<SqlSelect.Projection> out = new ArrayList<>();
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int k = 0; k < slots.size(); k++) {
             String name = SqlType.Tagged.slotColumn("value", k);
             out.add(new SqlSelect.Projection(tl.channelAt(k, p), name,
                     new OutputCol(name, slots.get(k).type(), true)));
         }
+        // the rows in the list's own order (an unnest promises none: round 18's BigQuery and MySQL): by position, or by
+        // comparable with the position after it (a stable sort's ties), either way
+        boolean desc = tl.order() == SqlExpr.TaggedList.Order.POSITION_DESC
+                || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC;
+        List<SqlSelect.SortKey> order = new ArrayList<>();
+        if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
+            order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
+        }
+        order.add(new SqlSelect.SortKey(p, !desc, null, null));
         return new SqlSelect(out, false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null,
-                List.of(), null, null, List.of());
+                order, null, null, List.of());
     }
 }

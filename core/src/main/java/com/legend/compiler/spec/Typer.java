@@ -1049,7 +1049,7 @@ final class Typer {
             if (res.exact().size() == 1) {
                 fns = res.exact();
             } else if (res.exact().size() > 1) {
-                // legend-pure's spelling of overloads that differ only in a relation's column types (register S131):
+                // legend-pure's spelling of overloads that differ only in a relation's column types (register S146):
                 // it names them all, so the reference is ambiguous and refused (the A2 review, 2026-11-03)
                 throw new com.legend.error.ResolutionException("'" + ref.fullPath() + "' names "
                         + res.exact().size() + " functions that differ only in a relation's column types: name one by"
@@ -1252,10 +1252,12 @@ final class Typer {
      * {@code .values} (the cells — count unknown) and
      * {@code .columnNames} (the names — first exist at execution)
      * SURVIVE as identity-preserving MARKERS, the same node shapes the
-     * ResultSet class declaration produced pre-retype; the execution
-     * BOUNDARY RESOLVER (RawGridSchema) substitutes them against the
-     * stamped schema, and reaching the Lowerer instead is a loud wall,
-     * never a silent guess. Null = not such a read. */
+     * ResultSet class declaration produced pre-retype; the Lowerer
+     * writes them as the grid's report (SqlSource.GridReport: a keyed
+     * plan whose keys are the grid's reported columns, read when it
+     * runs; the planner-driver seam program's S3c, 2026-10-30 -- until
+     * then a boundary resolver stamped a probed schema). Null = not
+     * such a read. */
     static @com.legend.base.Nullable TypedSpec lateBoundGridMarker(
             TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
         if (!rt2.isLateBound()) {

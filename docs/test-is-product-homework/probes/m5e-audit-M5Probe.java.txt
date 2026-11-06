@@ -1,0 +1,169 @@
+import com.legend.Compiler;
+import com.legend.ExecuteOptions;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.compiler.element.ModelContext;
+import com.legend.database.Databases;
+import com.legend.driver.BodyDriver;
+import com.legend.exec.Sessions;
+import com.legend.exec.StatementOrigin;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.result.Batch;
+import com.legend.result.ResultSink;
+import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.sql.dialect.SqlDialect;
+import com.legend.test.StorelessRuntime;
+import com.legend.testplan.BodyClass;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Scratch probe (read-only audit): one body run on the walk and on the router, each on a fresh DuckDB. */
+public class M5Probe {
+
+    static final String RT = StorelessRuntime.RUNTIME;
+
+    static String model(boolean seeded) {
+        if (!seeded) {
+            return StorelessRuntime.with("", DatabaseType.DuckDB);
+        }
+        return StorelessRuntime.declaring("", DatabaseType.DuckDB,
+                "specification: LocalH2 { testDataSetupSqls: [ 'create table if not exists seed_t(i int)',"
+                        + " 'delete from seed_t', 'insert into seed_t values (1)' ]; };\n  auth: DefaultH2");
+    }
+
+    static TypedQuery typed(ModelContext ctx, String body) {
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
+                        ? lf.body() : List.of(parsed);
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(List.of()), ctx);
+        return Compiler.queryResolved(ctx, resolved);
+    }
+
+    static final class Capture implements ResultSink {
+        final StringBuilder out = new StringBuilder();
+        public void columns(List<ExecutionPlan.Column> columns) {
+            out.append("columns=");
+            for (ExecutionPlan.Column c : columns) {
+                out.append(c.name()).append(':').append(c.type()).append(c.multiplicity()).append(' ');
+            }
+        }
+        public void batch(Batch b) {
+            for (int i = 0; i < b.size(); i++) {
+                out.append(" row").append(b.row(i));
+            }
+        }
+        public void end() {
+            out.append(" end");
+        }
+    }
+
+    static void run(String label, boolean seeded, String body, boolean router, String check) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            ModelContext ctx = Compiler.compileModel(model(seeded));
+            TypedQuery q = typed(ctx, body);
+            RawSqlBoundary.Recorder rec = new RawSqlBoundary.Recorder();
+            ExecuteOptions options = ExecuteOptions.recording(rec, null);
+            List<String> shapes = new ArrayList<>();
+            Capture cap = new Capture();
+            Execution.Answer answer = shape -> {
+                shapes.add(String.valueOf(shape));
+                return cap;
+            };
+            Sessions.Session s = Sessions.borrowed(c);
+            long[] before = StatementOrigin.snapshot();
+            String outcome = "ok";
+            try {
+                if (router) {
+                    Execution.runProgram(q, RT, Execution.Source.given(s), null, null, options, answer);
+                } else {
+                    SqlDialect d = Databases.dialect(DatabaseType.DuckDB).forServer(s.version());
+                    BodyDriver.execute(q, RT, d, s, null, null, options, answer);
+                }
+            } catch (Throwable t) {
+                outcome = t.getClass().getSimpleName() + ": " + t.getMessage();
+            }
+            long[] after = StatementOrigin.snapshot();
+            long[] delta = new long[after.length];
+            for (int i = 0; i < delta.length; i++) {
+                delta[i] = after[i] - before[i];
+            }
+            StringBuilder db = new StringBuilder();
+            if (check != null) {
+                try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(check)) {
+                    while (rs.next()) {
+                        db.append(rs.getString(1)).append(',');
+                    }
+                } catch (Exception e) {
+                    db.append("ERR ").append(e.getMessage().split("\n")[0]);
+                }
+            }
+            System.out.println("== " + label + " [" + (router ? "ROUTER" : "WALK") + "] class="
+                    + BodyClass.of(q, RT));
+            System.out.println("   outcome: " + outcome);
+            System.out.println("   ledger : " + rec.entries());
+            System.out.println("   answer : shapes=" + shapes + " " + cap.out);
+            System.out.println("   census : " + StatementOrigin.census(delta).replaceAll("\\w+=0 ?", ""));
+            System.out.println("   db     : " + db);
+        }
+    }
+
+    static void both(String label, boolean seeded, String body, String check) throws Exception {
+        run(label, seeded, body, false, check);
+        run(label, seeded, body, true, check);
+    }
+
+    public static void main(String[] args) throws Exception {
+        String conn = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
+        String exec = "meta::relational::metamodel::execute::executeInDb(";
+        String only = args.length > 0 ? args[0] : "";
+        if (only.isEmpty() || only.equals("1")) {
+            both("1 seeded runtime, effect then value", true,
+                    conn + exec + "'insert into seed_t values (9)', $c, 0, 1000);\ntrue;}",
+                    "select i from seed_t order by i");
+        }
+        if (only.isEmpty() || only.equals("2")) {
+            both("2 seeded runtime, two effects", true,
+                    conn + exec + "'insert into seed_t values (9)', $c, 0, 1000);\n"
+                            + exec + "'insert into seed_t values (10)', $c, 0, 1000);\ntrue;}",
+                    "select i from seed_t order by i");
+        }
+        if (only.isEmpty() || only.equals("3")) {
+            both("3 last statement executeInDb (answer shape)", false,
+                    conn + exec + "'create table a3(i int)', $c, 0, 1000);}", "select count(*) from a3");
+        }
+        if (only.isEmpty() || only.equals("4")) {
+            both("4 failing script, second statement", false,
+                    conn + exec + "'create table a4(i int)', $c, 0, 1000);\n"
+                            + exec + "'insert into no_such_table values (1)', $c, 0, 1000);\ntrue;}",
+                    "select count(*) from information_schema.tables where table_name = 'a4'");
+        }
+        if (only.isEmpty() || only.equals("5")) {
+            both("5 print last", false,
+                    conn + exec + "'create table a5(i int)', $c, 0, 1000);\nprint('x', 1);}", null);
+        }
+        if (only.isEmpty() || only.equals("6")) {
+            both("6 print of an effect", false,
+                    conn + exec + "'create table a6(i int)', $c, 0, 1000);\nprint(" + exec
+                            + "'insert into a6 values (1)', $c, 0, 1000), 1);\ntrue;}",
+                    "select count(*) from a6");
+        }
+        if (only.isEmpty() || only.equals("7")) {
+            both("7 non-last computed value then effect", false,
+                    conn + "'abc'->toUpper();\n" + exec + "'create table a7(i int)', $c, 0, 1000);\ntrue;}",
+                    "select count(*) from a7");
+        }
+        if (only.isEmpty() || only.equals("8")) {
+            both("8 last statement is the connection", false,
+                    conn + exec + "'create table a8(i int)', $c, 0, 1000);\n$c;}", null);
+        }
+    }
+}

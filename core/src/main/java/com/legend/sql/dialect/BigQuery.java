@@ -72,6 +72,12 @@ import java.util.Set;
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
+    @Override
+    public int fusedStatementBudget() {
+        return 500_000;
+    }
+
     /** BigQuery (GoogleSQL; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks; GoogleSQL's reserved
      *  keywords. The {@code BigQuery} dialect quotes every identifier, so the list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('`', Set.of(
@@ -973,11 +979,31 @@ public final class BigQuery extends AnsiSqlRenderer {
                 .append(param(o));
     }
 
-    /** {@code body}, or NULL for a NULL list (DuckDB's list functions answer NULL there; an ARRAY subquery over it
-     *  would be empty). */
-    private static SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
-        return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body).append(" END)");
+    /** {@code body} over the list, or NULL for a NULL list (DuckDB's list functions answer NULL there; an ARRAY
+     *  subquery over it would be empty). The list is written ONCE, bound as the one field of a one-row UNNEST the body
+     *  reads by name (its type the list's own): tested and then read, it was written twice, and a list built from
+     *  another's elements doubled the statement at every level (PCT round 21, 2026-11-05: exists::testExistsInSelect's
+     *  verdict statement, the database judge's canon over a firm's employees, 1,244,880 characters, past BigQuery's
+     *  1,024K limit; SQLite's same writer measured 264K -> 23K once bound). A NULL literal is not bound: a bare NULL
+     *  types INT64 here, and the guard alone answers it. A nested binding shadows this one only inside its own
+     *  subquery, which reads its own list. */
+    private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        if (nullList(xs)) {
+            return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body.apply(xs))
+                    .append(" END)");
+        }
+        SqlExpr bound = xs.type() instanceof com.legend.sql.TypeFact.Typed t
+                ? SqlExpr.Column.of(BOUND_LIST, BOUND_VALUE, t.type(), t.nullable(),
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived(BOUND_LIST, BOUND_VALUE);
+        return w -> w.append("(SELECT CASE WHEN ").expr(bound, 4).append(" IS NULL THEN NULL ELSE ")
+                .piece(body.apply(bound)).append(" END FROM UNNEST([STRUCT(").expr(xs, 0).append(" AS ")
+                .append(param(BOUND_VALUE)).append(")]) AS ").append(aliasIdent(BOUND_LIST)).append(")");
     }
+
+    /** The one-row UNNEST a list is bound in ({@link #unlessNull}), and its one field. */
+    private static final String BOUND_LIST = "__l";
+    private static final String BOUND_VALUE = "__xs";
 
     /** An empty list of {@code e}'s element type, typed when the type is known. */
     private String emptyList(SqlExpr e) {
@@ -1047,8 +1073,8 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  list: the elements kept in list order. */
     private SqlWriter.Piece overElements(SqlExpr xs, String e, String o, SqlWriter.Piece select,
             SqlWriter.@com.legend.base.Nullable Piece where) {
-        return unlessNull(xs, w -> {
-            w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elements(xs, e, o));
+        return unlessNull(xs, b -> w -> {
+            w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elements(b, e, o));
             if (where != null) {
                 w.append(" WHERE ").piece(where);
             }
@@ -1178,9 +1204,10 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         String e = param("__e");
-        return writer.append("(CASE WHEN ").expr(m.collection(), 4).append(" IS NULL OR ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(m.collection(), 0)
-                .append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(") END)");
+        // the collection bound once (unlessNull), NULL for a NULL collection or needle
+        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(b, 0)
+                .append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(") END)")));
     }
 
     @Override
@@ -1322,8 +1349,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             }
             // element-wise: BigQuery casts between arrays of compatible element types only (measured)
             String e = param("__c");
-            return writer.piece(unlessNull(v, w -> w.append("ARRAY(SELECT ")
-                    .piece(castTo(x -> x.append(e), from, arr.element())).append(" FROM UNNEST(").expr(v, 0)
+            return writer.piece(unlessNull(v, b -> w -> w.append("ARRAY(SELECT ")
+                    .piece(castTo(x -> x.append(e), from, arr.element())).append(" FROM UNNEST(").expr(b, 0)
                     .append(") AS " + e + " WITH OFFSET AS " + param("__co") + " ORDER BY " + param("__co") + ")")));
         }
         if (target == SqlType.Scalar.VARCHAR) {
@@ -1625,14 +1652,15 @@ public final class BigQuery extends AnsiSqlRenderer {
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
             case LIST_GET -> listGet(writer, c);
+            case LIST_AT -> listAt(writer, c);
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             // (measured)
             case LIST_POSITION -> writer.append("(SELECT MIN(" + param("__o") + ") + 1 FROM ")
                     .piece(elements(a.get(0), "__e", "__o")).append(" WHERE " + param("__e") + " IS NOT DISTINCT FROM ")
                     .expr(a.get(1), 4).append(")");
             // DuckDB's list_distinct drops NULLs; the first occurrence's order (DuckDB's own is its hash's)
-            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e")
-                    + " FROM ").piece(elements(a.get(0), "__e", "__o")).append(" WHERE " + param("__e")
+            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + param("__e")
+                    + " FROM ").piece(elements(b, "__e", "__o")).append(" WHERE " + param("__e")
                     + " IS NOT NULL GROUP BY " + param("__e") + " ORDER BY MIN(" + param("__o") + "))")));
             // list_append(NULL, v) is [v] (measured)
             case LIST_APPEND -> listAppend(writer, c);
@@ -1707,6 +1735,17 @@ public final class BigQuery extends AnsiSqlRenderer {
         return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
                 .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
                 .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+    }
+
+    /** LIST_AT: a position the list holds (1-based, positive): its element by offset, the list and the position
+     *  written once; a NULL list's element its type's NULL, as {@link #listGet}. */
+    private SqlWriter listAt(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (nullList(a.get(0))) {
+            return writer.append(nullOf(typeOf(c)));
+        }
+        return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CAST(").expr(a.get(1), 0)
+                .append(" AS INT64) - 1)]");
     }
 
     /** JSON_TYPE, in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
@@ -1800,8 +1839,8 @@ public final class BigQuery extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
         SqlType el = listElement(a.get(0));
-        return writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
-                .expr(a.get(0), 0).append(") AS " + param("__e") + " ORDER BY ")
+        return writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
+                .expr(b, 0).append(") AS " + param("__e") + " ORDER BY ")
                 .append(elementSort(param("__e"), el, dir)).append(")")));
     }
 
@@ -2186,8 +2225,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                 }
                 String k = e + "." + ident(entry.fields().get(0).name());
                 String v = e + "." + ident(entry.fields().get(1).name());
-                yield writer.piece(unlessNull(xs, keysChecked(xs, e, k, w -> w.append("ARRAY(SELECT AS STRUCT " + k
-                        + " AS " + key + ", " + v + " AS " + value + " FROM UNNEST(").expr(xs, 0).append(") AS " + e
+                yield writer.piece(unlessNull(xs, b -> keysChecked(b, e, k, w -> w.append("ARRAY(SELECT AS STRUCT " + k
+                        + " AS " + key + ", " + v + " AS " + value + " FROM UNNEST(").expr(b, 0).append(") AS " + e
                         + " WITH OFFSET AS " + o + " ORDER BY " + o + ")"))));
             }
             // DuckDB's map(ks, vs): the keys zipped with the values by position
@@ -2220,11 +2259,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                                 + "), ARRAY_AGG(" + u + "." + o + " ORDER BY " + u + "." + src
                                 + " LIMIT 1)[OFFSET(0)])");
             }
-            case MAP_KEYS, MAP_VALUES -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + e + "."
-                    + (c.fn() == SqlFn.MAP_KEYS ? key : value) + " FROM UNNEST(").expr(a.get(0), 0).append(") AS " + e
+            case MAP_KEYS, MAP_VALUES -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + e + "."
+                    + (c.fn() == SqlFn.MAP_KEYS ? key : value) + " FROM UNNEST(").expr(b, 0).append(") AS " + e
                     + " WITH OFFSET AS " + o + " ORDER BY " + o + ")")));
-            case MAP_EXTRACT -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + e + "." + value
-                    + " FROM UNNEST(").expr(a.get(0), 0).append(") AS " + e + " WITH OFFSET AS " + o + " WHERE " + e
+            case MAP_EXTRACT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + e + "." + value
+                    + " FROM UNNEST(").expr(b, 0).append(") AS " + e + " WITH OFFSET AS " + o + " WHERE " + e
                     + "." + key + " = ").expr(a.get(1), 5).append(" ORDER BY " + o + ")")));
             default -> throw new IllegalStateException("not a map call: " + c.fn());
         };
@@ -2257,10 +2296,10 @@ public final class BigQuery extends AnsiSqlRenderer {
         String o = param("__mo");
         String key = ident("key");
         String value = ident("value");
-        return unlessNull(m, w -> w.append("ARRAY(SELECT AS STRUCT ")
+        return unlessNull(m, b -> w -> w.append("ARRAY(SELECT AS STRUCT ")
                 .piece(castTo(x -> x.append(e + "." + key), from.key(), to.key())).append(" AS " + key + ", ")
                 .piece(castTo(x -> x.append(e + "." + value), from.value(), to.value())).append(" AS " + value
-                        + " FROM UNNEST(").expr(m, 0).append(") AS " + e + " WITH OFFSET AS " + o + " ORDER BY " + o
+                        + " FROM UNNEST(").expr(b, 0).append(") AS " + e + " WITH OFFSET AS " + o + " ORDER BY " + o
                         + ")"));
     }
 
@@ -2959,6 +2998,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  one BigQuery refuses it, measured), unqualified; a key is declared NOT ENFORCED. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
@@ -2989,6 +3029,7 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** A DELETE needs a WHERE clause in GoogleSQL. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
             return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
         }

@@ -88,7 +88,7 @@ public class MinimalCorpusTest {
             return new Lane(TestBackends.platform().name(),
                     new Ceilings(PLATFORM_STRENGTH, PLATFORM_TEXT_DECIDED, PLATFORM_LENIENCY));
         }
-        if (backend == TestBackends.referee()) {
+        if (backend.type() == TestBackends.referee().type()) {
             return new Lane(backend.name(), new Ceilings(REFEREE_STRENGTH, REFEREE_TEXT_DECIDED, REFEREE_LENIENCY));
         }
         return new Lane(backend.name(), null);
@@ -213,6 +213,9 @@ public class MinimalCorpusTest {
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
+        /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
+        List<String> stayedRows = new ArrayList<>();
+        List<String> unplannedRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
@@ -228,8 +231,11 @@ public class MinimalCorpusTest {
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
+                int unplannedBefore = com.legend.exec.Census.UNPLANNED_ASSERTS.size();
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
+                long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                int stayedBefore = com.legend.exec.Census.STAYED_KINDS.size();
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -244,6 +250,13 @@ public class MinimalCorpusTest {
                                     + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
+                long movedNow = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                if (movedNow > movedBefore) {
+                    // the tests whose run the body router moved bodies of, and how many (a test's setup program and
+                    // its body each count; the test-is-the-product plan's M6, 2026-11-01: the census above counts
+                    // them, the two passes' prints name them -- a host-only class shows as the host pass's larger delta)
+                    System.out.println("[corpus2] body-router moved " + (movedNow - movedBefore) + " " + t.fqn());
+                }
                 String[] acc = acceptedRegister.get(r.fqn());
                 if (acc != null && r.status() == MinimalCorpus.Status.FAIL) {
                     r = r.reason().contains(acc[1])
@@ -289,6 +302,18 @@ public class MinimalCorpusTest {
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
                 for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
                     fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
+                }
+                for (int si = stayedBefore; si < com.legend.exec.Census.STAYED_KINDS.size(); si++) {
+                    stayedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.STAYED_KINDS.get(si));
+                }
+                // one row per label per body: the router plans a body before the walk runs it, and the walk asks the
+                // host planner again about the assert the program road refused -- the same refusal, counted once
+                java.util.Set<String> bodyLabels = new java.util.LinkedHashSet<>();
+                for (int ui = unplannedBefore; ui < com.legend.exec.Census.UNPLANNED_ASSERTS.size(); ui++) {
+                    bodyLabels.add(com.legend.exec.Census.UNPLANNED_ASSERTS.get(ui));
+                }
+                for (String label : bodyLabels) {
+                    unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + label);
                 }
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
@@ -348,6 +373,29 @@ public class MinimalCorpusTest {
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
         System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
+        System.out.println("[corpus2] body-router moved=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED));
+        // THE KIND CENSUS of the bodies the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
+        // per test in the TSV; the histogram over the PASSING tests' bodies names what each movement step must admit
+        Files.write(com.legend.testing.TestOutputs.file("corpus2-body-stayed.tsv"), stayedRows);
+        // THE UNPLANNED-ASSERT CENSUS (M10c, 2026-11-02): each assert the host planner declined, by its shape, per test
+        Files.write(com.legend.testing.TestOutputs.file("corpus2-unplanned-asserts.tsv"), unplannedRows);
+        java.util.Map<String, Integer> unplannedHist = new java.util.TreeMap<>();
+        for (String row : unplannedRows) {
+            unplannedHist.merge(row.substring(row.lastIndexOf('\t') + 1), 1, Integer::sum);
+        }
+        // in the map's own (name) order: the count is the number, no sort site (JavaEvalLedgerTest's harness census)
+        for (var e : unplannedHist.entrySet()) {
+            System.out.println("[corpus2] unplanned-assert " + e.getValue() + " " + e.getKey());
+        }
+        java.util.Map<String, Integer> stayedByKinds = new java.util.TreeMap<>();
+        for (String row : stayedRows) {
+            String[] cols = row.split("\t", 3);
+            if ("PASS".equals(cols[1])) {
+                stayedByKinds.merge(cols[2].isEmpty() ? "(none)" : cols[2], 1, Integer::sum);
+            }
+        }
+        stayedByKinds.entrySet().stream().sorted((x, y) -> Integer.compare(y.getValue(), x.getValue()))
+                .forEach(e -> System.out.println("[corpus2] body-router stayed " + e.getValue() + " " + e.getKey()));
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);
@@ -583,9 +631,15 @@ public class MinimalCorpusTest {
         int spelling = strength.getOrDefault("SPELLING", 0);
         int weak = strength.getOrDefault("CARDINALITY", 0);
         int[] floor = ceilings().strength();
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        String mode = System.getProperty("legend.judge.mode", "host");
+        if ("database".equalsIgnoreCase(mode) || "both".equalsIgnoreCase(mode)) {
             // leg 3.1: database mode reports its strength against host mode's
-            // floors; the differential gate (leg 3.3) pins it
+            // floors; the differential gate (leg 3.3) pins it. BOTH judges
+            // likewise (2026-11-02, the walker-deletion program): its verdict of
+            // record is the host pass's, pinned there; an assert the database
+            // judge's planner does not plan yet is declined by that judge and
+            // counted here as text-decided -- the residue is pinned ONCE, by the
+            // text-decided "database" ceiling (PLATFORM_TEXT_DECIDED, 44)
             System.out.println("[corpus2] database-mode strength differential=" + differential
                     + " (host floor " + floor[0] + ") spelling=" + spelling + " weak=" + weak);
             return;
@@ -754,8 +808,6 @@ public class MinimalCorpusTest {
                 + " decimal-scale-only=" + com.legend.judge.CanonicalDivergence.decimalScaleOnlyCount()
                 + " disagree=" + com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
                 + " declined=" + com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
-                + " wire-retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED)
-                + " wire-slot-skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW)
                 + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
                 + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.judge.VerdictBatch.frameCensus() + "]");
@@ -861,9 +913,21 @@ public class MinimalCorpusTest {
     // text assert used to raise in Java at the assert, now the row is judged at the
     // flush, so the later Composite text assert is reached and counted. The DB2 row
     // fails at the flush as before (fail rosters unchanged).
+    // database 0 -> 44 (2026-11-02, the walker-deletion program: the agreement judge on the program road,
+    // AgreementAsserts): under BOTH judges each assert's step carries the database judge's verdict statement, planned
+    // as the database judge's planner plans it; an assert of a shape that planner does not plan yet is DECLINED by the
+    // database judge ("database judge: not this shape", the agreement rule: the host decides), where the walk's
+    // agreement arm read its sides at its turn. Measured on corpus_one duckdb both: the 44 tests are exactly the
+    // database pass's walked bodies with a database-unplanned assert (corpus2-body-stayed.tsv); outcomes unchanged
+    // (2471 / 108, disagree=0). Shrinks to zero with the database pass's burn-down.
+    // database 44 -> 45 (2026-11-03, per-statement routing): the one body reading both stores by statement
+    // (testSubTypeMappingValidWhenMappedExplicitly) moves under the agreement judge; its system-store assert's
+    // database group sits on the graph's system database, a second session the database judge's planner refuses by
+    // name (DatabaseAsserts.close), so that half declines it and the host decides (outcome unchanged, disagree=0).
+    // Shrinks when the database judge plans a group on the system session.
     private static final java.util.Map<String, Integer> PLATFORM_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
-            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9, "database", 45);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
     // plan asserts as the DuckDB lane (the plan producer behind a helper),

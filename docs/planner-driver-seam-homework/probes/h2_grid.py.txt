@@ -1,0 +1,121 @@
+import re, sys, json, collections
+sys.path.insert(0, '/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad')
+from purescan import *
+from h_static import executeInDb_calls, LET_RE
+
+def role(f):
+    if is_corpus_test(f): return 'test.Test body'
+    if is_corpus_setup(f): return 'BeforePackage setup'
+    if is_pct_test(f): return 'PCT.test body'
+    return 'other function (helper/library)'
+
+def chain_after(text, pos):
+    """navigation text after pos up to a depth-0 ',' ')' ';' or end."""
+    depth = 0; i = pos; n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "'":
+            i += 1
+            while i < n and text[i] != "'":
+                if text[i] == '\\': i += 1
+                i += 1
+        elif c in '([{': depth += 1
+        elif c in ')]}':
+            if depth == 0: break
+            depth -= 1
+        elif c in ',;' and depth == 0: break
+        i += 1
+    return text[pos:i]
+
+def norm(s):
+    s = re.sub(r"'(?:[^'\\]|\\.)*'", "'S'", s)
+    s = re.sub(r'\$[A-Za-z_]\w*', '$V', s)
+    s = re.sub(r'\b\d+\b', 'N', s)
+    return re.sub(r'\s+', '', s)
+
+def classes_of(uses, stmt_ctx):
+    cls = set(); shapes = []
+    for u in uses:
+        nu = norm(u)
+        shapes.append(nu)
+        if re.search(r'\.rows(->at\(N\))?\.(value|get\w*)\(|\.rows->map\(V\|\$V\.(value|get\w*)\(|\.rows(->at\(N\))?\.values->at\(|\.rows->map\(V\|\$V\.values->at\(|->at\(N\)\.values->at\(', nu.replace('(V|', '(V|')):
+            cls.add('a')
+        if '.columnNames' in nu: cls.add('b')
+        if re.search(r'\.values(?!->at\()', nu) or re.search(r'->map\(V\|\$V\.values', nu): cls.add('c')
+        if re.search(r'\.rows->size\(|->size\(|->isEmpty\(|->isNotEmpty\(', nu): cls.add('d')
+    for u, ctx in zip(uses, stmt_ctx):
+        nu = norm(u); nctx = norm(ctx)
+        if re.search(r'assert(Size|Empty|NotEmpty)\(' , nctx) and re.search(r'^(\.rows)?$', nu): cls.add('d')
+        elif re.search(r'^(\.rows)?$', nu) and re.search(r'(print|println)\(', nctx): cls.add('e:print')
+        elif re.search(r'^(\.rows)?$', nu) and re.search(r'[A-Za-z_]\w*\(\s*[^;]*\$V', nctx): cls.add('e:helper-arg')
+        elif re.search(r'^->(cast|resultSetToTDS)\(', nu) or nu.startswith('.connection') or nu.startswith('->'): cls.add('g:' + nu[:40])
+    return cls, shapes
+
+def run(label, files):
+    sites = []
+    for fpath in files:
+        for f in functions(fpath):
+            body = f['body']; stmts = split_statements(body)
+            # statement spans in body
+            spans = []; cursor = 0
+            for s in stmts:
+                k = body.find(s, cursor); spans.append((k, k + len(s))); cursor = k + len(s)
+            for c in executeInDb_calls(body):
+                si = next((i for i, (a, b) in enumerate(spans) if a <= c['pos'] < b), None)
+                stmt = stmts[si] if si is not None else ''
+                lm = LET_RE.match(stmt)
+                letv = None; uses = []; ctx = []
+                direct_chain = chain_after(body, c['end'])
+                if lm:
+                    rhs = lm.group(2).strip()
+                    if re.match(r'(?:[A-Za-z_]\w*::)*' + c['name'] + r'\s*\(', rhs):
+                        letv = lm.group(1)
+                        if direct_chain.strip(): uses.append(direct_chain); ctx.append(stmt)
+                        for j in range(si + 1, len(stmts)):
+                            for m in re.finditer(r'\$' + re.escape(letv) + r'(?![\w])', stmts[j]):
+                                uses.append(chain_after(stmts[j], m.end())); ctx.append(stmts[j])
+                if letv is None:
+                    if direct_chain.strip(): uses.append(direct_chain); ctx.append(stmt)
+                cls, shapes = classes_of(uses, ctx)
+                statement_level = not lm and si is not None and stmt.lstrip().startswith(c['name']) and not direct_chain.strip()
+                nested_in_let_rhs = bool(lm) and letv is None
+                if not uses and not cls:
+                    if statement_level: cls.add('g:result-discarded(statement-level call)')
+                    elif nested_in_let_rhs or (not lm and not statement_level): cls.add('g:argument-of-another-call,no-navigation')
+                    else: cls.add('g:let-bound,never-read')
+                line = pathlib.Path(fpath).read_text(encoding='utf-8', errors='replace').count('\n', 0, 0) + f['bodyline'] + body.count('\n', 0, c['pos'])
+                sites.append({'input': label, 'file': fpath.split('/src/main/resources/')[1], 'line': line, 'fn': f['name'], 'role': role(f),
+                              'native': c['name'], 'typer': c['kind'], 'let': letv, 'classes': sorted(cls), 'shapes': shapes, 'stmt_last': si == len(stmts) - 1 if si is not None else None})
+    return sites
+
+if __name__ == '__main__':
+    corpus = run('corpus', corpus_files())
+    chb = []
+    for suite in CHB: chb += run('channelB:' + suite, chb_files(suite))
+    allsites = corpus + chb
+    json.dump(allsites, open('/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/h2_sites.json', 'w'), indent=1)
+    for label, sites in (('corpus', corpus), ('channelB', chb)):
+        print('=====', label, 'executeInDb( sites:', sum(1 for s in sites if s['native'] == 'executeInDb'), 'executeInDbToTDS( sites:', sum(1 for s in sites if s['native'] == 'executeInDbToTDS'), 'files:', len({s['file'] for s in sites}))
+        print('by role:', collections.Counter(s['role'] for s in sites).most_common())
+        print('by Typer kind (literal single query = raw grid):', collections.Counter(s['typer'] for s in sites).most_common())
+        print('let-bound:', sum(1 for s in sites if s['let']))
+        cc = collections.Counter()
+        for s in sites:
+            for c in s['classes']: cc[c.split(':')[0] if c[0] in 'eg' else c] += 1
+        print('class counts (sites with class):', sorted(cc.items()))
+        print('class detail:', collections.Counter(c for s in sites for c in s['classes']).most_common(30))
+        print('shapes (normalized navigation after the grid/let):', collections.Counter(sh for s in sites for sh in s['shapes']).most_common(40))
+        print('per file:')
+        pf = collections.defaultdict(collections.Counter)
+        for s in sites:
+            for c in s['classes']: pf[s['file']][c.split(':')[0]] += 1
+            pf[s['file']]['sites'] += 1
+        for fl in sorted(pf): print('   %4d  %s   %s' % (pf[fl]['sites'], fl, dict((k, v) for k, v in pf[fl].items() if k != 'sites')))
+        print('sites with (a)/(b)/(c)/(d)/(e) by function:')
+        for s in sites:
+            if any(c[0] in 'abcde' for c in s['classes']):
+                print('   ', s['file'] + ':' + str(s['line']), s['role'], s['fn'], 'let=' + str(s['let']), s['typer'], s['classes'], s['shapes'][:4])
+        print('raw-grid (Typer) sites that are NOT let-bound and NOT statement-level:')
+        for s in sites:
+            if s['typer'] == 'grid' and not s['let']:
+                print('   ', s['file'] + ':' + str(s['line']), s['role'], s['fn'], s['classes'], s['shapes'][:3])

@@ -82,7 +82,7 @@ class OwnDialectCensusTest {
                     // the reference checks, 2026-10-21 (REVIEWED): the wrong-arity cases' generic class, the
                     // declared extension LITE-DESIGN-function-types-generics (§11) by purpose
                     "ReferenceIntegrityTest.java",
-                    // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S131, the user's 2a): a
+                    // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S146, the user's 2a): a
                     // user function's id spelling its relation's columns, its fixture two such overloads
                     "SignatureMangleTest.java");
 
@@ -153,7 +153,7 @@ class OwnDialectCensusTest {
                     // 15 -> 16 (2026-10-28, REVIEWED, enumeration mappings): test::ofFamily, a mapped enumeration's
                     // column filtered by a generic body (signatures 23 -> 24); 16 -> 17 (2026-10-28, REVIEWED, the
                     // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20); 17 -> 19
-                    // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S131, the user's 2a): aColumnsTypePicksTheOverload
+                    // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a): aColumnsTypePicksTheOverload
                     // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
                     // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
                     java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
@@ -168,7 +168,7 @@ class OwnDialectCensusTest {
                     // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject; 1 -> 2
                     // the same day (the independent audit): a class extending its own type parameter, a crash's guard
                     java.util.Map.entry("ReferenceIntegrityTest.java", 2),
-                    // 0 -> 1 (2026-11-03, REVIEWED, S131): the id-spelling fixture, two overloads by a column's type
+                    // 0 -> 1 (2026-11-03, REVIEWED, S146): the id-spelling fixture, two overloads by a column's type
                     java.util.Map.entry("SignatureMangleTest.java", 1));
 
     private static String hostOf(String id) {

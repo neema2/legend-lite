@@ -198,7 +198,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
   offset arithmetic fit in our tenets? Constant fold known at compile time?", then "Agree on everything else" to this
   wording). A frame bound decides the window's shape,
   as a column name decides a schema (C6.2a): legend-engine evaluates the window while it plans and reads each bound as
-  the number it computed (docs/SEMANTICS_REGISTER.md S129). A library writes its window's span once over its arguments
+  the number it computed (docs/SEMANTICS_REGISTER.md S144). A library writes its window's span once over its arguments
   (`-(timeseries::periodSpan($n, $unit) - 1)`), and once a call's literals are substituted the span is arithmetic over
   spelled integers alone; written to the database as an expression, it costs a runtime check around every window and is
   refused outright by MySQL and MariaDB.
@@ -206,7 +206,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
      classification), never a row's value.
   2. **What:** integer `+`, `-`, `*` and unary minus over integer literals, worked exactly (`WindowFrame.spelled`); an
      overflow, a division, a float, a parameter, a column or any other function folds nothing and leaves the bound the
-     database's (S129).
+     database's (S144).
   3. **Then:** the frame is the literal one -- its direction the number's sign, its order checked as a literal frame's,
      in upstream's words -- so `rows(1 - $w, 0)` with `w = 2` is `1 PRECEDING`, as upstream reads it.
   4. **Never a row value:** the same arithmetic in any other position stays SQL.

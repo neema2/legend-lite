@@ -101,6 +101,12 @@ public abstract class SqlRewriter {
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf
+            // a raw grid's report: its grid is a lowered query, rewritten as any subselect is (the seam program's
+            // S3c audit, 2026-10-31: until then a leaf, which no dialect pass saw inside)
+            case SqlSource.GridReport g -> {
+                SqlQuery i = rewrite(g.grid());
+                yield i == g.grid() ? g : new SqlSource.GridReport(i, g.part(), g.alias(), g.outputs());
+            }
             case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> {
                 SqlQuery i = rewrite(sub.inner());

@@ -191,6 +191,9 @@ public final class ChannelB {
         // unscoped suite.
         String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
+        // the walk CLOSED on every lane, by construction (2026-11-03, the channel B audit: a lane whose target set no
+        // property walked freely): every body runs on the program road, and one that would walk is refused by name
+        System.setProperty("legend.walk.allowed", "none");
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {
                 continue;
@@ -265,6 +268,8 @@ public final class ChannelB {
         } catch (Declined d) {
             return new Outcome(fqn, Status.DECLINED, d.getMessage());
         }
+        // the running test, by its function's full name: the walk's door names the bodies still allowed to walk by it
+        System.setProperty("legend.test.current", fqn);
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             var lambda = new LambdaFunction(List.of(), body);
             var imports = module.model().elementImports().get(com.legend.model.FunctionId.of(fd).qualified());
@@ -282,9 +287,15 @@ public final class ChannelB {
                     com.legend.test.StorelessRuntime.RUNTIME, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
-                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH)
+                            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
+                            // bodies under one judge, to read which shapes the program road plans for it
+                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.valueOf(
+                                    System.getProperty("pct.channelb.judge", "BOTH")))
                             // a server lane's system connection, as channel A's (PctBackend)
-                            .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections()));
+                            .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections())
+                            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
+                            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+                            .withEngineCompat(true));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a
@@ -300,10 +311,12 @@ public final class ChannelB {
 
     /** The census detail line: assert messages are MULTI-LINE
      * ('\nexpected: …\nactual: …') — newlines flatten so the row keeps
-     * its whole story; long tails clip. */
+     * its whole story; a long middle clips, its head and its TAIL kept (2026-11-03, round 17: a Databricks error is the
+     * whole statement and then Spark's own words, which a head alone cut off -- the statement each judge writes
+     * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
         String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
-        return m.length() <= 400 ? m : m.substring(0, 400) + "…";
+        return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
     }
 
     private static final class Declined extends RuntimeException {

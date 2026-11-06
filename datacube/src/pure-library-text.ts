@@ -958,7 +958,7 @@ function timeseries::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], 
 // two lines that move together exactly can be 1 + 2e-16 by rounding -- a line against itself (spec-16: SPX regressed on
 // SPX) -- and 1 - r_squared is then below 0, whose sqrt refuses, as legend-pure's does. None stays none. (The user,
 // 2026-11-04: clamp the correlation, option A; exact decimals ruled out: no exact root, the databases' statistics in
-// double, and none on SQLite. docs/SEMANTICS_REGISTER.md S133: gs-quant's rolling corr is unclamped, its r_squared
+// double, and none on SQLite. docs/SEMANTICS_REGISTER.md S148: gs-quant's rolling corr is unclamped, its r_squared
 // never above 1.)
 function timeseries::bounded(c: Number[0..1]): Number[0..1]
 {
@@ -2409,7 +2409,7 @@ function timeseries::lines::untied<K,D>(x: Relation<(key:K, date:D, value:Number
 // A line's rows on one date, n, where a word counts its observations (the user, 2026-11-06, the time
 // model's D8): true where it has one; refused where it has several, naming the fix -- a line of several rows on one
 // date has no order among them, so a window of w observations, or lag or diff by obs, has no one answer there. A key
-// the store declares makes the count 1 (D2, S132).
+// the store declares makes the count 1 (D2, S147).
 function timeseries::lines::once(n: Integer[1]): Boolean[1]
 {
   if($n > 1, |fail('a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)'), |true)

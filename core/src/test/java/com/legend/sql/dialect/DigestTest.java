@@ -35,7 +35,7 @@ class DigestTest {
     void theInProcessDatabasesDigestAsJavaDoes() throws Exception {
         Map<SqlFn, String> algorithms = Map.of(SqlFn.MD5, "MD5", SqlFn.SHA1, "SHA-1", SqlFn.SHA256, "SHA-256");
         for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
-                Map.entry(new H2(), "jdbc:h2:mem:digest"), Map.entry(new H2Modern(), "jdbc:h2:mem:digest_modern"))) {
+                Map.entry(new H2(), "jdbc:h2:mem:digest"))) {
             String name = db.getKey().getClass().getSimpleName();
             try (Connection c = DriverManager.getConnection(db.getValue()); Statement st = c.createStatement()) {
                 for (var a : algorithms.entrySet()) {

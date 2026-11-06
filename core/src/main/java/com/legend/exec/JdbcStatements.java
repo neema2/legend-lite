@@ -29,7 +29,7 @@ final class JdbcStatements implements Statements {
     private final SessionState state;
 
     /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
-     *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
+     *  the statement carried); null for a session no trace reads, whose own stamps are its own ({@link #nextStamp}). */
     private final @com.legend.base.Nullable ExecutionTrace trace;
 
     /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
@@ -101,30 +101,38 @@ final class JdbcStatements implements Statements {
      *  result boundary program's phase 5: with the old executor deleted no query carried it, and the corpus's
      *  testSQLComments read an activity comment no statement had). */
     private String stamped(String statement) {
-        return trace != null ? trace.stamp(statement) : ExecutionTrace.stampOnly(statement);
+        if (trace != null) {
+            return trace.stamp(statement);
+        }
+        String comment = reserved != null ? reserved : ExecutionTrace.comment();
+        reserved = null;
+        return comment + "\n" + statement;
+    }
+
+    /** With no trace: the comment the next query carries, minted by {@link #nextStamp} (null: minted when sent). */
+    private @com.legend.base.Nullable String reserved;
+
+    @Override
+    public String nextStamp() {
+        if (trace != null) {
+            return trace.reserve();
+        }
+        if (reserved == null) {
+            reserved = ExecutionTrace.comment();
+        }
+        return reserved;
     }
 
     @Override
     public void check(ExecutionPlan.Target target) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         Sessions.check(c, target.database().type());
         driver = Connectors.of(target.database().type()).decoding();   // the driver's facts are its connector's (D72)
-        switch (target.servers()) {
-            case ExecutionPlan.Servers.Every every -> {
-                // the spelling depends on no version
-            }
-            case ExecutionPlan.Servers.Versions versions -> {
-                String version = Sessions.version(c);
-                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
-                    throw new com.legend.error.NotImplementedException("the plan's statements are written for "
-                            + target.database().type() + " " + versions.prefixes() + ", and the session is "
-                            + target.database().type() + " " + version + ": not run");
-                }
-            }
-        }
     }
 
     @Override
     public boolean execute(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement()) {
             return st.execute(statement);
         } catch (SQLException e) {
@@ -135,6 +143,7 @@ final class JdbcStatements implements Statements {
     @Override
     public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement)) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -147,6 +156,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public List<Reported> columns(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
             return reported(rs.getMetaData());
         } catch (SQLException e) {
@@ -156,6 +166,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public List<Reported> describe(String statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement)) {
             java.sql.ResultSetMetaData md = st.getMetaData();
             return md == null ? List.of() : reported(md);
@@ -176,6 +187,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try {
             BulkLoad bulk = BulkLoads.of(c);
             if (bulk == null) {
@@ -190,17 +202,20 @@ final class JdbcStatements implements Statements {
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         return Sessions.inTransaction(c, state, work);
     }
 
     @Override
     public boolean ownsTransaction() {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         return Sessions.ownsTransaction(c);
     }
 
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -221,6 +236,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -244,7 +260,50 @@ final class JdbcStatements implements Statements {
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
-                JdbcDecode.Reader reader = new JdbcDecode.Reader(columns, driver);
+                // a column whose kind is the wire's (a raw grid's, read by name) is read as its result reports it
+                List<ExecutionPlan.Column> read = columns;
+                if (columns.stream().anyMatch(c -> c.slot() == null
+                        && com.legend.result.RowDecode.ANY.equals(c.type()))) {
+                    List<Reported> reported = reported(rs.getMetaData());
+                    read = new java.util.ArrayList<>(columns.size());
+                    int at = 0;   // the physical column (a tagged column answers its slots beside it)
+                    for (ExecutionPlan.Column c : columns) {
+                        read.add(WireTypes.decodedAs(c, reported.get(at)));
+                        at += com.legend.result.RowDecode.physicalColumns(List.of(c));
+                    }
+                }
+                // the decode kind of each column read once (main's product-path tier 1), over the columns as read
+                JdbcDecode.Reader reader = new JdbcDecode.Reader(read, driver);
+                while (rs.next()) {
+                    cells.row(reader.row(rs));
+                }
+            }
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    /** {@inheritDoc} Each reported column named by the wire table ({@link WireTypes#column}). */
+    @Override
+    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+            for (int i = 0; i < slots.size(); i++) {
+                bind(st, i + 1, slots.get(i), values.get(i));
+            }
+            DatabaseConnector.Decoding driver = this.driver;
+            if (driver == null) {
+                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                        + " how its driver answers is its database's fact");
+            }
+            try (ResultSet rs = st.executeQuery()) {
+                List<ExecutionPlan.Column> reported = new java.util.ArrayList<>();
+                for (Reported r : reported(rs.getMetaData())) {
+                    reported.add(WireTypes.column(r));
+                }
+                columns.columns(reported);
+                JdbcDecode.Reader reader = new JdbcDecode.Reader(reported, driver);
                 while (rs.next()) {
                     cells.row(reader.row(rs));
                 }
@@ -258,6 +317,7 @@ final class JdbcStatements implements Statements {
      *  {@code TRANSACTION}), committed after it, rolled back if it fails, the connection's settings restored. */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE) {
             work.run();
             return;

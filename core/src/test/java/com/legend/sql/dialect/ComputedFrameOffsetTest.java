@@ -51,7 +51,7 @@ class ComputedFrameOffsetTest {
             assertTrue(sql.matches("(?s).*ROWS BETWEEN \\(.*3.* - .*1.*\\) PRECEDING AND CURRENT ROW.*"),
                     t + ": " + sql);
             assertTrue(sql.contains("CASE WHEN"), t + ": the check: " + sql);
-            assertTrue(sql.contains(FrameGuard.ORDER) && sql.contains("S129"), t + ": both refusals: " + sql);
+            assertTrue(sql.contains(FrameGuard.ORDER) && sql.contains("S144"), t + ": both refusals: " + sql);
         }
     }
 

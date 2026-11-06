@@ -30,9 +30,11 @@ import java.util.List;
  * {@code AssertError.java:68} hands the matcher the raising expression's
  * source info; ours rides the U+001E prefix inside the U+001F envelope),
  * and adjudicates with the pure {@code assertError/4} body's EXACT
- * failure spellings (assertError.pure:24-26). Adjudication of
- * orchestration artifacts is host-side by charter (the
- * {@code judge.PureAsserts} precedent).
+ * failure spellings (assertError.pure:24-26). This is the HOST judge's
+ * comparison; under the database judge and BOTH the database compares
+ * what the function raised in its own verdict statement (the user's
+ * ruling S135, 2026-11-05: the host catches, the database judges;
+ * {@code VerdictSql.assertError}, {@code PlanRunner}'s raising verdict).
  */
 final class AssertErrorNative {
 
@@ -77,6 +79,85 @@ final class AssertErrorNative {
             // exception kind stays LOUD — walls are never adjudicated.
             caughtMessage = String.valueOf(e.getMessage());
         }
+        return judged(expected, expectedLine, expectedColumn, caughtMessage, caughtCause);
+    }
+
+    /** The parsed arguments of an {@code assertError} call: {@code f}, the expected message, line and column; the walk's
+     *  checks, refused by name where the shape is none the arm takes. */
+    record Args(TypedLambda f, String expected, @com.legend.base.Nullable Long line,
+            @com.legend.base.Nullable Long column) {
+    }
+
+    static Args args(TypedNativeCall ae) {
+        return args(ae, List.of());
+    }
+
+    /** {@link #args(TypedNativeCall)} with the lets before the call: an expected message the compiler folds to a String
+     *  over them -- a literal, a let bound to one, a join of them -- is that String (2026-11-04, the asserts-as-plan-nodes
+     *  program: {@code let m = 'boom'; assertError(|fail($m), $m)} was refused); one computed at run time is refused by
+     *  name, the comparison Java's (ruling N3). */
+    static Args args(TypedNativeCall ae, List<com.legend.compiler.spec.typed.TypedSpec> lets) {
+        if (!(ae.args().get(0) instanceof TypedLambda f)
+                || !f.parameters().isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "assertError whose function argument is not a"
+                    + " zero-parameter lambda literal");
+        }
+        Object expected = ae.args().get(1) instanceof TypedCString exp ? exp.value()
+                : com.legend.compiler.spec.typed.Literals.fold(ae.args().get(1), lets);
+        if (!(expected instanceof String message)) {
+            throw new com.legend.error.NotImplementedException(
+                    "assertError whose message argument is computed at run time (not a String the compiler folds)");
+        }
+        return new Args(f, message, optionalInt(ae, 2), optionalInt(ae, 3));
+    }
+
+    /** The error {@code f} raised, as the arm catches it: a database's error (its message clean, its cause the raise's
+     *  position where the raise was ours) or a deferred guard's model error; any other exception is no answer of the
+     *  arm's (a wall stays loud) and is null here. */
+    static @com.legend.base.Nullable RuntimeException caught(RuntimeException e) {
+        return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException ? e : null;
+    }
+
+    /** THE ARM'S VERDICT at its step (the walker-deletion program, 2026-11-03): the error {@code f} raised -- while it
+     *  was planned ({@code a.caught()}), else reading {@code sides}, f's last statement run -- judged against the expected
+     *  message, line and column with the pure {@code assertError/4} body's exact spellings, the walk's and the program
+     *  road's one rule; a side that raises nothing fails ("No error was thrown"), an error no arm takes (a wall) is
+     *  raised as it was. */
+    static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        RuntimeException raised = a.caught();
+        if (a.inner() != null) {
+            // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
+            // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the
+            // same rules -- a side that raises is that error too
+            String message = null;
+            try {
+                // the inner assert's sides were read with the step's, its caller's message among them: no reader
+                if (HostJudge.judge(a.inner().check().judgment(), sides, rules, null) == null) {
+                    throw new com.legend.error.NotImplementedException(a.inner().name()
+                            + " inside assertError: the host judge declined the sides it read");
+                }
+            } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
+                message = String.valueOf(e.getMessage());
+            }
+            return judged(a.expected(), a.line(), a.column(), message, null);
+        }
+        if (raised == null) {
+            try {
+                sides.get();
+            } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
+                // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
+                raised = e;
+            }
+        }
+        return judged(a.expected(), a.line(), a.column(), raised == null ? null : String.valueOf(raised.getMessage()),
+                raised instanceof com.legend.error.DataError ? raised.getCause() : null);
+    }
+
+    private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
+            @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
+            @com.legend.base.Nullable Throwable caughtCause) {
         if (caughtMessage == null) {
             // interpreted AssertError.java: PureAssertFail("No error was
             // thrown") — a FAIL, not an orchestration error
@@ -149,7 +230,4 @@ final class AssertErrorNative {
                 + " literal or []");
     }
 
-    /** Strip the backend's error-kind prefix ({@code "Invalid Input
-     * Error: "} etc. — single-line kind, anchored at the start): the
-     * pure-level MESSAGE is what the spec compares. */
 }

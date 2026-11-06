@@ -60,15 +60,33 @@ public final class PlanJson {
      *  2026-10-29: the fact's fourth value, MINIMAL, a value root's instant at the precision its digits show (a
      *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118); 19
      *  since 2026-10-29: the {@code LITERAL} slot word retired (track L's L2: a mixed value is a tagged value, never a
-     *  spelled text; a plan naming the word is refused at the reader). */
-    public static final int VERSION = 19;
+     *  spelled text; a plan naming the word is refused at the reader); 20 since 2026-10-30: the {@code verdicts} node
+     *  (a run of asserts as one step: each verdict's name, arm, equality flag, base sides -- typed rows, a keyed
+     *  result, or a constant of text cells -- and database wrapper; the group's fused statement), the planner-driver
+     *  seam program's S1b; 21 since 2026-10-30: a constant side's {@code folded} (its cells the compiler's join of the
+     *  program's constant tokens, not the tokens verbatim: S2f, the user's ruling "it's okay to join CONSTANT strings
+     *  only"); 22 since 2026-10-31: a keyed result's {@code keysOf} and {@code admitted} (its keys a raw grid's
+     *  reported columns, the kinds its cells may be in) and a verdict's keyed wrapper (the seam program's S3c); 23 since
+     *  2026-10-31: the {@code constant} node (a value the program wrote, answered with nothing sent: the
+     *  test-is-the-product plan's M2, MV12) and a keyed result's {@code shape} (a value read off a raw grid's report is
+     *  a value's answer, not a relation's: M2's audit); 24 since 2026-10-31: an effect's {@code script} (its
+     *  statements, bracketed form and abort), the {@code setup} node (a program's seed step: its key, steps and target) and a
+     *  verdict group's {@code savepoint} (F11) -- the test-is-the-product plan's M3, B12; 25 since 2026-11-01: a verdict
+     *  carries no {@code wantEqual} -- the database judge's row answers holds and message itself and the host judgment
+     *  record carries its own polarity (the test-is-the-product plan's M8b, MV2: the plan carries nothing about the
+     *  assert but the listener's name and the census arm); 26 since 2026-11-01: a target's database may be the graph's
+     *  SYSTEM database on an engine ({@code system}: a test body reading the metamodel store, the test-is-the-product
+     *  plan's M10a). */
+    public static final int VERSION = 26;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check, effect }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, verdicts, constant, branch }
+
+    enum SideTag { rows, keyedRows, constant }
 
     enum OutputTag { fixed, perKey }
 
@@ -76,9 +94,7 @@ public final class PlanJson {
 
     enum BindingTag { one, array, key }
 
-    enum DatabaseTag { declared, platform }
-
-    enum ServersTag { every, versions }
+    enum DatabaseTag { declared, platform, system }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         return named(family, o.getString("_type"), what + " _type");
@@ -138,6 +154,8 @@ public final class PlanJson {
             case ExecutionPlan.Keyed k -> {
                 o.put("_type", NodeTag.keyed.name());
                 o.put("keys", sql(k.keys()));
+                o.put("keysOf", k.keysOf().name());
+                o.put("admitted", new ArrayList<Object>(k.admitted()));
                 o.put("keyFields", new ArrayList<Object>(k.keyFields()));
                 List<Object> outputs = new ArrayList<>();
                 for (ExecutionPlan.Keyed.Output out : k.outputs()) {
@@ -160,6 +178,7 @@ public final class PlanJson {
                 o.put("body", sql(k.body()));
                 o.put("snapshot", k.snapshot().name());
                 o.put("maxColumns", k.maxColumns());
+                o.put("shape", k.shape().name());
             }
             case ExecutionPlan.Update u -> {
                 o.put("_type", NodeTag.update.name());
@@ -175,9 +194,102 @@ public final class PlanJson {
             case ExecutionPlan.Effect e -> {
                 o.put("_type", NodeTag.effect.name());
                 o.put("sql", sql(e.sql()));
+                if (e.script() != null) {
+                    Map<String, Object> so = new LinkedHashMap<>();
+                    so.put("statements", new ArrayList<Object>(e.script().statements()));
+                    so.put("bracketed", e.script().bracketed());
+                    so.put("abort", e.script().abort());
+                    o.put("script", so);
+                }
+            }
+            case ExecutionPlan.Setup u -> {
+                o.put("_type", NodeTag.setup.name());
+                o.put("key", u.key());
+                List<Object> steps = new ArrayList<>();
+                for (SetupStep step : u.steps()) {
+                    steps.add(setupStep(step));
+                }
+                o.put("steps", steps);
+                o.put("target", target(u.target()));
+            }
+            case ExecutionPlan.Constant c -> {
+                o.put("_type", NodeTag.constant.name());
+                o.put("columns", columns(c.columns()));
+                o.put("cells", c.cells());
+            }
+            case ExecutionPlan.Verdicts v -> {
+                o.put("_type", NodeTag.verdicts.name());
+                List<Object> verdicts = new ArrayList<>();
+                for (ExecutionPlan.Verdict each : v.verdicts()) {
+                    Map<String, Object> vo = new LinkedHashMap<>();
+                    vo.put("name", each.name());
+                    vo.put("arm", each.arm());
+                    List<Object> base = new ArrayList<>();
+                    for (ExecutionPlan.Side side : each.base()) {
+                        base.add(side(side));
+                    }
+                    vo.put("base", base);
+                    vo.put("wrapper", each.wrapper() == null ? null : node(each.wrapper()));
+                    if (each.message() != null) {
+                        vo.put("message", side(each.message()));
+                    }
+                    if (each.raises()) {
+                        vo.put("raises", true);
+                    }
+                    verdicts.add(vo);
+                }
+                o.put("verdicts", verdicts);
+                o.put("fused", v.fused() == null ? null : node(v.fused()));
+                if (v.savepoint() != null) {
+                    Map<String, Object> sp = new LinkedHashMap<>();
+                    sp.put("set", v.savepoint().set());
+                    sp.put("rollbackTo", v.savepoint().rollbackTo());
+                    sp.put("release", v.savepoint().release());
+                    o.put("savepoint", sp);
+                }
+                o.put("rules", switch (v.rules()) {
+                    case LITE -> "lite";
+                    case COMPILED_PURE_COMPAT -> "compiledPureCompat";
+                });
+            }
+            case ExecutionPlan.Branch b -> {
+                o.put("_type", NodeTag.branch.name());
+                o.put("condition", side(b.condition()));
+                o.put("then", nodes(b.then()));
+                o.put("otherwise", nodes(b.otherwise()));
             }
         }
         return o;
+    }
+
+    private static List<Object> nodes(List<Node> steps) {
+        List<Object> out = new ArrayList<>(steps.size());
+        for (Node step : steps) {
+            out.add(node(step));
+        }
+        return out;
+    }
+
+    /** A verdict's side, or a branch's condition: a typed result, a keyed result, or a constant the program wrote. */
+    private static Map<String, Object> side(ExecutionPlan.Side side) {
+        Map<String, Object> so = new LinkedHashMap<>();
+        switch (side) {
+            case ExecutionPlan.Side.Rows r -> {
+                so.put("_type", SideTag.rows.name());
+                so.put("result", node(r.result()));
+            }
+            case ExecutionPlan.Side.KeyedRows k -> {
+                so.put("_type", SideTag.keyedRows.name());
+                so.put("keyed", node(k.keyed()));
+            }
+            case ExecutionPlan.Side.Constant c -> {
+                so.put("_type", SideTag.constant.name());
+                so.put("columns", columns(c.columns()));
+                so.put("cells", c.cells());
+                so.put("folded", c.folded());
+            }
+        }
+        return so;
     }
 
     /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
@@ -238,6 +350,9 @@ public final class PlanJson {
             o.put("regions", regions);
         }
         o.put("target", target(s.target()));
+        if (s.stamp() != null) {
+            o.put("stamp", s.stamp());
+        }
         // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
         o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
@@ -292,7 +407,6 @@ public final class PlanJson {
     private static Map<String, Object> target(Target t) {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
-        to.put("servers", servers(t.servers()));
         to.put("session", t.session());
         to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
         return to;
@@ -309,17 +423,9 @@ public final class PlanJson {
                 o.put("_type", DatabaseTag.platform.name());
                 o.put("databaseType", p.type().name());
             }
-        }
-        return o;
-    }
-
-    private static Map<String, Object> servers(ExecutionPlan.Servers servers) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        switch (servers) {
-            case ExecutionPlan.Servers.Every e -> o.put("_type", ServersTag.every.name());
-            case ExecutionPlan.Servers.Versions v -> {
-                o.put("_type", ServersTag.versions.name());
-                o.put("prefixes", v.prefixes());
+            case ExecutionPlan.Database.System s -> {
+                o.put("_type", DatabaseTag.system.name());
+                o.put("databaseType", s.type().name());
             }
         }
         return o;
@@ -401,15 +507,148 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("keyFields").items()) {
                     keyFields.add(((Json.Str) n).value());
                 }
-                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields, outputs, o.getInt("perKeyAt"),
+                List<String> admitted = new ArrayList<>();
+                for (Json.Node n : o.getArr("admitted").items()) {
+                    admitted.add(((Json.Str) n).value());
+                }
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")),
+                        named(ExecutionPlan.Keyed.KeysOf.class, o.getString("keysOf"), "keyed keys"),
+                        admitted, keyFields,
+                        outputs, o.getInt("perKeyAt"),
                         readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
-                        o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
+                        o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"),
+                        named(TdsResult.Shape.class, o.getString("shape"), "keyed result shape"));
             }
             case update -> new ExecutionPlan.Update(readSql(o.getObj("sql")), o.has("count") ? o.getString("count")
                     : null);
             case check -> new ExecutionPlan.Check(readSql(o.getObj("sql")));
-            case effect -> new ExecutionPlan.Effect(readSql(o.getObj("sql")));
+            case effect -> {
+                Json.Obj so = o.getObjOr("script", null);
+                if (so == null) {
+                    yield new ExecutionPlan.Effect(readSql(o.getObj("sql")));
+                }
+                List<String> statements = new ArrayList<>();
+                for (Json.Node n : so.getArr("statements").items()) {
+                    statements.add(((Json.Str) n).value());
+                }
+                yield new ExecutionPlan.Effect(readSql(o.getObj("sql")), new ExecutionPlan.Effect.Script(statements,
+                        so.getString("bracketed"), so.getOr("abort", null) == null ? null : so.getString("abort")));
+            }
+            case setup -> {
+                List<SetupStep> steps = new ArrayList<>();
+                for (Json.Node n : o.getArr("steps").items()) {
+                    steps.add(readSetupStep((Json.Obj) n));
+                }
+                yield new ExecutionPlan.Setup(o.getString("key"), steps, readTarget(o.getObj("target")));
+            }
+            case verdicts -> {
+                List<ExecutionPlan.Verdict> verdicts = new ArrayList<>();
+                for (Json.Node n : o.getArr("verdicts").items()) {
+                    Json.Obj vo = (Json.Obj) n;
+                    List<ExecutionPlan.Side> base = new ArrayList<>();
+                    for (Json.Node sn : vo.getArr("base").items()) {
+                        base.add(readSide((Json.Obj) sn));
+                    }
+                    Json.Obj w = vo.getObjOr("wrapper", null);
+                    Json.Obj m = vo.getObjOr("message", null);
+                    verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
+                            base, w == null ? null : readNode(w), m == null ? null : readSide(m),
+                            vo.getBoolOr("raises", false)));
+                }
+                Json.Obj f = o.getObjOr("fused", null);
+                Json.Obj sp = o.getObjOr("savepoint", null);
+                String rules = o.getString("rules");
+                yield new ExecutionPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
+                        sp == null ? null : new ExecutionPlan.Verdicts.Savepoint(sp.getString("set"),
+                                sp.getString("rollbackTo"), sp.getString("release")),
+                        switch (rules) {
+                            case "lite" -> ExecutionPlan.JudgingRules.LITE;
+                            case "compiledPureCompat" -> ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+                            default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
+                                    + "': lite or compiledPureCompat");
+                        });
+            }
+            case branch -> new ExecutionPlan.Branch(readSide(o.getObj("condition")), readNodes(o.getArr("then")),
+                    readNodes(o.getArr("otherwise")));
+            case constant -> {
+                List<List<String>> cells = new ArrayList<>();
+                for (Json.Node r : o.getArr("cells").items()) {
+                    if (!(r instanceof Json.Arr row)) {
+                        throw new IllegalArgumentException("a constant answer's row is an array of cells");
+                    }
+                    List<String> out = new ArrayList<>();
+                    for (Json.Node cell : row.items()) {
+                        out.add(switch (cell) {
+                            case Json.Str s -> s.value();
+                            case Json.Null x -> null;
+                            case Json.Num x -> throw notTextSide();
+                            case Json.Bool x -> throw notTextSide();
+                            case Json.Obj x -> throw notTextSide();
+                            case Json.Arr x -> throw notTextSide();
+                        });
+                    }
+                    cells.add(out);
+                }
+                yield new ExecutionPlan.Constant(readRelationColumns(o.getArr("columns")), cells);
+            }
+        };
+    }
+
+    /** {@code o} read as a typed result node ({@code what} names the place that holds one). */
+    private static TdsResult typedResult(Json.Obj o, String what) {
+        Node n = readNode(o);
+        if (!(n instanceof TdsResult t)) {
+            throw new IllegalArgumentException(what + " is a typed result, not a " + o.getString("_type"));
+        }
+        return t;
+    }
+
+    private static IllegalArgumentException notTextSide() {
+        return new IllegalArgumentException("a constant side's cell is text or null (the program's own spelling)");
+    }
+
+    private static List<Node> readNodes(Json.Arr steps) {
+        List<Node> out = new ArrayList<>();
+        for (Json.Node n : steps.items()) {
+            out.add(readNode((Json.Obj) n));
+        }
+        return out;
+    }
+
+    /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
+    private static ExecutionPlan.Side readSide(Json.Obj so) {
+        return switch (tag(SideTag.class, so, "verdict side")) {
+            case rows -> new ExecutionPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));
+            case keyedRows -> {
+                Node k = readNode(so.getObj("keyed"));
+                if (!(k instanceof ExecutionPlan.Keyed keyed)) {
+                    throw new IllegalArgumentException("a keyed side holds a keyed result");
+                }
+                yield new ExecutionPlan.Side.KeyedRows(keyed);
+            }
+            case constant -> {
+                List<List<String>> cells = new ArrayList<>();
+                for (Json.Node r : so.getArr("cells").items()) {
+                    if (!(r instanceof Json.Arr row)) {
+                        throw new IllegalArgumentException("a constant side's row is an array of cells");
+                    }
+                    List<String> out = new ArrayList<>();
+                    for (Json.Node cell : row.items()) {
+                        out.add(switch (cell) {
+                            case Json.Str s -> s.value();
+                            case Json.Null x -> null;
+                            case Json.Num x -> throw notTextSide();
+                            case Json.Bool x -> throw notTextSide();
+                            case Json.Obj x -> throw notTextSide();
+                            case Json.Arr x -> throw notTextSide();
+                        });
+                    }
+                    cells.add(out);
+                }
+                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells,
+                        so.getBool("folded"));
+            }
         };
     }
 
@@ -456,11 +695,6 @@ public final class PlanJson {
             Json.Obj s = (Json.Obj) n;
             slots.add(new Slot(s.getString("parameter"), readBinding(s.getObj("binding"))));
         }
-        Json.Obj t = o.getObj("target");
-        List<SetupStep> setup = new ArrayList<>();
-        for (Json.Node n : t.getArr("setup").items()) {
-            setup.add(readSetupStep((Json.Obj) n));
-        }
         Json.Node tree = o.getOr("tree", null);
         List<ExecutionPlan.Region> regions = new ArrayList<>();
         Json.Node rs = o.getOr("regions", null);
@@ -476,9 +710,16 @@ public final class PlanJson {
                         r.getInt("slotCount"), counters));
             }
         }
-        return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
-                readServers(t.getObj("servers")), t.getStringArray("session"), setup),
-                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions);
+        return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null));
+    }
+
+    private static Target readTarget(Json.Obj t) {
+        List<SetupStep> setup = new ArrayList<>();
+        for (Json.Node n : t.getArr("setup").items()) {
+            setup.add(readSetupStep((Json.Obj) n));
+        }
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), setup);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
@@ -486,13 +727,8 @@ public final class PlanJson {
             case declared -> new ExecutionPlan.Database.Declared(ConnectionWire.read(fields(o.getObj("connection"))));
             case platform -> new ExecutionPlan.Database.Platform(
                     ConnectionWire.databaseType(o.getString("databaseType")));
-        };
-    }
-
-    private static ExecutionPlan.Servers readServers(Json.Obj o) {
-        return switch (tag(ServersTag.class, o, "servers")) {
-            case every -> new ExecutionPlan.Servers.Every();
-            case versions -> new ExecutionPlan.Servers.Versions(o.getStringArray("prefixes"));
+            case system -> new ExecutionPlan.Database.System(
+                    ConnectionWire.databaseType(o.getString("databaseType")));
         };
     }
 

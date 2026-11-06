@@ -1583,7 +1583,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("an enumeration's value against a string or another enumeration's is false, in a body and a query")
         void anEnumerationAgainstAString() throws SQLException {
             // legend-pure's equal compares values of one classifier only (EqualityUtilities.equal, CompiledSupport.equal):
-            // Stat.mean == 'mean' is false (the user, 2026-10-30, S128). The database, given the value's name, had
+            // Stat.mean == 'mean' is false (the user, 2026-10-30, S143). The database, given the value's name, had
             // answered true, and the fold had left it to the database so a body and a query answered alike
             String model = modelWith("""
                     Enum test::Stat
@@ -1659,7 +1659,7 @@ class UserFunctionIntegrationTest {
 
         @Test
         void aColumnSpecificationsColumnTypePicksTheOverload() throws SQLException {
-            // register S131 (2026-11-03): a library function's columns come as column specifications over a relation
+            // register S146 (2026-11-03): a library function's columns come as column specifications over a relation
             // parameter's row (ColSpec<X⊆T>); two overloads that differ only in that column's type are two functions,
             // ranked as m3 ranks the type argument once T is bound -- a key of All picks the All overload, a text key
             // (which no All fits) the generic one
@@ -1679,7 +1679,7 @@ class UserFunctionIntegrationTest {
 
         @Test
         void aColumnsTypePicksTheOverload() throws SQLException {
-            // register S131 (2a, the user, 2026-11-03): two overloads differing only in a relation parameter's column
+            // register S146 (2a, the user, 2026-11-03): two overloads differing only in a relation parameter's column
             // type are two functions, ranked as m3's RelationTypeMatch ranks them -- a key of All picks the All
             // overload, a text key the generic one
             String lib = """

@@ -163,7 +163,7 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("spelled, 1 - 2 is one row before, as upstream reads it; a parameter's shape after is refused, naming S129")
+    @DisplayName("spelled, 1 - 2 is one row before, as upstream reads it; a parameter's shape after is refused, naming S144")
     void aShapeAfterThatEndsBeforeIsRefused() throws SQLException {
         // 1 - 2 = -1: upstream reads one row BEFORE, and so does lite once the argument is spelled (C6.2b)
         assertEquals(TWO_ROWS, sums("|test::frames::afterShape(2)"));
@@ -172,7 +172,7 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
         String query = "{n: Integer[1]|" + sum("rows(1 - $n, 0)") + "}";
         Exception e = assertThrows(Exception.class, () -> Compiler.query(
                 Compiler.compileModel(getCompletePureModelWithRuntime()), query).executionPlan("test::TestRuntime"));
-        assertTrue(chain(e).contains("S129"), chain(e));
+        assertTrue(chain(e).contains("S144"), chain(e));
     }
 
     @Test

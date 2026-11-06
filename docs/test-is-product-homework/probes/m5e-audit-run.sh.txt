@@ -1,0 +1,9 @@
+#!/bin/bash
+# Re-runs the M5 audit probes against the jars bazel built for core_tests_testplan (no bazel invocation).
+cd "$(dirname "$0")"
+JDK=/root/.cache/bazel/_bazel_root/e8817d619d2dbe75028d8b0114f08e2c/external/rules_java++toolchains+remotejdk25_linux
+CP="out:$(cat cp.txt)"
+mkdir -p out && $JDK/bin/javac -d out -cp "$CP" src/*.java
+for p in M5Probe M5Probe2 M5Probe3 M5Probe4 H2Msg; do
+  timeout 300 $JDK/bin/java -Dlegend.diagnostics=dump-sql -cp "$CP" $p
+done 2>&1 | grep -v "JAVA_TOOL\|SLF4J\|WARNING"

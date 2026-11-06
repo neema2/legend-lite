@@ -62,20 +62,26 @@ final class SideOrdinal {
 
     /** {@code q} with the ordinal its plan defines, or null where it defines none. */
     static @com.legend.base.Nullable SqlQuery defined(SqlQuery q) {
+        if (q instanceof com.legend.sql.SqlUnion u && u.all()) {
+            return branchOrder(u);
+        }
         if (!(q instanceof SqlSelect s)) {
             return null;
         }
         if (!s.orderBy().isEmpty()) {
             // a key that is a window's answer takes no place in another window's order: numbered outside, as a DISTINCT
             // select is (it would count the ordinal among its distinct columns), by its keys where they are outputs
-            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(k.expr()))) {
+            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(windowKey(s, k)))) {
                 return numberedInside(s);
             }
             List<SqlSelect.SortKey> keys = outputKeys(s);
             return keys == null ? null : numbered(s, keys);
         }
         if (s.distinct() || !s.groupBy().isEmpty() || s.having() != null || s.limit() != null
-                || s.offset() != null) {
+                || s.offset() != null || s.projections().stream().anyMatch(p -> aggregates(p.expr()))) {
+            // a grouped, limited or AGGREGATING select (SELECT SUM(x) FROM ..., no GROUP BY: one row of all of its
+            // source's) does not keep its source's rows: no ordinal of its source's passes through it (2026-11-06,
+            // H2's corpus: the union's ordinal written beside a SUM, "must be in the GROUP BY list")
             return null;
         }
         String alias;
@@ -96,9 +102,126 @@ final class SideOrdinal {
                     from.outputs());
         }
         SqlSelect over = s.withFrom(from);
-        List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
+        // a star over the source is spelled as the source's own columns (SELECT t.*, 1 AS c: t's columns, then c):
+        // over the numbered source a star would read the ordinal too, in the middle of the outputs -- a second column
+        // of the name beside the one written last (2026-11-06, H2's corpus: "Duplicate column name __ord"), or, read
+        // in place, an ordinal that is not the last output, which every reader of a numbered side reads by position
+        // (CanonicalRenderSql; a union's branches lined up by position: the final audit, 2026-11-06)
+        List<SqlSelect.Projection> ps = new ArrayList<>(s.projections().size() + 1);
+        for (SqlSelect.Projection p : s.projections()) {
+            List<String> except = p.expr() instanceof SqlExpr.Star st && (st.table() == null || st.table().equals(alias))
+                    ? List.of()
+                    : p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))
+                            ? se.except() : null;
+            if (except == null) {
+                ps.add(p);
+                continue;
+            }
+            for (OutputCol o : s.from().outputs()) {
+                if (!except.contains(o.name()) && !ORD.equals(o.name())) {
+                    ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, o), o.name(), o));
+                }
+            }
+        }
         ps.add(new SqlSelect.Projection(ord, ORD, ORD_OUT));
         return over.withProjections(ps);
+    }
+
+    /**
+     * {@code q}'s rows in their branches' order where it is a UNION ALL -- directly, or under selects that keep their
+     * source's rows in order -- for a side the HOST judge reads (2026-11-06, the final audit: f5693a95 numbered such a
+     * union by branch for the database judge alone, and the host read the same side in arrival order, so under BOTH
+     * the two could disagree): {@code SELECT o.<outputs> FROM (<q with its ordinal>) o ORDER BY o.__ord}, the ordinal
+     * the database judge numbers by ({@link #defined}). {@code q} itself where it holds no such union, or where the
+     * union's order is not defined (a branch that carries no ordinal: the database judge's order is the database's
+     * there too).
+     */
+    static SqlQuery inBranchOrder(SqlQuery q) {
+        if (!unionUnderPassThrough(q)
+                || q.outputs().stream().anyMatch(o -> ORD.equals(o.name()) || BRANCH.equals(o.name()))) {
+            // no union, or a side that already carries an ordinal (numbered where its plan defined one)
+            return q;
+        }
+        SqlQuery numbered = defined(q);
+        if (numbered == null) {
+            return q;
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>(q.outputs().size());
+        for (OutputCol o : q.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__bo", o), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Subselect(numbered, "__bo", null), null, List.of(), null, null,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of("__bo", ORD_OUT), true, null, null)), null, null,
+                q.outputs());
+    }
+
+    /** Whether {@code e} aggregates its select's rows (a reducer or an ordered list aggregate outside a window). */
+    private static boolean aggregates(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        return e instanceof com.legend.sql.SqlAgg.Reducer || e instanceof SqlExpr.OrderedListAgg
+                || e.children().stream().anyMatch(SideOrdinal::aggregates);
+    }
+
+    /** Whether {@code q} is a UNION ALL, or a select that keeps its one derived source's rows in order over one. */
+    private static boolean unionUnderPassThrough(SqlQuery q) {
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            return u.all();
+        }
+        return q instanceof SqlSelect s && !s.distinct() && s.orderBy().isEmpty() && s.groupBy().isEmpty()
+                && s.having() == null && s.limit() == null && s.offset() == null
+                && s.projections().stream().noneMatch(p -> aggregates(p.expr()))
+                && s.from() instanceof SqlSource.Subselect sub && unionUnderPassThrough(sub.inner());
+    }
+
+    /** The branch's index in a {@link #branchOrder} union. */
+    private static final String BRANCH = "__ob";
+
+    /**
+     * A UNION ALL's rows in their BRANCHES' order (2026-11-06, PCT's filter::testFilterInstance on BigQuery): a union
+     * is a concatenate -- of a list's elements (a literal list of instances, an element a branch), of two collections
+     * -- whose order Pure defines, the left branch's rows before the right's, each branch's in its own order. Numbered
+     * by its arrival ({@code ROW_NUMBER() OVER ()}) the order was the database's: BigQuery numbered a two-instance
+     * list's branches in written order on every run measured but promises none, so the test passed or failed with the
+     * run. Each branch carries its index and its own ordinal (the one its plan defines, else its rows' order within
+     * it); the union is numbered by the two. Null where a branch can carry neither (a DISTINCT, grouped or limited
+     * branch with no ordinal its plan defines): the union keeps the database's order, as before.
+     */
+    private static @com.legend.base.Nullable SqlQuery branchOrder(com.legend.sql.SqlUnion u) {
+        OutputCol branchOut = new OutputCol(BRANCH, SqlType.Scalar.BIGINT, false);
+        List<SqlQuery> branches = new ArrayList<>(u.branches().size());
+        for (int i = 0; i < u.branches().size(); i++) {
+            SqlQuery b = u.branches().get(i);
+            SqlQuery own = defined(b);
+            if (own == null && b instanceof SqlSelect bs && !bs.distinct() && bs.orderBy().isEmpty()
+                    && bs.groupBy().isEmpty() && bs.having() == null && bs.limit() == null && bs.offset() == null) {
+                own = numberedInside(bs);
+            }
+            if (!(own instanceof SqlSelect os) || os.projections().isEmpty()) {
+                return null;
+            }
+            List<SqlSelect.Projection> ps = new ArrayList<>(os.projections());
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), BRANCH, branchOut));
+            branches.add(os.withProjections(ps));
+        }
+        List<OutputCol> inner = new ArrayList<>(u.outputs());
+        inner.add(ORD_OUT);
+        inner.add(branchOut);
+        com.legend.sql.SqlUnion numbered = new com.legend.sql.SqlUnion(branches, true, inner);
+        List<SqlSelect.Projection> ps = new ArrayList<>(u.outputs().size() + 1);
+        for (OutputCol o : u.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__o", o), o.name(), o));
+        }
+        List<SqlSelect.SortKey> keys = List.of(
+                new SqlSelect.SortKey(SqlExpr.Column.of("__o", branchOut), true, null, null),
+                new SqlSelect.SortKey(SqlExpr.Column.of("__o", ORD_OUT), true, null, null));
+        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
+        List<OutputCol> outs = new ArrayList<>(u.outputs());
+        outs.add(ORD_OUT);
+        return new SqlSelect(ps, false, new SqlSource.Subselect(numbered, "__o", null), null, List.of(), null, null,
+                List.of(), null, null, outs);
     }
 
     /** A literal's rows, each with its index. */
@@ -154,7 +277,7 @@ final class SideOrdinal {
     private static @com.legend.base.Nullable SqlQuery numberedInside(SqlSelect s) {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.orderBy().size());
         for (SqlSelect.SortKey k : s.orderBy()) {
-            keys.add(new SqlSelect.SortKey(k.expr(), k.ascending(), k.nullOrder(), null));
+            keys.add(new SqlSelect.SortKey(windowKey(s, k), k.ascending(), k.nullOrder(), null));
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (s.projections().isEmpty()) {
@@ -171,6 +294,23 @@ final class SideOrdinal {
         ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
         return s.withProjections(ps);
+    }
+
+    /** A sort key of {@code s} as a window's order: a key that names one of the select's own outputs (its output name,
+     *  or a bare column of that name) is that output's expression, since a window's ORDER BY takes no select-list alias
+     *  (H2 refuses one: "Column not found"; the select's own ORDER BY resolves it, measured 2026-11-03 on the corpus's
+     *  testFilterProjectBooleanInFilter). Any other key as written. */
+    private static SqlExpr windowKey(SqlSelect s, SqlSelect.SortKey k) {
+        String named = k.outputName() != null ? k.outputName()
+                : k.expr() instanceof SqlExpr.Column c && c.table() == null ? c.name() : null;
+        if (named != null) {
+            for (SqlSelect.Projection p : s.projections()) {
+                if (named.equals(p.alias())) {
+                    return p.expr();
+                }
+            }
+        }
+        return k.expr();
     }
 
     /** Whether {@code e} holds a window function. */

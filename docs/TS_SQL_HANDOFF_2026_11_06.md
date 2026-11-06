@@ -33,7 +33,7 @@ Read these too, in this order. Everything here assumes them.
 - `docs/TS_V1_PROGRAM_2026_11_01.md` §1, §6, §7 and §8.
 - `docs/TS_TIME_MODEL_2026_11_02.md`: rulings D1 to D7.
 - `docs/TENET_CHARTER.md` C6.2b: a frame bound spelled in integers is folded.
-- `docs/SEMANTICS_REGISTER.md` rows S129, S130, S131, S132 and S133.
+- `docs/SEMANTICS_REGISTER.md` rows S144, S145, S146, S147 and S148.
 
 ## 1. Where things stand
 
@@ -224,8 +224,8 @@ Newest first. Each commit message has the full measurements and test times.
 | `a6483bf2f` | Rows forms in the library: the calendar spans of mean, sum, min, max, std, var, range, zscores, drawdown, max_drawdown, lag and diff; diff of observations; sum since a date. Plus `TsIslandTest.theWordsOfTwoLinesAreColumnsOfTheirOneMeeting`. | The words become columns of their value's own table, not lines joined back. spec-13 10 → 5 joins. |
 | `8da2de306` | The translator's met tables (`TsFunctions.Ctx.met`, `TsToPure.Lines.met`), pair rows forms (`TsWords.pairForm`), library `rows::hedge_ratio/residual/cov` (each window) | Two lines met once for the same values; every word and figure of them a column of that one table. spec-13 10 → 8. |
 | `1922c26d5` | `compiler/spec/TsIslands.TypedOnce`; the Typer reaches the island seam (`SqlIslands.desugar(island, typer, …)`, `TsIslands.lifted(statement, typer, …)`) | spec-15 planned in 7.1 s, 3.0 s of it typing one relation of 1,102 nodes that the translator asks the columns of: name resolution turned its shared graph into a tree. Now its reused relations are bound as lets and typed once. 7.1 s → 0.6 s. |
-| `36d65acc7` | `timeseries::bounded` clamps every correlation into [-1, 1] (option A); register S133; C6.2b marked ruled | spec-16: r² of SPX against itself was 1 + 4e-16, and `sqrt(1 - r²)` refused. Exact decimals were weighed and ruled out. |
-| `ad5c1b92c` | S132 ruled: a count a declared key makes one is 1, for every query | The user: "yes can make it for all queries that is fine". |
+| `36d65acc7` | `timeseries::bounded` clamps every correlation into [-1, 1] (option A); register S148; C6.2b marked ruled | spec-16: r² of SPX against itself was 1 + 4e-16, and `sqrt(1 - r²)` refused. Exact decimals were weighed and ruled out. |
+| `ad5c1b92c` | S147 ruled: a count a declared key makes one is 1, for every query | The user: "yes can make it for all queries that is fine". |
 | `c4afec56d` | `lowering/KeyedCounts` (D2 in the compiler); SelectMerge merges a windowed-only inner select under outer windows | spec-13's 15 duplicate-check counts → 0. Windowed levels share a select. |
 | `4c3a2cfbe` | `TsToPure.bindShared` and `TsIslands.lifted` (lets `__ts_l<n>`); let-sharing ported from `claude/cte-let-sharing` (`lowering/SharedRelations`, `dialect/SharedRelationsInPlace`, `SqlRewriter.with`) | A relation read twice is bound once and written once, as `WITH __let<n>`. spec-13 88,701 → 22,089 chars. spec-15 2.9M → 54K and runs. |
 | `5b9d72714` | native claims regenerated; IQ showcase DuckDB SQL re-pinned | The fallout of the merge pass. |
@@ -399,7 +399,7 @@ All four are done. These are the natural next items.
 
 ### W1. The §3 ruling, once the user gives it
 
-The brief is in §3. **Built 2026-11-06** (ruled "Refuse, name the fix"): the time model's D8, register S134. The check is the library's `lines::once`, folded into the answer of each rows form that counts rows (a filter there broke SelectLayers' chains: spec-13 +5 SELECTs, ~5 ms) and into the value each such line form reads (`lines::untied`; a filter there sent H2's planner out of memory on `TsIslandTest.theCatalogsFunctionsAreTheTilesLibraryCalls`). Widened the same day ("Okay extend the refusal") to every word that reads its line in order without counting (to date, since a date, as of a date, from the line's first, exponential and cumulative figures, interpolate's step), and the line forms' check moved from the value their windows read to their answer: in the value, a value that may raise blocked SelectMerge (examples' planning +15-20%, run +6-12%); on the answer, +4% and +4%, spec-13 unchanged. Left to D1, not checked here: the combinators of two lines (compare, union, append, prepend, if_, basket), and trend and seasonally_adjusted (SAMPLE BY only: one row a period). A tie confined to a word's ramp goes unseen.
+The brief is in §3. **Built 2026-11-06** (ruled "Refuse, name the fix"): the time model's D8, register S149. The check is the library's `lines::once`, folded into the answer of each rows form that counts rows (a filter there broke SelectLayers' chains: spec-13 +5 SELECTs, ~5 ms) and into the value each such line form reads (`lines::untied`; a filter there sent H2's planner out of memory on `TsIslandTest.theCatalogsFunctionsAreTheTilesLibraryCalls`). Widened the same day ("Okay extend the refusal") to every word that reads its line in order without counting (to date, since a date, as of a date, from the line's first, exponential and cumulative figures, interpolate's step), and the line forms' check moved from the value their windows read to their answer: in the value, a value that may raise blocked SelectMerge (examples' planning +15-20%, run +6-12%); on the answer, +4% and +4%, spec-13 unchanged. Left to D1, not checked here: the combinators of two lines (compare, union, append, prepend, if_, basket), and trend and seasonally_adjusted (SAMPLE BY only: one row a period). A tie confined to a word's ramp goes unseen.
 
 ### W2. The returns-based pair words as rows forms
 
@@ -589,12 +589,11 @@ ported in `4c3a2cfbe`.
 - **Why H2 copies a shared relation back in place:** H2 loses a bound parameter's value inside a `WITH` that another
   `WITH` reads. So on H2 a shared relation that binds a parameter is written at each read
   (`SharedRelationsInPlace.bindingAValue()`). MongoDB has no `WITH` at all, so it writes every shared relation in place.
-- **The register numbers collide.** #83's branch has its own rows S129 to S141 (its S129 is "legend-pure evaluates
-  every `let` once", S130 a PCT feature-flag input, S131 to S133 test-judge rows, and so on). This branch's S129 to S133
-  (§12's glossary) mean other things. `main` stops at S127. Whichever lands second renumbers its rows past the other's
-  last, and every citation with them: `git grep -n "S129\|S13[0-3]"` finds them in about 20 files, including
-  `projects/timeseries/model.pure` (so regenerate `datacube/src/pure-library-text.ts`), `WindowFrame`, `FrameGuard`,
-  `SignatureMangle`, their tests, `TENET_CHARTER.md` and the TS documents. This document cites them too.
+- **The register numbers collided; settled 2026-11-06 at main's merge.** #83 landed with its own rows S128 to S142;
+  this branch's rows were renumbered past them, every citation with them (`docs/SEMANTICS_REGISTER.md`'s note of
+  2026-11-06): the branch's retired S128 is S143, and its S129 to S134 are S144 to S149 (frame offsets computed by the
+  database, step alignment, a function's id spelling its columns, a key's count, the correlation's clamp, the D8 tie
+  refusal). A commit message of this branch dated before 2026-11-06 keeps the old numbers.
 
 ### W7. Main moved
 
@@ -843,13 +842,13 @@ with "No such file".
   change to sqrt.
 - **pandas.** `x.rolling(n, 0).corr(x)` can be 1.0000000000000002, unclamped. `x.corr(x)` is 1.0, because it goes
   through `numpy.corrcoef`, which clips. gs-quant 2.2.4's `correlation` uses the first for counts and the second for
-  calendar windows. Its `r_squared` is statsmodels' `RollingOLS.rsquared`, 1 − ssr/tss, never above 1 (register S133).
+  calendar windows. Its `r_squared` is statsmodels' `RollingOLS.rsquared`, 1 − ssr/tss, never above 1 (register S148).
 - **DuckDB.**
   - Preparing costs more as the SQL nests deeper.
   - Its profile is turned on with `PRAGMA enable_profiling='json'`, `SET profiling_mode='detailed'` and
     `PRAGMA profiling_output='<file>'`.
   - LAG over tied ORDER BY keys returns different rows from run to run.
-- **MySQL and MariaDB take no expression as a frame offset** (S129), so calendar windows are refused there by name.
+- **MySQL and MariaDB take no expression as a frame offset** (S144), so calendar windows are refused there by name.
 
 **Measured and rejected**
 
@@ -928,12 +927,12 @@ gate, for A2, A10 and before any landing; a landing needs the user's word (§2).
 - **Spine:** the answer's periods, gathered from every line (`TsLines.spread`).
 - **D1, D2, D5:** the time model's rulings.
   - D1: duplicates within a line are allowed; met on one side, they are a lookup; on both sides, refused.
-  - D2: the duplicates check is skipped where a key is declared (S132).
+  - D2: the duplicates check is skipped where a key is declared (S147).
   - D5: words that keep their rows are columns of one table.
 - **R6, R7:** the language spec's rules. R6: lines meet on dates. R7: one table per base.
-- **S129:** frame offsets computed by the database.
-- **S132:** a key's count is 1.
-- **S133:** correlation is clamped.
+- **S144:** frame offsets computed by the database.
+- **S147:** a key's count is 1.
+- **S148:** correlation is clamped.
 - **C6.2b:** a frame bound spelled in integers is folded.
 
 ## 13. Research this session did that no other document holds
@@ -990,7 +989,7 @@ pins every statistic of the frame against the window worked in Java, on DuckDB, 
 
 Limits:
 
-- **MySQL and MariaDB** take no expression as a frame offset (S129), so at `b7d69d98b` these windows were refused there
+- **MySQL and MariaDB** take no expression as a frame offset (S144), so at `b7d69d98b` these windows were refused there
   by name. A day later C6.2b folded a spelled offset such as `-(6 * 31 - 1)` into the literal `185`. **Measured
   2026-11-06:** they run there, exact -- every statistic of `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`
   (mean, sum, min, max, range, std, var, count) over 3 and 6 months, a year, 10 days and 2 weeks, on MariaDB 11.4 and
@@ -1036,7 +1035,7 @@ generator must establish each fact, or be told it, before it may make the move f
 | The hand version's move | The fact it relied on | The general rule | Built |
 |---|---|---|---|
 | Defines each step once and reads it by name | `spread`, `z`, `position` are reused | a binding read twice is one `WITH` | `4c3a2cfbe` |
-| No check for two prices on one date | `(symbol, date)` is unique | a declared key proves the check, folded at compile time | `c4afec56d` (S132) |
+| No check for two prices on one date | `(symbol, date)` is unique | a declared key proves the check, folded at compile time | `c4afec56d` (S147) |
 | Every item a column of one row stream | the items live on the pair's dates | items of one base on the same dates are columns of one table | `8da2de306`, `a6483bf2f` (R7 part 3) |
 | One select per step | — | merge levels where the answer is kept | `5b7803675`, `8b948df5d` |
 | Literal frames, only the columns it reads | — | fold spelled bounds; drop unread columns | `5b7803675` |

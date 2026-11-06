@@ -57,12 +57,30 @@ public final class ExecuteChainAssembly {
     }
 
 
-    /** Peel the query argument to its zero-arg lambda (β-inline a
-     * lambda-building user call; read through preval/withFeatureFlags
-     * plan-time wrappers; fold concatenateTemporalTdsQueries BY
-     * EMISSION) and validate the mapping argument. */
-    public static Prepared prepare(TypedNativeCall ec,
-            List<TypedSpec> letPrefix, SpecCompiler specs) {
+    /** The query argument of {@code ec} peeled to its zero-argument lambda (a lambda-building user call β-inlined;
+     *  preval/withFeatureFlags plan-time wrappers read through; a literal-selected branch taken;
+     *  concatenateTemporalTdsQueries folded BY EMISSION), or null where no such lambda stands there -- the shape
+     *  {@link #prepare} refuses, named without raising so a rule over a body can leave it to the run's own refusal
+     *  (the test-is-the-product plan's M9b audit, F5; its M9c audit's F4: the if without a taken branch and the
+     *  concatenate over a non-literal collection answer null too; the inliner's compile errors are the one raise
+     *  left, a compile error being the body's whichever road runs it). */
+    public static @com.legend.base.Nullable TypedLambda queryLambda(TypedNativeCall ec, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        TypedSpec q = peeled(ec, letPrefix, specs);
+        // concatenateTemporalTdsQueries(lfs): the real body folds the
+        // queries into concatenate SFEs (reflection metamodel) — the SAME
+        // semantics BY EMISSION: fold the lambdas' result expressions
+        // into a TypedConcatenate chain under one zero-arg lambda.
+        if (q instanceof TypedNativeCall cq
+                && com.legend.builtin.NativeFn.PlanWrapper.of(cq.callee().id()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.CONCATENATE_TEMPORAL_TDS_QUERIES) {
+            q = concatenateFold(cq, letPrefix, specs);
+        }
+        return q instanceof TypedLambda lam && lam.parameters().isEmpty() ? lam : null;
+    }
+
+    /** The query argument of {@code ec} peeled as far as {@link #queryLambda} peels it, the concatenate fold left
+     *  unfolded: the shape a refusal names. */
+    private static TypedSpec peeled(TypedNativeCall ec, List<TypedSpec> letPrefix, SpecCompiler specs) {
         TypedSpec q = Lets.bound(ec.args().get(0), letPrefix);
         // a LAMBDA-BUILDING user call in query position (corpus
         // buildQuery(value) returning FunctionDefinition<{->Person[*]}>):
@@ -89,18 +107,33 @@ public final class ExecuteChainAssembly {
         // after inlining): the taken branch IS the query. Orchestration
         // picks the query; no value is computed. A non-literal condition
         // stays on the loud wall below.
-        q = peelSelections(q, letPrefix);
-        // concatenateTemporalTdsQueries(lfs): the real body folds the
-        // queries into concatenate SFEs (reflection metamodel) — the SAME
-        // semantics BY EMISSION: fold the lambdas' result expressions
-        // into a TypedConcatenate chain under one zero-arg lambda.
+        return peelSelections(q, letPrefix);
+    }
+
+    /** The refusal {@link #prepare} raises where {@link #queryLambda} answers null, naming the peeled shape. */
+    private static com.legend.error.NotImplementedException refused(TypedNativeCall ec, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        TypedSpec q = peeled(ec, letPrefix, specs);
+        if (q instanceof com.legend.compiler.spec.typed.TypedIf) {
+            return new com.legend.error.NotImplementedException(
+                    "execute() whose query is an if() without an else branch");
+        }
         if (q instanceof TypedNativeCall cq
                 && com.legend.builtin.NativeFn.PlanWrapper.of(cq.callee().id()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.CONCATENATE_TEMPORAL_TDS_QUERIES) {
-            q = concatenateFold(cq, letPrefix, specs);
+            return new com.legend.error.NotImplementedException(concatenateRefusal(cq, letPrefix));
         }
-        if (!(q instanceof TypedLambda lam) || !lam.parameters().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
-                    "execute() whose query argument is not a lambda");
+        return new com.legend.error.NotImplementedException("execute() whose query argument is not a lambda");
+    }
+
+    /** Peel the query argument to its zero-arg lambda (β-inline a
+     * lambda-building user call; read through preval/withFeatureFlags
+     * plan-time wrappers; fold concatenateTemporalTdsQueries BY
+     * EMISSION) and validate the mapping argument. */
+    public static Prepared prepare(TypedNativeCall ec,
+            List<TypedSpec> letPrefix, SpecCompiler specs) {
+        TypedLambda lam = queryLambda(ec, letPrefix, specs);
+        if (lam == null) {
+            throw refused(ec, letPrefix, specs);
         }
         TypedSpec mArg = Lets.bound(ec.args().get(1), letPrefix);
         // the EMPTY-MAPPING SENTINEL ^Mapping(name='') (testFrom.pure:30):
@@ -241,11 +274,11 @@ public final class ExecuteChainAssembly {
             if (q instanceof com.legend.compiler.spec.typed.TypedIf ti
                     && Lets.bound(ti.condition(), letPrefix)
                             instanceof com.legend.compiler.spec.typed.TypedCBoolean flag) {
-                TypedSpec branch = flag.value() ? ti.thenBranch()
-                        : ti.elseBranch().orElseThrow(() ->
-                                new com.legend.error.NotImplementedException(
-                                        "execute() whose query is an if() without"
-                                                + " an else branch"));
+                if (!flag.value() && ti.elseBranch().isEmpty()) {
+                    // no branch taken: the peel stops here, and prepare names the shape
+                    return q;
+                }
+                TypedSpec branch = flag.value() ? ti.thenBranch() : ti.elseBranch().orElseThrow();
                 q = Lets.bound(branch, letPrefix);
                 continue;
             }
@@ -389,15 +422,39 @@ public final class ExecuteChainAssembly {
         return CallNodes.mint(model.implementations(), callee, args, out);
     }
 
-    private static TypedSpec concatenateFold(TypedNativeCall cq,
+    /** {@code evaluateAndDeactivate(x)}, an identity wrapper on a collection or its element: by the catalog's row. */
+    private static boolean evaluateAndDeactivate(TypedNativeCall call) {
+        return com.legend.builtin.Pure.AT_META_EVALUATE_AND_DEACTIVATE.contains(call.callee().id());
+    }
+
+    /** The message {@link #prepare} refuses {@code cq} with where {@link #concatenateFold} answers null: the first
+     *  element that is not a zero-argument lambda literal, named with its carrier. */
+    private static String concatenateRefusal(TypedNativeCall cq, List<TypedSpec> letPrefix) {
+        TypedSpec lfsArg = Lets.bound(cq.args().get(0), letPrefix);
+        List<TypedSpec> els = lfsArg instanceof TypedCollection tc ? tc.elements() : List.of(lfsArg);
+        String element = lfsArg.getClass().getSimpleName();
+        for (TypedSpec e : els) {
+            TypedSpec le = Lets.bound(e, letPrefix);
+            while (le instanceof TypedNativeCall w && w.args().size() == 1 && evaluateAndDeactivate(w)) {
+                le = Lets.bound(w.args().get(0), letPrefix);
+            }
+            if (!(le instanceof TypedLambda ql) || !ql.parameters().isEmpty()) {
+                element = le.getClass().getSimpleName();
+                break;
+            }
+        }
+        return "concatenateTemporalTdsQueries over a non-literal lambda collection is not supported yet (element "
+                + element + ", carrier " + lfsArg.getClass().getSimpleName() + ")";
+    }
+
+    private static @com.legend.base.Nullable TypedSpec concatenateFold(TypedNativeCall cq,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
         TypedSpec lfsArg = Lets.bound(cq.args().get(0), letPrefix);
         // evaluateAndDeactivate may wrap the WHOLE collection
         // ([...]->evaluateAndDeactivate()) — identity, peel first
         while (lfsArg instanceof TypedNativeCall ow
                 && ow.args().size() == 1
-                && "meta::pure::functions::meta::evaluateAndDeactivate"
-                        .equals(ow.callee().qualifiedName())) {
+                && evaluateAndDeactivate(ow)) {
             lfsArg = Lets.bound(ow.args().get(0), letPrefix);
         }
         // MAP-BUILT collections ($bds->map(bd|{|...}->eAD())): β-expand
@@ -427,17 +484,12 @@ public final class ExecuteChainAssembly {
             TypedSpec le = Lets.bound(e, letPrefix);
             while (le instanceof TypedNativeCall w
                     && w.args().size() == 1
-                    && "meta::pure::functions::meta::evaluateAndDeactivate"
-                            .equals(w.callee().qualifiedName())) {
+                    && evaluateAndDeactivate(w)) {
                 le = Lets.bound(w.args().get(0), letPrefix);
             }
             if (!(le instanceof TypedLambda ql) || !ql.parameters().isEmpty()) {
-                throw new com.legend.error.NotImplementedException(
-                        "concatenateTemporalTdsQueries over a non-literal"
-                        + " lambda collection is not supported yet"
-                        + " (element " + le.getClass().getSimpleName()
-                        + ", carrier " + lfsArg.getClass().getSimpleName()
-                        + ")");
+                // the shape prepare refuses by name (concatenateRefusal); here the fold answers no lambda
+                return null;
             }
             queries.add(ql.body().get(ql.body().size() - 1));
         }

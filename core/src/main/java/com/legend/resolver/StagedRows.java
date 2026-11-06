@@ -33,6 +33,15 @@ public final class StagedRows {
                 false, false), letInfo);
     }
 
+    /** A staged RAW GRID's let (the planner-driver seam program's S3c, 2026-10-30): bound to {@code read}, the raw read
+     *  of its temporary table the session's dialect wrote (a plain {@code SELECT *} of it), carried as the grid's own
+     *  text is and store-free as the grid was, so it runs on the session the rows were staged on. */
+    public static TypedLet gridBoundTo(String name, String read,
+            com.legend.compiler.spec.typed.TypedRawSqlRelation grid, ExprType letInfo) {
+        return new TypedLet(name, new com.legend.compiler.spec.typed.TypedRawSqlRelation(read, grid.database(),
+                grid.info()), letInfo);
+    }
+
     /** The temporary table of the session a staged let's rows are held in: the let's name under a prefix of the
      *  platform's own, so no table of a store is named. */
     public static String table(String let) {

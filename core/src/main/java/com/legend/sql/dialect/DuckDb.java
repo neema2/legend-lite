@@ -540,7 +540,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
                  LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
@@ -895,7 +895,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_FLATTEN -> writer.function("flatten", args);
             case LIST_CONCAT -> writer.function("list_concat", args);
             case JSON_MERGE_PATCH -> writer.function("json_merge_patch", args);
-            case LIST_GET -> writer.function("list_extract", args);
+            case LIST_GET, LIST_AT -> writer.function("list_extract", args);
             case LIST_POSITION -> writer.function("list_position", args);
             case LIST_ZIP -> writer.function("list_zip", args);
             case LIST_DISTINCT -> writer.function("list_distinct", args);
@@ -1173,6 +1173,15 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     // the probe plan's facts (2026-10-20): measured 2026-10-20: 70,000 columns answered, no limit met; setTransactionIsolation refused, every transaction a snapshot
+    /** None: DuckDB aborts a transaction on a run-time error and has NO savepoint (measured on 1.5.6, the
+     *  test-is-the-product plan's M3a: {@code SAVEPOINT} is a parser error, the JDBC call unsupported), so a fused
+     *  verdict statement it rejects inside a transaction cannot fall back to the verdicts' own wrappers -- a named
+     *  limit (M3a counted 0 such rejections in the corpora). */
+    @Override
+    public @com.legend.base.Nullable VerdictSavepoint verdictSavepoint() {
+        return null;
+    }
+
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.TRANSACTION;
@@ -1203,5 +1212,23 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
         return standardMerge(m);
+    }
+
+    /** {@inheritDoc} {@code to_json(value)} (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected SqlWriter variantOf(SqlWriter writer, SqlWriter.Piece value) {
+        return writer.append("to_json(").piece(value).append(")");
+    }
+
+    /** {@inheritDoc} A list literal, {@code [c1, c2, ...]} (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected SqlWriter arrayOfCells(SqlWriter writer, SqlWriter.Piece cell) {
+        return writer.append("[").region("", ", ", null, cell).append("]");
+    }
+
+    /** {@inheritDoc} Measured on DuckDB 1.5.6.0 (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected boolean writesGridReports() {
+        return true;
     }
 }

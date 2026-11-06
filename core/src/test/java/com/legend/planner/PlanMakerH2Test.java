@@ -32,10 +32,9 @@ class PlanMakerH2Test {
     }
 
     @Test
-    void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
+    void theTargetIsWhole_itsDatabaseSessionAndSetup() {
         ExecutionPlan.Target h2 = target(plan(H2, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
                 com.legend.testcases.PlanCases.Written.JSON));
-        assertEquals(new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2")), h2.servers());
         assertEquals(List.of(), h2.session());
         // H2's rows are one INSERT
         assertInstanceOf(ExecutionPlan.SetupStep.Statement.class, h2.setup().get(h2.setup().size() - 1));

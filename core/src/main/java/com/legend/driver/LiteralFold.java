@@ -43,7 +43,7 @@ public final class LiteralFold {
 
     /** Admitted literal kinds — shrink-or-justify; the parity test
      *  enumerates exactly this set. */
-    public static final Set<String> ADMITTED = Set.of("String", "Boolean");
+    public static final Set<String> ADMITTED = com.legend.planner.ProductStatements.ADMITTED;
 
     private LiteralFold() {
     }

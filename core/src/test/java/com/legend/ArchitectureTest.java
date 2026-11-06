@@ -1,6 +1,5 @@
 package com.legend;
 
-import com.legend.driver.GridProbe;
 
 import com.legend.protocol.TypeExpression;
 
@@ -92,6 +91,8 @@ final class ArchitectureTest {
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
+            // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
+            java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
             java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
@@ -244,6 +245,10 @@ final class ArchitectureTest {
             // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
             .that().resideOutsideOfPackage("com.legend.driver")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
+            // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
+            // executes is never written by it: PlanMaker and the body planner's lowering hold no engine-style class)
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class)
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
             // execution path, not against sibling dialects
@@ -272,6 +277,11 @@ final class ArchitectureTest {
             // exemption left the same day (no door holds the interface; the D73 audit)
             .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
+            // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
+            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
+                    com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
             .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);
@@ -328,7 +338,12 @@ final class ArchitectureTest {
             .should().onlyDependOnClassesThat(
                     com.tngtech.archunit.core.domain.JavaClass.Predicates
                             .resideInAnyPackage("com.legend.sql..", "java..")
-                            .or(NULLNESS_ANNOTATIONS))
+                            .or(NULLNESS_ANNOTATIONS)
+                            // the runtime wall (2026-11-05, the deep audit): the renderer's one writer refuses to
+                            // render while a plan runs -- RunScope, JDK-only in base, the scope the runner enters
+                            // (its Exemption type went with the one exemption, 2026-11-05: zero exemptions)
+                            .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
+                                    com.legend.base.RunScope.class)))
             .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
             .check(CORE_PROD_CLASSES);
     }
@@ -541,18 +556,25 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>The driver has one caller (step C, D73, 2026-10-30).</strong> {@code BodyDriver} was package-private by
-     * design while it shared the root package with the execution door; the driver's machinery is its own package now
-     * ({@code com.legend.driver}), so the class is public for exactly the caller the design named,
-     * {@code Execution.runProgram}: no other class outside the driver depends on it.
+     * <strong>The driver has one caller (step C, D73, 2026-10-30; the router between them since the
+     * test-is-the-product plan's M5, 2026-11-01, the M5 audit's S5).</strong> {@code BodyDriver} was package-private
+     * by design while it shared the root package with the execution door; the driver's machinery is its own package
+     * now ({@code com.legend.driver}). The execution door ({@code Execution.runProgram}) calls the body router
+     * ({@code BodyRouter}), which runs a body of a moved class on the program road and walks every other with the
+     * body driver: the walk is reached from the driver package alone, and the router from the door alone.
      */
     @Test
     void theDriverHasOneCaller() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.driver")
-            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
-            .as("step C: the body driver is the execution door's alone (Execution.runProgram)")
+            .as("step C, M5: the body driver (the walk) is the body router's alone")
+            .check(CORE_PROD_CLASSES);
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.driver")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyRouter(\\$.*)?")
+            .as("M5: the body router is the execution door's alone (Execution.runProgram)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -572,6 +594,44 @@ final class ArchitectureTest {
             .or().haveFullyQualifiedName("com.legend.HeldModels")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.driver", "com.legend.exec..", "com.legend.judge")
             .as("step C: planning never touches the driver, the runtime or the judge")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
+     * M3 by R17 C7, 2026-10-31).</strong> The kinds only a test's program holds -- effects, seeds, the eager run,
+     * asserts -- are planned by {@code com.legend.testplan} through the planner's extension point
+     * ({@code planner.ProgramKinds}); the build keeps it off the plan side ({@code //core:plan_side} carries no
+     * {@code :testplan}), and this rule says it at the class level: no class outside the library and the driver
+     * depends on it -- not the planner, so the product's query door plans none of a test's kinds, and not the server.
+     * The server carries the driver (it runs a test body for its IDE), so its binary holds the library; no server
+     * class reaches it. The driver calls it from M5 (R16): until then its callers are its tests.
+     */
+    @Test
+    void theTestPlanningLibraryIsTheDriversAlone() {
+        noClasses()
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.driver")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.testplan")
+            .as("B4, R17 C7: the test-planning library is the driver's alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The program road's test entry has one caller (the test-is-the-product plan's M3c, 2026-10-31).</strong>
+     * {@code PlanMaker.testProgram} plans a body whatever it holds, a test's kinds by the hook it is handed; the
+     * product's query door ({@code PlanMaker.plan}) refuses those kinds first (QueryDoor). Only the test-planning
+     * library's door calls it.
+     */
+    @Test
+    void theProgramRoadsTestEntryIsTheTestDoors() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.testplan")
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn(
+                            com.legend.planner.PlanMaker.class))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasName.Predicates.name("testProgram"))))
+            .as("B12 item 1: the program road's test entry is the test door's")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -683,6 +743,11 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass
                                     .Predicates.type(
                                             com.legend.model.FunctionId.class))
+                            // the runtime wall (2026-11-05, the deep audit): lowering refuses to lower while a plan
+                            // runs -- RunScope, JDK-only in base, the scope the runner enters
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.base.RunScope.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
@@ -1004,6 +1069,41 @@ final class ArchitectureTest {
      * normalizer; the build says the same (`//core:exec`'s deps, pinned by tools/deps/core-layers.txt), this rule
      * says it at the class level, where a reach through a type name the build would not list still shows.
      */
+    /**
+     * EXEC'S PLUG-INS ARE EXEC'S OWN (the deep audit, 2026-11-05): {@code ServiceLoader} joins a provider at run time with
+     * no build dependency, so a provider outside {@code com.legend.exec} would reach past {@link #execReachesNoPlanning}
+     * unseen. Every provider the classpath registers for an exec plug-in interface (a database's connector, its driver's
+     * cells, its bulk load) is a class of {@code com.legend.exec}, and the rule above therefore covers it.
+     */
+    @Test
+    void execPluginsAreExecClasses() throws Exception {
+        java.util.List<String> outside = new java.util.ArrayList<>();
+        int providers = 0;
+        for (Class<?> spi : java.util.List.of(com.legend.exec.DatabaseConnector.class, com.legend.exec.DriverCells.class,
+                com.legend.exec.BulkLoad.class)) {
+            java.util.Enumeration<java.net.URL> files =
+                    ArchitectureTest.class.getClassLoader().getResources("META-INF/services/" + spi.getName());
+            while (files.hasMoreElements()) {
+                java.net.URL file = files.nextElement();
+                try (var in = file.openStream()) {
+                    for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                        String provider = line.replaceAll("#.*", "").trim();
+                        if (provider.isEmpty()) {
+                            continue;
+                        }
+                        providers++;
+                        if (!provider.startsWith("com.legend.exec.") || provider.substring(16).contains(".")) {
+                            outside.add(spi.getSimpleName() + " <- " + provider + " (" + file + ")");
+                        }
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(providers > 0, "no exec plug-in provider on the classpath to check");
+        org.junit.jupiter.api.Assertions.assertTrue(outside.isEmpty(),
+                "an exec plug-in provider outside com.legend.exec (move it into exec): " + outside);
+    }
+
     @Test
     void execReachesNoPlanning() {
         java.util.Map<String, java.util.Set<String>> reached = new java.util.TreeMap<>();
@@ -1108,8 +1208,9 @@ final class ArchitectureTest {
                     // renderer translates the text in place, SqlDialect.raw); executionplan.MirJson
                     // (2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3)): the plan's typed tree read back from its JSON, exactly as the planner
                     // wrote it -- no text composed
-                    // GridProbe at the root since 2026-10-30 (D71: the probes out of exec)
-                    "com\\.legend\\.(driver\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
+                    // (GridProbe's LIMIT-0 probe deleted 2026-10-30, the planner-driver seam program's S3c: a raw grid's
+                    // columns are the ones its result reports, read when the plan runs)
+                    "com\\.legend\\.(lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -1119,9 +1220,8 @@ final class ArchitectureTest {
                                             .Predicates.name(
                                                     "com.legend.sql.SqlSource$RawSql"))))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
-                    + " ONLY by the chartered seams (GridProbe's"
-                    + " LIMIT-0 probe + the Lowerer TypedRawSqlRelation"
-                    + " case) — it carries authored text, never"
+                    + " ONLY by the chartered seam (the Lowerer's"
+                    + " TypedRawSqlRelation case) — it carries authored text, never"
                     + " platform-composed SQL")
             .check(CORE_PROD_CLASSES);
     }
@@ -1193,8 +1293,8 @@ final class ArchitectureTest {
     void theBodyDriverAndTheJudgesHoldNoJdbc() {
         noClasses()
             // the whole judge package since 2026-10-30 (D71: the judges out of exec into com.legend.judge), and
-            // the probes with them at the root (ColumnProbe, GridProbe, WireProbe, DynamicPivot: a probe asks the
-            // plan runner, never a connection)
+            // the probes with them at the root (ColumnProbe, WireProbe and GridProbe deleted 2026-10-30 and
+            // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
             .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
@@ -1212,8 +1312,8 @@ final class ArchitectureTest {
      * "the doors").</strong> {@code Statements} is the session seam (text in; rows, a count, reported columns or text
      * out), and {@code PlanRunner} is the one place a statement meets it: every statement sent is a plan's, checked
      * against its target (the database, the server versions it is written for), given the target's session
-     * statements and counted. The schema probes ({@code ColumnProbe}, {@code GridProbe}, {@code WireProbe},
-     * {@code DynamicPivot}) ask the runner ({@code columns}, {@code describe}); the seeds, a program's session
+     * statements and counted. No schema probe is left (the seam program's S3, 2026-10-31: a dynamic pivot's keys and a
+     * raw grid's columns are read by a plan's own first step); the seeds, a program's session
      * statements and the system store's rows are setup steps it runs ({@code setUp}); the transaction bracket is the
      * session's own ({@code Sessions.Session.inTransaction}). The session owners ({@code PlanSessions},
      * {@code Sessions}) and the implementations ({@code JdbcStatements}, MongoDB's) are the seam itself. No other
@@ -1234,8 +1334,11 @@ final class ArchitectureTest {
                     + ".statements)") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    // statementsOf: the session's own unguarded form, package-private (THE WALL, 2026-11-06: the
+                    // final audit -- a class of the seam's package calling it would pass the name check alone)
                     return call.getTarget().getOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
-                            && call.getTarget().getName().equals("statements");
+                            && (call.getTarget().getName().equals("statements")
+                                    || call.getTarget().getName().equals("statementsOf"));
                 }
             })
             .as("the doors: the plan runner is the one caller of a session's statements (Statements, "
@@ -1338,6 +1441,9 @@ final class ArchitectureTest {
             // (raised, unjudged) and decides nothing (the row's judgment
             // is injected from AssertVerdicts)
             .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch")
+            // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01): the same root loop, moved into
+            // the inner class the program road judges through; the census calls it makes are the batch's own
+            .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch$Planned")
             // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
             // layer out of exec); the rule's exemptions name them there too
             .should().dependOnClassesThat().haveNameMatching(
@@ -1378,6 +1484,14 @@ final class ArchitectureTest {
                 "com.legend.exec.Census.COUNTS",
                 "com.legend.exec.Census.KEYED",
                 "com.legend.exec.Census.FALLBACK_REASONS",
+                // the kinds of each body the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
+                // appended by the router, read by the corpus lanes' histogram only -- measurement, never a verdict
+                "com.legend.exec.Census.STAYED_KINDS",
+                // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
+                // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
+                "com.legend.exec.Census.UNPLANNED_ASSERTS",
+                // (com.legend.base.RunScope.REPORTED left 2026-11-06 with the wall's report mode: nothing turns the
+                // wall off)
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",
@@ -1561,10 +1675,11 @@ final class ArchitectureTest {
      *       {@code ExecuteChainAssembly} (the executor interleaves its
      *       execution-bound steps BETWEEN compiler calls).</li>
      *   <li>Misfiled passes just MOVE — {@code resolver.DriverPkAppend}.</li>
-     *   <li>LATE BINDING is staged compilation — the runtime fact
-     *       becomes an INPUT: {@code resolver.RawGridSchema} takes the
-     *       probed roster through its {@code SchemaReferee};
-     *       {@code GridProbe} (at the root since D71, 2026-10-30) is the executor's referee.</li>
+     *   <li>LATE BINDING is a plan step, never a compiler input: a raw
+     *       grid's columns are a keyed plan's keys, read when it runs
+     *       (the planner-driver seam program's S3c, 2026-10-30; until
+     *       then {@code resolver.RawGridSchema} took GridProbe's probed
+     *       roster through its {@code SchemaReferee}).</li>
      *   <li>Verdict-query synthesis is compiler emission —
      *       {@code VerdictQueries} builds; {@code AssertVerdicts}
      *       fetches and judges, minting nothing.</li>

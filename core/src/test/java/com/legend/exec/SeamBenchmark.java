@@ -110,11 +110,10 @@ final class SeamBenchmark {
                 () -> productDrain(c, new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(),
                                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
-                                        new ExecutionPlan.Servers.Every(),
                                         com.legend.database.Databases.dialect(type).sessionSetup(), List.of()),
                                 null))), null, null));
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
-                new ExecutionPlan.Servers.Every(), com.legend.database.Databases.dialect(type).sessionSetup(),
+                com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(), target,
@@ -192,7 +191,7 @@ final class SeamBenchmark {
         long warmNs = Long.getLong("seam.small.warmMs", 1000L) * 1_000_000L;
         long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
-                new ExecutionPlan.Servers.Every(), com.legend.database.Databases.dialect(type).sessionSetup(),
+                com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
         for (int n : smallSizes()) {
             String sql = "SELECT id, name, CAST(amount AS DECIMAL(18,2)) AS amount, ts, bucket FROM bench WHERE id < "
@@ -271,6 +270,8 @@ final class SeamBenchmark {
         long[] n = {0};
         java.io.Writer out = new java.io.BufferedWriter(w, 1 << 16);
         out.write(head);
+        // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
         new JdbcStatements(c, new SessionState()).query(sql, List.of(), List.of(), row -> {
             try {
                 if (n[0] > 0) {
@@ -283,6 +284,7 @@ final class SeamBenchmark {
             }
             n[0]++;
         });
+        }
         out.write(tail);
         out.flush();
         return new Drained(n[0], w.count());
@@ -504,6 +506,8 @@ final class SeamBenchmark {
         long[] n = {0};
         long[] chars = {0};
         StringBuilder sample = new StringBuilder();
+        // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
         new JdbcStatements(c, new SessionState()).query(sql, List.of(), List.of(), row -> {
             if (SAMPLE > 0 && sample.length() < SAMPLE && row != null) {
                 sample.append(row).append('\n');
@@ -517,6 +521,7 @@ final class SeamBenchmark {
                 }
             }
         });
+        }
         if (SAMPLE > 0) {
             System.out.println("[seam-sample]\n" + sample + "[/seam-sample]");
         }

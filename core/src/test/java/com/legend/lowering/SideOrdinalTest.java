@@ -77,4 +77,60 @@ class SideOrdinalTest {
         assertEquals(1, sql.split("ROW_NUMBER\\(\\) OVER \\(\\)", -1).length - 1, sql);
         assertEquals(false, sql.contains("__o."), sql);
     }
+
+    private static final OutputCol C = new OutputCol("c", SqlType.Scalar.INTEGER, false);
+
+    /** {@code concatenate(literal, literal)->extend(~c: 1)}: a star over the union, a column after it. */
+    private static SqlSelect extendedUnion() {
+        // each branch a projection of its literal (a union the database judge numbers by branch)
+        SqlQuery left = SqlSelect.starOf(literal()).withProjections(List.of(
+                new SqlSelect.Projection(SqlExpr.Column.of("t", A), "a", A)));
+        SqlQuery right = SqlSelect.starOf(literal()).withProjections(List.of(
+                new SqlSelect.Projection(SqlExpr.Column.of("t", A), "a", A)));
+        com.legend.sql.SqlUnion u = new com.legend.sql.SqlUnion(List.of(left, right), true, List.of(A));
+        return SqlSelect.starOf(new SqlSource.Subselect(u, "u", null)).withProjections(List.of(
+                new SqlSelect.Projection(new SqlExpr.Star("u"), null, null),
+                new SqlSelect.Projection(new SqlExpr.IntLit(1), "c", C)));
+    }
+
+    @Test
+    void aStarOverANumberedUnionKeepsTheOrdinalLast() {
+        // the final audit, 2026-11-06: the star read the union's ordinal in the middle of the outputs, and the verdict
+        // canon reads a numbered side's ordinal by position -- it read c as the ordinal and __ord as a column
+        SqlQuery q = SideOrdinal.withOrdinal(extendedUnion());
+        assertEquals(List.of("a", "c", SideOrdinal.ORD), q.outputs().stream().map(OutputCol::name).toList());
+        // the outer star spelled as the union's columns (no star left to read the ordinal in the middle), the
+        // ordinal written once, last, read from the union numbered by branch
+        SqlSelect s = (SqlSelect) q;
+        assertEquals(false, s.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.Star), PLATFORM.render(q));
+        assertEquals(SideOrdinal.ORD, s.projections().get(s.projections().size() - 1).alias());
+        assertEquals(true, PLATFORM.render(q).contains("__ob"), PLATFORM.render(q));
+    }
+
+    @Test
+    void aUnionsBranchesOfDifferentShapesLineUpByPosition() {
+        // a branch that is a star over a numbered union, and one of explicit columns: UNION ALL lines columns up by
+        // position, so each branch's ordinal and branch index must sit where the other's do
+        SqlSelect other = SqlSelect.starOf(literal()).withProjections(List.of(
+                new SqlSelect.Projection(SqlExpr.Column.of("t", A), "a", A),
+                new SqlSelect.Projection(new SqlExpr.IntLit(2), "c", C)));
+        com.legend.sql.SqlUnion outer = new com.legend.sql.SqlUnion(List.of(extendedUnion(), other), true,
+                List.of(A, C));
+        com.legend.sql.SqlUnion numbered = firstUnion(SideOrdinal.withOrdinal(outer));
+        List<String> first = numbered.branches().get(0).outputs().stream().map(OutputCol::name).toList();
+        assertEquals(List.of("a", "c", SideOrdinal.ORD, "__ob"), first);
+        for (SqlQuery b : numbered.branches()) {
+            assertEquals(first, b.outputs().stream().map(OutputCol::name).toList());
+        }
+    }
+
+    private static com.legend.sql.SqlUnion firstUnion(SqlQuery q) {
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            return u;
+        }
+        if (q instanceof SqlSelect s && s.from() instanceof SqlSource.Subselect sub) {
+            return firstUnion(sub.inner());
+        }
+        throw new AssertionError("no union in " + q);
+    }
 }

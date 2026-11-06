@@ -43,5 +43,5 @@ future read, which the user ruled out on 2026-10-31 (R12, docs/TS_ONE_TREE_PLAN_
 alias of `PREV` ... a named departure"), and it is the whole of this series' difference: where the 200-day mean has no
 value, gs-quant compares the close with the mean's first value (-1), lite gives 0 (gs-quant's own answer for a
 comparison with NaN). The language's step is the same everywhere (`FILL(STEP)`, `interpolate(x, y, step)`,
-`compare`): `docs/SEMANTICS_REGISTER.md` S130.
+`compare`): `docs/SEMANTICS_REGISTER.md` S145.
 

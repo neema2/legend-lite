@@ -117,10 +117,15 @@ public final class PctCensusGate {
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {
             private long[] start = new long[3];
+            /** The bodies the body router ran whole on the program road before this suite (the test-is-the-product
+             *  plan's M6, 2026-11-01: PCT judges on the host, so its assert programs are the first PCT bodies to
+             *  move; the count is the lanes' measurement). */
+            private long movedStart;
 
             @Override
             protected void setUp() {
                 start = counts();
+                movedStart = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
             }
 
             @Override
@@ -131,7 +136,8 @@ public final class PctCensusGate {
                     d[i] = end[i] - start[i];
                 }
                 System.out.println("[pct-census] " + suite + " (its own traffic): mismatch=" + d[0]
-                        + " untyped=" + d[1] + " bottom-mult=" + d[2]);
+                        + " untyped=" + d[1] + " bottom-mult=" + d[2] + " bodies-moved="
+                        + (com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED) - movedStart));
                 System.out.println("[pct-census] after " + suite + ": "
                         + SqlTypeCensus.summary());
                 SqlTypeCensus.classes(100).forEach(c -> System.out

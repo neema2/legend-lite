@@ -718,6 +718,9 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   primitive). `//core:exec` depends on base, json, cache, diagnostics, error, execution_plan, model, result, sql and
   values; the ratchet map is deleted and `ArchitectureTest.execReachesNoPlanning` asserts the empty set. Zero roster
   movement in every lane.
+- **LANDED ON MAIN 2026-10-30: PR #82 merged by the user as `efff0406`** (steps 1 to 3 of the java.sql revamp and steps
+  A, B1, B2, C; 51 of 51 CI checks green on its head 86d60625; the five heavy lanes identical per test, D81). The
+  planner-driver seam program continues on PR #83, retargeted to `main` that day.
 - **Step C built 2026-10-30** (the decisions log D73; GATES, step C's entry): the root dissolved -- the five doors at
   the root (`Compiler`, `TypedQuery`, `HeldModels`; `Execution`, `ExecuteOptions`), the plan machinery
   `com.legend.planner` (six files), the execution side `com.legend.driver` (twenty-five), the members that crossed a
@@ -815,7 +818,17 @@ Bazel's caches are warm, so a session usually runs the local four and hands the 
 BigQuery and Databricks need credentials, which only an environment's setup script provides (never the repository,
 never a message).
 
-**This account's warm lane sessions (2026-10-28; `get_session` says whether one is still alive):**
+**This account's warm lane sessions (2026-10-30: the 2026-10-28 ones below are GONE -- `send_message` answers "not found" -- and the dialect program's siblings of 2026-10-13 still hold the environments and ran PR #82's lanes that day, D81):**
+
+| Lane session (2026-10-30) | Databases | Id |
+|---|---|---|
+| dialect sibling 1b | SQLite, MariaDB, MySQL, ClickHouse (channel A and B) | `session_01FSy7uuE3kKMYoJzWQWx3X6` |
+| dialect sibling 1 | Trino; channel B on Postgres (unprivileged) | `session_01FdBn7kuJDnnLMxLzVWqtJN` |
+| dialect sibling 2 | Snowflake | `session_017WxTYpJVcaEYAYkubENkLj` |
+| dialect sibling 3 | Databricks | `session_017Ub2y2ECHqcMoxzLecjvDs` |
+| dialect sibling 4 | BigQuery | `session_01XJEeABN3XxCqvBhxsNSHwi` |
+
+**The 2026-10-28 table, for the record (none of these answers any more):**
 
 | Lane session | Databases | Id |
 |---|---|---|

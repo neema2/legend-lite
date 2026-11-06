@@ -54,16 +54,21 @@ class ConstantPlanParityTest {
     @Test
     void admittedKindsAgreeWithTheSqlPath() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            // String: bare literal folds; ->toOne() is [1]-identity that
-            // MUST lower to SQL — same value, both routes
+            // String: bare literal folds; a join of two literals is the database's to compute (the product's
+            // statement road folds a bare literal root only, M2) -- same value, both routes. Until M2 the SQL leg was
+            // 'px'->toOne(), which the product's front half now reduces to the literal: each leg's route is asserted
+            assertSendsNothing("|'px'");
+            assertSends("|'p' + 'x'");
             Lean.Result folded = Lean.run(MODEL, "|'px'", "t::RT", c);
-            Lean.Result viaSql = Lean.run(MODEL, "|'px'->toOne()", "t::RT", c);
+            Lean.Result viaSql = Lean.run(MODEL, "|'p' + 'x'", "t::RT", c);
             assertEquals(scalar(viaSql), scalar(folded), "String parity");
             assertEquals(scalar(viaSql).getClass(), scalar(folded).getClass(),
                     "String Java carrier parity");
             // Boolean
+            assertSendsNothing("|true");
+            assertSends("|('p' + 'x') == 'px'");
             Lean.Result fb = Lean.run(MODEL, "|true", "t::RT", c);
-            Lean.Result sb = Lean.run(MODEL, "|true->toOne()", "t::RT", c);
+            Lean.Result sb = Lean.run(MODEL, "|('p' + 'x') == 'px'", "t::RT", c);
             assertEquals(scalar(sb), scalar(fb), "Boolean parity");
             assertEquals(scalar(sb).getClass(), scalar(fb).getClass(),
                     "Boolean Java carrier parity");
@@ -90,6 +95,19 @@ class ConstantPlanParityTest {
         assertTrue(LiteralFold.fold(new TypedCBoolean(true,
                 ExprType.one(Type.Primitive.BOOLEAN)))
                 instanceof com.legend.judge.TypedSide.Scalar);
+    }
+
+    private static com.legend.executionplan.ExecutionPlan plan(String query) {
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), query).executionPlan("t::RT");
+    }
+
+    private static void assertSendsNothing(String query) {
+        assertTrue(plan(query).root() instanceof com.legend.executionplan.ExecutionPlan.Constant,
+                query + " is the plan's constant");
+    }
+
+    private static void assertSends(String query) {
+        assertTrue(plan(query).sendsTheAnswer(), query + " is the database's to answer");
     }
 
     private static Object scalar(Lean.Result r) {

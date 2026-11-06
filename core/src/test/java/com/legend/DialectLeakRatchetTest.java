@@ -55,7 +55,7 @@ class DialectLeakRatchetTest {
             "warehouse/src/main/java", "warehouse/src/test/java", "wasm/src/main/java/planner", "native/src/main/java",
             "testing/src/main/java");
 
-    private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
+    private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|MongoDb|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
 
     /** H2 and DB2 as a word or an identifier's word ({@code h2}, {@code isH2}, {@code LocalH2}, {@code ENGINE_H2},

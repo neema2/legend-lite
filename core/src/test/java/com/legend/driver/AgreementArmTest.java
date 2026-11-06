@@ -100,13 +100,22 @@ class AgreementArmTest {
     }
 
     @Test
-    void anUnjudgedOrDeclinedDatabaseVerdictIsToldAndTheHostDecides() {
+    void anUnjudgedOrDeclinedDatabaseVerdictIsToldAndFailsTheAssert() {
+        // strict (the user, 2026-11-05: "The database judge should not have a fallback mode at all, it should hard
+        // fail if cannot judge something"): the host never decides alone
         Told told = new Told();
-        assertSame(HELD, AgreementArm.agree("assertEquals", told, held(), unjudged("kind-gate: non-primitive")));
-        assertSame(HELD, AgreementArm.agree("assertSize", told, held(), declined()));
+        var unjudged = assertThrows(AssertFailed.class,
+                () -> AgreementArm.agree("assertEquals", told, held(), unjudged("kind-gate: non-primitive")));
+        assertEquals("assertEquals: THE DATABASE JUDGE could not judge it (kind-gate: non-primitive), where the host"
+                + " judge holds", unjudged.getMessage());
+        var declined = assertThrows(AssertFailed.class,
+                () -> AgreementArm.agree("assertSize", told, held(), declined()));
+        assertEquals("assertSize: THE DATABASE JUDGE declined it (not this shape), where the host judge holds",
+                declined.getMessage());
         var e = assertThrows(AssertFailed.class,
                 () -> AgreementArm.agree("assertEq", told, failed("host: 1 != 2"), unjudged("graph side")));
-        assertEquals("host: 1 != 2", e.getMessage());
+        assertEquals("assertEq: THE DATABASE JUDGE could not judge it (graph side), where the host judge fails (host: 1"
+                + " != 2)", e.getMessage());
         assertEquals(List.of("unjudged assertEquals: kind-gate: non-primitive",
                 "declined assertSize: database judge: not this shape", "unjudged assertEq: graph side"), told.lines);
     }

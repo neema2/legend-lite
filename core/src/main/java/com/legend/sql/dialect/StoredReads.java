@@ -45,7 +45,8 @@ import java.util.function.Predicate;
 final class StoredReads extends SqlRewriter {
 
     private final Predicate<SqlDdl.ColumnType> reads;
-    /** alias of a scanned table -> its columns this dialect reads, by name -> stored type. */
+    /** alias of a scanned table -> its columns this dialect reads, by name -> stored type, in the block being
+     *  rewritten. */
     private final Map<String, Map<String, SqlDdl.ColumnType>> read = new HashMap<>();
 
     StoredReads(Predicate<SqlDdl.ColumnType> reads) {
@@ -54,6 +55,12 @@ final class StoredReads extends SqlRewriter {
 
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
+        // per query block: an alias names its source within its block alone (QueryBlocks, 2026-11-05)
+        return QueryBlocks.each(q, this::block);
+    }
+
+    /** One query block: its scanned tables' read columns by alias, then its references rewritten. */
+    private SqlQuery block(SqlQuery q) {
         read.clear();
         new SqlRewriter() {
             @Override

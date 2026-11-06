@@ -41,7 +41,7 @@ public final class SignatureMangle {
 
     /** The engine id of {@code def}. */
     public static String mangle(Function def) {
-        // a user function's relation parameter spells its columns (register S131, the user's 2a, 2026-11-03), so two
+        // a user function's relation parameter spells its columns (register S146, the user's 2a, 2026-11-03), so two
         // overloads that differ only in a column's type are two functions, ranked by m3's RelationTypeMatch. A native
         // keeps upstream's id, which spells a relation's raw type alone, and so does every function of upstream's own
         // namespace, meta::, bodied or native: its id is legend-pure's (the catalog and the census compare it with the
@@ -50,7 +50,7 @@ public final class SignatureMangle {
     }
 
     /** {@code def}'s tail as legend-pure spells it ({@code FunctionDescriptor}: a relation its raw type alone) --
-     *  the same as {@link #tail} for a function with no relation parameter of named columns (S131). */
+     *  the same as {@link #tail} for a function with no relation parameter of named columns (S146). */
     static String upstreamTail(Function def) {
         return mangle(def, false).substring(def.qualifiedName().length());
     }
@@ -72,7 +72,7 @@ public final class SignatureMangle {
         if (columns && type instanceof TypeExpression.Generic g) {
             for (TypeExpression a : g.arguments()) {
                 // a relation's columns; a column specification's concrete column ({@code ColSpec<(?:All)⊆T>}: the
-                // left of its ⊆), so its overload by the column's type is another function too (S131)
+                // left of its ⊆), so its overload by the column's type is another function too (S146)
                 TypeExpression row = "Relation".equals(typeId(g)) ? a
                         : a instanceof TypeExpression.SchemaAlgebra sa && sa.op() == TypeExpression.Op.SUBSET
                                 ? sa.left() : null;
@@ -154,7 +154,7 @@ public final class SignatureMangle {
                     exact.add(c);
                 }
             }
-            // a reference in legend-pure's own spelling (a relation parameter its raw type alone, S131): the
+            // a reference in legend-pure's own spelling (a relation parameter its raw type alone, S146): the
             // declarations it spells, exactly -- two overloads that differ only in a column's type are both, for the
             // caller to refuse as ambiguous
             if (exact.isEmpty()) {

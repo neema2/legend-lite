@@ -488,8 +488,9 @@ public final class MinimalCorpus {
         return lane.isEmpty() ? TestBackends.platform() : TestBackends.named(lane);
     }
 
-    /** Whether the lane's database is the referee's: its golden runs on the session itself, and no mirror replays
-     *  beside it. */
+    /** Whether the lane's session is the referee's own: its golden runs on the session itself, and no mirror replays
+     *  beside it. No lane since 2026-11-05: the referee is legend-engine's H2 (2.1.214), loaded apart from lite's, so
+     *  the H2 lane's goldens replay on a mirror as every lane's. */
     static boolean refereeLane() {
         return BACKEND == TestBackends.referee();
     }
@@ -610,7 +611,9 @@ public final class MinimalCorpus {
                 } catch (IOException e) {
                     throw new com.legend.error.DataError("test resource '" + path + "'", e);
                 }
-            });
+            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
+            // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+            }).withEngineCompat(true);
         }
 
         @Override

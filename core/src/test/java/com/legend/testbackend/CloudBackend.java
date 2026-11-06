@@ -41,6 +41,11 @@ abstract class CloudBackend implements TestBackend {
     /** Each cloud's one session and its one failed login, by its name (the audit of the branch, 2026-10-16: one field
      *  for every cloud was safe while a JVM ran one lane, not behind a registry of every backend). */
     private static final java.util.Map<String, Connection> SESSIONS = new java.util.HashMap<>();
+    /** Each held session's one unclosable view, handed to every test: one view, one platform session over it
+     *  ({@code TestSessions.over} keys by the connection object), so its session statements are sent once per suite.
+     *  A new view per test made a new platform session per test, which sent them again: one extra round trip per test,
+     *  measured on Snowflake round 21 as half the database judge's statements (2026-11-05, the owner's quick win). */
+    private static final java.util.Map<String, Connection> VIEWS = new java.util.HashMap<>();
     private static final java.util.Map<String, IllegalStateException> FAILED = new java.util.HashMap<>();
 
     /** The runtime's connection declaration: the coordinates as they are, the credential by reference. */
@@ -100,8 +105,9 @@ abstract class CloudBackend implements TestBackend {
                 }));
                 session = opened;
                 SESSIONS.put(name(), opened);
+                VIEWS.put(name(), unclosable(opened));
             }
-            return unclosable(session);
+            return VIEWS.get(name());
         }
     }
 

@@ -1,0 +1,168 @@
+import com.legend.Compiler;
+import com.legend.ExecuteOptions;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.compiler.element.ModelContext;
+import com.legend.database.Databases;
+import com.legend.driver.BodyDriver;
+import com.legend.exec.Sessions;
+import com.legend.exec.StatementOrigin;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.result.Batch;
+import com.legend.result.ResultSink;
+import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.sql.dialect.SqlDialect;
+import com.legend.test.StorelessRuntime;
+import com.legend.testplan.BodyClass;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Scratch probe 2 (read-only audit): bodies in sequence on ONE connection, walk vs router, H2 or DuckDB. */
+public class M5Probe2 {
+
+    static final String RT = StorelessRuntime.RUNTIME;
+
+    static String model(DatabaseType type, String seeds) {
+        if (seeds == null) {
+            return StorelessRuntime.with("", type);
+        }
+        return StorelessRuntime.declaring("", type,
+                "specification: LocalH2 { testDataSetupSqls: [ " + seeds + " ]; };\n  auth: DefaultH2");
+    }
+
+    static TypedQuery typed(ModelContext ctx, String body) {
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
+                        ? lf.body() : List.of(parsed);
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(List.of()), ctx);
+        return Compiler.queryResolved(ctx, resolved);
+    }
+
+    static final class Capture implements ResultSink {
+        final StringBuilder out = new StringBuilder();
+        public void columns(List<ExecutionPlan.Column> columns) {
+            out.append("columns=");
+            for (ExecutionPlan.Column c : columns) {
+                out.append(c.name()).append(':').append(c.type()).append(c.multiplicity()).append(' ');
+            }
+        }
+        public void batch(Batch b) {
+            for (int i = 0; i < b.size(); i++) {
+                out.append(" row").append(b.row(i));
+            }
+        }
+        public void end() {
+            out.append(" end");
+        }
+    }
+
+    /** Each body in order on one fresh connection; {@code router} for every body, or the walk for every body. */
+    static void sequence(String label, DatabaseType type, String seeds, List<String> bodies, boolean router,
+            String check) throws Exception {
+        String url = type == DatabaseType.H2 ? "jdbc:h2:mem:m5p" + System.nanoTime() : "jdbc:duckdb:";
+        try (Connection c = DriverManager.getConnection(url)) {
+            ModelContext ctx = Compiler.compileModel(model(type, seeds));
+            Sessions.Session s = Sessions.borrowed(c);
+            RawSqlBoundary.Recorder rec = new RawSqlBoundary.Recorder();
+            ExecuteOptions options = ExecuteOptions.recording(rec, null);
+            System.out.println("== " + label + " [" + (router ? "ROUTER" : "WALK") + "]");
+            int n = 0;
+            for (String body : bodies) {
+                n++;
+                TypedQuery q = typed(ctx, body);
+                List<String> shapes = new ArrayList<>();
+                Capture cap = new Capture();
+                Execution.Answer answer = shape -> {
+                    shapes.add(String.valueOf(shape));
+                    return cap;
+                };
+                long[] before = StatementOrigin.snapshot();
+                String outcome = "ok";
+                int ledgerBefore = rec.entries().size();
+                try {
+                    if (router) {
+                        Execution.runProgram(q, RT, Execution.Source.given(s), null, null, options, answer);
+                    } else {
+                        SqlDialect d = Databases.dialect(type).forServer(s.version());
+                        BodyDriver.execute(q, RT, d, s, null, null, options, answer);
+                    }
+                } catch (Throwable t) {
+                    outcome = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                long[] after = StatementOrigin.snapshot();
+                long[] delta = new long[after.length];
+                for (int i = 0; i < delta.length; i++) {
+                    delta[i] = after[i] - before[i];
+                }
+                System.out.println("  body " + n + " class=" + BodyClass.of(q, RT));
+                System.out.println("   outcome: " + outcome.replace('\n', ' '));
+                System.out.println("   ledger+: " + rec.entries().subList(ledgerBefore, rec.entries().size()));
+                System.out.println("   answer : shapes=" + shapes + " " + cap.out);
+                System.out.println("   census : " + StatementOrigin.census(delta).replaceAll("\\w+=0 ?", ""));
+            }
+            StringBuilder db = new StringBuilder();
+            if (check != null) {
+                try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(check)) {
+                    while (rs.next()) {
+                        db.append(rs.getString(1)).append(',');
+                    }
+                } catch (Exception e) {
+                    db.append("ERR ").append(e.getMessage().split("\n")[0]);
+                }
+                System.out.println("   db     : " + db);
+            }
+        }
+    }
+
+    static void both(String label, DatabaseType type, String seeds, List<String> bodies, String check)
+            throws Exception {
+        sequence(label, type, seeds, bodies, false, check);
+        sequence(label, type, seeds, bodies, true, check);
+    }
+
+    public static void main(String[] args) throws Exception {
+        String exec = "meta::relational::metamodel::execute::executeInDb(";
+        String duck = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
+        String h2 = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.H2);\n";
+        String only = args.length > 0 ? args[0] : "";
+        if (only.isEmpty() || only.equals("9")) {
+            both("9 last statement computed value", DatabaseType.DuckDB, null,
+                    List.of(duck + exec + "'create table a9(i int)', $c, 0, 1000);\n'abc'->toUpper();}"), null);
+        }
+        if (only.isEmpty() || only.equals("10")) {
+            both("10 H2 script failing at its 2nd statement", DatabaseType.H2, null,
+                    List.of(h2 + exec + "'create table a10(i int)', $c, 0, 1000);\n"
+                            + exec + "'insert into no_such_table values (1)', $c, 0, 1000);\ntrue;}"),
+                    "select count(*) from information_schema.tables where table_name = 'A10'");
+        }
+        if (only.isEmpty() || only.equals("11")) {
+            both("11 seed failing at its 2nd statement", DatabaseType.DuckDB,
+                    "'create table s11(i int)', 'insert into no_such_s11 values (1)'",
+                    List.of(duck + exec + "'create table a11(i int)', $c, 0, 1000);}"), null);
+        }
+        if (only.isEmpty() || only.equals("12")) {
+            // a walked body (no effect: assert-free, not moved) establishes the runtime's seeds; then a moved body
+            both("12 walked body then moved body, non-idempotent seeds", DatabaseType.DuckDB,
+                    "'create table s12(i int)', 'insert into s12 values (1)'",
+                    List.of("|1 + 1", duck + exec + "'insert into s12 values (9)', $c, 0, 1000);}"),
+                    "select i from s12 order by i");
+        }
+        if (only.isEmpty() || only.equals("13")) {
+            // a moved body leaves its seeds established (a seed step after its last effect); then a walked body
+            both("13 moved body then walked body, non-idempotent seeds", DatabaseType.DuckDB,
+                    "'create table if not exists s13(i int)', 'insert into s13 values (1)'",
+                    List.of(duck + exec + "'insert into s13 values (9)', $c, 0, 1000);\ntrue;}", "|1 + 1"),
+                    "select i from s13 order by i");
+        }
+    }
+}

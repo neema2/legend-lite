@@ -24,10 +24,10 @@ final class FrameGuard {
     static final String ORDER = "Invalid window frame boundary - lower bound of window frame cannot be greater than"
             + " the upper bound!";
 
-    /** A computed offset that is negative or empty: lite reads a bound's direction from its shape (S129). */
+    /** A computed offset that is negative or empty: lite reads a bound's direction from its shape (S144). */
     static final String SIGN = "Invalid window frame boundary - a window frame bound written -(n) is n before the"
             + " current row and any other n after it, so a computed n must be neither negative nor empty"
-            + " (docs/SEMANTICS_REGISTER.md S129)";
+            + " (docs/SEMANTICS_REGISTER.md S144)";
 
     private FrameGuard() {
     }

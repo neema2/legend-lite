@@ -247,7 +247,7 @@ final class Windows {
                     "Invalid window frame boundary - a computed bound's direction is read from how it is written"
                             + " (-(n) is n before the current row, any other n after it), and this frame then"
                             + " starts after where it ends: write the bound before the current row as -(n)"
-                            + " (docs/SEMANTICS_REGISTER.md S129)");
+                            + " (docs/SEMANTICS_REGISTER.md S144)");
         }
         return new SqlExpr.WindowCall.Frame(
                 f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS

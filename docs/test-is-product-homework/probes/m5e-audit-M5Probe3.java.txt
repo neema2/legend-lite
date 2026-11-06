@@ -1,0 +1,26 @@
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.result.Batch;
+import com.legend.result.JsonRowsWriter;
+import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.List;
+
+public class M5Probe3 {
+    public static void main(String[] a) throws Exception {
+        List<ExecutionPlan.Column> cols = List.of(new ExecutionPlan.Column("value", "String",
+                new ExecutionPlan.Multiplicity(0, 1), null, null, null));
+        StringWriter w0 = new StringWriter();
+        JsonRowsWriter j0 = new JsonRowsWriter(w0, ExecutionPlan.TdsResult.Shape.VALUE);
+        j0.columns(cols);
+        j0.end();
+        StringWriter w1 = new StringWriter();
+        JsonRowsWriter j1 = new JsonRowsWriter(w1, ExecutionPlan.TdsResult.Shape.VALUE);
+        j1.columns(cols);
+        Batch.Builder b = Batch.builder(cols, 8);
+        b.add(Arrays.asList((Object) null));
+        j1.batch(b.build());
+        j1.end();
+        System.out.println("zero rows : " + w0);
+        System.out.println("null row  : " + w1);
+    }
+}

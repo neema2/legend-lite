@@ -1,0 +1,24 @@
+# Groups the wall measurement's report lines: by kind, then by act and the nearest two callers outside exec/base.
+import sys, re, glob, collections
+files = sys.argv[1:]
+rows = collections.defaultdict(lambda: collections.defaultdict(set))
+for f in files:
+    for line in open(f, errors='replace'):
+        m = re.search(r'\[(wall-touch-planning|wall-touch|wall-nested|run-wall-unguarded|run-wall)\] (.*)', line)
+        if not m:
+            continue
+        kind, rest = m.group(1), m.group(2)
+        test = ''
+        t = re.search(r' \[test ([^\]]*)\]\s*$', rest)
+        if t:
+            test = t.group(1); rest = rest[:t.start()]
+        parts = rest.split(' <- ')
+        act = parts[0]
+        callers = ' <- '.join(re.sub(r':\d+$', '', p) for p in parts[1:4])
+        rows[kind][(act, callers)].add(test.split('#')[0].split('::')[-1] if test else '?')
+for kind in ['wall-touch-planning', 'wall-touch', 'wall-nested', 'run-wall-unguarded', 'run-wall']:
+    if kind not in rows:
+        print(f'== {kind}: none'); continue
+    print(f'== {kind}: {len(rows[kind])} distinct sites')
+    for (act, callers), tests in sorted(rows[kind].items(), key=lambda kv: -len(kv[1])):
+        print(f'  {act} <- {callers}   [{len(tests)} first-seen in e.g. {sorted(tests)[:2]}]')

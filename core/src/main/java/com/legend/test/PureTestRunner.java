@@ -291,6 +291,33 @@ public final class PureTestRunner implements AutoCloseable {
      * quiet decline. */
     private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
             java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
+        return provideFixture(storeFqn, conn, ran, shared,
+                (fqn, target) -> runSetup(deriveSetup(fqn), target, options));
+    }
+
+    /** {@link #provideFixture} PLANNED AHEAD ({@link AssertListener#fixtureAhead}; zero exemptions, the owner,
+     *  2026-11-05): the one setup that seeds {@code storeFqn} planned now, while the assert that asks is planned, and
+     *  provided -- by {@link #provideFixture}'s rules, read when it runs -- where the rows leg reads, inside the body's
+     *  run, which plans nothing. Null where no one setup seeds the store, or its program cannot be planned ahead. */
+    private java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn,
+            com.legend.exec.Sessions.Session conn, java.util.Collection<String> ran, boolean shared,
+            ExecuteOptions options) {
+        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
+        if (setups.size() != 1) {
+            return null;
+        }
+        Execution.PlannedProgram planned = Execution.planProgram(
+                Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
+        if (planned == null) {
+            return null;
+        }
+        return () -> provideFixture(storeFqn, conn, ran, shared, (fqn, target) -> planned.run(target));
+    }
+
+    /** {@link #provideFixture} with {@code program} the setup's run on the session it is given. */
+    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
+            java.util.Collection<String> ran, boolean shared,
+            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
         List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
         if (setups.size() != 1) {
             return false;
@@ -312,7 +339,7 @@ public final class PureTestRunner implements AutoCloseable {
                 }
             }
         }
-        if (!runFixture(fqn, deriveSetup(fqn), conn, options, true)) {
+        if (!runFixture(fqn, target -> program.accept(fqn, target), conn, true)) {
             return false;   // a clashing fixture the caller cannot isolate
         }
         if (shared) {
@@ -337,8 +364,9 @@ public final class PureTestRunner implements AutoCloseable {
      *  isolated. Without the primitive (an H2 session) the fixture runs in
      *  the session as before. Package-start fixtures keep the engine's own
      *  rule — the later one wins the name. */
-    private boolean runFixture(String fqn, ValueSpecification call, com.legend.exec.Sessions.Session conn,
-            ExecuteOptions options, boolean onDemand) {
+    private boolean runFixture(String fqn,
+            java.util.function.Consumer<com.legend.exec.Sessions.Session> program,
+            com.legend.exec.Sessions.Session conn, boolean onDemand) {
         com.legend.exec.Sessions.Session target = conn;
         boolean isolated = false;
         if (onDemand) {
@@ -352,15 +380,20 @@ public final class PureTestRunner implements AutoCloseable {
             // refuses the known clashes
         }
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-            // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
-            Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
-                    com.legend.Execution.Source.given(target), null, null, options);
+            program.accept(target);
         } finally {
             if (isolated) {
                 observer.fixtureIsolated(conn);
             }
         }
         return true;
+    }
+
+    /** The setup {@code call} run on {@code target}: the one entry for a program (track C, 2026-10-29), the setup's
+     *  body typed once. */
+    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
+        Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn, com.legend.Execution.Source.given(target),
+                null, null, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
@@ -376,7 +409,7 @@ public final class PureTestRunner implements AutoCloseable {
                 continue;
             }
             try {
-                if (!runFixture(fqn, call, conn, options, false)) {
+                if (!runFixture(fqn, target -> runSetup(call, target, options), conn, false)) {
                     failures.add("setup " + fqn + "() => clashes with tables the"
                             + " session already holds and cannot be isolated");
                     continue;
@@ -516,6 +549,14 @@ public final class PureTestRunner implements AutoCloseable {
                                 return provideFixture(storeFqn, conn,
                                         shared ? setupsDone : setupCandidates(t.pkg()),
                                         shared, options);
+                            }
+
+                            @Override
+                            public java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(
+                                    String storeFqn) {
+                                boolean shared = !facts.seedsInlineCsv();
+                                return PureTestRunner.this.fixtureAhead(storeFqn, conn,
+                                        shared ? setupsDone : setupCandidates(t.pkg()), shared, options);
                             }
                         },
                         referee, options);

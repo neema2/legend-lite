@@ -1001,6 +1001,17 @@ public final class CarrierStrategies extends SqlRewriter {
                 return picked;
             }
         }
+        // LIST_AT (a position the list holds) on a dialect with no list and no JSON carrier (H2): the literal array's
+        // pick, as LIST_GET's; where a carrier exists, the dialect's own read writes the position once, where the
+        // pick writes it per element (2026-11-03, the tagged list's statements)
+        if (!caps.jsonCarrier() && e instanceof SqlExpr.Call la
+                && la.fn() == com.legend.sql.SqlFn.LIST_AT
+                && la.args().size() == 2) {
+            SqlExpr picked = literalPick(la.args().get(0), la.args().get(1));
+            if (picked != null) {
+                return picked;
+            }
+        }
         if (e instanceof SqlExpr.Membership m) {
             SqlExpr rewritten = membershipRule(m);
             if (rewritten != null) {

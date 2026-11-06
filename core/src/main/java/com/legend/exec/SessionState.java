@@ -3,27 +3,22 @@
 
 package com.legend.exec;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * What a body driver ESTABLISHED on a session, living exactly as long as the session (the owning session's own since
  * D70, 2026-10-30, shared by its views; until then a process-wide weak map keyed by the driver's connection, because a
  * connection was wrapped as a session anew at every call): the seeds it ran, by their SOURCES (a value key the driver builds: the from()'s
- * inline setups and the runtimes it names, never the rendered text, 2026-09-16); the database's reported column types
- * per statement text (leg 3.3, {@link WireTypes}); and whether a writing statement ran since the last seed (then the
- * next establishment re-seeds). Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
+ * inline setups and the runtimes it names, never the rendered text, 2026-09-16), or a seed step's key; the session
+ * statements each target ran on it. A writing statement, or a rollback, forgets every key's seeds: the next
+ * establishment of each re-seeds. Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
  * keyed by the {@code java.sql.Connection} it held; the driver now holds a {@link Sessions.Session} and asks it.
  */
 public final class SessionState {
 
     private final Set<Record> seeded = new HashSet<>();
-
-    /** the database's reported column types per prepared statement text */
-    private final Map<String, List<WireTypes.ReportedColumn>> wireTypes = new HashMap<>();
 
     /** The targets' session statement lists that have run on this session, each once: the dialect's session setup is
      *  idempotent by contract ({@code SqlDialect.sessionSetup}), so a list runs before the connection's first
@@ -33,31 +28,30 @@ public final class SessionState {
      *  back is undone with it, and the next statement runs it again. */
     private final Set<List<String>> sessionStatementsRun = new HashSet<>();
 
-    private boolean dirty;
-
     /** A session no connection keys (a connector's own): its state is its own. */
     public SessionState() {
     }
 
     /** Whether the seeds {@code key} names are in place: run on this session, and no write run since. */
     public synchronized boolean established(Record key) {
-        return !dirty && seeded.contains(key);
+        return seeded.contains(key);
     }
 
-    /** The seeds {@code key} names were just run on this session. */
+    /** The seeds {@code key} names were just run on this session -- and no other key's are known to be in place: a
+     *  seed drops and creates the tables it fills, and this record does not know which tables another key filled, so
+     *  seeding A, then B over the same table, then A again must seed A again (the design audit's H1, 2026-11-02: the
+     *  third seed was skipped and read B's rows). Two keys over disjoint tables re-seed in turn: a cost, never a wrong
+     *  row. */
     public synchronized void establish(Record key) {
+        seeded.clear();
         seeded.add(key);
-        dirty = false;
     }
 
-    /** A statement that WRITES is about to run on the session: the next establishment re-seeds. */
+    /** A statement that WRITES is about to run on the session: every key's seeds establish again (a write may change
+     *  any seeded table; until MRe one flag stood for them all, and establishing one key cleared it for every other --
+     *  the MR inventory's latent defect). */
     public synchronized void markWriting() {
-        dirty = true;
-    }
-
-    /** The session's memo of the database's reported column types per prepared statement text. */
-    public Map<String, List<WireTypes.ReportedColumn>> wireTypes() {
-        return wireTypes;
+        seeded.clear();
     }
 
     /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since
@@ -72,8 +66,11 @@ public final class SessionState {
     }
 
     /** The session's transaction was rolled back: what a session statement set inside it may be undone (Postgres), so
-     *  every target's session statements run again before its next statement. */
+     *  every target's session statements run again before its next statement; and seeds run inside it may be undone
+     *  (a program's seed step inside its transaction, the test-is-the-product plan's M3 audit, B1), so the next
+     *  establishment seeds again, as after a write. */
     public synchronized void rolledBack() {
         sessionStatementsRun.clear();
+        seeded.clear();
     }
 }

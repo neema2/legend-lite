@@ -1042,7 +1042,7 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
   });
 
   // R12 (ruled 2026-10-31): step is prev -- gs-quant's ffill, without its bfill (a line's first value before it starts,
-  // the future read; docs/SEMANTICS_REGISTER.md S130)
+  // the future read; docs/SEMANTICS_REGISTER.md S145)
   it('step before a series\' first value: none (gs-quant\'s ffill, never its bfill: R12)', async () => {
     const l = await line(spec({ A: 'close[AAA] - mean(close[CCC], 3)' }, { align: 'step' } as Partial<TimeseriesSpec>));
     const mean3 = (j: number): number => (CCC[j]! + CCC[j - 3]! + CCC[j - 6]!) / 3;

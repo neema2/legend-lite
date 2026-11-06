@@ -4,6 +4,7 @@
 package com.legend.compiler.element;
 
 import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.model.ClassDefinition;
 import com.legend.compiler.element.type.Type;
 
 import java.util.ArrayList;
@@ -24,8 +25,10 @@ import java.util.Set;
  *
  * <p>{@code nested} carries a class-typed key's own key tree (the
  * engine recurses through {@code equal}); a class-typed key whose
- * class is KEYLESS poisons the whole resolution (equality through it
- * can never hold by value) — null, decline. Cycles likewise.
+ * class is KEYLESS leaves {@code nested} null: a value in that slot is
+ * judged by its OWN classifier's keys (a polymorphic slot, WORLD_MAP
+ * §4), a keyless runtime class by identity. A key cycle is null —
+ * decline.
  */
 public record EqualityKeys(String classFqn, List<Key> keys) {
 
@@ -34,11 +37,21 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
      * COLLECTIONS under the ordered list rule). {@code objectOnly}: the
      * property is DECLARED as a model class other than Any, so a value
      * in it is an instance or empty, never a primitive — a canon need
-     * not spell primitives there. */
+     * not spell primitives there. {@code declaredClass}: the class the
+     * property is declared as (Any included), null for a primitive slot —
+     * the classes a value in the slot may carry as its own ({@code __type})
+     * are that class and its subtree, which a judge planning its key
+     * restriction reads once (the test-is-the-product plan's M8a,
+     * 2026-11-01). */
     public record Key(String name, boolean many,
-                      @com.legend.base.Nullable EqualityKeys nested, boolean objectOnly) {
+                      @com.legend.base.Nullable EqualityKeys nested, boolean objectOnly,
+                      @com.legend.base.Nullable String declaredClass) {
         public Key(String name, boolean many, @com.legend.base.Nullable EqualityKeys nested) {
-            this(name, many, nested, false);
+            this(name, many, nested, false, null);
+        }
+
+        public Key(String name, boolean many, @com.legend.base.Nullable EqualityKeys nested, boolean objectOnly) {
+            this(name, many, nested, objectOnly, null);
         }
     }
 
@@ -54,6 +67,46 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
             return gt.rawFqn();
         }
         return null;
+    }
+
+    /** {@code <<equality.Key>>} on a property: the one spelling of the stereotype test (the class compiler stamps
+     *  {@code Property.Stored.equalityKey} by it; {@link #declaresKeys} reads it off the declaration). */
+    public static boolean isKeyStereotype(com.legend.model.StereotypeApplication st) {
+        return PlatformTypes.isProfile(st.profileName(), PlatformTypes.EQUALITY_PROFILE)
+                && "Key".equals(st.stereotypeName());
+    }
+
+    /**
+     * Whether {@code classFqn} DECLARES an equality key -- on one of its own properties or a declared ancestor's --
+     * read off the parsed definitions alone, no class compiled (the test-is-the-product plan's M8a, 2026-11-01): a
+     * judge collecting, at planning, the key trees of every class a slot may hold compiles only the classes this
+     * admits, so a class the body never touched (one the tolerant model holds poisoned) is never compiled for it.
+     * A class that declares no key resolves to no keys ({@link #resolve} answers null), so the filter loses nothing.
+     */
+    public static boolean declaresKeys(ModelContext ctx, String classFqn) {
+        return declaresKeys(ctx, classFqn, new java.util.HashSet<>());
+    }
+
+    private static boolean declaresKeys(ModelContext ctx, String classFqn, Set<String> visited) {
+        if (!visited.add(classFqn)) {
+            return false;
+        }
+        ClassDefinition cd = ctx.findClassDefinition(classFqn).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
+            if (pd.stereotypes().stream().anyMatch(EqualityKeys::isKeyStereotype)) {
+                return true;
+            }
+        }
+        for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
+            String head = com.legend.protocol.TypeExpression.rawClassName(sup);
+            if (head != null && declaresKeys(ctx, head, visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static @com.legend.base.Nullable EqualityKeys resolve(
@@ -175,7 +228,11 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
             String declared = fqnOf(pt);
             boolean objectOnly = declared != null && !PlatformTypes.isAny(pt)
                     && ctx.findClass(declared).isPresent();
-            out.add(new Key(st.name(), st.multiplicity().isMany(), nested, objectOnly));
+            // the class a value in the slot may be an instance of: the declared class; for a type variable left
+            // unsubstituted (a raw or arity-mismatched stamp) any class, as for Any -- the value's own class decides
+            String slotClass = declared != null ? declared
+                    : pt instanceof Type.TypeVar ? PlatformTypes.ANY : null;
+            out.add(new Key(st.name(), st.multiplicity().isMany(), nested, objectOnly, slotClass));
         }
         for (String sup : tc.superClassFqns()) {
             if (!collect(ctx, sup, typeArgs, inProgress, out, seenNames,

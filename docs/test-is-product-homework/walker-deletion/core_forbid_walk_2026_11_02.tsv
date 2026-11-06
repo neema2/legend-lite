@@ -1,0 +1,104 @@
+driver	QuantifiedRowsTest	assertEquals over a zip: each row judged as the element arm judges a pair	host judge's planner refused an assert	assert
+driver	QuantifiedRowsTest	an argument that is neither a row's field nor a literal is refused by name, never evaluated here	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.NotImplementedException> but	
+driver	QuantifiedRowsTest	assertEqWithinTolerance over a zip: every row within the delta holds; the first outside fails with the arm's own message	host judge's planner refused an assert	assert
+driver	BodyRouterParityTest	consumedElementReferencePrograms	no class admits the body [assert,let-execute,system-read]>	
+driver	BodyRouterParityTest	consumedElementReferencePrograms	no class admits the body [assert,let-execute,system-read]>	
+driver	BodyRouterParityTest	theAssertShapesTheHostChecksLeaveOnTheWalk	host judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	theAssertShapesTheHostChecksLeaveOnTheWalk	host judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	theAssertShapesTheDatabasePlannerLeavesOnTheWalk	database judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	theAssertShapesTheDatabasePlannerLeavesOnTheWalk	OTHER: AssertionFailedError: outcome: {| assertEq(^x::Firm(name='a'), ^x::Firm(name='a'));} ==> expected: <AssertFailed	
+driver	BodyRouterParityTest	engineTextPrograms	database judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	engineTextPrograms	database judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	helperAssertPrograms	database judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	quantifiedPrograms	database judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	deferredTextPrograms	host judge's planner refused an assert [assert]>	
+driver	BodyRouterParityTest	deferredTextPrograms	host judge's planner refused an assert [assert]>	
+exec	ExecuteInDbProbeCountTest	columnNames: nothing read at planning; the names the grid's result reports, its keys step	no class admits the body	last-query
+exec	ExecuteInDbProbeCountTest	named cell read: a text that looks like JSON is the text its column reports	no class admits the body	last-query
+exec	ExecuteInDbProbeCountTest	undemanded grid as relation root: ZERO probes, headers adopted at egress	no class admits the body	last-query
+exec	ExecuteInDbProbeCountTest	named cell read: ZERO probes, the cell typed by the wire at the row	no class admits the body	last-query
+exec	ExecuteInDbProbeCountTest	values: nothing read at planning; the grid's cells row-major, each of its own kind	no class admits the body	last-query
+exec	ExecuteFrameTest	envelope alias: let tds = $r.values->at	no class admits the body	last-query,let-execute
+exec	ExecuteFrameTest	a let-bound query lambda resolves through the caller's lets	no class admits the body	last-query,let-execute
+exec	ExecuteFrameTest	relation root: ->at	no class admits the body	last-query,let-execute
+exec	ExecuteFrameTest	relation root: at	no class admits the body [last-query,let-execute] ==> expected: <true> but was: <false>	
+exec	ExecuteFrameTest	execute	no class admits the body	last-query
+exec	ExecuteFrameTest	relation root: $r.values reads splice into the typed query and execute	no class admits the body	last-query,let-execute
+exec	ExecuteFrameTest	relation root: downstream ops COMPOSE over the spliced chain	no class admits the body	last-query,let-execute
+exec	ExecuteFrameTest	relation root: ops compose OVER the collapsed ->at	no class admits the body	last-query,let-execute
+exec	AuditTier1PipelineTest	B control: a real cell through ->toString	no class admits the body	last-query
+exec	AuditTier1PipelineTest	B: a NULL grid cell through ->toString	no class admits the body	last-query
+exec	Phase1AuditTest	slice 3: a fetchDb catalog grid composes as a relation too	no class admits the body	last-query
+exec	Phase1AuditTest	Pin 2 FLIPPED 	no class admits the body	last-query
+exec	Phase1AuditTest	tripwire #2 FLIPPED 	no class admits the body	last-query
+exec	Phase1AuditTest	Pin 1: bare .rows = real Row objects, real cells, NULL-first-column included	no class admits the body	last-query
+exec	Phase1AuditTest	slice 3: .columnNames is a probed SCHEMA FACT through the ordinary pipeline	no class admits the body	last-query
+exec	LiteralChannelTest	mixed Any collections are judged by both judges, in agreement — the database judge never declines	no class admits the body	assert
+exec	RowLoadDuckDbTest	the system metamodel seed loads through the bulk path on DuckDB	no class admits the body	last-query,system-read
+exec	ExecuteInDbDuckDbTest	READING a STATEMENT-shaped executeInDb binding refuses loudly 	no class admits the body [effect,effect-let] ==> expected: <true> but was: <false>	
+exec	ExecuteInDbDuckDbTest	T1.9: class-query-derived effect sql — Phase H runs; the scalar-root arm is the LOUD wall	no class admits the body	effect,effect-computed,effect-let
+exec	ExecuteInDbDuckDbTest	Phase 1c FLIP: a QUERY-shaped executeInDb binding is a VALUE — it reads back	no class admits the body	last-query
+exec	TaggedListTest	anUntypedGridsCellsAreReadOnTheVariantLane	no class admits the body	last-query
+exec	TaggedListTest	aTypedRelationsCellsKeepTheRelationsOrder	no class admits the body	last-query,let-execute
+integration	ServiceTestProvisionKeyTest	collidingCsvHashesDoNotShareASessionUnderSharedPolicy	OTHER: AssertionFailedError: expected: <PASS> but was: <FAIL>	
+integration	ServiceTestProvisionKeyTest	collidingCsvHashesDoNotShareATestRuntime	no class admits the body	declares-test-data,last-query
+integration	ServiceTestProvisionKeyTest	identicalCsvSharesOneRuntimeAndSession	OTHER: AssertionFailedError: expected: <PASS> but was: <FAIL>	
+integration	Metamodel store	 the mapping metamodel as relations:THE WITNESS testMainTableForB1: two mappings' main tables compared as rows in the database	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:SetImplementation.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:a VIEW as main table: the alias's element is the View row; mainTable	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:D3: an element reference is its row — navigations off ext::B1Mapping are store reads	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:superMapping / allSuperSetImplementations read the extends chain as ancestry rows	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:resolvePrimaryKey: the engine's this-vs-super precedence over the compiled keys, as rows	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:mainTable	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:Table.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:the mapping extent is seeded: Mapping.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:mainTable's navigation: the set's alias, its table — the extends chain resolved by the compiler	no class admits the body	last-query,system-read
+integration	Metamodel store	 the mapping metamodel as relations:classMappingById is a Pure body over the rows: own set, and an INCLUDED mapping's set	no class admits the body	last-query,system-read
+integration	StagedRowsTest	aStagedLetHoldsItsRowsAcrossTheWritesAfterIt	no class admits the body	check,last-query,let-staged,store-write
+integration	StagedRowsTest	aDeleteOfTheRowsAnotherRelationNames	no class admits the body	last-query,store-write
+integration	DeclaredQuotedTableH2Test	theDdlNativesNameAQuotedTableOneWay	no class admits the body	last-query,system-read
+integration	DeclaredQuotedTableH2Test	thePlanTextFindsAQuotedTable	no class admits the body	last-query
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:rootClassMappingByClass / _classMappingByClass: root and class read off the set rows, the include closure in visit order	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:a view column's inferred type: a table column, a join-navigated column, aggregates, a view on a view	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:propertyMappingsByPropertyName over the effective property mappings: own, inherited, absent	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:Column.type and the DataType rows: dataTypeToSqlText is the real match over the subclass rows	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:Database.schemas / Schema.views / view	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:a CONSTRUCTED relational-op instance is rows: ^DynaFunction	no class admits the body	last-query,system-read
+integration	Metamodel store	 mapping-metamodel query functions as Pure bodies over rows:a mapped property's inferred type: concat sums sizes, plus widens to the decimal, case takes the safe type	no class admits the body	last-query,system-read
+integration	Metamodel store	 Class.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 Class.all	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.MappingResolutionException> 	
+integration	Metamodel store	 Class.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 Class.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 Class.all	no class admits the body	last-query,system-read
+integration	Metamodel store	 Class.all	no class admits the body	last-query,system-read
+integration	MetamodelStoreSubstitutionTest	the engine tests' assert shapes: identity of a reference and a row, a positional pick, a size	no class admits the body	last-query,system-read
+integration	MetamodelStoreSubstitutionTest	resolveStore: an include's substitution answers, an unsubstituted store is itself, substitutions compose through includes	no class admits the body	last-query,system-read
+integration	MetamodelStoreSubstitutionTest	extractDBs: the REFERENCED database of each visible root set, deduplicated	no class admits the body	last-query,system-read
+judge	InstanceIdentityTest	Pair-of-Pairs: substitution-aware key trees — a nested Pair key leaf renders, never declines	no class admits the body	assert
+judge	InstanceIdentityTest	plain 	no class admits the body	last-query
+judge	InstanceIdentityTest	D91: keyed membership in VALUE position rides the same key canon	no class admits the body	last-query
+judge	InstanceIdentityTest	D91: equal over KEYED instances in VALUE position 	no class admits the body	last-query
+planner	ProductStatementsTest	aRawGridsRowsAreAKeyedResult	no class admits the body	last-query
+planner	ProductStatementsTest	aStagedToSqlStringIsThePlansConstantAndTheTestRoadsText	no class admits the body	last-query
+resolver	ResolveDeepEmptinessProbeTest	CLASS-rooted frame read over the deep-emptiness filter 	no class admits the body	last-query,let-execute
+root	JudgesOnPlansTest	everyBodyHoldsUnderBothJudges_onThePlatform	no class admits the body	assert,declares-test-data
+root	JudgesOnPlansTest	aFailingAssertFailsUnderBothJudges_withTheHostsMessage	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.AssertFailed> but was: <java	
+root	JudgesOnPlansH2Test	everyBodyHoldsUnderBothJudges	no class admits the body	assert,declares-test-data
+root	AssertVerdictsTest	enum under an Any stamp: both judges agree 	no class admits the body	assert
+root	AssertErrorNativeTest	line mismatch fails with assertError.pure:25's exact spelling	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.AssertFailed> but was: <java	
+root	AssertErrorNativeTest	matching line/column pass — the raise carries its source span	no class admits the body	assert,assert-error
+root	AssertErrorNativeTest	column mismatch fails with assertError.pure:26's exact spelling	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.AssertFailed> but was: <java	
+root	AssertErrorNativeTest	message mismatch fails with assertError.pure:24's exact spelling	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.AssertFailed> but was: <java	
+root	AssertErrorNativeTest	no error is itself the failure 	OTHER: AssertionFailedError: Unexpected exception type thrown, expected: <com.legend.error.AssertFailed> but was: <java	
+root	AssertErrorNativeTest	matching message passes 	no class admits the body	assert,assert-error
+root	AssertErrorNativeTest	empty line/column expectations skip the source-info checks	no class admits the body	assert,assert-error
+root	AssertErrorNativeTest	date ctor guards: month-aware day validation, spec spellings	no class admits the body	assert,assert-error
+root	AssertVerdictSpliceTest	sqlRemoveFormatting	no class admits the body	activities,last-query,let-execute
+root	AssertVerdictSpliceTest	sql	no class admits the body	activities,last-query,let-execute
+server	createClass -- a relation made a class, with everything it needs to run	the sample rows load as test data, and the class reads them	no class admits the body [declares-test-data,last-query], millis=182]] ==> expected: <true> but was: <false>	
+sql	LegacyTextTest	aWindowsKeywordsAreLowercase	no class admits the body	last-query
+sql	LegacyTextTest	anUnorderedStringAggregateIsListagg	no class admits the body	last-query
+sql	LegacyTextTest	aWindowsFrameIsLowercase	no class admits the body	last-query
+sql	LegacyTextTest	anOrderedStringAggregateInAHavingIsListaggWithinGroupToo	no class admits the body	last-query
+sql	LegacyTextTest	aStringAggregateOverAWindowIsListagg	no class admits the body	last-query
+sql	LegacyTextTest	anOrderedStringAggregateIsListaggWithinGroup	no class admits the body	last-query
