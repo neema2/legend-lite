@@ -57,6 +57,13 @@ public final class VerdictBatch {
         void judge(String name, List<Object> row);
     }
 
+    /** The lowering's ONE row over a generic verdict row and its ruled fallback's (2026-11-06,
+     *  {@code VerdictSql.either}): the generic row's columns where it holds, else the ruled row's. */
+    @FunctionalInterface
+    public interface Either {
+        SqlQuery either(SqlQuery generic, SqlQuery ruled);
+    }
+
     /** The lowering's self-contained form of a verdict row (M8b): the assert's polarity and its failure message
      *  composed in the statement, so the judge reads holds and message and the plan carries nothing about the
      *  assert. */
@@ -212,8 +219,13 @@ public final class VerdictBatch {
     /** The body's execution trace: its fused statement publishes its stamp there. */
     private final ExecutionTrace trace;
 
-    public VerdictBatch(Fusion fusion, SelfContained selfContained, Judge judge, Runner runner, ExecutionTrace trace) {
+    /** The lowering's one row over a generic verdict row and its ruled fallback's. */
+    private final Either either;
+
+    public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained, Judge judge, Runner runner,
+            ExecutionTrace trace) {
         this.fusion = fusion;
+        this.either = either;
         this.selfContained = selfContained;
         this.judge = judge;
         this.runner = runner;
@@ -466,6 +478,23 @@ public final class VerdictBatch {
         List<Root> batch = new ArrayList<>(roots);
         roots.clear();
         current = null;
+        // a generic row with a ruled fallback ROW is ONE verdict row where the dialect spells it (2026-11-06, the
+        // user's "okay": compatibility mode's rendered text, S131/S132): the fallback computed in the same statement,
+        // so what is sent never depends on whether the generic comparison happened to hold -- a union's row order
+        // decided that, run to run, while the fallback was a statement of its own sent after a failed text. Where the
+        // dialect cannot spell the one row, the two stay as they were (a generic row it cannot spell: its fallback
+        // decides at its turn, every run; a fallback it cannot spell: refused there, nothing sent)
+        for (Root r : batch) {
+            for (int i = 0; i < r.steps.size(); i++) {
+                if (r.steps.get(i) instanceof Pending p && p.appeal() == null && p.orElse() instanceof Pending f
+                        && f.orElse() == null && f.appeal() == null && f.on() == p.on()) {
+                    SqlQuery one = either.either(p.query(), f.query());
+                    if (spells(one, p.on())) {
+                        r.steps.set(i, new Pending(p.ix(), p.name(), one, p.on(), null, null));
+                    }
+                }
+            }
+        }
         Map<Sessions.Session, List<Pending>> groups = new LinkedHashMap<>();
         for (Root r : batch) {
             for (Step s : r.steps) {
@@ -558,6 +587,16 @@ public final class VerdictBatch {
             }
         }
         return new Planned(batch, out, members, unspelled, ahead);
+    }
+
+    /** Whether the dialect of {@code on}'s database spells {@code row} (with the batch's frames at its head). */
+    private boolean spells(SqlQuery row, Sessions.Session on) {
+        try {
+            runner.plan(com.legend.sql.FrameCtes.attach(row, frames), false, on);
+            return true;
+        } catch (com.legend.sql.dialect.DialectCapability e) {
+            return false;
+        }
     }
 
     /** A statement planned ahead of the run (the runtime wall): its plan, or the dialect's refusal of it, raised where

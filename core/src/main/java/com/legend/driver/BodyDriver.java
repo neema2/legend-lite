@@ -274,7 +274,7 @@ public final class BodyDriver {
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.judge.VerdictBatch newVerdictBatch(ExecEnv env) {
         return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                com.legend.lowering.VerdictSql::selfContained, DatabaseJudge::verdictOf, JudgePlans.runner(env),
+                com.legend.lowering.VerdictSql::either, com.legend.lowering.VerdictSql::selfContained, DatabaseJudge::verdictOf, JudgePlans.runner(env),
                 env.trace());
     }
 

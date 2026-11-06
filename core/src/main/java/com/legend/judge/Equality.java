@@ -232,9 +232,11 @@ public final class Equality {
             return within;
         }
         if (ek == Type.Primitive.STRING) {
-            // S132's float tokens: backwards-compatibility mode alone (a run that asks: ExecuteOptions.withEngineCompat)
-            return e.equals(a) || (rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT && e instanceof String es && a instanceof String as
-                    && floatTokensWithinTwoUlp(es, as));
+            // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,
+            // the user's "okay" to the S132 scope fix): S132's 2-ULP floats apply to a RENDERED result's text alone --
+            // the host's rendered arm compares its cells (TdsCompare.renderedText), the database judge its rows in the
+            // same verdict row (VerdictSql.either) -- never to two Strings a body computed
+            return e.equals(a);
         }
         if (ek == Type.Primitive.BOOLEAN) {
             return e.equals(a);
@@ -247,52 +249,6 @@ public final class Equality {
     private static boolean integerAndDecimal(Type x, Type y) {
         return x == Type.Primitive.INTEGER && y == Type.Primitive.DECIMAL
                 || x == Type.Primitive.DECIMAL && y == Type.Primitive.INTEGER;
-    }
-
-    /** A float's text in a rendered string: digits, a point and digits, an optional exponent. */
-    private static final java.util.regex.Pattern FLOAT_TOKEN =
-            java.util.regex.Pattern.compile("-?\\d+\\.\\d+(?:[eE][-+]?\\d+)?");
-
-    /** S15 widened (the user's ruling, 2026-11-03, "allow float tolerance"): two strings -- a rendered grid's text
-     *  (toCSV, toString, a join), a message -- are equal where they differ ONLY in float tokens each pair of which is
-     *  within 2 ULP ({@link #withinTwoUlp}): the text between the floats exact, the tokens in order, an integer never
-     *  a float. The database computes a Float in doubles (5.590000000000001 where the engine's golden prints 5.59).
-     *  Two DIFFERENT doubles only: two spellings of one value (30.20 and 30.2) are a spelling bug, never tolerated. */
-    static boolean floatTokensWithinTwoUlp(String e, String a) {
-        java.util.regex.Matcher me = FLOAT_TOKEN.matcher(e);
-        java.util.regex.Matcher ma = FLOAT_TOKEN.matcher(a);
-        int ie = 0;
-        int ia = 0;
-        boolean anyTolerated = false;
-        while (true) {
-            boolean fe = me.find();
-            boolean fa = ma.find();
-            if (fe != fa) {
-                return false;
-            }
-            String te = fe ? e.substring(ie, me.start()) : e.substring(ie);
-            String ta = fa ? a.substring(ia, ma.start()) : a.substring(ia);
-            if (!te.equals(ta)) {
-                return false;
-            }
-            if (!fe) {
-                return anyTolerated;
-            }
-            String ne = me.group();
-            String na = ma.group();
-            if (!ne.equals(na)) {
-                double de = Double.parseDouble(ne);
-                double da = Double.parseDouble(na);
-                // two spellings of ONE double (30.20 and 30.2: a Decimal's scale, an exponent) are a spelling's
-                // difference, not a computation's: exact text decides them (2026-11-03, the H2 percentile witness)
-                if (de == da || !withinTwoUlp(de, da)) {
-                    return false;
-                }
-                anyTolerated = true;
-            }
-            ie = me.end();
-            ia = ma.end();
-        }
     }
 
     private static boolean structural(Object e, Object a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
