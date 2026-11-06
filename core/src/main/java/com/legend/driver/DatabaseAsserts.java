@@ -482,6 +482,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 } catch (RuntimeException e) {
                     // the let raises: the walk raises it at the let's turn, after the earlier segments ran and
                     // reported (the M7 audit's F4) -- the walk's body
+                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "let " + let.name(),
+                            "the let raises: " + e);
                     return false;
                 }
                 continue;
@@ -510,16 +512,22 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             } catch (RuntimeException e) {
                 // the frame environment raises before the arm: the walk raises it there, before anything is flushed
                 // (the M7 audit's F3) -- the walk's body
+                com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
+                        "the frame environment raises: " + e);
                 return false;
             }
             try {
                 AssertVerdicts.DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
                 if (gate == AssertVerdicts.DatabaseGate.UNPLANNED) {
+                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
+                            "the gate: " + AssertVerdicts.shapeOf(bare));
                     return false;
                 }
                 if (AssertVerdicts.engineText(gate) && systemRouted) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, not this program's (M10b)
+                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
+                            "an engine-text assert in a system-routed body");
                     return false;
                 }
                 // an arm that raises at planning with no row before it in its segment: the segment's batch holds the
@@ -535,6 +543,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (f.getValue() < segment && !segmentsWithAssert.contains(f.getValue())
                         && StatementEffects.reaches(statement, n -> readsActivitiesOf(n, f.getKey()), specs,
                                 readMemo)) {
+                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
+                            "a frame's activity read in a later segment than its own: " + f.getKey());
                     return false;
                 }
             }
