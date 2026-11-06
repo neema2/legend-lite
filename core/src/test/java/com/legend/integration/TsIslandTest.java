@@ -735,17 +735,22 @@ class TsIslandTest {
                 assertEquals(2 * c, Double.parseDouble(r.get("d")), 1e-9, backend + ": d is its own row's c, twice");
                 assertEquals(c - 1, Double.parseDouble(r.get("e")), 1e-9, backend + ": e is its own row's c, less 1");
             }
-            // a word that keeps its line's rows is a column of the same table (the time model's D5): each row once,
-            // its first two rows (the first date's two) its ramp, every other row a mean of two of the line's values
-            List<Map<String, String>> word = rows(backend, "|#TS{SELECT CLOSE AS c, avg(CLOSE, 2) AS m"
+            // a word that keeps its line's rows is a column of the same table (the time model's D5): each row once. Of
+            // a line of several rows a date, a word over a calendar span (a window of every row of its dates, in any
+            // order: the same on a date's two rows); a word of n observations has no one answer there (D8, the user,
+            // 2026-11-06: wordsOfNObservationsOfALineOfSeveralRowsOnADateAreRefusedNamingTheFix)
+            List<Map<String, String>> word = rows(backend, "|#TS{SELECT CLOSE AS c, avg(CLOSE, 2d) AS m"
                     + " FROM PRICES ON DAY}#");
             assertEquals(2 * AAA.length, word.size(), backend + ": a row a point, the word's answer a column");
-            assertEquals(2 * AAA.length - 2, word.stream().filter(r -> r.get("m") != null).count(),
-                    backend + ": none on the ramp's two rows, a value on every other");
+            Map<String, java.util.Set<String>> byDay = new java.util.TreeMap<>();
+            word.forEach(r -> byDay.computeIfAbsent(r.get("DAY"), d -> new java.util.TreeSet<>())
+                    .add(String.valueOf(r.get("m"))));
+            assertTrue(byDay.values().stream().allMatch(s -> s.size() == 1), backend + ": a date's two rows one mean");
+            assertTrue(word.stream().anyMatch(r -> r.get("m") != null), backend + ": a mean past the ramp");
             // each simple statistic's rows form likewise (sum, min, max, std, var, range)
-            List<Map<String, String>> stats = rows(backend, "|#TS{SELECT CLOSE AS c, sum(CLOSE, 2) AS s,"
-                    + " min(CLOSE, 2) AS lo, max(CLOSE, 2) AS hi, std(CLOSE, 3) AS sd, var(CLOSE, 3) AS va,"
-                    + " range(CLOSE, 2) AS rg FROM PRICES ON DAY}#");
+            List<Map<String, String>> stats = rows(backend, "|#TS{SELECT CLOSE AS c, sum(CLOSE, 2d) AS s,"
+                    + " min(CLOSE, 2d) AS lo, max(CLOSE, 2d) AS hi, std(CLOSE, 3d) AS sd, var(CLOSE, 3d) AS va,"
+                    + " range(CLOSE, 2d) AS rg FROM PRICES ON DAY}#");
             assertEquals(2 * AAA.length, stats.size(), backend + ": the statistics columns of the same table");
             for (Map<String, String> r : stats) {
                 if (r.get("hi") != null) {
@@ -754,10 +759,11 @@ class TsIslandTest {
                 }
             }
             // R7 part 3 (2026-11-03): zscores, drawdown, max_drawdown and lag have rows forms too -- items of the same
-            // table, each row once, and each the same as the word asked alone
-            List<Map<String, String>> more = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, 3) AS z,"
-                    + " drawdown(CLOSE, 3) AS dd, max_drawdown(CLOSE, 3) AS md, lag(CLOSE, 1) AS l FROM PRICES ON DAY}#");
-            assertEquals(2 * AAA.length, more.size(), backend + ": the four words columns of the same table");
+            // table, each row once, and each the same as the word asked alone (a calendar span's here, a lag as of a
+            // date reading one row of several there: by instrument below)
+            List<Map<String, String>> more = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, 3d) AS z,"
+                    + " drawdown(CLOSE, 3d) AS dd, max_drawdown(CLOSE, 3d) AS md FROM PRICES ON DAY}#");
+            assertEquals(2 * AAA.length, more.size(), backend + ": the three words columns of the same table");
             String by = " FROM PRICES ON DAY BY SYMBOL}#";
             List<Map<String, String>> together = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, 3) AS z,"
                     + " drawdown(CLOSE, 3) AS dd, max_drawdown(CLOSE, 3) AS md, lag(CLOSE, 1) AS l" + by);
@@ -799,6 +805,38 @@ class TsIslandTest {
                 assertTrue(String.valueOf(e.getMessage()).contains("both have several rows on one date"),
                         backend + ": " + q + " refused by name: " + e.getMessage());
             }
+        }
+    }
+
+    @Test
+    void wordsOfNObservationsOfALineOfSeveralRowsOnADateAreRefusedNamingTheFix() throws Exception {
+        // the time model's D8 (the user, 2026-11-06: "Refuse, name the fix"): PRICES read with no BY has two rows on
+        // each date (AAA's and BBB's) in no order, so a word that counts observations has no one answer there -- the
+        // same SQL gave three answers in three runs (docs/ts-sql-homework/data/equivalence_queries.sql, q13). Refused
+        // while the query runs, naming the fix: a rows form (a window of n, lag and diff by obs), a line form (returns,
+        // volatility), a word of a word, and a word of two lines (PRICES declares no key, so the count is the data's)
+        for (TestBackend backend : TestBackends.inProcess()) {
+            for (String q : List.of("SELECT mean(CLOSE, 3) AS m", "SELECT CLOSE AS c, diff(CLOSE, 1) AS d",
+                    "SELECT lag(CLOSE, 1) AS l", "SELECT returns(CLOSE, 1) AS r", "SELECT volatility(CLOSE, 3) AS v",
+                    "SELECT max(diff(CLOSE, 1), 2d) AS mx", "SELECT correlation(CLOSE, CLOSE['AAA'], 3) AS k")) {
+                String query = "|#TS{" + q + " FROM PRICES ON DAY}#";
+                if (q.contains("['AAA']")) {
+                    query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"
+                            + " PRICES q ON DAY BY SYMBOL}#";
+                }
+                String run = query;
+                Exception e = assertThrows(Exception.class, () -> rows(backend, run), backend + ": " + q);
+                assertTrue(String.valueOf(e.getMessage()).contains("several rows on one date: add BY or a subscript"),
+                        backend + ": " + q + " refused by name: " + e.getMessage());
+            }
+            // a calendar window reads all of a date's rows at once, in any order: it answers
+            assertFalse(rows(backend, "|#TS{SELECT mean(CLOSE, 3d) AS m FROM PRICES ON DAY}#").isEmpty(),
+                    backend + ": a calendar window of a line of several rows a date");
+            // the fix the refusal names: an instrument's line, one row a date
+            List<Map<String, String>> by = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length - 3, i -> mean3(AAA, i + 3)), column(by, null, null, "ma"),
+                    backend + ": AAA's mean of three");
         }
     }
 

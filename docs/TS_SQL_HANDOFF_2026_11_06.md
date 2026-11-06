@@ -399,7 +399,7 @@ All four are done. These are the natural next items.
 
 ### W1. The §3 ruling, once the user gives it
 
-The brief is in §3.
+The brief is in §3. **Built 2026-11-06** (ruled "Refuse, name the fix"): the time model's D8, register S134. The check is the library's `lines::once`, folded into the answer of each rows form that counts rows (a filter there broke SelectLayers' chains: spec-13 +5 SELECTs, ~5 ms) and into the value each such line form reads (`lines::untied`; a filter there sent H2's planner out of memory on `TsIslandTest.theCatalogsFunctionsAreTheTilesLibraryCalls`). Not covered and asked of the user: the words that read one row of a date's several without counting -- a lag as of a date (an as-of join), to-date and since-a-date windows, index/rebase/change from a date, ema.
 
 ### W2. The returns-based pair words as rows forms
 
