@@ -62,6 +62,9 @@ final class SideOrdinal {
 
     /** {@code q} with the ordinal its plan defines, or null where it defines none. */
     static @com.legend.base.Nullable SqlQuery defined(SqlQuery q) {
+        if (q instanceof com.legend.sql.SqlUnion u && u.all()) {
+            return branchOrder(u);
+        }
         if (!(q instanceof SqlSelect s)) {
             return null;
         }
@@ -99,6 +102,55 @@ final class SideOrdinal {
         List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
         ps.add(new SqlSelect.Projection(ord, ORD, ORD_OUT));
         return over.withProjections(ps);
+    }
+
+    /** The branch's index in a {@link #branchOrder} union. */
+    private static final String BRANCH = "__ob";
+
+    /**
+     * A UNION ALL's rows in their BRANCHES' order (2026-11-06, PCT's filter::testFilterInstance on BigQuery): a union
+     * is a concatenate -- of a list's elements (a literal list of instances, an element a branch), of two collections
+     * -- whose order Pure defines, the left branch's rows before the right's, each branch's in its own order. Numbered
+     * by its arrival ({@code ROW_NUMBER() OVER ()}) the order was the database's: BigQuery numbered a two-instance
+     * list's branches in written order on every run measured but promises none, so the test passed or failed with the
+     * run. Each branch carries its index and its own ordinal (the one its plan defines, else its rows' order within
+     * it); the union is numbered by the two. Null where a branch can carry neither (a DISTINCT, grouped or limited
+     * branch with no ordinal its plan defines): the union keeps the database's order, as before.
+     */
+    private static @com.legend.base.Nullable SqlQuery branchOrder(com.legend.sql.SqlUnion u) {
+        OutputCol branchOut = new OutputCol(BRANCH, SqlType.Scalar.BIGINT, false);
+        List<SqlQuery> branches = new ArrayList<>(u.branches().size());
+        for (int i = 0; i < u.branches().size(); i++) {
+            SqlQuery b = u.branches().get(i);
+            SqlQuery own = defined(b);
+            if (own == null && b instanceof SqlSelect bs && !bs.distinct() && bs.orderBy().isEmpty()
+                    && bs.groupBy().isEmpty() && bs.having() == null && bs.limit() == null && bs.offset() == null) {
+                own = numberedInside(bs);
+            }
+            if (!(own instanceof SqlSelect os) || os.projections().isEmpty()) {
+                return null;
+            }
+            List<SqlSelect.Projection> ps = new ArrayList<>(os.projections());
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), BRANCH, branchOut));
+            branches.add(os.withProjections(ps));
+        }
+        List<OutputCol> inner = new ArrayList<>(u.outputs());
+        inner.add(ORD_OUT);
+        inner.add(branchOut);
+        com.legend.sql.SqlUnion numbered = new com.legend.sql.SqlUnion(branches, true, inner);
+        List<SqlSelect.Projection> ps = new ArrayList<>(u.outputs().size() + 1);
+        for (OutputCol o : u.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__o", o), o.name(), o));
+        }
+        List<SqlSelect.SortKey> keys = List.of(
+                new SqlSelect.SortKey(SqlExpr.Column.of("__o", branchOut), true, null, null),
+                new SqlSelect.SortKey(SqlExpr.Column.of("__o", ORD_OUT), true, null, null));
+        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
+        List<OutputCol> outs = new ArrayList<>(u.outputs());
+        outs.add(ORD_OUT);
+        return new SqlSelect(ps, false, new SqlSource.Subselect(numbered, "__o", null), null, List.of(), null, null,
+                List.of(), null, null, outs);
     }
 
     /** A literal's rows, each with its index. */

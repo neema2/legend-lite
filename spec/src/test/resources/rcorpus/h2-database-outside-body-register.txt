@@ -1,9 +1,6 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject ||| statement=1
 meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone ||| fallback=2
-meta::pure::tds::tests::extensions::columnValueDifferenceTest ||| fallback=1
-meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| fallback=1
-meta::pure::tds::tests::extensions::rowValueDifferenceTest ||| fallback=1
 meta::pure::tds::tests::extensions::testFirstNotNull ||| fallback=1
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| fallback=1
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=21
@@ -42,20 +39,11 @@ meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1
 meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=17
 meta::relational::tests::ddl::dropAndCreateTable ||| fallback=2
 meta::relational::tests::ddl::dropAndCreateTempTable ||| other=2
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdValue ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValue ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| fallback=1
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSubclassValue ||| fallback=1
-meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwiceUsingQualifier ||| fallback=1
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression ||| value=1
-meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| flushes=2
 meta::relational::tests::mapping::inheritance::relational::testGetAll ||| flushes=2
+meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| flushes=2
 meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| fallback=2
 meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| fallback=1
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath ||| statement=1
@@ -63,8 +51,6 @@ meta::relational::tests::milestoning::contextpropagation::testMilestoningContext
 meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter ||| statement=1
 meta::relational::tests::milestoning::distinct::testDistinctUsageAtRootOfMilestonedQuery ||| statement=1
 meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple ||| statement=1
-meta::relational::tests::projection::view::testAssnToViewWithGroupBy ||| fallback=1
-meta::relational::tests::projection::view::testViewWithGroupBy ||| fallback=1
 meta::relational::tests::query::association::mixed::testAssociationMixed ||| fallback=1
 meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter ||| fallback=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
