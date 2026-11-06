@@ -505,6 +505,25 @@ line's periods contain every other's, that line can be the spine: one LEFT JOIN,
   the walk climbs. Planning stayed flat (sum 2,709 → 2,819 ms, noise), but an O(n²) walk on a 300-level chain is
   possible. If it ever shows, process only at chain tops.
 
+**Measured and built 2026-11-06:**
+- *Duplicate windows inside one select:* DuckDB computes them once. `EXPLAIN ANALYZE` of `AVG(..) OVER w * 2, AVG(..)
+  OVER w` over the documents' prices: one `WINDOW` operator with one `avg(CLOSE) OVER (...)` projection, the
+  projection above reading it twice (`#3`, `#3`). Nothing to do on DuckDB.
+- *guide-12's windows:* hedge_ratio's regression windows were laid out one level below residual's, where the meeting's
+  date is still its `CASE` expression, while residual's read it as the column `__ts_at_n` of the level below: one
+  window under two spellings, two values of the chain (8 windows for the pair's 5). `SelectLayers` now knows a window
+  by its expanded form (its reads of expressions -- no window, no source column, raising nothing -- written out), and
+  writes it as the first spelling met. hedge_ratio with residual 8 windows -> 5; guide-12 22 -> 19 (18,339 -> 17,644
+  characters), guide-13 18 -> 15 (23 -> 19 ms), spec-13 15 -> 14, spec-06 6 -> 5, guide-02 6 -> 5, guide-04 5 -> 3
+  (SELECTs 14 -> 3, 9 -> 4 ms); every answer identical; the test
+  `TsIslandTest.aPairsHedgeRatioAndResidualComputeTheirRegressionOnce` (fails without the change). Tried and dropped:
+  laying a chain out again where it keeps its depth but loses windows (spec-02, spec-15, spec-16 and more lose
+  windows) -- one of its shapes, volatility's LAG moved beside a whole-partition MAX, ran H2's planner out of memory
+  (`theCatalogsFunctionsAreTheTilesLibraryCalls`); a bound of no growth did not help. A layout is still written only
+  where a chain loses a level, so a duplicate in a chain already as shallow as it can be stays (the walk lays chains
+  out bottom up, before a higher level's second spelling is seen).
+- *The heuristics (INLINE = 24, the 2x guard) and planning cost:* not changed, not yet measured.
+
 ### W5. Rows forms for the remaining one-line and default overloads
 
 - **To date** (`w: Scope`, written `all` in #TS) has no rows form for mean, sum and the rest.

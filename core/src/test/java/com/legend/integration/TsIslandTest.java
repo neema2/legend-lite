@@ -1282,6 +1282,30 @@ class TsIslandTest {
     }
 
     @Test
+    void aPairsHedgeRatioAndResidualComputeTheirRegressionOnce() throws Exception {
+        // W4 (2026-11-06, guide-12): residual reads hedge_ratio's regression -- the same five windows over the pair's
+        // met table. SelectLayers laid hedge_ratio's out a level below residual's, where the meeting's date is still
+        // its expression and residual's read it as a column: one window under two spellings, computed twice (eight
+        // windows). Known by its expanded form, each is one value: five (a covariance, a variance, two means, a count)
+        String q = "|#TS{SELECT hedge_ratio(CLOSE['AAA'], CLOSE['BBB'], 3) AS h, residual(CLOSE['AAA'], CLOSE['BBB'], 3)"
+                + " AS r FROM PRICES ON DAY BY SYMBOL}#";
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        for (String w : List.of("COVAR_SAMP(", "VAR_SAMP(", "AVG(")) {
+            // (the model's PRICES declares no key, so each line's per-period count is a window of its own besides)
+            assertEquals(w.equals("AVG(") ? 2 : 1, sql.split("\\b" + java.util.regex.Pattern.quote(w), -1).length - 1,
+                    w + " the regression's, once: " + sql);
+        }
+        // and the answers: each word's as it is alone
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, q);
+            assertArrayEquals(column(rows(backend, "|#TS{SELECT hedge_ratio(CLOSE['AAA'], CLOSE['BBB'], 3) AS h FROM"
+                    + " PRICES ON DAY BY SYMBOL}#"), null, null, "h"), column(got, null, null, "h"), backend + ": h");
+            assertArrayEquals(column(rows(backend, "|#TS{SELECT residual(CLOSE['AAA'], CLOSE['BBB'], 3) AS r FROM"
+                    + " PRICES ON DAY BY SYMBOL}#"), null, null, "r"), column(got, null, null, "r"), backend + ": r");
+        }
+    }
+
+    @Test
     void anAnswerOfALineAndALineMetFromItIsThatLinesRows() throws Exception {
         // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
         // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values

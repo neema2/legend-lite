@@ -191,6 +191,9 @@ final class SelectLayers extends SqlRewriter {
                 levels = Math.max(levels, d.level + 1);
             }
         }
+        // written again where it has fewer levels, or as many and fewer windows: two words' one window, written at
+        // two levels under two spellings of what it reads (a meeting's date, a column above, its expression below:
+        // guide-12's hedge_ratio and residual, W4 2026-11-06), is one value of the chain, computed once
         if (levels >= chain.size()) {
             return null;
         }
@@ -585,7 +588,45 @@ final class SelectLayers extends SqlRewriter {
 
         @Override
         protected SqlExpr expr(SqlExpr e) {
-            return e instanceof SqlExpr.WindowCall ? ref(def(e, true, defs, byExpr)) : e;
+            if (!(e instanceof SqlExpr.WindowCall)) {
+                return e;
+            }
+            // one window whichever spelling of its reads a level wrote: known by its expanded form, written as the
+            // first spelling met (its reads' values kept, so their budget holds: INLINE)
+            SqlExpr key = expanded(e, defs);
+            Def known = byExpr.get(key);
+            if (known == null) {
+                known = def(e, true, defs, byExpr);
+                byExpr.putIfAbsent(key, known);
+            }
+            return ref(known);
+        }
+    }
+
+    /** {@code e} with each read of a value that is an expression -- no window, no column of the source, raising
+     *  nothing -- that value's expression, again within it: a window's one form whichever level wrote it, its reads
+     *  named by a column above or written out below (a meeting's date: guide-12's hedge_ratio and residual, W4
+     *  2026-11-06), so the two are one value. Only a window's identity: it is written as it was. */
+    private static SqlExpr expanded(SqlExpr e, List<Def> defs) {
+        return new Expand(defs).apply(e);
+    }
+
+    /** {@link #expanded}'s walk. */
+    private static final class Expand extends SqlRewriter {
+        private final List<Def> defs;
+
+        Expand(List<Def> defs) {
+            this.defs = defs;
+        }
+
+        SqlExpr apply(SqlExpr e) {
+            return rewriteExpr(e);
+        }
+
+        @Override
+        protected SqlExpr expr(SqlExpr x) {
+            Def d = refOf(x, defs);
+            return d != null && !d.window && !d.base && !d.raises ? apply(d.expr) : x;
         }
     }
 
