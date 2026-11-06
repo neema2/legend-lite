@@ -2228,7 +2228,7 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 Profile timeseries::Words
 {
   stereotypes: [band, candles, anchored];
-  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search];
+  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search, pairs];
 }
 
 // The scopes a window names that are no number of observations: all, the line's start to date.
@@ -2630,6 +2630,86 @@ function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆
 function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->timeseries::covariancePeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+// The rows forms of the words of two lines' returns (W2, 2026-11-06): correlation, beta and r_squared take each line's
+// returns first (the library's timeseries::Words.pairs: the line form's returns(1, []) of each, met) -- #TS takes
+// them through that word, each a column of its line's own table, meets the two, and calls these on that table: the
+// line form's own table function, window and ramp, the D8 check (a line of several rows on a date refused) in the
+// answer where it counts rows.
+function timeseries::rows::correlation<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::correlation(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::correlation<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::correlation(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::correlation<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::correlationPeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+function timeseries::rows::beta<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::beta(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::beta<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::beta<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::betaPeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+function timeseries::rows::r_squared<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rSquared(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::r_squared<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rSquared(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::r_squared<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::rSquaredPeriod($key, $date, $x, $y, $w, $unit, $out)
+}
+
+// The rows form of returns over obs observations (W2, 2026-11-06): the line form's table function on t, its answer a
+// point where the value is -- the line form's line is every point of the value, a return's first a point with no
+// value -- the D8 check in the answer. A table's rows that are no point of the value are at its start (the prefix
+// rule), so a lag of obs rows reads the value's own earlier points, as the line form's does.
+function timeseries::rows::returns<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], obs: Integer[1], type: timeseries::Returns[0..1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::returns(over($key, [$date->ascending()]), $value, $obs, timeseries::line::helpers::returnsType($type), ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+// ... and returns(x), one observation's.
+function timeseries::rows::returns<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], type: timeseries::Returns[0..1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::rows::returns($key, $date, $value, $present, 1, $type, $out, $points)
 }
 
 // Where two values are both points (R6: a per-point figure of several values is a point where every one is): 1, else
@@ -3344,7 +3424,7 @@ function timeseries::line::helpers::shifted<K,D>(x: Relation<(key:K, date:D, val
     ->extend(~line_v:r|if($k >= 0, |$r.lg, |$r.ld))->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The correlation of x\\'s and y\\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling correlation', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.correlation', timeseries::Words.about = 'The correlation of the two series\\' simple returns over the last w observations, on the dates both have.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.search = 'corr'} timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The correlation of x\\'s and y\\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling correlation', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.correlation', timeseries::Words.about = 'The correlation of the two series\\' simple returns over the last w observations, on the dates both have.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.search = 'corr', timeseries::Words.pairs = 'returns'} timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::correlation($x, $y, 63, $sample)
 }
@@ -3367,7 +3447,7 @@ function timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Nu
     ->timeseries::correlationPeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The beta of x\\'s simple returns on y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling beta', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.beta', timeseries::Words.about = 'The first\\'s beta to the second (a benchmark): the covariance of their simple returns over the second\\'s variance.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)'} timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The beta of x\\'s simple returns on y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling beta', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.beta', timeseries::Words.about = 'The first\\'s beta to the second (a benchmark): the covariance of their simple returns over the second\\'s variance.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.pairs = 'returns'} timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::beta($x, $y, 63, $sample)
 }
@@ -3413,7 +3493,7 @@ function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
     ->timeseries::covariancePeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The R squared of x\\'s simple returns regressed on y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling R²', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.bounds = '0, 1', timeseries::Words.gsQuant = 'DataCube (econometrics.correlation squared)', timeseries::Words.about = 'How much of the first\\'s returns the second\\'s explain: their correlation squared, over the last w observations.', timeseries::Words.search = 'rsquared', timeseries::Words.search = 'r2'} timeseries::line::r_squared<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The R squared of x\\'s simple returns regressed on y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling R²', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.bounds = '0, 1', timeseries::Words.gsQuant = 'DataCube (econometrics.correlation squared)', timeseries::Words.about = 'How much of the first\\'s returns the second\\'s explain: their correlation squared, over the last w observations.', timeseries::Words.search = 'rsquared', timeseries::Words.search = 'r2', timeseries::Words.pairs = 'returns'} timeseries::line::r_squared<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::r_squared($x, $y, 63, $sample)
 }

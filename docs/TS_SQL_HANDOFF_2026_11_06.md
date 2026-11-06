@@ -452,6 +452,16 @@ against one line. Then the frozen answers (correlation A–B, beta A–C, regres
 value-identical, and a Java-computed test like `theWordsOfTwoLinesAreColumnsOfTheirOneMeeting` (it has `pearson` and
 `covariance` helpers).
 
+**Built 2026-11-06 for correlation, beta and r_squared** (each window kind): the profile's new tag
+`timeseries::Words.pairs = 'returns'` on each word's stated overload, `TsCatalog.PAIRS`, and `TsWords.pairForm` taking each
+line through the named word once a rows form matches (memoized by line and word through `Writer.read`, so every word of
+a pair reads one returns column and their meetings are one); `rows::returns` (by obs, and the one-observation default)
+with the D8 check, so every `returns(x, n)` is now a column of its line's table; `rows::correlation`, `rows::beta`,
+`rows::r_squared`. spec-16 21,043 -> 16,316 characters, 7 joins -> 3, 38 ms (was 48); every answer the same. Left:
+alpha, tracking_error and information_ratio annualize by SAMPLE BY (`helpers::annualizedPair`), a parameter the pair
+form drops -- they need the rows form to take the sample; up_capture, down_capture and lead_lag likewise (pairs, a
+shift). guide-12 keeps its 6 joins until alpha joins r_squared's table.
+
 ### W3. The answer's spine when one table's rows contain the other's
 
 In spec-13 the answer spreads two tables (the pair table, and daily_pnl's) through `TsLines.spread`. That is

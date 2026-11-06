@@ -98,7 +98,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['beta(x: Line, y: Line)', 'beta(x: Line, y: Line, w: Integer)', 'beta(x: Line, y: Line, w: Scope)', 'beta(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The beta of x\'s simple returns on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling beta'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.beta'], about: ['The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'] },
+    facts: { label: ['Rolling beta'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.beta'], about: ['The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], pairs: ['returns'] },
     marks: [],
   },
   bollinger_bands: {
@@ -156,7 +156,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['correlation(x: Line, y: Line)', 'correlation(x: Line, y: Line, w: Integer)', 'correlation(x: Line, y: Line, w: Scope)', 'correlation(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The correlation of x\'s and y\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling correlation'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.correlation'], about: ['The correlation of the two series\' simple returns over the last w observations, on the dates both have.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], search: ['corr'] },
+    facts: { label: ['Rolling correlation'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.correlation'], about: ['The correlation of the two series\' simple returns over the last w observations, on the dates both have.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], search: ['corr'], pairs: ['returns'] },
     marks: [],
   },
   count: {
@@ -650,7 +650,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['r_squared(x: Line, y: Line)', 'r_squared(x: Line, y: Line, w: Integer)', 'r_squared(x: Line, y: Line, w: Scope)', 'r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The R squared of x\'s simple returns regressed on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling R²'], family: ['Relationships'], unit: ['number'], bounds: ['0, 1'], gsQuant: ['DataCube (econometrics.correlation squared)'], about: ['How much of the first\'s returns the second\'s explain: their correlation squared, over the last w observations.'], search: ['rsquared', 'r2'] },
+    facts: { label: ['Rolling R²'], family: ['Relationships'], unit: ['number'], bounds: ['0, 1'], gsQuant: ['DataCube (econometrics.correlation squared)'], about: ['How much of the first\'s returns the second\'s explain: their correlation squared, over the last w observations.'], search: ['rsquared', 'r2'], pairs: ['returns'] },
     marks: [],
   },
   range: {

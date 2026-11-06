@@ -54,6 +54,10 @@ public final class TsCatalog {
     public record Param(String name, String kind, List<String> takes, List<String> words, boolean required) {
     }
 
+    /** The tag of a word of two lines that takes each line through another word first, that word's name (the
+     *  library's {@code timeseries::Words.pairs}: correlation's lines are their returns, W2 2026-11-06). */
+    static final String PAIRS = "pairs";
+
     /** The type of the parameter a word's SAMPLE BY is: never given, the query's ({@link TsWords#FILL} its FILL's). */
     static final String SAMPLE = TsToPure.LIBRARY + "Sample";
 

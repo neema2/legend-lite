@@ -1178,6 +1178,33 @@ class TsIslandTest {
     }
 
     @Test
+    void theReturnsWordsOfTwoLinesAreColumnsOfTheirReturnsMeeting() throws Exception {
+        // W2 (2026-11-06): correlation and beta take each line's returns first (the library's timeseries::Words.pairs):
+        // each line's returns a column of its own table, the two met once, both words columns of that one table --
+        // the line forms' answers: three returns of each, from the fourth day
+        double[] ra = new double[AAA.length];
+        double[] rb = new double[BBB.length];
+        for (int i = 1; i < AAA.length; i++) {
+            ra[i] = AAA[i] / AAA[i - 1] - 1;
+            rb[i] = BBB[i] / BBB[i - 1] - 1;
+        }
+        String q = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 3) AS c, beta(CLOSE['AAA'], CLOSE['BBB'], 3) AS b,"
+                + " r_squared(CLOSE['AAA'], CLOSE['BBB'], 3) AS r2 FROM PRICES ON DAY BY SYMBOL}#";
+        for (TestBackend backend : deep()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            assertClose(each(AAA.length - 3, i -> pearson(ra, rb, i + 1, i + 3)), column(got, null, null, "c"), of + "the correlation of three returns");
+            assertClose(each(AAA.length - 3, i -> covariance(ra, rb, i + 1, i + 3) / covariance(rb, rb, i + 1, i + 3)),
+                    column(got, null, null, "b"), of + "the beta of three returns");
+            assertClose(each(AAA.length - 3, i -> pearson(ra, rb, i + 1, i + 3) * pearson(ra, rb, i + 1, i + 3)),
+                    column(got, null, null, "r2"), of + "the R squared of three returns");
+        }
+        // the two lines' returns met once, the answer that one table: one join
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertEquals(1, sql.split(" JOIN ", -1).length - 1, sql);
+    }
+
+    @Test
     void anAnswerOfALineAndALineMetFromItIsThatLinesRows() throws Exception {
         // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
         // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values

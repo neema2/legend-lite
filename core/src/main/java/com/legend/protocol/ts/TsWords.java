@@ -262,11 +262,27 @@ final class TsWords {
                     .toList().equals(types)) {
                 continue;
             }
-            TsLines.Line met = c.met(List.of(x.line(), y.line()), pos);
+            // each line taken through the word the library names first (timeseries::Words.pairs: correlation's
+            // lines are their returns, each a column of its own line's table)
+            TsLines.Valued xv = x.line();
+            TsLines.Valued yv = y.line();
+            for (String through : c.model().overloads(fqn(c.model(), word)).stream()
+                    .flatMap(ov -> ov.facts().getOrDefault(TsCatalog.PAIRS, List.of()).stream()).distinct().toList()) {
+                // once a line and word: every word of the pair reads the same returns, so their meetings are one
+                TsLines.Valued ox = xv;
+                TsLines.Valued oy = yv;
+                xv = c.read(List.of(TsCatalog.PAIRS, through, ox.value()),
+                        () -> call(c, through, List.of(new LineArg(ox)), Map.of(), pos));
+                yv = c.read(List.of(TsCatalog.PAIRS, through, oy.value()),
+                        () -> call(c, through, List.of(new LineArg(oy)), Map.of(), pos));
+            }
+            TsLines.Valued px = xv;
+            TsLines.Valued py = yv;
+            TsLines.Line met = c.met(List.of(px, py), pos);
             String out = c.fresh(word);
             TsLines.Line line = c.grown(met, rel -> {
                 List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(met.part()),
-                        new ColSpec(met.at()), new ColSpec(x.line().value()), new ColSpec(y.line().value())));
+                        new ColSpec(met.at()), new ColSpec(px.value()), new ColSpec(py.value())));
                 own.forEach(i -> a.add(bound.get(i)));
                 a.add(new ColSpec(out));
                 return TsLines.call(rowsFqn, a);
