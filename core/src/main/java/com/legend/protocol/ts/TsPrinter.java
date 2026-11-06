@@ -36,7 +36,7 @@ public final class TsPrinter {
     /** One item's text, as a formula box shows a series ({@link TsParser#item}, A3 step 2): read back, the same item. */
     public static String print(TsAst.Line line) {
         TsAst.Query alone = new TsAst.Query(List.of(), List.of(line.item()), List.of(), null, "LAST", null, null,
-                line.alls(), line.spans());
+                line.alls(), line.spans(), null);
         return new TsPrinter(alone).item(line.item());
     }
 

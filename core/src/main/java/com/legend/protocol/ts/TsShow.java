@@ -103,7 +103,7 @@ public final class TsShow {
                 f.on(), f.by(), f.pos())).toList();
         List<TsAst.With> own = withs.stream().map(w -> new TsAst.With(w.name(), named(w.body(), grids))).toList();
         TsAst.Query one = new TsAst.Query(own, q.items(), sources, q.sample(), q.dated(), q.fill(), q.filter(), q.alls(),
-                q.spans());
+                q.spans(), q.plain());
         try {
             return new Shown(TsPrinter.print(one), null);
         } catch (SqlTranslationException e) {
@@ -135,7 +135,7 @@ public final class TsShow {
                     .map(w -> new TsAst.With(w.name(), named(w.body(), grids))).toList(), n.query().items(),
                     n.query().sources().stream().map(f -> new TsAst.From(named(f.source(), grids), f.alias(), f.on(),
                             f.by(), f.pos())).toList(), n.query().sample(), n.query().dated(), n.query().fill(),
-                    n.query().filter(), n.query().alls(), n.query().spans()), n.pos());
+                    n.query().filter(), n.query().alls(), n.query().spans(), n.query().plain()), n.pos());
             case TsAst.Named n -> n;
         };
     }

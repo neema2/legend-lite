@@ -257,7 +257,12 @@ public final class SqlToPure {
      *  value the database's count of the rows it wrote; one that returns them (RETURNING) is a program of statements,
      *  {@link #program}, which no expression is. */
     public static ValueSpecification translate(String sql, Sources sources, InputDialect dialect) {
-        SqlAst.Statement statement = parsed(sql, dialect);
+        return translate(parsed(sql, dialect), sources, dialect);
+    }
+
+    /** {@link #translate(String, Sources, InputDialect)} over a statement already parsed (the #TS reader's plain SQL
+     *  over its series queries: TsParser.plain). */
+    public static ValueSpecification translate(SqlAst.Statement statement, Sources sources, InputDialect dialect) {
         InputDialect reading = dialect.reading(statement);
         SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
         if (statement instanceof SqlAst.Write w) {

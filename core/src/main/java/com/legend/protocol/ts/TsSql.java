@@ -25,6 +25,20 @@ public final class TsSql extends PostgresDialect {
     private TsSql() {
     }
 
+    /** The series queries a statement's plain SQL reads by their WITH names (the spec's §8: {@code SELECT
+     *  regr_slope(qqq, spx) FROM s}): a relation for each name, the translator's sources (TsToPure). */
+    interface Named extends SqlToPure.Sources {
+        com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification relation(String name);
+    }
+
+    /** A one-part table name a series query's WITH gives: its relation, read as a table is (its columns typed by the
+     *  sources); else none, as Postgres's. */
+    @Override
+    public com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification table(SqlAst.TableName t,
+            SqlToPure.Sources sources) {
+        return sources instanceof Named named && t.name().size() == 1 ? named.relation(t.name().get(0).text()) : null;
+    }
+
     @Override
     public SqlToPure.Tx binary(SqlAst.Binary b, SqlToPure.At at) {
         if (b.op() != SqlAst.BinaryOp.DIVIDE) {

@@ -134,6 +134,51 @@ public final class TsToPure {
     record Property(String name, String type, @com.legend.base.Nullable String cls, boolean one, boolean parameters) {
     }
 
+    /** The sources a statement's plain SQL reads (TsParser.plain): the query's own, and each WITH by its name, a
+     *  relation the #TS dialect reads as a table (TsSql.table). */
+    private record Plain(SqlToPure.Sources of, Map<String, ValueSpecification> named) implements TsSql.Named {
+
+        @Override
+        public @com.legend.base.Nullable ValueSpecification relation(String name) {
+            return named.get(name);
+        }
+
+        @Override
+        public void columns(ValueSpecification source, SqlToPure.Column column) {
+            of.columns(source, column);
+        }
+
+        @Override
+        public @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return of.primaryKey(database, table);
+        }
+
+        @Override
+        public void tables(SqlToPure.Table table) {
+            of.tables(table);
+        }
+
+        @Override
+        public boolean variable(String name, SqlToPure.Scoped type) {
+            return of.variable(name, type);
+        }
+
+        @Override
+        public void variables(java.util.function.Consumer<String> names) {
+            of.variables(names);
+        }
+
+        @Override
+        public boolean isEnumeration(String type) {
+            return of.isEnumeration(type);
+        }
+
+        @Override
+        public ValueSpecification inlineView(ValueSpecification relation) {
+            return of.inlineView(relation);
+        }
+    }
+
     /** The property {@code name} of {@code cls} in {@code model}, or null. */
     static @com.legend.base.Nullable Property property(Model model, String cls, String name) {
         Property[] found = new Property[1];
@@ -296,6 +341,10 @@ public final class TsToPure {
                     throw invalid("the WITH names " + w.name().text() + " twice", w.name().pos());
                 }
                 withs.put(w.name().text(), relation(read(w.body()), w.name()));
+            }
+            if (query.plain() != null) {
+                // plain SQL over the series queries the WITHs name (the spec's §8): each name a table of its relation
+                return SqlToPure.translate(query.plain(), new Plain(sources, withs), dialect);
             }
             List<TsAst.Item> items = query.items();
             List<String> names = new ArrayList<>();

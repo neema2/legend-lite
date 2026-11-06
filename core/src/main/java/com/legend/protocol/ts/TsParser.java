@@ -341,6 +341,10 @@ public final class TsParser {
             throw invalid(peek().kind() == Kind.EOF ? "a #TS query is SELECT item, ... FROM source ON date"
                     : "a #TS query begins with SELECT (or WITH), not \"" + peek().text() + "\"", peek().pos());
         }
+        TsAst.Query plain = plain(withs);
+        if (plain != null) {
+            return plain;
+        }
         at++;
         int itemsEnd = depthZero(at, tokens.size() - 1, t -> t.is("from"));
         if (itemsEnd < 0) {
@@ -425,7 +429,52 @@ public final class TsParser {
             }
             throw invalid("syntax error at or near \"" + t.text() + "\"", t.pos());
         }
-        return new TsAst.Query(withs, items, sources, sample, dated, fill, filter, alls, spans);
+        return new TsAst.Query(withs, items, sources, sample, dated, fill, filter, alls, spans, null);
+    }
+
+    /**
+     * PLAIN SQL OVER A SERIES QUERY (the spec's §8, "the tile's other views", example spec-05): after its WITHs, a
+     * statement whose SELECT reads FROM names of {@code WITH name AS TS (...)} alone, none of them dated by ON, is SQL's
+     * own -- {@code SELECT regr_slope(qqq, spx) FROM s}, its aggregates, GROUP BY and the rest Postgres's -- read whole
+     * by the #SQL reader's parser; null where the SELECT is the language's own.
+     */
+    private TsAst.@com.legend.base.Nullable Query plain(List<TsAst.With> withs) {
+        Set<String> series = new java.util.HashSet<>();
+        for (TsAst.With w : withs) {
+            if (w.body() instanceof TsAst.Nested) {
+                series.add(w.name().text());
+            }
+        }
+        int fromAt = depthZero(at + 1, tokens.size() - 1, t -> t.is("from"));
+        if (series.isEmpty() || fromAt < 0) {
+            return null;
+        }
+        int end = depthZero(fromAt + 1, tokens.size() - 1, t -> t.is("where") || t.is("group") || t.is("order")
+                || t.is("limit") || t.is("having") || t.is("window") || t.is("union") || t.is("on")
+                || t.is("sample") || t.is("fill") || t.is("filter"));
+        int stop = end < 0 ? tokens.size() - 1 : end;
+        if (stop < tokens.size() - 1 && (tokens.get(stop).is("on") || tokens.get(stop).is("sample")
+                || tokens.get(stop).is("fill") || tokens.get(stop).is("filter"))) {
+            return null;
+        }
+        for (int[] slice : split(fromAt + 1, stop)) {
+            Token name = tokens.get(slice[0]);
+            boolean alone = slice[1] - slice[0] == 1 || slice[1] - slice[0] == 2
+                    || slice[1] - slice[0] == 3 && tokens.get(slice[0] + 1).is("as");
+            if (name.kind() != Kind.IDENT || !series.contains(name.text()) || !alone) {
+                return null;
+            }
+        }
+        List<Token> statement = new ArrayList<>(tokens.subList(at, tokens.size() - 1));
+        statement.add(new Token(Kind.EOF, "", tokens.get(tokens.size() - 1).pos()));
+        SqlAst.Statement sql;
+        try {
+            sql = com.legend.protocol.sql.SqlParser.statement(statement);
+        } catch (SqlSyntaxException e) {
+            throw syntax(e);
+        }
+        at = tokens.size() - 1;
+        return new TsAst.Query(withs, List.of(), List.of(), null, "LAST", null, null, alls, spans, sql);
     }
 
     /** {@code WITH name AS (source), ...}, up to its SELECT: {@code AS TS (...)} a query of the language's own, plain

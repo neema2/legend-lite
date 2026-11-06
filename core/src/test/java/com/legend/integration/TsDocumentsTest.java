@@ -287,9 +287,7 @@ class TsDocumentsTest {
      *  fails the test until its row is deleted. */
     private static final Map<String, String> NOT_YET = Map.ofEntries(
             // spec §6's rebase(x, date): rebase's base by a date, and latest's arithmetic as a word's argument
-            Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"),
-            // spec §8's other views: plain SQL over a series query (FROM s, no ON) is not read yet
-            Map.entry("spec-05", "SELECT regr_slope(...) FROM s: plain SQL over a series query, unbuilt"));
+            Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"));
 
     /** {@code query}'s rows, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(ModelContext model, Connection c, String query) throws Exception {

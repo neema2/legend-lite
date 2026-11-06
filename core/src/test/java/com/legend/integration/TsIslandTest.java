@@ -883,6 +883,43 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * PLAIN SQL OVER A SERIES QUERY (the spec's §8, example spec-05): after its WITHs, a SELECT that reads only the names
+     * of WITH ... AS TS queries, none dated by ON, is SQL's own -- its aggregates Postgres's -- over each query's answer,
+     * read as a table; on every in-process database.
+     */
+    @Test
+    void plainSqlReadsASeriesQueryAsATable() throws Exception {
+        int n = AAA.length;
+        double[] a = new double[n - 1];
+        double[] b = new double[n - 1];
+        for (int i = 1; i < n; i++) {
+            a[i - 1] = AAA[i] / AAA[i - 1] - 1;
+            b[i - 1] = BBB[i] / BBB[i - 1] - 1;
+        }
+        double ma = meanOf(a, 0, n - 2);
+        double mb = meanOf(b, 0, n - 2);
+        double sab = 0;
+        double saa = 0;
+        double sbb = 0;
+        for (int i = 0; i < n - 1; i++) {
+            sab += (a[i] - ma) * (b[i] - mb);
+            saa += (a[i] - ma) * (a[i] - ma);
+            sbb += (b[i] - mb) * (b[i] - mb);
+        }
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{WITH s AS TS (SELECT returns(CLOSE['AAA']) AS a,"
+                    + " returns(CLOSE['BBB']) AS b FROM PRICES ON DAY BY SYMBOL) SELECT regr_slope(b, a) AS slope,"
+                    + " corr(b, a) AS c, count(*) AS n FROM s}#");
+            assertEquals(1, got.size(), backend + ": one row, the aggregates' over the series query's answer");
+            assertEquals(String.valueOf(n - 1), got.get(0).get("n"), backend + ": a date where an item has a value");
+            assertClose(new Double[] {sab / saa}, new Double[] {Double.valueOf(got.get(0).get("slope"))},
+                    backend + ": regr_slope");
+            assertClose(new Double[] {sab / Math.sqrt(saa * sbb)}, new Double[] {Double.valueOf(got.get(0).get("c"))},
+                    backend + ": corr");
+        }
+    }
+
     @Test
     void linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused() throws Exception {
         // the time model's D1 (ruled 2026-11-03): PRICES read with no BY has two rows on each date (AAA's and BBB's).

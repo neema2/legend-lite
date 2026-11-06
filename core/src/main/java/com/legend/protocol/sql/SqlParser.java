@@ -70,16 +70,26 @@ public final class SqlParser {
 
     /** The one statement {@code sql} holds (an optional trailing {@code ;}). */
     public static SqlAst.Statement parse(String sql) {
-        SqlParser p = new SqlParser(SqlLexer.tokenize(sql));
-        SqlAst.Statement statement = p.statement();
-        if (p.peek().kind() == Kind.SEMICOLON) {
-            p.at++;
+        return new SqlParser(SqlLexer.tokenize(sql)).statementToEnd();
+    }
+
+    /** A whole statement from {@code tokens} (ending EOF): as {@link #parse} reads a text's -- the #TS reader's plain
+     *  SQL over its series queries (TsParser.plain). */
+    public static SqlAst.Statement statement(List<Token> tokens) {
+        return new SqlParser(tokens).statementToEnd();
+    }
+
+    /** The one statement left, an optional semicolon after it. */
+    private SqlAst.Statement statementToEnd() {
+        SqlAst.Statement statement = statement();
+        if (peek().kind() == Kind.SEMICOLON) {
+            at++;
         }
-        if (p.peek().kind() != Kind.EOF) {
-            if (p.tokens.get(p.at - 1).kind() == Kind.SEMICOLON) {
-                throw p.error("only one statement is supported");
+        if (peek().kind() != Kind.EOF) {
+            if (tokens.get(at - 1).kind() == Kind.SEMICOLON) {
+                throw error("only one statement is supported");
             }
-            throw p.unexpected();
+            throw unexpected();
         }
         return statement;
     }

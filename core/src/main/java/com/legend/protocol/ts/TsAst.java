@@ -23,10 +23,12 @@ public final class TsAst {
      *  each is answered at ({@code AT}: {@code LAST}, its last observation's day, the default; {@code START}, its first
      *  day; {@code END}, its last day), how lines meet ({@code FILL}; none: null), its FILTER (none: null), where
      *  {@code all} stands as a window ({@code sum(x, all)}, read as a column of the name {@link TsParser#ALL}), and each
-     *  span it writes ({@code 3mo}, read as a column of its place's). */
+     *  span it writes ({@code 3mo}, read as a column of its place's); or, {@code plain} not null, its WITHs and plain
+     *  SQL over the series queries they name (the spec's §8: {@code SELECT regr_slope(qqq, spx) FROM s}), its items and
+     *  sources none. */
     public record Query(List<With> withs, List<Item> items, List<From> sources, @com.legend.base.Nullable Span sample,
             String dated, @com.legend.base.Nullable Fill fill, SqlAst.@com.legend.base.Nullable Expr filter,
-            Set<SqlAst.Pos> alls, Map<SqlAst.Pos, Span> spans) {
+            Set<SqlAst.Pos> alls, Map<SqlAst.Pos, Span> spans, SqlAst.@com.legend.base.Nullable Statement plain) {
         public Query {
             withs = List.copyOf(withs);
             items = List.copyOf(items);
