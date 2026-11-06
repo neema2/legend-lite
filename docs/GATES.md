@@ -20453,3 +20453,28 @@ Checks: //core:core_tests and //core:core_tests_judges (every package under the 
 //pct:pct_channel_b_h2, //pct:pct_channel_b (DuckDB), //engine-client:plan_runner_test, //wasm:planner: green.
 //spec:corpus_duckdb and //spec:corpus_h2 (both passes, every register through the judge differential and the
 unjudged ceiling): green but for `strictdate::testProject`, the regression from before today on both lanes.
+
+## 2026-11-06 — Round 22, the cloud lanes' session fix, and the handoff
+
+**Round 22** (PCT, every suite; channel A; channel B under BOTH and under the DATABASE judge alone; no "the runtime
+wall" line, no unledgered failure anywhere): DuckDB and H2 (local) green; Postgres, SQLite, MongoDB (A) 35/35 at
+`b59aeedd`; Trino, MongoDB (A) 16/16 at `b59aeedd`; Databricks 15/15 at `b59aeedd`; MariaDB, MySQL 20/20 at
+`4a492594`; ClickHouse 10/10 channel B at `c1bf51fc`. BigQuery and Snowflake ran round 22 at `b59aeedd` and did not
+report: every lane session is blocked by the account's weekly usage limit until 2026-11-08 03:00 UTC; their logs are
+on their disks (paths in the handoff, §9). The census per lane is the handoff's §5.2.
+
+**One session per held cloud connection** (`7c93fbc5`, the owner's quick win): `CloudBackend.open()` answered a new
+unclosable proxy per call, the platform keys its session by the connection object (`TestSessions.over`), so channel B
+made a new session per test and re-sent the session statements (`SET TimeZone`) before every test -- on Snowflake one
+of the database judge's two statements per test, ~0.3-0.5 s each. One view per held session now; channel A's own
+workaround (`PctBackend.heldSession`) stays, its comment updated. Checks: //core:core_tests_lib and //pct:all build;
+the cloud lanes measure it after the limit (expected: ~343 `session` statements per suite down to about one).
+
+**Also on the branch:** `78554443`, another session's fix of CI on `28a27931` (`PostgresArmTest` compile, broken by
+`53b52c80`; the stress suites' walk door; three generated files regenerated). CI's corpus lanes stay red on
+`strictdate::testProject` (both lanes, from before 2026-11-05).
+
+**The handoff:** `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (the rules and tenets, the concepts, why BOTH plans
+a different program from the DATABASE judge alone, the state, the roadmap from PCT and core at 100% to lean SQL, the
+measurements and lessons, the checks, the lane sessions, the research index, the open work), pointed to from
+`AGENTS.md`. The old container's three worktrees with uncommitted work are copied to `claude/backup-*-2026-11-06`.

@@ -1568,3 +1568,10 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   DuckDB host pass `moved=3030 -> 3,058`, database `2956 -> 2,983`, outcomes identical, every register green.
 - 2026-11-02: **M10c item 13 built**: an unread let in an effect program; every pass moved 9 (DuckDB host 3,067),
   outcomes identical, every register green.
+- 2026-11-05/06: **the close-out of PCT and core** (no M step): the runtime wall strict with zero exemptions; H2
+  2.5.252 with the engine's 2.1.214 as the corpus's isolated referee and no server version in any plan (S141); both
+  judges decide an assertError's inner assert; the round-21 regressions fixed (ClickHouse's NOT, SQLite/BigQuery
+  writing a list twice, a fused verdict statement within each database's budget); the cloud lanes' one session per
+  suite. Round 22 green on ten databases; BigQuery and Snowflake unreported (the account's weekly limit until
+  2026-11-08). The state, the roadmap and everything a new session needs:
+  `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`.

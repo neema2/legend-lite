@@ -3,6 +3,9 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**The test-is-the-product program (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83), 2026-11-06:** a session
+picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
