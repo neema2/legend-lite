@@ -2257,9 +2257,14 @@ function timeseries::line::helpers::annualized<K,D>(x: Relation<(key:K, date:D, 
 // gs-quant's ramp for a window of w observations (helper.normalize_window makes an integer w Window(w, w); apply_ramp then
 // drops the series' first w points, by position, whatever their values): x from its (w + 1)-th row on. The user,
 // 2026-11-01: "Why would we not match gs-quant?" (docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1).
+// The rows it drops are refused where a date of them has several (the time model's D8: which of a tie it drops orders
+// the rows every window then reads; the A2' review's finding 3, 2026-11-06) -- in the filter itself, one condition: a
+// database that filters on the row number before it computes a dropped row's other columns (SQLite, measured) would
+// never see a check written as a column.
 function timeseries::line::helpers::ramped<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})->filter(r|$r.rn > $w)->select(~[key, date, value])
+  $x->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})->extend(over(~[key, date]), ~lo:{p,f,r|1}:y|$y->count())
+    ->filter(r|if(timeseries::lines::once($r.lo), |$r.rn > $w, |false))->select(~[key, date, value])
 }
 
 // A returns type given, else simple (gs-quant's Returns.SIMPLE).
@@ -2377,8 +2382,8 @@ function timeseries::rows::range<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<
 // A LINE OF ONE ROW A DATE, READ IN ITS ROWS' ORDER (the user, 2026-11-06, the time model's D8): x, its value refused
 // while the query runs where its key has several rows on the date (once). A word's line form that reads its line in
 // order (a count of rows, a window to date or since a date, a value as of a date or from the line's first, an
-// exponential average) checks its answer so -- its rows are its line's, but for a ramp's first rows -- and a word of
-// several value columns (a band) each line it reads. Never a filter of its own (a level of its own, which H2's planner
+// exponential average) checks its answer so -- its rows are its line's, but for a ramp's first rows, which the ramp
+// checks itself (helpers::ramped) -- and a word of several value columns (a band) each line it reads. Never a filter of its own (a level of its own, which H2's planner
 // nests exponentially: //core:ts_island_test's five words ran out of memory, 2026-11-06), and on the answer rather than
 // on the value the word's windows read (a value that may raise, read inside a window, keeps the dialects' passes from
 // merging its levels: the examples' planning +15-20%, their run +6-12%, measured 2026-11-06).

@@ -846,6 +846,17 @@ class TsIslandTest {
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertClose(each(AAA.length - 3, i -> mean3(AAA, i + 3)), column(by, null, null, "ma"),
                     backend + ": AAA's mean of three");
+            // a tie in a word's ramp alone (the A2' review's finding 3, 2026-11-06): AAA's rows and BBB's first, so the
+            // first date has two rows and every later one AAA's -- the ramp drops the first rows, but which of the tied
+            // two it drops orders the rows every window reads: refused, the line form's ramp checking the rows it drops
+            // (in its filter: SQLite never computes a dropped row's other columns) as the rows forms check every row
+            for (String q : List.of("SELECT product(CLOSE, 3) AS p", "SELECT volatility(CLOSE, 3) AS v",
+                    "SELECT mean(CLOSE, 3) AS m")) {
+                String run = "|#TS{" + q + " FROM (PRICES WHERE SYMBOL = 'AAA' OR DAY = '2024-01-20') ON DAY}#";
+                Exception e = assertThrows(Exception.class, () -> rows(backend, run), backend + ": " + q + ", tied in its ramp");
+                assertTrue(String.valueOf(e.getMessage()).contains("several rows on one date, which have no order: add BY"),
+                        backend + ": " + q + " tied in its ramp, refused by name: " + e.getMessage());
+            }
         }
     }
 

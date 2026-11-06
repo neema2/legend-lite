@@ -140,7 +140,13 @@ class TsTranslatorGuardrailTest {
             "TsLines.java: if (l.byInstrument()) {", "the instruments the lines per instrument have, gathered (bookkeeping)",
             "TsLines.java: if (l.byInstrument() && !l.part().equals(key.part())) {", "the refusal: lines by two instrument columns",
             "TsWords.java: if (key.byInstrument() && !v.line().byInstrument()) {", "the refusal of a line of no instrument"
-                    + " accrued beside lines per instrument (timed)");
+                    + " accrued beside lines per instrument (timed)",
+            // two lines' parts compared: listed by the A2' review's finding 4 (2026-11-06), W3's containment (aa4980178)
+            "TsToPure.java: if (b.part().equals(m.part())) {", "W3: a met table's rows hold a part's base's periods where"
+                    + " the two share the instrument column (an INNER meeting on it; lines by two instrument columns"
+                    + " are refused) -- bookkeeping for the answer's spine",
+            "TsToPure.java: all &= lb == sb || l.part().equals(s.part())", "W3: a line holds another's periods only where"
+                    + " the two share the instrument column and the other was met from it -- the answer's spine");
 
     @Test
     void theTranslatorBranchesOnALinesKindOnlyWhereNamed() throws IOException {
@@ -150,7 +156,9 @@ class TsTranslatorGuardrailTest {
                 continue;
             }
             for (String line : Files.readString(p).split("\n", -1)) {
-                if (line.contains("if (") && line.contains("byInstrument()")) {
+                // a line's kind is its instrument column too: two lines' parts compared (the A2' review's finding 4,
+                // 2026-11-06: W3's containment compared parts, a branch on kind this check did not see)
+                if (line.contains("if (") && line.contains("byInstrument()") || line.contains(".part().equals(")) {
                     found.merge(p.getFileName() + ": " + line.strip(), 1, Integer::sum);
                 }
             }
@@ -163,7 +171,8 @@ class TsTranslatorGuardrailTest {
 
     /** R7's branches in Java (the A2 review's finding 5, 2026-11-03): where an expression's parts and a word's line
      *  are a table's columns, Java picks the form -- the tenet's exceptions that remain, each with its reason, the list
-     *  only shrinking (docs/TENETS.md, the second tenet). They move with a rows form of FILL (docs/TS_V1_PROGRAM_2026_11_01.md
+     *  only shrinking (docs/TENETS.md, the second tenet) -- but for three that were there unseen, which the A2' review
+     *  found (finding 4, 2026-11-06) and the check now reads: pairForm's, a default's rows form, the answer's spine. They move with a rows form of FILL (docs/TS_V1_PROGRAM_2026_11_01.md
      *  A2: an expression's parts of one table under FILL). */
     private static final java.util.Map<String, String> R7_BRANCHES = java.util.Map.of(
             "TsToPure.java: if (read.stream().allMatch(p -> p.line() == read.get(0).line()) && (fill == null || points.isEmpty())) {",
@@ -173,10 +182,53 @@ class TsTranslatorGuardrailTest {
             "TsToPure.java: if (points.isEmpty()) {", "every part a point of every row (ORD): no rows::both, rows::masked",
             "TsToPure.java: if (!TsLines.ORD.equals(lines.presence(v))) {", "an item's points its value's (bookkeeping)",
             "TsWords.java: if (kept != null) {", "a word the library declares a rows form of (timeseries::rows::) on its"
-                    + " line's table, else its line form");
+                    + " line's table, else its line form",
+            // listed by the A2' review's finding 4 (2026-11-06): three branches the line-at-a-time match never saw
+            "TsWords.java: if (!(args.get(0) instanceof LineArg x) || !(args.get(1) instanceof LineArg y) || o.params().size() < 2"
+                    + " || !TsToPure.LINE.equals(o.params().get(0).type()) || !TsToPure.LINE.equals(o.params().get(1).type())"
+                    + " || !o.gives().equals(List.of(\"value\")) || c.query().fill() != null"
+                    + " || c.newest(x.line().line()) == c.newest(y.line().line())) {",
+            "R7 part 3: a word of two lines a column of their met table, but under FILL (the line form meets unfilled)"
+                    + " or of one table (met with itself, a table of several rows a date is refused, D1: the line"
+                    + " form's to say)",
+            "TsWords.java: if (own != null || body == null) {", "W5: a default's rows form, its own or, where it has none,"
+                    + " that of the overload its body calls (the library's body, TsToPure.Overload.delegate)",
+            "TsLines.java: Line s = w.containing(distinct);", "W3: the answer's spine, the line whose rows hold every"
+                    + " other's periods, else the union of the lines' periods (spread)");
 
+    /** The branches on a table's form: a line's identity or a part's points compared, a rows form taken or not, two
+     *  lines' tables compared (pairForm's), and the answer's spine chosen (W3's containing) -- the last three added by
+     *  the A2' review's finding 4 (2026-11-06), which found them unseen. */
     private static final Pattern R7_BRANCH = Pattern.compile("if \\(.*(\\.line\\(\\) ==|points\\.isEmpty\\(\\)|kept != null"
-            + "|presence\\()");
+            + "|\\bown != null|presence\\(|newest\\(.*\\) == .*newest\\()|= w\\.containing\\(");
+
+    /** {@code text}'s lines, each stripped, a condition continued over several lines joined into its first by a space
+     *  (the A2' review's finding 4, 2026-11-06: pairForm's condition, written over four lines, was matched a line at a
+     *  time and never seen). */
+    private static java.util.List<String> statements(String text) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        StringBuilder open = null;
+        for (String raw : text.split("\n", -1)) {
+            String line = raw.strip();
+            if (open != null) {
+                open.append(' ').append(line);
+                if (line.endsWith("{") || line.endsWith(";")) {
+                    out.add(open.toString());
+                    open = null;
+                }
+                continue;
+            }
+            if (line.contains("if (") && !line.endsWith("{") && !line.endsWith(";") && !line.endsWith("}")) {
+                open = new StringBuilder(line);
+                continue;
+            }
+            out.add(line);
+        }
+        if (open != null) {
+            out.add(open.toString());
+        }
+        return out;
+    }
 
     @Test
     void theTranslatorPicksATablesFormOnlyWhereNamed() throws IOException {
@@ -185,9 +237,9 @@ class TsTranslatorGuardrailTest {
             if (!p.toString().endsWith(".java")) {
                 continue;
             }
-            for (String line : Files.readString(p).split("\n", -1)) {
+            for (String line : statements(Files.readString(p))) {
                 if (R7_BRANCH.matcher(line).find()) {
-                    found.add(p.getFileName() + ": " + line.strip());
+                    found.add(p.getFileName() + ": " + line);
                 }
             }
         }

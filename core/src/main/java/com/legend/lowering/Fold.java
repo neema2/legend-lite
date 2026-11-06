@@ -996,7 +996,7 @@ final class Fold {
      *  RETURN r = r} is true, 2026-10-17; the statement clocks, {@link SqlFn#NOW} and {@link SqlFn#TODAY}, are one
      *  value per statement on every database and substitute freely). */
     static boolean nondeterministic(SqlExpr e) {
-        return e instanceof SqlExpr.Call c && (c.fn() == SqlFn.RANDOM || c.fn() == SqlFn.GUID);
+        return e instanceof SqlExpr.Call c && c.fn().drawsAfresh();
     }
 
     /** A per-row cell that CAN be empty: {@code [0..1]} stamped. */

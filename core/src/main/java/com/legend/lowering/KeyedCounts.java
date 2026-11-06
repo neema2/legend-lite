@@ -129,10 +129,12 @@ final class KeyedCounts {
         }
 
         /** Whether {@code e} is {@code COUNT(*) OVER (PARTITION BY cols)} over rows one of {@code keys} makes one on
-         *  {@code cols}. */
+         *  {@code cols}, its frame holding the row (a frame that ends a row back counts none of one row: the A2' review's
+         *  finding 2, 2026-11-06). */
         private static boolean countOfOne(SqlExpr e, List<Set<Col>> keys, Map<Col, Set<Col>> same) {
             if (!(e instanceof SqlExpr.WindowCall w) || !(w.fn() instanceof SqlAgg.Reducer r)
-                    || r.fn() != SqlAgg.Fn.COUNT || !r.args().isEmpty() || r.distinct() || !r.orderBy().isEmpty()) {
+                    || r.fn() != SqlAgg.Fn.COUNT || !r.args().isEmpty() || r.distinct() || !r.orderBy().isEmpty()
+                    || !holdsTheRow(w.frame())) {
                 return false;
             }
             Set<Col> partition = new HashSet<>();
@@ -144,6 +146,38 @@ final class KeyedCounts {
             }
             return keys.stream().anyMatch(k -> k.stream().allMatch(c -> partition.contains(c)
                     || classOf(c, same).stream().anyMatch(partition::contains)));
+        }
+
+        /** Whether a window of {@code frame} holds its current row: no frame (the whole partition, or its start to the
+         *  row), or one starting at or before the row and ending at or after it; a bound the database computes, unknown
+         *  here, holds nothing. */
+        private static boolean holdsTheRow(SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
+            if (frame == null) {
+                return true;
+            }
+            boolean from = switch (frame.from()) {
+                case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> true;
+                case SqlExpr.WindowCall.Frame.Bound.Preceding p -> p.n().doubleValue() >= 0;
+                case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> true;
+                case SqlExpr.WindowCall.Frame.Bound.Following f -> f.n().doubleValue() == 0;
+                case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> false;
+                case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> p.n() >= 0;
+                case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> f.n() == 0;
+                case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> false;
+                case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> false;
+            };
+            boolean to = switch (frame.to()) {
+                case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> false;
+                case SqlExpr.WindowCall.Frame.Bound.Preceding p -> p.n().doubleValue() == 0;
+                case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> true;
+                case SqlExpr.WindowCall.Frame.Bound.Following f -> f.n().doubleValue() >= 0;
+                case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> true;
+                case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> p.n() == 0;
+                case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> f.n() >= 0;
+                case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> false;
+                case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> false;
+            };
+            return from && to;
         }
 
         private static Set<Col> classOf(Col c, Map<Col, Set<Col>> same) {

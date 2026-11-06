@@ -16895,3 +16895,6 @@ Run 42200094861 (`16eb248ef`, the fix of finding 3 and W2) found:
    task over 100 ms, nor two over 50 ms, while a tile is dragged"), 127 ms dragging a tile between bands on the
    runner. No commit of the run touches the layout or the drag; here, at `e0f840b15`, it passes with every drag 0 ms
    (16 of 16): the runner's load, not a regression; nothing changed for it.
+
+Run 42207084841 (`f4fa15e81`): **every lane green on every OS** ("gates green"), the corpus lanes on Linux, Windows
+and macOS among them.

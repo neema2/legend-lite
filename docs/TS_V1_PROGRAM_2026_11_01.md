@@ -690,7 +690,10 @@ in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse m
 4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured
    (*2026-11-06: exact on both*, 0 of 8,352 values wrong a window, the handoff's §13.3);
    **A9**'s remainder (spec-05, guide-06, spec v4, the guide).
-5. **A2′**: an independent review of the work since `a3388b40`, and the full gate.
+5. **A2′**: an independent review of the work since `a3388b40`, and the full gate. *The review done 2026-11-06* (by an
+   agent that wrote none of it: nothing blocking; four findings fixed, each pinned by a test -- a random draw in
+   SelectLayers, a keyed count's frame, a tie in a ramp, the translator guard's unseen branches; finding 5, the let
+   written once as a WITH, the user's question "W6's merge"; three nits).
 6. **A5**, **A4**, **A3** steps 3 to 5, as their rulings come.
 7. **W9, ClickHouse**: every example run in `clickhouse local` against DuckDB's answers, then the passes there -- after
    every fix, as the user ruled, and before A10 so its findings are in Part A's review.

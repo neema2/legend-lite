@@ -164,6 +164,20 @@ class SelectLayersTest {
         assertSame(filtered, new SelectLayers().rewriteRoot(filtered), "a filter over a window's value is a level");
     }
 
+    @Test
+    void aRandomDrawIsAValueOfItsOwnLevel() {
+        // the A2' review's finding 1 (2026-11-06): RANDOM() read twice above a window is one draw read twice -- never
+        // written into each reader, which would draw twice (the lowering's Fold.nondeterministic, the Cypher island's
+        // WITH rand() AS r RETURN r = r): its level ends the chain
+        for (SqlFn draw : List.of(SqlFn.RANDOM, SqlFn.GUID)) {
+            SqlSelect l1 = level(PRICES, as(col("t0", "SYMBOL"), "SYMBOL"), as(col("t0", "DAY"), "DAY"),
+                    as(SqlExpr.Call.of(draw), "r"), as(col("t0", "CLOSE"), "CLOSE"));
+            SqlSelect l2 = level(below(l1, "t1"), as(col("t1", "r"), "a"), as(col("t1", "r"), "b"),
+                    as(over("t1", avg(col("t1", "CLOSE"))), "s"));
+            assertSame(l2, new SelectLayers().rewriteRoot(l2), draw + ": its draw a column of its own level");
+        }
+    }
+
     /** {@code sql}'s rows over a small PRICES, sorted, each a line. */
     private static List<String> answer(String sql) throws SQLException {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement s = c.createStatement()) {

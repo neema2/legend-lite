@@ -66,6 +66,21 @@ class KeyedCountsTest {
     }
 
     @Test
+    void aCountOfAFrameWithoutTheRowIsNotFolded() {
+        // the A2' review's finding 2 (2026-11-06): over one row a frame that ends a row back counts none of it; a frame
+        // holding the row counts it
+        SqlExpr.WindowCall.Frame back = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
+                new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(), new SqlExpr.WindowCall.Frame.Bound.Preceding(1));
+        SqlExpr.WindowCall.Frame toDate = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
+                new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(), new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
+        for (var f : List.of(back, toDate)) {
+            SqlExpr counted = new SqlExpr.WindowCall(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()),
+                    List.of(col("t0", "symbol"), col("t0", "date")), List.of(), f);
+            assertEquals(f == toDate, folded(select(prices("t0"), null, col("t0", "date"), counted)), f.toString());
+        }
+    }
+
+    @Test
     void aWhereFixingAKeysColumnLeavesTheRestAKey() {
         assertEquals(true, folded(select(prices("t0"), ko("t0"), col("t0", "date"), count(col("t0", "date")))));
         // without the WHERE, one date is every symbol's row of it

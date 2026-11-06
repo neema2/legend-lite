@@ -191,9 +191,8 @@ final class SelectLayers extends SqlRewriter {
                 levels = Math.max(levels, d.level + 1);
             }
         }
-        // written again where it has fewer levels, or as many and fewer windows: two words' one window, written at
-        // two levels under two spellings of what it reads (a meeting's date, a column above, its expression below:
-        // guide-12's hedge_ratio and residual, W4 2026-11-06), is one value of the chain, computed once
+        // written again only where it has fewer levels (W4, 2026-11-06: laying out a chain of as many levels for its
+        // windows alone was tried and dropped -- one such shape ran H2's planner out of heap)
         if (levels >= chain.size()) {
             return null;
         }
@@ -318,7 +317,7 @@ final class SelectLayers extends SqlRewriter {
     }
 
     /** Whether {@code e} is a value of a row or a window of rows this pass reads through: no star, subquery, lambda,
-     *  aggregate or UNNEST, every column qualified. */
+     *  aggregate, UNNEST or random draw, every column qualified. */
     private static boolean plain(SqlExpr e) {
         switch (e) {
             case SqlExpr.Column c -> {
@@ -360,7 +359,10 @@ final class SelectLayers extends SqlRewriter {
                 return true;
             }
             default -> {
-                if (SqlAgg.aggregatesSelect(e) || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+                // a random draw or a uuid is a value of its own select, never written into its readers: two readers of
+                // one would read two draws (SqlFn.drawsAfresh; the A2' review's finding 1, 2026-11-06)
+                if (SqlAgg.aggregatesSelect(e) || e instanceof SqlExpr.Call c && (c.fn() == SqlFn.UNNEST
+                        || c.fn().drawsAfresh())) {
                     return false;
                 }
                 for (SqlExpr c : parts(e)) {

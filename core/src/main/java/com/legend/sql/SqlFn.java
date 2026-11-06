@@ -122,13 +122,6 @@ public enum SqlFn {
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
 
-    /** Whether this function's RESULT is a list value — function
-     * METADATA (moved here from the dissolved ListShapes): read by the
-     * stamp invariant's shape prover and the toOne emission-form
-     * dispatch. Never the LIST_AGG family (list_aggregate reduces to a
-     * scalar). MAP_KEYS/MAP_VALUES, REGEXP_EXTRACT_ALL and SPLIT
-     * produce lists (witnesses in the corpus: values()->sort(),
-     * chunk()->sort(), split(':')->sort()->joinStrings). */
     /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
@@ -136,6 +129,21 @@ public enum SqlFn {
             PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
             MAKE_TIMESTAMP));
 
+    /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
+     *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own
+     *  select, never written into its readers (the lowering's Fold.nondeterministic; the dialect's SelectLayers, the
+     *  A2' review's finding 1, 2026-11-06). */
+    public boolean drawsAfresh() {
+        return this == RANDOM || this == GUID;
+    }
+
+    /** Whether this function's RESULT is a list value — function
+     * METADATA (moved here from the dissolved ListShapes): read by the
+     * stamp invariant's shape prover and the toOne emission-form
+     * dispatch. Never the LIST_AGG family (list_aggregate reduces to a
+     * scalar). MAP_KEYS/MAP_VALUES, REGEXP_EXTRACT_ALL and SPLIT
+     * produce lists (witnesses in the corpus: values()->sort(),
+     * chunk()->sort(), split(':')->sort()->joinStrings). */
     public boolean producesList() {
         return switch (this) {
             // LIST_SORT_DESC + RANGE_FN joined 2026-08-21 (shortcut
