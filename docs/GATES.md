@@ -20459,9 +20459,12 @@ unjudged ceiling): green but for `strictdate::testProject`, the regression from 
 **Round 22** (PCT, every suite; channel A; channel B under BOTH and under the DATABASE judge alone; no "the runtime
 wall" line, no unledgered failure anywhere): DuckDB and H2 (local) green; Postgres, SQLite, MongoDB (A) 35/35 at
 `b59aeedd`; Trino, MongoDB (A) 16/16 at `b59aeedd`; Databricks 15/15 at `b59aeedd`; MariaDB, MySQL 20/20 at
-`4a492594`; ClickHouse 10/10 channel B at `c1bf51fc`. BigQuery and Snowflake ran round 22 at `b59aeedd` and did not
-report: every lane session is blocked by the account's weekly usage limit until 2026-11-08 03:00 UTC; their logs are
-on their disks (paths in the handoff, §9). The census per lane is the handoff's §5.2.
+`4a492594`; ClickHouse 10/10 channel B at `c1bf51fc`; Snowflake 15/15 at `b59aeedd` (resent from its logs after the
+usage limit stopped it: essential {335,10}, grammar {133,4}, relation {469}, standard {205}, unclassified {93}, the
+same under both settings; times within ~10% of round 21 but BOTH relation 647 -> 533 s, BOTH essential and standard
+still ~700 s against 588/596 s in round 18). BigQuery ran round 22 at `b59aeedd` and has not reported (the account's
+weekly usage limit until 2026-11-08 03:00 UTC; its logs on its disk, the handoff §9). The census per lane is the
+handoff's §5.2.
 
 **One session per held cloud connection** (`7c93fbc5`, the owner's quick win): `CloudBackend.open()` answered a new
 unclosable proxy per call, the platform keys its session by the connection object (`TestSessions.over`), so channel B

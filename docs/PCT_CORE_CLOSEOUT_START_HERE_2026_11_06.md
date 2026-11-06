@@ -44,13 +44,13 @@ went -- is closed for core and PCT and still open for the corpus; deleting it is
    2026-11-06).
 
 **Where it stands (2026-11-06, head `7c93fbc5` on `claude/wizardly-dirac-rw6tim-seam`, PR #83, draft):** round 22
-of the lanes is green on DuckDB, H2, SQLite, Postgres, MongoDB, MariaDB, MySQL, ClickHouse, Trino and Databricks,
-under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's round 22 (it must accept a SQL
-shape never run on BigQuery, §5.4), Snowflake's round 22, CI green on every OS (the corpus lanes are red on one test,
+of the lanes is green on DuckDB, H2, SQLite, Postgres, MongoDB, MariaDB, MySQL, ClickHouse, Trino, Databricks and
+Snowflake, under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's round 22 (it must
+accept a SQL shape never run on BigQuery, §5.4), CI green on every OS (the corpus lanes are red on one test,
 `strictdate::testProject`, §6.1 step 3), the cloud lanes measuring the session fix (`7c93fbc5`), the records, and the
 user's decision on the channel B judge passes (§4). **All six lane sessions are blocked by the account's weekly usage
-limit until 2026-11-08 03:00 UTC** (§9.2): BigQuery's and Snowflake's round 22 ran in the background when it hit, so
-their results are probably on their disks, unreported.
+limit until 2026-11-08 03:00 UTC** (§9.2) -- though Snowflake's did resend its round 22 from its logs on 2026-11-06;
+BigQuery's round 22 ran in the background when the limit hit and is on its disk, unreported (asked to resend).
 
 ---
 
@@ -317,13 +317,13 @@ host judge needs each frame's rows when its let runs; so BOTH reproduces the wal
 | MariaDB, MySQL | `4a492594` | 20/20 |
 | ClickHouse | `c1bf51fc` | 10/10 channel B (grammar 137/137 under the DATABASE judge too, no OOM) |
 | **BigQuery** | `b59aeedd` | **pending** -- requested 2026-11-05 22:2x |
-| **Snowflake** | `b59aeedd` | **pending** -- ~75 min, started 22:26 |
+| Snowflake | `b59aeedd` | 15/15, census unchanged (resent from its logs on 2026-11-06 after the usage limit) |
 
 No lane printed "the runtime wall" or an unledgered failure. Census per lane (BOTH = DATABASE everywhere):
 Postgres essential {332,13} grammar {132,5} relation {467,2} standard {205} unclassified {92,1}; SQLite {333,12}
 {134,3} {458,11} {205} {92,1}; MariaDB {334,11} {137} {456,13} {205} {93}; MySQL {333,12} {137} {436,33} {205} {93};
 ClickHouse {333,12} {137} {464,5} {202,3} {93}; Trino {336,9} {136,1} {469} {205} {93}; Databricks {335,10} {137}
-{461,8} {205} {93}.
+{461,8} {205} {93}; Snowflake {335,10} {133,4} {469} {205} {93}.
 
 ### 5.3 CI
 
@@ -358,7 +358,7 @@ pending when this was written. Check with `mcp__github__actions_list` (`list_wor
    (alternatives: `(SELECT ... FROM UNNEST(xs) ...)` with a separate null test on a one-row CTE, or skip binding where
    xs is known non-null) and ask the lane again. Then ask it again at the head for the budget (`c1bf51fc`, 500K) and
    the session fix (`7c93fbc5`).
-2. **Collect Snowflake's round 22** (`session_01WDoDkeNvgCsaPVzNx6wGDA`); then one round at the head to measure
+2. **Snowflake's round 22 is in (15/15, resent 2026-11-06).** One round at the head to measure
    `7c93fbc5` (channel B under the DATABASE judge should drop from ~0.87 s/test to about half: one statement per test
    instead of two). Databricks too (`session_01757FUtRcj12NGhvSxL6A1b`).
 3. **`strictdate::testProject`** (`meta::relational::tests::mapping::dates::strictdate::testProject`): red on both
@@ -761,7 +761,7 @@ baseline round first).
 
 In progress or pending, in the order they serve §6 (D = deferred by the user):
 
-1. Collect BigQuery's and Snowflake's round 22 after the limit; measure `c1bf51fc` (BigQuery's budget) and `7c93fbc5`
+1. Collect BigQuery's round 22 (asked to resend from its logs; Snowflake's is in); measure `c1bf51fc` (BigQuery's budget) and `7c93fbc5`
    (the cloud session fix) on the cloud lanes.
 2. `strictdate::testProject`; CI green on every OS.
 3. Records (GATES round 22, plan §10, IN_FLIGHT, PR #83's description); the register row for compatibility mode's
