@@ -1,0 +1,87 @@
+// F67: a connection's `timezone` never reaches a service test.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/connection-timezone-test/model.pure \
+//       --testable=demo::Utc --testable=demo::NewYorkRead --testable=demo::NewYorkLiteral
+//
+// The same table, read through a connection with no time zone (Utc) and one declaring the database's zone
+// as America/New_York. A TIMESTAMP the database holds as 08:00 New York time is 12:00 UTC, and a DateTime
+// literal (UTC in Pure) is 4 hours earlier in New York in June. On legend-engine 4.145.0 Utc passes and both
+// NewYork services fail with the UTC answers: the 08:00 reads back as 08:00+0000, and `< %2024-06-04T00:00:00`
+// keeps the 23:30 New York row, which is 03:30 UTC on the 4th. The engine's DuckDB SQL generator does convert
+// a literal into the zone it is given (duckdbExtension.pure, convertDateToSqlStringDuckDB), but the service
+// test runner replaces the connection with one built from the store and its test data alone
+// (RelationalConnectionFactory.buildH2TestConnection and buildDuckDBTestConnection copy no `timeZone`), so no
+// zone is given. Whether these answers are right for a real connection is not what this shows; it shows a
+// service test cannot tell. The stress corpus's improvement plan probed it in Phase 3 and writes no service
+// that depends on a connection's time zone.
+Class demo::Desk
+{
+  deskId: String[1];
+  updatedAt: DateTime[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table DESK (DESK_ID VARCHAR(8) PRIMARY KEY, UPDATED_AT TIMESTAMP)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Desk: Relational
+  {
+    ~primaryKey ( [demo::DB]DESK.DESK_ID )
+    ~mainTable [demo::DB]DESK
+    deskId: [demo::DB]DESK.DESK_ID,
+    updatedAt: [demo::DB]DESK.UPDATED_AT
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+RelationalDatabaseConnection demo::ConnNY { type: DuckDB; timezone: 'America/New_York'; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+Runtime demo::RTNY { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::ConnNY ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.DESK:
+      'DESK_ID,UPDATED_AT\n' +
+      'D1,2024-06-03 08:00:00\n' +
+      'D2,2024-06-03 23:30:00\n';
+  }#
+}
+
+###Service
+Service demo::Utc
+{
+  pattern: '/demo/utc';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->project(~[desk:x|$x.deskId, at:x|$x.updatedAt]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ Utc_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1","at":"2024-06-03T08:00:00.000000000+0000"},{"desk":"D2","at":"2024-06-03T23:30:00.000000000+0000"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NewYorkRead
+{
+  pattern: '/demo/newyorkread';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->project(~[desk:x|$x.deskId, at:x|$x.updatedAt]); mapping: demo::M; runtime: demo::RTNY; }
+  testSuites: [ NewYorkRead_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1","at":"2024-06-03T12:00:00.000000000+0000"},{"desk":"D2","at":"2024-06-04T03:30:00.000000000+0000"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NewYorkLiteral
+{
+  pattern: '/demo/newyorkliteral';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->filter(x|$x.updatedAt < %2024-06-04T00:00:00)->project(~[desk:x|$x.deskId]); mapping: demo::M; runtime: demo::RTNY; }
+  testSuites: [ NewYorkLiteral_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1"}]'; }#; }# ] } ] } ]
+}

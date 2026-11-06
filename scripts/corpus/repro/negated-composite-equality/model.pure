@@ -1,0 +1,95 @@
+// F64: inside `!(a || b)` or `!(a && b)`, an `==` or `in` over an absent value is read as SQL's UNKNOWN.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/negated-composite-equality/model.pure \
+//       --testable=demo::NotOrEq --testable=demo::NotAndEq --testable=demo::NotOrIn --testable=demo::NotEq
+//
+// legend-pure compares an absent value as false -- `[] == 0` is false, `[]->in([0, 7])` is false -- so for R2, whose
+// N and F are NULL, `!(($x.n == 0) || ($x.f > 100.0))` is `!(false || false)`, true, and R2 is kept. legend-engine
+// 4.145.0 drops it in NotOrEq, NotAndEq and NotOrIn: it guards an ordered comparison over a nullable column (`N is
+// not null and N > 0`) and rewrites a `!` applied directly to an equality into `<> ... or ... is null` (NotEq keeps
+// R2), but an equality or `in` inside a negated `||` or `&&` reaches SQL bare, `NOT (N = 0 OR ...)`, which is
+// UNKNOWN for R2 and filters it out. One absent equality is enough. Each service asserts legend-pure's answer;
+// NotEq passes and the three composites fail.
+Class demo::Row
+{
+  id: String[1];
+  n: Integer[0..1];
+  f: Float[0..1];
+  b: Boolean[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, N INTEGER, F DOUBLE, B BIT)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    n: [demo::DB]T.N,
+    f: [demo::DB]T.F,
+    b: [demo::DB]T.B
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,N,F,B\n' +
+      'R1,5,1.0,true\n' +
+      'R2,,,\n' +
+      'R3,0,1.0,true\n';
+  }#
+}
+
+###Service
+Service demo::NotOrEq
+{
+  pattern: '/demo/notOrEq';
+  documentation: '';
+  execution: Single { query: |demo::Row.all()->filter(x|!(($x.n == 0) || ($x.f > 100.0)))->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NotOrEq_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NotAndEq
+{
+  pattern: '/demo/notAndEq';
+  documentation: '';
+  execution: Single { query: |demo::Row.all()->filter(x|!(($x.n == 0) && ($x.b == true)))->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NotAndEq_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NotOrIn
+{
+  pattern: '/demo/notOrIn';
+  documentation: '';
+  execution: Single { query: |demo::Row.all()->filter(x|!($x.n->in([0, 7]) || ($x.f > 100.0)))->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NotOrIn_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NotEq
+{
+  pattern: '/demo/notEq';
+  documentation: '';
+  execution: Single { query: |demo::Row.all()->filter(x|!($x.n == 0))->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NotEq_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}

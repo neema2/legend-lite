@@ -1,0 +1,265 @@
+// Mappings for the joins no mapping used (the improvement plan's Phase 7, docs/STRESS_CORPUS_PLAN_2026_10_19.md): the
+// products' and the counterparty's associations declared and never mapped, new associations over the back office's,
+// the OTC trades' and core-fx's joins, and a chain from an issuer to its country. Each lives in a mapping of its own
+// that INCLUDES its domain's and is not included by stress::AllMapping, so the generators that walk the model
+// (model.walked) leave these ends alone; their services are scripts/corpus/unreached.py's UJ_, on stress::LinksRT.
+###Pure
+Association backoffice::ReconItemPayment
+{
+   paymentReconItems: backoffice::ReconciliationItem[*];
+   reconPayment: backoffice::Payment[0..1];
+}
+
+Association backoffice::ReconItemMovement
+{
+   movementReconItems: backoffice::ReconciliationItem[*];
+   reconMovement: backoffice::NostroMovement[0..1];
+}
+
+Association derivatives::OtcTradeCounterparty
+{
+   otcTrades: derivatives::OtcTrade[*];
+   otcCounterparty: counterparty::Counterparty[0..1];
+}
+
+// core-fx exports these joins (projects/core-fx/MANIFEST.md); a downstream model maps them.
+Association fxlinks::RatePair
+{
+   pairRates: core_fx::CfxRate[*];
+   ratePair: core_fx::CfxCurrencyPair[0..1];
+}
+
+Association fxlinks::RateSource
+{
+   sourceRates: core_fx::CfxRate[*];
+   fixingSource: core_fx::CfxFixingSource[0..1];
+}
+
+Association fxlinks::CrossLegOne
+{
+   legOneCrosses: core_fx::CfxCrossRate[*];
+   legOnePair: core_fx::CfxCurrencyPair[0..1];
+}
+
+Association fxlinks::CrossLegTwo
+{
+   legTwoCrosses: core_fx::CfxCrossRate[*];
+   legTwoPair: core_fx::CfxCurrencyPair[0..1];
+}
+
+// An issuer's country through the join HIER_COUNTRY was declared for: the second hop a chain has somewhere to go.
+Class hier::IssuerCountry
+{
+   issuerId: String[1];
+   countryCode: String[0..1];
+   countryName: String[0..1];
+}
+
+###Mapping
+// The subclass tables' joins to INSTRUMENT, behind the associations 01-products.pure declares.
+Mapping products::InstrumentLegsMapping
+(
+   include products::ProductsMapping
+
+   products::Equity_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@Equity_Instrument,
+         equity: [store::DB]@Equity_Instrument
+      )
+   }
+   products::Bond_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@Bond_Instrument,
+         bond: [store::DB]@Bond_Instrument
+      )
+   }
+   products::Future_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@Future_Instrument,
+         future: [store::DB]@Future_Instrument
+      )
+   }
+   products::FxForward_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@FxForward_Instrument,
+         fxForward: [store::DB]@FxForward_Instrument
+      )
+   }
+   products::Swap_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@Swap_Instrument,
+         swap: [store::DB]@Swap_Instrument
+      )
+   }
+   products::CDS_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@CDS_Instrument,
+         cds: [store::DB]@CDS_Instrument
+      )
+   }
+   products::StructuredProduct_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@StructuredProduct_Instrument,
+         structuredProduct: [store::DB]@StructuredProduct_Instrument
+      )
+   }
+   products::ETF_Instrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument: [store::DB]@ETF_Instrument,
+         etf: [store::DB]@ETF_Instrument
+      )
+   }
+)
+
+// The classification's join, behind the association 03-counterparty.pure declares.
+Mapping counterparty::ClassificationLinkMapping
+(
+   include counterparty::CounterpartyMapping
+
+   counterparty::Counterparty_Classification: Relational
+   {
+      AssociationMapping
+      (
+         counterparty: [store::DB]@Counterparty_Classification,
+         classification: [store::DB]@Counterparty_Classification
+      )
+   }
+)
+
+// A reconciliation item to the payment and the movement it reconciles: either may be absent, which is what an
+// unmatched item is.
+Mapping backoffice::ReconLinksMapping
+(
+   include backoffice::BackOfficeMapping
+
+   backoffice::ReconItemPayment: Relational
+   {
+      AssociationMapping
+      (
+         reconPayment[reconBase, paymentBase]: [store::DB]@ReconItem_Payment,
+         paymentReconItems[paymentBase, reconBase]: [store::DB]@ReconItem_Payment
+      )
+   }
+   backoffice::ReconItemMovement: Relational
+   {
+      AssociationMapping
+      (
+         reconMovement[reconBase, backoffice_NostroMovement]: [store::DB]@ReconItem_Movement,
+         movementReconItems[backoffice_NostroMovement, reconBase]: [store::DB]@ReconItem_Movement
+      )
+   }
+)
+
+Mapping derivatives::OtcCounterpartyMapping
+(
+   include derivatives::OtcMapping
+   include counterparty::CounterpartyMapping
+
+   derivatives::OtcTradeCounterparty: Relational
+   {
+      AssociationMapping
+      (
+         otcCounterparty[otcBase, counterparty_Counterparty]: [store::DB]@OtcTrade_Counterparty,
+         otcTrades[counterparty_Counterparty, otcBase]: [store::DB]@OtcTrade_Counterparty
+      )
+   }
+)
+
+// core_fx names its sets (cfxRate, cfxCurrencyPair, ...), so each end names the two it joins: without them an end
+// defaults to the classes' package-and-name ids, which no set has, and the router reads the property as unmapped.
+Mapping fxlinks::FxLinksMapping
+(
+   include core_fx::Mapping
+
+   fxlinks::RatePair: Relational
+   {
+      AssociationMapping
+      (
+         pairRates[cfxCurrencyPair, cfxRate]: [core_fx::Store]@Cfx_RatePair,
+         ratePair[cfxRate, cfxCurrencyPair]: [core_fx::Store]@Cfx_RatePair
+      )
+   }
+   fxlinks::RateSource: Relational
+   {
+      AssociationMapping
+      (
+         sourceRates[cfxFixingSource, cfxRate]: [core_fx::Store]@Cfx_RateSource,
+         fixingSource[cfxRate, cfxFixingSource]: [core_fx::Store]@Cfx_RateSource
+      )
+   }
+   fxlinks::CrossLegOne: Relational
+   {
+      AssociationMapping
+      (
+         legOneCrosses[cfxCurrencyPair, cfxCrossRate]: [core_fx::Store]@Cfx_CrossLegOnePair,
+         legOnePair[cfxCrossRate, cfxCurrencyPair]: [core_fx::Store]@Cfx_CrossLegOnePair
+      )
+   }
+   fxlinks::CrossLegTwo: Relational
+   {
+      AssociationMapping
+      (
+         legTwoCrosses[cfxCurrencyPair, cfxCrossRate]: [core_fx::Store]@Cfx_CrossLegTwoPair,
+         legTwoPair[cfxCrossRate, cfxCurrencyPair]: [core_fx::Store]@Cfx_CrossLegTwoPair
+      )
+   }
+)
+
+// Not in hier::IssuerMapping, which hier::IssuerMappingProd substitutes onto hier::IssuerDBProd, a store with no
+// HIER_COUNTRY.
+Mapping hier::IssuerCountryMapping
+(
+   *hier::IssuerCountry: Relational
+   {
+      ~primaryKey ( [hier::IssuerDB]HIER_ISSUER.ISSUER_ID )
+      ~mainTable [hier::IssuerDB]HIER_ISSUER
+      issuerId: [hier::IssuerDB]HIER_ISSUER.ISSUER_ID,
+      countryCode: [hier::IssuerDB]HIER_ISSUER.COUNTRY_CODE,
+      countryName: [hier::IssuerDB]@HierIssuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME
+   }
+)
+
+###Runtime
+Runtime stress::LinksRT
+{
+   mappings:
+   [
+      products::InstrumentLegsMapping,
+      counterparty::ClassificationLinkMapping,
+      backoffice::ReconLinksMapping,
+      derivatives::OtcCounterpartyMapping,
+      fxlinks::FxLinksMapping
+   ];
+   connections:
+   [
+      store::DB: [ environment: store::Conn ]
+   ];
+}
+
+Runtime hier::IssuerCountryRT
+{
+   mappings:
+   [
+      hier::IssuerCountryMapping
+   ];
+   connections:
+   [
+      hier::IssuerDB: [ issuerEnv: hier::HierConn ]
+   ];
+}

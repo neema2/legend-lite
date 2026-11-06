@@ -1,0 +1,209 @@
+// F88: a relation-API projection over a class mapped from a grouped relation fails on DuckDB.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/relation-groupby-project/model.pure \
+//       --testable=demo::Relation --testable=demo::Tds --testable=demo::Direct --testable=demo::Filtered
+//
+// demo::Total is mapped from a relation function that groups T by G, `~func demo::totals():Relation<Any>[1]`.
+// legend-engine 4.145.0:
+//   Relation  Total.all()->project(~[g:x|$x.g, s:x|$x.s]), on DuckDB: errors, "Binder Error: GROUP BY term out of
+//             range - should be between 1 and 2" (2 is the grouped relation's column count: with two aggregates it
+//             says 3)
+//   Tds       the same projected as a TDS, Total.all()->project([x|$x.g, x|$x.s], ['g', 's']): passes
+//   Direct    the function's own relation, #>{demo::DB.T}#->groupBy(...), queried directly: passes
+//   Filtered  the relation-API projection of a class mapped from a filtered relation, no groupBy: passes
+// With the runtime's connection declared H2 instead, the relation-API projection answers the same DuckDB binder
+// error and the TDS one passes.
+###Pure
+Class demo::Total
+{
+  g: String[0..1];
+  s: Integer[0..1];
+}
+
+Class demo::Row
+{
+  id: String[1];
+  g: String[0..1];
+}
+
+function demo::totals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{demo::DB.T}#->groupBy(~[G], ~[S: x | $x.V : y | $y->sum()])
+}
+
+function demo::someRows(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{demo::DB.T}#->filter(r | $r.V > 1)
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4), V INTEGER)
+)
+
+###Mapping
+import meta::pure::metamodel::relation::*;
+import meta::pure::metamodel::type::*;
+
+Mapping demo::M
+(
+  *demo::Total: Relation
+  {
+    ~func demo::totals():Relation<Any>[1]
+    g: G,
+    s: S
+  }
+
+  *demo::Row: Relation
+  {
+    ~func demo::someRows():Relation<Any>[1]
+    id: ID,
+    g: G
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,G,V\n' +
+      'R1,a,1\n' +
+      'R2,a,2\n' +
+      'R3,b,5\n';
+  }#
+}
+
+###Service
+Service demo::Relation
+{
+  pattern: '/relation';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Total.all()->project(~[g:x|$x.g, s:x|$x.s]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    relation:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"g":"a","s":3},{"g":"b","s":5}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::Tds
+{
+  pattern: '/tds';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Total.all()->project([x|$x.g, x|$x.s], ['g', 's']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    tds:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"g":"a","s":3},{"g":"b","s":5}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::Direct
+{
+  pattern: '/direct';
+  documentation: '';
+  execution: Single
+  {
+    query: |#>{demo::DB.T}#->groupBy(~[G], ~[S: x | $x.V : y | $y->sum()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    direct:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"G":"a","S":3},{"G":"b","S":5}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::Filtered
+{
+  pattern: '/filtered';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    filtered:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R2","g":"a"},{"id":"R3","g":"b"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

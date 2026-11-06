@@ -26,6 +26,9 @@ carries several independent assertions and a defect in any one of them reddens t
 """
 from __future__ import annotations
 
+import emptiness
+import m2m
+import relmap
 from query import DateArg, Pred, Proj, Spec
 
 PREFIX = "stress::F"
@@ -871,8 +874,12 @@ def _m2m_enum_probe():
 CANONICAL_WITH_ENUM = _m2m_enum_probe()
 
 
-INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED, INLINE, MULTI], [WHOLE, PARTITIONED],
-                     [BY_QUERY, BY_MAPPING], [RELATIONAL_SIDE, CANONICAL_SIDE]]
+# The M2M pack's groups (the improvement plan's Phase 5, m2m.py): each M2M service with the relational twin it
+# mirrors, following _m2m_pair. The relation-mapping pack's (Phase 6, relmap.py): each relation-mapped service with
+# the relational twin it mirrors.
+INVARIANCE_GROUPS = ([[CANONICAL, FLAT, EMBEDDED, INLINE, MULTI], [WHOLE, PARTITIONED],
+                      [BY_QUERY, BY_MAPPING], [RELATIONAL_SIDE, CANONICAL_SIDE]]
+                     + m2m.INVARIANCE_GROUPS + relmap.INVARIANCE_GROUPS)
 INVARIANCE = [s for g in INVARIANCE_GROUPS for s in g]
 
 
@@ -1425,6 +1432,8 @@ def _market_data_specs():
                          Proj("revisedValue", ["revisedValue"]),
                          Proj("revisionReason", ["revisionReason"])]
         b.sort = ("seriesId", False)
+        if proc == "2024-05-01":
+            b.emptiness = emptiness.BEFORE_FIRST_VERSION
         out.append(b)
 
     return out
@@ -1787,6 +1796,8 @@ def _schedule_specs():
         s = Spec(f"stress::SC{n}_ScheduleAsOf", f"/stress/sc{n}", doc,
                  "schedule::TierVersion")
         s.as_of = as_of
+        if as_of == "2023-06-01":
+            s.emptiness = emptiness.BEFORE_FIRST_VERSION
         s.projections = [Proj("tierId", ["tierId"]),
                          Proj("tierName", ["tierName"]),
                          Proj("minNotional", ["minNotional"]),
@@ -2095,6 +2106,8 @@ def _project_link_specs():
         r = Spec(f"stress::PL{6 + n}_RatingsAsOf", f"/stress/pl{6 + n}", doc,
                  "core_ratings::RatingVersion")
         r.as_of = as_of
+        if as_of == "2023-06-01":
+            r.emptiness = emptiness.BEFORE_FIRST_VERSION
         r.projections = [Proj("entityId", ["entityId"]),
                          Proj("rating", ["rating"]),
                          Proj("agency", ["agency"])]

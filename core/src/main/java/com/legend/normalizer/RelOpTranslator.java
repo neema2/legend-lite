@@ -461,11 +461,16 @@ final class RelOpTranslator {
             // VERBATIM passthrough with the H2 sub-1-start clamp — args
             // forward unchanged (the old pure-semantics pre-shift paired
             // with the lowering's re-shift; both sides dropped together).
+            // The operands are SQL-lane, as the generic dyna path's: every
+            // one wraps in the 'position' toOne idiom, since pure's
+            // substring is strict String[1] and a column reached through
+            // a join reads [0..1] (the stress corpus's substring cells,
+            // 2026-10-29).
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.SUBSTRING
                     && (call.args().size() == 2 || call.args().size() == 3) ->
-                Calls.platform("substring", translateArgs(call,
-                        tableScope, targetVarOrNull, rowBindOrNull, pipeline));
+                Calls.platform("substring", toOneAll(translateArgs(call,
+                        tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
             // plus/minus; the bare names would hit pure's COLLECTION
             // add(T[*],T[1]) and type [*]

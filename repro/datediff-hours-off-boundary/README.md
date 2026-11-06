@@ -18,5 +18,7 @@ two rules agree, so they do not show it.
 Where it shows: `stress::MO2_Confirmations` and `stress::DSLocal_MiddleofficeConfirmation` (`hoursToMatch`),
 `stress::REGX_All`, `stress::REGX_LiquidityCoverageReport` and `stress::DSLocal_RegulatorySubmission` (`ackHours`,
 negative intervals included: elapsed time truncates toward zero). Their expectations moved when the oracle was fixed;
-legend-engine's are in `ENGINE_QUARANTINE` (F58), to be confirmed by `run.py` when it runs again. Also recorded
+legend-engine's are in `ENGINE_QUARANTINE` (F58), to be confirmed by `run.py` when it runs again. Since 2026-10-27
+the two `DSLocal_` services no longer show it: Phase 2 of the stress corpus plan tuned their filters and limits, so
+neither keeps a row on which the two rules disagree. MO2 and the two REGX services still do. Also recorded
 earlier as a seed disagreement: `docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`.

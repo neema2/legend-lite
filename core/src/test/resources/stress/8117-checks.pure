@@ -1,0 +1,249 @@
+// ============================================================
+// The constraints pack (the improvement plan's Phase 8): constraints that combine
+// ============================================================
+// Twenty class constraints on four classes of their own store (checks::CheckDB), each combining types or functions
+// the corpus's eight older constraints never did: a date against a date or a date literal, an enumeration value
+// against a date's presence, a string through startsWith, length, toUpper or in, a to-many property through exists,
+// forAll or size, an `if`, a dateDiff, an optional value through toOne, and navigated properties, to-one (a basket's
+// desk, a line's basket) and to-many (a basket's lines); one carries ~externalId, ~enforcementLevel: Warn and a
+// ~message. The seed (CK_* in scripts/corpus/seed.py, apart from the expansion) holds rows that violate each one, and
+// rows that violate none.
+//
+// The services (scripts/corpus/checks.py) graph-fetch them CHECKED: legend-engine 4.145.0 serializes each object as
+// {defects, value}, a defect naming its constraint, message, enforcement level, defining class and path. The oracle
+// evaluates each constraint over the fetched graph, as the engine does (graphExtension.pure's
+// ensureConstraintsRequirements and the Java binding's createConstraintCheckingForTree): a fetch also reads every
+// property a constraint reads, and checks the constraints of each object it so reaches whose class is not already on
+// the path from the root, so a basket carries its lines' defects (path lines[i]) and its desk's (path desk), and a line
+// its basket's. An unchecked graph fetch raises on any defect, a Warn's too, so those services fetch clean objects. A
+// projection evaluates no constraint (UPSTREAM_FINDINGS F16), and its control services return the violating rows.
+//
+// Each shape was probed on the pinned release before its services were written. Every comparison is parenthesised:
+// Pure binds && tighter than the comparison operators (06-trading.pure's note), and the oracle refuses a mix it would
+// have to guess at.
+###Pure
+Enum checks::CkState
+{
+   OPEN,
+   SETTLED,
+   CANCELLED
+}
+
+Enum checks::CkKind
+{
+   CASH,
+   SWAP,
+   FORWARD
+}
+
+Enum checks::CkSide
+{
+   PAY,
+   RECEIVE
+}
+
+Class checks::CkDesk
+[
+   deskCodeShape: $this.code->startsWith('DSK-') && ($this.code->length() == 7),
+   regionKnown: $this.region->in(['EU', 'US', 'APAC']),
+   activeDeskOpened: (!$this.active) || ($this.opened <= %2024-06-01)
+]
+{
+   deskId: String[1];
+   code: String[1];
+   region: String[1];
+   active: Boolean[1];
+   opened: StrictDate[1];
+}
+
+Class checks::CkDeal
+[
+   settleNotBeforeTrade: $this.settleDate >= $this.tradeDate,
+   cancelledHasDate: ($this.state != checks::CkState.CANCELLED) || $this.cancelDate->isNotEmpty(),
+   cancelAfterTrade: $this.cancelDate->isEmpty() || ($this.cancelDate->toOne() >= $this.tradeDate),
+   forwardMatures: if($this.kind == checks::CkKind.FORWARD, |$this.maturity->isNotEmpty(), |$this.maturity->isEmpty()),
+   maturityAfterSettle: $this.maturity->isEmpty() || ($this.maturity->toOne() > $this.settleDate),
+   refShape: $this.ref->startsWith('CK-') && ($this.ref->length() == 7),
+   ccyUpper: $this.ccy->toUpper() == $this.ccy,
+   feeWithinNotional: $this.fee->isEmpty() || ($this.fee->toOne() <= ($this.notional * 0.01)),
+   settledWithinWeek: ($this.state != checks::CkState.SETTLED) || (dateDiff($this.tradeDate, $this.settleDate, meta::pure::functions::date::DurationUnit.DAYS) <= 5),
+   notionalCap
+   (
+      ~externalId: 'CK-CAP'
+      ~function: $this.notional <= 1000000.0
+      ~enforcementLevel: Warn
+      ~message: 'deal ' + $this.dealId + ' is over the cap'
+   )
+]
+{
+   dealId: String[1];
+   ref: String[1];
+   tradeDate: StrictDate[1];
+   settleDate: StrictDate[1];
+   cancelDate: StrictDate[0..1];
+   maturity: StrictDate[0..1];
+   state: checks::CkState[1];
+   kind: checks::CkKind[1];
+   ccy: String[1];
+   notional: Float[1];
+   fee: Float[0..1];
+}
+
+Class checks::CkBasket
+[
+   hasLiveLine: $this.lines->exists(l|$l.qty > 0.0),
+   linesInCcy: $this.lines->forAll(l|$l.ccy == $this.ccy),
+   swapHasTwoLines: if($this.kind == checks::CkKind.SWAP, |$this.lines->size() == 2, |true),
+   linesBeforeClose: $this.lines->forAll(l|$l.payDate <= $this.closeDate),
+   euDeskInEur: ($this.desk.region != 'EU') || ($this.ccy == 'EUR')
+]
+{
+   basketId: String[1];
+   kind: checks::CkKind[1];
+   ccy: String[1];
+   closeDate: StrictDate[1];
+}
+
+Class checks::CkLine
+[
+   sideSign: if($this.side == checks::CkSide.PAY, |$this.qty < 0.0, |$this.qty >= 0.0),
+   lineOfBasket: $this.lineId->startsWith($this.basket.basketId)
+]
+{
+   lineId: String[1];
+   qty: Float[1];
+   ccy: String[1];
+   payDate: StrictDate[1];
+   side: checks::CkSide[1];
+}
+
+Association checks::CkBasketLines
+{
+   basket: checks::CkBasket[1];
+   lines: checks::CkLine[*];
+}
+
+Association checks::CkDeskBaskets
+{
+   desk: checks::CkDesk[0..1];
+   baskets: checks::CkBasket[*];
+}
+
+###Relational
+Database checks::CheckDB
+(
+   Table CK_DESK ( DESK_ID VARCHAR(16) PRIMARY KEY, CODE VARCHAR(16), REGION VARCHAR(8), ACTIVE BIT, OPENED DATE )
+   Table CK_DEAL ( DEAL_ID VARCHAR(16) PRIMARY KEY, REF VARCHAR(16), TRADE_DATE DATE, SETTLE_DATE DATE, CANCEL_DATE DATE,
+                   MATURITY DATE, STATE VARCHAR(4), KIND VARCHAR(4), CCY VARCHAR(3), NOTIONAL DOUBLE, FEE DOUBLE )
+   Table CK_BASKET ( BASKET_ID VARCHAR(16) PRIMARY KEY, KIND VARCHAR(4), CCY VARCHAR(3), CLOSE_DATE DATE,
+                     DESK_ID VARCHAR(16) )
+   Table CK_LINE ( LINE_ID VARCHAR(16) PRIMARY KEY, BASKET_ID VARCHAR(16), QTY DOUBLE, CCY VARCHAR(3), PAY_DATE DATE,
+                   SIDE VARCHAR(4) )
+   Join CkBasket_Line(CK_BASKET.BASKET_ID = CK_LINE.BASKET_ID)
+   Join CkDesk_Basket(CK_DESK.DESK_ID = CK_BASKET.DESK_ID)
+)
+
+###Mapping
+Mapping checks::CheckMapping
+(
+   checks::CkState: EnumerationMapping CkStateCodes
+   {
+      OPEN: ['O'],
+      SETTLED: ['S'],
+      CANCELLED: ['X']
+   }
+   checks::CkKind: EnumerationMapping CkKindCodes
+   {
+      CASH: ['C'],
+      SWAP: ['SW'],
+      FORWARD: ['FW']
+   }
+   checks::CkSide: EnumerationMapping CkSideCodes
+   {
+      PAY: ['P'],
+      RECEIVE: ['R']
+   }
+   checks::CkDesk: Relational
+   {
+      ~primaryKey ( [checks::CheckDB]CK_DESK.DESK_ID )
+      ~mainTable [checks::CheckDB]CK_DESK
+      deskId: [checks::CheckDB]CK_DESK.DESK_ID,
+      code: [checks::CheckDB]CK_DESK.CODE,
+      region: [checks::CheckDB]CK_DESK.REGION,
+      active: [checks::CheckDB]CK_DESK.ACTIVE,
+      opened: [checks::CheckDB]CK_DESK.OPENED
+   }
+   checks::CkDeal: Relational
+   {
+      ~primaryKey ( [checks::CheckDB]CK_DEAL.DEAL_ID )
+      ~mainTable [checks::CheckDB]CK_DEAL
+      dealId: [checks::CheckDB]CK_DEAL.DEAL_ID,
+      ref: [checks::CheckDB]CK_DEAL.REF,
+      tradeDate: [checks::CheckDB]CK_DEAL.TRADE_DATE,
+      settleDate: [checks::CheckDB]CK_DEAL.SETTLE_DATE,
+      cancelDate: [checks::CheckDB]CK_DEAL.CANCEL_DATE,
+      maturity: [checks::CheckDB]CK_DEAL.MATURITY,
+      state: EnumerationMapping CkStateCodes: [checks::CheckDB]CK_DEAL.STATE,
+      kind: EnumerationMapping CkKindCodes: [checks::CheckDB]CK_DEAL.KIND,
+      ccy: [checks::CheckDB]CK_DEAL.CCY,
+      notional: [checks::CheckDB]CK_DEAL.NOTIONAL,
+      fee: [checks::CheckDB]CK_DEAL.FEE
+   }
+   checks::CkBasket: Relational
+   {
+      ~primaryKey ( [checks::CheckDB]CK_BASKET.BASKET_ID )
+      ~mainTable [checks::CheckDB]CK_BASKET
+      basketId: [checks::CheckDB]CK_BASKET.BASKET_ID,
+      kind: EnumerationMapping CkKindCodes: [checks::CheckDB]CK_BASKET.KIND,
+      ccy: [checks::CheckDB]CK_BASKET.CCY,
+      closeDate: [checks::CheckDB]CK_BASKET.CLOSE_DATE
+   }
+   checks::CkLine: Relational
+   {
+      ~primaryKey ( [checks::CheckDB]CK_LINE.LINE_ID )
+      ~mainTable [checks::CheckDB]CK_LINE
+      lineId: [checks::CheckDB]CK_LINE.LINE_ID,
+      qty: [checks::CheckDB]CK_LINE.QTY,
+      ccy: [checks::CheckDB]CK_LINE.CCY,
+      payDate: [checks::CheckDB]CK_LINE.PAY_DATE,
+      side: EnumerationMapping CkSideCodes: [checks::CheckDB]CK_LINE.SIDE
+   }
+   checks::CkBasketLines: Relational
+   {
+      AssociationMapping
+      (
+         lines: [checks::CheckDB]@CkBasket_Line,
+         basket: [checks::CheckDB]@CkBasket_Line
+      )
+   }
+   checks::CkDeskBaskets: Relational
+   {
+      AssociationMapping
+      (
+         baskets: [checks::CheckDB]@CkDesk_Basket,
+         desk: [checks::CheckDB]@CkDesk_Basket
+      )
+   }
+)
+
+###Connection
+RelationalDatabaseConnection checks::CheckConn
+{
+   store: checks::CheckDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime checks::CheckRT
+{
+   mappings:
+   [
+      checks::CheckMapping
+   ];
+   connections:
+   [
+      checks::CheckDB: [ checkEnv: checks::CheckConn ]
+   ];
+}

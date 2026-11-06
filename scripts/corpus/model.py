@@ -374,12 +374,27 @@ class Func:
 
 
 @dataclass
+class Constraint:
+    """A class constraint, `name: <expr>` or `name ( ~function: <expr> ~enforcementLevel: Warn ... )`.
+
+    Stored as source text, as a derived property is: oracle.py evaluates `function` and `message` over a fetched
+    object (the improvement plan's Phase 8), and its grammar is enforced there, at evaluation."""
+    name: str
+    function: str
+    level: str = "Error"
+    external_id: str | None = None
+    message: str | None = None
+    owner: str | None = None
+
+
+@dataclass
 class Klass:
     fqn: str
     props: dict[str, Prop] = field(default_factory=dict)
     derived: dict[str, Derived] = field(default_factory=dict)
     stereotypes: list[str] = field(default_factory=list)
     supertype: str | None = None
+    constraints: list[Constraint] = field(default_factory=list)
 
     @property
     def temporal(self) -> str | None:
@@ -404,6 +419,8 @@ class AssocEnd:
     # navigation through it silently failed to resolve. Two of this corpus's
     # associations were in that state.
     assoc: str = ""
+    # The mappings whose AssociationMapping bound `join` (walked() reads them).
+    mappings: set = field(default_factory=set)
 
 
 @dataclass
@@ -424,6 +441,10 @@ class Corpus:
     # class -> (table, column) whose JSON payload backs it, via a Binding transformer. Its
     # properties are keys in that JSON, not columns.
     json_backed: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # (class, property) inside a Binding's document whose value is a JSON ARRAY: a to-many the planner flattens
+    # laterally, one row per element (the improvement plan's Phase 9). Embedded otherwise, so it is on the same row,
+    # and to_many_on reads it as fanning out.
+    json_many: set = field(default_factory=set)
 
     # mapping set id -> the class it maps. Needed to resolve `extends [setId]`, which names
     # a SET rather than a class.
@@ -444,6 +465,9 @@ class Corpus:
     # (class, property) -> ([join names in order], target table, target column) for a
     # property mapped through a JOIN CHAIN rather than a column of the main table.
     chains: dict[tuple[str, str], tuple[list[str], str, str]] = field(default_factory=dict)
+    # (class, property) mapped by a join chain ENDING IN AN EXPRESSION, `@J1 > @J2 | fn(...)`: its entry is in `dyna`,
+    # the call over the chain's columns (rhs.py)
+    chain_exprs: set[tuple[str, str]] = field(default_factory=set)
 
     # (class, property) the reader saw but cannot model -- join chains, Binding transformers.
     # Visible so a service using one fails with a reason rather than a mystery.
@@ -460,6 +484,17 @@ class Corpus:
     enum_props: dict[tuple[str, str], str] = field(default_factory=dict)
     # class fqn -> the member TABLES of an Operation union mapping, in declared order
     unions: dict[str, list[str]] = field(default_factory=dict)
+    # class fqn -> the properties each member SET maps, in the order of `unions`. A member answers nothing for a
+    # property its own set does not map: a merge's two sets each map half of the class (74-surface-last.pure), and
+    # reading the row's every column would answer a value where the set maps none.
+    union_props: dict[str, list[set[str]]] = field(default_factory=dict)
+    # set id -> the properties its class mapping maps (the improvement plan's Phase 7)
+    set_props: dict[str, set[str]] = field(default_factory=dict)
+    # class fqn -> the mapping whose Operation set is `inheritance()`: resolved, once every mapping is read, to the
+    # class's mapped leaf subtypes (legend-engine's meta::pure::router::operations::inheritance)
+    inheritance_ops: dict[str, str] = field(default_factory=dict)
+    # stress::AllMapping and every mapping it includes (walked() computes it once)
+    walked_mappings: set | None = None
     views: dict[str, View] = field(default_factory=dict)
     # store filter name -> (table, column, op, literal)
     filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
@@ -475,6 +510,10 @@ class Corpus:
     # on, so a row whose chain breaks is excluded -- unlike a to-one projection, where a
     # broken chain yields NULL and the row survives.
     class_filter_chain: dict[str, tuple[list[str], str]] = field(default_factory=dict)
+    # class -> each hop's join type in its ~filter chain, 'INNER', 'OUTER' or None (untyped), hop by hop (Phase 9):
+    # an untyped hop and an OUTER one leave the row with NULL columns where they land on nothing, an INNER one drops
+    # it (probed on legend-engine 4.145.0; oracle._filter_over_chain).
+    filter_chain_types: dict[str, list] = field(default_factory=dict)
 
     # (class, property) pairs declared in a MAPPING with `+` rather than on the class.
     local_props: set = field(default_factory=set)
@@ -648,7 +687,10 @@ class Corpus:
                 # An EMBEDDED hop cannot fan out: the sub-object lives on the same row, so
                 # it contributes exactly one. Third navigation helper to need this -- resolve,
                 # owner_of and now to_many_on -- which is the cost of adding a hop KIND
-                # rather than a new association.
+                # rather than a new association. A JSON array inside a Binding's document is the
+                # exception: same row, but one value per element (Phase 9).
+                if (cls, step) in self.json_many:
+                    return True
                 cls = self.embedded[(cls, step)]
                 continue
             if end.to_many:
@@ -695,6 +737,9 @@ _FILTER_DECL = re.compile(
     # reported as "uses undeclared store filter" against the CLASS rather than the filter.
     r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\w+)\.(\w+)\s*"
     r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
+# A Filter whose predicate _FILTER_DECL does not read: one over a dynafunction (Phase 9). Matched only once
+# _FILTER_DECL has failed, and parsed as a condition, so a form neither reads raises rather than vanishing.
+_FILTER_HEAD = re.compile(r"^\s*Filter\s+(\w+)\s*\((.*)\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # `~filter [db]@J1 > @J2 | [db]NAME` -- a filter reached through a JOIN CHAIN. The predicate
 # applies to the row the chain LANDS on, so a row whose chain breaks is excluded.
@@ -702,9 +747,12 @@ _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # the leading pointer and before any later hop. The pattern admitted neither, so a filter
 # using one raised rather than being read; the kind changes which rows survive the hop, so
 # reading past it silently would be worse than the raise.
+# One hop of a ~filter chain with its join type, wherever the type is written: before the [db] pointer of a later hop,
+# or between the pointer and `@` of the leading one.
+_TYPED_HOP = re.compile(r"(?:\(\s*(\w+)\s*\)\s*)?(?:\[[\w:]+\]\s*)?(?:\(\s*(\w+)\s*\)\s*)?@(\w+)")
 _CLS_FILTER_CHAIN = re.compile(
     r"^\s*~filter\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?"
-    r"((?:@\w+\s*(?:>\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?)?)+)"
+    r"((?:@\w+\s*(?:>\s*(?:\(\s*\w+\s*\)\s*)?(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?)?)+)"
     r"\|\s*(?:\[[\w:]+\]\s*)?(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
 # The trailing `\s*$` used to be unconditional, which meant `Class X extends Y` did not
@@ -782,6 +830,9 @@ _UNION = re.compile(r"(?:special_|)(?:union|inheritance)"
                     r"_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r'(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\.(\w+|"[^"]+")')
+# Every property mapping's head on a line inside a set, `prop: ...` (not a qualified name's `pkg::`; several heads
+# share a line in most of the corpus's mappings), for union_props.
+_SET_PROP = re.compile(r"(?:^|,)\s*\+?(\w+)\s*(?:\[[^\]]*\])?\s*:(?!:)")
 # `+name: Type[mult]: [db]TABLE.COL` -- a LOCAL property, declared in the mapping rather than
 # on the class. Three of them were in the corpus and the reader recorded none: not as a
 # column, not as a chain, not even in `unparsed`. So nothing could project one, and nothing
@@ -798,8 +849,12 @@ _LOCALPROP = re.compile(
 # transform into a copy, which the oracle would then agree with for the wrong reason.
 # `prop: fn(` -- the ANCHOR for a dynafunction property mapping. Only the head is matched
 # by pattern; the extent of the call is found by balancing parentheses and the contents are
-# parsed by rhs.py, because the argument list can nest and can mix chains with columns.
-_CALL_START = re.compile(r"(\w+)\s*:\s*(\w+)\s*\(")
+# parsed by rhs.py, because the argument list can nest and can mix chains with columns. The call
+# may be DB-SCOPED, `prop: [db]fn(...)` (71-operation-surface.pure writes one).
+_CALL_START = re.compile(r"(\w+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\s*\(")
+# `prop: [db]@J1 > @J2 | fn(` -- the anchor for a join chain ENDING IN AN EXPRESSION (71-operation-surface.pure writes
+# one), read by rhs.py as the call over the chain's columns.
+_CHAIN_CALL_START = re.compile(r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:]*?\|\s*(?:\[[\w:]+\]\s*)?\w+\s*\()")
 # A property mapping whose right-hand side this reader has no rule for: a join chain
 # (`prop: @A > @B | T.col`), a Binding transformer, an embedded block opener.
 # `prop: [db]@J1 > @J2 | [db]T.COL` -- a JOIN CHAIN property mapping. The value comes from a
@@ -808,7 +863,7 @@ _CALL_START = re.compile(r"(\w+)\s*:\s*(\w+)\s*\(")
 # trailing `T.COL` and record the property as a plain column of the MAIN table -- turning a
 # navigation into a copy, silently and wrongly.
 _CHAINMAP = re.compile(
-    r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
+    r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.()]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
 _CHAINJOIN = re.compile(r"@(\w+)")
 
 # `prop[targetSetId]: [db]@Join` -- a CLASS-TYPED property mapped over a join, with no
@@ -953,7 +1008,9 @@ def _table_bodies(text: str) -> list[tuple[str, str, int]]:
     out = []
     # A table name may be QUOTED, which admits spaces and reserved words. `\w+` skipped such
     # a declaration entirely -- the table did not exist, and neither did any mapping over it.
-    for m in re.finditer(r'\bTable\s+(\w+|"[^"]+")\s*\(', text):
+    # Stereotypes and tagged values may precede the name, `Table <<p.s>> {p.t = 'x'} J1 (` (70-surface-store2.pure):
+    # skipped the same way, so J1 was unseen until the improvement plan's Phase 7 mapped it.
+    for m in re.finditer(r'\bTable\s+(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?(\w+|"[^"]+")\s*\(', text):
         i, depth = m.end(), 1
         while depth and i < len(text):
             if text[i] == "(":
@@ -1026,7 +1083,10 @@ def _parse_view(name: str, body: str, c: Corpus) -> None:
     c.views[name] = v
 
 
-_DATABASE = re.compile(r"^\s*Database\s+([\w:]+)\s*$", re.M)
+# A Database header may carry a stereotype and a tagged value before its name, as 66-store-surface.pure's
+# surface::SurfaceDB does; read without them, its tables belonged to no database and its include was lost, which
+# was harmless only while none of its tables had rows (the improvement plan's Phase 9 seeds SURFACE_TYPES).
+_DATABASE = re.compile(r"^\s*Database\s+(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?([\w:]+)\s*$", re.M)
 
 
 
@@ -1091,7 +1151,7 @@ def _fold_joins(text: str) -> str:
 
 def _parse_store(text: str, c: Corpus) -> None:
     text = _fold_joins("\n".join(_strip(l) for l in text.splitlines()))
-    m = re.search(r"^Database\s+([\w:]+)", text, re.M)
+    m = _DATABASE.search(text)
     if m:
         c.store_includes.setdefault(m.group(1), []).extend(
             n for n in re.findall(r"^\s*include\s+([\w:]+)\s*$", text, re.M))
@@ -1161,6 +1221,17 @@ def _parse_store(text: str, c: Corpus) -> None:
             c.filters[m.group(1)] = (m.group(2), m.group(3), op, val)
             if line.lstrip().startswith("MultiGrainFilter"):
                 c.multigrain.add(m.group(1))
+            continue
+        m = _FILTER_HEAD.match(line)
+        if m:
+            # A predicate over a dynafunction -- `Filter F(extractFromSemiStructured(T.DOC, 'qty', 'INTEGER') > 100)`,
+            # the improvement plan's Phase 9 -- read as a general condition, as a Join's is, over the ONE table it
+            # names. Recorded as (table, None, "cond", condition); oracle._filter_holds evaluates it.
+            cond = rhs.parse_condition(m.group(2))
+            named = sorted(rhs.condition_tables(cond))
+            if len(named) != 1:
+                raise ValueError(f"Filter {m.group(1)} names {named}: a store filter tests one table")
+            c.filters[m.group(1)] = (named[0], None, "cond", cond)
             continue
         m = _JOIN.match(line)
         if m:
@@ -1426,6 +1497,93 @@ def _parse_domain(text: str, c: Corpus) -> None:
                 f"nothing reports why.")
 
 
+def _top_level(text: str, sep: str) -> list[str]:
+    """`text` split at each `sep` outside brackets and quoted strings."""
+    out, depth, quote, cur = [], 0, False, []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            cur.append(ch)
+            if ch == "\\" and i + 1 < len(text):
+                cur.append(text[i + 1])
+                i += 1
+            elif ch == "'":
+                quote = False
+        elif ch == "'":
+            quote = True
+            cur.append(ch)
+        elif ch in "([{":
+            depth += 1
+            cur.append(ch)
+        elif ch in ")]}":
+            depth -= 1
+            cur.append(ch)
+        elif ch == sep and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    out.append("".join(cur))
+    return [s.strip() for s in out if s.strip()]
+
+
+_CONSTRAINT_KEY = re.compile(r"~(\w+)\s*:")
+
+
+def _parse_constraints(text: str, c: Corpus) -> None:
+    """Each class's constraint block, `Class x::Y [ ... ] { ... }`, into Klass.constraints (the improvement plan's
+    Phase 8: the oracle evaluates them over a fetched graph). The domain reader above steps over the block; this
+    reads it whole, since an entry spans lines and holds commas of its own."""
+    text = _fold_class_headers(text)
+    lines = [_strip(l) for l in text.splitlines()]
+    for i, line in enumerate(lines):
+        m = _CLASS.match(line)
+        if not m:
+            continue
+        rest = "\n".join(lines[i + 1:]).lstrip()
+        if not rest.startswith("["):
+            continue
+        depth, quote, end = 0, False, None
+        for k, ch in enumerate(rest):
+            if quote:
+                quote = ch != "'"
+            elif ch == "'":
+                quote = True
+            elif ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+                if depth == 0:
+                    end = k
+                    break
+        if end is None:
+            raise ValueError(f"{m.group(2)}: unterminated constraint block")
+        cls = m.group(2)
+        k = c.classes.setdefault(cls, Klass(cls))
+        for entry in _top_level(rest[1:end], ","):
+            simple = re.match(r"^(\w+)\s*:\s*(.*)$", entry, re.S)
+            if simple:
+                k.constraints.append(Constraint(simple.group(1), " ".join(simple.group(2).split()), owner=cls))
+                continue
+            complex_ = re.match(r"^(\w+)\s*\((.*)\)$", entry, re.S)
+            if not complex_:
+                raise ValueError(f"{cls}: constraint form not modelled by this reader -- {entry!r}")
+            body, keys = complex_.group(2), list(_CONSTRAINT_KEY.finditer(complex_.group(2)))
+            fields = {}
+            for n, key in enumerate(keys):
+                stop = keys[n + 1].start() if n + 1 < len(keys) else len(body)
+                fields[key.group(1)] = " ".join(body[key.end():stop].split())
+            unknown = set(fields) - {"function", "enforcementLevel", "externalId", "message", "owner"}
+            if unknown or "function" not in fields:
+                raise ValueError(f"{cls}.{complex_.group(1)}: constraint keys not modelled -- {sorted(fields)}")
+            ext = fields.get("externalId")
+            k.constraints.append(Constraint(
+                complex_.group(1), fields["function"], fields.get("enforcementLevel", "Error"),
+                ext[1:-1] if ext and ext.startswith("'") else ext, fields.get("message"), cls))
+
+
 def _split_mappings(body: str) -> list[str]:
     """A ###Mapping section may hold several Mapping elements; skipping one means
     splitting them apart first."""
@@ -1437,7 +1595,9 @@ def _split_mappings(body: str) -> list[str]:
         cur.append(line)
     if cur:
         out.append("".join(cur))
-    return out
+    # A mapping's test suites (the improvement plan's Phase 8) are queries and expected rows, not mapping: each chunk
+    # is read up to them
+    return [re.split(r"^\s*testSuites\s*:", chunk, maxsplit=1, flags=re.M)[0] for chunk in out]
 
 
 def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> None:
@@ -1460,6 +1620,8 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         line = _strip(raw)
         if not line.strip():
             continue
+        if cur is not None and cur_id and not in_assoc:
+            c.set_props.setdefault(cur_id, set()).update(_SET_PROP.findall(line))
 
         m = _ENUMMAP_HEAD.match(line)
         if m:
@@ -1475,8 +1637,12 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 value = m.group(1)
                 # group(2) is the bracketed list, group(3) the single value.
                 for code in (m.group(2) if m.group(2) is not None else m.group(3)).split(","):
-                    code = code.strip().strip("'")
-                    if code:
+                    code = code.strip()
+                    # An unquoted integer is an Integer source value, which an INTEGER column's value matches; read as
+                    # text it matched nothing (2026-10-30, the improvement plan's Phase 5: m2m::SourceMapping's
+                    # DeskLoadCodes over BOOK.POSITION_COUNT, the first such mapping a service reads)
+                    code = int(code) if re.fullmatch(r"-?\d+", code) else code.strip("'")
+                    if code != "":
                         if code in c.enum_maps[enum_map]:
                             raise ValueError(
                                 f"EnumerationMapping {enum_map}: source code {code!r} "
@@ -1506,7 +1672,14 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     f"{op_buf.strip()!r}. An unrecognised operation body falls through to "
                     f"the property parser, which reads its qualified name as a property.")
             ids = [i.strip(" []") for i in m_op.group(1).split(",") if i.strip(" []")]
+            if not ids and "inheritance_OperationSetImplementation" in op_buf:
+                # `inheritance()` names no sets: the router resolves the class's mapped leaf subtypes, so it is
+                # resolved in load(), once every mapping has been read
+                c.inheritance_ops[cur_op] = mapping_name or ""
+                cur_op, op_buf = None, ""
+                continue
             c.unions[cur_op] = [set_tables[i] for i in ids if i in set_tables]
+            c.union_props[cur_op] = [c.set_props.get(i, set()) for i in ids if i in set_tables]
             cur_op, op_buf = None, ""
             continue
         m = _CLSMAP.match(line)
@@ -1573,6 +1746,9 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         m = _CLS_FILTER_CHAIN.match(line)
         if m and cur:
             c.class_filter_chain[cur] = (_CHAINJOIN.findall(m.group(1)), m.group(2))
+            # Each hop's join type, typed or not (Phase 9): the leading hop's written `[db] (TYPE) @J`, a later one's
+            # `> (TYPE) [db]@J`.
+            c.filter_chain_types[cur] = [a or b or None for a, b, _j in _TYPED_HOP.findall(line.split("|")[0])]
             continue
         # A ~filter this reader cannot model changes what the class MEANS -- all() returns a
         # different row set -- so every expectation for that class would be silently wrong.
@@ -1608,6 +1784,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 for (owner, name), end in c.ends.items():
                     if name == prop and _assoc_matches(cur, owner, end):
                         end.join = join
+                        end.mappings.add(mapping_name or "")
             continue
         if cur and cur in c.main_table:
             tbl = c.main_table[cur]
@@ -1736,6 +1913,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.embedded[(cur, prop)] = child
                     c.json_backed[child] = (btbl, bcol)
                     c.main_table.setdefault(child, btbl)
+                    _json_nested(c, child, (btbl, bcol), {child})
             line = _BINDINGMAP.sub("", line)
             line = _value_forms(line, c, cur, tbl)
             # Anything that still LOOKS like a property mapping after the recognised forms
@@ -1780,6 +1958,24 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.unparsed.append((cur, leftover))
 
 
+def _json_nested(c: "Corpus", cls: str, src: tuple[str, str], seen: set) -> None:
+    """The classes a Binding's document nests: each class-typed property of a JSON-backed class is a key of the same
+    document, so its class reads the same column (json_backed) and its hop stays on the row (embedded); a to-many one is
+    a JSON array (json_many). Before the improvement plan's Phase 9 a binding was one level deep (hier::Profile)."""
+    kl = c.classes.get(cls)
+    for name, p in (kl.props.items() if kl else ()):
+        if p.type not in c.classes:
+            continue
+        c.embedded[(cls, name)] = p.type
+        if p.upper is None or p.upper > 1:
+            c.json_many.add((cls, name))
+        if p.type not in seen:
+            seen.add(p.type)
+            c.json_backed[p.type] = src
+            c.main_table.setdefault(p.type, src[0])
+            _json_nested(c, p.type, src, seen)
+
+
 def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,
                  bare: str | None = None) -> str:
     """Record every VALUE-expression property mapping on `line` against `owner`.
@@ -1793,6 +1989,15 @@ def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,
     cells, all of which the reader understood perfectly well one nesting level up. Two
     copies of "how a property mapping is written" is one copy too many.
     """
+    while True:
+        m = _CHAIN_CALL_START.search(line)
+        if m is None:
+            break
+        close = rhs.find_call(line, m.end() - 1)
+        _tag, call = rhs.parse(line[m.start(2):close + 1], default_table=bare)
+        c.dyna[(owner, m.group(1))] = call
+        c.chain_exprs.add((owner, m.group(1)))
+        line = line[:m.start(1)] + line[close + 1:]
     while True:
         m = _CALL_START.search(line)
         if m is None:
@@ -1901,6 +2106,12 @@ SKIP_MAPPINGS = {
     # mapped from, which is what the invariance asserts.
     "canonical::M2MMapping",
     "canonical::MoneyMapping",
+    # The improvement plan's Phase 5: the m2m:: pack's M2M mappings (8114-m2m.pure) and 75-surface-gaps.pure's, for
+    # the same reason. Their expectations mirror relational twins over the source classes, which are read.
+    "m2m::Views",
+    "m2m::GapViews",
+    "m2m::Merged",
+    "surface::GapPureSurface",
     # Both map trading::Trade onto TRADE_FLAT_PARTIAL with embedded blocks; parsing them
     # would rebind Trade's ~mainTable exactly as EmbeddedFlatMapping would. Their
     # expectations are mirrored from the canonical model, which is the claim under test.
@@ -1919,6 +2130,20 @@ SKIP_MAPPINGS = {
     # Relation class mappings bind to relation COLUMN names, not [db]Table.COLUMN, and
     # ModelJoin is a predicate rather than a join. Neither shape is modelled here.
     "modeljoin::JoinMapping",
+    # The improvement plan's Phase 6: the relmap:: pack's relation mappings (8116-relmap.pure), for the same reason;
+    # relmap::MixedUnion's relational set too, whose union would read as relmap::RmDeal's. Their expectations mirror
+    # relmap::Twins, the same classes mapped relationally over the same tables, which is read.
+    "relmap::Sourced",
+    "relmap::Executed",
+    "relmap::Keyed",
+    "relmap::KeyedPair",
+    "relmap::Unioned",
+    "relmap::MixedUnion",
+    "relmap::Crossed",
+    "relmap::Joined",
+    "relmap::Shaped",
+    "relmap::Inlined",
+    "relmap::Profiled",
 }
 
 # re.M is load-bearing: without it `search` over a multi-line chunk never matches, the
@@ -1962,6 +2187,7 @@ def load() -> Corpus:
         for kind, body in secs:
             if kind == "Pure":
                 _parse_domain(body, c)
+                _parse_constraints(body, c)
     for _, secs in parsed:
         for kind, body in secs:
             if kind == "Mapping":
@@ -1995,8 +2221,62 @@ def load() -> Corpus:
                 if owner == parent and (cls, prop) not in c.embedded:
                     c.embedded[(cls, prop)] = child
             parent = c.classes[parent].supertype if parent in c.classes else None
-
+    _resolve_inheritance_ops(c)
     return c
+
+
+# The mapping the model-walking generators write their services against (stacks, deepstack, graphs, aggregates, tomany,
+# spread): a service of theirs can navigate only an end this mapping resolves.
+WALK_MAPPING = "stress::AllMapping"
+
+
+def walked(c: Corpus, end: AssocEnd) -> bool:
+    """Whether a model-walking generator may navigate `end`: mapped, and by a mapping stress::AllMapping includes.
+
+    An association mapped only outside it -- the improvement plan's Phase 7 maps the corpus's unused joins in mappings
+    of their own, each with its own services -- cannot be navigated by a service over stress::AllMapping, and walked,
+    it re-routed twenty deep services through new ends their seed spines do not reach.
+    """
+    if not end.join:
+        return False
+    if c.walked_mappings is None:
+        c.walked_mappings = mapping_closure(c, WALK_MAPPING) | {WALK_MAPPING}
+    if end.assoc:
+        return bool(end.mappings & c.walked_mappings)
+    # a class-typed property over a join belongs to its owner's class mapping
+    return c.declared_in.get(end.owner) in c.walked_mappings
+
+
+def _resolve_inheritance_ops(c: Corpus) -> None:
+    """An `inheritance()` Operation set reads every mapped LEAF subtype of its class, as legend-engine's router does
+    (meta::pure::router::operations::getMappedLeafTypes): a union of the leaves' tables, the parent's properties read
+    through the columns every leaf maps them to. Leaves that disagree on a column are refused rather than guessed."""
+    for parent in sorted(c.inheritance_ops):
+        subs = [k for k in c.classes if k != parent and parent in _ancestors(c, k)]
+        leaves = sorted(k for k in subs if k in c.main_table
+                        and not any(o != k and k in _ancestors(c, o) and o in c.main_table for o in subs))
+        if not leaves:
+            raise ValueError(f"{parent}: inheritance() resolves no mapped leaf subtype")
+        ids = {cls: sid for sid, cls in c.setid_class.items()}
+        c.unions[parent] = [c.main_table[k] for k in leaves]
+        c.union_props[parent] = [c.set_props.get(ids.get(k, ""), set()) for k in leaves]
+        props = c.classes[parent].props if parent in c.classes else {}
+        for p in props:
+            cols = {c.columns.get(k, {}).get(p) for k in leaves}
+            if len(cols) != 1 or None in cols:
+                raise ValueError(f"{parent}.{p}: its leaves {leaves} read it from {sorted(map(str, cols))}")
+            c.columns.setdefault(parent, {})[p] = cols.pop()
+        c.main_table.setdefault(parent, c.unions[parent][0])
+        if c.inheritance_ops[parent]:
+            c.declared_in.setdefault(parent, c.inheritance_ops[parent])
+
+
+def _ancestors(c: Corpus, cls: str) -> set[str]:
+    out, cur = set(), c.classes[cls].supertype if cls in c.classes else None
+    while cur and cur not in out:
+        out.add(cur)
+        cur = c.classes[cur].supertype if cur in c.classes else None
+    return out
 
 
 # ---------------------------------------------------------------- self-check

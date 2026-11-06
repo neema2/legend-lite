@@ -1,11 +1,15 @@
 ###Pure
-// F37 -- `substring` means one thing in Pure and a different thing in SQL.
+// `substring` names two functions: the relational dynafunction, SQL's (one-based, the third
+// argument a length), and legend-pure's (zero-based, an exclusive end).
 //
-// Two services, the same call `substring(s, 2, 4)` on the same string 'alpha', reaching two
-// different evaluators:
+// Two services, the same arguments `(s, 2, 4)` on the same string 'alpha', reaching each:
 //
-//   F37_SubstringSql    a relational mapping   -> pushed into SQL
-//   F37_SubstringPure   a JSON-fed M2M mapping -> evaluated in memory
+//   F37_SubstringSql    a relational mapping's dynafunction -> SQL's, 'lpha'
+//   F37_SubstringPure   a JSON-fed M2M mapping, Pure        -> legend-pure's, 'ph'
+//
+// Written as F37, a defect: the relational one disagreed with Pure's. Its property-mapping half
+// was withdrawn on 2026-10-29, when the user read a mapping's substring as the dynafunction, as
+// a mapping's splitPart is (docs/STRESS_CORPUS_PLAN_2026_10_19.md, D9); both services pass.
 //
 // The JSON source is deliberate and was arrived at the hard way. The first version of this
 // file chained an M2M mapping onto a RELATIONAL source, and both columns came back 'lpha' --
@@ -98,22 +102,20 @@ Service stress::F37_SubstringSql
          data: [ connections: [ env: Reference #{ sub::Seed }# ] ]
          tests:
          [
-            zero_based_exclusive_end:
+            one_based_length:
             {
                serializationFormat: PURE_TDSOBJECT;
                asserts:
                [
-                  // 'alpha' with a zero-based start and an exclusive end is 'ph' -- the
-                  // Java String.substring contract that Pure's own library code assumes
-                  // when it writes `$s->substring(0, $i + 1)`. Asserted rather than
-                  // recorded: the corpus states what it believes and lets the engine
-                  // disagree, which is the only way a disagreement can be noticed at all.
+                  // 'alpha' from its second character, four of them, is 'lpha': SQL's
+                  // SUBSTRING, which the relational dynafunction is. Until 2026-10-29 this
+                  // asserted Pure's 'ph' and was quarantined as F37.
                   a: EqualToJson
                      #{
                         expected: ExternalFormat
                           #{
                             contentType: 'application/json';
-                            data: '[ { "v" : "ph" } ]';
+                            data: '[ { "v" : "lpha" } ]';
                           }#;
                      }#
                ]

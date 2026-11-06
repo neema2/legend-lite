@@ -51,7 +51,7 @@ def usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
     """
     out: dict[str, list[str]] = {}
     for (owner, prop), end in sorted(c.ends.items()):
-        if not end.to_many or _is_fixture(owner) or end.join is None:
+        if not end.to_many or _is_fixture(owner) or not model.walked(c, end):
             continue
         if c.main_table.get(owner) not in seeded:
             continue

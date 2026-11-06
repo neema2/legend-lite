@@ -1,0 +1,111 @@
+// F78: `bitShiftLeft` of a negative Integer errors on DuckDB, where legend-pure shifts it as a 64-bit two's-complement
+// value.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/bitshiftleft-negative/model.pure \
+//       --testable=demo::Positive --testable=demo::Negative
+//
+// legend-pure's bitShiftLeft(arg:Integer[1], n:Integer[1]):Integer[1] is Java's `<<` on a long, so -1->bitShiftLeft(1)
+// is -2 and -5->bitShiftLeft(1) is -10. legend-engine 4.145.0's DuckDB SQL is `<<`, which DuckDB refuses for a negative
+// left operand: "Out of Range Error: Cannot left-shift negative number -1". Positive passes; Negative errors.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  i: Integer[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, I BIGINT)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    i: [demo::DB]T.I
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,I\n' +
+      'R1,3\n' +
+      'R2,-1\n' +
+      'R3,-5\n';
+  }#
+}
+
+###Service
+Service demo::Positive
+{
+  pattern: '/demo/positive';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R1')->project(~[id:x|$x.id, r:x|$x.i->bitShiftLeft(1)]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Positive_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":6} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Negative
+{
+  pattern: '/demo/negative';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id != 'R1')->project(~[id:x|$x.id, r:x|$x.i->bitShiftLeft(1)])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Negative_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R2","r":-2}, {"id":"R3","r":-10} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

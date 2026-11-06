@@ -1,0 +1,204 @@
+// F90 (docs/UPSTREAM_FINDINGS.md): extractFromSemiStructured to 'DECIMAL' answers the document's number on neither
+// test database. A service answering a TDS runs its tests on H2, one answering a Relation on DuckDB (legend-engine's
+// ServiceTestRunner), so each shape is written once. Run:
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=demo::FeeTds --testable=demo::FeeRelation
+//     --testable=demo::QtyTds --testable=demo::QtyRelation
+// FeeTds answers 13 for 12.5 (H2 casts to a DECIMAL of scale 0); FeeRelation answers "12.5", the JSON text (DuckDB
+// applies no cast). QtyTds and QtyRelation, the same document read as an INTEGER, pass. Each database has its own
+// ###Data: the two test-data loaders read a quoted CSV field's quotes differently (F92).
+###Pure
+Class demo::Doc
+{
+  id: String[1];
+  fee: Decimal[0..1];
+  qty: Integer[0..1];
+}
+
+###Relational
+Database demo::DB ( Table T ( ID VARCHAR(8) PRIMARY KEY, DOC SEMISTRUCTURED ) )
+
+###Mapping
+Mapping demo::M
+(
+  demo::Doc: Relational
+  {
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    fee: extractFromSemiStructured([demo::DB]T.DOC, 'fee', 'DECIMAL'),
+    qty: extractFromSemiStructured([demo::DB]T.DOC, 'qty', 'INTEGER')
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::H2Data { Relational #{ default.T: 'ID,DOC\n' + 'A,"{"fee":12.5,"qty":4}"\n'; }# }
+Data demo::DuckData { Relational #{ default.T: 'ID,DOC\n' + 'A,"{""fee"":12.5,""qty"":4}"\n'; }# }
+
+###Service
+Service demo::FeeTds
+{
+  pattern: '/demo/feetds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id, x|$x.fee], ['id', 'fee']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    FeeTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::H2Data }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","fee":12.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::FeeRelation
+{
+  pattern: '/demo/feerelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id, fee:x|$x.fee]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    FeeRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::DuckData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","fee":12.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::QtyTds
+{
+  pattern: '/demo/qtytds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id, x|$x.qty], ['id', 'qty']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    QtyTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::H2Data }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","qty":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::QtyRelation
+{
+  pattern: '/demo/qtyrelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id, qty:x|$x.qty]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    QtyRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::DuckData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","qty":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

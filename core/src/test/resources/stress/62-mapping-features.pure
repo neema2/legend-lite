@@ -100,8 +100,9 @@ Database hier::IssuerDB
    // an arbitrary column instead, the chain resolved correctly and returned NULL for every
    // row -- a green test proving nothing, which is the failure mode a corpus is most likely
    // to ship.
+   // (HierInstrument_Issuer, HierIssuer_Instrument with its sides swapped, was deleted 2026-10-29:
+   // a join navigates both ways, and that one maps both ends of hier::InstrumentIssuer.)
    Join HierIssuer_Country([hier::IssuerDB]HIER_ISSUER.COUNTRY_CODE = [hier::IssuerDB]HIER_COUNTRY.COUNTRY_CODE)
-   Join HierInstrument_Issuer([hier::HierDB]HIER_INSTRUMENT.ISSUER_ID = [hier::IssuerDB]HIER_ISSUER.ISSUER_ID)
 
    Filter NamedCountry([hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME is not null)
 )

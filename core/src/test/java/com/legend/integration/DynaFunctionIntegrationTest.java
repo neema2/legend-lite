@@ -821,6 +821,43 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("substring() over a joined column: its [0..1] operand is trusted to one, and an absent join stays absent")
+        void testSubstringThroughJoin() throws SQLException {
+            // a column reached through a join reads [0..1], and pure's substring is strict String[1]: the dyna lane
+            // wraps every non-collection operand in the 'position' toOne idiom, as the generic dyna path does (the
+            // stress corpus's combination cells, 2026-10-29; the PR #87 review's finding 8). A mapping's substring is
+            // SQL's: one-based, its third argument a length.
+            sql("CREATE TABLE DEPT (ID INT, DEPT_NAME VARCHAR(50))",
+                "INSERT INTO DEPT VALUES (1, 'Engineering'), (2, 'Sales')",
+                "CREATE TABLE EMP (ID INT, NAME VARCHAR(50), DEPT_ID INT)",
+                "INSERT INTO EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carol', NULL)");
+            String model = withRuntime("""
+                    ###Pure
+                    import model::*;
+                    import store::*;
+
+                    Class model::E { name: String[1]; deptCode: String[0..1]; }
+                    ###Relational
+                    Database store::DB (
+                        Table EMP ( ID INTEGER, NAME VARCHAR(50), DEPT_ID INTEGER )
+                        Table DEPT ( ID INTEGER, DEPT_NAME VARCHAR(50) )
+                        Join EmpDept(EMP.DEPT_ID = DEPT.ID)
+                    )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
+                    Mapping model::M ( E: Relational { ~mainTable [store::DB] EMP
+                        name: [store::DB] EMP.NAME,
+                        deptCode: substring(@EmpDept | [store::DB] DEPT.DEPT_NAME, 1, 3)
+                    } )
+                    """, "store::DB", "model::M");
+            var result = exec(model,
+                    "model::E.all()->project([x|$x.name, x|$x.deptCode], ['name', 'deptCode'])->sort('name')");
+            assertEquals(List.of("Alice", "Bob", "Carol"), colStr(result, 0));
+            assertEquals(Arrays.asList("Eng", "Sal", null), colStr(result, 1));
+        }
+
+        @Test
         @DisplayName("DynaFunction property + sort + limit")
         void testDynaPropertyWithSortAndLimit() throws SQLException {
             sql("CREATE TABLE WORDS (ID INT, WORD VARCHAR(50))",

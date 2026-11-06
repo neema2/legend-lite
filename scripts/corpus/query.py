@@ -34,11 +34,247 @@ class DateArg(str):
     """
 
 
+class DateTimeArg(str):
+    """A Pure DATETIME literal, held as the seed writes a TIMESTAMP ("2024-06-03 12:00:00") so it
+    compares with seeded values, and written as Pure spells it: `%2024-06-03T12:00:00`."""
+
+
+class StrictTimeArg(str):
+    """A Pure STRICTTIME literal, `%17:30:00`; held as "17:30:00"."""
+
+
+class EnumArg(str):
+    """An enumeration value, `typedvalues::Grade.STANDARD`. Held as the value's NAME, which is
+    what the oracle reads an enum-mapped property as, and carrying its enumeration for the text."""
+
+    def __new__(cls, enum: str, value: str):
+        s = super().__new__(cls, value)
+        s.enum = enum
+        return s
+
+
+@dataclass(frozen=True)
+class Param:
+    """A service parameter in a predicate: `$p`, or `$p->toOne()` for an optional one. Its value
+    comes from the test being evaluated (oracle.evaluate's `params`)."""
+    name: str
+    to_one: bool = False
+
+
+@dataclass(frozen=True)
+class PathArg:
+    """A milestoning date read from the row the query is on: `$x.createdTime`. A path from the
+    ROOT, whatever hop it dates (the improvement plan's Phase 3)."""
+    path: tuple
+
+
+class Hop(str):
+    """A milestoned property in a path, navigated with its date(s): `bookLimit(%2024-06-03T09:21:00)`.
+
+    Held as the property's NAME, so the model resolves it as any step, and carrying what the text
+    and the oracle need (the improvement plan's Phase 3):
+      dates     the property's date arguments: a DateTimeArg, a DateArg, a Param or a PathArg, one
+                per milestoning dimension (processing first, for a bitemporal target). None for the
+                no-argument form, which takes the date the navigation leaves from.
+      versions  None; 'all' for the generated `<name>AllVersions`; or 'range' for
+                `<name>AllVersionsInRange(start, end)`, with `dates` the two bounds.
+    """
+
+    def __new__(cls, name: str, dates=None, versions: str | None = None):
+        s = super().__new__(cls, name)
+        s.dates = None if dates is None else tuple(dates)
+        s.versions = versions
+        return s
+
+
+@dataclass(frozen=True)
+class Versions:
+    """A root that reads more than one version: `.allVersions()` when `start` is None, else
+    `->getAllVersionsInRange(start, end)` -- the function form, since the pinned engine's grammar
+    refuses `.allVersionsInRange(...)` on a class (DomainParseTreeWalker.allOrFunction)."""
+    start: object = None
+    end: object = None
+
+
+class Nullary(str):
+    """A platform function of no arguments, as an argument: `pi()`. Held as its name."""
+
+
+@dataclass(frozen=True)
+class Apply:
+    """Platform functions applied in a QUERY to the value at a path (the improvement plan's Phase 4):
+    `$x.path->f(a)->g(b)`, each step a (function, arguments) pair, or an operator written infix
+    (`+`, `-`, `*`, `/`) with its right operand. `ret` is the last step's Pure return type.
+
+    `through_map` writes the chain inside `map`, `$x.path->map(v|$v->f(a))`: how Pure applies a function
+    to an optional value. legend-pure's map over an empty collection is empty, so an absent value stays
+    absent whatever the function (the oracle's _apply); the engine's SQL does not always agree (F68).
+
+    `let` binds the value first, `let v = $x.path; $v->f(a);`: the same value, through a variable (stage 6)."""
+    steps: tuple
+    ret: str
+    through_map: bool = False
+    let: bool = False
+
+
+# Relation operations after the projection (the improvement plan's Phase 4, stage 4), in a Spec's `relation`, applied
+# in order after any groupBy: each written in the paradigm of its Spec, `->extend(~[...])` for a Relation and
+# `->extend([col(...)])` for a TDS, and evaluated by the oracle's RELATION_IMPL.
+@dataclass(frozen=True)
+class Extend:
+    """A column computed from another: `->extend(~[name: r|$r.col->f()])`, the functions an Apply's. `of` is the
+    column's Pure type, which a TDS reads it by (`$r.getFloat('col')`)."""
+    name: str
+    col: str
+    apply: Apply
+    of: str | None = None
+
+
+@dataclass(frozen=True)
+class Window:
+    """A window column: `->extend(over(~[partition], [~order->ascending()]), ~[name: {p,w,r|$p->fn($w,$r)}])` for a
+    ranking function (`args` after the row: ntile's bucket count), or `{p,w,r|$r.col}:y|$y->fn()` for an aggregate
+    over the partition (`col` set), or `{p,w,r|$p->lag($r).read}` for a function that answers another row of the
+    partition, whose column `read` names (lag, lead and nth; `args` its offset). A TDS writes it as `olapGroupBy`.
+    `ret` is its Pure type."""
+    name: str
+    fn: str
+    partition: tuple
+    order: tuple = ()          # ((column, descending), ...)
+    args: tuple = ()
+    col: str | None = None
+    ret: str = "Integer"
+    read: str | None = None
+
+
+@dataclass(frozen=True)
+class Rename:
+    old: str
+    new: str
+
+
+@dataclass(frozen=True)
+class Select:
+    """`->select(~[cols])`, or a TDS's `restrict([...])`."""
+    cols: tuple
+
+
+@dataclass(frozen=True)
+class Distinct:
+    pass
+
+
+@dataclass(frozen=True)
+class Sort:
+    """`->sort([~a->ascending(), ...])` inside the pipeline, where an ordinal operation needs a total order."""
+    keys: tuple                 # ((column, descending), ...)
+
+
+@dataclass(frozen=True)
+class Cut:
+    """An ordinal operation: `take(n)`, `drop(n)`, `limit(n)`, `slice(a, b)`, or a TDS's `paginated(page, size)`."""
+    fn: str
+    args: tuple
+
+
+@dataclass(eq=False)
+class Concatenate:
+    """`->concatenate(<other>)`: the other relation a Spec of its own, projecting the same columns."""
+    other: object
+
+
+@dataclass(eq=False)
+class Join:
+    """`->join(<other>, JoinKind.INNER, {a, b| $a.x == $b.y})`: `on` pairs a left column with a right one, and the
+    two sides' columns are distinct names."""
+    other: object
+    kind: str                  # INNER | LEFT
+    on: tuple                  # ((left column, right column), ...)
+
+
+# The value an If's branch takes when it is the tested value itself.
+SELF = "<the value>"
+
+
+@dataclass(frozen=True)
+class If:
+    """`if(<test>, |<then>, |<otherwise>)` over the value at a path (the improvement plan's Phase 4, stage 5). The
+    test is the value under `op` and `value`, as a filter compares it (`is` for a Boolean, `isEmpty` for an absent
+    one); each branch is a literal, or SELF for the value itself (`->toOne()` under `isEmpty`)."""
+    op: str
+    value: object
+    then: object
+    otherwise: object
+    ret: str
+
+
+class Agg(tuple):
+    """An aggregate column of a groupBy: (result alias, source alias, function), as every generator before Phase 4
+    writes one, and since its stage 3 (the aggregates) carrying what a platform aggregate needs:
+
+      args    the aggregate's arguments after the collection: `percentile(0.5)`, `joinStrings(',')`
+      pair    a second source alias, for an aggregate over pairs: the map is `mapper($x.src, $x.pair)`
+      mapper  `rowMapper` or `wavgRowMapper` (meta::pure::functions::math::mathUtility), with `pair`
+      then    steps (query.Apply's) applied to the aggregate's result: `->greaterThan(t)` compares an inexact one
+      ret     the Pure type of the column, the last step's result
+
+    A tuple, so `for name, src, fn in spec.aggs` reads it as it reads the plain triples."""
+
+    def __new__(cls, name: str, src: str, fn: str, args=(), pair: str | None = None, mapper: str | None = None,
+                then=(), ret: str | None = None):
+        a = super().__new__(cls, (name, src, fn))
+        a.args, a.pair, a.mapper, a.then, a.ret = tuple(args), pair, mapper, tuple(then), ret
+        return a
+
+
 @dataclass
 class Pred:
     path: list[str]
     op: str
-    value: object
+    # A literal; a list of literals or a Param for 'in'; nothing for 'isEmpty' / 'isNotEmpty'.
+    value: object = None
+    # Functions applied to the path's value before it is compared (Phase 4): the left operand is the
+    # result. With op 'is' or 'not' the result is a Boolean and the filter itself.
+    apply: Apply | None = None
+
+
+# A predicate TREE (the improvement plan's Phase 1). A spec's `filters` is still a list of
+# conjuncts, as every generator before writes it; a conjunct may now be one of these. Each atom
+# is two-valued, as legend-pure defines a comparison over an absent value (oracle._pred), so
+# the combinators are plain boolean ones.
+@dataclass
+class And:
+    items: list
+
+
+@dataclass
+class Or:
+    items: list
+
+
+@dataclass
+class Not:
+    item: object
+
+
+@dataclass(frozen=True)
+class ParamEmpty:
+    """`$p->isEmpty()`: true when the test supplies no value for an optional parameter."""
+    name: str
+
+
+def atoms(filters) -> list[Pred]:
+    """The comparisons in a filter list, trees flattened: what a reader of the paths a spec
+    filters on wants, whatever combines them."""
+    out = []
+    for f in filters:
+        if isinstance(f, (And, Or)):
+            out += atoms(f.items)
+        elif isinstance(f, Not):
+            out += atoms([f.item])
+        elif isinstance(f, Pred):
+            out.append(f)
+    return out
 
 
 @dataclass
@@ -49,6 +285,14 @@ class Proj:
     args: list = field(default_factory=list)   # arguments to a QUALIFIED property
     # A standalone function called extension-style: `$x->stress::rules::isBuy()`.
     func: str | None = None
+    # Platform functions applied to the path's value (Phase 4): the column is their result.
+    apply: Apply | None = None
+    # With `agg`: the property of the landed rows it reduces, `$x.path->map(t|$t.<over>)->sum()` (stage 6).
+    over: str | None = None
+    # A downcast first, `$x->subType(@<subtype>).path`: the path is the subtype's, read where the row is one of the
+    # subtype's and absent where it is another leaf's (oracle._downcast; EMIT's relational-polymorphic-query, the
+    # improvement plan's EMIT target, 2026-11-01). Only over a class whose set is the inheritance operation.
+    subtype: str | None = None
 
 
 @dataclass
@@ -58,7 +302,9 @@ class Spec:
     doc: str
     root: str            # trading::Trade
     # Business date for a <<temporal.businesstemporal>> root: an ISO date, or the literal
-    # 'latest'. None for a non-temporal class, where all() takes no argument.
+    # 'latest'. None for a non-temporal class, where all() takes no argument. A list of two for a
+    # bitemporal root (processing first). Since Phase 3 a date may also be a DateTimeArg or a Param,
+    # and `versions` (below) replaces all() with every version, or the versions in a range.
     as_of: str | None = None
     projections: list[Proj] = field(default_factory=list)
     filters: list[Pred] = field(default_factory=list)
@@ -105,7 +351,7 @@ class Spec:
     paradigm: str = "relation"
     # Query-level aggregation, applied AFTER project and BEFORE sort/limit.
     #   group_by  aliases of the projected columns to group on
-    #   aggs      (result alias, source alias, 'count'|'sum'|'max'|'min')
+    #   aggs      (result alias, source alias, 'count'|'sum'|'max'|'min'), or an Agg
     # Only the keys and the aggregates survive; every other projected column is dropped,
     # which is what groupBy means and a common way to write a query that silently loses
     # a column you thought you were selecting.
@@ -122,6 +368,35 @@ class Spec:
     # and the predicate is over the result, so the engine must decide whether it can be
     # pushed back down. Nothing in the corpus had ever asked it to.
     post_filters: list = field(default_factory=list)
+    # Service parameters, (name, Pure type, multiplicity: '1' | '0..1' | '*'), and the tests that
+    # bind them: (test id, {name: value}), each with its own expected result. A parameter a test
+    # leaves out is absent, which only an optional one may be. No cases: one unnamed test, as
+    # every service before Phase 1 has.
+    params: list = field(default_factory=list)
+    cases: list = field(default_factory=list)
+    # The declared family an EMPTY or HOLLOW expected result belongs to (emptiness.FAMILIES), or
+    # None: the build fails on an empty or hollow result outside one (the improvement plan's
+    # Phase 2, rule 4), and on a declared one that has rows.
+    emptiness: str | None = None
+    # A temporal root read at more than one version (Versions): every version, or those in a range.
+    # None reads the version(s) in force at `as_of`.
+    versions: object | None = None
+    # Relation operations after the projection and any groupBy (Phase 4, stage 4): Extend, Window, Rename, Select,
+    # Distinct, Sort, Cut, Concatenate and Join, in order.
+    relation: list = field(default_factory=list)
+    # A top-level `let` per (name, literal), before the query (Phase 4, stage 5): `{|let t = 42; <query>;}`. A
+    # predicate reads one as a Param of that name.
+    lets: list = field(default_factory=list)
+    # A graph fetch CHECKED (Phase 8): `graphFetchChecked`, each object answered as {defects, value} with the
+    # constraints the oracle evaluates over the fetched graph (oracle._defects).
+    checked: bool = False
+    # Further tests in the service's suite (Phase 8's test shapes): (test id, [(assertion id, kind)]) per test, kind
+    # 'json' (EqualToJson, unordered) or 'text' (EqualTo, the serialized answer exactly), each judging the same
+    # expected rows the first test does.
+    more_tests: list = field(default_factory=list)
+    # A projection crossing ONE to-many -- an association, or a JSON array in a Binding's document -- answered one row
+    # per element (Phase 9's flatten and explode services; oracle._fan_rows). Every other spec refuses the fan-out.
+    fan_out: bool = False
 
     @property
     def short(self) -> str:

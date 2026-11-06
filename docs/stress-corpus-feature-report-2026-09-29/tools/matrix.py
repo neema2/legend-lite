@@ -1,0 +1,111 @@
+"""EMIT taxonomy x stress corpus matrix: EMIT models per feature, corpus declarations, services
+reaching the feature, and how many of those PASS with a populated expectation: in lite, and on legend-engine when
+profile.py was given the engine's pass list (its rows then carry `engine`; the plan's measures are the engine's).
+
+Usage: matrix.py <legend-engine>/docs/emit/emit.md <emit_models.json> <profile.json> <matrix.json>
+The DECL column (what the corpus declares) is hand-entered from analyze.py's output.
+"""
+import collections
+import json
+import re
+import sys
+
+EMIT_MD, EMIT_MODELS, PROFILE, OUT = sys.argv[1:5]
+doc = open(EMIT_MD, encoding='utf-8').read()
+tax = []
+for m in re.finditer(r'^\| `([a-z-]+:[a-z0-9-]+)` \| (.*?) \|$', doc, re.M):
+    tax.append((m.group(1), m.group(2)))
+emit_models = json.load(open(EMIT_MODELS, encoding='utf-8'))
+emit_count = collections.Counter(f for m in emit_models for f in m['features'])
+for f in emit_count:
+    if f not in dict(tax):
+        tax.append((f, '(used by EMIT models, not in the emit.md table)'))
+prof = json.load(open(PROFILE, encoding='utf-8'))
+svc = collections.Counter()
+ok = collections.Counter()
+ok_engine = collections.Counter()
+judged_on_engine = any('engine' in r for r in prof)
+for r in prof:
+    real = r['status'] == 'PASS' and 'ROWS' in r['exp']
+    real_engine = r.get('engine') == 'PASS' and 'ROWS' in r['exp']
+    for f in r['feats']:
+        svc[f] += 1
+        if real:
+            ok[f] += 1
+        if real_engine:
+            ok_engine[f] += 1
+
+# corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
+# (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5; the
+# relation rows 2026-10-30, its Phase 6; the store rows 2026-10-31, its Phase 9; the polymorphic query and the alias
+# columns 2026-11-01, its EMIT target)
+DECL = {
+    'scaffolding:class': '2,330 classes', 'scaffolding:relational-store': '30 databases',
+    'scaffolding:relational-connection': '16', 'scaffolding:relational-mapping': '2,358 class mappings',
+    'scaffolding:relation-function': '11 functions', 'scaffolding:relation-mapping': '20 class mappings',
+    'scaffolding:m2m-mapping': '23 class mappings', 'scaffolding:runtime': '26',
+    'scaffolding:model-connection': '3 (2 JSON, 1 XML)', 'scaffolding:model-chain-connection': '3',
+    'grammar:association': '250', 'grammar:class-inheritance': '1,849 subclasses (depth <= 2)',
+    'grammar:constraint': '28 on 7 classes', 'grammar:derived-property': '206', 'grammar:enumeration': '21',
+    'grammar:function': '21', 'grammar:measure': '3', 'grammar:nested-association': 'yes',
+    'grammar:profile': '2', 'grammar:qualified-property': '89',
+    'mapping:aggregation-aware-mapping': '1', 'mapping:cross-store': '1 XStore association',
+    'mapping:enumeration-mapping': '21', 'mapping:m2m-chained-relational': '6 mappings (3 ModelChainConnections)',
+    'mapping:m2m-derived-source-property': '1 (m2m::TradeRef)', 'mapping:m2m-local-property': '1 (75-surface-gaps)',
+    'mapping:m2m-target-instantiation': '1 (m2m::TradeStamp)', 'mapping:m2m-transform': '75 property mappings',
+    'mapping:mapping': '179 mappings', 'mapping:mapping-include': '158 includes',
+    'mapping:operation-mapping': '1 inheritance op', 'mapping:operation-mapping-merge': '2',
+    'mapping:operation-mapping-merge-validation': '2', 'mapping:relational-association-implementation': '238',
+    'mapping:relational-distinct': '3', 'mapping:relational-embedded': '30', 'mapping:relational-group-by': '-',
+    'mapping:relational-inline-embedded': '1', 'mapping:relational-joined-table-inheritance': '-',
+    'mapping:relational-literal': '138', 'mapping:relational-literal-list': '2',
+    'mapping:relational-main-table-alias': 'scope blocks: DenseMapping only', 'mapping:relational-otherwise-embedded': '4',
+    'mapping:relational-polymorphic-query': 'inheritance op, 2 subType() services', 'mapping:relational-primary-key': '276',
+    'mapping:relational-single-table-inheritance': '1,848', 'mapping:relational-table-alias-column': 'scope blocks: DenseMapping only',
+    'mapping:router-union': '1', 'mapping:store-union': '1',
+    'mapping:relation-model-join': '2', 'mapping:relation-local-property': '3',
+    'mapping:relation-src': '1', 'mapping:relation-filter': '3 functions', 'mapping:relation-group-by': '1',
+    'mapping:relation-window-function': '1', 'mapping:relation-expression-rhs': '4 property mappings',
+    'mapping:relation-primary-key': '2 (single, composite)', 'mapping:relation-embedded': '1',
+    'mapping:relation-inline-embedded': '1', 'mapping:relation-union': '2 operations',
+    'mapping:relation-binding-transformer': '1', 'mapping:relation-xstore-association': '1',
+    'store:relational-cross-schema': '5 named schemas', 'store:relational-cross-table-filter': '6',
+    'store:relational-dyna-function': 'joins 17, views, 440 property mappings', 'store:relational-filter': '1,856 (+2 multigrain)',
+    'store:relational-inline-view': '7 views', 'store:relational-inner-join': '390 joins',
+    'store:relational-left-outer-join': 'default navigation; 6 typed OUTER hops (2 chains, 4 ~filter)',
+    'store:relational-multi-table': '437 tables',
+    'store:relational-nested-join': '314 chains', 'store:relational-outer-join': '- (no form at the pin)',
+    'store:relational-right-outer-join': '- (no form at the pin)',
+    'store:relational-semistructured': '3 columns (2 seeded, C_JSON not loadable)',
+    'store:relational-semistructured-navigation': '30 extractions, 2 filters, 2 joins, 2 bindings',
+    'store:relational-semistructured-array-index': '8 indexed paths',
+    'store:relational-semistructured-wildcard-path': '6 wildcard paths',
+    'store:relational-semistructured-array-functions': '6 properties (7 array_* calls)',
+    'store:relational-semistructured-explode': '2 joins',
+    'store:relational-semistructured-flatten': '2 bindings with a to-many', 'milestoning:business-temporal': '6 tables, 3 classes',
+    'milestoning:processing-temporal': '3 tables', 'milestoning:bi-temporal': '2 classes',
+    'milestoning:point-in-time-query': 'yes', 'milestoning:all-versions-query': '1',
+    'execution:binding': '1', 'execution:external-format-binding': '1', 'execution:data-element': '14',
+    'execution:multi-execution-service': '2', 'execution:post-validation': '1',
+    'execution:service': '4,742', 'execution:service-parameter': '1', 'execution:service-test': '4,737 suites',
+    'execution:graph-fetch': '447 graph fetch services',
+    'execution:shared-test-data': 'yes', 'execution:test-data': 'yes', 'execution:plan-generation': 'lite plans every service',
+    'store:relational-semistructured-binding': '3 binding transformers',
+}
+rows = []
+for f, desc in tax:
+    row = dict(feature=f, desc=desc, emit=emit_count.get(f, 0), decl=DECL.get(f, '-'),
+               services=svc.get(f, 0), pass_rows=ok.get(f, 0))
+    if judged_on_engine:
+        row['pass_rows_engine'] = ok_engine.get(f, 0)
+    rows.append(row)
+json.dump(rows, open(OUT, 'w', encoding='utf-8'), indent=1)
+print('taxonomy features:', len(tax))
+for r in rows:
+    print('%-52s emit %3d | decl %-32s | svc %5d | ok %5d' % (r['feature'], r['emit'], r['decl'][:32], r['services'], r['pass_rows'])
+          + (' | engine %5d' % r['pass_rows_engine'] if judged_on_engine else ''))
+# §3's headline: the non-scaffolding features with a passing, populated service (before §3's hand adjustments, which
+# the README explains where they appear)
+features = [r for r in rows if not r['feature'].startswith('scaffolding:')]
+print('non-scaffolding features: %d; tested in lite: %d' % (len(features), sum(1 for r in features if r['pass_rows']))
+      + ('; tested on legend-engine: %d' % sum(1 for r in features if r['pass_rows_engine']) if judged_on_engine else ''))
