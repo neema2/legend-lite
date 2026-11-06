@@ -294,6 +294,32 @@ class TimeseriesLibraryTest {
         assertTrue(oneRefusal.getMessage().contains("Duplicated element 'timeseries::Returns'"), oneRefusal.getMessage());
     }
 
+    /**
+     * What a model over a library cannot do as the one text does is refused by name, never answered otherwise (the
+     * second review's finding 6, 2026-11-06): an association with a library class at an end -- the one text adds its
+     * properties to that class, the layer's class is every model's. A library that does not compile is placed in its
+     * own text.
+     */
+    @Test
+    void anAssociationOfALibrarysClassIsRefusedOverTheLibraryAndALibrarysErrorIsPlaced() {
+        String library = "###Pure\nClass lib::Thing\n{\n  name: String[1];\n}\n";
+        String model = "###Pure\nClass my::Mine\n{\n  a: Integer[1];\n}\nAssociation my::Link\n{\n"
+                + "  mine: my::Mine[*];\n  thing: lib::Thing[*];\n}\n";
+        assertNotNull(Compiler.compileModel(model + "\n" + library).findClass("lib::Thing").orElse(null),
+                "the one text compiles");
+        com.legend.error.LegendCompileException refused = assertThrows(com.legend.error.LegendCompileException.class,
+                () -> Compiler.compileModel(model, library));
+        assertTrue(refused.getMessage().contains("association 'my::Link' names the library's class 'lib::Thing'"),
+                refused.getMessage());
+        // a class of the model's over the library's is the model's own: it compiles
+        assertNotNull(Compiler.compileModel("###Pure\nClass my::Mine extends lib::Thing\n{\n  a: Integer[1];\n}\n",
+                library).findClass("my::Mine").orElse(null));
+        com.legend.error.LegendCompileException broken = assertThrows(com.legend.error.LegendCompileException.class,
+                () -> Compiler.compileModel("###Pure\nClass my::Other\n{\n}\n",
+                        "###Pure\nClass lib::Bad\n{\n  name: lib::Nothing[1];\n}\n"));
+        assertTrue(broken.getMessage().matches("(?s)\\[\\d+:\\d+.*"), broken.getMessage());
+    }
+
     @Test
     void aRowsSeveralColumnsAreOneListThatIsEmptyWhereNoneHasAValue() throws Exception {
         // read(row, ~[a, b]) (2026-11-02): a row's columns as one list, empty where no column has a value -- the

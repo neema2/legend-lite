@@ -41,6 +41,12 @@ public final class TsPrinter {
     }
 
     private String query(TsAst.Query q) {
+        if (q.plain() != null) {
+            // plain SQL over a series query (A9, the spec's §8): the printer writes the language's own clauses alone, so
+            // it is refused by name, never printed without its SELECT's items (the second review's finding 2, 2026-11-06)
+            throw SqlTranslationException.unsupported("#TS prints no plain SQL over a series query yet: its text is"
+                    + " the query as written", q.plain().pos());
+        }
         StringBuilder b = new StringBuilder();
         if (!q.withs().isEmpty()) {
             b.append("WITH ").append(q.withs().stream().map(w -> ident(w.name()) + " AS "

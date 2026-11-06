@@ -104,6 +104,13 @@ class TsIslandTest {
     }
 
     /** The store, the classes, a runtime on {@code backend}'s session, and (with {@code library}) the library. */
+    /** The databases each test runs on: every in-process one, or the one the lane names ({@code -Dts.backend}: the
+     *  Postgres lane, docs/TS_V1_PROGRAM_2026_11_01.md B1, its embedded server). */
+    private static List<TestBackend> backends() {
+        String named = System.getProperty("ts.backend");
+        return named == null ? TestBackends.inProcess() : List.of(TestBackends.named(named));
+    }
+
     private static String model(TestBackend backend, boolean library) throws java.io.IOException {
         return STORE + CLASSES + """
                 ###Connection
@@ -173,7 +180,8 @@ class TsIslandTest {
             String query) throws Exception {
         ExecutionPlan plan = Compiler.query(model, query).executionPlan("ts::RT");
         String text;
-        try (Connection c = backend.open()) {
+        // a server's database outlives a connection: each query its own workspace there (dropped as it closes)
+        try (Connection c = backend.inProcess() ? backend.open() : backend.openWorkspace()) {
             seed(backend, c);
             text = PlanCases.write(plan, c, Map.of(), PlanCases.Written.CSV::writer);
         }
@@ -197,14 +205,14 @@ class TsIslandTest {
     private static Map<TestBackend, List<Map<String, String>>> same(String ts, String pure, int keys)
             throws Exception {
         Map<TestBackend, List<Map<String, String>>> out = new LinkedHashMap<>();
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{" + ts + "}#");
             List<Map<String, String>> want = rows(backend, pure).stream().filter(r -> r.values().stream().skip(keys)
                     .anyMatch(java.util.Objects::nonNull)).toList();
             assertEquals(want, got, backend + ": the #TS query answers as the library's calls do");
             out.put(backend, got);
         }
-        assertTrue(out.size() >= 3, "on every in-process database: " + out.keySet());
+        assertTrue(out.size() == backends().size() && !out.isEmpty(), "on every database of the lane: " + out.keySet());
         return out;
     }
 
@@ -320,7 +328,7 @@ class TsIslandTest {
     void aFlatItemMayTakeTheNameOfThePathItReads() throws Exception {
         // as SQL means it: an item's name is its output's, its expression reads the source's path (Show #TS A6 prints
         // an enumeration as CAST(side AS text) AS side, 2026-11-03)
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> same = rows(backend, "|#TS{WITH q AS (SELECT instrument.ticker AS sym, day,"
                     + " close * 2 AS close FROM Quote) SELECT close AS c FROM q ON day BY sym}#");
             List<Map<String, String>> want = rows(backend, "|#TS{WITH q AS (SELECT instrument.ticker AS sym, day,"
@@ -341,7 +349,7 @@ class TsIslandTest {
         same("SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL", "|#>{ts::DB.PRICES}#" + pure, 2);
         same("SELECT avg(CLOSE, 3) AS ma3 FROM (PRICES WHERE SYMBOL = 'AAA') ON DAY BY SYMBOL",
                 "|#>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'AAA')" + pure, 2);
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, """
                     |let p = #>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'BBB');
                     #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $p ON DAY BY SYMBOL}#;""");
@@ -406,7 +414,7 @@ class TsIslandTest {
     @Test
     void aSubscriptPicksALineAndLinesMeetOnTheirDates() throws Exception {
         // R2: one instrument's line; a single line beside each instrument's (its broadcast); two lines' difference
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> one = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertEquals(List.of("DAY", "ma"), List.copyOf(one.get(0).keySet()), backend + ": one line, no instrument");
@@ -433,7 +441,7 @@ class TsIslandTest {
     void aFigureRunsOverItsLinesOwnRowsAndLinesMeetWhereBothHaveOne() throws Exception {
         // R4 and R6: BBB has no row on the 25th; its mean of three skips it, and the spread has no row there
         String source = "(PRICES WHERE SYMBOL = 'AAA' OR DAY <> '2024-01-25')";
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(CLOSE['BBB'], 3) AS mb,"
                     + " CLOSE['AAA'] - CLOSE['BBB'] AS spread FROM " + source + " ON DAY BY SYMBOL}#");
             int gap = 5;
@@ -456,7 +464,7 @@ class TsIslandTest {
     @Test
     void severalSourcesEachWithItsAlias() throws Exception {
         // R1: a class and a table, each its own source, their lines meeting on their dates
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT q.close['AAA'] AS a, p.CLOSE['BBB'] AS b,"
                     + " a / b AS ratio FROM Quote q ON day BY instrument.ticker, PRICES p ON DAY BY SYMBOL}#");
             assertEquals(List.of("day", "a", "b", "ratio"), List.copyOf(got.get(0).keySet()),
@@ -683,7 +691,7 @@ class TsIslandTest {
     @Test
     void anOptionByPlaceOrByName() throws Exception {
         // R10: returns' type, by place or by name
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT returns(CLOSE['AAA'], 1, 'log') AS lp,"
                     + " returns(CLOSE['AAA'], type => 'log') AS ln, returns(CLOSE['AAA'], type => 'absolute') AS ab"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
@@ -698,7 +706,7 @@ class TsIslandTest {
     @Test
     void latestIsTheDataLastDate() throws Exception {
         // R9: FILTER DAY > latest - 3d keeps the last three days, computed with every day before
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM PRICES ON DAY BY SYMBOL FILTER DAY > latest - 3d}#");
             assertEquals(List.of("2024-01-29", "2024-01-30", "2024-01-31"), got.stream().map(r -> r.get("DAY")).toList(),
@@ -713,7 +721,7 @@ class TsIslandTest {
         // R9, as the spec says (the user, 2026-11-02): the last date of the source after its WHERE, one date for the
         // query -- here BBB's 31st, though the only item reads AAA, whose last row is the 30th; the answer's own last
         // date (the 30th) had been read before
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM (PRICES WHERE SYMBOL = 'BBB' OR DAY < '2024-01-31') ON DAY BY SYMBOL"
                     + " FILTER DAY > latest - 3d}#");
@@ -727,7 +735,7 @@ class TsIslandTest {
         // R7 (2026-11-03): PRICES read with no BY has two rows on each of its dates, AAA's and BBB's -- each row a point
         // (the user, 2026-10-30). The items over its column are columns of one table, each row once: never the
         // column's table joined to itself on its dates (four rows a date, before)
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE AS c, CLOSE * 2 AS d, c - 1 AS e"
                     + " FROM PRICES ON DAY}#");
             assertEquals(2 * AAA.length, got.size(), backend + ": a row a point");
@@ -795,17 +803,20 @@ class TsIslandTest {
     @Test
     void logFloorAndCeilAreRefusedWithBothFixesAndTheRoundingWordsRound() throws Exception {
         for (String ts : List.of("SELECT log(CLOSE) AS l FROM PRICES ON DAY BY SYMBOL",
+                "SELECT \"log\"(CLOSE) AS l FROM PRICES ON DAY BY SYMBOL",
                 "SELECT CLOSE AS c FROM (PRICES WHERE LOG(CLOSE) > 1) ON DAY BY SYMBOL",
                 "WITH q AS (SELECT SYMBOL, DAY, log(CLOSE) AS L FROM PRICES) SELECT L AS l FROM q ON DAY BY SYMBOL")) {
             String why = refused(ts, true);
             assertTrue(why.contains("log(x) is refused") && why.contains("write ln(x) (natural, gs-quant's log) or"
                     + " log10(x) (D2)"), ts + ": " + why);
         }
+        String quoted = refused("SELECT \"floor\"(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
+        assertTrue(quoted.contains("floor(x) is refused"), quoted);
         String floor = refused("SELECT floor(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
         assertTrue(floor.contains("greatest(x, 0) for gs-quant's floor, or round_down(x) to round (D2)"), floor);
         String ceil = refused("SELECT ceil(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
         assertTrue(ceil.contains("least(x, 0) for gs-quant's ceil, or round_up(x) to round (D2)"), ceil);
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT round_down(CLOSE) AS d, round_up(CLOSE) AS u,"
                     + " round_down(-CLOSE) AS nd FROM PRICES ON DAY BY SYMBOL}#");
             assertClose(each(AAA.length, i -> Math.floor(AAA[i])), column(got, "SYMBOL", "AAA", "d"),
@@ -825,7 +836,7 @@ class TsIslandTest {
     @Test
     void zscoresAndWinsorizeLookOnlyBackUnlessAskedForTheWholeLine() throws Exception {
         int n = AAA.length;
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT zscores(CLOSE) AS z, zscores(CLOSE, all) AS za,"
                     + " zscores(CLOSE, whole) AS zw, winsorize(CLOSE, 1.5) AS w, winsorize(CLOSE, 1.5, whole) AS ww"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
@@ -870,7 +881,7 @@ class TsIslandTest {
      */
     @Test
     void aDivisionByZeroIsNothingThereAndTheRestStands() throws Exception {
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE / (CLOSE - CLOSE) AS z, CLOSE / 2 AS h,"
                     + " CLOSE / 0 AS c FROM PRICES ON DAY BY SYMBOL}#");
             assertEquals(List.of(), got.stream().filter(r -> r.get("z") != null || r.get("c") != null).toList(),
@@ -880,6 +891,17 @@ class TsIslandTest {
                     + " ON DAY BY SYMBOL}#");
             assertEquals(AAA.length + BBB.length, kept.size(), backend + ": a WHERE's division by 0 is nothing, never an"
                     + " error");
+            // a FILTER's and a WITH body's alike, and an integer's quotient still an integer's (the second review's
+            // finding 5, 2026-11-06)
+            List<Map<String, String>> filtered = rows(backend, "|#TS{SELECT CLOSE AS c FROM PRICES ON DAY BY SYMBOL"
+                    + " FILTER c / 0 IS NULL}#");
+            assertEquals(AAA.length + BBB.length, filtered.size(), backend + ": a FILTER's division by 0 is nothing");
+            List<Map<String, String>> within = rows(backend, "|#TS{WITH q AS (SELECT SYMBOL, DAY, CLOSE / 0 AS Z,"
+                    + " CLOSE * 0 + 7 / 2 AS I FROM PRICES) SELECT Z AS zz, I AS ii FROM q ON DAY BY SYMBOL}#");
+            assertEquals(List.of(), within.stream().filter(r -> r.get("zz") != null).toList(),
+                    backend + ": a WITH body's division by 0 is nothing");
+            assertClose(each(AAA.length, i -> 3.0), column(within, "SYMBOL", "AAA", "ii"),
+                    backend + ": 7 / 2 is an integer's quotient, 3");
         }
     }
 
@@ -907,7 +929,7 @@ class TsIslandTest {
             saa += (a[i] - ma) * (a[i] - ma);
             sbb += (b[i] - mb) * (b[i] - mb);
         }
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{WITH s AS TS (SELECT returns(CLOSE['AAA']) AS a,"
                     + " returns(CLOSE['BBB']) AS b FROM PRICES ON DAY BY SYMBOL) SELECT regr_slope(b, a) AS slope,"
                     + " corr(b, a) AS c, count(*) AS n FROM s}#");
@@ -917,6 +939,14 @@ class TsIslandTest {
                     backend + ": regr_slope");
             assertClose(new Double[] {sab / Math.sqrt(saa * sbb)}, new Double[] {Double.valueOf(got.get(0).get("c"))},
                     backend + ": corr");
+            // SQL's own clauses over them too, a JOIN's ON a join's condition (the second review's finding 8)
+            List<Map<String, String>> joined = rows(backend, "|#TS{WITH s AS TS (SELECT returns(CLOSE['AAA']) AS a"
+                    + " FROM PRICES ON DAY BY SYMBOL), t AS TS (SELECT returns(CLOSE['BBB']) AS b FROM PRICES ON DAY BY"
+                    + " SYMBOL) SELECT count(*) AS n FROM s JOIN t ON s.DAY = t.DAY}#");
+            assertEquals(String.valueOf(n - 1), joined.get(0).get("n"), backend + ": the dates both have");
+            List<Map<String, String>> offset = rows(backend, "|#TS{WITH s AS TS (SELECT returns(CLOSE['AAA']) AS a"
+                    + " FROM PRICES ON DAY BY SYMBOL) SELECT a FROM s ORDER BY DAY OFFSET 2}#");
+            assertEquals(n - 3, offset.size(), backend + ": OFFSET 2");
         }
     }
 
@@ -924,7 +954,7 @@ class TsIslandTest {
     void linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused() throws Exception {
         // the time model's D1 (ruled 2026-11-03): PRICES read with no BY has two rows on each date (AAA's and BBB's).
         // Met with a line of one row a date, each row pairs with that one (a lookup: each trade at its day's rate)
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> lookup = rows(backend, "|#TS{SELECT p.CLOSE - q.CLOSE['AAA'] AS d"
                     + " FROM PRICES p ON DAY, PRICES q ON DAY BY SYMBOL}#");
             assertEquals(2 * AAA.length, lookup.size(), backend + ": each of a date's rows paired once");
@@ -953,12 +983,15 @@ class TsIslandTest {
         // Extended the same day ("Okay extend the refusal") to the words that read one of a date's rows without
         // counting: a window to date or since a date, a lag as of a date (an as-of join), a value from the line's
         // first (rebase), an exponential average
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             for (String q : List.of("SELECT mean(CLOSE, 3) AS m", "SELECT CLOSE AS c, diff(CLOSE, 1) AS d",
                     "SELECT lag(CLOSE, 1) AS l", "SELECT returns(CLOSE, 1) AS r", "SELECT volatility(CLOSE, 3) AS v",
                     "SELECT max(diff(CLOSE, 1), 2d) AS mx", "SELECT correlation(CLOSE, CLOSE['AAA'], 3) AS k",
                     "SELECT sum(CLOSE, all) AS s", "SELECT sum(CLOSE, '2024-01-25') AS s", "SELECT lag(CLOSE, 2d) AS l",
-                    "SELECT rebase(CLOSE) AS rb", "SELECT exponential_moving_average(CLOSE, 0.5) AS e")) {
+                    "SELECT rebase(CLOSE) AS rb", "SELECT exponential_moving_average(CLOSE, 0.5) AS e",
+                    // to date since A4 (S150): a z-score and a winsorized value of a line of several rows a date
+                    // (the second review's finding 4, 2026-11-06)
+                    "SELECT zscores(CLOSE) AS z", "SELECT winsorize(CLOSE, 2.0) AS wz")) {
                 String query = "|#TS{" + q + " FROM PRICES ON DAY}#";
                 if (q.contains("['AAA']")) {
                     query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"
@@ -975,6 +1008,12 @@ class TsIslandTest {
             // a calendar window reads all of a date's rows at once, in any order: it answers
             assertFalse(rows(backend, "|#TS{SELECT mean(CLOSE, 3d) AS m FROM PRICES ON DAY}#").isEmpty(),
                     backend + ": a calendar window of a line of several rows a date");
+            // and so does the whole line's z-score and winsorized value (whole, gs-quant's): a figure of every row
+            // (one item each: two items of such a line meet as two lines, D1's refusal)
+            assertFalse(rows(backend, "|#TS{SELECT zscores(CLOSE, whole) AS z FROM PRICES ON DAY}#").isEmpty(),
+                    backend + ": the whole line's z-score of a line of several rows a date");
+            assertFalse(rows(backend, "|#TS{SELECT winsorize(CLOSE, 2.0, whole) AS wz FROM PRICES ON DAY}#").isEmpty(),
+                    backend + ": the whole line's winsorized value of a line of several rows a date");
             // the fix the refusal names: an instrument's line, one row a date
             List<Map<String, String>> by = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
@@ -1000,7 +1039,7 @@ class TsIslandTest {
         // moment is no day, and the two ways to pair them answer different questions, so v1 refuses where they meet --
         // an expression of both, a word of both, the two as items -- naming the fix (before, the first two found no
         // row, silently, and the third was the type checker's "cannot unite")
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             assertEquals(2 * AAA.length, rows(backend, "|#TS{SELECT PRICE['AAA'] AS t FROM TICKS ON AT BY SYMBOL}#")
                     .size(), backend + ": a line of moments, a row a moment");
             for (String q : List.of("SELECT p.CLOSE['AAA'] - t.PRICE['AAA'] AS d",
@@ -1037,7 +1076,7 @@ class TsIslandTest {
         // R7 (2026-11-03): a word's answer is a column of its line's own table, no point of its ramp's rows (gs-quant's
         // apply_ramp drops a word's first w points), and a figure of it no point where it is none -- so a word of
         // either counts from the first point of what it reads, as over that value's own line
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(avg(CLOSE['AAA'], 3), 3) AS mm,"
                     + " CLOSE['AAA'] / avg(CLOSE['AAA'], 3) - 1 AS dev, avg(dev, 2) AS md FROM PRICES ON DAY BY SYMBOL}#");
             double[] x = AAA;
@@ -1115,7 +1154,7 @@ class TsIslandTest {
         for (int i = 1; i < x.length; i++) {
             r[i] = x[i] / x[i - 1] - 1;
         }
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT rebase(CLOSE['AAA']) AS rb,"
                     + " change(CLOSE['AAA']) AS ch, percent_change(CLOSE['AAA']) AS pc, range(CLOSE['AAA'], 3) AS rg,"
                     + " volatility(CLOSE['AAA'], 3) AS vol FROM PRICES ON DAY BY SYMBOL}#");
@@ -1371,7 +1410,7 @@ class TsIslandTest {
                 + " returns(CLOSE['AAA']) AS r FROM PRICES ON DAY BY SYMBOL}#";
         String explicit = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 63) AS c, lag(CLOSE['AAA'], 1) AS l,"
                 + " returns(CLOSE['AAA'], 1) AS r FROM PRICES ON DAY BY SYMBOL}#";
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, q);
             List<Map<String, String>> want = rows(backend, explicit);
@@ -1395,7 +1434,7 @@ class TsIslandTest {
         // answers, and no join
         String q = "|#TS{SELECT mean(CLOSE['AAA'], all) AS m, std(CLOSE['AAA'], all) AS s,"
                 + " max_drawdown(CLOSE['AAA'], all) AS md, max(diff(CLOSE['AAA'], 2), all) AS hi FROM PRICES ON DAY BY SYMBOL}#";
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, q);
             assertClose(each(AAA.length, i -> mean(AAA, 0, i)), column(got, null, null, "m"), of + "the mean to date");
@@ -1441,7 +1480,7 @@ class TsIslandTest {
                     w + " the regression's, once: " + sql);
         }
         // and the answers: each word's as it is alone
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, q);
             assertArrayEquals(column(rows(backend, "|#TS{SELECT hedge_ratio(CLOSE['AAA'], CLOSE['BBB'], 3) AS h FROM"
                     + " PRICES ON DAY BY SYMBOL}#"), null, null, "h"), column(got, null, null, "h"), backend + ": h");
@@ -1462,7 +1501,7 @@ class TsIslandTest {
             lr[i] = Math.log(AAA[i] / AAA[i - 1]);
         }
         // from the fourth day: the three before are every word's ramp, no item's point (R6)
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, q);
             assertClose(each(AAA.length - 3, i -> 3.0), column(got, null, null, "n"), of + "three days' count");
@@ -1488,7 +1527,7 @@ class TsIslandTest {
         // joined onto it -- no union of the two tables' periods, no grouping of them (spec-13's shape: its 5 joins 4)
         String q = "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s, lag(s, 1) * diff(CLOSE['AAA'], 1) AS t"
                 + " FROM PRICES ON DAY BY SYMBOL}#";
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, q);
             assertClose(each(AAA.length, i -> AAA[i] - BBB[i]), column(got, null, null, "s"), of + "every day's s");
@@ -1505,7 +1544,7 @@ class TsIslandTest {
         // 2026-11-06 (found by W3's test): s's table met AAA and BBB, so AAA's close is a column of it; t reads AAA's close
         // again beside s, and cov pairs s with it. s's table meets AAA's line again, its column of AAA's close not
         // carried twice -- before, the two copies clashed ("the column '__ts_base_0' already exists")
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s,"
                     + " lag(s, 1) * CLOSE['AAA'] AS t FROM PRICES ON DAY BY SYMBOL}#");
@@ -1775,7 +1814,7 @@ class TsIslandTest {
     void aRankIsEachDatesPlaceAmongItsInstruments() throws Exception {
         // the spec's §6 rank(x [DESC]) (A9, 2026-11-03): each date's instruments by x, 1 the first, the parser reading
         // x DESC as the option order => 'descending'; AAA's closes (about 100) are above BBB's (about 50) every day
-        for (TestBackend backend : TestBackends.inProcess()) {
+        for (TestBackend backend : backends()) {
             List<Map<String, String>> down = rows(backend, "|#TS{SELECT rank(CLOSE DESC) AS r FROM PRICES ON DAY BY SYMBOL}#");
             List<Map<String, String>> up = rows(backend, "|#TS{SELECT rank(CLOSE) AS r FROM PRICES ON DAY BY SYMBOL}#");
             assertEquals(2 * AAA.length, down.size(), backend + ": " + down);
@@ -1919,5 +1958,13 @@ class TsIslandTest {
             assertNull(refused.statement(), later.getKey());
             assertTrue(java.util.Objects.requireNonNull(refused.refused()).contains(later.getKey()), refused.refused());
         }
+        // plain SQL over a series query is refused by name, never printed without its items (the second review's
+        // finding 2, 2026-11-06)
+        com.legend.protocol.ts.TsShow.Shown plain = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
+                + " #>{ts::DB.PRICES}#; #TS{WITH s AS TS (SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL)"
+                + " SELECT count(*) AS n FROM s}#;"), types);
+        assertNull(plain.statement(), String.valueOf(plain.statement()));
+        assertTrue(java.util.Objects.requireNonNull(plain.refused()).contains("no plain SQL over a series query"),
+                plain.refused());
     }
 }

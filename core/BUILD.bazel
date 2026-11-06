@@ -1160,6 +1160,38 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# THE TIMESERIES LANGUAGE ON POSTGRES (docs/TS_V1_PROGRAM_2026_11_01.md B1): the island's cases on the embedded
+# Postgres server, not in-process. Manual, as the other Postgres targets: as root, run it through
+# tools/postgres/as_unprivileged.sh (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "ts_island_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
 # (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
 # documents name them, or is listed with why (only allowed to shrink)

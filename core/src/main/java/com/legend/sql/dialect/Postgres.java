@@ -1816,6 +1816,16 @@ public final class Postgres extends AnsiSqlRenderer {
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
     }
 
+    /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's
+     *  refusals) raised as a boolean,
+     *  as a CASE's raising branch takes its CASE's type: the raise is text here ({@link #raise}), and Postgres refuses
+     *  a condition of text ("argument of WHERE must be type boolean", measured on 16, B1 2026-11-06). */
+    @Override
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return e instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(call.args(), SqlType.Scalar.BOOLEAN)) : super.booleanOperand(writer, e, prec);
+    }
+
     /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {

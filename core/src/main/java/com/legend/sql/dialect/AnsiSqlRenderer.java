@@ -279,7 +279,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (s.where() != null) {
             nl(writer, depth).append("WHERE ");
-            writer.expr(s.where(), 0);
+            condition(writer, s.where());
         }
         if (!s.groupBy().isEmpty()) {
             nl(writer, depth).append("GROUP BY ");
@@ -287,7 +287,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (s.having() != null) {
             nl(writer, depth).append("HAVING ");
-            writer.expr(s.having(), 0);
+            condition(writer, s.having());
         }
         if (s.qualify() != null) {
             appendQualify(writer, s, depth);
@@ -501,7 +501,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 source(writer, j.right(), depth);
                 SqlExpr on = j.on();
                 if (on != null) {
-                    writer.append(" ON ").expr(joinCondition(j.kind(), on), 0);
+                    writer.append(" ON ");
+                    condition(writer, joinCondition(j.kind(), on));
                 }
                 yield writer;
             }
@@ -896,9 +897,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             if (i > 0) {
                 writer.append(pad).append(infix.sql()).append(pad);
             }
-            writer.expr(c.args().get(i),
-                    (i > 0 && trailingOwnValue) || nonAssociative
-                            ? infix.prec() + 1 : infix.prec());
+            int prec = (i > 0 && trailingOwnValue) || nonAssociative ? infix.prec() + 1 : infix.prec();
+            if (c.fn() == SqlFn.AND || c.fn() == SqlFn.OR) {
+                // a logical operand, where the database requires a boolean (condition's rule)
+                booleanOperand(writer, c.args().get(i), prec);
+            } else {
+                writer.expr(c.args().get(i), prec);
+            }
         }
         if (wrap) {
             writer.append(")");
@@ -1210,6 +1215,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return writer.expr(c.value(), 0);
         }
         return writer.append("CAST(").expr(c.value(), 0).append(" AS ").append(castTypeName(c.target())).append(")");
+    }
+
+    /** A statement's condition -- its WHERE, its HAVING, a join's ON -- where the database requires a boolean: the
+     *  expression as any other unless the dialect writes one there otherwise (Postgres's raise: {@code
+     *  Postgres#condition}). */
+    protected SqlWriter condition(SqlWriter writer, SqlExpr e) {
+        return booleanOperand(writer, e, 0);
+    }
+
+    /** A value where a boolean is required -- a condition ({@link #condition}), an operand of AND or OR -- at precedence
+     *  {@code prec}: the expression as any other unless the dialect writes one there otherwise. */
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return writer.expr(e, prec);
     }
 
     // ---- window / aggregate / case (ANSI) ----

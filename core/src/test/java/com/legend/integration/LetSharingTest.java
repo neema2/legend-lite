@@ -63,9 +63,41 @@ class LetSharingTest extends AbstractDatabaseTest {
         }
     }
 
+    /** The same database under the engine's cteExtractionPostProcessor, which names the statement's subqueries itself. */
+    private String cteRuntime() {
+        return """
+                ###Connection
+                RelationalDatabaseConnection store::CteConnection
+                {
+                    type: %s;
+                    %s;
+                    postProcessors:
+                    [
+                        ExtractSubQueriesAsCTEsPostProcessor
+                    ];
+                }
+
+                ###Runtime
+                Runtime test::CteRuntime
+                {
+                    mappings:
+                    [
+                        model::PersonMapping
+                    ];
+                    connections:
+                    [
+                        store::PersonDatabase:
+                        [
+                            environment: store::CteConnection
+                        ]
+                    ];
+                }
+                """.formatted(backend().type(), backend().specificationAndAuth());
+    }
+
     @Override
     protected String getCompletePureModelWithRuntime() {
-        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS + "\n" + UNIONED;
+        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS + "\n" + UNIONED + "\n" + cteRuntime();
     }
 
     private static int count(String sql, String pattern) {
@@ -136,6 +168,17 @@ class LetSharingTest extends AbstractDatabaseTest {
         assertEquals(List.of(List.of(1, 30), List.of(2, 28), List.of(3, 45)),
                 result.rows().stream().map(r -> List.of(((Number) r.get(0)).intValue(),
                         ((Number) r.get(1)).intValue())).toList());
+    }
+
+    @Test
+    @DisplayName("under the engine's CTE extraction a query's subqueries are its, on the product's road as on the test"
+            + " road: the let read twice not shared (the second review's finding 1, 2026-11-06)")
+    void theEnginesCteExtractionNamesTheSubqueriesOnTheProductsRoad() {
+        String q = "test::selfJoined(" + PEOPLE + ")->sort(ascending(~ID))->from(test::CteRuntime)";
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(getCompletePureModelWithRuntime()), q)
+                .plan("test::CteRuntime").sql();
+        assertFalse(sql.contains("__let"), sql);
+        assertTrue(sql.contains("subquery_cte_"), sql);
     }
 
     @Test

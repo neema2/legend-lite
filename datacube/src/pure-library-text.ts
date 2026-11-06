@@ -2458,7 +2458,7 @@ function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K�
 // The rows forms to date (W5, 2026-11-06), \`all\` in #TS: each its line form's table function over t's rows from the
 // key's first, its ramp the line form's (a count of the window's values, so t's rows before the value's first point,
 // which hold none, count for nothing -- the prefix rule), the answer a point where the value is, the D8 check in it;
-// zscores' window the whole line, as its line form's.
+// zscores' window to date too, as its line form's (A4, 2026-11-06).
 function timeseries::rows::mean<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::mean(over($key, [$date->ascending()], rows(unbounded(), 0)), $value, 1, ~rows_m)

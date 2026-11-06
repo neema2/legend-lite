@@ -156,7 +156,8 @@ public final class TsParser {
                 Token before = i > 0 ? lexed.get(i - 1) : null;
                 boolean call = before != null && (before.kind() == Kind.QUOTED_IDENT
                         || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
-                String refused = before != null && call && before.kind() == Kind.IDENT
+                // a quoted name too ("log"(x)): the reader calls the same function (the second review's finding 3)
+                String refused = before != null && call
                         ? REFUSED_CALLS.get(before.text().toLowerCase(java.util.Locale.ROOT)) : null;
                 if (before != null && refused != null) {
                     throw invalid(refused, before.pos());
@@ -449,20 +450,36 @@ public final class TsParser {
         if (series.isEmpty() || fromAt < 0) {
             return null;
         }
+        // a JOIN is SQL's alone (#TS has none): its ON a join's condition, never a source's dating
+        boolean joins = depthZero(fromAt + 1, tokens.size() - 1, t -> t.is("join")) >= 0;
         int end = depthZero(fromAt + 1, tokens.size() - 1, t -> t.is("where") || t.is("group") || t.is("order")
-                || t.is("limit") || t.is("having") || t.is("window") || t.is("union") || t.is("on")
+                || t.is("limit") || t.is("offset") || t.is("fetch") || t.is("having") || t.is("window")
+                || t.is("union") || t.is("except") || t.is("intersect") || !joins && t.is("on")
                 || t.is("sample") || t.is("fill") || t.is("filter"));
         int stop = end < 0 ? tokens.size() - 1 : end;
         if (stop < tokens.size() - 1 && (tokens.get(stop).is("on") || tokens.get(stop).is("sample")
                 || tokens.get(stop).is("fill") || tokens.get(stop).is("filter"))) {
             return null;
         }
-        for (int[] slice : split(fromAt + 1, stop)) {
-            Token name = tokens.get(slice[0]);
-            boolean alone = slice[1] - slice[0] == 1 || slice[1] - slice[0] == 2
-                    || slice[1] - slice[0] == 3 && tokens.get(slice[0] + 1).is("as");
-            if (name.kind() != Kind.IDENT || !series.contains(name.text()) || !alone) {
-                return null;
+        if (joins) {
+            // each relation of the join tree a series query's name: the one after FROM, a comma or a JOIN
+            for (int i = fromAt; i < stop; i = depthZero(i + 1, stop, t -> t.is("join") || t.kind() == Kind.COMMA)) {
+                if (i < 0) {
+                    break;
+                }
+                Token name = tokens.get(i + 1);
+                if (name.kind() != Kind.IDENT || !series.contains(name.text())) {
+                    return null;
+                }
+            }
+        } else {
+            for (int[] slice : split(fromAt + 1, stop)) {
+                Token name = tokens.get(slice[0]);
+                boolean alone = slice[1] - slice[0] == 1 || slice[1] - slice[0] == 2
+                        || slice[1] - slice[0] == 3 && tokens.get(slice[0] + 1).is("as");
+                if (name.kind() != Kind.IDENT || !series.contains(name.text()) || !alone) {
+                    return null;
+                }
             }
         }
         List<Token> statement = new ArrayList<>(tokens.subList(at, tokens.size() - 1));

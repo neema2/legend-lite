@@ -41,11 +41,17 @@ public final class TsSql extends PostgresDialect {
 
     @Override
     public SqlToPure.Tx binary(SqlAst.Binary b, SqlToPure.At at) {
-        if (b.op() != SqlAst.BinaryOp.DIVIDE) {
+        if (b.op() != SqlAst.BinaryOp.DIVIDE || nonzero(b.right())) {
+            // a divisor written as a number other than 0 is never 0: Postgres's own, its constant's width checked
             return super.binary(b, at);
         }
         SqlAst.Expr divisor = new SqlAst.FunctionCall(List.of(new SqlAst.Ident("nullif", false, b.pos())),
                 List.of(b.right(), new SqlAst.IntegerLit(BigInteger.ZERO, b.pos())), false, false, b.pos());
         return super.binary(new SqlAst.Binary(b.op(), b.left(), divisor, b.pos()), at);
+    }
+
+    private static boolean nonzero(SqlAst.Expr e) {
+        return e instanceof SqlAst.IntegerLit i && i.value().signum() != 0
+                || e instanceof SqlAst.NumericLit n && n.value().signum() != 0;
     }
 }

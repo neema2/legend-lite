@@ -677,7 +677,10 @@ does not finish in 300 s**, with or without them: its statement shares eleven re
 times, one 16), and ClickHouse 25.8 has no materialized common table expression (`AS MATERIALIZED` is a syntax error
 there), so it evaluates each at each read, the reads of the nested ones multiplying. Left: a ClickHouse shape for a
 shared relation read many times (a temporary table the plan stages first, as a write stages its rows), measured on
-spec-15 before it is built.
+spec-15 before it is built. One cost to measure before ClickHouse serves real tables (the second review, 2026-11-06):
+the setting is the whole statement's, so on a MergeTree table a filter above lite's subselects or joins may no longer
+reach the read step and lose its key and partition pruning -- only Memory tables in `clickhouse local` were measured,
+and no automated test runs ClickHouse (core has none; the PCT lanes are manual).
 
 
 ### W10. Defects found on the way, not yet fixed

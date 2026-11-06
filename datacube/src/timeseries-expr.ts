@@ -160,9 +160,10 @@ export const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
   zscores: {
-    label: 'Z-score', family: 'Rolling statistics', unit: 'number', params: { w: 'observations in the window; 0 every observation' },
-    about: 'How many standard deviations from the mean: over the last w observations, or (0) every one.',
+    label: 'Z-score', family: 'Rolling statistics', unit: 'number', params: { w: 'observations in the window, all, or whole' },
+    about: 'How many standard deviations from the mean: over the last w observations, or every one to date.',
     gsQuant: 'statistics.zscores', aliases: ['zscore', 'z'],
+    differs: 'no window: to date (gs-quant: the whole series; whole is gs-quant\'s)',
   },
   // by each window's rows (the expert functions, 2026-10-26): a self-join of each date to its window's
   percentiles: {
@@ -185,7 +186,8 @@ export const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   winsorize: { level: 'keeps',
     label: 'Winsorize', family: 'Rolling statistics', unit: 'same', params: { limit: 'standard deviations from the mean it is held within' },
-    about: 'Held within limit standard deviations of its mean over every observation.', gsQuant: 'statistics.winsorize',
+    about: 'Held within limit standard deviations of its mean to date.', gsQuant: 'statistics.winsorize',
+    differs: 'to date (gs-quant: the whole series; whole is gs-quant\'s)',
   },
   // risk
   volatility: {

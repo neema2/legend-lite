@@ -96,8 +96,9 @@ public final class Compiler {
         try {
             java.util.Set<String> known = new java.util.HashSet<>(bootFqns());
             known.addAll(lib.names());
-            Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed, known, null), null,
-                    lib.model().elements());
+            ParsedModel resolved = NameResolver.resolveAlongside(parsed, known, null);
+            refuseAssociationsOfTheLibrary(resolved, lib);
+            Layer layer = normalizeWithSystem(resolved, null, lib);
             return PureModelContext.from(layer.model(), layer.index(), null, lib.checked().without(layer.adopted()),
                     com.legend.lowering.PlatformRegistrations.current());
         } catch (com.legend.error.ModelException e) {
@@ -117,7 +118,32 @@ public final class Compiler {
      * A LIBRARY LAYER: its own elements as Phase E left them, the integrity of the library and the boot layer under
      * it (checked once, the library against the boot layer), and the names a model over it may use.
      */
-    private record Library(NormalizedModel model, PureModelContext.CheckedLayer checked, java.util.Set<String> names) {
+    private record Library(NormalizedModel model, PureModelContext.CheckedLayer checked, java.util.Set<String> names,
+            java.util.Set<com.legend.model.FunctionId> adopted, java.util.Set<String> classes) {
+    }
+
+    /**
+     * An association of a model over a library with a library class at an end is refused by name: the one text adds
+     * its properties to that class, and the library's class is the layer's, held for every model over it (the second
+     * review's finding 6, 2026-11-06). The fix: the association in the library, or the one text.
+     */
+    private static void refuseAssociationsOfTheLibrary(ParsedModel resolved, Library lib) {
+        for (com.legend.model.PackageableElement el : resolved.elements()) {
+            if (el instanceof com.legend.model.AssociationDefinition ad) {
+                for (com.legend.model.AssociationDefinition.AssociationEndDefinition end
+                        : List.of(ad.property1(), ad.property2())) {
+                    String target = end.targetClass() instanceof com.legend.protocol.TypeExpression.NameRef n ? n.name()
+                            : end.targetClass() instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
+                    if (target != null && lib.classes().contains(target)) {
+                        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                                "association '" + ad.qualifiedName() + "' names the library's class '" + target
+                                        + "': a model compiled over a library adds no property to the library's"
+                                        + " classes -- declare the association in the library, or compile the one text",
+                                ad.qualifiedName());
+                    }
+                }
+            }
+        }
     }
 
     private static Library library(String text) {
@@ -125,13 +151,29 @@ public final class Compiler {
             ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.Dialect.LEGEND_LITE);
             // the library alone over the boot layer, checked strictly (a library that does not compile is refused
             // whole, as compileModel refuses a model): the layer's own elements, then the boot layer's
-            Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed, bootFqns(), null), null, List.of());
+            Layer layer;
+            PureModelContext checked;
+            try {
+                layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed, bootFqns(), null), null, null);
+                checked = PureModelContext.from(layer.model(), layer.index(), null,
+                        boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
+            } catch (com.legend.error.ModelException e) {
+                // placed in the library's text, as compileModel places a model's (the second review, 2026-11-06)
+                java.util.Optional<String> where = e.element() == null ? java.util.Optional.empty()
+                        : parsed.position(e.element());
+                if (where.isEmpty()) {
+                    throw e;
+                }
+                throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            }
             NormalizedModel own = new NormalizedModel(List.copyOf(layer.model().elements().subList(0, layer.own())),
                     layer.model().imports(), layer.model().legacySurfaces());
-            PureModelContext checked = PureModelContext.from(layer.model(), layer.index(), null,
-                    boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
             java.util.Set<String> names = new java.util.LinkedHashSet<>();
+            java.util.Set<String> classes = new java.util.LinkedHashSet<>();
             for (com.legend.model.PackageableElement el : parsed.elements()) {
+                if (el instanceof com.legend.model.ClassDefinition) {
+                    classes.add(el.qualifiedName());
+                }
                 // a model over the library names its elements as NameResolver knows a graph's own: by path, and a
                 // function also by its signature's id
                 names.add(el.qualifiedName());
@@ -139,7 +181,8 @@ public final class Compiler {
                     names.add(com.legend.model.SignatureMangle.mangle(fd));
                 }
             }
-            return new Library(own, PureModelContext.layerOf(checked), java.util.Collections.unmodifiableSet(names));
+            return new Library(own, PureModelContext.layerOf(checked), java.util.Collections.unmodifiableSet(names),
+                    java.util.Collections.unmodifiableSet(layer.adopted()), java.util.Collections.unmodifiableSet(classes));
         });
     }
 
@@ -512,15 +555,16 @@ public final class Compiler {
      */
     private static Layer normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls) {
-        return normalizeWithSystem(resolved, walls, List.of());
+        return normalizeWithSystem(resolved, walls, null);
     }
 
     /** {@link #normalizeWithSystem(ParsedModel, Map)} over a library's prepared elements too ({@link Library}): they
      *  join the normalized model after the graph's own and before the boot layer's, as a library's text after a model's
-     *  would. */
+     *  would -- the boot functions the library adopted kept out as the graph's are, and its legacy surfaces joined. */
     private static Layer normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls,
-            List<com.legend.model.PackageableElement> library) {
+            @com.legend.base.Nullable Library lib) {
+        List<com.legend.model.PackageableElement> library = lib == null ? List.of() : lib.model().elements();
         Boot boot = boot();
         ParsedModel graph = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
                 withoutPreludeShadows(resolved));
@@ -559,14 +603,16 @@ public final class Compiler {
         elements.addAll(library);
         for (com.legend.model.PackageableElement el : sys.elements()) {
             if (!(el instanceof com.legend.model.FunctionDefinition fd
-                    && adopted.contains(com.legend.model.FunctionId.of(fd)))) {
+                    && (adopted.contains(com.legend.model.FunctionId.of(fd))
+                            || lib != null && lib.adopted().contains(com.legend.model.FunctionId.of(fd))))) {
                 elements.add(el);
             }
         }
         // the compiled mappings carry their own facts (poisons, unions, the
         // nullable census) — the layer union has nothing else to merge
         return new Layer(new NormalizedModel(elements, user.model().imports(),
-                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index(), adopted, graphs);
+                union(user.model().legacySurfaces(), lib == null ? sys.legacySurfaces()
+                        : union(lib.model().legacySurfaces(), sys.legacySurfaces()))), user.index(), adopted, graphs);
     }
 
     private static <V> java.util.Map<String, V> union(

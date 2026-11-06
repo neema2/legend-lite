@@ -41,7 +41,7 @@ from . import _host
 from ._library import Library, library
 from ._pool import library_thread
 
-from ._planner import KINDS, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
+from ._planner import KINDS, OVER, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
@@ -97,12 +97,13 @@ class InterfaceMismatch(RuntimeError):
 def check_interface(bundle_kinds: list[str], lib: Library) -> None:
     """The bundle's request kinds against ``KINDS``, and each function ``KINDS`` names against the library's exports."""
     sent, answered = set(bundle_kinds), set(KINDS)
-    missing = sorted(k for k in KINDS if not lib.exports(KINDS[k][0]))
+    functions = [f for f, _ in KINDS.values()] + [f for f, _ in OVER.values()]
+    missing = sorted(f for f in functions if not lib.exports(f))
     if sent != answered or missing:
         raise InterfaceMismatch(
             "DataCube's bundle and legend-lite's native library do not agree on the planner's requests: "
             f'the bundle sends {sorted(sent)}; this host answers {sorted(answered)}'
-            + (f'; the library exports none of {[KINDS[k][0] for k in missing]}' if missing else ''))
+            + (f'; the library exports none of {missing}' if missing else ''))
 
 
 class Headless:
