@@ -13,11 +13,13 @@ rulings constrain everything here, is `docs/TS_TIME_MODEL_2026_11_02.md`.
 
 ## 0. Start here
 
-1. `git fetch origin claude/timeseries-language && git checkout claude/timeseries-language`. The work in this
-   document ends at `8b948df5d`, plus the commit that adds this document.
+1. `git fetch origin claude/timeseries-language && git checkout claude/timeseries-language`. The code in this
+   document ends at `8b948df5d`; the commits after it add this document and its homework.
 2. Read §2, the user's rules. They have been broken before, and each break cost the user something.
-3. Read §3. One decision waits on the user. **Ask it before building anything it touches.**
-4. Build the harness (§9). Every claim below can be re-measured with it in a few minutes.
+3. Read §3. Decisions wait on the user: the newest in §3, the older ones of the program in §3b. **Ask before building
+   anything one touches.**
+4. Build the harness (§9). Every claim below can be re-measured with it in a few minutes. §13 is the research this
+   session did that no other document holds: read it before designing anything about windows, databases or ClickHouse.
 5. Pick the next item from §8. Each has a brief: the goal, the design so far, the files, the traps, and how to prove
    it.
 6. Before a commit, run the checks in §11, one target at a time, and put their times in the commit message.
@@ -132,6 +134,26 @@ Each was learned the hard way. They are the program's §7, repeated here because
 - **The stop hook** demands that uncommitted work be committed and pushed. Keep the tree clean between steps.
 - **Never `git stash` or swap files** while a test or gate is running (see the equivalence method in §9).
 - **When the user asks for an expert answer,** the bar is the hand-written SQL, the answers held equal, measured.
+- **Keep building; don't wait.** The user, 2026-11-03: "Are we done with the roadmap? If not, keep going don't stop",
+  then "why are you not finishing the roadmap?". Stop only for what truly needs the user (a ruling, a push outside this
+  branch). While a question waits, build what does not depend on it. And build, don't only report: "So can we do this
+  for real instead of keep talking about it?" (2026-11-04).
+- **Check the algorithm before adding a cache.** The user, 2026-11-03: "Before you apply memos/caching - we need to
+  check first if our algos are right and the cache is just masking symptoms". Count the repeated work and find why it
+  repeats first. spec-15's 7 s was exactly that: name resolution copying a shared graph (§10), fixed at the root, not
+  memoized.
+- **Measure before building what was approved, and say when you change course.** On 2026-11-04 the approved "items as
+  columns" was measured at ~2 ms of a 37 ms run, so windows sharing a level was built first and the change reported
+  plainly ("The second item isn't what you approved, though"). The user accepted it. Do the same: measure, then say so.
+- **Lite-only constructs are acceptable when they buy the right SQL** (the user, 2026-11-04: "I don't mind lite only
+  constructs if it gets us to the right SQL"), each still posted and registered. In the event none was needed: the
+  period key is upstream Pure (§13).
+- **ClickHouse matters.** The user, 2026-11-04: "We do have massive demand for clickhouse". A design that is good on
+  DuckDB and impossible on ClickHouse is not done (§8 W9, §13).
+- **CI through #81.** On 2026-11-03 the user said "Add it to 81 if you want a CI run": this branch's commits were
+  fast-forwarded onto #81's branch, `claude/timeseries-platform`, for full CI runs, never a new PR. The last such run was
+  at `e7a29db6` (52 of 52 checks green, 2026-11-04 00:59). The eleven code commits since (`b7d69d98b` to `8b948df5d`, §4)
+  have had no CI on any OS but this container's Linux. Ask the user before pushing them to #81's branch: that word was given in that session.
 
 ## 3. Decision waiting on the user: ask first
 
@@ -171,6 +193,22 @@ are not.
 **Also not decided:** whether Snowflake gets SelectMerge and SelectLayers. Snowflake is one of the program's three
 databases (P4), but it is rendered and never run here, so a change to its SQL cannot be checked against an answer.
 Today only DuckDB, H2, SQLite and Postgres have them. Ask before enabling them on a dialect this container cannot run.
+(ClickHouse it can run, through `clickhouse local`: see W9.)
+
+## 3b. Older decisions still waiting on the user
+
+Asked between 2026-11-03 and 2026-11-04, never answered; the user's later "Agree on everything else and order" was
+about the four items of that message, not these. Each blocks the named item only. Re-ask each one, briefly, when its
+item comes up.
+
+| Blocks | The question | Asked | Recommended |
+|---|---|---|---|
+| A5, the library's text off the wire | How the planner gets the timeseries library instead of each client sending 279–313 KB with every model: (a) built into the planner, every page's planner download +45 KB; (b) built in on the server, fetched on first use in the browser; and either way (c) compiled once per process as a pre-built layer, like the built-in functions (cuts most of the ~2 s first compile). The tenet note: the library is a project, not platform stdlib, so the planner loading it is resolving a dependency. | 2026-11-03 | (b) + (c) |
+| A3 step 3 (and so steps 4–5) | `docs/TS_A3_ONE_READER_PLAN_2026_11_03.md` §3 decisions 4 and 5: what `/` gives where the divisor is 0, and what a comparison gives. | 2026-11-03, again 2026-11-04 | 4(a) nothing at 0, a register row; 5(a) true/false |
+| A3 | The same plan's decisions 1 to 3. Decision 2 (a word's facts as library tags) was built as recommended in step 1, after saying "tell me if you want otherwise"; no objection came. 1 and 3 are unasked in practice. | 2026-11-03 | 1(a), 2(a), 3(b) |
+| A4, the words' remainder | The one-tree plan's §9 R1 (§4.1 and §4.2, row by row) and R9 (two lines meeting: the dates both have, gs-quant's step, or pandas' union). R7 is ruled and built. | 2026-11-01 | as that plan recommends |
+| B7 | P2: the page period, option D with every tile zooming, read from "Yes do it"; to be confirmed. | 2026-11-01 | D |
+| W6's merge | Whether a `let` written once as a `WITH` needs a register row. Rows never change; only a relation that is not fixed (a `limit` with no sort, a random value) now gives the same rows at every read, which matches Pure's `let` and the engine's single evaluation. | 2026-11-04 | no row; say why in the merge's commit |
 
 ## 4. What was built, 2026-11-03 to 2026-11-04
 
@@ -327,8 +365,22 @@ Use the same methods.
    - `TsIslandTest.aSpanBackIsAsOfThatDateAndADateWindowRunsFromIt`: sum since a date, lag over 2d.
    - `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`.
    - `SelectLayersTest`: each case checked on DuckDB against a hand-written query.
-6. **The gs-quant oracle** (`tools/ts-oracle/oracle.py`) was not run in this session; gs-quant is not installed here.
-   Its install is in `docs/TS_V1_PROGRAM_2026_11_01.md` §8.
+6. **The gs-quant oracle** (`tools/ts-oracle/oracle.py`): every gallery and example-page series recomputed by
+   gs-quant itself and compared point by point. Run on 2026-11-03 (before and after R7 part 3) and again on 2026-11-06
+   over the answers `8b948df5d` wrote: **AGREE 145, DIFFER 1, NO-GSQUANT 39, NOT-CHECKED 25** every time
+   (`data/oracle_2026-11-06.txt`). The one DIFFER is known and ruled: `compare(close[SPX], mean(close[SPX], 200))` on
+   the first 200 dates, where gs-quant's step backfills the mean (R12, `docs/TS_GSQUANT_ORACLE_2026_11_01.md`). Its
+   input is written by `//datacube:timeseries_ts_parity_test`, so run that first, then (about 2 minutes):
+
+   ```bash
+   python3 -m venv "$SCRATCH/gsq" && "$SCRATCH/gsq/bin/pip" install -q gs-quant==2.2.3     # once; several minutes
+   "$SCRATCH/gsq/bin/python" -I tools/ts-oracle/oracle.py \
+       bazel-testlogs/datacube/timeseries_ts_parity_test/test.outputs/oracle-input.json > "$SCRATCH/oracle.txt"
+   tail -1 "$SCRATCH/oracle.txt"     # AGREE 145, DIFFER 1, NO-GSQUANT 39, NOT-CHECKED 25
+   ```
+
+   **Its limit:** it covers the gallery's series, which are almost all integer windows, so it says little about
+   calendar windows (method 2 does). Rerun it after any library change all the same.
 
 ## 8. Next work, in order, each with a brief
 
@@ -456,6 +508,23 @@ ported in `4c3a2cfbe`.
 - Keep one implementation. The port left out #83's grid-report case of `SharedRelationsInPlace.binds`, because this
   stack has no BodyPlanner, ProductStatements or GridReport.
 - The parser-equivalence ratchet moved +2 for the ported tests on both branches.
+- **That branch's gate is owed.** Its first full `//gates:core` + `//gates:checks` run found 13 failures,
+  all fixed in `564f98829` (one real bug: a bare read of a single table or raw grid made a `WITH` broke the grid's
+  column report, `TaggedListTest`; four guard findings; #83's own stale `native-claims.tsv`, regenerated in
+  `cffdfcb34` and labelled as #83's; seven Postgres targets that cannot run as root). The rerun was stopped on
+  2026-11-04 to free the checkout and never finished. Also owed: the PCT and corpus lanes on DuckDB and H2, one at a
+  time, because those nest a statement's `WITH` inside larger statements.
+- **#83 has moved on.** Its branch, `claude/wizardly-dirac-rw6tim-seam`, is past the base `claude/cte-let-sharing` sits
+  on (`bf5b2ab43` on 2026-11-06), so that branch needs rebasing or merging before its gate means anything.
+- **Why H2 copies a shared relation back in place:** H2 loses a bound parameter's value inside a `WITH` that another
+  `WITH` reads. So on H2 a shared relation that binds a parameter is written at each read
+  (`SharedRelationsInPlace.bindingAValue()`). MongoDB has no `WITH` at all, so it writes every shared relation in place.
+- **The register numbers collide.** #83's branch has its own rows S129 to S141 (its S129 is "legend-pure evaluates
+  every `let` once", S130 a PCT feature-flag input, S131 to S133 test-judge rows, and so on). This branch's S129 to S133
+  (§12's glossary) mean other things. `main` stops at S127. Whichever lands second renumbers its rows past the other's
+  last, and every citation with them: `git grep -n "S129\|S13[0-3]"` finds them in about 20 files, including
+  `projects/timeseries/model.pure` (so regenerate `datacube/src/pure-library-text.ts`), `WindowFrame`, `FrameGuard`,
+  `SignatureMangle`, their tests, `TENET_CHARTER.md` and the TS documents. This document cites them too.
 
 ### W7. Main moved
 
@@ -477,6 +546,46 @@ These are in `docs/TS_V1_PROGRAM_2026_11_01.md` §6:
   - the guide brought up to the rulings.
 - **A10**, and **B1–B8** after Part A.
 
+### W9. ClickHouse
+
+**Why.** The user: "We do have massive demand for clickhouse" (2026-11-04). The calendar windows were redesigned that
+day so that ClickHouse could run them (§13), but lite's own timeseries SQL has never been run on ClickHouse.
+
+**What is known:**
+
+- ClickHouse 25.8 runs here with no server: `clickhouse local`, the binary of `@embedded_clickhouse`
+  (`probes/databases.sh.txt` says where). The repository's own ClickHouse runs are the manual PCT suites
+  (`//pct:pct_clickhouse*`, through `testing/.../EmbeddedClickHouse`); no core or datacube test runs ClickHouse.
+- The period-key frame is exact on ClickHouse (3, 6 and 12 months, every business day 2020–2024).
+- The pairs trade by hand on ClickHouse (`clickhouse/pairs_key_frames.sql`): 2,376 characters, 0.04 s, all 522 dates
+  equal to DuckDB's hand-written answer to about 1e-14. **That precision needs the `Stable` aggregates**
+  (`varSampStable`, `covarSampStable`, `stddevSampStable`); the plain ones are faster and agree only to 1e-11. Lite's
+  ClickHouse dialect already writes the `Stable` ones.
+- An earlier form, running totals less the totals as of the window's start found by `ASOF JOIN`
+  (`clickhouse/pairs_running_totals.sql`), also answers, at 3,418 characters, 0.24 s and 4e-11: subtracting two large
+  running sums loses precision, and on long intraday histories it would grow. Don't use it where a frame works.
+- SelectMerge and SelectLayers are not enabled for ClickHouse.
+
+**The work:**
+
+1. Render every documents example for ClickHouse and run it in `clickhouse local` over the documents' seeded data
+   (exported with the harness), compared with DuckDB's answers by `compare_answers.py.txt`. A small harness beside
+   `AllAnswers` that takes a dialect is the likely shape. Note each example that is refused and why.
+2. Then measure SelectMerge and SelectLayers on ClickHouse with the same comparison, and ask the user before enabling
+   them (§3).
+3. ClickHouse's window functions differ: `lagInFrame` needs an explicit frame and a `toNullable` argument to give NULL
+   on the first row (see the hand-written query). Check that the dialect's LAG matches.
+
+### W10. Defects found on the way, not yet fixed
+
+- **SQLite's date-time join holds a window's first day** (a closed start), where the window is open at its start. The
+  date-time calendar windows still use the join form (only dates moved to the period key), so SQLite answers a
+  date-time calendar window with one row too many wherever a row falls exactly on the start. Found by
+  `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`'s work (`b7d69d98b`'s message).
+- **SQLite's correlation** is written from running sums and is about 8e-9 from the two-pass figure on a window of three.
+  Within the frozen answers' tolerance, but worse than the other databases.
+- Neither has a register row or a test that pins it. Post each to the user before fixing (upstream fidelity).
+
 ## 9. The toolkit
 
 All of it is in `docs/ts-sql-homework/`:
@@ -497,9 +606,25 @@ All of it is in `docs/ts-sql-homework/`:
 - **`scripts/ctes.py.txt`:** a statement's CTEs, each with its joins, the CTEs it reads, and its windows.
 - **`scripts/jfr_aggregate.py.txt`:** self and inclusive time per method from `jfr print` output.
 - **`scripts/duckdb_profile_ops.py.txt`:** operator time from DuckDB's JSON profile.
-- **`data/spec13_by_hand.sql`:** the expert's spec-13.
+- **`scripts/sql_repeats.py.txt`:** for one SQL file: its reads of `prices`, SELECTs, JOINs, GROUP BYs and windows;
+  its subqueries and how many are distinct with aliases normalised; the size it would have if each distinct subquery
+  were written once; and the most-repeated subqueries. This is what found the 23.9M-character SQL's 9,188 reads and
+  280 copies of one block.
+- **`data/spec13_by_hand.sql`:** the expert's spec-13 (regr_slope/regr_intercept, 2,185 characters).
+- **`data/spec13_by_hand_covvar.sql`:** the same with covariance over variance, as the library writes it; it agrees with
+  the first to 1e-14.
 - **`data/equivalence_queries.sql`:** the 13 queries of §7.
 - **`data/examples_2026-11-04.tsv`:** every example's figures at `8b948df5d`.
+- **`data/oracle_2026-11-06.txt`:** the gs-quant oracle's report over `8b948df5d`'s answers (§7 method 6).
+- **`probes/`:** the window-frame probes of 2026-11-04, each one Java file run in source mode against a JDBC URL:
+  - `Frames.java.txt`: three spellings of a 6-month frame (closed, "less a day", closed minus the start date's rows)
+    against the true `(d − 6mo, d]`;
+  - `MonthKey.java.txt`: the period key's numeric frame for 3, 6 and 12 months against the truth;
+  - `PerRow.java.txt`: whether a frame bound may be a column (a width that varies by row);
+  - `databases.sh.txt`: how to start each of DuckDB, H2, SQLite, Postgres 16, MariaDB 11.4, MySQL 8.4, Trino 483 and
+    ClickHouse 25.8 in this container from binaries Bazel already fetched, no Docker, and run a probe on all of them.
+- **`clickhouse/`:** the pairs trade by hand for ClickHouse, both forms of §13 and W9, and `export.sql`, the query whose
+  rows (KO and PEP from the documents' data) they read.
 
 Setup:
 
@@ -621,6 +746,30 @@ with "No such file".
   - LAG over tied ORDER BY keys returns different rows from run to run.
 - **MySQL and MariaDB take no expression as a frame offset** (S129), so calendar windows are refused there by name.
 
+**Measured and rejected**
+
+- **Writing the executed SQL compactly** (no indentation): 31% fewer bytes, no time saved (82K vs 89K characters,
+  ~570 vs ~540 ms on spec-13 at the time). The plan's one SQL text is both what runs and what is shown, so it would
+  need two texts per plan, and editing rendered SQL afterwards is forbidden (invariant 3). Not built; the user was told.
+- **A "moments" rework** (each window's count, Σx, Σy, Σx², Σxy once, every statistic derived from them): proposed and
+  withdrawn on 2026-11-04. It replaces the databases' careful aggregates (`var_samp`, `covar_samp`, `regr_slope`) with
+  differences of running sums, which lose precision (4e-11 on ClickHouse, worse on long histories), and with frames the
+  per-word cost is two window calls over one sort. Sums belong only in a dialect that cannot do frames.
+- **Per-database window spellings** ("less a day" on DuckDB and Postgres, closed minus the start date's rows on MySQL,
+  Trino and H2, running totals with `ASOF JOIN` on ClickHouse): all measured exact, all superseded by the period key,
+  which is one form everywhere (§13).
+- **Before the translator's lets,** DuckDB spent ~430 ms of a ~540 ms spec-13 run *planning*, nearly all of it in one
+  optimizer pass, filter pushdown, over 26 copies of the duplicate-date check. Deep, repetitive SQL costs DuckDB's
+  planner more than its executor; measure prepare and run separately (`harness.sh profile`).
+
+**The SQL clean-up elsewhere**
+
+- Another session measured core's SQL on 2026-11-04 (`docs/CORE_SQL_SIZE_2026_11_04.md`, on #83's branch): ordinary
+  product queries are lean (median 1.9K characters); the bloat is the generic lowering on deep queries (41 nested
+  levels, every column re-projected, long aliases). The user's recorded order puts "optimize all of our SQL globally"
+  last, after that program's walkers and doors are gone, starting with the system metamodel. The bookkeeping columns
+  of §1 (gap 3) belong to that pass. Don't start a global re-projection pass on this branch without asking.
+
 **Datacube tests**
 
 - **The datacube tests** run their own build of the compiler. Run them after any core change that affects the SQL:
@@ -652,6 +801,8 @@ iq_parity_postgres 80 s, sql_parity_postgres 22 s.
 The Python and view suites, run one at a time at `8b948df5d` on 2026-11-06, passed: `//python:engine_test` 194 s,
 `//python:markets_test` 105 s and `//datacube:timeseries_view_dom_test` 32 s.
 
+`//gates:checks` ran again on 2026-11-06 with this document and its homework in the tree: 149 of 150 pass, 1 skipped.
+
 **The standing checks in the program's §8** are the commands to run before every commit. `//gates:local` is the full
 gate, for A2, A10 and before any landing; a landing needs the user's word (§2).
 
@@ -679,3 +830,130 @@ gate, for A2, A10 and before any landing; a landing needs the user's word (§2).
 - **S132:** a key's count is 1.
 - **S133:** correlation is clamped.
 - **C6.2b:** a frame bound spelled in integers is folded.
+
+## 13. Research this session did that no other document holds
+
+Each finding was measured or read from source on the date given; the probes and queries are in
+`docs/ts-sql-homework/`. Where a commit message also records it, that is named.
+
+### 13.1 Calendar windows: open or closed at the start (2026-11-04)
+
+The library's windows, like gs-quant's, are `(d − 6mo, d]`: open at the start.
+
+| Open start `(t − 6m, t]` | Closed at both ends `[t − 6m, t]` |
+|---|---|
+| gs-quant (`rolling_offset` keeps `index > idx − offset`), pandas (`closed='right'` by default for offsets), Polars (`closed='right'`, calendar months supported) | kdb+ window joins (its docs: "`wj` and `wj1` are both [] interval"; `wj` also counts the value in force when the window opens), every SQL window frame, MongoDB `$setWindowFields` range windows |
+
+It is not cosmetic: on business-day data the date exactly six months back is a trading day on 912 of 1,304 dates
+(2020–2024), so the two conventions differ by one row on 70% of days. Lite follows gs-quant. A closed option could
+come later as a word option. Sources: code.kx.com/q/ref/wj, the pandas and Polars `rolling` references, gs-quant's
+`timeseries/helper.py`.
+
+### 13.2 How each database can write `(d − 6mo, d]` (2026-11-04, `probes/Frames.java.txt`)
+
+Every business day 2020–2024 against the true window computed in Java:
+
+| Database | Closed frame `RANGE INTERVAL 6 MONTH` | "6 months less a day" frame | Closed frame minus the start date's rows |
+|---|---|---|---|
+| DuckDB 1.5.6 | wrong on 912 of 1,304 | exact | exact |
+| Postgres 16 | wrong on 912 | exact | exact |
+| MySQL 8.4 | wrong on 912 | cannot be written | exact |
+| Trino 483 | wrong on 912 | refused | exact |
+| H2 2.1, 2.4 | wrong on 912 | refused | exact |
+| MariaDB 11.4, SQLite 3.47 | no date intervals in frames | | |
+| ClickHouse 25.8 | numeric offsets only | | |
+
+From their documentation, not run: Snowflake takes interval offsets on a date ordering (probably the MySQL/Trino
+group); BigQuery requires a numeric ordering and numeric offsets; MongoDB's range windows include both ends;
+Databricks unchecked. Upstream Pure has date-interval frames (`_range(-6, MONTHS, 0, DAYS)`, which lite renders as
+`RANGE BETWEEN INTERVAL 6 MONTH PRECEDING`), but they are closed at the start, and upstream cannot spell an open start.
+
+**Superseded by 13.3,** which needs none of these spellings.
+
+### 13.3 The period key: one numeric frame on every database (2026-11-04, `probes/MonthKey.java.txt`; `b7d69d98b`)
+
+Key each date by **(year × 12 + month) × 31 + day of month − 1**. Then n months back is exactly 31n less, month ends
+included: six months before August 31st is February's last day (adjust's clamp), and the key of a "February 31st"
+sorts after February 28th and before March 1st, exactly where the clamped date sits. So `(d − n months, d]` is
+`RANGE BETWEEN 31n − 1 PRECEDING AND CURRENT ROW` over the key: a numeric frame, which nearly every database accepts,
+and upstream Pure (`_range(-(span − 1), 0)`), so no divergence.
+
+**Measured exact for 3, 6 and 12 months, every business day 2020–2024, on DuckDB, Postgres 16, MySQL 8.4, MariaDB 11.4,
+SQLite, H2 2.1 and 2.4, Trino 483 and ClickHouse 25.8** — including the three with no interval frames. Days and weeks
+use the day's number; months, quarters and years the month key. `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`
+pins every statistic of the frame against the window worked in Java, on DuckDB, H2 and SQLite.
+
+Limits:
+
+- **MySQL and MariaDB** take no expression as a frame offset (S129), so at `b7d69d98b` these windows were refused there
+  by name. A day later C6.2b folded a spelled offset such as `-(6 * 31 - 1)` into the literal `185`, so they may now
+  run there; nobody has measured it. Do, with the probe recipe, before claiming either way.
+- **Date-times (intraday)** keep the join form. A month window from Aug 31 10:00 goes back to Feb 28 10:00; the key
+  form would drop the readings later on Feb 28, which gs-quant keeps. Settle with the intraday work (B6b).
+- **`percentilesPeriod` and `quantilePeriod`** keep their self-joins: no frame says a rank against every value of the
+  window.
+
+### 13.4 Frame bounds that vary by row (2026-11-04, `probes/PerRow.java.txt`)
+
+`ROWS BETWEEN k PRECEDING` with `k` a column: **DuckDB and H2 2.4 accept it; Postgres 16 refuses ("argument of ROWS
+must not contain variables"); SQLite refuses (the offset must be a number).** This matters for 13.5's case 3.
+
+### 13.5 Business days and holiday calendars (2026-11-04, the user's question)
+
+No redesign is needed; each use is a join with a calendar table, provided windows stay "a sort key, an offset, an
+open or closed start" (which the period key is):
+
+1. **Calendar-time windows (`6mo`, `1y`) do not change.** A holiday has no row, so `(d − 6mo, d]` holds the same rows.
+   Rolling the start back to a business day changes nothing; rolling it forward makes the width vary by row (case 3).
+2. **Business-day windows (gs-quant's `21b` tenors)** get simpler: join the calendar to number each trading day, and
+   `(n − 21, n]` is a plain numeric frame over that number. Use the calendar's number, not a row count: a series with a
+   gap (a halted stock) has fewer rows than business days. Each line takes its own exchange's calendar.
+3. **Starts that depend on the calendar** ("6 months back, rolled forward to a business day", "since the last month-end
+   trading day", fiscal periods) vary the width by row. On DuckDB and H2: the calendar gives each row its start number
+   and the frame reads it (13.4). Elsewhere, for statistics built from sums: running totals less the running total at
+   the window's start, found by an as-of join. Min and max keep the self-join.
+4. **Calendar uses that are not windows are joins too:** `SAMPLE BY` and `FILL` take the calendar as their list of
+   dates (today: weekdays); "as of one business day back" is an as-of join on the trading-day number; annualization
+   counts business days a year from the calendar.
+
+So B6a (calendars, v1.1) adds the calendar's data and the joins that number trading days; no new window machinery.
+
+### 13.6 What the hand-written query relies on (2026-11-04)
+
+The user asked why the generator cannot simply learn the hand-written query's algorithm. The answer, which shaped
+every step of §4: the hand version is several separate moves, each safe only because its writer knew a fact. A
+generator must establish each fact, or be told it, before it may make the move for every query.
+
+| The hand version's move | The fact it relied on | The general rule | Built |
+|---|---|---|---|
+| Defines each step once and reads it by name | `spread`, `z`, `position` are reused | a binding read twice is one `WITH` | `4c3a2cfbe` |
+| No check for two prices on one date | `(symbol, date)` is unique | a declared key proves the check, folded at compile time | `c4afec56d` (S132) |
+| Every item a column of one row stream | the items live on the pair's dates | items of one base on the same dates are columns of one table | `8da2de306`, `a6483bf2f` (R7 part 3) |
+| One select per step | — | merge levels where the answer is kept | `5b7803675`, `8b948df5d` |
+| Literal frames, only the columns it reads | — | fold spelled bounds; drop unread columns | `5b7803675` |
+| `ko − lag(ko)` over the pair's rows | KO and PEP trade on the same days | cannot be established from the query; this is why 2 of the 5 joins remain | — |
+
+### 13.7 ClickHouse (2026-11-04)
+
+ClickHouse is built for billions of events bucketed by time (metrics, logs, ticks rolled into bars); its tools for
+rolling statistics are running totals and `ASOF JOIN`, and it has no date intervals in window frames. Speed was never
+its problem here: both hand-written forms answer the pairs trade in well under a second. The period key (13.3) made
+ordinary frames work on it; W9 has the measurements and the work left.
+
+### 13.8 Planning time (2026-11-03 and 2026-11-04)
+
+- **The gallery's twelve queries, before and after the words moved into Pure** (2026-11-03, median of five, a shared
+  machine): compile 1.24 s → 1.51 s in total (+22%), run 0.66 s → 0.58 s (−12%). `zscores` compile doubled (107 →
+  216 ms), `rsi` and `beta` rose ~60%. The first query of a process costs ~2 s either way (the library loaded once).
+- **Where a warm compile went then** (15–45 ms a query): translating `#TS` 30%, lowering 22% (7% pruning nested
+  subqueries), writing the text 13%, plan bookkeeping 13%, typing the library 12%, store resolution 8%. Typing the
+  library was not the cost.
+- **Growth:** about linear, ~27 ms per item up to 12 items (44, 70, 115, 251, 325 ms).
+- **spec-15's 7.1 s** was one relation of 1,102 nodes typed again and again after name resolution copied its shared
+  graph (§10); `TypedOnce` fixed it at the root (`1922c26d5`). Today: spec-15 ~0.5 s warm, spec-13 0.2–0.3 s.
+
+### 13.9 The side-by-side page
+
+On 2026-11-04 the user was shown a private page with lite's spec-13 SQL beside the hand-written one, each hand step
+matched to its generated piece, and every example's figures: https://claude.ai/artifact/HpVv89ryNVqvpqojuTY9Ra. It
+shows the state at `c4afec56d` (20K characters, ~37 ms); §1 is newer.

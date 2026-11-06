@@ -26,8 +26,8 @@ Every item starts and ends green, and each commit updates §6.
 
 **The SQL track has a handoff** (2026-11-06): `docs/TS_SQL_HANDOFF_2026_11_06.md`. It covers making a `#TS` query's
 SQL close to an expert's hand-written SQL, R7 part 3, planning time and SelectLayers. It has the state, the next work
-with briefs, the measurements and traps, and the tools in `docs/ts-sql-homework/`. Its §3 is a decision waiting on the
-user: ask it before building anything it touches.
+with briefs, the measurements and traps, and the tools in `docs/ts-sql-homework/`. Its §3 and §3b are decisions waiting on
+the user: ask before building anything they touch.
 
 ## 0. What v1 is
 
