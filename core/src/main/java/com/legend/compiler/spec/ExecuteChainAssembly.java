@@ -617,6 +617,7 @@ public final class ExecuteChainAssembly {
      */
     public static List<TypedSpec> narrowSideStamps(List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
+        com.legend.base.RunScope.planning("narrow a side's stamps");
         List<TypedSpec> out = new java.util.ArrayList<>(args.size());
         for (TypedSpec a : args) {
             out.add(narrowSideStamp(a, letPrefix, specs));

@@ -354,6 +354,7 @@ final class SqlTextVerdicts {
             // (the chained-plan warning, the replay routes), so a failed comparison re-runs the arm over the two texts
             // the step read -- the texts compared first, as any equality, the arm's own path only after
             c = c.withRerun((g, o) -> {
+                com.legend.base.RunScope.planning("re-run an engine-text arm over the step's texts");
                 TypedSide arm = armOf(bare, letPrefix, specs,
                         env.withEngineText(new Replaying(g, o, collecting.rowsAhead)), hook);
                 // the arm declining the step's texts: the assert is the plain String equality, which failed
@@ -1561,6 +1562,7 @@ final class SqlTextVerdicts {
     private static TypedSide tdgRowsNow(String name, String golden, String ours,
             boolean textEqual, SqlReplayReferee referee, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env) {
+        com.legend.base.RunScope.planning("the test-data generator's rows leg");
         // batch 64: a hop addressed as $testData.sqls->at(i) carries its
         // hop index and the carrier's generator node — the referee's
         // chained arm replays ancestor temps from the earlier hops'
@@ -2033,6 +2035,7 @@ final class SqlTextVerdicts {
                 .probeSuspended();
         if (ahead == null) {
             // no rows planned with the assert: the stores' setups planned and run now, which a run refuses by name
+            com.legend.base.RunScope.planning("plan an appeal's rows");
             provideStores(appealEnv, mappingFqn);
         } else {
             ahead.provide();
