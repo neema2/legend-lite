@@ -172,7 +172,7 @@ class Compiling(unittest.TestCase):
         self.assertTrue(held['ok'], held)
         handle = _answer(held['answer'])
         try:
-            query = '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.notional))->select(~[desk, twice])'
+            query = '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])'
             typed = lib.call('lite_relation_type_text_held', handle, query)
             self.assertFalse(typed.startswith('ERR\n'), typed)
             self.assertIn('twice', typed)
@@ -182,7 +182,7 @@ class Compiling(unittest.TestCase):
         handle = _answer(alone['answer'])
         try:
             refused = lib.call('lite_relation_type_text_held', handle,
-                               '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.notional))')
+                               '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')
             self.assertTrue(refused.startswith('ERR\n'), 'the model alone has no lib::twice')
         finally:
             lib.call('lite_release_model', handle)
