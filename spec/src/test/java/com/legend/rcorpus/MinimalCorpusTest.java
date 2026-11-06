@@ -242,12 +242,17 @@ public class MinimalCorpusTest {
                     // a hang) still says which test it was in
                     System.out.println("[corpus2] run " + t.fqn());
                 }
+                // the running test, by its function's full name: the walk's door names the bodies still allowed to
+                // walk by it (rcorpus/walk-allowed.txt, 2026-11-06), as channel B names a PCT test
+                System.setProperty("legend.test.current", t.fqn());
                 try {
                     r = corpus.run(t);
                 } catch (Exception e) {
                     r = new MinimalCorpus.Result(t.fqn(), MinimalCorpus.Status.FAIL, 0,
                             "harness: " + e.getClass().getSimpleName() + ": "
                                     + MinimalCorpus.whole(e.getMessage()));
+                } finally {
+                    System.clearProperty("legend.test.current");
                 }
                 ran.add(r.fqn());
                 long movedNow = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
@@ -726,7 +731,12 @@ public class MinimalCorpusTest {
     // text decides them and the referee is not appealed to (the 2026-09-21 rule). Measured against main ac946cf85 with
     // every referee outcome named: every assert's verdict identical, LITERAL 1411 -> 1413, DIFFERENTIAL+literal 841 ->
     // 840, DIFFERENTIAL-only 170 -> 169.
-    private static final int[] PLATFORM_STRENGTH = {1009, 22, 27};
+    // DuckDB differential 1009 -> 990 (2026-11-06, S143, the user's ruling: lite offers no test data generator yet):
+    // the generator's 66 corpus tests no longer walk (rcorpus/walk-allowed.txt) and are accepted non-passes, the
+    // accepted roster's not-offered:test-data-generator rows; 19 of them were passes a referee row verdict witnessed.
+    // Measured after: DIFFERENTIAL+literal 821, DIFFERENTIAL-only 169, SPELLING 22, CARDINALITY 27, LITERAL 1373. The
+    // H2 lane's floor holds as it is (its differential 964 >= 944).
+    private static final int[] PLATFORM_STRENGTH = {990, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a

@@ -20562,3 +20562,32 @@ and `//gates:corpus_h2` green, every roster and register unchanged. **CI on `2bb
 3074 -> 3079, a gain: `RelationCellsSortTest`'s model): all 52 checks green on Linux, Linux-arm, macOS and Windows.
 **PR #83 merged** by the owner (`1aa9a34b`). PCT and core at 100% on the program road under the host and database
 judges, the wall total. What follows: the start page's §10.
+
+## 2026-11-06 — The corpus walk: a named allow list; the test data generator's tests skipped (S143)
+
+The owner's ruling, verbatim: "Agree skip the tests, delete walk then we revisit to build product and maybe that's
+just a java built in if makes sense to think that way". The corpus lanes and tools no longer open the walk to every
+body (`-Dlegend.walk.allowed=all`): they name the bodies still allowed to walk, `spec/src/test/resources/rcorpus/
+walk-allowed.txt` (59, measured at `ae378220`: every body either judge walked on either lane, the test data
+generator's less), as core and PCT did before the walk closed there; the corpus names its running test
+(`legend.test.current`, as channel B does). The list only shrinks; when it is empty the walk is deleted.
+
+The generator's 66 walked tests are refused by name and are accepted non-passes on both lanes
+(`not-offered:test-data-generator(S143)`, witness "no class admits the body"); `testAlloyTestDatGenWithQuotedColumnsForViews`
+fails as before for its own reason (a class query under a runtime `if()`) and stays on DuckDB's fail roster. Measured
+on both lanes, host and database judges green:
+
+- DuckDB: fail roster **108, unchanged**; accepted 20 -> 86; skipped 14 -> 7; the differential floor 1009 -> 990 (19
+  of the generator's passes were referee-witnessed; dated in `MinimalCorpusTest.PLATFORM_STRENGTH`); both
+  engine-order registers lose the generator's 55 rows.
+- H2: fail roster 276 -> 273 (three generator tests that failed on the walk are accepted now); accepted 15 -> 81;
+  skipped 14 -> 7; the differential floor holds (964 >= 944).
+- Both database outside-body registers lose the generator's 34 rows.
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:guardrails`, `//core:census`, `//spec:all` green.
+
+What remains on the walk (`walk-allowed.txt`): 24 bodies both judges walk (metadata reads, DDL and temp tables,
+`loadCsv`, post-processor hooks, paginate and slice with variables, a few failing or verdictless) and 35 only the
+database judge walks: 14 a check statement (a `println`) over a frame the database judge does not run at its let,
+2 an engine-text assert whose expected text is computed (`replace`), and 19 SQL- or plan-text asserts reached
+through helper lets (the relational mapper's, the datetime plan tests', `planToString`, `toSQLString`).

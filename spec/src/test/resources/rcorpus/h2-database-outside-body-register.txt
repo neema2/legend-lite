@@ -2,40 +2,6 @@ meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProjec
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone ||| fallback=2
 meta::pure::tds::tests::extensions::testFirstNotNull ||| fallback=1
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| fallback=1
-meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=21
-meta::relational::testDataGeneration::tests::testConstant ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1 tdg=8
-meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates ||| statement=1 tdg=8
-meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning ||| tdg=8
-meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| statement=2 tdg=16
-meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning ||| tdg=8
-meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| statement=1 tdg=8
-meta::relational::testDataGeneration::tests::testGenerateSeedDataWithQuotedColumns ||| tdg=1
-meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| statement=1 tdg=60
-meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| statement=1 tdg=36
-meta::relational::testDataGeneration::tests::testQualifier ||| statement=1 tdg=36
-meta::relational::testDataGeneration::tests::testSelfJoin ||| statement=1 tdg=30
-meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin ||| statement=1 tdg=20
-meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| statement=1 tdg=16
-meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows ||| statement=1 tdg=16
-meta::relational::testDataGeneration::tests::testSimpleViewRoot ||| statement=1 tdg=17
-meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin ||| statement=1 tdg=20
-meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins ||| statement=1 tdg=64
-meta::relational::testDataGeneration::tests::testTableToTDSSimple ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate ||| statement=1 tdg=8
-meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy ||| statement=1 tdg=4
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy ||| tdg=16
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion ||| statement=1 tdg=45
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable ||| statement=1 tdg=14
-meta::relational::testDataGeneration::tests::testUnion ||| statement=1 tdg=105
-meta::relational::testDataGeneration::tests::testUnionToUnion ||| statement=1 tdg=110
-meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| statement=1 tdg=60
-meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1 tdg=60
-meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1 tdg=38
-meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=17
 meta::relational::tests::ddl::dropAndCreateTable ||| fallback=2
 meta::relational::tests::ddl::dropAndCreateTempTable ||| other=2
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice ||| fallback=1

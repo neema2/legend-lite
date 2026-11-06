@@ -117,9 +117,6 @@ meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSameSpecD
 meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSpecSameAuthDiff
 meta::relational::tds::schema::tests::resolveSchemaTest
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumnsForViews
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMilestoningTable
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMultiTables
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForSingleTable
 meta::relational::tests::advanced::forced::structure::testQualifierWithOperation
 meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation
 meta::relational::tests::advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan

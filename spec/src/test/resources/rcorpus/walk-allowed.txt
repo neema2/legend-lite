@@ -1,0 +1,66 @@
+# THE CORPUS WALK'S ALLOW LIST (2026-11-06): the corpus tests whose bodies may still walk, one function's full name a
+# line, read by the walk's door (core's driver/WalkDoor, -Dlegend.walk.allowed=classpath:rcorpus/walk-allowed.txt in
+# spec/corpus.bzl). A body of any other test is refused by name instead of walked, so nothing new reaches the walk
+# while this list burns to zero; the list only shrinks. Measured at ae378220: the bodies either judge walked on either
+# lane (the host judge 26 of them, the database judge 59), less the test data generator's tests, which the user ruled
+# skipped (2026-11-06, S143: lite offers no test data generator yet; they are accepted non-passes, the
+# accepted rosters' not-offered:test-data-generator rows). When the list is empty the walk is deleted.
+meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperTwoDBs
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperWithJoin
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTableMapper
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone
+meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode
+meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode
+meta::pure::executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes
+meta::pure::executionPlan::tests::testModelConnectionJoin
+meta::pure::tds::tests::extensions::columnValueDifferenceTest
+meta::pure::tds::tests::extensions::rowValueDifferenceTest
+meta::pure::tds::toRelation::testJoinFunc
+meta::pure::tds::toRelation::testJoinUsing
+meta::relational::functions::sqlQueryToString::tests::testTempTableSqlStatementsForH2
+meta::relational::functions::toPostgresModel::tests::testConvertAlias
+meta::relational::metamodel::execute::tests::testExecuteInDbToTDS
+meta::relational::tests::advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan
+meta::relational::tests::ddl::dropAndCreateTable
+meta::relational::tests::ddl::dropAndCreateTempTable
+meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData
+meta::relational::tests::functions::fetchDbMetaData::testFetchDbPrimaryKeysMetaData
+meta::relational::tests::functions::fetchDbMetaData::testFetchDbSchemasMetaData
+meta::relational::tests::functions::fetchDbMetaData::testFetchDbTablesMetaData
+meta::relational::tests::functions::pureToSqlQuery::testReAliasMergedJoinOperations
+meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
+meta::relational::tests::loadCsv::testLoadCsv
+meta::relational::tests::mapping::association::inheritence::testBuilderRoutingOfAggFunctionParameters
+meta::relational::tests::mapping::dates::datetime::testGet
+meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupByComplexAgg
+meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
+meta::relational::tests::mapping::embedded::testExistsWithEmbeddedWithPostProcessor
+meta::relational::tests::mapping::union::testProjectAndFilterSamePropertySameJoinInUnion
+meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements
+meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate
+meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor
+meta::relational::tests::projection::filter::in::testInWithDynaFunction
+meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple
+meta::relational::tests::query::association::mixed::testAssociationMixedDeep
+meta::relational::tests::query::filter::exists::testDupsFilterNoProjection
+meta::relational::tests::query::filter::exists::testNestedExistsOne
+meta::relational::tests::query::paginate::testPaginatedWithVariables
+meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect
+meta::relational::tests::query::slice::testSliceWithVariables
+meta::relational::tests::tds::tdsExtend::testDecimal
+meta::relational::tests::tds::tdsProject::testDateLiteral
+meta::relational::tests::tds::tdsProject::testProjectEnumFromOpenVariable
+meta::relational::tests::tds::tdsProject::testProjectWithAdjustFunction
+meta::relational::tests::tds::tdsRestrict::testRestrictWithPostProcessor
