@@ -779,21 +779,30 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** A branch that IS the raise is cast to the CASE's own type (the raise is an Int64, which a CASE of another type
-     *  refuses). */
+     *  refuses); and the branches share a type as a list's members do ({@link #unified}: a Float literal, a Decimal by
+     *  its digits, beside a computed Float64 is its Float64 -- "There is no supertype for types Decimal(2, 1), Float64"
+     *  otherwise, measured on four of the timeseries documents' examples in ClickHouse 25.8, W9 2026-11-06). */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         SqlType slot = typeOf(c);
+        List<SqlExpr> members = new ArrayList<>();
+        c.whens().forEach(w -> members.add(w.then()));
+        if (c.otherwise() != null) {
+            members.add(c.otherwise());
+        }
+        java.util.function.BiConsumer<SqlWriter, SqlExpr> unify = unified(members);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
+            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot, unify));
         }
         if (c.otherwise() != null) {
-            writer.append(" ELSE ").piece(branch(c.otherwise(), slot));
+            writer.append(" ELSE ").piece(branch(c.otherwise(), slot, unify));
         }
         return writer.append(" END");
     }
 
-    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot) {
+    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot,
+            java.util.function.BiConsumer<SqlWriter, SqlExpr> unify) {
         if (isRaise(e) && slot instanceof SqlType.Array) {
             // a list-typed raise: the raise is the size of an empty list of the slot's type
             String type = castTypeName(slot);
@@ -803,7 +812,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             String type = castTypeName(slot);
             return w -> w.append("CAST(").expr(e, 0).append(" AS " + type + ")");
         }
-        return w -> w.expr(e, 0);
+        return w -> unify.accept(w, e);
     }
 
     @Override

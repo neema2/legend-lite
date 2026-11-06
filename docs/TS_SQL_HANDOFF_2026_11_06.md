@@ -646,6 +646,32 @@ day so that ClickHouse could run them (§13), but lite's own timeseries SQL has 
 3. ClickHouse's window functions differ: `lagInFrame` needs an explicit frame and a `toNullable` argument to give NULL
    on the first row (see the hand-written query). Check that the dialect's LAG matches.
 
+**Step 1 done 2026-11-06.** Every documents example rendered for ClickHouse (a scratch harness beside SqlDump that takes
+a database's name and gives the platform's model a static connection of its type, so nothing connects) and run in
+`clickhouse local` 25.8 over the documents' tables (exported from the seeded DuckDB as CSV, loaded into Memory
+tables), compared with DuckDB's answers by `compare_answers.py.txt` (the headers' letter case aside):
+
+- **26 of the 27 runnable examples agree** with DuckDB, the worst 1.8e-12 (spec-06), most under 1e-13. spec-05 and
+  guide-06 are refused on both (A9's two).
+- **Four failed first** (guide-09, guide-12, spec-15, spec-16): "There is no supertype for types Decimal(2, 1),
+  Float64". The dialect writes a Float literal as an exact Decimal (its numeric charter's Rule 1) and already writes
+  such a member as Float64 where it meets a computed Float64 in a list or `greatest`/`least` (`unified`); a CASE's
+  branches had no such rule (`multiIf(c, 0.0, pow(..) * exp(..))`, productPeriod's). `ClickHouse.caseExpr` now unifies
+  its branches the same way; guide-09, guide-12 and spec-16 then agree.
+- **spec-15 (the 60/40 portfolio) does not finish in 300 s** on ClickHouse (DuckDB: about 80 ms); with SelectMerge
+  and SelectLayers neither (step 2).
+- **Slow without the passes:** spec-14 23 s, guide-14 23 s, spec-01 21 s, spec-13 5.7 s (each including about 0.25 s
+  of start and load), against DuckDB's tens of milliseconds.
+
+**Step 2 measured, not enabled.** SelectMerge and SelectLayers added to the dialect's passes (an out-of-tree build of
+the dialect, nothing committed): SELECTs roughly halve on every example (spec-01 108 -> 59, spec-15 297 -> 174) and
+most run 2-6x faster (spec-14 23.0 -> 4.0 s, guide-14 22.8 -> 4.2 s, spec-01 21.0 -> 8.0 s, guide-08 3.3 -> 0.6 s,
+spec-09 3.0 -> 0.4 s), every answer they give the same. But four examples that ran without them (guide-02, guide-07,
+spec-06, spec-08) then raise the dialect's own date guard ("a date outside the years 1900 to 2299 has no ClickHouse
+value"): a guarded CASE the merge moved is evaluated where it was not before. Probed: ClickHouse short-circuits an
+untaken raising branch in a projection and in a WHERE over a Memory table, so the place is still to find (a join's
+condition is the likely one). Not to be enabled before that is fixed, and the user asked first (§3).
+
 ### W10. Defects found on the way, not yet fixed
 
 - **SQLite's date-time join holds a window's first day** (a closed start), where the window is open at its start. The
