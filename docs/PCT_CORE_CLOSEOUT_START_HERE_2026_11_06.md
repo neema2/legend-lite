@@ -495,14 +495,62 @@ the client said only "Query request failed (attempt: 4)". At 1M the refusal (`TO
 Ask the lane for `dmesg` and a manual `curl --data-binary @stmt.sql` against the server with the harness's URL
 settings to get the server's own error. The limit is back at 1M (`EmbeddedClickHouse.jdbcUrl`).
 
-### 7.6 Why Snowflake takes ~75 minutes
+### 7.6 The cloud-lane speed work (Snowflake): what was found, what was fixed, what is next
 
-It is the matrix: 15 runs (channel A, B under BOTH, B under DATABASE, five suites each), serial. Snowflake costs
-~0.3-0.5 s per statement however small (cloud compile + round trip). Channel B under the DATABASE judge sends 2
-statements per test (the body, and `SET TimeZone` re-sent per test because `CloudBackend.open()` answered a new
-proxy per call so the platform made a new session per test -- fixed in `7c93fbc5`); under BOTH 8 per test. Round 21
-on Snowflake: channel A ~12 min, B BOTH ~41 min, B DATABASE ~21 min; channel B 30-45% slower than rounds 18-19. The
-user: fix the per-test session statement (done), no parallelism yet, the SQL after PCT and core.
+**The question** (the user, 2026-11-05/06): "Pct tests take 75min on snowflake?", then "Channel B pct takes 20 min each
+judge? Sounds insane", then the rulings: **"We should obviously fix the time zone thing as quick win"**, **"No parallel
+yet that masks real problems"**, and **"we are going to have to look at these crazy large sqls after we close pct and
+core"**.
+
+**Where the 75 minutes go.** A Snowflake round is 15 runs, one after another: channel A's five suites (~12 min),
+channel B's five under BOTH (~41 min) and under the DATABASE judge alone (~21 min). Snowflake charges ~0.3-0.5 s for
+any statement however small (its cloud service compiles each one, plus the round trip), and channel B sends:
+
+| | Statements per test (PCT essential, measured on DuckDB with `sql-sizes`, 2026-11-06) | Snowflake essential, round 21 | Per statement |
+|---|---|---|---|
+| DATABASE judge alone | 2 (705 for 345 tests: 358 `body`, 343 `session`) | 301 s | ~0.44 s |
+| BOTH | 8 (2,762: 2,419 `other`, 343 `session`) | 708 s | ~0.26 s |
+
+Timings per suite, Snowflake (the lane's reports): BOTH, round 18 (`9259f2ba`) -> round 21 (`c185b047`): essential
+588 -> 708 s, relation 446 -> 647 s, standard 596 -> 721 s, grammar 255 -> 301 s; DATABASE, round 19 (`79d07cde`) ->
+round 21: essential 270 -> 301 s, relation 239 -> 317 s, standard 351 -> 459 s; channel A flat; run-to-run variance at
+identical SQL ~±10%. So channel B grew 30-45% over three rounds -- single runs, unattributed (the lane offered a
+timestamped `dump-sql` comparison of round 19 against round 21 for relation and standard; it was not needed then).
+
+**The quick win, built (`7c93fbc5`, 2026-11-06).** The per-test `session` statement is `SET TimeZone='UTC'` (DuckDB's
+spelling; each dialect's session settings). It was re-sent before EVERY test because:
+- `CloudBackend.open()` holds one real JDBC connection per suite (a login costs a second or more) but answered a
+  **new unclosable proxy object** on every call;
+- the platform keys its session by the connection object (`TestSessions.over(connection)`, a map from connection to
+  session -- "one session per connection is what the product's memo needs: the seeds established, the session
+  statements run", D66/D70);
+- so channel B (`ChannelB.runOneInner`: `PctBackend.connect()` per test) got a new platform session per test, and the
+  runner sent the target's session statements again.
+
+Channel A had met the same thing and worked around it by caching its own session (`PctBackend.planSessions`,
+`heldSession`, with an audit note). The fix is at the source: `CloudBackend` keeps **one view per held session**
+(`VIEWS`) and answers it every time, so `TestSessions.over` finds the same session for every test and the session
+statements go once per suite; `PctBackend`'s comment updated. Only the cloud lanes (Snowflake, BigQuery, Databricks)
+use `CloudBackend`; the in-process lanes open a fresh private database per test on purpose (isolation), and the
+embedded servers open a new connection per test, where the setting is a local round trip.
+
+**Verifying it (not done yet -- the lanes are blocked until 2026-11-08, §9.2):** on Snowflake, channel B essential under
+the DATABASE judge with `-Dlegend.diagnostics=sql-sizes`: the count of `[sql-size] ... session` lines should fall from
+~343 to about one per suite, and the suite's time from ~301 s toward ~150 s (one statement per test). Check that the
+census is unchanged (a held session's memo now spans tests: a test that changes a session setting would leak into the
+next -- none is known; the cloud lanes run storeless expressions, `CloudBackend`'s class comment).
+
+**What is next for speed, in the user's order** (none before PCT and core close, and no parallelism yet):
+1. Make BOTH plan the DATABASE judge's fused program and drop the DATABASE-alone pass (§4): one channel B pass
+   instead of two, and the shipped shape checked under agreement.
+2. BOTH's 8 statements per test: the host judge's sides are separate statements; once BOTH reads the fused program,
+   the host's sides should come from it (lean SQL).
+3. The statements' size (the instance canon, §6.5), which the 30-45% growth most likely reflects.
+4. Only then, with the SQL understood: running a lane's suites concurrently.
+
+**Two meanings of "parallel" -- do not confuse them.** §9's lanes run **different databases at the same time**, one
+lane session each: that is how every round has been run and it is fine. The user's "no parallel yet" is about running
+**one lane's suites or tests concurrently** (it would hide per-statement cost and ordering problems): not yet.
 
 ### 7.7 Statement counts and sizes: how to measure
 
@@ -565,7 +613,7 @@ the background and poll the log.
 
 ---
 
-## 9. The warm lane sessions: PCT on every database in parallel
+## 9. The warm lane sessions: PCT on every database at once (one session per database group)
 
 ### 9.1 What they are
 
@@ -594,7 +642,7 @@ and Snowflake hit it while their round 22 ran in the background, so they never s
 resets, ask each to report from the logs it already has** (the paths above) before re-running anything. A new session
 from the same account is under the same limit; this session is too.
 
-### 9.3 Running a round in parallel
+### 9.3 Running a round across the lanes (each lane serial inside; see §7.6 on "parallel")
 
 1. Push the candidate commit to the seam branch.
 2. Send every lane its message **at once** (one `mcp__claude-code-remote__send_message` each); they run concurrently,
