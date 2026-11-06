@@ -19891,3 +19891,16 @@ generation bodies back. The H2 corpus was cut short by a container restart and i
 red on its outside-body register (NEW 21: bodies sending the rendered-text arm's ruled fallback statement); the same
 measured at `5eac7e30` for `calendarAggregations::testMtdValue` (`corpus_one h2 database`), so it predates this work --
 the open H2 reconciliation since `de641baf`.
+
+## 2026-11-05 — Two clean-ups: date literals printed at planning; the caller's message an explicit reader
+
+The user (2026-11-05): "Should we have clean datetime for the clean plan?" and the lazy-list trick "instead of the
+param". (1) A date literal's failure-message text is spelled once at planning by the host's own printer and carried as
+a constant (`VerdictSql.Message.literal`); `Repr`'s SQL string-length rule is deleted; a timestamp keeps the one
+timestamp printer. (2) The host judgment takes the caller's message as an explicit reader (`HostJudge.judge(...,
+message)`, `HostSides.Fetched`, `HostSides.message`); the lazily filled list is deleted.
+
+**The database judge's declines on PCT, re-measured at `9b5ea3c3`** (`-Dlegend.diagnostics=judge-declines`, BOTH):
+34 `assertError` bodies (host-judged in every mode, ruling N3) and one mixed-kind collection
+(`testMixedSortNoComparator`: no one kind the database compares); the 2,551 other lines are the host's parallel byte
+channel noting the database judge is the referee, not declines.

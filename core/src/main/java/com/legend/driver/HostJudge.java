@@ -687,6 +687,15 @@ final class HostJudge {
      * judgment declines the sides it read (the walk's generic path continues).
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        return judge(j, sides, rules, null);
+    }
+
+    /** {@code message}: the reader of the assert's caller's message where the verdict carries it apart from its sides
+     *  (ExecutionPlan.Verdict.message), asked only where the assert fails; null where the message, if any, is one of
+     *  {@code sides} (a judgment nested in another's, whose sides the step read together). */
+    static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         java.util.Objects.requireNonNull(rules, "a judgment names the rules it judges by");
         return switch (j) {
             case HostJudgment.TdsEquivalent t -> tdsEquivalentOf(t, sides);
@@ -711,7 +720,7 @@ final class HostJudge {
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
-            case HostJudgment.Messaged m -> messagedOf(m, sides, rules);
+            case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message);
         };
     }
 
@@ -728,9 +737,10 @@ final class HostJudge {
      * the error its function raises), every other's failure, raised as it was.
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         return j instanceof HostJudgment.AssertError a ? AssertErrorNative.judge(a, sides, rules)
-                : judge(j, sides.get(), rules);
+                : judge(j, sides.get(), rules, message);
     }
 
     /** The static facts of one side, read once at planning. */
@@ -976,7 +986,8 @@ final class HostJudge {
     }
 
     private static @com.legend.base.Nullable TypedSide messagedOf(HostJudgment.Messaged m, List<TypedSide> sides,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         try {
             return judge(m.inner(), sides.subList(0, m.innerSides()), rules);
         } catch (com.legend.error.AssertFailed e) {
@@ -987,7 +998,9 @@ final class HostJudge {
                 throw new com.legend.error.AssertFailed(
                         com.legend.compiler.spec.AssertMessages.unevaluated(m.unplanned()));
             }
-            Object text = AssertVerdicts.one(AssertVerdicts.decodeSide(sides.get(m.innerSides())), "the message");
+            // read now, the assert having failed: through the verdict's reader, or the side after the inner ones
+            TypedSide read = message != null ? message.get() : sides.get(m.innerSides());
+            Object text = AssertVerdicts.one(AssertVerdicts.decodeSide(read), "the message");
             throw new com.legend.error.AssertFailed(String.valueOf(text));
         }
     }

@@ -209,7 +209,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         AssertVerdicts.HostAssert a = one.host.assertion();
         one.held = AssertVerdicts.heldAtItsStep(a, listener,
-                () -> HostSides.shaped(a.name(), one.host.sides(), rows.get(), message), rules);
+                () -> HostSides.shapedBase(a.name(), one.host.sides(), rows.get()), rules,
+                message == null ? null : HostSides.message(one.host.sides(), message));
     }
 
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.

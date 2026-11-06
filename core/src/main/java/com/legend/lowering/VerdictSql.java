@@ -84,7 +84,16 @@ public final class VerdictSql {
      * brackets; otherwise assertEquals' (assertEquals.pure: {@code %r} of each where both sides hold one element, else
      * each side's elements in brackets, in their order).
      */
-    public record Message(Type kind, boolean sorted, boolean listed) {
+    public record Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal) {
+        public Message(Type kind, boolean sorted, boolean listed) {
+            this(kind, sorted, listed, null);
+        }
+
+        /** A LITERAL side (one value the planner holds): {@code text}, its representation spelled at planning. */
+        public static Message literal(Type kind, String text) {
+            return new Message(kind, false, false, text);
+        }
+
         /** {@code kind}'s message for a side, or null where its elements' representation is no one primitive's. */
         public static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted) {
             return of(kind, sorted, false);
@@ -2118,6 +2127,9 @@ public final class VerdictSql {
     /** {@code value} as the failure message writes it: its kind's representation; an empty side's (Nil) none, as it
      *  holds no element. */
     private static SqlExpr written(Message m, SqlExpr value) {
+        if (m.literal() != null) {
+            return new SqlExpr.StringLit(m.literal());
+        }
         if (m.kind() instanceof Type.GenericType g) {
             return instanceWritten(value, g.rawFqn());
         }

@@ -302,7 +302,7 @@ public final class BodyRouter {
                 // the runner hands no sides for an empty base, and until 2026-11-04 such a step was never judged (a
                 // body ending on it failed on its missing verdict, any other passed it silently)
                 if (verdict.base().isEmpty()) {
-                    judged(hostStep, List::of, rules(verdict));
+                    judged(hostStep, List::of, null, rules(verdict));
                 }
                 return;
             }
@@ -334,8 +334,9 @@ public final class BodyRouter {
                 return;
             }
             HostAsserts.Planned p = hostPlanned(verdict);
-            judged(p, () -> HostSides.shaped(p.assertion().name(), p.sides(), rows, messageOf(verdict)),
-                    rules(verdict));
+            java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
+            judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.sides(), rows),
+                    read == null ? null : HostSides.message(p.sides(), read), rules(verdict));
         }
 
         /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
@@ -377,7 +378,7 @@ public final class BodyRouter {
             }
             judged(hostPlanned(verdict), () -> {
                 throw failure;
-            }, rules(verdict));
+            }, null, rules(verdict));
         }
 
         /** The host's planned assert {@code verdict} is: the host judge's, or, under the database judge, an
@@ -395,9 +396,10 @@ public final class BodyRouter {
         }
 
         private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides,
+                java.util.function.@Nullable Supplier<TypedSide> message,
                 com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
             AssertVerdicts.HostAssert a = p.assertion();
-            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides, rules);
+            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides, rules, message);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");

@@ -821,14 +821,15 @@ final class AssertVerdicts {
          *  engine-text equality's census route counted once the arm answered, as {@link #adjudicate} counts it
          *  (M10b: never on a failed one, which raises before). */
         @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-            return judge(() -> sides, rules);
+            return judge(() -> sides, rules, null);
         }
 
         /** The verdict over its sides as the runner read them: their rows, or the error the reading raised, which
          *  the judgment decides (an assertError's answer, any other's failure: {@code HostJudge.judge}). */
         @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides,
-                com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-            TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides, rules));
+                com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+                java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+            TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides, rules, message));
             if (v != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.EngineText e && e.routed()) {
                 sqlTextRouted(name());
             }
@@ -860,8 +861,8 @@ final class AssertVerdicts {
             // the arm sent it before the side was deferred and as the program road's step is sent (M10c item 8)
             com.legend.exec.StatementOrigin marked = deferredTextOrigin(check.judgment());
             try (var __o = marked == null ? null : com.legend.exec.StatementOrigin.enter(marked)) {
-                return judge(HostSides.fetchChecked(name(), check, letPrefix, specs, env),
-                        env.options().judgingRules());
+                HostSides.Fetched f = HostSides.fetchChecked(name(), check, letPrefix, specs, env);
+                return judge(f::sides, env.options().judgingRules(), f.message());
             }
         }
     }
@@ -894,20 +895,21 @@ final class AssertVerdicts {
      */
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(HostAssert a,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         if (a.beforeTheArm() != null) {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
             throw a.beforeTheArm();
         }
         if (listener == null) {
             a.enter();
-            return a.judge(sides, rules);
+            return a.judge(sides, rules, message);
         }
         com.legend.judge.CanonicalDivergence.sqlEnter();
         boolean settled = false;
         try {
             a.enter();
-            TypedSide v = a.judge(sides, rules);
+            TypedSide v = a.judge(sides, rules, message);
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -941,7 +943,8 @@ final class AssertVerdicts {
      * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
      */
     static HostHeld heldAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         if (a.beforeTheArm() != null) {
             throw a.beforeTheArm();
         }
@@ -954,7 +957,7 @@ final class AssertVerdicts {
             TypedSide v = null;
             com.legend.error.AssertFailed failed = null;
             try {
-                v = a.judge(sides, rules);
+                v = a.judge(sides, rules, message);
             } catch (com.legend.error.AssertFailed e) {
                 failed = e;
             }

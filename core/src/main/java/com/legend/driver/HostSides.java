@@ -61,50 +61,28 @@ final class HostSides {
             return null;
         }
         // judged by the run's rules (ExecuteOptions.judgingRules), as the program road's step names them
-        return HostJudge.judge(check.judgment(), fetchChecked(name, check, letPrefix, specs, env),
-                env.options().judgingRules());
+        Fetched f = fetchChecked(name, check, letPrefix, specs, env);
+        return HostJudge.judge(check.judgment(), f.sides(), env.options().judgingRules(), f.message());
+    }
+
+    /** A check's sides read in place, and its caller's message's reader where the message is not one of them. */
+    record Fetched(List<TypedSide> sides, java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
     }
 
     /** {@code check}'s sides fetched in place (the walk): a caller's MESSAGE (HostJudgment.Messaged, the check's last
-     *  side) planned and read only where the judgment asks for it -- the assert failing -- as upstream evaluates it only
-     *  there and as the program road reads it (the assert bar, 2026-11-04: the walk's message read first lost the
-     *  corpus's 55 test-data generation bodies, whose messages read a query the program cannot plan). */
-    static List<TypedSide> fetchChecked(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
+     *  side) is not fetched with them -- its reader is handed to the judgment, which reads it only where the assert
+     *  fails, as upstream evaluates it only there and as the program road reads it (the assert bar, 2026-11-04: the
+     *  walk's message read first lost the corpus's 55 test-data generation bodies, whose messages read a query the
+     *  program cannot plan). */
+    static Fetched fetchChecked(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env) {
         if (!(check.judgment() instanceof HostJudgment.Messaged m) || m.unplanned() != null
                 || m.innerSides() != check.asks().size() - 1) {
-            return fetch(name, check.asks(), letPrefix, specs, env);
+            return new Fetched(fetch(name, check.asks(), letPrefix, specs, env), null);
         }
-        List<TypedSide> inner = fetch(name, check.asks().subList(0, m.innerSides()), letPrefix, specs, env);
         Ask message = check.asks().get(m.innerSides());
-        return lazyLast(inner, () -> fetch(name, List.of(message), letPrefix, specs, env).get(0));
-    }
-
-    /** {@code inner}, then one more side read through {@code last} only where it is asked for (once). */
-    private static List<TypedSide> lazyLast(List<TypedSide> inner, java.util.function.Supplier<TypedSide> last) {
-        int n = inner.size();
-        return new java.util.AbstractList<TypedSide>() {
-            private @com.legend.base.Nullable TypedSide read;
-
-            @Override
-            public TypedSide get(int i) {
-                if (i < n) {
-                    return inner.get(i);
-                }
-                if (i != n) {
-                    throw new IndexOutOfBoundsException(i);
-                }
-                if (read == null) {
-                    read = last.get();
-                }
-                return read;
-            }
-
-            @Override
-            public int size() {
-                return n + 1;
-            }
-        };
+        return new Fetched(fetch(name, check.asks().subList(0, m.innerSides()), letPrefix, specs, env),
+                () -> fetch(name, List.of(message), letPrefix, specs, env).get(0));
     }
 
     /** {@code check}'s sides planned as one verdict's base, with the check they plan: a caller's message whose
@@ -209,26 +187,28 @@ final class HostSides {
         return out;
     }
 
-    /** {@code planned}'s sides shaped for its verdict: the rows the runner read for the base, and, where the verdict
-     *  carries its caller's MESSAGE ({@code message} non-null: the planned check's last side), that side read through
-     *  {@code message} only where the judgment asks for it -- the assert failing (HostJudgment.Messaged), as upstream
-     *  evaluates the message only there; an error reading it is the failure (the assert bar, 2026-11-04). */
-    static List<TypedSide> shaped(String name, Planned planned, List<PlanRunner.Rows> rows,
-            java.util.function.@com.legend.base.Nullable Supplier<PlanRunner.Rows> message) {
-        if (message == null) {
-            return shaped(name, planned, rows);
-        }
+    /** {@code planned}'s BASE sides shaped from the rows the runner read for them: where the verdict carries its
+     *  caller's message apart ({@code ExecutionPlan.Verdict.message}, the planned check's last side), the rows are one
+     *  fewer than the planned sides, and the message is {@link #message}'s to read. */
+    static List<TypedSide> shapedBase(String name, Planned planned, List<PlanRunner.Rows> rows) {
         int n = rows.size();
-        List<TypedSide> inner = shaped(name, new Planned(planned.sides().subList(0, n), planned.base().subList(0, n),
-                planned.on()), rows);
-        JudgePlans.PlannedSide asked = planned.sides().get(n);
-        return lazyLast(inner, () -> {
-            TypedSide shaped = JudgePlans.shape(asked, message.get());
+        return n == planned.sides().size() ? shaped(name, planned, rows)
+                : shaped(name, new Planned(planned.sides().subList(0, n), planned.base().subList(0, n), planned.on()),
+                        rows);
+    }
+
+    /** The reader of a verdict's caller's message: the planned check's last side, read through {@code read} (the
+     *  program's reader) and shaped as any side -- only where the judgment asks for it, the assert having failed. */
+    static java.util.function.Supplier<TypedSide> message(Planned planned,
+            java.util.function.Supplier<PlanRunner.Rows> read) {
+        JudgePlans.PlannedSide asked = planned.sides().get(planned.sides().size() - 1);
+        return () -> {
+            TypedSide shaped = JudgePlans.shape(asked, read.get());
             if (planned.on() != null) {
                 JudgePlans.toOneReader(asked.root(), shaped);
             }
             return shaped;
-        });
+        };
     }
 
     /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
