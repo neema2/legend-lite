@@ -1138,6 +1138,13 @@ public enum BodyClass {
                 // dropped: upstream runs it there, and what it raises fails the test
                 continue;
             }
+            if (statement instanceof TypedLet && i < body.size() - 1
+                    && Literals.fold(value, body.subList(0, i)) instanceof String) {
+                // a text the planner folds ('insert into ... ' + '(' + ...: a literal concatenation), which a later
+                // effect reads as its text -- the effect's own rule folds it the same way (literalEffect); the corpus
+                // burn-down, 2026-11-06: the aggregation-aware setUp's calendar insert
+                continue;
+            }
             boolean inert = value instanceof TypedNativeCall call
                     && NativeFn.Effect.isInertDiagnostic(call.callee().id());
             if (!inert && !literal(value) && BodyPlanner.handleType(value, ctx) == null) {
@@ -1154,7 +1161,10 @@ public enum BodyClass {
      *  setup helpers, unfolded into the body by the resolver's statement inliner): the test door plans its texts as the
      *  effect script the walk sends (M10c item 7c; {@code Seeds.seedForm}, one reader for both roads). */
     static boolean seedFormEffectMap(TypedSpec value, List<TypedSpec> lets) {
-        return value instanceof com.legend.compiler.spec.typed.TypedMap tm && Seeds.seedForm(tm, lets) != null
+        // a text form whose texts the planner spells -- a seed form's (item 7c) or a DDL text collection's (the corpus
+        // burn-down, 2026-11-06) -- mapped over the one effect the door writes
+        return value instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && (Seeds.seedForm(tm, lets) != null || Seeds.ddlTextSource(tm, lets) != null)
                 && Seeds.oneEffectMapper(tm, lets);
     }
 

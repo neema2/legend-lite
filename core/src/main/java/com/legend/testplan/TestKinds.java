@@ -284,22 +284,26 @@ final class TestKinds implements ProgramKinds {
         // through the let that binds it (Seeds.seedForm), its lambda one effect the door writes (oneEffectMapper)
         TypedMap raw = statement instanceof TypedMap tm && Seeds.oneEffectMapper(tm, program.lets()) ? tm : null;
         Seeds.SeedForm form = raw == null ? null : Seeds.seedForm(raw, program.lets());
+        // or a DDL text collection mapped over it (the aggregation-aware setUp; the corpus burn-down, 2026-11-06)
+        List<TypedSpec> ddl = raw == null || form != null ? null : Seeds.ddlTextSource(raw, program.lets());
+        List<String> texts = form != null ? form.texts(program.query().context(), program.dialect())
+                : ddl != null ? Seeds.ddlTexts(ddl, program.lets(), program.query().context()) : null;
         if (st.prepared() instanceof Prepared.Effect e) {
             effects.add(e);
-        } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && form != null) {
+        } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && texts != null) {
             // ($sqls->map(sql | executeInDb($sql, $connection)); the test-is-the-product plan's M10c item 7c, M9's T9
             // kind): the texts the form spells, each bound into the RAW lambda's statement (one inline and resolution,
             // in prepare) and prepared as the effect it is -- the walk's effectfulMap, statement by statement, in one
             // segment
             String param = raw.mapper().parameters().get(0);
-            for (String text : form.texts(program.query().context(), program.dialect())) {
+            for (String text : texts) {
                 TypedSpec bound = UserCallInliner.bindStringParam(raw.mapper().body().get(0), param, text);
                 List<TypedSpec> one = new ArrayList<>(program.lets());
                 one.add(bound);
                 ProductStatements.Statement bst = ProductStatements.prepare(program.query(), one, program.runtime(),
                         index, program.features());
                 if (!(bst.prepared() instanceof Prepared.Effect be)) {
-                    throw new NotImplementedException("a seed form's statement bound into its map's lambda prepared as "
+                    throw new NotImplementedException("a text form's statement bound into its map's lambda prepared as "
                             + bst.prepared().getClass().getSimpleName() + " on the test door's program road");
                 }
                 effects.add(be);

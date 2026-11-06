@@ -147,6 +147,50 @@ public final class Seeds {
         }
     }
 
+    /**
+     * A DDL TEXT COLLECTION mapped over an effect ({@code [dropSchemaStatement('s'), createTableStatement(db, 's', 't'),
+     * ...]->map(s | executeInDb($s, $connection))}: the aggregation-aware package's setUp, the corpus burn-down of
+     * 2026-11-06): the map's source, as spelled or through the let that binds it, a literal collection whose every
+     * element is a text at planning -- a toDDL string generator over literal arguments (the planner spells it from the
+     * compiled store, {@code EnginePlans.ddlText}: build-time model text, a typed constant) or a String literal folded
+     * over {@code lets}. Its elements, or null where it is not one.
+     */
+    public static @Nullable List<TypedSpec> ddlTextSource(TypedMap map, List<TypedSpec> lets) {
+        if (!(com.legend.compiler.spec.typed.Lets.bound(map.source(), lets)
+                instanceof com.legend.compiler.spec.typed.TypedCollection coll) || coll.elements().isEmpty()) {
+            return null;
+        }
+        for (TypedSpec e : coll.elements()) {
+            if (e instanceof TypedNativeCall call && NativeFn.DdlStatement.of(call.callee().id()).isPresent()) {
+                // the generator's arguments as it reads them: the store a reference, every other a String literal
+                for (TypedSpec a : call.args()) {
+                    if (!(a instanceof TypedPackageableRef) && !(a instanceof com.legend.compiler.spec.typed.TypedCString)) {
+                        return null;
+                    }
+                }
+            } else if (!(Literals.fold(e, lets) instanceof String)) {
+                return null;
+            }
+        }
+        return coll.elements();
+    }
+
+    /** {@link #ddlTextSource}'s elements spelled at planning, in order: a generator's text from the compiled store
+     *  (the engine's own spelling, as the walk's {@code Prepared.DdlTexts} sends it), a literal folded. */
+    public static List<String> ddlTexts(List<TypedSpec> elements, List<TypedSpec> lets, ModelContext ctx) {
+        com.legend.planner.PlanEnv env = com.legend.planner.ProductStatements.env(ctx, null, java.util.Set.of(),
+                java.util.Map.of());
+        List<String> texts = new ArrayList<>(elements.size());
+        for (TypedSpec e : elements) {
+            if (e instanceof TypedNativeCall call && NativeFn.DdlStatement.of(call.callee().id()).isPresent()) {
+                texts.add(com.legend.planner.EnginePlans.ddlText(call, env));
+            } else {
+                texts.add((String) java.util.Objects.requireNonNull(Literals.fold(e, lets)));
+            }
+        }
+        return texts;
+    }
+
     /** Whether {@code map}'s lambda is ONE db-effect statement the test door writes, over its one parameter ({@code sql |
      *  executeInDb($sql, $connection)}): the shape the seed-form map runs (item 7c), by the rule a literal effect
      *  statement is admitted by ({@code BodyClass.literalEffect}, the audit's B): not {@code loadCsvToDbTable} (its CSV a
