@@ -224,9 +224,15 @@ however green the tests are.
   the head). **The split rung**: if the database rejects the fused statement, each member's own planned statement runs
   to attribute the failure; its **tripwire**: a rejection no single member reproduces is "a composition bug", never a
   pass.
-- **The runtime wall** (`base/RunScope`): `PlanRunner` marks the thread while a plan runs; the planning seams
-  (`AnsiSqlRenderer.write`, the lowerer's entries, `SpecCompiler.compile`/`typeExpression`) refuse inside it by name
-  (`RunScope.Refused`). Strict; `-Dlegend.runwall=report` is a diagnostic only. Zero exemptions (`ec0eed01`).
+- **The wall** (`base/RunScope`; made total 2026-11-06, `759c9e1d`): four rules, each refused by name
+  (`RunScope.Refused`) at the seam every crossing passes. (1) A run plans nothing: `PlanRunner` marks the thread while
+  a plan runs, and the planning seams (`AnsiSqlRenderer.write`, the lowerer's entries, `SpecCompiler.compile`/
+  `typeExpression`) refuse inside it. (2) Planning touches no database: while a body is planned (`RunScope.plans`;
+  `StatementOrigin.planning` is it) no session opens and no run starts. (3) Every statement is a run's: a session's
+  statements (`Session.statements`, its one door) and its check are taken inside a run alone. (4) A run starts no run,
+  but for a NAMED RESIDUE whose door the lane opens (`-Dlegend.wall.residue`): one today, `engine-text-appeal`
+  (compatibility mode's appeal), open on the corpus lanes and core's engine-text parity bodies only. No report mode;
+  `RunScopeTest` is the proof (each crossing tried through the real seam).
 - **The exec wall** (D72): `//core:exec` depends on base, json, the records and the switchboards only
   (`tools/deps/core-layers.txt`); `ArchitectureTest.execReachesNoPlanning`, `noJdbcTypeInAPublicSignatureOutsideTheSeam`,
   `onlyTheSeamMakesSessions`, `theRunnerIsTheOneCallerOfTheSessionsStatements`, `plannerIsExecutionFree`,
@@ -305,6 +311,11 @@ host judge needs each frame's rows when its let runs; so BOTH reproduces the wal
 | `28a27931` | GATES: the budget's checks |
 | `78554443` | **Another session's** (`session_0195rQEmsRT7otsv9tTmNxj5`) CI fixes on 28a27931: `PostgresArmTest` compile (broken by `53b52c80`), the stress suites' walk door, three generated files |
 | `7c93fbc5` | Cloud lanes: one connection view per held session, so channel B sends its session statements once per suite |
+| `2bfbdba4`, `12b2d294` | `strictdate::testProject`: a relation's cells sorted by renumbering its rows; one list construction over cells (carrier pin 4 -> 3) |
+| `bf5b2ab4`, `bccdf6ab` | S132's scope (two Strings exact) and **no fallback**: a rendered text and its ruled rows one verdict row, or one alone, decided at planning |
+| `f5693a95`, `5d6aef5d`, `6b23002c`, `ad6ad27a` | A UNION ALL's rows in their branches' order, both judges; an aggregating select keeps no order; a star passes the ordinal through; S132's row and the agreement docs match the code |
+| `a6f1bc00`, `31da2ecc`, `3712bd8b`, `37b9289b` | The corpus registers re-measured (DuckDB's outside-body 46 -> 86 -> 49, H2's 73 -> 59 -> 57; DuckDB +31 host-compared, +1 differential) |
+| `759c9e1d` | **THE WALL made total** (§7.3): every statement a run's, planning touches no database, a run starts no run; one named residue |
 
 ### 5.2 Round 22 (PCT, all five suites; channel A; channel B under BOTH and under the DATABASE judge alone)
 
@@ -482,6 +493,24 @@ recreates tables; with the fixture's aside on the search path a drop resolved in
 planned ahead and run at the appeal. The refusal has a type (`RunScope.Refused`) so a catch that turns a failure into
 a decline rethrows it. TeaVM (the WebAssembly planner, which every CI lane builds) has no `StackWalker` or
 `ConcurrentHashMap.newKeySet`: base must stay within TeaVM's class library.
+
+**Made total (2026-11-06, `759c9e1d`; the user: "this IS the invariant we need to ship").** The wall above guarded
+one direction (planning inside a run). A report-only measurement then marked every boundary -- each database touch
+outside a run, each run inside a run, each planning act inside a run at every seam (the spec compiler's other
+entries, the inliner, the store resolver and the renderer's writer included) -- over core's matrix, PCT channel A and
+B on DuckDB, H2 and SQLite, and both corpus lanes (`docs/wall-measurement/`: the patch, the grouping script and the
+list, and how to run it again). Planning inside a run: none. The rest: the front door checked the session
+(`Execution.dialectOf`); the router opened the system database while it planned a system-routed body; a declared
+setup was sent before its run (`PlanSessions.setUp`: the product door, PCT channel A, most plan tests); the runner's
+one-statement entries ran outside any run (the walk, the test-data generator, the server); the database judge read a
+caller's message and the split rung's rows in a second run; the compatibility appeal runs a fixture program and row
+reads inside the body's run. Each is fixed but the last, now the one named residue: the check is the runner's
+(per statement), the system database opens on first use (`Sessions.lazy`), setup runs inside the run, each
+one-statement entry is a run, the judge reads through the running program's reader (`VerdictBatch.judge(l, reader)`).
+The guard sits at the JDBC census's seam (`Sessions`' openers, `Session.statements`), so it holds for every road.
+Known limits: planning code still HOLDS session objects as identities (it cannot use them: rule 3); a compile-time
+rule that planning classes cannot name a session comes with the walk's deletion, which shares those classes. The
+corpus harness's own referee sends its own JDBC (a test library, outside the product's seam).
 
 ### 7.4 Doubling: a NULL guard that writes its operand twice
 
@@ -692,16 +721,23 @@ baseline round first).
 
 ## 10. Named, not fixed (carry these)
 
-- `strictdate::testProject` (both corpus lanes; CI red).
+- ~~`strictdate::testProject`~~: fixed 2026-11-06 (`2bfbdba4`, `12b2d294`).
 - BigQuery's bound-list shape unverified.
 - The cloud session fix (`7c93fbc5`) unmeasured.
-- A register row for compatibility mode's float tokens inside a String within 2 ULP on the host judge only.
+- ~~Compatibility mode's float tokens inside a String~~: deleted 2026-11-06 (`bf5b2ab4`); S132's row matches the code
+  (`ad6ad27a`), and records the user's option (a) for the corpus phase.
 - `'TDSNull'` sentinel equal to a null cell (the shared assert design).
 - S137's relation not evaluated in compatibility mode.
 - MariaDB's `unlessNull` doubling; SQLite's `LIST_INIT`/`LIST_SLICE` re-reading the list.
 - The instance canon's verbosity (lean SQL).
 - BOTH's per-assert program vs DATABASE's fused program (§4).
-- `RunScope`'s `[run-wall]` report mode is diagnostic only; nothing may turn the wall off.
+- ~~`RunScope`'s report mode~~: deleted 2026-11-06 (`759c9e1d`); nothing turns the wall off.
+- The wall's one residue, `engine-text-appeal` (§7.3): the compatibility appeal's fixture program and row reads as
+  runs inside the body's run; deleted when they are steps of the body's plan (the corpus phase). Planning code still
+  holds sessions as identities until the walk's deletion (§7.3).
+- Clean mode compares an unsorted grid as a multiset on both judges (S131 "build pending"); the rendered-text failure
+  messages are not upstream's `%r` form and differ by judge; the SQL-text appeal's page-membership and join-fan-out
+  leniencies and `stripChainedPlanWarning` have no register row (the final audit, 2026-11-06, findings 6-8).
 - The pending rulings S13, S17, S121 (2)(4), S125.
 
 ---

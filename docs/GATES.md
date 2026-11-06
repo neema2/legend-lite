@@ -20489,3 +20489,41 @@ suite, census unchanged {335,10}, 293 -> 265 s (-10%; the estimate of "about hal
 a different program from the DATABASE judge alone, the state, the roadmap from PCT and core at 100% to lean SQL, the
 measurements and lessons, the checks, the lane sessions, the research index, the open work), pointed to from
 `AGENTS.md`. The old container's three worktrees with uncommitted work are copied to `claude/backup-*-2026-11-06`.
+
+## 2026-11-06 — PCT and core close-out: strictdate, no fallback, union order, and the wall made total
+
+**`strictdate::testProject`** (both corpus lanes red since before 2026-11-05; `2bfbdba4`, `12b2d294`): a relation's
+cells sorted by renumbering its rows (`TaggedLists.sortRows`: `ROW_NUMBER() OVER (ORDER BY` the comparable columns
+`NULLS LAST, __pos)`, the list rebuilt over the cells by `ValueCollections.overCells`, the one OrderedListAgg site;
+DuckDB had refused a window inside a window, H2 a list read at a dialect with no list encoding). The carrier pin 4 -> 3.
+
+**S132's scope and no fallback** (`bf5b2ab4`, `bccdf6ab`; the user's "okay" and "Remove fallback"): a rendered text and
+its ruled rows (compatibility mode: S131's multiset, S132's 2 ULP) are planned as ONE verdict row (`VerdictSql.either`),
+or one of them alone where the dialect spells only one, decided at planning; never two statements. Two plain Strings
+compare exactly (the host's float-token comparison deleted: it passed what the database judge and upstream fail). The
+walk's unbatched two-statement road deleted. Pins: Equality 498 -> 461, DatabaseJudge 828 -> 819.
+
+**A UNION ALL's rows in their branches' order** (`f5693a95`, `5d6aef5d`, `6b23002c`, `ad6ad27a`): the database judge
+numbers a union side by branch (`SideOrdinal.branchOrder`), the host reads the same side in the same order
+(`VerdictSql.inBranchOrder`); an aggregating select keeps no source order; a star over the source passes its ordinal
+through (H2's three milestoning validation tests had written it twice). BigQuery's `filter::testFilterInstance` row
+stays until BigQuery measures the defined order.
+
+**Registers**: DuckDB's outside-body register re-measured (46 -> 86 -> 49), H2's (73 -> 59 -> 57); DuckDB's
+host-compared register +31 and differential +1 (rows H2 records, first reached on DuckDB). S132's row matches the code
+and records the user's option (a) for the corpus phase (`ad6ad27a`).
+
+**THE WALL made total** (`759c9e1d`; the user: "this IS the invariant we need to ship"). Measured first, report-only,
+over core's matrix, PCT A and B on DuckDB, H2 and SQLite, and both corpus lanes (`docs/wall-measurement/`): planning
+inside a run, none; the front door checked the session outside every run; the router opened the system database while
+planning; declared setup ran before its run (the product door, PCT A, most plan tests); the runner's one-statement
+entries ran outside any run; the database judge read a caller's message and the split rung's rows in a second run;
+the compatibility appeal runs a fixture program and row reads inside the body's run. Now four rules, strict, at the
+JDBC seam: a run plans nothing; planning opens no session and starts no run; a session's statements and its check are
+a run's alone; a run starts no run, but for the one named residue (`engine-text-appeal`, its door opened by the corpus
+lanes and core's engine-text parity bodies). No report mode. `RunScopeTest` tries each crossing through the real seam.
+Pin: SqlTextVerdicts 1640 -> 1644.
+
+**Checks at `759c9e1d`**: core's matrix and lanes, PCT channel A on DuckDB, H2 and SQLite, channel B on DuckDB, H2 and
+SQLite: 82/82 green (no refusal anywhere). Both corpus lanes (`//gates:corpus_duckdb`, `//gates:corpus_h2`): green, every roster and register unchanged. The same 82 and both corpus lanes green at
+`ad6ad27a`'s tree (with the report-only patch).
