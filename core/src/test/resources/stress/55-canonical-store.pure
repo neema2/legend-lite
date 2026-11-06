@@ -1,25 +1,7 @@
+// The Money measure's M2M mapping and its runtime. Its M2M mapping without a measure, the ModelChainConnection both
+// runtimes chain to and stress::CanonicalRT moved to 55-canonical-chain.pure on 2026-10-30 (the improvement plan's
+// Phase 5), so that legend-lite, which cannot load a Measure's units, excludes this file alone.
 ###Mapping
-// The M2M layer. `~src` names the SOURCE class; the source's own relational mapping is
-// supplied at runtime by the ModelChainConnection, NOT included here.
-Mapping canonical::M2MMapping
-(
-    include trading::Codes
-
-    *canonical::CanonicalTrade: Pure
-    {
-        ~src trading::Trade
-        identifier: $src.tradeId,
-        executedOn: $src.tradeDate,
-        // Arithmetic performed by the M2M engine rather than pushed into SQL.
-        grossValue: $src.quantity * $src.price,
-        unitPrice: $src.price,
-        units: $src.quantity,
-        side: $src.side,
-        state: $src.status
-    }
-)
-
-
 Mapping canonical::MoneyMapping
 (
     // Composing a unit from a plain number: newUnit(<measure>~<unit>, value) then cast.
@@ -33,47 +15,12 @@ Mapping canonical::MoneyMapping
 )
 
 
-###Connection
-// Names the RELATIONAL mapping that feeds the source model. The store key for this in a
-// runtime is the bare literal `ModelStore`.
-ModelChainConnection stress::TradeChain
-{
-  mappings: [
-    trading::TradingMapping
-  ];
-}
-
-
 ###Runtime
 Runtime stress::MoneyRT
 {
     mappings:
     [
         canonical::MoneyMapping
-    ];
-    connections:
-    [
-        ModelStore:
-        [
-            chain: stress::TradeChain
-        ],
-        store::DB:
-        [
-            environment: store::Conn
-        ]
-    ];
-}
-
-
-// ONE runtime, TWO store entries. `mappings:` names only the M2M mapping -- the service
-// executes that. The relational mapping appears solely inside the ModelChainConnection,
-// and the relational STORE needs its own connection entry or the runtime fails coverage
-// validation.
-Runtime stress::CanonicalRT
-{
-    mappings:
-    [
-        canonical::M2MMapping
     ];
     connections:
     [

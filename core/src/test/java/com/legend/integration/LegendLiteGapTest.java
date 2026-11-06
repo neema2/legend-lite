@@ -138,6 +138,36 @@ class LegendLiteGapTest {
     }
 
     @Test
+    @DisplayName("an M2M enumeration transform is refused by the mapping normalizer")
+    void m2mEnumerationTransform() {
+        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine translates the source's code
+        rejectsWith("an M2M enumeration transform", "M2M enum transformer", """
+                Enum demo::Side { BUY, SELL }
+                Class demo::Src { k: String[1]; code: String[0..1]; }
+                Class demo::Tgt { k: String[1]; side: demo::Side[0..1]; }
+                ###Mapping
+                Mapping demo::M
+                (
+                  demo::Side: EnumerationMapping Codes { BUY: ['B'], SELL: ['S'] }
+                  demo::Tgt: Pure { ~src demo::Src k: $src.k, side: EnumerationMapping Codes: $src.code }
+                )
+                """);
+    }
+
+    @Test
+    @DisplayName("an M2M complex property passthrough, a class-typed property mapped with no set, is refused")
+    void m2mComplexPropertyPassthrough() {
+        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine passes the source object through
+        rejectsWith("a complex property passthrough", "targets unmapped class", """
+                Class demo::Firm { name: String[1]; }
+                Class demo::Src { k: String[1]; firm: demo::Firm[0..1]; }
+                Class demo::Tgt { k: String[1]; firm: demo::Firm[0..1]; }
+                ###Mapping
+                Mapping demo::M ( demo::Tgt: Pure { ~src demo::Src k: $src.k, firm: $src.firm } )
+                """);
+    }
+
+    @Test
     @DisplayName("a navigation path's type, Path, is not one lite declares (S92)")
     void aNavigationPathsType() {
         rejectsWith("a function returning Path", "Unknown type", """
@@ -180,9 +210,17 @@ class LegendLiteGapTest {
         assertEquals(StressExclusions.EXCLUDED.containsKey("55-canonical-store.pure"),
                 StressExclusions.EXCLUDED.containsKey("94-canonical-services.pure"),
                 "94-canonical-services.pure's services run on 55-canonical-store.pure's mappings: excluded with it");
+        // 8115-m2m-gaps.pure and 94-gap-services.pure joined 2026-10-30 (the improvement plan's Phase 5,
+        // m2mEnumerationTransform and m2mComplexPropertyPassthrough): 94-gap's services run on 8115's and
+        // 75-surface-gaps.pure's mappings, so it falls with them exactly as 94-canonical-services.pure does with 55
+        assertEquals(StressExclusions.EXCLUDED.containsKey("75-surface-gaps.pure")
+                        || StressExclusions.EXCLUDED.containsKey("8115-m2m-gaps.pure"),
+                StressExclusions.EXCLUDED.containsKey("94-gap-services.pure"),
+                "94-gap-services.pure's services run on 8115-m2m-gaps.pure's and 75-surface-gaps.pure's mappings: "
+                        + "excluded with them");
         Set<String> documented = Set.of("29-money.pure", "55-canonical-store.pure",
                 "71-mapping-surface2.pure", "75-surface-gaps.pure", "94-canonical-services.pure",
-                "74-path-surface.pure");
+                "8115-m2m-gaps.pure", "94-gap-services.pure", "74-path-surface.pure");
         assertEquals(documented, StressExclusions.EXCLUDED.keySet(),
                 "StressExclusions.EXCLUDED changed. Every excluded file must have a case in "
                         + "this test showing WHY legend-lite cannot load it — an exclusion "

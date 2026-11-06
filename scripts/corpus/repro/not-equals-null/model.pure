@@ -1,11 +1,15 @@
-// `!=` against a NULL column: does the row survive the filter?
+// `!=` against a NULL column: does the row survive the filter? It does, and should.
 //
 // SQL is three-valued -- `NULL <> 'x'` is UNKNOWN, and a WHERE clause keeps only rows for
-// which the predicate is TRUE, so a NULL row is EXCLUDED. This corpus's oracle applies that
-// rule, and every other predicate in it agrees with the engine.
+// which the predicate is TRUE, so SQL would EXCLUDE a NULL row. Pure is not: a comparison
+// over an absent value is false (legend-pure's greaterThan documents it) and `==` is
+// collection equality, so `[] != 'x'`, the negation of `[] == 'x'`, is true and the row is
+// KEPT. All three services below assert Pure's reading, and legend-engine passes them.
 //
-// R3 below has a NULL NAME. If the engine returns R3, the filter is keeping a row whose
-// predicate is UNKNOWN.
+// R3 below has a NULL NAME: kept by `!=`, dropped by `==` and by `>`.
+//
+// Recorded as a defect, F28, until 2026-10-23, when the corpus's oracle still read `!=` as
+// SQL does; withdrawn when the improvement plan's Phase 1 checked legend-pure's definition.
 //
 // Found by the combination matrix rather than aimed at: the seeder began putting a NULL in
 // every nullable column instead of only the first, and four generated services that filter
@@ -62,7 +66,7 @@ Data demo::Seed
 Service demo::NotEqualsNull
 {
   pattern: '/notEqualsNull';
-  documentation: 'Under SQL three-valued logic NULL <> none is UNKNOWN and R3 is excluded; under Pure collection semantics [] != none is TRUE and R3 is kept. This asserts the SQL reading.';
+  documentation: 'Under SQL three-valued logic NULL <> none is UNKNOWN and R3 is excluded; under Pure collection semantics [] != none is TRUE and R3 is kept. This asserts the Pure reading (F28, withdrawn 2026-10-23).';
   execution: Single
   {
     query: |demo::Thing.all()->filter(t | $t.name != 'none')->project(~[id:t|$t.id]);
@@ -82,7 +86,7 @@ Service demo::NotEqualsNull
           asserts:
           [
             a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
-                 data: '[{"id":"R1"}]'; }#; }#
+                 data: '[{"id":"R1"},{"id":"R3"}]'; }#; }#
           ]
         }
       ]
@@ -93,7 +97,7 @@ Service demo::NotEqualsNull
 Service demo::EqualsNull
 {
   pattern: '/equalsNull';
-  documentation: 'The complement. Both models agree here -- R3 is excluded either way -- which is exactly why this divergence went unnoticed: every == predicate in the corpus agrees with the engine.';
+  documentation: 'The complement. Both readings agree here -- R3 is excluded either way -- which is why no == predicate ever showed the question.';
   execution: Single
   {
     query: |demo::Thing.all()->filter(t | $t.name == 'none')->project(~[id:t|$t.id]);
@@ -124,7 +128,7 @@ Service demo::EqualsNull
 Service demo::GreaterNull
 {
   pattern: '/greaterNull';
-  documentation: 'An ORDERED comparison against a NULL, to see whether it follows the same rule as != or the same rule as ==.';
+  documentation: 'An ORDERED comparison against a NULL: never satisfied by an absent value, so R3 is excluded, as by ==.';
   execution: Single
   {
     query: |demo::Thing.all()->filter(t | $t.name > 'alpha')->project(~[id:t|$t.id]);

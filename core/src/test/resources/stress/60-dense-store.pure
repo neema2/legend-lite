@@ -41,20 +41,6 @@ Database stress::DenseDB
       )
    )
 
-   // A multi-column join, over two columns the tables share.
-   Join dense_MultiCol(ACCOUNT.CURRENCY = ACCRUAL_ENTRY.CURRENCY and ACCOUNT.STATUS = ACCRUAL_ENTRY.STATUS)
-   // Non-equality join. `=` is the only operator the base model uses.
-   Join dense_GreaterThan(ACCRUAL_ENTRY.AMOUNT > ACCRUAL_SCHEDULE.ACCRUED_TO_DATE)
-   // `or`, and a mixed condition PARENTHESISED because and/or are
-   // equal-precedence and right-associative.
-   Join dense_OrMixed((ACCRUAL_ENTRY.AMOUNT > ACCRUAL_SCHEDULE.ACCRUED_TO_DATE) or (ACCRUAL_ENTRY.AMOUNT is null and ACCRUAL_SCHEDULE.ACCRUED_TO_DATE is not null))
-   // Dynafunction inside a join condition, on one side and on both.
-   // Note toUpper, NOT upper -- `upper` is not a dynafunction, and
-   // neither name is validated until SQL generation.
-   Join dense_DynaOneSide(concat(ACCOUNT.ACCOUNT_ID, ACCOUNT.ACCOUNT_NAME) = ACCOUNTING_RULE.CONDITION)
-   Join dense_DynaBothSides(toUpper(ACCOUNT.ACCOUNT_ID) = toUpper(ACCOUNTING_RULE.CONDITION))
-   // Self-join. {target} names the far side of the same table.
-   Join dense_Self(ACCOUNT.ACCOUNT_NAME = {target}.ACCOUNT_ID)
 
    Filter dense_NotNull(ACCOUNT.ACCOUNT_ID is not null)
    // A view's ~filter must read the view's own root (or a table its joins

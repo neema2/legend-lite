@@ -45,6 +45,20 @@ Runtime stress::EmbeddedFlatRT
     ];
 }
 
+Runtime stress::DenseRT
+{
+    // stress::DenseMapping (59-dense-mapping.pure), which the flat mapping's queries run through too (the
+    // improvement plan's Phase 7, scripts/corpus/unreached.py).
+    mappings:
+    [
+        stress::DenseMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}
+
 Runtime stress::ExecutedRT
 {
     mappings:

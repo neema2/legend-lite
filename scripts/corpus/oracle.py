@@ -15,8 +15,10 @@ queries use, and refuses anything else:
                    columns. An engine that emitted an inner join would silently drop
                    rows, and the row counts here are what catch it.
   projection       column value, or NULL if any hop on the path failed
-  filter           three-valued: NULL compared to anything is UNKNOWN, and UNKNOWN rows
-                   are excluded. `status == 'EXECUTED'` must not match a NULL status.
+  filter           as legend-pure compares an absent value: false for every operator but
+                   `!=`, which is true (_cmp). `status == 'EXECUTED'` must not match a NULL
+                   status, and `status != 'EXECUTED'` must. A store's join conditions and
+                   Filters are SQL and keep SQL's three-valued rule (_sql_cmp).
   sort / limit     ordering is computed but see `ordered` below
 
 Where it refuses:
@@ -33,6 +35,7 @@ that IS asserted — but the corpus must never claim to test ordering through th
 """
 from __future__ import annotations
 
+import decimal
 import json
 import math
 
@@ -41,7 +44,8 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import Pred, Spec
+from query import (Agg, And, Concatenate, Cut, DateTimeArg, Distinct, Extend, Hop, Join, Not, Nullary, Or, Param,
+                   ParamEmpty, PathArg, Pred, Rename, SELF, Select, Sort, Spec, Window, If)
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -91,17 +95,71 @@ def _operand(c: Corpus, node, binding: dict):
         return None if row is None else row.get(col)
     if tag == "call":
         fn, args = body
+        if fn == "explodeSemiStructured":
+            # The element of the exploded array the condition is being tested for (_general_targets binds it).
+            if _EXPLODED not in binding:
+                raise Unsupported("explodeSemiStructured outside a join's per-element evaluation")
+            return binding[_EXPLODED]
         return _dynafunction(fn, [_operand(c, a, binding) for a in args])
     if tag == "array":
         return [_operand(c, a, binding) for a in body]
     raise Unsupported(f"join operand {tag!r} has no evaluation rule")
 
 
+# The binding key of the element an exploded join condition is tested for.
+_EXPLODED = "{exploded}"
+
+
+def _explode_call(node):
+    """The one explodeSemiStructured call in a join condition, or None. The engine allows one per join, after
+    duplicates are removed (relational-semistructured-explode.emit.yaml), which is what a repeated call is."""
+    found = []
+
+    def visit(n):
+        if not isinstance(n, tuple):
+            return
+        tag, body = n
+        if tag == "call":
+            fn, args = body
+            if fn == "explodeSemiStructured" and n not in found:
+                found.append(n)
+            for a in args:
+                visit(a)
+        elif tag in ("and", "or"):
+            visit(body[0])
+            visit(body[1])
+        elif tag == "cmp":
+            visit(body[0])
+            visit(body[2])
+        elif tag in ("pred",):
+            visit(body)
+        elif tag == "null":
+            visit(body[0])
+        elif tag == "array":
+            for a in body:
+                visit(a)
+    visit(node)
+    if len(found) > 1:
+        raise Unsupported(f"a join condition explodes {len(found)} different arrays")
+    return found[0] if found else None
+
+
+def _explode_elements(c: Corpus, call, binding: dict) -> list:
+    """The elements explodeSemiStructured(column, path, 'SEMISTRUCTURED') fans a row into: the array at the path, one
+    joined row per element. No array there -- an absent key, a JSON null, a NULL document -- is no element, so the row
+    lands on nothing, as a join with no match (probed on 4.145.0, scripts/corpus/semi.py)."""
+    _tag, (_fn, args) = call
+    if len(args) != 3 or _operand(c, args[2], binding) != "SEMISTRUCTURED":
+        raise Unsupported(f"explodeSemiStructured{args!r}: the oracle reads (column, path, 'SEMISTRUCTURED')")
+    arr = _semi_walk(_semi_doc(_operand(c, args[0], binding)), _semi_tokens(_operand(c, args[1], binding)))
+    return arr if isinstance(arr, list) else []
+
+
 def _condition(c: Corpus, node, binding: dict) -> bool:
     tag, body = node
     if tag == "pred":
         # A boolean-valued call standing alone as the predicate. NULL is not true: the same
-        # three-valued rule the comparisons use, so a join keeps only pairs it is TRUE for.
+        # three-valued rule a join's comparisons use, so a join keeps only pairs it is TRUE for.
         v = _operand(c, body, binding)
         return v is True
     if tag == "and":
@@ -115,10 +173,10 @@ def _condition(c: Corpus, node, binding: dict) -> bool:
     if tag == "cmp":
         left, op, right = body
         # Three-valued: a NULL operand makes the comparison UNKNOWN, and a join keeps only
-        # pairs for which the condition is TRUE. Same rule the query predicates use, and the
-        # same one F28 shows `!=` breaking on the query side.
-        return _cmp({"=": "==", "<>": "!="}.get(op, op),
-                    _operand(c, left, binding), _operand(c, right, binding))
+        # pairs for which the condition is TRUE. A join condition is SQL, written in the store,
+        # so SQL's rule -- not Pure's, which the query predicates follow (_cmp).
+        return _sql_cmp({"=": "==", "<>": "!="}.get(op, op),
+                        _operand(c, left, binding), _operand(c, right, binding))
     raise Unsupported(f"join condition node {tag!r} has no evaluation rule")
 
 
@@ -138,6 +196,7 @@ def _general_targets(c: Corpus, data, join, from_table: str, src: dict,
     named = rhs.condition_tables(join.condition)
     a, b = join.tables
     to_table = b if from_table == a else a
+    exploded = _explode_call(join.condition)
     out = []
     for tgt in data.get(to_table, []):
         if "{target}" in named:
@@ -145,6 +204,12 @@ def _general_targets(c: Corpus, data, join, from_table: str, src: dict,
                        else {from_table: src, "{target}": tgt})
         else:
             binding = {from_table: src, to_table: tgt}
+        if exploded is not None:
+            # EXPLODE (the improvement plan's Phase 9): the condition holds per ELEMENT of the exploded array, every
+            # part of it for the same element, and each element that pairs with this row is a joined row of its own.
+            out.extend(tgt for elem in _explode_elements(c, exploded, binding)
+                       if _condition(c, join.condition, {**binding, _EXPLODED: elem}))
+            continue
         if _condition(c, join.condition, binding):
             out.append(tgt)
     return out
@@ -209,10 +274,34 @@ def walk_many(c: Corpus, data: dict[str, list[dict]], row: dict,
     return cur
 
 
-def _cmp(op: str, left, right) -> bool:
-    """Three-valued: a NULL operand yields UNKNOWN, which is not true."""
+def _sql_cmp(op: str, left, right) -> bool:
+    """SQL's three-valued comparison, for conditions written in the STORE (a join's, a Filter's):
+    a NULL operand makes it UNKNOWN, which is not true, whatever the operator."""
     if left is None or right is None:
         return False
+    return _cmp(op, left, right)
+
+
+def _cmp(op: str, left, right) -> bool:
+    """Two-valued, as legend-pure defines a comparison over an absent value: false, whatever the
+    operator, except `!=`, which is true.
+
+    legend-pure's `greaterThan(left:Number[0..1], right:Number[1])` is `$left->isNotEmpty() &&
+    ...` and documents it -- "a missing value never satisfies the comparison" -- and the other
+    ordered comparisons are written the same way; `==` is collection equality (`equal(Any[*],
+    Any[*])`), so `[] == 'x'` is false and `[] != 'x'`, its negation, is true. legend-engine and
+    legend-lite both lower it so (lite's NullSemantics, after the engine's processNotEqual).
+
+    This was SQL's three-valued logic until 2026-10-23, which agreed everywhere but on `!=`, and
+    the disagreement was recorded as an engine defect (F28, now withdrawn): an absent operand
+    excluded the row for `==` and `>` and kept it for `!=`, which reads as inconsistent under
+    SQL's rules and is exactly Pure's. The improvement plan's Phase 1 probed `!`, `||` and `in`
+    over NULLs on the pinned engine before writing a predicate tree, and every answer followed
+    Pure's definition but two, which are engine defects with services pinning them: an equality
+    under a negated `||` or `&&` (F64) and an enumeration parameter under `!=` (F65).
+    """
+    if left is None or right is None:
+        return op == "!="
     if op == "==":
         return left == right
     if op == "!=":
@@ -243,7 +332,10 @@ def _xstore_value(c: Corpus, data, row, root: str, path: list[str]):
     return landed.get(col), True
 
 
-def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None):
+def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None, dated=None):
+    # Into a milestoned class: each hop narrowed to the version in force at its date (Phase 3).
+    if not func and _is_dated(c, root, path):
+        return _dated_value(c, data, row, root, path, dated)
     if len(path) == 2 and (root, path[0]) in XSTORE_LINKS:
         v, handled = _xstore_value(c, data, row, root, path)
         if handled:
@@ -270,8 +362,8 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
         if len(path) > 1:
             prefix, _t = c.owner_hops(root, path[:-1])
             base = walk(c, data, row, prefix)
-        return _dynafunction(fn, [_arg_value(c, data, base, owner, path[-1], a)
-                                  for a in fnargs])
+        # As a call nested in another is: one rule for an ARRAY argument, spread for coalesce alone
+        return _arg_value(c, data, base, owner, path[-1], ("call", (fn, fnargs)))
     chain = c.chains.get((owner, path[-1]))
     if chain is not None:
         return _chain_value(c, data, row, root, path, chain)
@@ -298,22 +390,52 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
 # -- the same discipline as the dynafunctions: the expected value comes from what the payload
 # MEANS, not from what the engine returned for it.
 def _json_property(c: Corpus, data, row, root: str, path: list[str], src):
+    doc, keys = _json_document(c, data, row, root, path, src)
+    if doc is _NO_DOCUMENT:
+        return None
+    for i, key in enumerate(keys):
+        if isinstance(doc, list):
+            # A JSON array mid-path is a to-many the planner flattens one row per element (Phase 9): only a fan-out
+            # projection reads it (_fan_rows), as only one reads a to-many association.
+            raise Fanout(f"{'.'.join(path)}: {'.'.join(keys[:i])} is a JSON array, which fans the row set out")
+        doc = doc.get(key) if isinstance(doc, dict) else None
+    if isinstance(doc, list):
+        raise Fanout(f"{'.'.join(path)} ends on a JSON array")
+    return doc
+
+
+# The document of a row whose payload column is NULL: every key under it is absent.
+_NO_DOCUMENT = object()
+
+
+def _json_document(c: Corpus, data, row, root: str, path: list[str], src):
+    """(the parsed document, the keys after the Binding's hop) for a path into a JSON-backed class.
+
+    Everything before the binding hop is ordinary navigation; the payload hangs off whatever row that lands on. The
+    hop is the step whose property a Binding transformer maps (c.bindings); a document nests classes below it, each
+    key a step (the improvement plan's Phase 9; before it a binding was one level deep, hier::Profile)."""
     import json
 
     table, col = src
-    # Everything before the binding hop is ordinary navigation; the payload hangs off
-    # whatever row that lands on.
-    if len(path) > 2:
-        _t, _c, prefix = c.resolve(root, path[:-2])
-        row = walk(c, data, row, prefix)
+    cls = root
+    for b, step in enumerate(path):
+        if (cls, step) in c.bindings:
+            break
+        end = c.ends.get((cls, step))
+        cls = end.target if end is not None else c.embedded[(cls, step)]
+    else:
+        raise Unsupported(f"{'.'.join(path)} crosses no Binding transformer")
+    if b:
+        hops, _cls = c.resolve_assoc(root, path[:b])
+        row = walk(c, data, row, hops)
         if row is None:
-            return None
+            return _NO_DOCUMENT, []
     raw = row.get(col) if row else None
     if raw is None:
-        return None
+        return _NO_DOCUMENT, []
     try:
-        return json.loads(raw).get(path[-1])
-    except (ValueError, AttributeError):
+        return json.loads(raw), list(path[b + 1:])
+    except ValueError:
         # A payload that is not valid JSON is a SEED defect, not a value. Refusing beats
         # returning None, which would look like an absent key.
         raise Unsupported(f"{table}.{col} does not hold valid JSON: {raw!r:.60}")
@@ -418,7 +540,9 @@ def _arg_value(c: Corpus, data, base, owner: str, prop: str, node):
             # An ARRAY argument is spread only for the functions where that is what it
             # MEANS. coalesce([a, b]) is coalesce(a, b); `in(x, [a, b])` is not `in(x, a, b)`,
             # so spreading blindly would quietly change the call.
-            if isinstance(a, tuple) and a[0] == "array":
+            if isinstance(a, tuple) and a[0] == "array" and fn == "in":
+                vals.append(v)        # the list `in` tests against, whole
+            elif isinstance(a, tuple) and a[0] == "array":
                 if fn != "coalesce":
                     raise Unsupported(
                         f"{fn}() takes an ARRAY argument and the oracle only knows how to "
@@ -716,6 +840,39 @@ def _pad(vals, left):
     return pad + s if left else s + pad
 
 
+def _round_half_even(v):
+    """legend-pure's `round(Number[1]):Integer[1]`: the nearest integer, a tie to the even one."""
+    from decimal import Decimal, ROUND_HALF_EVEN
+    return int(Decimal(str(v)).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+
+
+def _substring(vals):
+    """legend-pure's `substring(str, start[, end])`: zero-based, the end exclusive. A position
+    outside the string fails in Pure (Java's String.substring), so the oracle refuses it."""
+    if any(v is None for v in vals):
+        return None
+    s, start = str(vals[0]), int(vals[1])
+    end = int(vals[2]) if len(vals) > 2 else len(s)
+    if not 0 <= start <= end <= len(s):
+        raise Unsupported(f"substring({s!r}, {start}, {end}) is outside the string, which Pure "
+                          f"raises on")
+    return s[start:end]
+
+
+def _sql_substring(vals):
+    """The relational dynafunction `substring(str, start[, length])`, a property mapping's: SQL's SUBSTRING, ONE-based,
+    the third argument a LENGTH, every dialect extension writing it verbatim. A start before the first character or a
+    negative length is refused: dialects read them apart (DuckDB counts a negative start from the end)."""
+    if any(v is None for v in vals):
+        return None
+    s, start = str(vals[0]), int(vals[1])
+    length = int(vals[2]) if len(vals) > 2 else len(s)
+    if start < 1 or length < 0:
+        raise Unsupported(f"substring({s!r}, {start}, {length}): a start before 1 or a negative length, which "
+                          f"dialects read apart")
+    return s[start - 1:start - 1 + length]
+
+
 def _split_part(vals):
     if any(v is None for v in vals[:3]):
         return None
@@ -903,6 +1060,9 @@ IMPL = {
     "concat": lambda vals: "".join(str(v) for v in vals if v is not None),
     "toUpper": _propagating(lambda s: str(s).upper(), 1),
     "toLower": _propagating(lambda s: str(s).lower(), 1),
+    # legend-engine's Pure: `if($str->length() == 0, |$str, |$str->left(1)->toUpper() + $str->substr(1))`
+    "toUpperFirstCharacter": _propagating(lambda s: str(s)[:1].upper() + str(s)[1:], 1),
+    "toLowerFirstCharacter": _propagating(lambda s: str(s)[:1].lower() + str(s)[1:], 1),
     "trim": _propagating(lambda s: str(s).strip(), 1),
     "ltrim": _propagating(lambda s: str(s).lstrip(), 1),
     "rtrim": _propagating(lambda s: str(s).rstrip(), 1),
@@ -918,7 +1078,9 @@ IMPL = {
     "parseBoolean": _propagating(lambda s: str(s).strip().lower() == "true", 1),
     "parseInteger": _propagating(lambda s: int(str(s).strip()), 1),
     "parseFloat": _propagating(lambda s: float(str(s).strip()), 1),
-    "parseDecimal": _propagating(lambda s: float(str(s).strip().rstrip("dD")), 1),
+    # a Decimal, as legend-pure's parseDecimal(String[1]):Decimal[1] returns: a float would lose the digits a Decimal
+    # carries (the improvement plan's Phase 4, the first service to parse one)
+    "parseDecimal": _propagating(lambda s: __import__("decimal").Decimal(str(s).strip().rstrip("dD")), 1),
 
     # ---- null-inspecting: TOTAL, never return NULL themselves -------------------------
     "isNull": lambda vals: vals[0] is None,
@@ -953,9 +1115,17 @@ IMPL = {
     "floor": _propagating(lambda v: math.floor(v), 1),
     "exp": _propagating(exactmath.exp, 1),
     "pow": _propagating(exactmath.pow, 2),
+    # legend-engine's Pure: `pi()` is 3.141592653589793, `toDegrees` is `$radians * 180 / pi()` and `toRadians`
+    # `$degrees * pi() / 180`, each a double's product and quotient. The vocabulary compares their results with a
+    # threshold, never raw.
+    "pi": _propagating(lambda: math.pi, 0),
+    "toDegrees": _propagating(lambda r: r * 180 / math.pi, 1),
+    "toRadians": _propagating(lambda d: d * math.pi / 180, 1),
     "toDecimal": _propagating(lambda v: float(v), 1),
     "toFloat": _propagating(lambda v: float(v), 1),
-    "toString": _propagating(lambda v: str(v), 1),
+    # A Boolean is `true`/`false` in Pure, where Python's str() capitalises: the improvement plan's Phase 4
+    # found it (2026-10-28), the first service to project one.
+    "toString": _propagating(lambda v: ("true" if v else "false") if isinstance(v, bool) else str(v), 1),
     # math.cbrt, not `x ** (1/3)`. The exponent form is inexact by construction -- 1/3 is
     # not representable, so it computes a slightly wrong power of a correct base and lands
     # one ulp out (362.5 -> ...043 where the true cube root is ...044). This is not deferring
@@ -1014,20 +1184,16 @@ IMPL = {
     "divide": _guarded(lambda a, b: a / b, lambda a, b: b != 0,
                        "division by zero is an error in some dialects and NULL in others",
                        arity=2),
-    # mod/rem disagree between dialects only on NEGATIVE operands, so those are refused and
-    # the non-negative case -- which is unambiguous -- is implemented.
-    "mod": _guarded(lambda a, b: int(a) % int(b), lambda a, b: a >= 0 and b > 0,
-                    "the sign of the result for negative operands differs by dialect",
-                    arity=2),
-    "rem": _guarded(lambda a, b: math.fmod(a, b), lambda a, b: a >= 0 and b > 0,
-                    "the sign of the result for negative operands differs by dialect",
-                    arity=2),
-    # A half-way value rounds half-up in some dialects and half-even in others; every other
-    # value has one answer.
-    "round": _guarded(lambda v: int(math.floor(v + 0.5)),
-                      lambda v: abs(v - math.floor(v) - 0.5) > 1e-9,
-                      "a half-way value rounds half-up in some dialects and half-even in "
-                      "others"),
+    # mod, rem and round as legend-pure defines them (the improvement plan's Phase 4, 2026-10-28): `mod`
+    # "as defined mathematically. The result is never negative"; `rem` is the `%` of other languages, its
+    # sign the dividend's; `round(Number[1]):Integer[1]` is HALF-EVEN ("17.5 rounds to 18 but 16.5 rounds
+    # to 16"). Until then the oracle refused negative operands and half-way values, as dialects differ
+    # there; a query asks legend-pure's question, so the dialect's answer is the engine's to match.
+    "mod": _guarded(lambda a, b: a % abs(b), lambda a, b: b != 0, "mod by zero", arity=2),
+    "rem": _guarded(lambda a, b: (math.fmod(a, b) if isinstance(a, float) or isinstance(b, float)
+                                  else (abs(a) % abs(b)) * (1 if a >= 0 else -1)),
+                    lambda a, b: b != 0, "rem by zero", arity=2),
+    "round": _propagating(_round_half_even, 1),
     "sin": _propagating(exactmath.sin, 1), "cos": _propagating(exactmath.cos, 1),
     "tan": _propagating(exactmath.tan, 1), "sinh": _propagating(exactmath.sinh, 1),
     "cosh": _propagating(exactmath.cosh, 1), "tanh": _propagating(exactmath.tanh, 1),
@@ -1044,15 +1210,12 @@ IMPL = {
     "monthNumber": _propagating(lambda d: _dt(d).month, 1),
     "dayOfMonth": _propagating(lambda d: _dt(d).day, 1),
     "dayOfYear": _propagating(lambda d: _dt(d).timetuple().tm_yday, 1),
-    # ISO weekday: Monday is 1. Stated because the alternative convention (Sunday first) is
-    # equally common and the signature does not say which.
-    # Sunday=1 .. Saturday=7, NOT ISO. The signature does not fix a convention and I picked
-    # ISO from habit; the engine picked the other one and says so where it lowers -- the
-    # DuckDB extension writes `dayofweek(d) + 1` with the comment "(Sunday = 0, Saturday = 6)
-    # >> we need from 1 to 7". A stated convention beats an assumed one, so this follows the
-    # engine here. It is the `concat` lesson again: where behaviour is a choice rather than a
-    # consequence, an implementation written from what the NAME means is a guess.
-    "dayOfWeekNumber": _propagating(lambda d: _dt(d).isoweekday() % 7 + 1, 1),
+    # ISO weekday, Monday 1 to Sunday 7, as legend-pure defines it: its own tests have
+    # `DayOfWeek.Monday->dayOfWeekNumber()` 1 and Sunday 7, and its Sunday-first overload is
+    # `dayOfWeekNumber($day)->mod(7) + 1`. Until 2026-10-28 this followed the ENGINE's DuckDB lowering,
+    # `dayofweek(d) + 1`, Sunday 1, which made agreement with it circular; the improvement plan's Phase 4
+    # restored legend-pure as the spec.
+    "dayOfWeekNumber": _propagating(lambda d: _dt(d).isoweekday(), 1),
     "weekOfYear": _propagating(lambda d: _dt(d).isocalendar()[1], 1),
     "quarterNumber": _propagating(lambda d: (_dt(d).month - 1) // 3 + 1, 1),
     "hour": _propagating(lambda d: _dt(d).hour, 1),
@@ -1109,8 +1272,12 @@ IMPL = {
     # any-of-nothing is false. Stated because it is the case a caller forgets.
     "and": lambda vals: all(_flatten(vals)),
     "or": lambda vals: any(_flatten(vals)),
-    "between": lambda vals: (None if any(v is None for v in vals[:3]) else
+    # legend-engine's Pure: `($value >= $lower) && ($value <= $upper)` over [0..1] operands, and a comparison over
+    # an absent value is false (D7), so between over one is false. It was SQL's NULL until 2026-10-29 (stage 6).
+    "between": lambda vals: (False if any(v is None for v in vals[:3]) else
                              vals[1] <= vals[0] <= vals[2]),
+    # legend-engine's Pure: `and(or($first, $second), or(!$first, !$second))`
+    "xor": _propagating(lambda a, b: bool(a) != bool(b), 2),
 
     # ---- collection: shape operations over a list ------------------------------------
     #
@@ -1274,17 +1441,25 @@ IMPL = {
     #
     # Each states its convention, so a failure says WHICH assumption was wrong.
     #
-    # substring/indexOf are ONE-BASED and the end index is EXCLUSIVE.
-    "substring": lambda vals: (None if vals[0] is None else
-                               str(vals[0])[int(vals[1]) - 1:
-                                            int(vals[2]) - 1 if len(vals) > 2 else None]),
+    # substring here is the relational DYNAFUNCTION, a property mapping's: SQL's SUBSTRING, one-based, the third
+    # argument a length, which every dialect extension writes verbatim. A query's substring is legend-pure's,
+    # zero-based with an exclusive end (QUERY_IMPL). One reading served both until 2026-10-29: legend-pure's from
+    # 2026-10-28, and one-based with an exclusive end before that, which agreed with neither. The user's reading of
+    # the plan's D9 (two functions sharing a name) was taken for substring too on 2026-10-29, which withdrew F37's
+    # property-mapping half.
+    "substring": lambda vals: _sql_substring(vals),
+    # indexOf is ZERO-BASED, -1 on a miss, as legend-pure defines it ("The zero-based position of the
+    # first occurrence of `toFind` in `str`, or `-1` if it does not occur"). It was SQL's strpos, one-based
+    # with 0 for a miss, until 2026-10-28 (the improvement plan's Phase 4).
     "indexOf": lambda vals: (None if any(v is None for v in vals[:2]) else
-                             str(vals[0]).find(str(vals[1])) + 1),
+                             str(vals[0]).find(str(vals[1]))),
     # Pad to the width; a string ALREADY at least that long is returned unchanged rather
     # than truncated.
     "lpad": lambda vals: _pad(vals, left=True),
     "rpad": lambda vals: _pad(vals, left=False),
-    # splitPart is ONE-BASED; an out-of-range part is NULL rather than the empty string.
+    # splitPart is ONE-BASED; an out-of-range part is NULL rather than the empty string. This is the relational
+    # DYNAFUNCTION, a property mapping's, which every dialect extension writes as SQL's split_part; a query's
+    # splitPart is legend-engine's Pure function, zero-based (QUERY_IMPL, below).
     "splitPart": lambda vals: _split_part(vals),
     # replace is non-overlapping, left to right -- Python's str.replace, which is also what
     # every SQL REPLACE does.
@@ -1536,13 +1711,35 @@ def _regex(fn):
         if fn == "regexpCount":
             return len(_re.findall(pattern, s))
         if fn == "regexpIndexOf":
+            # legend-engine's `regexpIndexOf(string, regexp[, groupNumber])`: where the match (or
+            # the group) BEGINS, zero-based, and -1 when there is no match or no such group. It was
+            # one-based with 0 for a miss (REGEXP_INSTR's convention) until 2026-10-28, which the
+            # Phase 4 adjudication found: the pinned engine answers Pure's.
+            group = int(vals[2]) if len(vals) > 2 and isinstance(vals[2], int) else 0
             m = _re.search(pattern, s)
-            return (m.start() + 1) if m else 0
+            if m is None or group > (m.re.groups or 0) or m.start(group) < 0:
+                return -1
+            return m.start(group)
         if fn == "regexpExtract":
+            # legend-engine's `regexpExtract(string, regexp, extractAll[, groupNumber])`: the first
+            # match (or every match) of the whole pattern or of one group. String[*], so no match is
+            # nothing, never ''. Only the first-match form reaches a column, so `extractAll` true is
+            # refused here. Before 2026-10-28 this read (string, pattern) and ignored the rest.
+            if len(vals) > 2 and vals[2] is True:
+                raise Unsupported("regexpExtract with extractAll is a list, which no column holds")
+            group = int(vals[3]) if len(vals) > 3 and isinstance(vals[3], int) else 0
             m = _re.search(pattern, s)
-            return m.group(0) if m else None
+            if m is None or group > (m.re.groups or 0) or m.group(group) is None:
+                return None
+            return m.group(group)
         if fn == "regexpReplace":
-            return _re.sub(pattern, str(vals[2]), s)
+            # legend-engine's `regexpReplace(string, regexp, replacement, replaceAll)`: every match, or the first
+            # alone when replaceAll is false (the three-argument dynafunction replaces every one). A replacement
+            # naming a group is Java's `$1`, Python's `\1`, so one with either sign is refused.
+            repl = str(vals[2])
+            if "$" in repl or "\\" in repl:
+                raise Unsupported(f"replacement {repl!r} names a group, which Java and Python spell apart")
+            return _re.sub(pattern, repl, s, count=1 if len(vals) > 3 and vals[3] is False else 0)
         raise Unsupported(fn)
     return impl
 
@@ -1687,6 +1884,12 @@ REFUSED = {
     # bytes on every machine and every day, so no expectation may read the clock. No committed service uses these.
     **{n: "reads the clock, and the corpus is generated by a Bazel action that must not"
        for n in ("today", "now", "firstDayOfThisMonth", "firstDayOfThisYear", "firstDayOfThisQuarter")},
+    # Implemented as the OS user (getpass.getuser()) until 2026-10-28, when the improvement plan's
+    # Phase 4 adjudicated the probe's disagreement: legend-engine defines no value (its PCT test
+    # asserts only that there is one), the pinned relational lowering reads the DATABASE's
+    # CURRENT_USER ('duckdb' in a service test), and a Bazel action must not read an identity.
+    "currentUserId": "the identity running the query, which legend-engine leaves unspecified "
+                     "(its PCT asserts only that there is one) and a Bazel action must not read",
 }
 
 # ------------------------------------------------------- relation / TDS operations
@@ -1712,9 +1915,11 @@ def _rel_sort(rows, keys):
     return rows
 
 
-def _rel_group(rows, keys, aggs):
+def _rel_group(rows, keys, aggs, compress=True):
     """GROUP BY over named columns. An empty input yields NO groups, not one empty group --
-    the distinction that decides whether a report shows a zero row or no row."""
+    the distinction that decides whether a report shows a zero row or no row. A group whose
+    values are all absent is absent but for count's 0, as the groupBy native answers (the
+    group-by aggregates' comment below); a window (`compress` False) still reduces its frame."""
     out, seen = [], {}
     for r in rows:
         k = tuple(r.get(c) for c in keys)
@@ -1723,7 +1928,12 @@ def _rel_group(rows, keys, aggs):
         row = dict(zip(keys, k))
         for name, col, fn in aggs:
             vals = [m.get(col) for m in members if m.get(col) is not None]
-            row[name] = _dynafunction(fn, [vals])
+            if compress and not _order_free(fn, vals):
+                # a groupBy's group has no order (_ORDERED, below); a window's frame does
+                raise Unsupported(f"{name}: {fn} over a group whose values differ answers the order the database "
+                                  f"reads the group in, which a groupBy never fixes")
+            row[name] = (None if compress and not vals and fn != "count"
+                         else _dynafunction(fn, [vals]))
         out.append(row)
     return out
 
@@ -1733,7 +1943,9 @@ def _rel_join(left, right, kind, on):
     right-hand columns absent -- which is the semantic the whole corpus turns on, since a
     to-one navigation compiles to exactly this."""
     out = []
-    rcols = {c for r in right for c in r}
+    # the right-hand columns in the order its rows hold them, never a set's: an unmatched row's keys are the expected
+    # JSON's, and a set's order follows PYTHONHASHSEED (the PR #87 review's finding 9)
+    rcols = list(dict.fromkeys(c for r in right for c in r))
     for l in left:
         matches = [r for r in right if on(l, r)]
         if matches:
@@ -1813,7 +2025,7 @@ RELATION_IMPL = {
     "tableToTDS": lambda rows: _rows(rows),
     "viewToTDS": lambda rows: _rows(rows),
     "tdsContains": lambda rows, r: r in _rows(rows),
-    "olapGroupBy": _rel_group,
+    "olapGroupBy": lambda rows, keys, aggs: _rel_group(rows, keys, aggs, compress=False),
     "groupByWithWindowSubset": _rel_group,
     "projectWithColumnSubset": lambda rows, cols: [{a: r.get(c) for a, c in cols}
                                                    for r in _rows(rows)],
@@ -1855,11 +2067,6 @@ IMPL.update({
                   else type(vals[0]).__name__ == str(vals[1]),
     "new": lambda vals: dict(vals[1]) if len(vals) > 1 and isinstance(vals[1], dict) else {},
     "save": lambda vals: _rows(vals[0]),
-    # The OS user, read independently. "Environment-dependent" was the refusal, and it is
-    # true and not disqualifying: the environment is readable, and reading it is exactly what
-    # the function does. If the engine runs as a different user the test says so, which is
-    # information, where the refusal was none.
-    "currentUserId": lambda _vals: __import__("getpass").getuser(),
     # The oracle already builds graph-fetch trees -- evaluate_graph does it, and the corpus
     # asserts them. Exposing that under the function's own name is bookkeeping, not a new
     # implementation, and the old refusal amounted to "it is asserted somewhere else".
@@ -1875,6 +2082,184 @@ IMPL.update({
     # registry split has quietly swallowed an implementation.
     "columnProjectionsFromRoot": lambda vals: _column_projections_from_root(*vals),
 })
+
+# ------------------------------------------------- semi-structured documents (the improvement plan's Phase 9)
+#
+# A SEMISTRUCTURED column holds a JSON document, and the store reads into it with extractFromSemiStructured(column,
+# path, type). Each rule below is stated from the pinned sources, read as spec (dbExtension.pure's
+# parseSemiStructuredPathNavigation, duckdbExtension.pure's renderings, the EMIT models' assertions), and every one was
+# probed on 4.145.0 against both test databases before a service asserted it (scripts/corpus/semi.py's header).
+
+def _semi_tokens(path: str) -> list[tuple]:
+    """A path as legend-engine reads it: a leading key, then `.key`, `[n]` or `["quoted key"]` (which may hold a dot or
+    a space), left to right; and `[*]`, a wildcard, which the engine desugars into an array_transform before it parses
+    the rest. ('key', name) | ('index', n) | ('all',)."""
+    toks, i = [], 0
+    m = re.compile(r"[^.\[]*").match(path, 0)
+    if m.group(0):
+        toks.append(("key", m.group(0)))
+        i = m.end()
+    while i < len(path):
+        if path[i] == ".":
+            m = re.compile(r"[^.\[]+").match(path, i + 1)
+            if m is None:
+                raise Unsupported(f"path {path!r}: an empty key at {i}")
+            toks.append(("key", m.group(0)))
+            i = m.end()
+        elif path.startswith("[*]", i):
+            toks.append(("all",))
+            i += 3
+        elif path.startswith('["', i):
+            end = path.find('"]', i + 2)
+            if end < 0:
+                raise Unsupported(f"path {path!r}: an unterminated quoted key at {i}")
+            toks.append(("key", path[i + 2:end]))
+            i = end + 2
+        elif path[i] == "[":
+            end = path.find("]", i)
+            if end < 0 or not path[i + 1:end].isdigit():
+                raise Unsupported(f"path {path!r}: an index that is not a whole number at {i}")
+            toks.append(("index", int(path[i + 1:end])))
+            i = end + 1
+        else:
+            raise Unsupported(f"path {path!r}: invalid token at {i}")
+    return toks
+
+
+def _semi_doc(v):
+    """A column's JSON text parsed (decimals kept exact), or a value already inside a document, as it is."""
+    import json
+
+    if isinstance(v, str):
+        try:
+            return json.loads(v, parse_float=decimal.Decimal)
+        except ValueError:
+            raise Unsupported(f"a semi-structured value that is not JSON: {v!r:.60}")
+    return v
+
+
+class _Many(list):
+    """What a wildcard collects: a flat sequence, Pure having no nested collection (the EMIT wildcard model's twoLevels)."""
+
+
+def _semi_walk(doc, toks):
+    """The value at a path. Absent at a missing key, a JSON null, an index past either end, or a step into something
+    that is not the container the step needs: each is NULL in the engine's SQL (probed: 'nope', 'legs[5].qty',
+    'legs[1].venue' over one leg). A wildcard reads the rest of the path in each element and collects what is there."""
+    for k, t in enumerate(toks):
+        if doc is None:
+            return None
+        if t[0] == "all":
+            if not isinstance(doc, list):
+                return None
+            out = _Many()
+            for e in doc:
+                v = _semi_walk(e, toks[k + 1:])
+                if isinstance(v, _Many):
+                    out.extend(v)
+                elif v is not None:
+                    out.append(v)
+            return out
+        if t[0] == "key":
+            doc = doc.get(t[1]) if isinstance(doc, dict) else None
+        else:
+            doc = doc[t[1]] if isinstance(doc, list) and t[1] < len(doc) else None
+    return doc
+
+
+_SEMI_SCALAR = {"CHAR", "VARCHAR", "STRING", "INTEGER", "FLOAT", "DECIMAL", "BOOLEAN", "DATE", "DATETIME", "TIMESTAMP",
+                "SEMISTRUCTURED"}
+
+
+def _semi_cast(v, ty: str):
+    """A value read out of a document, as the extraction's type names it. NULL stays NULL. A value that is not of the
+    type is refused rather than coerced: what a database's cast makes of a string read as an INTEGER is the database's
+    choice, and no service here asks it."""
+    if v is None:
+        return None
+    t = ty.upper()
+    if t.endswith("[]"):
+        # An array extraction: the array at the path, or what a wildcard collected, element by element. One with no
+        # element is absent, as the engine's EMIT flatten probe asserts (allEmpty: array_to_string over nothing is null).
+        elems = v if isinstance(v, list) else None
+        if elems is None:
+            raise Unsupported(f"an array extraction ({ty}) of a value that is not an array: {v!r:.40}")
+        out = [_semi_cast(e, t[:-2]) for e in elems]
+        return out or None
+    if t not in _SEMI_SCALAR:
+        raise Unsupported(f"extractFromSemiStructured to {ty!r}, which is not in the engine's whitelist")
+    if t == "SEMISTRUCTURED":
+        return v
+    if isinstance(v, (dict, list)):
+        raise Unsupported(f"a {ty} read of a sub-document")
+    if t in ("CHAR", "VARCHAR", "STRING"):
+        if not isinstance(v, str):
+            raise Unsupported(f"a {ty} read of the JSON {type(v).__name__} {v!r}")
+        return v
+    if t == "BOOLEAN":
+        if not isinstance(v, bool):
+            raise Unsupported(f"a BOOLEAN read of {v!r}")
+        return v
+    if t == "INTEGER":
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise Unsupported(f"an INTEGER read of {v!r}")
+        return v
+    if t in ("FLOAT", "DECIMAL"):
+        if isinstance(v, bool) or not isinstance(v, (int, decimal.Decimal)):
+            raise Unsupported(f"a {ty} read of {v!r}")
+        # Pure's Decimal is the number written, digit for digit; a FLOAT the double nearest it.
+        return decimal.Decimal(v) if t == "DECIMAL" else float(v)
+    if t == "DATE":
+        if not (isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)):
+            raise Unsupported(f"a DATE read of {v!r}")
+        return v
+    # DATETIME and TIMESTAMP: an ISO local date-time, held as the seed holds a TIMESTAMP ("2024-06-03 09:30:15");
+    # render() writes it as Legend does.
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})", v) if isinstance(v, str) else None
+    if m is None:
+        raise Unsupported(f"a {ty} read of {v!r}: the oracle reads a date-time written YYYY-MM-DDTHH:MM:SS")
+    return f"{m.group(1)} {m.group(2)}"
+
+
+def _semi_extract(vals):
+    """extractFromSemiStructured(document, path, type): NULL over a NULL document."""
+    doc, path, ty = vals
+    if doc is None:
+        return None
+    return _semi_cast(_semi_walk(_semi_doc(doc), _semi_tokens(path)), ty)
+
+
+def _semi_array(fn):
+    """The array_* functions over an extracted array, by duckdbExtension.pure's renderings (the pin plans them on no
+    other test database): array_size is `ifnull(json_array_length(..), 0)` and array_contains `ifnull(.., false)`, so
+    an absent array has none and contains nothing; array_max and array_sum aggregate it, absent over nothing, as a
+    group's aggregate is (D8); array_to_string joins it, absent over nothing (EMIT's allEmpty); array_sort orders it."""
+    def impl(vals):
+        xs = vals[0]
+        if xs is not None and not isinstance(xs, list):
+            raise Unsupported(f"{fn} of a value that is not an array: {xs!r:.40}")
+        if fn == "array_size":
+            return len(xs) if xs else 0
+        if fn == "array_contains":
+            return bool(xs) and vals[1] in xs
+        present = [x for x in (xs or []) if x is not None]
+        if fn == "array_to_string":
+            if len(present) != len(xs or []):
+                raise Unsupported("array_to_string over an array holding a null element")
+            return vals[1].join(str(x) for x in present) if present else None
+        if fn in ("array_max", "array_min"):
+            return (max if fn == "array_max" else min)(present) if present else None
+        if fn == "array_sum":
+            return sum(present) if present else None
+        if fn == "array_sort":
+            return sorted(present) if present else None
+        raise Unsupported(f"{fn} has no rule here")
+    return impl
+
+
+IMPL.update({"extractFromSemiStructured": _semi_extract,
+             **{n: _semi_array(n) for n in ("array_size", "array_contains", "array_to_string", "array_max",
+                                            "array_min", "array_sum", "array_sort")}})
 
 RELATION_IMPL.update({
     "asOfJoin": _as_of_join,
@@ -1914,6 +2299,77 @@ def _dynafunction(fn, vals):
         f"dynafunction {fn!r} has no independent implementation in the oracle. Add one "
         f"deliberately -- do NOT read the expected value from the engine, which would make "
         f"the assertion circular.")
+
+
+# ------------------------------------- platform functions in a query (Phase 4)
+
+# The operators a chain writes infix (query.Apply), by their functions.
+_INFIX_FN = {"+": "plus", "-": "minus", "*": "times", "/": "divide"}
+
+# A function's Pure return type, as the column it projects renders.
+RET_KIND = {"String": "string", "Integer": "int", "Float": "float", "Decimal": "float", "Number": "float",
+            "Boolean": "bool", "StrictDate": "date", "Date": "date", "DateTime": "timestamp",
+            "DayOfWeek": "string"}
+
+
+def _if(a, v):
+    """A query.If over one value: the test as a filter would make it, then the branch's literal or the value."""
+    test = (bool(v) if a.op == "is" else v is None if a.op == "isEmpty" else _cmp(a.op, v, a.value))
+    b = a.then if test else a.otherwise
+    return v if b == SELF else b
+
+
+def _apply(a, v):
+    """A query.Apply over one value, as legend-pure defines it (the improvement plan's Phase 4).
+
+    Through `map`, an absent value stays absent whatever the functions: legend-pure's map over an empty
+    collection is empty. Applied directly, a function of a [1] parameter over an absent value raises in
+    Pure, which no expected result can state, so the oracle refuses it. A step answering nothing (a
+    regexpExtract with no match) ends the chain the same way: absent through map, refused otherwise."""
+    if isinstance(a, If):
+        return _if(a, v)
+    for i, (fn, args) in enumerate(a.steps):
+        if v is None:
+            if a.through_map:
+                return None
+            raise Unsupported(f"{fn} applied to an absent value without map, which Pure raises on")
+        name = _INFIX_FN.get(fn, fn)
+        args = [_dynafunction(x, []) if isinstance(x, Nullary) else x for x in args]
+        if name == "plus" and isinstance(v, str):
+            v = v + str(args[0])         # `+` over strings is concatenation
+            continue
+        v = QUERY_IMPL[name]([v, *args]) if name in QUERY_IMPL else _dynafunction(name, [v, *args])
+    return v
+
+
+def _pure_split_part(vals):
+    """legend-engine's `splitPart(str, token, part)`, `$str->toOne()->split($token)->at($part)`: ZERO-based, where the
+    relational dynafunction of the same name is SQL's one-based split_part. The pinned engine converts a query's
+    (pureToSQLQuery's processSplitPart: "sql is 1 index based, pure is 0 index based"). Refused where the two
+    splits differ (an empty piece, which Pure's drops and SQL's keeps; a token of several characters, which Pure's
+    reads as a set: SEMANTICS_REGISTER S17) and where `at` raises (a part past the last)."""
+    s, token, part = vals
+    if s is None:
+        return None
+    if len(str(token)) != 1:
+        raise Unsupported(f"splitPart over the token {token!r}: Pure's split reads several characters as a set")
+    parts = str(s).split(str(token))
+    if "" in parts:
+        raise Unsupported(f"splitPart of {s!r}: an empty piece, which Pure's split drops and SQL's keeps")
+    if not 0 <= int(part) < len(parts):
+        raise Unsupported(f"splitPart of {s!r} at {part}: Pure's at() raises past the last piece")
+    return parts[int(part)]
+
+
+# Functions whose Pure definition, which a QUERY applies, differs from the relational dynafunction of the same name,
+# which a property mapping applies: the query's reading (the user's decisions for splitPart and substring,
+# 2026-10-29).
+QUERY_IMPL = {
+    "splitPart": _pure_split_part,
+    # legend-pure's `substring(str, start[, end])`, zero-based with an exclusive end; at the pin the engine converts a
+    # query's (pureToSQLQuery's processSubstr), but not a TDS extend's (F37)
+    "substring": _substring,
+}
 
 
 # ---------------------------------------------------- derived-property evaluation
@@ -2247,14 +2703,39 @@ def _reverse_hops(c: Corpus, root: str, path: list[str]) -> set[int]:
     return out
 
 
-def _agg(c: Corpus, data, row, root: str, proj):
+def _steps(c: Corpus, root: str, path) -> list[tuple[str, str]]:
+    """(class, step) for each step of an association path, as far as it resolves."""
+    out, cls = [], root
+    for step in path:
+        out.append((cls, step))
+        end = c.ends.get((cls, step))
+        if end is None:
+            break
+        cls = end.target
+    return out
+
+
+def _agg(c: Corpus, data, row, root: str, proj, params: dict | None = None):
     hops, _target = c.resolve_assoc(root, proj.path)
     landed = walk_many(c, data, row, hops, _reverse_hops(c, root, proj.path))
     # A navigation onto a MILESTONED class carries a date, and the date has to narrow the
     # landed rows the same way it narrows a temporal root. Without this the count is of every
     # version ever recorded rather than of the one in force -- a number that looks like an
     # answer and is not.
-    if proj.args and c.classes.get(_target) is not None \
+    last = proj.path[-1]
+    if isinstance(last, Hop):
+        # Phase 3's forms: `<end>AllVersions` (every version, nothing narrows),
+        # `<end>AllVersionsInRange(start, end)`, or `<end>(date...)` with typed or bound dates.
+        if any(c.classes.get(e.target) is not None and c.classes[e.target].temporal
+               for e in (c.ends.get((cls, s)) for cls, s in _steps(c, root, proj.path[:-1]))
+               if e is not None):
+            raise Unsupported(f"{proj.alias}: only the last hop of an aggregate path may be dated")
+        bound = [_bind_date(c, data, row, root, d, params) for d in (last.dates or ())]
+        if last.versions == "range":
+            landed = _range_rows(c, _target, landed, *bound)
+        elif last.versions is None:
+            landed = _milestone_rows(c, _target, landed, bound)
+    elif proj.args and c.classes.get(_target) is not None \
             and c.classes[_target].temporal is not None:
         landed = _milestone_rows(c, _target, landed, list(proj.args))
     if proj.agg == "count":
@@ -2267,6 +2748,10 @@ def _agg(c: Corpus, data, row, root: str, proj):
         # returns isEmpty=true and isNotEmpty=false, where count() returns 1 rather than 0.
         # So a family of to-many queries is testable that count() cannot carry.
         return (not landed) if proj.agg == "isEmpty" else bool(landed)
+    if proj.agg == "sum" and proj.over is not None:
+        # `$x.path->map(t|$t.<over>)->sum()`: legend-pure's collection sum, `plus()` of the values, 0 over a
+        # navigation that lands on nothing (Phase 4, stage 6; not a groupBy, which never reduces an empty group)
+        return _pure_sum([v for v in (_value(c, data, r, _target, [proj.over]) for r in landed) if v is not None])
     raise Fanout(f"unhandled aggregate {proj.agg!r}")
 
 
@@ -2294,7 +2779,17 @@ def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
     """
     members = c.unions.get(root)
     if members:
-        return [r for m in members for r in data[m]]
+        # A member answers nothing for a property its own set does not map, whatever its row holds there: a merge's
+        # two sets each map half of the class, and legend-engine's router reads a merge as its sets, a union's way
+        # (router_operations.pure), so each side's other half is absent (the improvement plan's Phase 7).
+        props = c.union_props.get(root) or [None] * len(members)
+        cols = c.columns.get(root, {})
+        out = []
+        for m, mapped in zip(members, props):
+            read = {cols[p] for p in mapped or () if p in cols}
+            blank = {cols[p]: None for p in cols if mapped and p not in mapped and cols[p] not in read}
+            out += [{**r, **blank} for r in data[m]] if blank else data[m]
+        return out
     return data[c.main_table[root]]
 
 
@@ -2307,12 +2802,16 @@ def _filter_holds(c: Corpus, name: str, row: dict | None) -> bool:
     """
     if row is None:
         return False
-    _table, col, op, val = c.filters[name]
+    table, col, op, val = c.filters[name]
+    if op == "cond":
+        # A predicate over a dynafunction (model._FILTER_HEAD; Phase 9): SQL's three-valued rule, as a join's.
+        return _condition(c, val, {table: row})
     if op == "isnull":
         return row.get(col) is None
     if op == "isnotnull":
         return row.get(col) is not None
-    return _cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
+    # A store Filter is SQL, like a join condition: SQL's three-valued `<>`.
+    return _sql_cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
 
 
 def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
@@ -2342,8 +2841,49 @@ def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
             raise Unsupported(
                 f"~filter chain on {root} ends at {landed_table}, but filter {fname} tests "
                 f"{ftable}")
-        rows = [r for r in rows if _filter_holds(c, fname, walk(c, data, r, hops))]
+        kinds = c.filter_chain_types.get(root) or [None] * len(hops)
+        rows = [r for r in rows if _filter_over_chain(c, data, r, hops, kinds, fname)]
     return rows
+
+
+def _filter_over_chain(c: Corpus, data, row: dict, hops, kinds, fname: str) -> bool:
+    """A ~filter through a join chain, as legend-engine 4.145.0 joins it (probed by the improvement plan's Phase 9 on
+    H2 and DuckDB): each hop is an OUTER join unless it is typed (INNER). A hop that lands on nothing leaves the row
+    with NULL columns on its far side, and the filter is tested over them -- `T.X is null` holds there, a comparison
+    does not -- while an INNER hop that lands on nothing drops the row. Before Phase 9 every hop was read as INNER, which
+    answers the same for every filter that a NULL fails, and every chain filter the corpus had was one."""
+    if len(kinds) != len(hops):
+        raise Unsupported(f"~filter chain of {len(hops)} hops read with {len(kinds)} join types")
+    cur = row
+    for hop, kind in zip(hops, kinds):
+        if kind not in (None, "INNER", "OUTER"):
+            raise Unsupported(f"~filter chain hop typed {kind!r}")
+        nxt = None if cur is None else walk(c, data, cur, [hop])
+        if nxt is None and kind == "INNER":
+            return False
+        cur = nxt
+    return _filter_holds(c, fname, cur if cur is not None else {})
+
+
+# The milestoning dimensions a temporal stereotype carries, in the order all() and a milestoned
+# property take their dates: PROCESSING FIRST for a bitemporal class.
+_DIMENSIONS = {"businesstemporal": ["business"],
+               "processingtemporal": ["processing"],
+               "bitemporal": ["processing", "business"]}
+
+
+def _instant(v) -> _datetime:
+    """A DATE or TIMESTAMP cell, an infinity date, or a milestoning date, as an instant. A date with
+    no time of day is its midnight: probed on the pinned engine before any service was written
+    (the improvement plan's Phase 3) -- `all(%2024-06-04)` over TIMESTAMP processing columns reads
+    the version in force at 2024-06-04 00:00:00, so a version superseded exactly at midnight is the
+    old one on the 3rd and the new one on the 4th."""
+    s = str(v).replace("T", " ")
+    if len(s) == 10:
+        return _datetime(int(s[:4]), int(s[5:7]), int(s[8:10]))
+    whole, _, frac = s.partition(".")
+    t = _datetime.strptime(whole, "%Y-%m-%d %H:%M:%S")
+    return t.replace(microsecond=int((frac + "000000")[:6])) if frac.strip("0") else t
 
 
 def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
@@ -2353,15 +2893,18 @@ def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
     date -- the engine refuses the undated form outright -- and the oracle was applying the
     predicate only at the ROOT, so a navigated to-many returned every version ever recorded.
     Two versions of a rating came back where the engine correctly returned the one in force.
+
+    Each version is [FROM, THRU), compared as instants (_instant), so a TIMESTAMP milestone meets a
+    DateTime at its second and a StrictDate at its midnight. A DateTime against a DATE column is
+    refused: no service asks it and the pinned engine was not probed on it. `latest` selects the
+    versions whose THRU is the table's declared infinity date, a DateTime one included.
     """
     klass = c.classes.get(cls)
     temporal = klass.temporal if klass else None
     if temporal is None:
         return rows
     table = c.tables.get(c.main_table.get(cls, ""))
-    wanted = {"businesstemporal": ["business"],
-              "processingtemporal": ["processing"],
-              "bitemporal": ["processing", "business"]}.get(temporal)
+    wanted = _DIMENSIONS.get(temporal)
     if table is None or wanted is None:
         raise Unsupported(f"{cls}: {temporal} milestoning is not modelled")
     if len(dates) != len(wanted) or any(d is None for d in dates):
@@ -2373,15 +2916,158 @@ def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
             raise Unsupported(f"{cls} is {temporal} but {table.name} declares no "
                               f"{kind} milestoning columns")
         if at == "latest":
-            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
-        else:
+            infinity = _instant(ms.infinity or INFINITY)
             rows = [r for r in rows
-                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
-                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
+                    if r.get(ms.thru) is not None and _instant(r[ms.thru]) == infinity]
+            continue
+        if table.columns[ms.frm].kind == "date" and len(str(at)) != 10:
+            raise Unsupported(f"{cls}: the {kind} date {at!r} has a time of day and "
+                              f"{table.name}.{ms.frm} is a DATE")
+        t = _instant(at)
+        rows = [r for r in rows
+                if r.get(ms.frm) is not None and _instant(r[ms.frm]) <= t
+                and (r.get(ms.thru) is None or t < _instant(r[ms.thru]))]
     return rows
 
 
-def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
+def _range_rows(c: Corpus, cls: str, rows: list[dict], start, end) -> list[dict]:
+    """Every version that overlaps [start, end]: FROM <= end and THRU > start. Inclusive at the
+    end, which is what legend-engine's own range tests assert (`from_z <= '2015-09-01' and
+    thru_z > '2015-01-01'`, testTemporalRangeQuery.pure) and what the Phase 3 probe confirmed at a
+    time of day. Pure defines a range only for a class milestoned in ONE dimension."""
+    temporal = c.classes[cls].temporal
+    if temporal not in ("businesstemporal", "processingtemporal"):
+        raise Unsupported(f"{cls} is {temporal}; a range of versions is defined for one dimension")
+    table = c.tables[c.main_table[cls]]
+    ms = table.milestone(_DIMENSIONS[temporal][0])
+    lo, hi = _instant(start), _instant(end)
+    return [r for r in rows
+            if r.get(ms.frm) is not None and _instant(r[ms.frm]) <= hi
+            and (r.get(ms.thru) is None or _instant(r[ms.thru]) > lo)]
+
+
+def _bind_date(c: Corpus, data, row, root: str, d, params: dict | None):
+    """A milestoning date as the test binds it: a literal as written, a parameter's value, or a
+    value read from the root row (query.PathArg)."""
+    if isinstance(d, Param):
+        if params is None or params.get(d.name) is None:
+            raise Unsupported(f"milestoning date ${d.name} has no value in this test")
+        return params[d.name]
+    if isinstance(d, PathArg):
+        v = _value(c, data, row, root, list(d.path))
+        if v is None:
+            raise Unsupported(f"milestoning date $x.{'.'.join(d.path)} is absent on a row, and "
+                              f"Pure's toOne() would fail there")
+        return v
+    return d
+
+
+class _Dated:
+    """What a milestoned navigation needs from the query around it: the test's parameters, and the
+    dates the root was read at, which a milestoned property with no argument of its own takes
+    (date propagation). `root_dates` is None when the root is not temporal or was read at every
+    version, where there is no single date to propagate."""
+
+    def __init__(self, root_temporal: str | None, root_dates, params: dict | None):
+        self.root_temporal, self.root_dates, self.params = root_temporal, root_dates, params
+
+
+_CROSSES: dict[tuple, bool] = {}
+
+
+def _is_dated(c: Corpus, root: str, path) -> bool:
+    """Whether a path navigates INTO a milestoned class, or carries a dated step (query.Hop)."""
+    if any(isinstance(s, Hop) for s in path):
+        return True
+    key = (root, tuple(str(s) for s in path))
+    hit = _CROSSES.get(key)
+    if hit is None:
+        hit, cls = False, root
+        for step in path[:-1]:
+            end = c.ends.get((cls, step))
+            if end is None:
+                break
+            cls = end.target
+            if c.classes.get(cls) is not None and c.classes[cls].temporal is not None:
+                hit = True
+                break
+        _CROSSES[key] = hit
+    return hit
+
+
+def _hop_dates(c: Corpus, data, row, root: str, step, src_temporal, context, dated: _Dated,
+               target: str):
+    """The dates a milestoned hop into `target` is read at: its own, or the ones it propagates."""
+    if isinstance(step, Hop) and step.versions is not None:
+        raise Fanout(f"{target} is navigated at every version ({step}AllVersions...), which is "
+                     f"to-many; only an aggregate over it is modelled")
+    if isinstance(step, Hop) and step.dates is not None:
+        return [_bind_date(c, data, row, root, d, dated.params) for d in step.dates]
+    # No argument: the property takes the date the navigation leaves from. Pure generates that
+    # form only between classes milestoned the same way; anything else needs an explicit date.
+    if context is None or src_temporal != c.classes[target].temporal:
+        raise Unsupported(f"{step} into {target} has no date of its own and leaves from "
+                          f"{src_temporal or 'a non-temporal class'}, so none propagates")
+    return context
+
+
+def _dated_value(c: Corpus, data, row, root: str, path, dated: _Dated | None):
+    """The value at the end of a path that navigates into milestoned classes.
+
+    Every version of a milestoned target shares the join key, so walk() -- which indexes the target
+    on it -- would refuse the hop as a fan-out. Here each hop's candidate rows are narrowed to the
+    version(s) in force at the hop's date before the hop is taken, which is what the engine's join
+    condition does (`... and IN_Z <= t and OUT_Z > t`), and what makes the navigation to-one.
+    """
+    dated = dated or _Dated(None, None, None)
+    cls, table, cur = root, c.main_table[root], row
+    temporal = c.classes[root].temporal if root in c.classes else None
+    context = dated.root_dates
+    for step in path[:-1]:
+        end = c.ends.get((cls, step))
+        if end is None or end.join is None:
+            raise Unsupported(f"{cls}.{step}: only association hops are modelled on a dated path")
+        if end.to_many:
+            raise Fanout(f"{cls}.{step} is to-many; a dated projection over it would fan out")
+        tgt, fc, tc = c.joins[end.join].other(table)
+        if not fc:
+            raise Unsupported(f"{cls}.{step} crosses a general join; not modelled on a dated path")
+        target_temporal = c.classes[end.target].temporal if end.target in c.classes else None
+        landed = []
+        if cur is not None and cur.get(fc) is not None:
+            landed = [x for x in data[tgt] if x.get(tc) == cur.get(fc)]
+        if target_temporal is not None:
+            context = _hop_dates(c, data, row, root, step, temporal, context, dated, end.target)
+            landed = _milestone_rows(c, end.target, landed, context)
+        elif isinstance(step, Hop):
+            raise Unsupported(f"{cls}.{step} is dated but {end.target} is not milestoned")
+        else:
+            context = None      # a non-temporal class carries no date onward
+        if len(landed) > 1:
+            raise Fanout(f"{cls}.{step} lands on {len(landed)} versions of {end.target} at "
+                         f"{context!r}; the navigation would fan out")
+        cur = landed[0] if landed else None
+        cls, table, temporal = end.target, tgt, target_temporal
+    col = c.columns.get(cls, {}).get(path[-1])
+    if col is None:
+        raise Unsupported(f"{cls}.{path[-1]} is not a mapped column")
+    raw = None if cur is None else cur.get(col)
+    mapping = c.enum_props.get((cls, path[-1]))
+    return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
+
+
+def _root_dates(c: Corpus, spec: Spec, params: dict | None) -> list | None:
+    """The root's milestoning dates as this test binds them, or None (not temporal, or read at
+    more than one version)."""
+    if spec.as_of is None or spec.versions is not None:
+        return None
+    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
+    return [d if not isinstance(d, Param) else _bind_date(c, None, None, spec.root, d, params)
+            for d in dates]
+
+
+def _milestoned(c: Corpus, spec: Spec, rows: list[dict],
+                params: dict | None = None) -> list[dict]:
     """Apply the business-milestoning predicate for a temporal root.
 
     The interval is [FROM, THRU) — inclusive at the start, EXCLUSIVE at the end. That
@@ -2394,46 +3080,62 @@ def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
     table = c.tables[c.main_table[spec.root]]
 
     if temporal is None:
-        if spec.as_of is not None:
+        if spec.as_of is not None or spec.versions is not None:
             raise Fanout(f"{spec.short}: as-of date given for non-temporal {spec.root}")
         return rows
+    # Every version (`.allVersions()`), or every version overlapping a range
+    # (`->getAllVersionsInRange(start, end)`): no date is in force, so nothing narrows by one.
+    if spec.versions is not None:
+        v = spec.versions
+        if v.start is None:
+            return rows
+        return _range_rows(c, spec.root, rows,
+                           _bind_date(c, None, None, spec.root, v.start, params),
+                           _bind_date(c, None, None, spec.root, v.end, params))
     # PROCESSING FIRST for a bitemporal class: all(processingDate, businessDate).
     # Verified against legend-engine's own bitemporal fixture, not assumed. Getting it
     # backwards is silent, not an error -- with the two dates swapped every query still
     # returns rows, just the wrong ones, and a fixture whose two dates happen to be equal
     # passes either way. The corpus deliberately uses DIFFERENT dates so the order is
     # observable.
-    wanted = {"businesstemporal": ["business"],
-              "processingtemporal": ["processing"],
-              "bitemporal": ["processing", "business"]}.get(temporal)
+    wanted = _DIMENSIONS.get(temporal)
     if wanted is None:
         raise Fanout(f"{spec.short}: {temporal} milestoning is not modelled")
 
-    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
-    if len(dates) != len(wanted) or any(d is None for d in dates):
+    dates = _root_dates(c, spec, params)
+    if dates is None or len(dates) != len(wanted) or any(d is None for d in dates):
         raise Fanout(f"{spec.short}: {spec.root} is {temporal}, so all() needs "
-                     f"{len(wanted)} date(s) ({', '.join(wanted)}), got {dates!r}")
-
-    for kind, at in zip(wanted, dates):
-        ms = table.milestone(kind)
-        if ms is None:
-            raise Fanout(f"{spec.short}: {spec.root} is {temporal} but {table.name} "
-                         f"declares no {kind} milestoning columns")
-        # Each dimension narrows independently and the predicates AND together, which is
-        # the whole content of bitemporality: "what did we BELIEVE on P about date B".
-        if at == "latest":
-            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
-        else:
-            rows = [r for r in rows
-                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
-                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
-    return rows
+                     f"{len(wanted)} date(s) ({', '.join(wanted)}), got {spec.as_of!r}")
+    # Each dimension narrows independently and the predicates AND together, which is the whole
+    # content of bitemporality: "what did we BELIEVE on P about date B".
+    try:
+        return _milestone_rows(c, spec.root, rows, dates)
+    except Unsupported as e:
+        raise Fanout(f"{spec.short}: {e}") from e
 
 
-def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
+def _graph_key(name, dates) -> str:
+    """The key a graph fetch serializes a milestoned property under: its name with the date(s) it
+    was read at written in, `bookLimit(2024-06-03T09:21:00+0000)`, whether the tree gave the date
+    or the property took its parent's (`status { state }` under a root read at 09:35 is keyed
+    `status(2024-06-03T09:35:00+0000)`). Observed on the pinned engine in Phase 3, the explicit
+    form by a probe and the propagated one by the first run of ITG_LimitStatus. Only a DateTime
+    was observed, so only that is written."""
+    if isinstance(name, Hop) and name.versions is not None:
+        raise Unsupported(f"graph key for {name}: a versions property is to-many")
+    if not all(isinstance(d, DateTimeArg) for d in dates):
+        raise Unsupported(f"graph key for {name} at {dates!r}: only a DateTime was observed")
+    return f"{name}({', '.join(d.replace(' ', 'T') + '+0000' for d in dates)})"
+
+
+def _graph(c: Corpus, data, row, cls: str, tree: dict, dated: _Dated | None = None,
+           context=None) -> dict:
     """Build one nested object. A to-one navigation that finds nothing yields null for the
     WHOLE sub-object, not an object full of nulls — which is the tree-shaped version of
-    the distinction F8 showed a flat projection cannot make."""
+    the distinction F8 showed a flat projection cannot make.
+
+    A navigation into a milestoned class lands on the version in force at its date, its own or
+    the one `context` (the dates `cls` was read at) propagates."""
     out = {}
     for name, sub in tree.items():
         if sub is None:
@@ -2459,16 +3161,557 @@ def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
             raise Fanout(f"{cls}.{name} is not an association")
         if end.to_many:
             raise Fanout(f"{cls}.{name} is to-many; graph-fetch arrays are not modelled")
+        target = c.classes.get(end.target)
+        if (target is not None and target.temporal is not None) or isinstance(name, Hop):
+            tgt, fc, tc = c.joins[end.join].other(c.main_table[cls])
+            dates = _hop_dates(c, data, row, cls, name, c.classes[cls].temporal
+                               if cls in c.classes else None, context,
+                               dated or _Dated(None, None, None), end.target)
+            landed = _milestone_rows(c, end.target,
+                                     [x for x in data[tgt] if row.get(fc) is not None
+                                      and x.get(tc) == row.get(fc)], dates)
+            if len(landed) > 1:
+                raise Fanout(f"{cls}.{name} lands on {len(landed)} versions at {dates!r}")
+            out[_graph_key(name, dates)] = (None if not landed else
+                                            _graph(c, data, landed[0], end.target, sub, dated,
+                                                   dates))
+            continue
         hops, _ = c.resolve_assoc(cls, [name])
         landed = walk(c, data, row, hops)
-        out[name] = None if landed is None else _graph(c, data, landed, end.target, sub)
+        out[name] = (None if landed is None
+                     else _graph(c, data, landed, end.target, sub, dated, None))
     return out
 
 
-def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]],
+                   params: dict | None = None) -> list[dict]:
+    """The graph fetch's objects. A query filter before the fetch keeps the rows it holds for, as a projection's does.
+
+    A class with constraints is checked as legend-engine checks it (the improvement plan's Phase 8, _defects): a
+    CHECKED fetch (`graphFetchChecked`) answers each object as {defects, value}; an unchecked one raises on any defect,
+    so a spec that would fetch an object with one is refused here, as the engine would refuse it at run time."""
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
-    base = _milestoned(c, spec, base)
-    return [_graph(c, data, r, spec.root, spec.graph) for r in base]
+    base = _milestoned(c, spec, base, params)
+    dated = _dated_for(c, spec, params)
+    base = [r for r in base if all(_pred(c, data, r, spec.root, f, params, dated) for f in spec.filters)]
+    checked = getattr(spec, "checked", False)
+    out = []
+    for r in base:
+        value = _graph(c, data, r, spec.root, spec.graph, dated, dated.root_dates)
+        if not _constrained(c, spec.root, spec.graph):
+            if checked:
+                out.append({"defects": [], "value": value})
+            else:
+                out.append(value)
+            continue
+        defects = _defects(c, data, r, spec.root, _enrich(c, spec.graph, spec.root, ()), [])
+        if checked:
+            out.append({"defects": defects, "value": value})
+        elif defects:
+            raise Unsupported(f"{spec.short}: an unchecked graph fetch of an object with defects raises on the engine "
+                              f"(the generated withConstraintsApplied throws on any, a Warn's too): "
+                              f"{[d['id'] for d in defects]}")
+        else:
+            out.append(value)
+    return out
+
+
+# ------------------------------------------------------------------ constraints over a fetched graph
+#
+# The improvement plan's Phase 8. legend-engine 4.145.0 checks a class's constraints whenever it graph-fetches the
+# class, and the rule is the engine's, read in its Pure (graphExtension.pure's ensureConstraintsRequirements and the
+# Java binding's createConstraintCheckingForTree, legend-engine-xt-javaPlatformBinding-pure) and confirmed by a probe:
+#
+#   - the fetch reads every property a constraint reads (its ~function's and its ~message's paths), added to the tree
+#     at the root and again at every subtree whose class is not already on the path from the root (_enrich);
+#   - each object of the enriched tree is checked against each constraint of its class whose paths the subtree there
+#     holds, and a nested object's defect carries its path from the root, `[{propertyName, index}]`, the index of a
+#     to-many member its position in the collection (_defects);
+#   - a defect is {id, externalId, message, enforcementLevel, ruleType, ruleDefinerPath, path}, the message the
+#     ~message evaluated or "Constraint :[id] violated in the Class <name>".
+#
+# A collection's order is not defined by a relational fetch, so a defect under a to-many of more than one member is
+# refused rather than given an index the engine might not give it. The seed (CK_* in seed.py) puts each violating
+# child alone in its parent.
+
+class _Lam:
+    """A lambda argument, `l|<body>`: its parameter (None for a bare `|<body>`) and body."""
+
+    def __init__(self, param, body):
+        self.param, self.body = param, body
+
+
+_CK_TOKEN = re.compile(
+    r"\s*('(?:[^'\\]|\\.)*'"                       # a string literal
+    r"|%\d{4}-\d{2}-\d{2}"                         # a StrictDate literal
+    r"|\d+\.\d+|\d+"                               # a number
+    r"|\$\w+"                                      # a variable
+    r"|[A-Za-z_]\w*(?:::\w+)*"                     # a name, package-qualified or not
+    r"|->|&&|\|\||==|!=|<=|>=|[<>!+\-*/.,()\[\]{}|:])")
+
+_BOOL_OPS, _CMP_OPS, _ARITH_OPS = ("&&", "||"), ("==", "!=", "<", "<=", ">", ">="), ("+", "-", "*", "/")
+
+
+def _ck_tokens(text: str) -> list[str]:
+    out, i = [], 0
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+            continue
+        m = _CK_TOKEN.match(text, i)
+        if not m:
+            raise Unsupported(f"cannot tokenise constraint at {text[i:][:40]!r}")
+        out.append(m.group(1))
+        i = m.end()
+    return out
+
+
+class _CkParser:
+    """A constraint body as a tree of tuples. Narrow on purpose: a chain of binary operators must be of ONE kind
+    (all `&&`, all `||`, one comparison, or arithmetic), since Pure binds `&&` tighter than an ordered comparison
+    (06-trading.pure's note) and a mixed chain would make this parser guess at Pure's precedence; `!` takes one
+    operand and must not be followed by a comparison, for the same reason."""
+
+    def __init__(self, text: str):
+        self.t, self.i, self.text = _ck_tokens(text), 0, text
+
+    def peek(self, k=0):
+        return self.t[self.i + k] if self.i + k < len(self.t) else None
+
+    def take(self, want=None):
+        tok = self.peek()
+        if want is not None and tok != want:
+            raise Unsupported(f"expected {want!r} at {tok!r} in constraint {self.text!r}")
+        self.i += 1
+        return tok
+
+    def parse(self):
+        node = self.chain()
+        if self.peek() is not None:
+            raise Unsupported(f"trailing tokens at {self.peek()!r} in constraint {self.text!r}")
+        return node
+
+    def chain(self):
+        items, ops = [self.operand()], []
+        while self.peek() in _BOOL_OPS + _CMP_OPS + _ARITH_OPS:
+            ops.append(self.take())
+            items.append(self.operand())
+        if not ops:
+            return items[0]
+        if all(o in _ARITH_OPS for o in ops):
+            # * and / before + and -, left to right within each
+            terms, signs, cur = [], [], items[0]
+            for o, x in zip(ops, items[1:]):
+                if o in ("*", "/"):
+                    cur = ("bin", o, cur, x)
+                else:
+                    terms.append(cur)
+                    signs.append(o)
+                    cur = x
+            terms.append(cur)
+            node = terms[0]
+            for o, x in zip(signs, terms[1:]):
+                node = ("bin", o, node, x)
+            return node
+        if len(set(ops)) == 1 and ops[0] in _BOOL_OPS:
+            node = items[0]
+            for x in items[1:]:
+                node = ("bin", ops[0], node, x)
+            return node
+        if len(ops) == 1 and ops[0] in _CMP_OPS:
+            return ("bin", ops[0], items[0], items[1])
+        raise Unsupported(f"operators {ops} mixed without parentheses in constraint {self.text!r}: Pure's "
+                          f"precedence would have to be guessed")
+
+    def operand(self):
+        tok = self.peek()
+        if tok == "!":
+            self.take()
+            node = ("not", self.operand())
+            if self.peek() in _CMP_OPS:
+                raise Unsupported(f"`!` before a comparison in constraint {self.text!r}: parenthesise its operand")
+            return node
+        if tok == "-":
+            self.take()
+            return ("neg", self.operand())
+        node = self.primary()
+        while self.peek() in (".", "->"):
+            if self.take() == ".":
+                node = ("prop", node, self.take())
+            else:
+                fn = self.take()
+                node = ("call", fn, [node] + self.args())
+        return node
+
+    def args(self):
+        self.take("(")
+        out = []
+        if self.peek() != ")":
+            out.append(self.arg())
+            while self.peek() == ",":
+                self.take()
+                out.append(self.arg())
+        self.take(")")
+        return out
+
+    def arg(self):
+        if self.peek() == "|":
+            self.take()
+            return _Lam(None, self.chain())
+        if self.peek() == "{":
+            self.take()
+            lam = self.lam_after_brace()
+            self.take("}")
+            return lam
+        if re.fullmatch(r"[A-Za-z_]\w*", self.peek() or "") and self.peek(1) == "|":
+            name = self.take()
+            self.take("|")
+            return _Lam(name, self.chain())
+        return self.chain()
+
+    def lam_after_brace(self):
+        name = self.take()
+        self.take("|")
+        return _Lam(name, self.chain())
+
+    def primary(self):
+        tok = self.take()
+        if tok is None:
+            raise Unsupported(f"constraint {self.text!r} ends early")
+        if tok == "(":
+            node = self.chain()
+            self.take(")")
+            return node
+        if tok == "[":
+            items = []
+            if self.peek() != "]":
+                items.append(self.chain())
+                while self.peek() == ",":
+                    self.take()
+                    items.append(self.chain())
+            self.take("]")
+            return ("list", items)
+        if tok.startswith("'"):
+            return ("lit", re.sub(r"\\(.)", r"\1", tok[1:-1]))
+        if tok.startswith("%"):
+            return ("lit", tok[1:])
+        if re.fullmatch(r"\d+\.\d+", tok):
+            return ("lit", float(tok))
+        if tok.isdigit():
+            return ("lit", int(tok))
+        if tok.startswith("$"):
+            return ("var", tok[1:])
+        if tok in ("true", "false"):
+            return ("lit", tok == "true")
+        if self.peek() == "(":
+            return ("call", tok, self.args())
+        if "::" in tok and self.peek() == ".":
+            self.take()
+            return ("enum", tok, self.take())
+        raise Unsupported(f"unexpected {tok!r} in constraint {self.text!r}")
+
+
+class _Obj:
+    """An object of a fetched graph: its class and its row."""
+
+    def __init__(self, cls: str, row: dict):
+        self.cls, self.row = cls, row
+
+
+def _ck_many(v) -> list:
+    """A value as the collection Pure sees: absent is empty, one value a collection of one."""
+    return [] if v is None else v if isinstance(v, list) else [v]
+
+
+def _ck_one(v):
+    many = _ck_many(v)
+    if len(many) > 1:
+        raise Unsupported(f"a collection of {len(many)} where one value was expected")
+    return many[0] if many else None
+
+
+class _CkEval:
+    def __init__(self, c: Corpus, data):
+        self.c, self.data = c, data
+
+    def prop(self, owner, name):
+        """A property of each object of `owner` (Pure maps a property over a collection)."""
+        objs = _ck_many(owner)
+        if len(objs) != 1 or not isinstance(owner, _Obj):
+            return [v for o in objs for v in _ck_many(self.prop(o, name))]
+        cls, row = owner.cls, owner.row
+        end = self.c.ends.get((cls, name))
+        if end is not None:
+            hops, target = self.c.resolve_assoc(cls, [name])
+            if end.to_many:
+                return [_Obj(target, r) for r in walk_many(self.c, self.data, row, hops)]
+            landed = walk(self.c, self.data, row, hops)
+            return None if landed is None else _Obj(target, landed)
+        col = self.c.columns.get(cls, {}).get(name)
+        if col is None:
+            raise Unsupported(f"{cls}.{name}, read by a constraint, is not a mapped column or an association")
+        raw = row.get(col)
+        mapping = self.c.enum_props.get((cls, name))
+        if mapping and raw is not None:
+            return self.c.enum_maps[mapping].get(raw)
+        if raw is not None and self.c.tables[self.c.main_table[cls]].columns[col].kind == "bool":
+            return bool(raw)
+        return raw
+
+    def ev(self, node, env):
+        kind = node[0]
+        if kind == "lit":
+            return node[1]
+        if kind == "list":
+            return [v for x in node[1] for v in _ck_many(self.ev(x, env))]
+        if kind == "enum":
+            return node[2]
+        if kind == "var":
+            if node[1] not in env:
+                raise Unsupported(f"unbound ${node[1]} in a constraint")
+            return env[node[1]]
+        if kind == "prop":
+            return self.prop(self.ev(node[1], env), node[2])
+        if kind == "not":
+            v = self.ev(node[1], env)
+            if not isinstance(v, bool):
+                raise Unsupported(f"`!` over {v!r}, not a Boolean")
+            return not v
+        if kind == "neg":
+            v = _ck_one(self.ev(node[1], env))
+            return None if v is None else -v
+        if kind == "bin":
+            return self.binary(node[1], node[2], node[3], env)
+        if kind == "call":
+            return self.call(node[1], node[2], env)
+        raise Unsupported(f"constraint node {kind}")
+
+    def binary(self, op, left, right, env):
+        if op in _BOOL_OPS:
+            a = self.ev(left, env)
+            if not isinstance(a, bool):
+                raise Unsupported(f"{op} over {a!r}, not a Boolean")
+            if (op == "&&" and not a) or (op == "||" and a):
+                return a
+            b = self.ev(right, env)
+            if not isinstance(b, bool):
+                raise Unsupported(f"{op} over {b!r}, not a Boolean")
+            return b
+        a, b = self.ev(left, env), self.ev(right, env)
+        if op in ("==", "!="):
+            # collection equality (`equal(Any[*], Any[*])`): an absent value equals only an absent one
+            same = _ck_many(a) == _ck_many(b)
+            return same if op == "==" else not same
+        if op in _CMP_OPS:
+            return _cmp(op, _ck_one(a), _ck_one(b))
+        if op == "+" and (isinstance(_ck_one(a), str) or isinstance(_ck_one(b), str)):
+            return str(_ck_one(a)) + str(_ck_one(b))
+        x, y = _ck_one(a), _ck_one(b)
+        if x is None or y is None:
+            raise Unsupported(f"{op} over an absent value in a constraint, which Pure does not type")
+        if op == "/":
+            return _Dbl(x / y)
+        return _exact_addsub(op, x, y)
+
+    def lam(self, lam, value, env):
+        if not isinstance(lam, _Lam):
+            raise Unsupported("a lambda was expected")
+        return self.ev(lam.body, {**env, lam.param: value} if lam.param else env)
+
+    def call(self, fn, args, env):
+        fn = fn.rsplit("::", 1)[-1]
+        if fn == "if":
+            cond = self.ev(args[0], env)
+            if not isinstance(cond, bool):
+                raise Unsupported(f"if over {cond!r}, not a Boolean")
+            return self.lam(args[1] if cond else args[2], None, env)
+        if fn in ("exists", "forAll"):
+            members = _ck_many(self.ev(args[0], env))
+            hits = [self.lam(args[1], m, env) for m in members]
+            if not all(isinstance(h, bool) for h in hits):
+                raise Unsupported(f"{fn} over a lambda that is not a predicate")
+            return any(hits) if fn == "exists" else all(hits)
+        vals = [self.ev(a, env) for a in args]
+        if fn == "isEmpty":
+            return not _ck_many(vals[0])
+        if fn == "isNotEmpty":
+            return bool(_ck_many(vals[0]))
+        if fn == "size":
+            return len(_ck_many(vals[0]))
+        if fn == "toOne":
+            many = _ck_many(vals[0])
+            if len(many) != 1:
+                raise Unsupported(f"toOne over {len(many)} values raises; a constraint the seed makes raise is not "
+                                  f"asserted")
+            return many[0]
+        if fn == "in":
+            v = _ck_one(vals[0])
+            return v is not None and any(_cmp("==", v, m) for m in _ck_many(vals[1]))
+        if fn == "toString":
+            v = _ck_one(vals[0])
+            if not isinstance(v, str):
+                raise Unsupported(f"toString of {type(v).__name__}: Java's spelling of it is not modelled")
+            return v
+        impl = IMPL.get(fn)
+        if impl is None:
+            raise Unsupported(f"{fn} in a constraint")
+        return impl([_ck_one(v) for v in vals])
+
+
+def _ck_parsed(text: str):
+    hit = _CK_PARSED.get(text)
+    if hit is None:
+        hit = _CK_PARSED[text] = _CkParser(text).parse()
+    return hit
+
+
+_CK_PARSED: dict[str, object] = {}
+
+
+def _ck_paths(c: Corpus, node, cls: str, env: dict[str, tuple[str, tuple]]) -> set[tuple]:
+    """The property paths a constraint body reads from `$this`, each a tuple of property names: what
+    scanProperties finds, a lambda's parameter standing for the collection it iterates."""
+    out: set[tuple] = set()
+
+    def path_of(n):
+        """(the root variable's path, the path) of a property chain, or None."""
+        if n[0] == "var":
+            return env.get(n[1])
+        if n[0] == "prop":
+            base = path_of(n[1])
+            return None if base is None else (base[0], base[1] + (n[2],))
+        return None
+
+    def visit(n, scope):
+        nonlocal env
+        if isinstance(n, _Lam):
+            return
+        if n[0] == "prop":
+            p = path_of(n)
+            if p is not None:
+                out.add(p[1])
+                return
+        if n[0] == "call":
+            receiver = path_of(n[2][0]) if n[2] and isinstance(n[2][0], tuple) else None
+            for a in n[2]:
+                if isinstance(a, _Lam):
+                    saved = dict(env)
+                    if a.param and receiver is not None:
+                        env[a.param] = receiver
+                    visit(a.body, scope)
+                    env = saved
+                else:
+                    visit(a, scope)
+            return
+        for x in n[1:]:
+            if isinstance(x, tuple):
+                visit(x, scope)
+            elif isinstance(x, list):
+                for y in x:
+                    visit(y, scope) if isinstance(y, (tuple, _Lam)) else None
+
+    visit(node, None)
+    return out
+
+
+def _ck_required(c: Corpus, k) -> dict:
+    """A constraint's paths, function and message, as a graph-fetch tree."""
+    paths = _ck_paths(c, _ck_parsed(k.function), k.owner, {"this": ("this", ())})
+    if k.message:
+        paths |= _ck_paths(c, _ck_parsed(k.message), k.owner, {"this": ("this", ())})
+    tree: dict = {}
+    for p in paths:
+        cur = tree
+        for step in p:
+            cur = cur.setdefault(step, {})
+    return tree
+
+
+def _class_constraints(c: Corpus, cls: str) -> list:
+    """The constraints `cls` must hold: its own, then each supertype's (the binding's typeInfo order)."""
+    out, cur = [], cls
+    while cur in c.classes:
+        out += c.classes[cur].constraints
+        cur = c.classes[cur].supertype
+    return out
+
+
+def _ck_target(c: Corpus, cls: str, prop: str) -> str | None:
+    end = c.ends.get((cls, prop))
+    return end.target if end is not None else None
+
+
+def _merge_tree(a: dict | None, b: dict) -> dict:
+    out = {k: (dict(v) if v else None) for k, v in (a or {}).items()}
+    for k, v in b.items():
+        if v:
+            out[k] = _merge_tree(out.get(k) or {}, v)
+        elif k not in out:
+            out[k] = None
+    return out
+
+
+def _enrich(c: Corpus, tree: dict | None, cls: str, processed: tuple) -> dict:
+    """The tree a checked fetch reads: `tree` with every path the class's constraints read, then each class-typed
+    subtree enriched for its own class unless that class is already on the path (ensureFunctionRequirements)."""
+    out = dict(tree or {})
+    for k in _class_constraints(c, cls):
+        out = _merge_tree(out, _ck_required(c, k))
+    seen = processed + (cls,)
+    for prop, sub in list(out.items()):
+        target = _ck_target(c, cls, prop)
+        if target is not None and target not in seen:
+            out[prop] = _enrich(c, sub, target, seen)
+    return out
+
+
+def _contains(tree: dict | None, need: dict) -> bool:
+    return all(k in (tree or {}) and (not v or _contains((tree or {})[k], v)) for k, v in need.items())
+
+
+def _constrained(c: Corpus, cls: str, tree: dict | None, seen: tuple = ()) -> bool:
+    """Whether a fetch of `tree` from `cls` checks any constraint at all."""
+    if _class_constraints(c, cls):
+        return True
+    return any(_ck_target(c, cls, p) is not None and _ck_target(c, cls, p) not in seen + (cls,)
+               and _constrained(c, _ck_target(c, cls, p), sub, seen + (cls,))
+               for p, sub in (tree or {}).items())
+
+
+def _defects(c: Corpus, data, row: dict, cls: str, tree: dict, path: list) -> list[dict]:
+    """The defects of one object and the objects its enriched tree reaches (createConstraintCheckingForTree)."""
+    ev = _CkEval(c, data)
+    this = _Obj(cls, row)
+    out = []
+    for k in _class_constraints(c, cls):
+        if not _contains(tree, _ck_required(c, k)):
+            continue
+        held = ev.ev(_ck_parsed(k.function), {"this": this})
+        if not isinstance(held, bool):
+            raise Unsupported(f"{k.owner}.{k.name} evaluated to {held!r}, not a Boolean")
+        if held:
+            continue
+        message = (ev.ev(_ck_parsed(k.message), {"this": this}) if k.message
+                   else f"Constraint :[{k.name}] violated in the Class {k.owner.rsplit('::', 1)[-1]}")
+        out.append({"id": k.name, "externalId": k.external_id, "message": message, "enforcementLevel": k.level,
+                    "ruleType": "ClassConstraint", "ruleDefinerPath": k.owner, "path": list(path)})
+    for prop in sorted(p for p in tree if _ck_target(c, cls, p) is not None):
+        target = _ck_target(c, cls, prop)
+        if not _constrained(c, target, tree[prop]):
+            continue    # nothing below to check: a reach the oracle need not follow (an XStore's, say)
+        reached = ev.prop(this, prop)
+        if isinstance(reached, list):
+            found = [d for i, m in enumerate(reached)
+                     for d in _defects(c, data, m.row, target, tree[prop] or {},
+                                       path + [{"propertyName": prop, "index": i}])]
+            if found and len(reached) > 1:
+                raise Unsupported(f"{cls}.{prop}: a defect under a collection of {len(reached)} would carry its "
+                                  f"member's index, and a relational fetch defines no order for it")
+            out += found
+        elif reached is not None:
+            out += _defects(c, data, reached.row, target, tree[prop] or {},
+                            path + [{"propertyName": prop, "index": None}])
+    return out
 
 
 def _group(spec: Spec, rows: list[dict]) -> list[dict]:
@@ -2483,15 +3726,17 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
     out = []
     for key, members in groups.items():
         row = dict(zip(spec.group_by, key))
-        for name, src, fn in spec.aggs:
+        for a in spec.aggs:
+            name, src, fn = a
+            if isinstance(a, Agg):
+                row[name] = _reduce_group(a, members)
+                continue
             vals = [m[src] for m in members if m[src] is not None]
             if fn == "count":
                 row[name] = len(vals)
             elif fn == "sum":
-                # NULL over an empty group, not 0. SQL's SUM of no rows is NULL, and the
-                # guard that said so was a trailing `if not vals` covering every branch --
-                # dropped when these became explicit cases, which turned one group's total
-                # from null into a plausible zero.
+                # Absent over a group whose values are all absent: the groupBy is never handed the
+                # empty collection (_reduce_group, the improvement plan's D8, reversed 2026-10-29).
                 row[name] = _exact_sum(vals) if vals else None
             elif fn == "max":
                 row[name] = max(vals) if vals else None
@@ -2511,15 +3756,389 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
     return out
 
 
-def _pred(c: Corpus, data, row, root: str, f) -> bool:
-    """One query predicate. `is`/`not` are the bare boolean forms; everything else compares.
+# ------------------------------------------- aggregates in a groupBy (Phase 4, stage 3)
+#
+# Each as legend-pure defines it, or legend-engine's Pure where the function is legend-engine's
+# (core_functions_standard/math/aggregator): the reducer of a relation groupBy receives the values its map
+# produced, and an absent value produces none (the map is `{T[1]->K[0..1]}`). A group whose values are ALL
+# absent is never reduced: the groupBy native drops the absent values and answers nothing for a group with
+# none left, in both of legend-engine's Pure runtimes (compiled RelationNativeImplementation.performMapReduce,
+# interpreted AggregationShared), and PCT test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort asserts it for
+# `plus()`; the legacy TDS groupBy's body does the same (tds.pure, `if ($vals->isEmpty(), | ^TDSNull(), ...)`).
+# So such a group's aggregate is absent, its sum and joinStrings included, as SQL's are. Its count is 0: the
+# improvement plan's D8, reversed by the user on 2026-10-29 with count kept at Pure's own `count` of nothing,
+# which SQL and both engines answer and no PCT contradicts. Over ONE value Pure's variance is 0, the sample
+# form too (`variance`: `if ($numbers->size() == 1, | 0, ...)`), and its covarSample is absent.
+
+
+def _empty_fails(fn: str):
+    raise Unsupported(f"{fn} over an empty collection fails in Pure, which no expected result can state")
+
+
+def _pure_sum(xs):
+    """`plus()` of the values: exact, as the integers and decimals of the seed add; 0 for nothing."""
+    from decimal import Decimal
+    if not xs:
+        return 0
+    if all(isinstance(x, int) and not isinstance(x, bool) for x in xs):
+        return sum(xs)
+    total = sum((Decimal(str(x)) if not isinstance(x, Decimal) else x for x in xs), Decimal(0))
+    return total if any(isinstance(x, Decimal) for x in xs) else float(total)
+
+
+def _pure_variance(xs, sample: bool):
+    """`variance(numbers, isBiasCorrected)`: 0 over one value; else the squared deviations from `average()`,
+    folded in order, over n, or n - 1 for the sample."""
+    if not xs:
+        _empty_fails("variance")
+    if len(xs) == 1:
+        return 0
+    avg = float(sum(xs)) / len(xs)
+    acc = 0.0
+    for x in xs:
+        acc = acc + (float(x) - avg) ** 2
+    return acc / (len(xs) - (1.0 if sample else 0.0))
+
+
+def _pure_mode(xs):
+    """`mode`: over the sorted values, the first to reach a strictly greater count -- the smallest of the most
+    frequent."""
+    if not xs:
+        _empty_fails("mode")
+    best, best_n, prev, n = None, 0, object(), 0
+    for x in sorted(xs):
+        n = n + 1 if x == prev else 1
+        prev = x
+        if n > best_n:
+            best, best_n = x, n
+    return best
+
+
+def _pure_percentile(xs, p):
+    """`percentile(numbers, p)`, ascending and continuous: linear between neighbours of the sorted values."""
+    if not 0 <= p <= 1:
+        raise Unsupported(f"percentile {p} is outside [0, 1], which its precondition refuses")
+    data = sorted(xs)
+    n = len(data)
+    if n <= 1:
+        return data[0] if data else None
+    pos = (p * 100 * (n - 1)) / 100
+    i = math.floor(pos)
+    d = pos - i
+    if pos == 0:
+        return data[0]
+    if pos >= n - 1:
+        return data[-1]
+    if d == 0:
+        return data[i] if (1.0 * (i + 1)) / n > p else data[i + 1]
+    return data[i] + (data[i + 1] - data[i]) * d
+
+
+def _pure_covar(pairs, sample: bool):
+    """`covariance(a, b, count, isBiasCorrected)`: absent over no pair, and the sample form over one."""
+    count = len(pairs)
+    if count == 0 or (sample and count <= 1):
+        return None
+    sa = sum(a for a, _b in pairs)
+    sb = sum(b for _a, b in pairs)
+    return (sum(a * b for a, b in pairs) - sa * sb / count) / (count - (1 if sample else 0))
+
+
+def _pure_corr(pairs):
+    cov = _pure_covar(pairs, False)
+    if cov is None:
+        return None
+    sa = _pure_variance([a for a, _b in pairs], False) ** 0.5
+    sb = _pure_variance([b for _a, b in pairs], False) ** 0.5
+    if sa == 0 or sb == 0:
+        raise Unsupported("corr over a side with no variance divides by zero")
+    return cov / (sa * sb)
+
+
+def _pure_by(pairs, descending: bool):
+    """`maxBy`/`minBy`: the values sorted by their keys (a stable sort), the first. A tie keeps row order."""
+    if not pairs:
+        return None
+    return sorted(pairs, key=lambda p: p[1], reverse=descending)[0][0]
+
+
+def _pure_wavg(pairs):
+    if not pairs:
+        _empty_fails("wavg")
+    weights = sum(w for _v, w in pairs)
+    if weights == 0:
+        raise Unsupported("wavg over weights that sum to zero divides by zero")
+    return sum(v * w for v, w in pairs) / weights
+
+
+# The reducers of a column's values: (values, *arguments) -> result.
+_REDUCERS = {
+    "count": lambda xs: len(xs),
+    "sum": _pure_sum,
+    "max": lambda xs: max(xs) if xs else None,
+    "min": lambda xs: min(xs) if xs else None,
+    "first": lambda xs: xs[0] if xs else None,
+    "last": lambda xs: xs[-1] if xs else None,
+    "average": lambda xs: _exact_avg(xs) if xs else _empty_fails("average"),
+    "mean": lambda xs: _exact_avg(xs) if xs else _empty_fails("mean"),
+    "median": lambda xs: _median(xs) if xs else _empty_fails("median"),
+    "mode": _pure_mode,
+    "variancePopulation": lambda xs: _pure_variance(xs, False),
+    "varianceSample": lambda xs: _pure_variance(xs, True),
+    "stdDevPopulation": lambda xs: _pure_variance(xs, False) ** 0.5,
+    "stdDevSample": lambda xs: _pure_variance(xs, True) ** 0.5,
+    "percentile": _pure_percentile,
+    "joinStrings": lambda xs, sep: sep.join(xs),
+}
+
+# The reducers of (value, key) pairs, which the map builds with rowMapper or wavgRowMapper.
+_PAIR_REDUCERS = {
+    "maxBy": lambda ps: _pure_by(ps, True),
+    "minBy": lambda ps: _pure_by(ps, False),
+    "wavg": _pure_wavg,
+    "covarPopulation": lambda ps: _pure_covar(ps, False),
+    "covarSample": lambda ps: _pure_covar(ps, True),
+    "corr": _pure_corr,
+}
+
+
+# The reducers whose answer is the ORDER of a group's values (2026-11-02, the PR #87 review's finding 2). A groupBy
+# fixes no order inside a group: the database reads a group's rows as it likes, and the order the oracle holds them in
+# is only the seed's. So, as a window's tie is (_ranked), a group whose values differ is refused for these; a group of
+# one distinct value answers them in any order. joinStrings' length is the same in any order, so a joinStrings whose
+# first step is length() is not refused.
+_ORDERED = {"first", "last", "joinStrings"}
+
+
+def _order_free(fn: str, vals: list, then=()) -> bool:
+    """Whether `fn` over `vals` (absent values left out) answers the same in every order of the group."""
+    return (fn not in _ORDERED or len(set(vals)) <= 1
+            or (fn == "joinStrings" and bool(then) and then[0][0] == "length"))
+
+
+def _reduce_group(a: Agg, members: list[dict]):
+    """One query.Agg over a group's projected rows, as Pure defines the aggregate (above)."""
+    name, src, fn = a
+    if a.pair is not None:
+        pairs = [(m[src], m[a.pair]) for m in members]
+        if any(x is None or y is None for x, y in pairs):
+            # rowMapper's two collections then misalign (legend-engine's own PCT for covarSample says the
+            # platform does not handle it yet)
+            raise Unsupported(f"{name}: a pair with an absent side")
+        v = _PAIR_REDUCERS[fn](pairs, *a.args)
+    else:
+        vals = [m[src] for m in members if m[src] is not None]
+        if not _order_free(fn, vals, a.then):
+            raise Unsupported(f"{name}: {fn} over a group whose values differ answers the order the database reads "
+                              f"the group in, which a groupBy never fixes")
+        # a group whose values are all absent is never reduced (above): absent, but for count's 0. The steps after the
+        # aggregate are inside the reduce lambda (`agg|$agg->joinStrings(',')->length()`), so they never run either
+        if not vals and fn != "count":
+            return None
+        v = _REDUCERS[fn](vals, *a.args)
+    for step, args in a.then:
+        if v is None:
+            raise Unsupported(f"{name}: {step} over an absent aggregate")
+        v = _dynafunction(step, [v, *args])
+    return v
+
+
+# ------------------------------------- relation operations after the projection (Phase 4, stage 4)
+
+
+def _ranked(part: list[dict], order: tuple, fn: str, args: tuple, read: str | None = None) -> list:
+    """A ranking function over one partition, its rows in input order, each ranked by its place in `order`. rank
+    leaves a gap after a tie and denseRank does not; rowNumber and ntile number the rows, so a tie in the order
+    leaves them to the database, and the oracle refuses one. lag, lead and nth answer another row's `read`
+    column: lag and lead the row `args[0]` (or 1) places before or after (legend-engine's Pure: `offset($w, $r,
+    -$offset)`), nth the row at that place in the window's frame, the partition's start through the current row
+    (its PCT: `nth($w, $r, 2)` is absent on a partition's first row); a tie leaves them to the database too."""
+    keys = [tuple(r[k] for k, _d in order) for r in part]
+    ordered = sorted(range(len(part)), key=lambda i: _sort_tuple(keys[i], order))
+    n = len(part)
+    if fn in ("rowNumber", "ntile", "lag", "lead", "nth") and len(set(keys)) < n:
+        raise Unsupported(f"{fn} over an order with ties numbers the tied rows as the database reads them")
+    out = [None] * n
+    if fn in ("lag", "lead", "nth"):
+        k = int(args[0]) if args else 1
+        for place, i in enumerate(ordered):
+            j = place - k if fn == "lag" else place + k if fn == "lead" else (k - 1 if place >= k - 1 else -1)
+            out[i] = part[ordered[j]][read] if 0 <= j < n else None
+        return out
+    rank = dense = 0
+    prev = object()
+    for place, i in enumerate(ordered, 1):
+        if keys[i] != prev:
+            rank, dense, prev = place, dense + 1, keys[i]
+        if fn == "rank":
+            out[i] = rank
+        elif fn == "denseRank":
+            out[i] = dense
+        elif fn == "rowNumber":
+            out[i] = place
+        elif fn == "percentRank":
+            out[i] = (rank - 1) / (n - 1) if n > 1 else 0.0
+        elif fn == "cumulativeDistribution":
+            out[i] = sum(1 for k in keys if _sort_tuple(k, order) <= _sort_tuple(keys[i], order)) / n
+        elif fn == "ntile":
+            # SQL's NTILE, which legend-pure's follows: buckets differ in size by at most one, the larger first
+            size, extra = n // int(args[0]), n % int(args[0])
+            edge = extra * (size + 1)
+            out[i] = (place - 1) // (size + 1) + 1 if place <= edge else extra + (place - 1 - edge) // size + 1
+        else:
+            raise Unsupported(f"window function {fn!r} is not implemented")
+    return out
+
+
+def _sort_tuple(key: tuple, order: tuple) -> tuple:
+    """A sort key honouring each column's direction: numbers negate, anything else sorts through a wrapper."""
+    return tuple(_Desc(v) if d else v for v, (_k, d) in zip(key, order))
+
+
+class _Desc:
+    __slots__ = ("v",)
+
+    def __init__(self, v):
+        self.v = v
+
+    def __lt__(self, other):
+        return other.v < self.v
+
+    def __le__(self, other):
+        return other.v <= self.v
+
+    def __eq__(self, other):
+        return self.v == other.v
+
+    def __hash__(self):
+        return hash(self.v)
+
+
+def _window_rows(op: Window, rows: list[dict]) -> list[dict]:
+    parts: dict[tuple, list[int]] = {}
+    for i, r in enumerate(rows):
+        parts.setdefault(tuple(r[p] for p in op.partition), []).append(i)
+    values = [None] * len(rows)
+    for members in parts.values():
+        part = [rows[i] for i in members]
+        if op.col is not None:
+            v = _REDUCERS[op.fn]([r[op.col] for r in part if r[op.col] is not None])
+            got = [v] * len(part)
+        else:
+            got = _ranked(part, op.order, op.fn, op.args, op.read)
+        for i, v in zip(members, got):
+            values[i] = v
+    return [{**r, op.name: v} for r, v in zip(rows, values)]
+
+
+def _relation_ops(c: Corpus, spec: Spec, rows: list[dict], data, params) -> list[dict]:
+    """A Spec's `relation` operations, in order, as legend-pure's relation functions define them."""
+    previous = None
+    for op in spec.relation:
+        if isinstance(op, Extend):
+            rows = [{**r, op.name: _apply(op.apply, r[op.col])} for r in rows]
+        elif isinstance(op, Window):
+            rows = _window_rows(op, rows)
+        elif isinstance(op, Rename):
+            rows = RELATION_IMPL["rename"](rows, op.old, op.new)
+        elif isinstance(op, Select):
+            rows = [{k: r[k] for k in op.cols} for r in rows]
+        elif isinstance(op, Distinct):
+            seen, kept = set(), []
+            for r in rows:
+                k = tuple(r.items())
+                if k not in seen:
+                    seen.add(k)
+                    kept.append(r)
+            rows = kept
+        elif isinstance(op, Sort):
+            if any(r[k] is None for r in rows for k, _d in op.keys):
+                raise Fanout(f"{spec.short}: a sort column holds an absent value, which dialects place differently")
+            rows = sorted(rows, key=lambda r: _sort_tuple(tuple(r[k] for k, _d in op.keys), op.keys))
+        elif isinstance(op, Cut):
+            if not isinstance(previous, Sort) or \
+                    len({tuple(r[k] for k, _d in previous.keys) for r in rows}) < len(rows):
+                raise Fanout(f"{spec.short}: {op.fn} needs a total order before it, or its rows are the database's")
+            a = [int(x) for x in op.args]
+            rows = (rows[:a[0]] if op.fn in ("take", "limit") else rows[a[0]:] if op.fn == "drop"
+                    else rows[a[0]:a[1]] if op.fn == "slice"
+                    else rows[(a[0] - 1) * a[1]:a[0] * a[1]] if op.fn == "paginated" else None)
+            if rows is None:
+                raise Unsupported(f"ordinal operation {op.fn!r} is not implemented")
+        elif isinstance(op, Concatenate):
+            rows = rows + evaluate(c, op.other, data, params)
+        elif isinstance(op, Join):
+            right = evaluate(c, op.other, data, params)
+            for l, r, *_t in op.on:
+                if any(x[l] is None for x in rows) or any(x[r] is None for x in right):
+                    # Pure's `==` holds between two absent values, SQL's never does
+                    raise Unsupported(f"{spec.short}: a join key is absent")
+            rows = _rel_join(rows, right, op.kind,
+                             lambda a, b: all(_cmp("==", a[l], b[r]) for l, r, *_t in op.on))
+        else:
+            raise Unsupported(f"relation operation {op!r} is not implemented")
+        previous = op
+    return rows
+
+
+def _relation_kinds(c: Corpus, spec: Spec, k: dict[str, str]) -> dict[str, str]:
+    """The JSON kinds of a relation pipeline's columns, from the projection's through each operation."""
+    for op in spec.relation:
+        if isinstance(op, Extend):
+            k[op.name] = RET_KIND[op.apply.ret]
+        elif isinstance(op, Window):
+            k[op.name] = RET_KIND[op.ret]
+        elif isinstance(op, Rename):
+            k = {(op.new if a == op.old else a): v for a, v in k.items()}
+        elif isinstance(op, Select):
+            k = {a: k[a] for a in op.cols}
+        elif isinstance(op, Join):
+            k = {**k, **kinds(c, op.other)}
+    return k
+
+
+def _bound(value, params: dict | None):
+    """A predicate's comparand: a literal as written, or a parameter's value in this test."""
+    if not isinstance(value, Param):
+        return value
+    if params is None or value.name not in params:
+        if value.to_one:
+            # `$p->toOne()` over an absent parameter raises in Pure; the optional-filter form
+            # guards it with `$p->isEmpty() ||` and never reaches here when it is absent.
+            raise Unsupported(f"${value.name}->toOne() evaluated with no value for {value.name}")
+        return None
+    return params[value.name]
+
+
+def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
+          dated: _Dated | None = None) -> bool:
+    """One query predicate, or a tree of them. `is`/`not` are the bare boolean forms; `in`,
+    `isEmpty` and `isNotEmpty` test membership and absence; everything else compares, as
+    legend-pure defines a comparison over an absent value (_cmp). So `!` is plain negation:
+    `!($x.v > 0)` keeps a row whose v is absent, which the probe of the pinned engine confirmed
+    before any tree was written (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 1).
 
     The bare forms exist because `$x.flag == false` is the one filter the engine cannot
     lower (F50). Treating them here as `== True` / `== False` would be wrong for a NULL:
     Pure's `!$x.flag` over an absent value is not `$x.flag == false`, so a bare form on an
     optional boolean is refused rather than guessed at.
     """
-    v = _value(c, data, row, root, f.path)
+    if isinstance(f, And):
+        return all(_pred(c, data, row, root, x, params, dated) for x in f.items)
+    if isinstance(f, Or):
+        return any(_pred(c, data, row, root, x, params, dated) for x in f.items)
+    if isinstance(f, Not):
+        return not _pred(c, data, row, root, f.item, params, dated)
+    if isinstance(f, ParamEmpty):
+        return params is None or params.get(f.name) is None
+    if getattr(f, "op", None) == "exists":
+        # `$x.end->exists(c|<inner>)`: some member of the to-many end satisfies the inner comparison
+        hops, target = c.resolve_assoc(root, f.path)
+        members = walk_many(c, data, row, hops, _reverse_hops(c, root, f.path))
+        return any(_pred(c, data, m, target, f.value, params) for m in members)
+    v = _value(c, data, row, root, f.path, dated=dated)
+    if getattr(f, "apply", None) is not None:
+        v = _apply(f.apply, v)
     if f.op in ("is", "not"):
         if v is None:
             raise Unsupported(
@@ -2527,28 +4146,131 @@ def _pred(c: Corpus, data, row, root: str, f) -> bool:
                 f"for an absent boolean is not something this oracle should guess; filter on "
                 f"a required property, or compare explicitly.")
         return bool(v) if f.op == "is" else not v
-    return _cmp(f.op, v, f.value)
+    if f.op == "exists":
+        raise Unsupported("exists is evaluated over the end's members, before its value is read")
+    if f.op == "isEmpty":
+        return v is None
+    if f.op == "isNotEmpty":
+        return v is not None
+    if f.op == "in":
+        # Membership is collection membership: an absent value is a member of nothing.
+        members = _bound(f.value, params)
+        return v is not None and any(_cmp("==", v, m) for m in (members or []))
+    return _cmp(f.op, v, _bound(f.value, params))
 
 
-def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+def _fan_prefix(c: Corpus, root: str, path) -> tuple | None:
+    """The path up to and including its to-many step -- an association end, or a JSON array in a Binding's document
+    (model.json_many) -- or None for a to-one path."""
+    cls = root
+    for i, step in enumerate(path[:-1]):
+        end = c.ends.get((cls, step))
+        if end is not None:
+            if end.to_many:
+                return tuple(path[:i + 1])
+            cls = end.target
+            continue
+        if (cls, step) in c.json_many:
+            return tuple(path[:i + 1])
+        cls = c.embedded[(cls, step)]
+    return None
+
+
+def _fan_rows(c: Corpus, data, row: dict, spec: Spec) -> list[dict]:
+    """A projection that crosses ONE to-many, as legend-engine 4.145.0 plans it (the improvement plan's Phase 9, which
+    asks for it by Spec.fan_out): an outer join to the elements, one row per element and the to-one columns repeated,
+    and one row with the element columns NULL when there is none. Probed for a join that explodes a document's array
+    and for a Binding's JSON array, on both test databases, over an empty array, an absent key, a NULL document and
+    elements that join nothing (scripts/corpus/semi.py's header). Columns crossing the same to-many read the same
+    element; two different to-manys would be a product, which no service asks for and the oracle refuses."""
+    fanned = {p.alias: _fan_prefix(c, spec.root, p.path) for p in spec.projections
+              if p.agg is None and not p.func and getattr(p, "apply", None) is None}
+    prefixes = {v for v in fanned.values() if v is not None}
+    if len(prefixes) != 1:
+        raise Unsupported(f"{spec.short}: a fan-out projection crosses {len(prefixes)} to-manys; the oracle reads one")
+    (prefix,) = prefixes
+    owner = c.owner_of(spec.root, list(prefix))
+    if (owner, prefix[-1]) in c.json_many:
+        doc, keys = _json_document(c, data, row, spec.root, list(prefix), c.json_backed[owner])
+        arr = None if doc is _NO_DOCUMENT else _semi_walk(doc, [("key", k) for k in keys])
+        elems, read = (arr if isinstance(arr, list) else []), "json"
+    else:
+        hops, target = c.resolve_assoc(spec.root, list(prefix))
+        elems, read = walk_many(c, data, row, hops, _reverse_hops(c, spec.root, list(prefix))), "row"
+    out = []
+    for e in elems or [None]:
+        r = {}
+        for p in spec.projections:
+            if fanned.get(p.alias) is None:
+                r[p.alias] = (_agg(c, data, row, spec.root, p) if p.agg
+                              else _value(c, data, row, spec.root, p.path, p.args, p.func))
+                continue
+            rest = list(p.path[len(prefix):])
+            if e is None:
+                r[p.alias] = None
+            elif read == "row":
+                r[p.alias] = _value(c, data, e, target, rest)
+            else:
+                v = _semi_walk(e, [("key", k) for k in rest])
+                if isinstance(v, (list, dict)):
+                    raise Unsupported(f"{spec.short}: {'.'.join(p.path)} reads a sub-document, not a value")
+                r[p.alias] = v
+        out.append(r)
+    return out
+
+
+def _downcast(c: Corpus, data, row: dict, spec: Spec, p, dated) -> object:
+    """`$x->subType(@C).path` over a class whose set is the inheritance operation (EMIT's relational-polymorphic-query;
+    the improvement plan's EMIT target, 2026-11-01): C's path where the row is one of C's set's rows, absent where it is
+    another leaf's. legend-engine 4.145.0 plans it so, probed on DuckDB and H2 (scripts/corpus/unreached.py): the union
+    selects each leaf's column in that leaf's branch and NULL in the others'. The row's leaf is the table it was read
+    from, by identity, since _rows_for concatenates the leaves' own rows; a copied row (a merge's blanked columns) is
+    refused rather than guessed."""
+    if spec.root not in c.inheritance_ops:
+        raise Unsupported(f"{spec.short}: subType over {spec.root}, which no inheritance() set maps")
+    leaves = c.unions.get(spec.root) or []
+    if p.subtype not in c.main_table or c.main_table[p.subtype] not in leaves:
+        raise Unsupported(f"{spec.short}: {p.subtype} is not a mapped leaf of {spec.root}")
+    if not any(row is x for t in leaves for x in data[t]):
+        raise Unsupported(f"{spec.short}: a row of {spec.root} is in none of its leaves' tables")
+    if not any(row is x for x in data[c.main_table[p.subtype]]):
+        return None
+    return _value(c, data, row, p.subtype, p.path, p.args, p.func, dated)
+
+
+def _dated_for(c: Corpus, spec: Spec, params: dict | None) -> _Dated:
+    root = c.classes.get(spec.root)
+    return _Dated(root.temporal if root else None, _root_dates(c, spec, params), params)
+
+
+def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
+             params: dict | None = None) -> list[dict]:
     if spec.graph is not None:
-        return evaluate_graph(c, spec, data)
+        return evaluate_graph(c, spec, data, params)
     """Returns the rows the service must produce, as alias -> python value."""
+    if spec.lets:
+        # a top-level let binds a literal, which a predicate reads as a Param of its name
+        params = {**dict(spec.lets), **(params or {})}
     plain = [p for p in spec.projections if p.agg is None and not p.func
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
-    if any(c.to_many_on(spec.root, p.path) for p in plain):
+    fan_out = getattr(spec, "fan_out", False)
+    if not fan_out and any(c.to_many_on(getattr(p, "subtype", None) or spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
-    base = _milestoned(c, spec, base)
+    base = _milestoned(c, spec, base, params)
+    dated = _dated_for(c, spec, params)
     kept = [r for r in base
-            if all(_pred(c, data, r, spec.root, f) for f in spec.filters)]
+            if all(_pred(c, data, r, spec.root, f, params, dated) for f in spec.filters)]
 
-    out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
-                      else _value(c, data, r, spec.root, p.path, p.args, p.func))
+    out = [{p.alias: (_agg(c, data, r, spec.root, p, params) if p.agg
+                      else _apply(p.apply, _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
+                      if getattr(p, "apply", None) is not None
+                      else _downcast(c, data, r, spec, p, dated) if getattr(p, "subtype", None) is not None
+                      else _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
             for p in spec.projections}
-           for r in kept]
+           for r in kept] if not fan_out else [x for r in kept for x in _fan_rows(c, data, r, spec)]
 
     if spec.root in c.distinct_sets:
         # ~distinct on the class mapping: the SET is the distinct rows, so all() sees 16
@@ -2569,10 +4291,12 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         out = _group(spec, out)
     for f in getattr(spec, "post_filters", ()):
         # After grouping, on the projected alias. A row whose value is NULL is dropped,
-        # which is what `>` does and what F28 says `!=` does not -- so post filters use the
-        # same comparison discipline as the pre-project ones.
+        # which is what `>` does. Not what `!=` does over an absent value (_cmp), so a post
+        # filter with `!=` over a nullable alias would need _cmp's rule; none is written.
         out = [r for r in out
                if r.get(f.path[0]) is not None and _cmp(f.op, r[f.path[0]], f.value)]
+    if spec.relation:
+        out = _relation_ops(c, spec, out, data, params)
     keys = ([] if not spec.sort
             else spec.sort if isinstance(spec.sort, list) else [spec.sort])
     if keys:
@@ -2617,8 +4341,12 @@ def render(value, kind: str):
         # narrowed value of a 4-byte column. The engine prints such a column as 16.1 and
         # computes with 16.100000381469727; dropping the tag here rendered the second,
         # against an engine printing the first, on a row whose every other column agreed.
+        import decimal
         import flat
-        return value if isinstance(value, flat.F32) else float(value)
+        # A Decimal stays one: the engine prints a DECIMAL column's value exactly and its JSON
+        # assertion compares numbers by value, so 1.0000000000000001 rendered through a double
+        # would be 1.0 and wrong. emit.py writes it digit for digit.
+        return value if isinstance(value, (flat.F32, decimal.Decimal)) else float(value)
     if kind == "timestamp":
         return _timestamp(value)
     if kind in ("string", "date"):
@@ -2630,7 +4358,16 @@ def render(value, kind: str):
 # here is type-preserving (toUpper, trim, abs, coalesce, plus...), which is why the map is
 # short rather than 228 entries long: only the exceptions have to be stated.
 DYNA_RETURN = {"length": "int", "sign": "int", "sqrt": "float",
-               "isNull": "bool", "isNotNull": "bool"}
+               "isNull": "bool", "isNotNull": "bool", "in": "bool",
+               "array_size": "int", "array_contains": "bool", "array_to_string": "string"}
+
+# A Binding's property, by its declared type (Phase 9).
+_JSON_KIND = {"String": "string", "Integer": "int", "Float": "float", "Decimal": "float", "Boolean": "bool",
+              "StrictDate": "date", "DateTime": "timestamp"}
+
+# extractFromSemiStructured's kind is its type argument's (Phase 9); an array aggregate's, its array's element type's.
+_SEMI_KIND = {"CHAR": "string", "VARCHAR": "string", "STRING": "string", "INTEGER": "int", "FLOAT": "float",
+              "DECIMAL": "float", "BOOLEAN": "bool", "DATE": "date", "DATETIME": "timestamp", "TIMESTAMP": "timestamp"}
 
 
 def _node_kind(c: Corpus, owner: str, node) -> str:
@@ -2643,6 +4380,9 @@ def _node_kind(c: Corpus, owner: str, node) -> str:
         return c.tables[body[1]].columns[body[2]].kind
     if tag == "call":
         return _dyna_kind(c, owner, body)
+    if tag == "array" and body:
+        # a literal list, `coalesce([a, b])`: typed by its first element, as a call by its first argument
+        return _node_kind(c, owner, body[0])
     raise Unsupported(f"cannot type dynafunction argument {tag!r}")
 
 
@@ -2651,6 +4391,16 @@ def _dyna_kind(c: Corpus, owner: str, dyn) -> str:
     ret = DYNA_RETURN.get(fn)
     if ret is not None:
         return ret
+    if fn == "extractFromSemiStructured":
+        ty = args[2][1].upper() if len(args) == 3 and args[2][0] == "lit" else ""
+        if ty not in _SEMI_KIND:
+            raise Unsupported(f"extractFromSemiStructured to {ty!r} projects no scalar")
+        return _SEMI_KIND[ty]
+    if fn in ("array_max", "array_min", "array_sum"):
+        inner = args[0]
+        if inner[0] == "call" and inner[1][0] == "extractFromSemiStructured" and inner[1][1][2][0] == "lit":
+            return _SEMI_KIND[inner[1][1][2][1].upper().removesuffix("[]")]
+        raise Unsupported(f"{fn} over {inner[0]!r}: the oracle types it from an extraction's element type")
     if not args:
         raise Unsupported(f"{fn}() takes no arguments, so its result cannot be typed")
     return _node_kind(c, owner, args[0])
@@ -2661,45 +4411,63 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     if spec.group_by:
         base = _kinds_of_projections(c, spec)
         k = {a: base[a] for a in spec.group_by}
-        for name, src, fn in spec.aggs:
+        for a in spec.aggs:
+            name, src, fn = a
+            if isinstance(a, Agg) and a.ret is not None:
+                k[name] = RET_KIND[a.ret]
+                continue
             # An average of integers is a float; every other aggregate keeps its source kind.
             k[name] = ("int" if fn == "count"
                        else "float" if fn == "average" else base[src])
-        return k
-    return _kinds_of_projections(c, spec)
+        return _relation_kinds(c, spec, k)
+    return _relation_kinds(c, spec, _kinds_of_projections(c, spec))
 
 
 def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     for p in spec.projections:
+        # a downcast column's path is its subtype's (Proj.subtype, oracle._downcast)
+        root = getattr(p, "subtype", None) or spec.root
         if p.agg == "count":
             out[p.alias] = "int"
             continue
         if p.agg in ("isEmpty", "isNotEmpty"):
             out[p.alias] = "bool"
             continue
+        if p.agg is not None and p.over is not None:
+            table, col, _ = c.resolve(root, list(p.path) + [p.over])
+            out[p.alias] = c.tables[table].columns[col].kind
+            continue
         if p.func:
             out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",
                             "String": "string"}[c.functions[p.func].ret]
             continue
-        if len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS:
-            target = XSTORE_LINKS[(spec.root, p.path[0])][3]
+        if getattr(p, "apply", None) is not None:
+            out[p.alias] = RET_KIND[p.apply.ret]
+            continue
+        if len(p.path) == 2 and (root, p.path[0]) in XSTORE_LINKS:
+            target = XSTORE_LINKS[(root, p.path[0])][3]
             col = c.columns[target][p.path[1]]
             out[p.alias] = c.tables[c.main_table[target]].columns[col].kind
             continue
-        hit = c.resolve_derived(spec.root, p.path)
+        hit = c.resolve_derived(root, p.path)
         if hit is not None:
             out[p.alias] = {"Float": "float", "Integer": "int", "Boolean": "bool",
                             "String": "string"}[hit[2].type]
             continue
-        if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
+        if c.enum_props.get((c.owner_of(root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME
             continue
-        dyn = c.dyna.get((c.owner_of(spec.root, p.path), p.path[-1]))
-        if dyn is not None:
-            out[p.alias] = _dyna_kind(c, c.owner_of(spec.root, p.path), dyn)
+        owner = c.owner_of(root, p.path)
+        if owner in c.json_backed and owner.startswith("semi::"):
+            # A key of a Binding's document (Phase 9) is typed by its class's property, not by the payload column.
+            out[p.alias] = _JSON_KIND[c.classes[owner].props[p.path[-1]].type]
             continue
-        chain = c.chains.get((c.owner_of(spec.root, p.path), p.path[-1]))
+        dyn = c.dyna.get((c.owner_of(root, p.path), p.path[-1]))
+        if dyn is not None:
+            out[p.alias] = _dyna_kind(c, c.owner_of(root, p.path), dyn)
+            continue
+        chain = c.chains.get((c.owner_of(root, p.path), p.path[-1]))
         if chain is not None:
             # A chained property's kind comes from the table the chain LANDS on, not from
             # the root's main table -- resolve() cannot reach it, since no association is
@@ -2707,7 +4475,7 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             _joins, ctbl, ccol = chain
             out[p.alias] = c.tables[ctbl].columns[ccol].kind
             continue
-        table, col, _ = c.resolve(spec.root, p.path)
+        table, col, _ = c.resolve(root, p.path)
         out[p.alias] = c.tables[table].columns[col].kind
     return out
 

@@ -21,24 +21,22 @@ bazel run //tools/engine-runner:token_dump
 ```
 
 - `--testable=` selects which testable elements to run; omit to parse and compile only.
+  They run one at a time, in the order given.
 - `--dump=` writes the full expected/actual JSON per failing assertion. Without it the
   report truncates at 300 characters, which for a 60-column TDS is identical on both sides
   and tells you nothing.
+- `--report=<file>` writes one line per test, `status`, `testable`, `suite`, `test`, `millis`
+  (the testable's, all its tests together) and `detail` (tab-separated), as each testable
+  finishes. The status is PASS, FAIL, ERROR, ROWS (`--rows`) or HUNG.
+- `--limit=<seconds>`: a testable still running after this long is reported HUNG, and the JVM
+  halts with exit status 3.
+- `@<file>` stands for that file's lines, one argument each: a whole corpus and a batch of
+  testables are longer than Windows' 32,767-character command line.
 
-The whole stress corpus:
-
-```
-S=core/src/test/resources/stress
-bazel run //tools/engine-runner:testable -- $S/*.pure \
-  $(grep -h '^Service ' $S/92-services.pure | awk '{print "--testable="$2}')
-```
-
-(Out of date on the corpus side, measured 2026-09-22: the stress corpus now names
-classes from the linked projects under projects/, so this fails to compile with
-`Can't find class 'core_ratings::RatingVersion'` until the command passes those files
-too. The Maven-built runner failed identically.)
-
-Note zsh does not word-split unquoted parameter expansions; use an array or `${=VAR}`.
+The whole stress corpus, or a named set of its services, runs through
+`bazel run //scripts/corpus:run` (see `scripts/corpus/run.py`). It passes the linked projects
+before the stress files, batches the testables one JVM each, and judges the results against
+`scripts/corpus/quarantine.py`.
 
 ## Dependencies worth knowing about
 

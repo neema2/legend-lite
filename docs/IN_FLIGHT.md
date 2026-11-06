@@ -3216,3 +3216,273 @@ every lane; then core, the corpus, the deletion.
   - the resolver's: `resolver/Substitution.java` (a collection's drop, take or slice over values substitutes in
     object space), and, in the ninety-ninth landing, `resolver/ClassWrites.java` (an embedded property's
     sub-property written as the column its mapping reads it from, the rows' column `p.sub`).
+
+## A fourteenth line, 2026-10-21: the stress corpus plan (the user's ask, rule 5)
+
+The user asked to start the stress corpus plan (`docs/STRESS_CORPUS_PLAN_2026_10_19.md`) and took its five decisions
+(its "Decisions": D1 to D5). Under D1 its Phase 0 takes over the Bazel program's Exec-2 (the old P3-25, the stress
+corpus through legend-engine as a Bazel tool and a manual test), which no clone holds as a draft, so it is rewritten.
+Status lives in the plan's Progress table (rule 0b.16).
+- **Branches (the user, 2026-10-23):** `stress_test/report` holds the plan and the feature report (with the report's
+  tools); `stress_test/corpus` holds the changes to the corpus and its tools, built on `main`, and never the plan or
+  the report. They land together, as one PR from a branch that merges both (the user, 2026-11-01), so the plan's path
+  cited here and in the corpus's files lands with them.
+- **Owned for the line's length:**
+  - `scripts/corpus/` (the generators, the oracle, the engine run `run.py`, `changed.py`, `quarantine.py`)
+  - `core/src/test/resources/stress/` (the generated files, and the hand-written packs the phases add)
+  - `core/stress.bzl`, `tools/wrongrows/`, `docs/stress-corpus-feature-report-2026-09-29/tools/`
+  - the corpus's docs: `docs/RUNNING_THE_CORPUS.md`, `docs/UPSTREAM_FINDINGS.md` (F59 added 2026-10-21)
+  - the stress suites' `MIN_PASS` (`StressServiceSuitesTest`, `StressServiceSuitesH2Test`), moved per phase with a
+    dated note
+- **Cross-area, Phase 0 (announced here before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): `TestableMain` runs testables one at a time and gains `@<file>`
+    arguments, `--report=` and `--limit=`; the smoke test gains a fixture that executes; `:testable` is visible to
+    `//scripts/corpus`. No output line the probes read changes.
+  - `tools/engine-runner/`: after every testable `TestableMain` closes legend-engine's connection pools
+    (`ConnectionStateManager.clearAllConnections()`, as legend-engine's own test helpers do); left open, each later
+    test's data setup slowed (F59).
+  - `gates/BUILD.bazel` and `docs/GATES.md` (the Bazel program's): `//scripts/corpus:engine_stress` in `heavy`,
+    `:changed_test` and `:run_test` in `checks`, `:tools_build_test` in `core`.
+  - `docs/build-inventory/program/PHASE_8.md`: Exec-2's row, taken over.
+- **Cross-area, Phase 1 (announced 2026-10-23, before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): an ERROR line from `TestableMain` carries the exception's causes
+    (`<- caused by: ...`), because a suite that fails to start ("Error initializing test suite session") names its
+    reason only in a cause, and a quarantine entry needs the reason. Only `run.py` reads the detail, and it echoes it.
+- **Phase 2 (started 2026-10-27): data that reaches the bottom of deep queries.** Inside the owned files only: a new
+  seed pass `scripts/corpus/spines.py`, called from `flat.all_tables` after the expansion; `deepstack.py`,
+  `stacks.py`, `spread.py` and `graphs.py`; an emptiness check in `build.py`; every generated file; both `MIN_PASS`.
+  Most expected results change (the plan's D2).
+- **Cross-area, Phase 2 (announced 2026-10-27, before it lands):**
+  - `repro/datediff-hours-off-boundary/README.md`: its "where it shows" list loses the two `DSLocal_` services,
+    which now pass on the engine (their F58 quarantine entries are removed in `quarantine.py`).
+- **Phase 3 (started 2026-10-28): milestoning at time of day.** Inside the owned files only: a hand-written pack
+  `8113-intraday.pure` (its store included by `store::DB` in `30-store.pure`, its mapping by `89-all-mapping.pure`),
+  its seed in `seed.py`, a generator `scripts/corpus/intraday.py` writing a new generated file
+  `99-intraday-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON), the oracle's
+  milestoning, `executed.py`'s ratchet, `quarantine.py`, three repros under `scripts/corpus/repro/`, F66 and F67 in
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 3 (announced 2026-10-28, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (twelve to thirteen), as
+    Phase 1's did.
+- **Cross-area, the rebase onto `main` (2026-10-28):**
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-typed-services.pure` and `99-intraday-services.pure`, the services Phases 1 and 3 generate, so the trading
+    model stays classes, stores and mappings. Without it 396 services (about 670 KB) came into the model.
+- **Phase 4 (started 2026-10-28): the function vocabulary.** It lands in stages, each committed when green. First the
+  23 functions `docs/FUNCTIONS_EXECUTED.tsv` records as disagreeing with the oracle are adjudicated, each an oracle
+  fix or an upstream finding, before any goes into a service. Inside the owned files: the oracle, the probes
+  (`probe_functions.py` and `probe_collection.py` start the engine through `run.py`'s one launcher, the plan's
+  P7-03 shape) and their manual `py_binary`s in `scripts/corpus/BUILD.bazel`, a generator `scripts/corpus/vocab.py`
+  writing a new generated file `99-vocab-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout
+  JSON), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and
+  both `MIN_PASS`.
+- **Cross-area, Phase 4 (announced 2026-10-28, before it lands):**
+  - `docs/FUNCTIONS_EXECUTED.tsv` (the function scoreboard's evidence, read by `//scripts/corpus:functions_gate`):
+    the scalar and collection probes' rows, refreshed at the pin.
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (thirteen to fourteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-vocab-services.pure`.
+  - `repro/substring-two-answers/README.md` (announced 2026-10-29): a dated note that F37's property-mapping half is
+    withdrawn, a mapping's `substring` being the relational dynafunction (the plan's D9, taken for it by the user).
+  - `core/src/main/java/com/legend/normalizer/RelOpTranslator.java` (announced 2026-10-29, the user's choice): the
+    `substring` dynafunction's operands wrap in the dyna lane's `toOne`, as the generic dyna path's do, so a column
+    reached through a join types against Pure's strict `substring(String[1], ...)`; the corpus's new substring cells
+    met it.
+- **Phase 7 (started 2026-10-29): declared but unreached.** It lands in stages, each committed when green. Inside the
+  owned files: a generator `scripts/corpus/unreached.py` writing a new generated file `99-unreached-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON); runtimes for `stress::DenseMapping` in
+  `91-runtime.pure` and `28-external.pure`; the router union and the inheritance operation moved out of
+  `71-mapping-surface2.pure` into a hand-written pack lite loads, with the merge services' store in
+  `74-surface-last.pure`; mappings for the unused joins (a hand-written `89-join-links.pure` over the products,
+  counterparty, back-office, OTC, core-fx and hier stores, and `70-surface-store2.pure`'s join conditions), and the ten
+  joins the user agreed to delete (2026-10-29: the six `dense_*` in `dense_store.py`, `HierInstrument_Issuer`,
+  `surface_TestNotEqual`, `surface_AnsiNotEqual`, `TierVersion_Trade`); a profile on the new pack's classes; their
+  seed in `seed.py`, apart from the expansion (`expand.py`, `flat.py`); `model.py` and the oracle for the operation
+  forms; the model-walking generators (`stacks.py`, `graphs.py`, `aggregates.py`, `tomany.py`, `spread.py`) walk only
+  the ends `stress::AllMapping` maps (`model.walked`); `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 7 (announced 2026-10-29, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fourteen to fifteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-unreached-services.pure`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
+    with the split of `71-mapping-surface2.pure` (it stays excluded for its M2M explosion; the moved operations are
+    loaded).
+- **Phase 5 (started 2026-10-30): M2M.** `stress_test/corpus` rebased onto `upstream/main` (`7bc0797d9`) first, with
+  no conflicts. Inside the owned files: `55-canonical-store.pure` split, its M2M mapping, `ModelChainConnection` and
+  `stress::CanonicalRT` moving to `55-canonical-chain.pure`, which has no Money measure, so `M1_TradeCanonical` and
+  `M2_CanonicalWithEnum` load in lite (only the measure's mapping, runtime and service stay excluded); a hand-written
+  `m2m::` pack, `8114-m2m.pure` (source classes mapped relationally over the seeded TRADE, COUNTERPARTY, BOOK and
+  ALLOCATION, M2M mappings over them, one `ModelChainConnection`, runtimes), with the two constructs lite refuses at
+  model build, the M2M enumeration transforms and the complex property passthrough, in `8115-m2m-gaps.pure`, which
+  lite excludes (the user's choice, 2026-10-30: exclude them rather than defer them in lite); 75-surface-gaps.pure's
+  local property given a source mapping, a chain and a value computed from the source; a generator
+  `scripts/corpus/m2m.py` writing `99-m2m-services.pure` and `94-gap-services.pure`, the latter the services over
+  8115's and 75's mappings, excluded with them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists), each M2M service with a relational twin in
+  `battery.INVARIANCE_GROUPS`; `model.py` (an Integer enumeration source value), `emit.py` (a TDS's sort and cut),
+  `spread.py` (no template over a class no table maps), `executed.py`, `quarantine.py`, four repros under
+  `scripts/corpus/repro/`, F84 to F87 in `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 5 (announced 2026-10-30, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fifteen to seventeen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-m2m-services.pure` and `94-gap-services.pure`. The new hand-written pack and the file split out of
+    `55-canonical-store.pure` hold classes, mappings, connections and runtimes, which the trading model keeps, as it
+    keeps Phase 7's packs.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
+    with the split of `55-canonical-store.pure` (it stays excluded for its Money measure alone), and
+    `8115-m2m-gaps.pure` and `94-gap-services.pure` excluded, each refusal with a case of its own.
+- **Phase 6 (started 2026-10-30): relation (`~func`) mappings.** `stress_test/corpus` was rebased onto `upstream/main`
+  (`efff04068`) first, with no conflicts. It lands in stages, each committed when green. Inside the owned files: a
+  hand-written `relmap::` pack, `8116-relmap.pure` (relation class mappings over tables that already have seed rows,
+  one or more per relation-mapping feature: `~src`, a filter, a group-by and a window function in the source relation,
+  expression right-hand sides, a primary key, a local property, embedded and inline embedded, a union, a binding
+  transformer, a model join and an XStore association, with relationally mapped twins over the same tables and
+  runtimes); a generator `scripts/corpus/relmap.py` writing a new generated file `99-relmap-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists), each
+  relation-mapped service with a relational twin in `battery.INVARIANCE_GROUPS` where the feature allows, and the
+  oracle's `RELATION_IMPL` evaluating a `~func` body where it does not; `model.py` (the pack's relation mappings
+  skipped, as `modeljoin::JoinMapping` is), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. No seed change is planned. As built (stage 1): `battery.py` (the
+  pack's groups), `build.py` (the new file; a mirror's columns follow its twin's relation operations), `spread.py`
+  (the pack's services neither its templates nor its baseline, so no existing service moves), `differential.py` (the
+  binding transformer's two relational twins in `lite_blind`, the user's choice, 2026-10-30: lite stops on any
+  Binding transformer, which the differential cannot hold as a known divergence), and, cross-area,
+  `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger: REL-03 and REL-04 now written, out; REL-02's reason restated).
+- **Cross-area, Phase 6 (announced 2026-10-30, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (seventeen to eighteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-relmap-services.pure`. The hand-written pack holds classes, functions, mappings and runtimes, which the trading
+    model keeps, as it keeps Phase 5's and Phase 7's packs.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a relation-mapping construct when it builds the model; the options go to the user first.
+- **Phase 8 (started 2026-10-31): constraints and test shapes.** `stress_test/corpus` was already on `upstream/main`
+  (`efff04068`), so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds
+  alone. It lands in stages, each committed when green, constraints first. Inside the owned files: a hand-written
+  `checks::` pack (classes whose constraints combine dates, enumerations, string functions, `exists` and `forAll`
+  over to-many properties, `if` and navigated properties; its own store, seed rows that violate each constraint, kept
+  out of the expansion through `seed.PACK_TABLES`); a generator `scripts/corpus/checks.py` writing a new generated
+  file of graph fetch services that check them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists); `model.py` reading constraints and the oracle evaluating them over the
+  fetched graph (`graphFetchChecked`'s defects); mapping test suites mirroring existing services, with `run.py`,
+  `changed.py` and the engine runner taking a `stress::` mapping's test suites as testables; several tests per suite,
+  several assertions per test, and `EqualTo` (and `EqualToTDS` if the pin parses it) on existing services;
+  `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both
+  `MIN_PASS`. As built (done 2026-10-31, three stages: `9582d30d2`, `346fd9bcf`, `9823f0701`): the pack is
+  `8117-checks.pure` with `checks.py` writing `99-checks-services.pure`; `mapping_tests.py` writes
+  `99-mapping-tests.pure` (nine `stress::MT_` mappings, 60 suites); `shapes.py` gives 36 services a second test;
+  `oracle.py`, `model.py`, `emit.py`, `query.py`, `build.py`, `run.py`, `changed.py`, `executed.py`; F89 with a repro
+  and two non-findings in `docs/UPSTREAM_FINDINGS.md`; no quarantine entry.
+- **Cross-area, Phase 8 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    files.
+  - `tools/engine-runner/` (the Bazel program's): only if `TestableMain` needs a change to run a mapping's test suites
+    or to report a non-JSON assertion's failure. As built: with `--dump`, it writes a non-JSON assertion's whole
+    failure message too (stage 3); a mapping's suites needed no change.
+  - `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger): TA-01 and TST-15 restated or removed if a stage writes
+    `EqualTo` or `EqualToTDS`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a constraint or a mapping test suite when it builds the model; the options go to the user first.
+- **Phase 9 (started 2026-10-31): store breadth.** `stress_test/corpus` was already on `upstream/main` (`efff04068`),
+  so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds alone (61 diff
+  tests). It lands in stages, each committed when green, semi-structured data first. Inside the owned files: seed rows
+  for `66-store-surface.pure`'s `SURFACE_TYPES`, its `C_SEMI SEMISTRUCTURED` and `C_JSON JSON` columns holding JSON
+  documents, kept out of the expansion through `seed.PACK_TABLES` and from the walking generators
+  (`literals.FIXTURE_TABLES`); a hand-written pack mapping classes over them (navigation, array index, flatten, and
+  explode and the wildcard path if the pin runs them), and outer-join hops in property-mapping join chains with seed
+  rows on one side only; a generator writing a new generated file of services over them (`core/stress.bzl`'s
+  `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists); `model.py` and the oracle
+  evaluating each navigation over the seeded JSON; `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-10-31, two stages:
+  `411eece77`, `2a71bc502`): SURFACE_TYPES's `C_SEMI` is seeded for the H2 side and a pack table,
+  `SEMI_DOC`, for the DuckDB side (DuckDB cannot create SURFACE_TYPES; a Relation service runs its tests on DuckDB);
+  `C_JSON` stays NULL (F91); the pack is `8118-semi.pure` with `semi.py` writing `99-semi-services.pure`, and
+  `8119-outer.pure` with `outer.py` writing `99-outer-services.pure` (no full or right outer join has a form in a
+  mapping at the pin, `repro/mapping-join-types/`; the typed joins it has, in a property chain and a `~filter`);
+  `oracle.py`, `model.py`, `query.py`, `build.py`, `differential.py` (the documents' tables out of its seed),
+  `executed.py`, `quarantine.py` (F90); F90 to F93 and F53's note in `docs/UPSTREAM_FINDINGS.md`, each with a repro.
+- **Cross-area, Phase 9 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    file.
+  - `docs/SURFACE_BLOCKED.tsv` and `docs/ENGINE_SURFACE.tsv` (the scoreboard's ledgers): a semi-structured or join row a
+    stage makes stale.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a semi-structured or outer-join construct when it builds the model; the options go to the user first.
+- **Finishing the plan (started 2026-11-01): Phase 0's Linux run and the plan-wide EMIT target.** No Phase 9 PR has
+  merged (none is open upstream), so there was no rebase. Two items. First, the whole engine verdict on a GitHub-hosted
+  Linux runner, which Phase 0 left undone; its shape waits for the user's choice. Second, at least 80 of the 109 EMIT
+  features judged on the engine (Phase 9 ended at 74). The report's `profile.py`, on `stress_test/report`, tags the
+  features the corpus already exercises, and new packs and generators add the ones it lacks. Inside the owned files:
+  `run.py` and a merge of its shards' verdicts if the run is split across jobs; the packs, seed (kept out of
+  `seed.PACK_TABLES` and `literals.FIXTURE_TABLES`), oracle, generators, `executed.py`, `quarantine.py`, repros,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-11-01, three commits: `bfeb61b6e`,
+  `79de7cb6a`, `2f3b002fd`): the user chose a standalone workflow, `engine-verdict.yml`, with `run.py --shard` and
+  `verdicts.py`'s merge. The EMIT target is met at 81 of 109 on the engine (63 in lite), through one polymorphic query
+  (`UO_Downcast`, `UO_DowncastTds`) and the report's tools tagging what the corpus already exercised (`9f6b917cf` on
+  `stress_test/report`). The Linux verdict, run 41364493432 at `2f3b002fd`: 5,948 pass, 108 known-fail, 1 not run, 0
+  unexpected, of 6,057. That is the Windows verdict testable by testable (fingerprint `f6e70f085df7e57b`). The plan
+  marks Phase 0 done (`9ae092636` on `stress_test/report`).
+- **Cross-area, finishing the plan (announced 2026-11-01, before it lands):**
+  - `.github/workflows/` (the Bazel program's): a new `engine-verdict.yml`, as the user chose (2026-11-01): a
+    standalone workflow, dispatched with a platform (linux, linux-arm, macos, windows), that runs `engine_stress`'s
+    eight slices as eight jobs (`run.py --shard K/8`) and merges them (`scripts/corpus/verdicts.py`, tested in
+    `:run_test`). gate.yml, gates-run.yml and `gates/BUILD.bazel` don't change. It can be dispatched only once the
+    file is on the default branch.
+  - `docs/build-inventory/program/PHASE_8.md`: a note against Test-11 saying what the run covers and what it doesn't.
+  - `core/BUILD.bazel` (the comment on `:stress_files`) and `scripts/corpus/trading_model.py`'s `SERVICES_AND_DATA`
+    (the timeseries line's), for each new generated file.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a new construct when it builds the model; the options go to the user first.
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's, announced
+    2026-11-01): `own_corpus.matched` 3009 -> 3017, regenerated by `//parser-equivalence:update_ratchets`. Phase 5's two
+    `LegendLiteGapTest` snippets (`m2mEnumerationTransform`, `m2mComplexPropertyPassthrough`, `9e2d8a518`) joined the
+    own corpus, and their 8 elements match. Phase 5 left the ratchet unmoved, and the desk's gate missed it behind
+    fc.exe's "cannot open". So the branch's CI was red in `parser_equivalence` (`OwnCorpusParityTest`) and in `checks`
+    (`//:generated`) from Phase 5 on.
+- **The first Linux run (2026-11-01, run 41322461475, at `79de7cb6a`): 504 unexpected, each put to the user.** It
+  agreed with Windows on every other testable. 497 ERRORs came from how the runner was launched (F94): Bazel's Linux stub
+  names external jars by `../`, and ClassGraph 4.8.25, which builds the classpath for the engine's Java compiler, drops
+  those entries. `run.py` now passes `--classpath_limit=0` everywhere but Windows, as the user chose. In WSL, with the
+  Linux JDK, all 497 pass. The other 7 were glibc's `cbrt`, which misses even on perfect cubes (F60, reopened):
+  `combos.seed_cubes` now writes cubes of powers of two, as the user chose, a seed change and so a whole engine run.
+  `verdicts.py`'s annotations now escape their titles, which GitHub cut at the comma, and cut a long list of names to
+  fit. All of these are owned files. Fixed in `2f3b002fd`: the second Linux run (41364493432) gave 0 unexpected.
+- **PR #87's review (2026-11-02), cross-area, on `stress_test/landing` (the PR's branch, rebased onto `upstream/main`
+  `cf73e6ef7`):**
+  - `REPO.bazel` (new) and `tools/guards/defs.bzl` (the Bazel program's): `ignore_directories(["bazel-*"])`. The
+    root package's `//:all_files` glob walked the convenience links into the output tree, and on Windows the walk
+    failed the warehouse lane's analysis ("Inconsistent filesystem operations", run 41375140384). The exclude that
+    filtered without stopping the walk is gone, and `//tools/guards:inventory_test` holds the rest.
+  - `.github/workflows/engine-verdict.yml`: macOS on `macos-15`, as gate.yml since #85, and its comments on the
+    sharding. `gates/BUILD.bazel` gains `//scripts/corpus:quarantine_test` in the lane `:run_test` is in.
+  - `core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java` (core's): a focused test of the
+    `substring` dynafunction over a joined column (the review's finding 8).
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's):
+    `own_corpus.matched` 3017 -> 3020. The new test's model (`model::E`, `store::DB`, `model::M`) joined the own corpus
+    and matches. The desk's local runs missed it (the parity lane was not among them), and PR #87's CI caught it
+    (run 41483336882: `OwnCorpusParityTest` and `update_ratchets_test` on every OS).
+- **The rebase onto `main` (2026-11-06), cross-area, on `stress_test/landing`:** rebased onto `upstream/main`
+  `2cfab7658` (228 commits; the merge of `stress_test/report` kept), every one of the branch's 74 commits applied with
+  its diff unchanged but two.
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's): main's own
+    count had moved 3009 -> 3079, so the branch's two moves are now 3079 -> 3087 -> 3090, each commit saying so.
+    Measured: `[own-parity] MATCH=3090, REFERENCE_REJECTED=263, diffs=0`.
+  - `core/src/main/java/com/legend/sql/dialect/H2.java` (core's): main's H2 2.5.252 (`53b52c805`) guards `ASIN` and
+    `ACOS` to NaN outside [-1, 1], and its `ELSE` also took an absent argument to NaN. So `VN_Acos` and `VN_Asin` (an
+    absent `rateOpt` through `map`) answered `true` where the engine's H2 answers null, and `//core:stress_suites_h2`
+    passed 5517 against its floor of 5519. They were the only two services the rebase moved on either stress lane. A
+    NULL now falls through to NULL, as SQLite's and MariaDB's guards do (`d8bd6f8fd`). DuckDB's, Postgres's and
+    Snowflake's guards have the same `ELSE` shape; DuckDB answers these two services null, and nothing here probes
+    why.
+  - `.github/workflows/engine-verdict.yml`: the Linux shards on `ubuntu-24.04`, as gate.yml since `99a004061`
+    (ubuntu-latest's image has no libxml2). `docs/GATES.md`'s heavy row: `engine_stress` has 16 shards, not 8
+    (`ca3e790f2`).
+  - The measures: both stress lanes' pass lists are identical, test by test, to the branch's own run before the
+    rebase (`f907f921d`): DuckDB 5614, H2 5519. Green: `//gates:local`, `//gates:stress`, `//gates:parser_equivalence`,
+    `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//pct:pct_h2`, `//core:core_tests_judges`. This desk's known reds
+    are left out: every `update_*` diff test and `//tools/java_run:pins_test`, where fc.exe cannot open the
+    case-sensitive clone (each pair compared directly, all identical), and three datacube browser tests
+    (`live_channel_test`, `live_soak_test`, `page_app_test`) that run past their limit here even alone and depend on no
+    file the branch changes (`bazel query`).

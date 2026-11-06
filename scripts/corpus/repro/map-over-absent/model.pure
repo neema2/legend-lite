@@ -1,0 +1,197 @@
+// F68: a function reached through `map` over an absent value is applied to SQL's NULL.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/map-over-absent/model.pure //       --testable=demo::Length --testable=demo::Append --testable=demo::AppendFilter //       --testable=demo::IndexOf --testable=demo::HashIsEmpty
+//
+// R2's s is NULL. legend-pure's `map` over an empty collection is empty, so `$x.s->map(v|f($v))` is absent for R2
+// whatever f is. legend-engine 4.145.0 lowers the map to f applied to the column, so a function whose SQL answers a
+// NULL argument with a value gives R2 that value: `+ 'z'` gives 'z' (and a filter on it keeps R2), regexpIndexOf
+// gives -1, and hashCode gives a hash. Each service asserts legend-pure's answer; Length, whose SQL propagates the
+// NULL, passes, and the other four fail.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S\n' +
+      'R1,alpha\n' +
+      'R2,\n';
+  }#
+}
+
+###Service
+Service demo::Length
+{
+  pattern: '/demo/length';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->map(v|$v->length())])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Length_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":5}, {"id":"R2","r":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Append
+{
+  pattern: '/demo/append';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->map(v|$v + 'z')])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Append_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":"alphaz"}, {"id":"R2","r":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::AppendFilter
+{
+  pattern: '/demo/appendfilter';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.s->map(v|$v + 'z') == 'z')->project(~[id:x|$x.id])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    AppendFilter_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::IndexOf
+{
+  pattern: '/demo/indexof';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->map(v|$v->regexpIndexOf('p'))])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    IndexOf_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":2}, {"id":"R2","r":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::HashIsEmpty
+{
+  pattern: '/demo/hashisempty';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->map(v|$v->hashCode())->isEmpty()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    HashIsEmpty_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":false}, {"id":"R2","r":true} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

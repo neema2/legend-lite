@@ -1,0 +1,109 @@
+// F69: on DuckDB, regexpIndexOf reports where the matched TEXT first occurs, not where the match is.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/regexpindexof-text-position/model.pure //       --testable=demo::FirstMatch --testable=demo::AnchoredMatch
+//
+// legend-engine defines `regexpIndexOf(string, regexp)` as the zero-based position at which the pattern first
+// matches. In 'abab', 'b$' matches at 3. legend-engine 4.145.0's DuckDB SQL extracts the matched text ('b') and
+// locates it with strpos, which finds the first 'b', at 1. FirstMatch, where the first occurrence of the text is the
+// match ('b' in 'abab', 1), passes; AnchoredMatch fails with 1 where Pure says 3. The engine's own comment on the
+// transform names the gap (duckdbExtension.pure, transformRegexpIndexOf).
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S\n' +
+      'R1,abab\n';
+  }#
+}
+
+###Service
+Service demo::FirstMatch
+{
+  pattern: '/demo/firstmatch';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->toOne()->regexpIndexOf('b')])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    FirstMatch_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":1} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::AnchoredMatch
+{
+  pattern: '/demo/anchoredmatch';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->toOne()->regexpIndexOf('b$')])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    AnchoredMatch_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":3} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

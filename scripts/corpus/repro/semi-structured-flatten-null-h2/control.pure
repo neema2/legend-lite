@@ -1,0 +1,142 @@
+// F93 (docs/UPSTREAM_FINDINGS.md): on H2, flattening a Binding's to-many raises when any row of the table holds
+// a NULL document. H2's flatten calls legend_h2_extension_flatten_array(connection, table, column, paths), which reads
+// the whole column itself rather than the rows the query selects, and fails on the NULL ("argument content is null");
+// an explode in a join calls it too, and a view filtering NULL documents out does not help, since the function reads
+// the base table. DuckDB flattens a NULL document to nothing. Run each file alone:
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=demo::HopsTds --testable=demo::HopsRelation
+// In this file no row is NULL: both pass.
+###Pure
+Class demo::Doc
+{
+  id: String[1];
+  body: demo::Body[0..1];
+}
+
+Class demo::Body
+{
+  legs: demo::Leg[*];
+}
+
+Class demo::Leg
+{
+  hop: String[1];
+}
+
+###ExternalFormat
+Binding demo::BodyBinding
+{
+  contentType: 'application/json';
+  modelIncludes: [ demo::Body, demo::Leg ];
+}
+
+###Relational
+Database demo::DB ( Table T ( ID VARCHAR(8) PRIMARY KEY, DOC SEMISTRUCTURED ) )
+
+###Mapping
+Mapping demo::M
+(
+  demo::Doc: Relational
+  {
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    body: Binding demo::BodyBinding : [demo::DB]T.DOC
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::H2Data { Relational #{ default.T: 'ID,DOC\n' + 'A,"{"legs":[{"hop":"L1"},{"hop":"L2"}]}"\n'; }# }
+Data demo::DuckData { Relational #{ default.T: 'ID,DOC\n' + 'A,"{""legs"":[{""hop"":""L1""},{""hop"":""L2""}]}"\n'; }# }
+
+###Service
+Service demo::HopsTds
+{
+  pattern: '/demo/hopstds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id, x|$x.body.legs.hop], ['id', 'hop']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    HopsTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::H2Data }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","hop":"L1"},{"id":"A","hop":"L2"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::HopsRelation
+{
+  pattern: '/demo/hopsrelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id, hop:x|$x.body.legs.hop]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    HopsRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::DuckData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","hop":"L1"},{"id":"A","hop":"L2"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

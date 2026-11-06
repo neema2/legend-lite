@@ -26,9 +26,7 @@ appears there. A probe with three well-populated parents would have missed it.
 from __future__ import annotations
 
 import json
-import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -218,6 +216,16 @@ Service col::Svc
 """
 
 
+# The disagreements the improvement plan's Phase 4 adjudicated (2026-10-28), each the ENGINE's, by finding (see
+# probe_functions.ADJUDICATED). `first`'s expectation over P1 assumes the seed's order, which no store promises; its
+# verdict stands on the row count, one row per child.
+ADJUDICATED = {
+    **{n: "the engine's: F6, an aggregate over an empty to-many" for n in ("count", "map", "joinStrings")},
+    **{n: "the engine's: F43, not applied over a to-many (a row per child)"
+       for n in ("first", "sortBy", "greatest", "least", "and", "or")},
+}
+
+
 def expected(cases) -> list:
     rows = []
     for p in sorted(KIDS):
@@ -238,16 +246,8 @@ def build(cases) -> str:
 def attempt(cases) -> tuple[str, str]:
     work = Path(tempfile.mkdtemp())
     src = work / "col.pure"
-    src.write_text(build(cases))
-    cp = (runner.RUNNER / "cp.txt").read_text().strip()
-    r = subprocess.run(
-        [f"{runner.JAVA_HOME}/bin/java", "-cp",
-         f"{runner.RUNNER}/target/classes:{cp}", "perf.TestableMain",
-         str(src), "--testable=col::Svc", f"--dump={work}"],
-        capture_output=True, text=True,
-        env=dict(os.environ, JAVA_HOME=runner.JAVA_HOME),
-        cwd=runner.RUNNER, timeout=3600)
-    out = r.stdout + r.stderr
+    src.write_text(build(cases), encoding="utf-8")
+    _status, out = runner.launch([str(src), "--testable=col::Svc", f"--dump={work}"], work)
     if re.search(r"\bPASS\b", out):
         return "ok", "agrees"
     dumps = sorted(work.glob("*.actual.json"))
@@ -297,7 +297,8 @@ def main() -> None:
                 out2, why2 = attempt([c])
                 why2 = why2 if out2 not in ("ok",) else "fails only in company"
                 if out2 == "differs":
-                    why2 = "DISAGREES with the oracle"
+                    why2 = "DISAGREES with the oracle" + (f" -- {ADJUDICATED[c[0]]}"
+                                                          if c[0] in ADJUDICATED else "")
                 rejected.append((c[0], why2))
                 print(f"  REJECTED  {c[0]:<20} {why2[:90]}", flush=True)
             if not cases:
@@ -340,8 +341,9 @@ def _report_diff(cases, actual) -> None:
 def _merge_evidence(names, failing=()) -> None:
     import probe_functions
 
+    # a disagreement's verdict whole, since it names the finding; an engine message cut to its first 60 characters
     probe_functions.merge_evidence("collection", sorted(set(names)),
-                                   [(n, w[:60]) for n, w in failing])
+                                   [(n, w if w.startswith("DISAGREES") else w[:60]) for n, w in failing])
 
 
 if __name__ == "__main__":

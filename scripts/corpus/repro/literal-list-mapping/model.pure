@@ -1,0 +1,240 @@
+// F83: a literal list in a relational property mapping fails at test setup.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/literal-list-mapping/model.pure \
+//       --testable=demo::Plain --testable=demo::Coalesce --testable=demo::In \
+//       --testable=demo::JoinPlain --testable=demo::JoinIn
+//
+// The relational grammar writes a literal list as `[a, b]`, as one argument of a dynafunction: `coalesce([a, b])`,
+// `in(col, ['x', 'y'])`. legend-engine 4.145.0's parser wraps each element in a protocol Literal whose value is the
+// element itself, a TableAliasColumn or another Literal (RelationalParseTreeWalker, the LiteralList branch), and the
+// compiler copies those values unconverted into the metamodel (HelperRelationalBuilder, the LiteralList branch:
+// `convertLiteral(l.value)`, which converts only an Integer), so SQL generation meets a Java object: "ERROR unhandled
+// type for value: ...TableAliasColumn" for coalesce, "...Literal" for in. Plain, the same coalesce without the list,
+// passes; Coalesce and In fail at "Error initializing test suite session".
+//
+// A join's condition is built by the same branch, so a literal list there fails the same way, an Integer list as much
+// as a String one (each Integer is wrapped in a second Literal, which convertLiteral does not unwrap): JoinPlain, a
+// join with no list, passes; JoinIn, the same join under `in(D.N, [1, 3])`, fails with "...Literal".
+###Pure
+Class demo::Code
+{
+  k: String[1];
+  firstOf: String[0..1];
+  listed: Boolean[0..1];
+  dPlain: Integer[0..1];
+  dListed: Integer[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table C (K VARCHAR(8) PRIMARY KEY, V VARCHAR(8))
+  Table D (K VARCHAR(8) PRIMARY KEY, N INTEGER)
+  Join c_d(D.K = C.K)
+  Join c_d_in(D.K = C.K and in(D.N, [1, 3]))
+)
+
+###Mapping
+Mapping demo::PlainMapping
+(
+  demo::Code: Relational
+  {
+    ~mainTable [demo::DB]C
+    k: [demo::DB]C.K,
+    firstOf: coalesce([demo::DB]C.V, [demo::DB]C.K)
+  }
+)
+
+Mapping demo::ListsMapping
+(
+  demo::Code: Relational
+  {
+    ~mainTable [demo::DB]C
+    k: [demo::DB]C.K,
+    firstOf: coalesce([[demo::DB]C.V, [demo::DB]C.K]),
+    listed: in([demo::DB]C.K, ['K1', 'K3'])
+  }
+)
+
+Mapping demo::JoinMapping
+(
+  demo::Code: Relational
+  {
+    ~mainTable [demo::DB]C
+    k: [demo::DB]C.K,
+    dPlain: [demo::DB]@c_d | [demo::DB]D.N,
+    dListed: [demo::DB]@c_d_in | [demo::DB]D.N
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::PlainRT { mappings: [ demo::PlainMapping ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+Runtime demo::ListsRT { mappings: [ demo::ListsMapping ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+Runtime demo::JoinRT { mappings: [ demo::JoinMapping ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.C:
+      'K,V\n' +
+      'K1,x\n' +
+      'K2,\n' +
+      'K3,z\n';
+    default.D:
+      'K,N\n' +
+      'K1,1\n' +
+      'K2,2\n' +
+      'K3,3\n';
+  }#
+}
+
+###Service
+Service demo::Plain
+{
+  pattern: '/demo/plain';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Code.all()->project(~[k:x|$x.k, firstOf:x|$x.firstOf]);
+    mapping: demo::PlainMapping;
+    runtime: demo::PlainRT;
+  }
+  testSuites:
+  [
+    Plain_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"k":"K1","firstOf":"x"}, {"k":"K2","firstOf":"K2"}, {"k":"K3","firstOf":"z"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Coalesce
+{
+  pattern: '/demo/coalesce';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Code.all()->project(~[k:x|$x.k, firstOf:x|$x.firstOf]);
+    mapping: demo::ListsMapping;
+    runtime: demo::ListsRT;
+  }
+  testSuites:
+  [
+    Coalesce_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"k":"K1","firstOf":"x"}, {"k":"K2","firstOf":"K2"}, {"k":"K3","firstOf":"z"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::In
+{
+  pattern: '/demo/in';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Code.all()->project(~[k:x|$x.k, listed:x|$x.listed]);
+    mapping: demo::ListsMapping;
+    runtime: demo::ListsRT;
+  }
+  testSuites:
+  [
+    In_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"k":"K1","listed":true}, {"k":"K2","listed":false}, {"k":"K3","listed":true} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::JoinPlain
+{
+  pattern: '/demo/joinplain';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Code.all()->project(~[k:x|$x.k, dPlain:x|$x.dPlain]);
+    mapping: demo::JoinMapping;
+    runtime: demo::JoinRT;
+  }
+  testSuites:
+  [
+    JoinPlain_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"k":"K1","dPlain":1}, {"k":"K2","dPlain":2}, {"k":"K3","dPlain":3} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::JoinIn
+{
+  pattern: '/demo/joinin';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Code.all()->project(~[k:x|$x.k, dListed:x|$x.dListed]);
+    mapping: demo::JoinMapping;
+    runtime: demo::JoinRT;
+  }
+  testSuites:
+  [
+    JoinIn_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"k":"K1","dListed":1}, {"k":"K2","dListed":null}, {"k":"K3","dListed":3} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

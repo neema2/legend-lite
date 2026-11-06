@@ -7,10 +7,21 @@
     "93-testdata.pure": "stress",
     "94-canonical-services.pure": "stress",
     "94-fanout-services.pure": "stress",
+    "94-gap-services.pure": "stress",
     "95-function-tests.pure": "stress",
     "96-external-data.pure": "stress",
     "97-hier-execution.pure": "stress",
-    "98-combination-execution.pure": "stress"
+    "98-combination-execution.pure": "stress",
+    "99-checks-services.pure": "stress",
+    "99-intraday-services.pure": "stress",
+    "99-m2m-services.pure": "stress",
+    "99-mapping-tests.pure": "stress",
+    "99-outer-services.pure": "stress",
+    "99-relmap-services.pure": "stress",
+    "99-semi-services.pure": "stress",
+    "99-typed-services.pure": "stress",
+    "99-unreached-services.pure": "stress",
+    "99-vocab-services.pure": "stress"
   },
   "linked_projects": [
     "core-types",

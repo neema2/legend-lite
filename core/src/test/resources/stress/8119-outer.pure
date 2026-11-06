@@ -1,0 +1,192 @@
+// ============================================================
+// The outer-join pack (the improvement plan's Phase 9): explicit join types in a mapping's join chains
+// ============================================================
+// An order is allocated, and an allocation booked to a settlement account: OJ_ORDER -> OJ_ALLOC -> OJ_ACCOUNT, with
+// rows on one side only at every hop (scripts/corpus/seed.py's OJ_ tables): an order whose allocation does not exist,
+// one with none, an allocation whose account does not exist and one with none, and an allocation and an account no
+// row on the left reaches.
+//
+// legend-engine 4.145.0 writes a join type in a mapping's chain as INNER or OUTER alone: RIGHT_OUTER, FULL_OUTER and
+// LEFT_OUTER are parse errors ("Unsupported join type"; RelationalParseTreeWalker's JOIN_TYPES), the compiler reads
+// every type but INNER as LEFT_OUTER (HelperRelationalBuilder), and a property mapping's FIRST join takes no type ("Do
+// not support specifying join type for the first join in the classMapping"). So a full or a right outer join has no
+// form in a mapping at the pin (scripts/corpus/repro/mapping-join-types/), and the EMIT left-outer-join model says so
+// too. Where a type can be written, probed on H2 and DuckDB (scripts/corpus/outer.py's header):
+//   - in a property's chain, `@A > (OUTER) @B` and `@A > (INNER) @B` answer alike: the root still reaches the chain
+//     through an outer join, so a to-one leaf is NULL wherever either hop lands on nothing (OjBooked, OjBookedIn);
+//   - in a ~filter's chain the type decides which rows the class has: an OUTER hop, or an untyped one, that lands on
+//     nothing leaves NULL columns the filter is tested over, so `X is null` holds there, while an INNER hop drops the
+//     row (the OjNo* classes, one per typing, each answering different rows).
+###Pure
+Class outer::OjBooked
+{
+   orderId: String[1];
+   accountLabel: String[0..1];
+}
+
+Class outer::OjBookedIn
+{
+   orderId: String[1];
+   accountLabel: String[0..1];
+}
+
+Class outer::OjNoAccOuter
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoAccInner
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoAccPlain
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoLabelOuter
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoLabelInner
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoLabelMixed
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+Class outer::OjNoLabelPlain
+{
+   orderId: String[1];
+   allocId: String[0..1];
+}
+
+###Relational
+Database outer::OuterDB
+(
+   Table OJ_ORDER
+   (
+      ORDER_ID VARCHAR(16) PRIMARY KEY,
+      ALLOC_ID VARCHAR(16)
+   )
+   Table OJ_ALLOC
+   (
+      ALLOC_ID VARCHAR(16) PRIMARY KEY,
+      ACCOUNT_ID VARCHAR(16)
+   )
+   Table OJ_ACCOUNT
+   (
+      ACCOUNT_ID VARCHAR(16) PRIMARY KEY,
+      LABEL VARCHAR(64)
+   )
+
+   Join OjOrder_Alloc(OJ_ORDER.ALLOC_ID = OJ_ALLOC.ALLOC_ID)
+   Join OjAlloc_Account(OJ_ALLOC.ACCOUNT_ID = OJ_ACCOUNT.ACCOUNT_ID)
+
+   Filter OjAccountMissing(OJ_ALLOC.ACCOUNT_ID is null)
+   Filter OjLabelMissing(OJ_ACCOUNT.LABEL is null)
+)
+
+###Mapping
+Mapping outer::OuterMapping
+(
+   // A TYPED HOP in a property's join chain, OUTER and INNER: the same answer.
+   outer::OjBooked: Relational
+   {
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      accountLabel: [outer::OuterDB]@OjOrder_Alloc > (OUTER) [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OJ_ACCOUNT.LABEL
+   }
+   outer::OjBookedIn: Relational
+   {
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      accountLabel: [outer::OuterDB]@OjOrder_Alloc > (INNER) [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OJ_ACCOUNT.LABEL
+   }
+
+   // A TYPED LEADING JOIN on a ~filter, OUTER, INNER and untyped, over a filter a NULL passes.
+   outer::OjNoAccOuter: Relational
+   {
+      ~filter [outer::OuterDB] (OUTER) @OjOrder_Alloc | [outer::OuterDB]OjAccountMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+   outer::OjNoAccInner: Relational
+   {
+      ~filter [outer::OuterDB] (INNER) @OjOrder_Alloc | [outer::OuterDB]OjAccountMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+   outer::OjNoAccPlain: Relational
+   {
+      ~filter [outer::OuterDB]@OjOrder_Alloc | [outer::OuterDB]OjAccountMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+
+   // A ~filter through TWO hops, each typing of the two: four answers.
+   outer::OjNoLabelOuter: Relational
+   {
+      ~filter [outer::OuterDB] (OUTER) @OjOrder_Alloc > (OUTER) [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OjLabelMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+   outer::OjNoLabelInner: Relational
+   {
+      ~filter [outer::OuterDB] (INNER) @OjOrder_Alloc > (INNER) [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OjLabelMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+   outer::OjNoLabelMixed: Relational
+   {
+      ~filter [outer::OuterDB] (INNER) @OjOrder_Alloc > (OUTER) [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OjLabelMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+   outer::OjNoLabelPlain: Relational
+   {
+      ~filter [outer::OuterDB]@OjOrder_Alloc > [outer::OuterDB]@OjAlloc_Account | [outer::OuterDB]OjLabelMissing
+      ~mainTable [outer::OuterDB]OJ_ORDER
+      orderId: [outer::OuterDB]OJ_ORDER.ORDER_ID,
+      allocId: [outer::OuterDB]OJ_ORDER.ALLOC_ID
+   }
+)
+
+###Connection
+RelationalDatabaseConnection outer::OuterConn
+{
+   store: outer::OuterDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime outer::OuterRT
+{
+   mappings:
+   [
+      outer::OuterMapping
+   ];
+   connections:
+   [
+      outer::OuterDB: [ outerEnv: outer::OuterConn ]
+   ];
+}

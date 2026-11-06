@@ -107,3 +107,29 @@ Runtime stress::XStoreRT
         external::EntityDB: [ entities: external::Conn ]
     ];
 }
+
+Runtime stress::EntityRT
+{
+    // external::EntityDB ALONE, for the services that read a legal entity and nothing of store::DB: through its own
+    // mapping, and through stress::DenseMapping (the improvement plan's Phase 7, scripts/corpus/unreached.py).
+    mappings:
+    [
+        external::LegalEntityMapping
+    ];
+    connections:
+    [
+        external::EntityDB: [ entities: external::Conn ]
+    ];
+}
+
+Runtime stress::DenseEntityRT
+{
+    mappings:
+    [
+        stress::DenseMapping
+    ];
+    connections:
+    [
+        external::EntityDB: [ entities: external::Conn ]
+    ];
+}

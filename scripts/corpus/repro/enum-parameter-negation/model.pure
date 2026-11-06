@@ -1,0 +1,101 @@
+// F65: an enumeration PARAMETER under `!=`, `!(==)` or `!in` drops the rows whose value is absent.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/enum-parameter-negation/model.pure \
+//       --testable=demo::NeLiteral --testable=demo::NeParam --testable=demo::NotInParam --testable=demo::NeStringParam
+//
+// R2's grade is NULL. legend-pure compares an absent value as false, so `$x.grade != demo::Grade.HIGH` is true for R2
+// and R2 is kept. legend-engine 4.145.0 keeps it when the value is a literal (NeLiteral) or a String parameter
+// (NeStringParam, over the code), and drops it when the same enumeration value is a parameter (NeParam, and NotInParam
+// with `!$x.grade->in($p)`). Each service asserts legend-pure's answer; NeLiteral and NeStringParam pass, NeParam and
+// NotInParam fail.
+Enum demo::Grade
+{
+  HIGH, LOW
+}
+
+Class demo::Row
+{
+  id: String[1];
+  grade: demo::Grade[0..1];
+  code: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, GRADE VARCHAR(1))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Grade: EnumerationMapping Codes
+  {
+    HIGH: ['H'],
+    LOW: ['L']
+  }
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    grade: EnumerationMapping Codes: [demo::DB]T.GRADE,
+    code: [demo::DB]T.GRADE
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,GRADE\n' +
+      'R1,L\n' +
+      'R2,\n' +
+      'R3,H\n';
+  }#
+}
+
+###Service
+Service demo::NeLiteral
+{
+  pattern: '/demo/neLiteral';
+  documentation: '';
+  execution: Single { query: |demo::Row.all()->filter(x|$x.grade != demo::Grade.HIGH)->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NeLiteral_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NeParam
+{
+  pattern: '/demo/neParam';
+  documentation: '';
+  execution: Single { query: {p: demo::Grade[1]|demo::Row.all()->filter(x|$x.grade != $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NeParam_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = demo::Grade.HIGH ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NotInParam
+{
+  pattern: '/demo/notInParam';
+  documentation: '';
+  execution: Single { query: {p: demo::Grade[*]|demo::Row.all()->filter(x|!$x.grade->in($p))->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NotInParam_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = [demo::Grade.HIGH] ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::NeStringParam
+{
+  pattern: '/demo/neStringParam';
+  documentation: '';
+  execution: Single { query: {p: String[1]|demo::Row.all()->filter(x|$x.code != $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NeStringParam_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = 'H' ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R1"},{"id":"R2"}]'; }#; }# ] } ] } ]
+}

@@ -48,8 +48,14 @@ Mapping surface::LastSurface
       k: [surface::LastDB]MG_B.K,
       b: [surface::LastDB]MG_B.B
    }
-   // The MERGE operation: unlike union, it takes a validation lambda saying which source
-   // rows correspond, so the two sides are joined rather than concatenated.
+   // The MERGE operation: unlike union, it takes a validation lambda saying which instances
+   // of its sets correspond. legend-engine merges them only in an M2M graph fetch (the
+   // lambda's parameters must be the sets' source classes, graphFetchMege.pure); its router
+   // resolves a merge to its sets exactly as it does a union (router_operations.pure). So a
+   // projection over these relational sets concatenates them, each row absent where its own
+   // set maps nothing, and a graph fetch fails at plan generation, where
+   // relationalGraphFetch.pure casts every set to a relational one (probed on 4.145.0,
+   // 2026-10-29).
    *surface::MergeTgt[mgRoot]: Operation
    {
       meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_
@@ -79,3 +85,27 @@ Mapping surface::LastSurface
       ) Otherwise ([otwLegSet]: [surface::LastDB]@h_m > @m_l)
    }
 )
+
+###Connection
+RelationalDatabaseConnection surface::LastConn
+{
+   // The merge operation's services (the improvement plan's Phase 7, scripts/corpus/unreached.py), over the seed's
+   // MG_A and MG_B.
+   store: surface::LastDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime surface::LastRT
+{
+   mappings:
+   [
+      surface::LastSurface
+   ];
+   connections:
+   [
+      surface::LastDB: [ lastEnv: surface::LastConn ]
+   ];
+}
