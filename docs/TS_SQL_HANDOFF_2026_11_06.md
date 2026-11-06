@@ -157,6 +157,10 @@ Each was learned the hard way. They are the program's §7, repeated here because
 
 ## 3. Decision waiting on the user: ask first
 
+**Ruled 2026-11-06** (the next session asked again): refuse, naming the fix; Snowflake takes SelectMerge and
+SelectLayers, checked by the Snowflake lanes' session; and the order of everything left is the program's §6a
+(`docs/TS_V1_PROGRAM_2026_11_01.md`). The question as it was asked:
+
 On 2026-11-04 the user was asked the following and has not answered:
 
 > **Should the words that count observations be refused on a line with several rows on one date?** (Several rows on

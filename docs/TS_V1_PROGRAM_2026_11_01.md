@@ -643,6 +643,8 @@ Split in two:
 | P7 | The 12-column cap: lift it or keep it | **ruled 2026-11-02** ("Yes array read"): lifted by `read` over a `ColSpecArray`. Built | -- |
 | R1, R7, R9 | The one-tree plan's §9: §4's rows, D2 as narrowed, and two lines meeting | as that plan recommends | A4 |
 | 2026-11-03 | The roadmap of 2026-11-03 | **ruled 2026-11-03** ("Okay let's go"), every recommendation: the tenet "Java parses and binds; Pure decides" (into `docs/TENETS.md`); R7 as columns on one table; the broadcast by overloads on a column's type with an `All` key type (2a); the time model's D1 to D7 as recommended; Phase 1 before the A2 review; a PR for this branch at A2; intraday stays v1.1; move 8 folded into the R7 work once the slice passes | -- |
+| 2026-11-06 | The SQL handoff's open questions (`docs/TS_SQL_HANDOFF_2026_11_06.md` §3) | **ruled 2026-11-06**: words that count observations on a line of several rows on one date are refused, naming the fix ("Refuse, name the fix"; W1); Snowflake takes SelectMerge and SelectLayers, its answers checked by the Snowflake lanes' session ("Enable and run in the warm session that can connect to snowflake"); main's #88 merged into this branch and the branch fast-forwarded onto #81's for CI ("Yes, push to #81's branch", "yes merge 88 in") | -- |
+| 2026-11-06 | The order of the whole roadmap | **ruled 2026-11-06** ("i like most of the order but i would put clickhouse at the end of all the fixes"): §6a | -- |
 
 **P2: what other charts do** (the user asked, 2026-11-01: "what do other great charts do like Yahoo finance or trading
 view?").
@@ -666,6 +668,30 @@ So the recommendation changes from "shaded" to "every tile zooms".
 Sources: TradingView, "How to sync the charts of my layout?" (https://in.tradingview.com/support/solutions/43000629992);
 Grafana, time range controls (https://docs.aws.amazon.com/grafana/latest/userguide/dashboard-time-range-controls.html,
 https://grafana.com/docs/grafana/latest/dashboards/shortcuts/).
+
+## 6a. The order (ruled 2026-11-06)
+
+The whole roadmap, the SQL track's items (`docs/TS_SQL_HANDOFF_2026_11_06.md` §8, W-numbers) beside this program's,
+in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse moved by the user to after every fix):
+
+1. **CI on #81**: main's #88 merged in, #81's branch fast-forwarded to this branch (2026-11-06, `dc8a065f0`).
+2. **W1**, the refusal of observation-counting words on a line of several rows on one date; **Snowflake's passes**
+   (SelectMerge, SelectLayers), checked on the account by the Snowflake lanes' session.
+3. **W3** the answer's spine on one table; **W2** the returns-based pair words as columns of their met table; **W4**
+   SelectLayers' follow-ups; **W5** the remaining rows forms.
+4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured;
+   **A9**'s remainder (spec-05, guide-06, spec v4, the guide).
+5. **A2′**: an independent review of the work since `a3388b40`, and the full gate.
+6. **A5**, **A4**, **A3** steps 3 to 5, as their rulings come.
+7. **W9, ClickHouse**: every example run in `clickhouse local` against DuckDB's answers, then the passes there -- after
+   every fix, as the user ruled, and before A10 so its findings are in Part A's review.
+8. **A10**, closing Part A.
+9. Part B: **B1**, **B2** (proving first), then **B5**, **B3**, **B4**, **B7**, **B8**.
+10. **W6** whenever #83 lands.
+
+Open questions, each asked again when its item comes: the library's delivery (A5), `/` at 0 and a comparison's value
+(A3 decisions 4 and 5), version-6 pages and completions (A3 decisions 1 and 3), R1/R7/R9 (A4), P2's option D (B7), a
+register row for a `let` written once as a `WITH` (W6), P5's budgets (B2).
 
 ## 6. Status
 
