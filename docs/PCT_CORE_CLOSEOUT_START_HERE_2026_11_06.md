@@ -48,7 +48,9 @@ of the lanes is green on DuckDB, H2, SQLite, Postgres, MongoDB, MariaDB, MySQL, 
 under both judges and the database judge alone. **Outstanding for 100%:** BigQuery's round 22 (it must accept a SQL
 shape never run on BigQuery, §5.4), Snowflake's round 22, CI green on every OS (the corpus lanes are red on one test,
 `strictdate::testProject`, §6.1 step 3), the cloud lanes measuring the session fix (`7c93fbc5`), the records, and the
-user's decision on the channel B judge passes (§4).
+user's decision on the channel B judge passes (§4). **All six lane sessions are blocked by the account's weekly usage
+limit until 2026-11-08 03:00 UTC** (§9.2): BigQuery's and Snowflake's round 22 ran in the background when it hit, so
+their results are probably on their disks, unreported.
 
 ---
 
@@ -132,6 +134,69 @@ user's decision on the channel B judge passes (§4).
 - **Deferred by the user, not part of the 100% bar:** IEEE floats beyond S20, order tracking
   (`docs/ORDER_TRACKING_DESIGN_2026_11_05.md`, not ratified), the asserts' shared design (incl. the `'TDSNull'`
   sentinel), body shapes (until rcorpus).
+
+---
+
+## 2b. The tenets: plan/exec and judge/verdict (the law this program is held to)
+
+Each is either the user's ruling or `AGENTS.md`'s law; the source is in brackets. A change that breaks one is wrong
+however green the tests are.
+
+**Plan and execution**
+1. **Java orchestrates, the DATABASE executes.** No host interpreter; the query compiler executes no values; what Java
+   may compute is decided by `docs/TENET_CHARTER.md` C1-C5 and `docs/JAVA_EVICTION_PLAN.md` §1 [AGENTS.md].
+2. **Planning never touches a database** (C2a); the planner library has no execution dependency
+   (`ArchitectureTest.plannerIsExecutionFree`) [AGENTS.md].
+3. **Execution depends on no planning library** (D72): `//core:exec`'s deps are base, json, the records and the
+   switchboards (`tools/deps/core-layers.txt`; `ArchitectureTest.execReachesNoPlanning`) [AGENTS.md].
+4. **JDBC only at the seam** (D69: `JdbcSurfaceCensusTest.REGISTER`, each class pinned to its acts;
+   `noJdbcTypeInAPublicSignatureOutsideTheSeam`); **a session is made by exec alone** (D70, `onlyTheSeamMakesSessions`);
+   **every statement a session runs is the plan runner's** (`theRunnerIsTheOneCallerOfTheSessionsStatements`)
+   [AGENTS.md].
+5. **The runtime wall:** while a plan runs, nothing on that thread types, lowers, renders or composes a statement; every
+   statement a run sends was planned before it started (`base/RunScope`, strict, **zero exemptions** -- "yes to zero
+   exemptions please"); "closed off at runtime any plan vs exec stuff so they can never cross even through the driver"
+   [the user, 2026-11-05].
+6. **A test body is the product plan** (R1); the database judge is "exactly the same as product plan ... literally zero
+   difference" except what is named test-only (R2); the host judge "could be exception to java rule only not exception
+   to plan+exec split" (R3) [plan §1].
+7. **The body is compiled whole, then run** (R14): an invalid or unsupported program is a compile error and the whole
+   test fails; a valid program whose evaluation raises early is planned as a RAISE at its position [plan §1].
+8. **Whole bodies move, never statements** (R16); a router decides by a static rule over the typed body, never by
+   catching a failure [plan §1; handoff §8 trap 8].
+9. **No plan names a server version** (S141); the dialect is the database type's.
+10. **NO FALLBACKS, NO DEFAULTING** (invariant 4): an unknown is a failure, never a guess [AGENTS.md].
+11. **Upstream fidelity**: do exactly what legend-pure/engine do; a divergence is a ruled register row, read from the
+    pinned sources, never recalled [AGENTS.md].
+12. **The reference checkouts are spec and test input only**, never runtime components (the referee replays the
+    engine's golden; it does not run lite) [AGENTS.md].
+
+**Judges and verdicts**
+13. **Two judges over one plan:** each assert is a verdict step carrying the host's sides AND the database's verdict
+    statement ("in the plan of an assert there would be a single sql lowering plan that db judge can run AND in same
+    plan have the two sides with the enum of the assert function that the host judge can run") [the user, 2026-11-04;
+    `ASSERT_NODES_PLAN`].
+14. **The bar:** "anyone can write a NEW test function using any of the assert* constructs and they should just do what
+    they say they do on the tin" -- upstream's model: `assert` is the one native, every other `assert*` a Pure function
+    with upstream's message texts, which both judges spell the same [the user, 2026-11-04].
+15. **The database judge has no fallback:** "it should hard fail if cannot judge something and then we need to fix" --
+    a decline, a silent drop or an UNJUDGED verdict is a failure, never a hand-off to the host [the user, 2026-11-05].
+16. **The database judge is self-contained** (R5): the verdict computed in SQL, the canon over the product plan's
+    columns (R10), the fused statement kept ("we definitely still want the assert fuze", R4) [plan §1].
+17. **After a verdict, the harness may only explain** a failure, never change it; the split rung explains, with its
+    tripwire (a rejection no member reproduces is a loud error, never a pass) [ASSERT_NODES_PLAN, rulings].
+18. **Nothing is planned or sent at judge time:** a caller's message, a member's own statement, a ruled fallback, the
+    engine-text appeal's rows and fixtures are all planned ahead with the verdicts (`VerdictBatch.Ahead`,
+    `SqlTextVerdicts.RowsAhead`) [the runtime wall].
+19. **The judging rules are explicit in the plan** (`JudgingRules.LITE` / `COMPILED_PURE_COMPAT`), chosen up front;
+    lite's own tests judge exactly ("I want ours to be super clean, but be able to pass PCT/rcorpus in backwards compat
+    mode"); compatibility mode is judging only, one execution semantics [the user, 2026-11-04/05].
+20. **assertError: "the host catches, the database judges"** (S135): the runner catches what `f` raised in a
+    savepoint and binds it as a side both judges compare [the user, 2026-11-05].
+21. **Lite's tests are deterministic** ("our tests in lite should always be deterministic and fail if not"): order
+    tracking, report-only first; S131's unordered comparison compatibility-only [the user, 2026-11-05].
+22. **BOTH is the agreement gate:** the host's verdict of record, the database's checked, a disagreement a failure
+    naming both; a database decline under BOTH is a failure too (15) [`AgreementAsserts`].
 
 ---
 
@@ -500,27 +565,76 @@ the background and poll the log.
 
 ---
 
-## 9. The lane sessions
+## 9. The warm lane sessions: PCT on every database in parallel
 
-They have the databases installed and measure on request, **measure only** (no edits, commits, pushes or
-credentials). Message them with `mcp__claude-code-remote__send_message`; their replies arrive as notifications
-(`ReadNotifications`).
+### 9.1 What they are
 
-| Session | Lanes |
-|---|---|
-| `session_01UmbETZRDU9ugZ8X2d1hGyb` | Postgres (unprivileged), SQLite, MongoDB channel A |
-| `session_01Hztqdk3qySkTkH2uUDuUdL` | Trino, MongoDB channel A (the "trino-h2" container) |
-| `session_018ATdMqvopmrLibQhwN4GQ4` | MariaDB, MySQL, ClickHouse (MariaDB/MySQL run as root) |
-| `session_019tku7nRKBygjSBz9QQBGfM` | BigQuery |
-| `session_01WDoDkeNvgCsaPVzNx6wGDA` | Snowflake (~75 min a round) |
-| `session_01757FUtRcj12NGhvSxL6A1b` | Databricks |
+Six Claude Code cloud sessions of this account, created 2026-10-19/21 by the MongoDB-backend session
+(`session_01Vz1L3X6p56AZdTCQXUXYfE`) with `create_session`, all in environment **`env_0175UqCzjEvLwcgBVyfEzE5S`**
+(its setup script writes the cloud credentials file that `LEGENDLITE_PCT_CLOUD_PROPERTIES` names --
+`docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 and §6; nobody pastes a key into a session). Each has the repository, a
+warm Bazel, and its databases (embedded servers in the container, or cloud credentials), so a round costs only the
+tests' time. They **measure only**: no edits, commits, pushes, PR comments or credential reads. (`RESULT_BOUNDARY_START_HERE.md`
+§7 calls these sessions "GONE" -- that table is stale; they answered every round through 2026-11-05.)
 
-The message that works (round 22's): "Round N, measure only (no edits, commits or pushes). Candidate: <sha> on
-claude/wizardly-dirac-rw6tim-seam (fetch that branch and check the commit out detached). Changed since round N-1:
-<one line per commit>. Same runs as round N-1: channel A all five suites; channel B all five under BOTH (default) and
-under the DATABASE judge alone (-Dpct.channelb.judge=DATABASE). Report per run PASS/FAIL and the census line, verbatim
-any 'does not match its ledger' block, and whether any line contains 'the runtime wall'." For a diagnosis add the
-dump/size switches and ask for the server's own error. They will quote dmesg and run curl when asked.
+| Session | Lanes | Round 22 | Logs (in its container) |
+|---|---|---|---|
+| `session_01UmbETZRDU9ugZ8X2d1hGyb` | Postgres (unprivileged), SQLite, MongoDB channel A | 35/35 at `b59aeedd` | its scratchpad `r22/`; disk 462 MB free after the round |
+| `session_01Hztqdk3qySkTkH2uUDuUdL` | Trino, MongoDB channel A | 16/16 at `b59aeedd` | `/tmp/claude-0/-home-user-legend-lite/92cb3ba2-c034-51e2-8e89-63497dbca8eb/scratchpad/r22/` |
+| `session_018ATdMqvopmrLibQhwN4GQ4` | MariaDB, MySQL (as root), ClickHouse | 20/20 at `4a492594`; ClickHouse 10/10 at `c1bf51fc` | `.../d23be100-fdf0-507f-ab4f-c92adac6a65c/scratchpad/` (`r22d/stmt.sql` the 1.3M statement) |
+| `session_01757FUtRcj12NGhvSxL6A1b` | Databricks | 15/15 at `b59aeedd` (~31 min: A 474 s, B BOTH 846 s, B DB 517 s) | `.../342a829e-abb4-5604-9090-3b1c242eee23/scratchpad/r22/` |
+| `session_019tku7nRKBygjSBz9QQBGfM` | BigQuery | **ran, unreported** (§9.2); round 21 ~95 min | `.../278be9cb-0b5f-59d0-893f-028688338a67/scratchpad/r21b/` (`A-*`, `BOTH-*`, `DATABASE-*`, `size-*` logs) |
+| `session_01WDoDkeNvgCsaPVzNx6wGDA` | Snowflake | **ran, unreported** (§9.2); ~75 min a round | `.../b7b8abab-4c01-593e-9a2a-1accbcfe230a/scratchpad/r22/` (`summary.txt`, `run.sh`) |
+
+### 9.2 Their state on 2026-11-06: blocked until 2026-11-08 03:00 UTC
+
+Every lane session's last turn reports the account's **weekly usage limit** ("You've hit your weekly limit · resets
+Nov 8, 3am (UTC)"; `get_session` -> `external_metadata.rate_limit_info`, `post_turn_summary.status_detail`). BigQuery
+and Snowflake hit it while their round 22 ran in the background, so they never sent the result. **When the limit
+resets, ask each to report from the logs it already has** (the paths above) before re-running anything. A new session
+from the same account is under the same limit; this session is too.
+
+### 9.3 Running a round in parallel
+
+1. Push the candidate commit to the seam branch.
+2. Send every lane its message **at once** (one `mcp__claude-code-remote__send_message` each); they run concurrently,
+   each in its own container. Ask only the lanes the change can touch when that is clear; the full set for a
+   checkpoint.
+3. Each acknowledges, runs in the background, and replies with `send_message`; the replies arrive here as
+   notifications (`ReadNotifications`). Do not poll.
+4. Record every lane's census in GATES (the census lines of §5.2 are the format).
+
+The message that works (round 22's):
+> Round N, measure only (no edits, commits or pushes). Candidate: `<sha>` on claude/wizardly-dirac-rw6tim-seam (fetch
+> that branch and check the commit out detached). Changed since round N-1 (`<sha>`): `<one line per commit>`. Same runs
+> as round N-1 for your lanes: channel A all five suites; channel B all five under BOTH (default) and under the DATABASE
+> judge alone (-Dpct.channelb.judge=DATABASE). Report per run PASS/FAIL and the census line, verbatim any "does not
+> match its ledger" block, and whether any line contains "the runtime wall".
+
+For a diagnosis add: `-Dlegend.diagnostics=chb-only=<test>,dump-sql,sql-sizes` on one suite, `dmesg | grep -i
+kill` for a server that died, and the server's own error by sending the dumped statement by hand (ClickHouse:
+`curl --data-binary @stmt.sql 'http://127.0.0.1:<port>/?user=default&max_query_size=16777216&...'`).
+
+How a lane runs the targets (from their own command lines): `export PATH=/root/.local/bin:$PATH;
+tools/cloud-distdir.sh //pct:pct_<lane> //pct:pct_channel_b_<lane>`, then `bazel test //pct:pct_<lane>
+--keep_going --test_timeout=3600 --cache_test_results=no` (channel A's five suites), the same for
+`//pct:pct_channel_b_<lane>` (channel B, BOTH), and the DATABASE judge with
+`--test_env=JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Dpct.channelb.judge=DATABASE"` (the cloud lanes keep their proxy's
+trust store in `JAVA_TOOL_OPTIONS`, so they append rather than use `--jvmopt`; the effect is the same). They copy each
+suite's `bazel-testlogs/pct/<target>/test.log` into `scratchpad/rNN/` per round. Lane names in targets: `postgres`,
+`sqlite`, `mongodb` (A only), `mariadb`, `mysql`, `clickhouse`, `trino`, `databricks`, `snowflake`, `bigquery`, `h2`
+(channel B relation only).
+
+### 9.4 Recreating a lane
+
+If a lane session is gone, archived or poisoned: `mcp__claude-code-remote__create_session` with `environment_id`
+`env_0175UqCzjEvLwcgBVyfEzE5S`, `source_url` `https://github.com/neema2/legend-lite`, `source_revision`
+`claude/wizardly-dirac-rw6tim-seam`, a title naming its lanes, and a prompt: the measure-only rules, "bootstrap Bazel
+per docs/CLOUD_SESSIONS.md (tools/cloud-distdir.sh), measure <the head> once for <lanes>, keep each round's logs in
+your scratchpad", then the round message. The embedded servers fit two or three per container (the split above);
+Postgres must run unprivileged (`tools/postgres/as_unprivileged.sh`). From another account none of this exists: follow
+`RESULT_BOUNDARY_START_HERE.md` §7's three steps (an environment per credential set, one session per lane group, a
+baseline round first).
 
 ---
 
@@ -545,8 +659,78 @@ dump/size switches and ask for the server's own error. They will quote dmesg and
 1. `git fetch origin claude/wizardly-dirac-rw6tim-seam && git status && git log --oneline -15` -- check for commits from
    other sessions; rebase if needed.
 2. Read this file, then the GATES entries from "The deep audit on PR #83" to the end.
-3. `ReadNotifications` -- the lane sessions' round 22 reports for BigQuery and Snowflake may be waiting.
+3. `ReadNotifications`, then the lanes' state (`get_session` on each, §9.1): before 2026-11-08 03:00 UTC they are blocked
+   (§9.2); after it, ask BigQuery and Snowflake to report round 22 from their existing logs.
 4. Check CI on the head (`mcp__github__actions_list`, `list_workflow_runs` filtered to the branch; failed jobs'
    logs).
 5. Bootstrap Bazel per `docs/CLOUD_SESSIONS.md`, then the core matrix in the background (§8) to confirm the tree.
 6. Start §6.1 at the first open step; tell the user in three lines what you found and what you are doing.
+
+---
+
+## 12. The research, indexed (read the one you need)
+
+| Document | What it holds |
+|---|---|
+| `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` | the program: rulings R1-R24, the ledger of differences, the two judges, the movement register, guards, design briefs B1-B14, steps M0-M10/Z, open items, the day-by-day status |
+| `docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md` | M6-era handoff: measurement scripts, baselines, traps (§8), what lived only in that session |
+| `docs/ASSERT_NODES_PLAN_2026_11_04.md` | asserts as plan nodes: the user's design, upstream's assert model, the node, the order, the rulings of 2026-11-05, progress |
+| `docs/ASSERT_WALL_LEANSQL_AUDIT_2026_11_04.md` | the audit that set the bar: the assert family, the plan/exec wall at run time, lean SQL measured |
+| `docs/ORDER_TRACKING_DESIGN_2026_11_05.md` | order tracking (not ratified; its §9 asks three questions) |
+| `docs/CORE_SQL_SIZE_2026_11_04.md` | core's SQL size: 85% the system metamodel's seed re-sent per test; the H2 OOM |
+| `docs/test-is-product-homework/` | A code inventory, B plan audit, C M0-M5 measurements (C_M0, C_M2, C_M3*, C_M4A, C_M5A), D M3 brief, E MR inventory, M6-M10 briefs and audits, M8C design question (the canon), MIXED_SYSTEM_USER_BODIES_DESIGN, T8 generator design, REVALIDATION_2026_11_01 |
+| `docs/planner-driver-seam-homework/` | the seam program's code measurements, step H's seven measurements, upstream's plans/executors/lets read |
+| `docs/result-boundary-homework/` | the result boundary program's research; `DECISIONS_LOG.md` (every decision, D1-D108+); the 51 writer differences by upstream's answer; track T's expectations |
+| `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`, `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`, `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | the predecessor programs this one builds on (the plan record, the result model, the seam) |
+| `docs/JUDGING_TWO_MODES_2026_09_17.md`, `docs/SQLTEXT_ROW_VERDICT_CHARTER.md`, `docs/OBJECT_IDENTITY_2026_10_20.md` | the two judges' original design; the engine-text verdict; object identity (`__id`) |
+| `docs/TENET_CHARTER.md`, `docs/WORLD_MAP.md`, `docs/TENETS.md` | the execution tenet's clauses; Java vs Pure vs input; eager knowledge, lazy work |
+| `docs/CLOUD_BACKENDS_PCT_2026_10_11.md`, `docs/CLOUD_SESSIONS.md` | the cloud lanes' credentials and setup; Bazel in a cloud session |
+| `docs/GATES.md` (2026-11-05 entries) | every check of the last week, with numbers; the corpus registers' reasons |
+| `docs/SEMANTICS_REGISTER.md` S120-S141 | the week's rulings as register rows (S127 numbers, S131-S132 leniencies, S134 indexOf, S135 assertError, S137 relations, S138 guards, S139 Decimal, S140 precision guards, S141 H2) |
+
+---
+
+## 13. What lived only in the old session's container (now preserved)
+
+- **Three local worktrees with uncommitted work**, copied 2026-11-06 to backup branches without touching them (a commit
+  through a temporary index); unreviewed, most likely superseded by the seam branch -- consult only if something seems
+  lost:
+  - `claude/backup-m6-worktree-2026-11-06` (`5086d20b`, base `c9847ebe`): M6-era edits to `BodyClass`, `BodyRouter`,
+    `BodyRouterParityTest`, `PlanRunner`, `TestKinds`, the plan (2026-11-01);
+  - `claude/backup-branch-worktree-2026-11-06` (`5a21d9da`, base `9b5ea3c3`): edits to `BodyRouter`, `DatabaseJudge`,
+    `HostJudge`, `AssertVerdicts`, `VerdictSql`, GATES and the assert plan (2026-11-05, ~01:40);
+  - `claude/backup-pct-fixes-wip-2026-11-06` (`9b4fda4f`, base `c9a59fe5`) and `claude/backup-pct-fixes-wip-commit-2026-11-06`
+    (`c9a59fe5`, "wip: step 0's code (base for the fixes; not pushed)"): 48 files, among them `PctBackend`,
+    `PctPlanRoute`, a new `EngineExecuteCardinalityTest` and a channel B `ledger.tsv` (2026-11-03).
+- `claude/wizardly-dirac-rw6tim-h2` (`9cc79f34`): the H2 upgrade parked by mistake on 2026-11-05 and restored into
+  `53b52c80`; redundant -- the user may delete it.
+- The old session's scratchpad (the H2 corpus logs, the SQLite dumps, one-off scripts) and its transcript die with the
+  container; everything that mattered is in GATES, the register and this file.
+
+---
+
+## 14. The open work list (the old session's task list, carried)
+
+In progress or pending, in the order they serve §6 (D = deferred by the user):
+
+1. Collect BigQuery's and Snowflake's round 22 after the limit; measure `c1bf51fc` (BigQuery's budget) and `7c93fbc5`
+   (the cloud session fix) on the cloud lanes.
+2. `strictdate::testProject`; CI green on every OS.
+3. Records (GATES round 22, plan §10, IN_FLIGHT, PR #83's description); the register row for compatibility mode's
+   float tokens inside a String on the host judge only.
+4. The final independent audit (plan step Z), then hand the landing to the user.
+5. BOTH plans the database judge's fused program (§4), then drop the DATABASE-alone pass.
+6. Asserts as plan nodes, step 8: delete the shape recognisers the nodes made redundant; "fix every assert" for PCT
+   and core from the bar (`AssertBarTest`'s shrink-only gap list).
+7. The leniencies strict where lite's own tests run: sort strict, unordered strict (with order tracking, D), the
+   `'TDSNull'` sentinel (D, the shared assert design), forAll.
+8. Assert messages from upstream for every family; message arguments; the asserts PCT and core do not exercise.
+9. "Planning sends nothing" closed mechanically (the count query, the seed as a program step).
+10. The corpus: every body on the program road under both judges (§6.2); the corpus reconciliation (witness texts, the
+    H2 registers, strictdate).
+11. Delete the walk, the router's walk branch and the classifier (§6.3); then the type census becomes a planning check.
+12. The special-casing audit (§6.4).
+13. Lean SQL (§6.5), including the system metamodel's seed re-sent per test.
+14. D: IEEE floats beyond S20 and the JSON serializer fix (after the multiset restore); order tracking's report; S137's
+    relation evaluation in compatibility mode (corpus phase).
+
