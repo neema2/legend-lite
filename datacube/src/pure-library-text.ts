@@ -2694,6 +2694,123 @@ function timeseries::rows::r_squared<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpe
   $t->timeseries::rSquaredPeriod($key, $date, $x, $y, $w, $unit, $out)
 }
 
+// THE PERIODS A YEAR OF A PAIR'S FIGURE (W2, 2026-11-06): each row's, as the line forms' helpers::annualizedPair takes
+// them -- annualization_factor where given, else SAMPLE BY's periods a year, else what t's dates infer (periodsPerYear,
+// by t's key) -- under out.
+function timeseries::rows::perYear<T,K,D,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~rows_tm:r|dateDiff(%1970-01-01, $r->read($date)->toOne()->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))
+    ->timeseries::periodsPerYear($key, ~rows_tm, meta::pure::functions::date::DurationUnit.SECONDS, ~rows_pyi)
+    ->extend(~rows_py:r|if($annualization_factor->isNotEmpty(), |$annualization_factor->toOne(), |if($sample->isNotEmpty(), |timeseries::lines::perYear($sample->toOne()), |$r.rows_pyi)))
+    ->without(~[rows_tm, rows_pyi])->rename(~rows_py, $out)
+}
+
+// The rows forms of the annualized words of two lines' returns (W2): alpha, tracking_error and information_ratio, each
+// its line form's table function on the two lines' returns met, annualized by perYear above -- their SAMPLE BY the
+// query's, given them (a rows form of a word of two lines takes the query's periods where it declares them).
+function timeseries::rows::alpha<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)
+    ->timeseries::alpha(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::alpha<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)
+    ->timeseries::alpha(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::alpha<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)
+    ->timeseries::alphaPeriod($key, $date, $x, $y, $w, $unit, ~rows_py, ~rows_v)
+    ->without(~[rows_py])->rename(~rows_v, $out)
+}
+
+function timeseries::rows::tracking_error<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::trackingError(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_pa, ~rows_pb, if($w < 2, |2, |$w), ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::tracking_error<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::trackingError(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_pa, ~rows_pb, 2, ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::tracking_error<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::trackingErrorPeriod($key, $date, ~rows_pa, ~rows_pb, $w, $unit, ~rows_py, ~rows_v)
+    ->without(~[rows_py, rows_pa, rows_pb])->rename(~rows_v, $out)
+}
+
+function timeseries::rows::information_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::informationRatio(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_pa, ~rows_pb, if($w < 2, |2, |$w), ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::information_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::informationRatio(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_pa, ~rows_pb, 2, ~rows_py, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_py, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::information_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::rows::perYear($key, $date, $annualization_factor, $sample, ~rows_py)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::informationRatioPeriod($key, $date, ~rows_pa, ~rows_pb, $w, $unit, ~rows_py, ~rows_v)
+    ->without(~[rows_py, rows_pa, rows_pb])->rename(~rows_v, $out)
+}
+
+// The rows forms of the capture ratios of two lines' returns (W2): each its line form's table function on the two
+// lines' returns met, the pairs both have.
+function timeseries::rows::up_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::upCapture(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_pa, ~rows_pb, $w, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::up_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::upCapture(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_pa, ~rows_pb, 0, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::down_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::downCapture(over($key, [$date->ascending()], rows(-($w - 1), 0)), ~rows_pa, ~rows_pb, $w, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
+function timeseries::rows::down_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)
+    ->timeseries::downCapture(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_pa, ~rows_pb, 0, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v, rows_pa, rows_pb])->rename(~rows_o, $out)
+}
+
 // The rows form of returns over obs observations (W2, 2026-11-06): the line form's table function on t, its answer a
 // point where the value is -- the line form's line is every point of the value, a return's first a point with no
 // value -- the D8 check in the answer. A table's rows that are no point of the value are at its start (the prefix
@@ -3539,7 +3656,7 @@ function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Nu
     ->timeseries::betaPeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized alpha of x\\'s simple returns over y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Rolling alpha', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (econometrics.beta\\'s regression)', timeseries::Words.about = 'The first\\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\\'s, annualized (Jensen\\'s, a risk-free rate of zero), over the last w observations.'} timeseries::line::alpha<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The annualized alpha of x\\'s simple returns over y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Rolling alpha', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (econometrics.beta\\'s regression)', timeseries::Words.about = 'The first\\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\\'s, annualized (Jensen\\'s, a risk-free rate of zero), over the last w observations.', timeseries::Words.pairs = 'returns'} timeseries::line::alpha<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::alpha($x, $y, 63, $annualization_factor, $sample)
 }
@@ -3585,7 +3702,7 @@ function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Numbe
     ->timeseries::residualPeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized tracking error of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Tracking error', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'DataCube (an active return\\'s volatility)', timeseries::Words.about = 'The annualized standard deviation of the first\\'s simple returns less the benchmark\\'s, over the last w observations, in percent.'} timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The annualized tracking error of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Tracking error', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'DataCube (an active return\\'s volatility)', timeseries::Words.about = 'The annualized standard deviation of the first\\'s simple returns less the benchmark\\'s, over the last w observations, in percent.', timeseries::Words.pairs = 'returns'} timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::tracking_error($x, $y, 63, $annualization_factor, $sample)
 }
@@ -3608,7 +3725,7 @@ function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value
     ->timeseries::trackingErrorPeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized information ratio of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Information ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (an active return\\'s Sharpe ratio)', timeseries::Words.about = 'The mean of the first\\'s simple returns less the benchmark\\'s over their standard deviation, annualized, over the last w observations.'} timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The annualized information ratio of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the dates infer.', timeseries::Words.label = 'Information ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (an active return\\'s Sharpe ratio)', timeseries::Words.about = 'The mean of the first\\'s simple returns less the benchmark\\'s over their standard deviation, annualized, over the last w observations.', timeseries::Words.pairs = 'returns'} timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::information_ratio($x, $y, 63, $annualization_factor, $sample)
 }
@@ -3631,7 +3748,7 @@ function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, va
     ->timeseries::informationRatioPeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The up-market capture of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Up capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (an up-market capture ratio)', timeseries::Words.about = 'The first\\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\\'s compounds each).'} timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The up-market capture of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Up capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (an up-market capture ratio)', timeseries::Words.about = 'The first\\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\\'s compounds each).', timeseries::Words.pairs = 'returns'} timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::up_capture($x, $y, 63, $sample)
 }
@@ -3654,7 +3771,7 @@ function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Num
     ->timeseries::upCapturePeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The down-market capture of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Down capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (a down-market capture ratio)', timeseries::Words.about = 'The first\\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\\'s compounds each).'} timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The down-market capture of x\\'s simple returns against y\\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Down capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (a down-market capture ratio)', timeseries::Words.about = 'The first\\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\\'s compounds each).', timeseries::Words.pairs = 'returns'} timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::down_capture($x, $y, 63, $sample)
 }

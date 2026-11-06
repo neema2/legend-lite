@@ -40,7 +40,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['alpha(x: Line, y: Line, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized alpha of x\'s simple returns over y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Rolling alpha'], family: ['Relationships'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.beta\'s regression)'], about: ['The first\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\'s, annualized (Jensen\'s, a risk-free rate of zero), over the last w observations.'] },
+    facts: { label: ['Rolling alpha'], family: ['Relationships'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.beta\'s regression)'], about: ['The first\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\'s, annualized (Jensen\'s, a risk-free rate of zero), over the last w observations.'], pairs: ['returns'] },
     marks: [],
   },
   annualize: {
@@ -235,7 +235,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['down_capture(x: Line, y: Line)', 'down_capture(x: Line, y: Line, w: Integer)', 'down_capture(x: Line, y: Line, w: Scope)', 'down_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The down-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Down capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (a down-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).'] },
+    facts: { label: ['Down capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (a down-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).'], pairs: ['returns'] },
     marks: [],
   },
   drawdown: {
@@ -396,7 +396,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Information ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['DataCube (an active return\'s Sharpe ratio)'], about: ['The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.'] },
+    facts: { label: ['Information ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['DataCube (an active return\'s Sharpe ratio)'], about: ['The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.'], pairs: ['returns'] },
     marks: [],
   },
   interpolate: {
@@ -825,7 +825,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Tracking error'], family: ['Risk'], unit: ['percent'], gsQuant: ['DataCube (an active return\'s volatility)'], about: ['The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.'] },
+    facts: { label: ['Tracking error'], family: ['Risk'], unit: ['percent'], gsQuant: ['DataCube (an active return\'s volatility)'], about: ['The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.'], pairs: ['returns'] },
     marks: [],
   },
   trend: {
@@ -860,7 +860,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['up_capture(x: Line, y: Line)', 'up_capture(x: Line, y: Line, w: Integer)', 'up_capture(x: Line, y: Line, w: Scope)', 'up_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The up-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Up capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (an up-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).'] },
+    facts: { label: ['Up capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (an up-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).'], pairs: ['returns'] },
     marks: [],
   },
   value_at: {

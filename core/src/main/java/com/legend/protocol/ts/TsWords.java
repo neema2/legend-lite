@@ -249,45 +249,52 @@ final class TsWords {
                 || c.newest(x.line().line()) == c.newest(y.line().line())) {
             return null;
         }
+        // its own parameters after its lines: without the query's periods (the lines meet on them already), or with
+        // them where the rows form declares them (a figure annualized by SAMPLE BY's periods a year)
         List<Integer> own = new ArrayList<>();
+        List<Integer> all = new ArrayList<>();
         for (int i = 2; i < o.params().size(); i++) {
+            all.add(i);
             if (!TsCatalog.SAMPLE.equals(o.params().get(i).type())) {
                 own.add(i);
             }
         }
-        List<String> types = own.stream().map(i -> o.params().get(i).type()).toList();
         for (TsToPure.Overload r : c.model().overloads(rowsFqn)) {
-            List<TsToPure.Parameter> p = r.params();
-            if (p.size() != own.size() + 6 || !p.subList(5, p.size() - 1).stream().map(TsToPure.Parameter::type)
-                    .toList().equals(types)) {
-                continue;
+            for (List<Integer> pick : List.of(own, all)) {
+                List<String> types = pick.stream().map(i -> o.params().get(i).type()).toList();
+                List<TsToPure.Parameter> p = r.params();
+                if (p.size() != pick.size() + 6 || !p.subList(5, p.size() - 1).stream().map(TsToPure.Parameter::type)
+                        .toList().equals(types)) {
+                    continue;
+                }
+                // each line taken through the word the library names first (timeseries::Words.pairs: correlation's
+                // lines are their returns, each a column of its own line's table)
+                TsLines.Valued xv = x.line();
+                TsLines.Valued yv = y.line();
+                for (String through : c.model().overloads(fqn(c.model(), word)).stream()
+                        .flatMap(ov -> ov.facts().getOrDefault(TsCatalog.PAIRS, List.of()).stream()).distinct()
+                        .toList()) {
+                    // once a line and word: every word of the pair reads the same returns, so their meetings are one
+                    TsLines.Valued ox = xv;
+                    TsLines.Valued oy = yv;
+                    xv = c.read(List.of(TsCatalog.PAIRS, through, ox.value()),
+                            () -> call(c, through, List.of(new LineArg(ox)), Map.of(), pos));
+                    yv = c.read(List.of(TsCatalog.PAIRS, through, oy.value()),
+                            () -> call(c, through, List.of(new LineArg(oy)), Map.of(), pos));
+                }
+                TsLines.Valued px = xv;
+                TsLines.Valued py = yv;
+                TsLines.Line met = c.met(List.of(px, py), pos);
+                String out = c.fresh(word);
+                TsLines.Line line = c.grown(met, rel -> {
+                    List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(met.part()),
+                            new ColSpec(met.at()), new ColSpec(px.value()), new ColSpec(py.value())));
+                    pick.forEach(i -> a.add(bound.get(i)));
+                    a.add(new ColSpec(out));
+                    return TsLines.call(rowsFqn, a);
+                });
+                return new TsLines.Valued(line, out);
             }
-            // each line taken through the word the library names first (timeseries::Words.pairs: correlation's
-            // lines are their returns, each a column of its own line's table)
-            TsLines.Valued xv = x.line();
-            TsLines.Valued yv = y.line();
-            for (String through : c.model().overloads(fqn(c.model(), word)).stream()
-                    .flatMap(ov -> ov.facts().getOrDefault(TsCatalog.PAIRS, List.of()).stream()).distinct().toList()) {
-                // once a line and word: every word of the pair reads the same returns, so their meetings are one
-                TsLines.Valued ox = xv;
-                TsLines.Valued oy = yv;
-                xv = c.read(List.of(TsCatalog.PAIRS, through, ox.value()),
-                        () -> call(c, through, List.of(new LineArg(ox)), Map.of(), pos));
-                yv = c.read(List.of(TsCatalog.PAIRS, through, oy.value()),
-                        () -> call(c, through, List.of(new LineArg(oy)), Map.of(), pos));
-            }
-            TsLines.Valued px = xv;
-            TsLines.Valued py = yv;
-            TsLines.Line met = c.met(List.of(px, py), pos);
-            String out = c.fresh(word);
-            TsLines.Line line = c.grown(met, rel -> {
-                List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(met.part()),
-                        new ColSpec(met.at()), new ColSpec(px.value()), new ColSpec(py.value())));
-                own.forEach(i -> a.add(bound.get(i)));
-                a.add(new ColSpec(out));
-                return TsLines.call(rowsFqn, a);
-            });
-            return new TsLines.Valued(line, out);
         }
         return null;
     }

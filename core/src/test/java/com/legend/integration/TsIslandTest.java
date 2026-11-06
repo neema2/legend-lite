@@ -1179,9 +1179,9 @@ class TsIslandTest {
 
     @Test
     void theReturnsWordsOfTwoLinesAreColumnsOfTheirReturnsMeeting() throws Exception {
-        // W2 (2026-11-06): correlation and beta take each line's returns first (the library's timeseries::Words.pairs):
-        // each line's returns a column of its own table, the two met once, both words columns of that one table --
-        // the line forms' answers: three returns of each, from the fourth day
+        // W2 (2026-11-06): correlation, beta, r_squared, alpha and tracking_error take each line's returns first (the
+        // library's timeseries::Words.pairs): each line's returns a column of its own table, the two met once, every
+        // word a column of that one table -- the line forms' answers: three returns of each, from the fourth day
         double[] ra = new double[AAA.length];
         double[] rb = new double[BBB.length];
         for (int i = 1; i < AAA.length; i++) {
@@ -1189,7 +1189,12 @@ class TsIslandTest {
             rb[i] = BBB[i] / BBB[i - 1] - 1;
         }
         String q = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 3) AS c, beta(CLOSE['AAA'], CLOSE['BBB'], 3) AS b,"
-                + " r_squared(CLOSE['AAA'], CLOSE['BBB'], 3) AS r2 FROM PRICES ON DAY BY SYMBOL}#";
+                + " r_squared(CLOSE['AAA'], CLOSE['BBB'], 3) AS r2, alpha(CLOSE['AAA'], CLOSE['BBB'], 3) AS a,"
+                + " tracking_error(CLOSE['AAA'], CLOSE['BBB'], 3) AS te FROM PRICES ON DAY BY SYMBOL}#";
+        double[] gap = new double[AAA.length];
+        for (int i = 1; i < AAA.length; i++) {
+            gap[i] = ra[i] - rb[i];
+        }
         for (TestBackend backend : deep()) {
             String of = backend + ": ";
             List<Map<String, String>> got = rows(backend, q);
@@ -1198,6 +1203,12 @@ class TsIslandTest {
                     column(got, null, null, "b"), of + "the beta of three returns");
             assertClose(each(AAA.length - 3, i -> pearson(ra, rb, i + 1, i + 3) * pearson(ra, rb, i + 1, i + 3)),
                     column(got, null, null, "r2"), of + "the R squared of three returns");
+            // alpha and tracking error annualized by the daily dates' 252 periods a year (helpers::annualizedPair)
+            assertClose(each(AAA.length - 3, i -> (mean(ra, i + 1, i + 3) - covariance(ra, rb, i + 1, i + 3)
+                    / covariance(rb, rb, i + 1, i + 3) * mean(rb, i + 1, i + 3)) * 252), column(got, null, null, "a"),
+                    of + "alpha over three returns, annualized");
+            assertClose(each(AAA.length - 3, i -> sampleStd(gap, i + 1, i + 3) * Math.sqrt(252) * 100),
+                    column(got, null, null, "te"), of + "the tracking error of three returns, in percent");
         }
         // the two lines' returns met once, the answer that one table: one join
         String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
@@ -1245,6 +1256,15 @@ class TsIslandTest {
             assertClose(each(AAA.length, i -> i < 2 ? null : covariance(s, AAA, i - 2, i)), column(pair, null, null, "c"),
                     backend + ": the covariance of s and AAA over three days");
         }
+    }
+
+    /** The mean of {@code x} from {@code from} to {@code to}, both included. */
+    private static double mean(double[] x, int from, int to) {
+        double s = 0;
+        for (int i = from; i <= to; i++) {
+            s += x[i];
+        }
+        return s / (to - from + 1);
     }
 
     /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */

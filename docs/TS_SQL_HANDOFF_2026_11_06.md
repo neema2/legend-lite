@@ -457,10 +457,15 @@ value-identical, and a Java-computed test like `theWordsOfTwoLinesAreColumnsOfTh
 line through the named word once a rows form matches (memoized by line and word through `Writer.read`, so every word of
 a pair reads one returns column and their meetings are one); `rows::returns` (by obs, and the one-observation default)
 with the D8 check, so every `returns(x, n)` is now a column of its line's table; `rows::correlation`, `rows::beta`,
-`rows::r_squared`. spec-16 21,043 -> 16,316 characters, 7 joins -> 3, 38 ms (was 48); every answer the same. Left:
-alpha, tracking_error and information_ratio annualize by SAMPLE BY (`helpers::annualizedPair`), a parameter the pair
-form drops -- they need the rows form to take the sample; up_capture, down_capture and lead_lag likewise (pairs, a
-shift). guide-12 keeps its 6 joins until alpha joins r_squared's table.
+`rows::r_squared`. spec-16 21,043 -> 16,316 characters, 7 joins -> 3, 38 ms (was 48); every answer the same. **The second part, the
+same day:** alpha, tracking_error and information_ratio (`rows::perYear`, each row's periods a year as
+`helpers::annualizedPair` takes them: the factor given, else SAMPLE BY's, else the dates'), up_capture and down_capture
+(the pairs both lines have); `pairForm` matches a rows form by the word's own parameters without the query's periods,
+or with them where the rows form declares them (the annualized three take SAMPLE BY). guide-12 6 joins -> 4, 20,700 ->
+18,339 characters, windows 28 -> 22; a capture query (up, down, correlation) 15,542 -> 8,236 characters, 6 joins -> 1;
+every answer the same, the oracle unchanged. **lead_lag stays a line form:** its y is y's returns shifted over y's own
+dates, which no rows form over the met table writes (a lag over the pair's rows is another answer where the dates
+differ).
 
 ### W3. The answer's spine when one table's rows contain the other's
 

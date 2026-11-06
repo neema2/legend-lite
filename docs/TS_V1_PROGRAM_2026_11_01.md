@@ -684,8 +684,9 @@ in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse m
    widened the same day ("Okay extend the refusal") to every word that reads its line in order (`5beeed931`).
 3. **W3** the answer's spine on one table; **W2** the returns-based pair words as columns of their met table; **W4**
    SelectLayers' follow-ups; **W5** the remaining rows forms. *W3 built 2026-11-06* (spec-13 5 joins -> 4; the corpus
-   regression CI found, the database judge composing a side's WITH, fixed first: `72200a18b`, `b54facfa8`). *W2's first part
-   built 2026-11-06* (correlation, beta, r_squared and returns as columns; spec-16 7 joins -> 3).
+   regression CI found, the database judge composing a side's WITH, fixed first: `72200a18b`, `b54facfa8`). *W2 built 2026-11-06*
+   (correlation, beta, r_squared, returns, then alpha, tracking_error, information_ratio and the capture ratios as
+   columns; spec-16 7 joins -> 3, guide-12 6 -> 4; lead_lag stays a line form, its y shifted over y's own dates).
 4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured;
    **A9**'s remainder (spec-05, guide-06, spec v4, the guide).
 5. **A2′**: an independent review of the work since `a3388b40`, and the full gate.
