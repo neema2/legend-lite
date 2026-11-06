@@ -252,6 +252,91 @@ class BodyRouterParityTest {
         }
     }
 
+    /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk): the
+     *  frames' model. The table is the harness's to create. */
+    private static String frameModel(TestBackend backend) {
+        return """
+                Class x::Firm { name: String[1]; }
+                ###Relational
+                Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32)) )
+                ###Mapping
+                Mapping x::M ( *x::Firm: Relational { ~mainTable [x::DB] FIRM name: [x::DB] FIRM.NAME } )
+                ###Connection
+                RelationalDatabaseConnection x::Conn
+                {
+                    store: x::DB;
+                    type: %s;
+                    specification: LocalH2 { };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
+                """.formatted(backend.type().name());
+    }
+
+    private static final List<String> FIRM_ROWS = List.of("create table FIRM (ID integer primary key, NAME varchar(32))",
+            "insert into FIRM values (1, 'Acme'), (2, 'Bolt')");
+    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
+            + " x::M, x::RT.runtimeValue, [])";
+
+    /** The frame programs (M9a): {@code let r = execute(...)} read by the asserts after it -- the corpus's idiom --
+     *  run both ways: every statement (the frame's eager run under LET, the asserts' sides), the census, the verdicts,
+     *  the answer. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void framePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                // one frame, one assert over its rows
+                "{| let r = " + EXECUTE + "; assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}",
+                // a frame read by two asserts, a value let reading it between them, a literal last
+                "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); let n = $r.values.rows->size();"
+                        + " assertEquals(2, $n); true;}",
+                // two frames, each read
+                "{| let r = " + EXECUTE + "; let s = " + EXECUTE + "; assertEquals($r.values.rows->size(),"
+                        + " $s.values.rows->size());}",
+                // an assert before the frame, then the frame, then an assert that fails
+                "{| assertEquals(1, 1); let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values);}",
+                // the frame's rows filtered in the side
+                "{| let r = " + EXECUTE + "; assertEquals(['Bolt'], $r.values->filter(x|$x.name == 'Bolt').rows"
+                        + ".values);}",
+                // M9b: an alias of the frame, the same frame under another name
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(0); assertSize($v.rows, 2);"
+                        + " assertEquals(['Acme', 'Bolt'], $v.rows.values);}",
+                // M9b: an inline execute read where it stands (the product's lazy splice)
+                "{| assertSize(" + EXECUTE + ".values.rows, 2);}",
+                // M9b: a database effect between the frame's let and its reader (the eager run before the effect, the
+                // side after it)
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let r = "
+                        + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}")) {
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
+        }
+    }
+
+    /** The frame shapes M9a leaves on the walk, each by name: an alias of a frame, an inline execute inside an
+     *  assert, a read of the frame's activities, a seeded runtime. */
+    @Test
+    void theFrameShapesTheRuleKeepsOnTheWalk() {
+        TestBackend backend = TestBackends.platform();
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                // a read of the frame's activities (the run's comment)
+                "{| let r = " + EXECUTE + "; assertSize($r.activities, 1);}",
+                // the one inline shape the splice runs at planning: size(execute(...))
+                "{| assertEquals(1, " + EXECUTE + "->size());}",
+                // an effect let (its value a raw grid)
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let x = " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); let r = " + EXECUTE
+                        + "; assertSize($r.values.rows, 3);}",
+                // a frame with no assert after it is no assert program
+                "{| let r = " + EXECUTE + "; $r.values.rows->size();}")) {
+            assertNull(BodyClass.of(typed(ctx, body), "x::RT", true), body);
+        }
+    }
+
     /** The assert shapes the class admits and the host checks do not plan (M6's audit, S3 and N3): the router leaves
      *  the body on the walk, by a static rule ({@code AssertVerdicts.planHost} answers null before any side). */
     @ParameterizedTest
@@ -301,11 +386,17 @@ class BodyRouterParityTest {
     /** {@code body} (a moved class's) run on the walk and on the router, each on a fresh database: every boundary
      *  observed the same. */
     private static void assertParity(TestBackend backend, String body, String check) throws Exception {
-        ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertNotNull(BodyClass.of(typed(ctx, body), RT, true),
+        assertParity(backend, Compiler.compileModel(model(backend, false)), RT, body, check, List.of());
+    }
+
+    /** {@code body} on {@code ctx} and {@code runtime}, each run on a fresh database the harness first sends
+     *  {@code setup} to (a table a frame reads; the harness sends its own SQL, as every test harness does). */
+    private static void assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
+            List<String> setup) throws Exception {
+        assertNotNull(BodyClass.of(typed(ctx, body), runtime, true),
                 "the body is a moved class's under the host judge: " + body);
-        Run walked = run(backend, ctx, body, false, check);
-        Run moved = run(backend, ctx, body, true, check);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup);
+        Run moved = run(backend, ctx, runtime, body, true, check, setup);
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
         assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
         assertEquals(walked.answer, moved.answer, "the answer: " + body);
@@ -325,7 +416,17 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
             throws Exception {
+        return run(backend, ctx, RT, body, router, check, List.of());
+    }
+
+    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
+            String check, List<String> setup) throws Exception {
         try (Connection c = backend.open()) {
+            try (Statement st = c.createStatement()) {
+                for (String sql : setup) {
+                    st.execute(sql);
+                }
+            }
             TypedQuery q = typed(ctx, body);
             RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
             ExecuteOptions options = ExecuteOptions.recording(recorder, null);
@@ -352,10 +453,10 @@ class BodyRouterParityTest {
                     com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
-                    Execution.runProgram(q, RT, Execution.Source.given(session), listener, null, options,
+                    Execution.runProgram(q, runtime, Execution.Source.given(session), listener, null, options,
                             capture::of);
                 } else {
-                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, listener,
+                    BodyDriver.execute(q, runtime, backend.dialect().forServer(session.version()), session, listener,
                             null, options, capture::of);
                 }
             } catch (RuntimeException e) {

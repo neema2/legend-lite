@@ -36,12 +36,18 @@ import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
 import com.legend.planner.LetPlanner;
+import com.legend.planner.FramePlanner;
+import com.legend.planner.PlanEnv;
 import com.legend.planner.ProductStatements;
+import com.legend.compiler.spec.ResultEnvelopeSplice;
+import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.planner.QueryDoor;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -97,7 +103,22 @@ public enum BodyClass {
      * checks do not plan yet (a named rule of the driver's: the engine-text arms, the quantified forms, the cell
      * pool). The database judge's bodies stay on the walk (its fused group is composed at planning from M7).
      */
-    ASSERT_PROGRAM;
+    ASSERT_PROGRAM,
+
+    /**
+     * A FRAME PROGRAM under the HOST judge (the test-is-the-product plan's M9, 2026-11-01): an assert program whose
+     * lets may also bind FRAMES -- {@code let r = execute(...)} ({@link LetPlanner.Kind#FRAME}), the corpus's own
+     * idiom, its query holding no kind planned another way -- read by the asserts and the value lets after it (their
+     * reads spliced into the sides, as the walk splices them). The frame's eager run is the test door's check step at
+     * the let; the asserts' sides are planned over the walk's own frames, so a side is the walk's statement. Admitted
+     * since M9b: an alias of a relation frame ({@code let v = $r.values->at(0)}, the same frame), an inline
+     * {@code execute(...)} read where it stands (the product's lazy splice on both roads) but the one shape the splice
+     * runs at planning ({@code size(execute(...))}), and a database effect as a statement with literal arguments (the
+     * effect program's rule). Not admitted, each a later sub-step: a read of a frame's activities (the run's comment:
+     * the pre-planned frame registers none), an effect let, staged rows and raw grids, the test-data generator,
+     * {@code assertError}, a seeded runtime.
+     */
+    FRAME_PROGRAM;
 
     /** {@code body}'s class on {@code runtime} under a run that does not judge on the host alone (the database judge,
      *  or both judges: channel B), or null when the walk runs it. */
@@ -118,7 +139,121 @@ public enum BodyClass {
         if (queryProgram(body, scan)) {
             return QUERY_PROGRAM;
         }
-        return hostJudge && assertProgram(body, scan) ? ASSERT_PROGRAM : null;
+        if (!hostJudge) {
+            return null;
+        }
+        if (assertProgram(body, scan)) {
+            return ASSERT_PROGRAM;
+        }
+        return frameProgram(body, runtime, scan) ? FRAME_PROGRAM : null;
+    }
+
+    private static boolean frameProgram(TypedQuery query, String runtime, QueryDoor.Scan scan) {
+        ModelContext ctx = query.context();
+        Set<String> systemClasses = systemClasses(ctx);
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        Map<FunctionId, Boolean> effectMemo = new HashMap<>();
+        List<TypedSpec> body = query.body();
+        // the frames bound so far, each whether relation-rooted (the planner's own fact, FramePlanner.chain: the
+        // alias test and the splice read it); the value lets before, as the walk's prefix
+        Map<String, Boolean> frames = new LinkedHashMap<>();
+        java.util.function.Predicate<String> relationFrame = n -> Boolean.TRUE.equals(frames.get(n));
+        List<TypedSpec> lets = new ArrayList<>();
+        PlanEnv env = ProductStatements.env(ctx, runtime, Set.of(), Map.of());
+        boolean anAssert = false;
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+            boolean last = i == body.size() - 1;
+            if (StatementEffects.containsTdgGenerator(statement)
+                    || StatementEffects.reaches(statement, BodyClass::readsActivities, query.specs(), memo)) {
+                return false;
+            }
+            TypedSpec value = statement instanceof TypedLet l ? l.value() : statement;
+            if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && value instanceof TypedNativeCall call
+                    && NativeFn.Effect.isDbEffect(call.callee().id())) {
+                // a database effect as a statement (M9b): the effect program's rule -- literal arguments, not a let
+                // (an effect let's value is a raw grid: later)
+                if (statement instanceof TypedLet || !literalEffect(call, body.subList(0, i))) {
+                    return false;
+                }
+                continue;
+            }
+            if (statement instanceof TypedLet let && !last) {
+                LetPlanner.Kind kind = LetPlanner.kind(let, body, i, query.specs(), effectMemo, relationFrame);
+                if (kind == LetPlanner.Kind.FRAME && kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE))) {
+                    // the frame's query holds no kind planned another way; its mapping and runtime arguments are the
+                    // frame's own references
+                    TypedNativeCall call = (TypedNativeCall) LetPlanner.rhs(let);
+                    if (StatementEffects.reaches(call.args().get(0), n -> plannedAnotherWay(n, systemClasses, ctx),
+                            query.specs(), memo)) {
+                        return false;
+                    }
+                    FramePlanner.FrameChain fc = FramePlanner.chain(call, lets, query.specs(), env);
+                    frames.put(let.name(), !fc.legendQuery() && fc.relationRooted());
+                    continue;
+                }
+                if (kind == LetPlanner.Kind.ALIAS && kinds.isEmpty()) {
+                    // an alias of a relation frame ({@code let v = $r.values->at(0)}, M9b): the same frame
+                    frames.put(let.name(), true);
+                    continue;
+                }
+                if (kind != LetPlanner.Kind.VALUE || !kinds.isEmpty()
+                        || StatementEffects.reaches(statement, n -> plannedAnotherWayButLazyFrames(n, systemClasses,
+                                ctx), query.specs(), memo)) {
+                    return false;
+                }
+                lets.add(let);
+                continue;
+            }
+            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
+                    && !(statement instanceof TypedLet);
+            if (!assertRoot && !kinds.isEmpty()
+                    || StatementEffects.reaches(statement, n -> plannedAnotherWayButLazyFrames(n, systemClasses, ctx),
+                            query.specs(), memo)) {
+                return false;
+            }
+            if (assertRoot) {
+                anAssert = true;
+            } else if (!last && !plansNoStep(statement, body.subList(0, i), ctx)) {
+                return false;
+            }
+        }
+        if (!anAssert || frames.isEmpty()) {
+            return false;
+        }
+        TypedSpec last = body.get(body.size() - 1);
+        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT)
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+    }
+
+    /** A read of a frame's activities ({@code $r.activities...}: the run's comment and SQL), which the pre-planned
+     *  frame of a moved body does not register (M9: left on the walk). */
+    private static boolean readsActivities(TypedSpec n) {
+        return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa && "activities".equals(pa.property());
+    }
+
+    /** {@link #plannedAnotherWay}, but an inline {@code execute(...)} read where it stands is admitted (M9b: the
+     *  product's lazy splice, D15, on both roads) -- except the one shape the splice RUNS at the side's planning,
+     *  {@code size(execute(...))} ({@code ResultEnvelopeSplice}: nothing downstream consumes the chain), which a body
+     *  planned before it runs cannot carry. */
+    private static boolean plannedAnotherWayButLazyFrames(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
+        if (n instanceof TypedNativeCall call && NativeFn.Handle.runsAFrame(call.callee().id())) {
+            return false;
+        }
+        return plannedAnotherWay(n, systemClasses, ctx) || eagerInlineExecute(n);
+    }
+
+    private static boolean eagerInlineExecute(TypedSpec n) {
+        if (!(n instanceof TypedNativeCall sz && ResultEnvelopeSplice.SIZE_FQNS.contains(sz.callee().qualifiedName())
+                && sz.args().size() == 1)) {
+            return false;
+        }
+        TypedSpec arg = sz.args().get(0);
+        while (arg instanceof TypedFrom f) {
+            arg = f.source();
+        }
+        return arg instanceof TypedNativeCall ec && NativeFn.Handle.isExecute(ec.callee().id());
     }
 
     private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan) {

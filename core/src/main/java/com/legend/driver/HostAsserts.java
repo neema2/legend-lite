@@ -67,13 +67,19 @@ final class HostAsserts implements TestDoor.Asserts {
      * {@code typed}'s asserts planned on {@code env} (the body's environment, as the walk makes it), each with the
      * lets before it as the walk holds them -- every let of an assert program the program rides ({@code VALUE}): its
      * handles registered, then the let on the prefix. Null where an assert is of a shape the host checks do not plan
-     * yet: the walk runs the body.
+     * yet: the walk runs the body. A frame let ({@code let r = execute(...)}, M9) is built as the walk builds it
+     * ({@code BodyDriver.buildFrame}) without its eager run -- the program's check step runs it at the let -- and the
+     * asserts after it splice their reads of it as the walk does.
      */
     static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>();
+        // the body's frames as the walk builds them (M9): a frame let's chain, not run here -- its eager run is the
+        // program's check step at the let -- so an assert's side reading the frame is the walk's statement
+        Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, Planned> planned = new LinkedHashMap<>();
         // a let whose handle registration raised: the walk raises it at the let's turn, after the asserts before it
         // ran and reported; the next assert raises it at its turn instead (nothing between them sends: the class
@@ -86,9 +92,22 @@ final class HostAsserts implements TestDoor.Asserts {
             if (statement instanceof TypedLet let && !last) {
                 if (pendingLet == null) {
                     try {
-                        PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
-                                env.plan());
-                        letPrefix.add(let);
+                        java.util.function.Predicate<String> relationFrame =
+                                n -> frames.containsKey(n) && frames.get(n).relationRooted();
+                        LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
+                        if (kind == LetPlanner.Kind.FRAME) {
+                            frames.put(let.name(), BodyDriver.buildFrame(
+                                    (com.legend.compiler.spec.typed.TypedNativeCall) LetPlanner.rhs(let), letPrefix,
+                                    false, specs, env));
+                        } else if (kind == LetPlanner.Kind.ALIAS) {
+                            // an alias of a relation frame: the same frame under the let's name (the walk's rule)
+                            frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
+                                    java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                        } else {
+                            PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
+                                    env.plan());
+                            letPrefix.add(let);
+                        }
                     } catch (RuntimeException e) {
                         pendingLet = e;
                     }
@@ -106,7 +125,7 @@ final class HostAsserts implements TestDoor.Asserts {
                         pendingLet), HostSides.Planned.NONE);
                 raisedByAnAssert = true;
             } else {
-                p = planAssert(statement, bare, letPrefix, specs, env);
+                p = planAssert(statement, bare, letPrefix, frames, specs, env);
                 if (p == null) {
                     return null;
                 }
@@ -122,14 +141,14 @@ final class HostAsserts implements TestDoor.Asserts {
     /** {@code statement}, a statement-root assert ({@code bare} its call), planned over the lets before it; null where
      *  the host checks do not plan its shape. */
     private static @Nullable Planned planAssert(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env) {
+            Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
         // the lets before the assert, as they stood at its turn (its judgment reads them after the program ran)
         List<TypedSpec> before = new ArrayList<>(letPrefix);
         BodyDriver.ExecEnv at;
         AssertVerdicts.SpliceHook hook;
         try {
-            at = BodyDriver.frameReplaceEnv(statement, Map.of(), env, before, specs);
-            hook = BodyDriver.spliceHook(Map.of(), before, specs, at)::apply;
+            at = BodyDriver.frameReplaceEnv(statement, frames, env, before, specs);
+            hook = BodyDriver.spliceHook(frames, before, specs, at)::apply;
         } catch (RuntimeException e) {
             // the frame environment raised: the walk raises it before the arm is entered (S1)
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare), e),

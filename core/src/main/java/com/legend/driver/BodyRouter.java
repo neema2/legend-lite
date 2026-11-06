@@ -54,10 +54,11 @@ public final class BodyRouter {
         // an assert program's asserts, planned by the host judge before the program is (M6): a body holding an assert
         // of a shape the host checks do not plan yet has none, and the walk runs it (a named rule over its shape:
         // AssertVerdicts.planHost)
-        HostAsserts asserts = bodyClass != BodyClass.ASSERT_PROGRAM ? null : HostAsserts.plan(typed,
+        boolean hostAsserts = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
+        HostAsserts asserts = !hostAsserts ? null : HostAsserts.plan(typed,
                 java.util.Objects.requireNonNull(runtimeFqn), BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session,
                         listener, referee, options));
-        if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM && asserts == null) {
+        if (runtimeFqn == null || bodyClass == null || hostAsserts && asserts == null) {
             BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
             return;
         }
@@ -162,6 +163,12 @@ public final class BodyRouter {
         @Override
         public RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
             return AssertVerdicts.sideRefused(assertOf(verdict).assertion(), listener, failure);
+        }
+
+        /** A frame let's eager run is sent under the walk's origin for it, LET (M9); every other step as its kind. */
+        @Override
+        public com.legend.exec.@Nullable StatementOrigin originOf(int step) {
+            return planned.frameRuns().contains(step) ? com.legend.exec.StatementOrigin.LET : null;
         }
 
         private HostAsserts.Planned assertOf(ExecutionPlan.Verdict verdict) {

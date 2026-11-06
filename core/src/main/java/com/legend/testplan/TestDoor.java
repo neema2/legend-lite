@@ -51,11 +51,14 @@ public final class TestDoor {
 
     /** A body's plan and, beside it, its effect steps' segments and ledger texts and its seed steps' ledger texts
      *  (whether a seed answered rows is the run's to say), each by the step's place in the plan's sequence (the test
-     *  door's own index: the product plan carries no referee text). */
-    public record Planned(ExecutionPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds) {
+     *  door's own index: the product plan carries no referee text); and the places of its frame lets' eager runs
+     *  (M9: a check the walk sends under its own origin, LET, which the plan does not say). */
+    public record Planned(ExecutionPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds,
+            Set<Integer> frameRuns) {
         public Planned {
             effects = Collections.unmodifiableMap(new LinkedHashMap<>(effects));
             seeds = Collections.unmodifiableMap(new LinkedHashMap<>(seeds));
+            frameRuns = Collections.unmodifiableSet(new java.util.TreeSet<>(frameRuns));
         }
     }
 
@@ -89,7 +92,13 @@ public final class TestDoor {
                 : List.of(plan.root());
         Map<Integer, Effect> effects = byStep(steps, kinds.effects());
         Map<Integer, List<String>> seeds = byStep(steps, kinds.seeds());
-        return new Planned(plan, effects, seeds);
+        for (int place : kinds.frameRuns()) {
+            if (place >= steps.size() || !(steps.get(place) instanceof ExecutionPlan.Check)) {
+                throw new IllegalStateException("the frame run at place " + place + " of the test door's plan is not"
+                        + " a check of its sequence");
+            }
+        }
+        return new Planned(plan, effects, seeds, kinds.frameRuns());
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

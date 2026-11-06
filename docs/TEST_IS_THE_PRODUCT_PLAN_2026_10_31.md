@@ -307,6 +307,31 @@ posted the same way (R7 decision 12).
   facts to compare rows). A later ruling, after M8 is measured: the database judge the verdict of record, the host
   judge the cross-check (today channel B has it the other way); PCT stays host-judged until the database judge spells
   every lane's dialect.
+  **B3 as settled (the user, 2026-11-01, "I love it"), three designs, each in plain words:**
+  1. *The database judge* -- an assert IS a function lowered to SQL like any other: one statement whose row says
+     `holds`, `message`, `unjudged`; the plan carries that statement and nothing about the assert (M8 moves the
+     polarity and the message into it too). Java reads the row.
+  2. *The host judge* -- the verdict step carries the two side statements, ONE ENUM naming the comparison (a closed
+     list, one Java function each: EQUALS, NOT_EQUALS, SAME_ELEMENTS, SIZE, EMPTY, NOT_EMPTY, CONTAINS, EQ,
+     TOLERANCE, TDS_EQUIVALENT, JSON, RENDERED_TEXT, CONDITION, IS, INSTANCE_OF) and two or three small flags the
+     enum cannot express (order matters; which side is the golden; a quantified assert's literal message). The runner
+     runs the two statements; the sink switches on the enum and calls that function with the rows and the flags; the
+     types the comparison needs are the sides' result columns, already in the plan. The two places today's Java
+     consults the model at judge time are precomputed at planning: `assertInstanceOf`'s subtype check becomes a SQL
+     side answering a boolean (as the database judge lowers it); the identity-key restriction becomes a flag decided
+     when the side's SQL is written. After it the sink holds no compiler object and the plan is complete data. M8's
+     first item (it touches the arms M8 completes); until then M6's closures stand.
+  3. *The engine-text asserts* (M10b) -- `assertSameSQL(golden, $q->toSQLString(...))` is a comparison of two
+     strings known at planning (`toSQLString` a plan-time text, the golden a literal), so it plans and runs EXACTLY
+     like `assertEquals('a', 'b')`: a constant verdict, no special logic in the plan or the planner, on any database.
+     Only when that verdict FAILS does the harness run its extra step at the assert's turn, outside the plan: our rows
+     (our query for `q` run through the plan runner as a one-statement plan on the lane's database), the golden
+     replayed on the H2 referee seeded from the body's recorded setup, the two row sets compared in Java; agree ->
+     pass (the text mismatch counted, as today), differ -> fail showing both. The three variants (`assertSameSQL`, the
+     test-data-generator form, the dual-golden form) the same. Nuances: a golden can run only where its dialect runs
+     (today every golden is engine H2 text: the referee is H2 by construction; a golden in a lane's own spelling would
+     match our text and never reach the appeal); the harness fetches our rows itself, so the test's plan is exactly
+     what the Pure says.
 - **B4, where test-only planning lives (M6).** The assert module, the fused composition and the database forms in a
   library the product server and the WebAssembly and native planners do not depend on (`//core:plan_side` ships into
   `wasm/BUILD.bazel:29-45`), held by an ArchUnit rule.
@@ -671,6 +696,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   product decision by measurement on the real projects -- plan size and latency of embedded-metamodel plans against
   a server-side system connection and Trino's lack of temporary tables; upstream has no SQL form of the metamodel
   (`Mapping.all()` is in-memory Pure). Outside this program.
+- **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
+  c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
+  on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
+  took `stress` on 3bd68a81 (M5f). The lanes build no native code; the toolchain (about 11 GB extracted) is fetched for
+  their analysis, against the runner's 14 GB with the Bazel cache restored. Noted on PR #83; a follow-up for the build
+  program (trim the distribution, or keep the toolchain out of the lanes that need no C++).
 
 ## 10. Status
 

@@ -177,6 +177,14 @@ public final class PlanRunner {
         default void seeded(int step, List<Boolean> answeredRows) {
         }
 
+        /** The statement origin the program's step {@code step} is sent under where none is marked, or null (the
+         *  step's own kind decides: a result STATEMENT, an effect BODY, a seed SEED). The test library knows what a
+         *  step is for where the plan does not say -- a frame's eager run is a check the walk labels LET (the
+         *  test-is-the-product plan's M9); the census is the measurement both roads are held to. */
+        default @Nullable StatementOrigin originOf(int step) {
+            return null;
+        }
+
         /** The program's effect step {@code step} ran: its script applied. */
         default void effectRan(int step) {
         }
@@ -403,37 +411,47 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
         List<ExecutionPlan.Node> steps = sequence.steps();
         for (int i = 0; i < steps.size(); i++) {
-            switch (steps.get(i)) {
-                case ExecutionPlan.Update u -> update(u, live, st);
-                case ExecutionPlan.Check k -> check(k, live, st);
-                case ExecutionPlan.Effect e -> {
-                    // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
-                    // the session's seeds to establish again (the M3 audit's B5)
-                    session.state().markWriting();
-                    try {
-                        script(e, live, st, insideATransaction(st));
-                    } catch (DataError failed) {
-                        throw sink.effectFailed(i, failed);
-                    }
-                    sink.effectRan(i);
-                }
-                case ExecutionPlan.Setup u -> seed(u, i, session, st, sink);
-                case ExecutionPlan.TdsResult t -> {
-                    // the program's answering statement is a statement of the body on its own, as the walk marks a
-                    // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
-                    try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                        result(t, live, st, held);
-                    }
-                }
-                case ExecutionPlan.Constant c -> constant(c, held);
-                case ExecutionPlan.Keyed k -> {
-                    try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                        keyedOn(k, live, st, heldSink(held));
-                    }
-                }
-                case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, insideATransaction(st));
-                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
+            StatementOrigin named = sink.originOf(i);
+            try (var origin = named == null ? StatementOrigin.enter(StatementOrigin.current())
+                    : StatementOrigin.enterIfUnmarked(named)) {
+                runStep(steps.get(i), i, live, judging, session, st, held, sink);
             }
+        }
+    }
+
+    private static void runStep(ExecutionPlan.Node step, int i, Map<String, PlanParameters.Checked> live,
+            Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink)
+            throws IOException {
+        switch (step) {
+            case ExecutionPlan.Update u -> update(u, live, st);
+            case ExecutionPlan.Check k -> check(k, live, st);
+            case ExecutionPlan.Effect e -> {
+                // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
+                // the session's seeds to establish again (the M3 audit's B5)
+                session.state().markWriting();
+                try {
+                    script(e, live, st, insideATransaction(st));
+                } catch (DataError failed) {
+                    throw sink.effectFailed(i, failed);
+                }
+                sink.effectRan(i);
+            }
+            case ExecutionPlan.Setup u -> seed(u, i, session, st, sink);
+            case ExecutionPlan.TdsResult t -> {
+                // the program's answering statement is a statement of the body on its own, as the walk marks a
+                // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
+                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                    result(t, live, st, held);
+                }
+            }
+            case ExecutionPlan.Constant c -> constant(c, held);
+            case ExecutionPlan.Keyed k -> {
+                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                    keyedOn(k, live, st, heldSink(held));
+                }
+            }
+            case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, insideATransaction(st));
+            case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
         }
     }
 

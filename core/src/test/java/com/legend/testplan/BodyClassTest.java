@@ -25,7 +25,9 @@ class BodyClassTest {
             // M5f (2026-11-01): the plain query programs
             "QUERY_PROGRAM",
             // M6 (2026-11-01): the assert programs under the host judge
-            "ASSERT_PROGRAM");
+            "ASSERT_PROGRAM",
+            // M9a (2026-11-01): the frame programs under the host judge (assert programs with execute(...) lets)
+            "FRAME_PROGRAM");
 
     @Test
     void theMovedClassesOnlyGrow() {

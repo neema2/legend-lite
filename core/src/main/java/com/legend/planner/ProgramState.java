@@ -125,6 +125,12 @@ public final class ProgramState {
     }
 
     /** The steps planned so far, in order (a copy). */
+    /** How many steps the program holds so far: the place the next {@link #add} takes in the sequence (the steps
+     *  keep their places when the finished plan drops the stamps nothing reads). */
+    public int size() {
+        return steps.size();
+    }
+
     List<ExecutionPlan.Node> steps() {
         return List.copyOf(steps);
     }
