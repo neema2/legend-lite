@@ -1,0 +1,123 @@
+// F91 (docs/UPSTREAM_FINDINGS.md): a JSON-typed column takes no document in a service's test data. Both loaders
+// write the cell unquoted, as SQL: on H2 a syntax error; on DuckDB the document reads as a STRUCT literal, so its
+// string value "Alpha" reads as a column ("Binder Error: Referenced column "Alpha" not found"; a document of numbers
+// alone happens to load). model.pure declares the column JSON; control.pure the same column SEMISTRUCTURED, which
+// loads. Run each file alone:
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=demo::IdTds --testable=demo::IdRelation
+// This file's column is SEMISTRUCTURED: both services passes. A NULL in the column loads either way.
+###Pure
+Class demo::Doc
+{
+  id: String[1];
+}
+
+###Relational
+Database demo::DB ( Table T ( ID VARCHAR(8) PRIMARY KEY, J SEMISTRUCTURED ) )
+
+###Mapping
+Mapping demo::M
+(
+  demo::Doc: Relational
+  {
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::H2Data { Relational #{ default.T: 'ID,J\n' + 'A,"{"name":"Alpha","qty":4}"\n'; }# }
+Data demo::DuckData { Relational #{ default.T: 'ID,J\n' + 'A,"{""name"":""Alpha"",""qty"":4}"\n'; }# }
+
+###Service
+Service demo::IdTds
+{
+  pattern: '/demo/idtds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id], ['id']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    IdTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::H2Data }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::IdRelation
+{
+  pattern: '/demo/idrelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    IdRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::DuckData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+// The engine runner's executing smoke fixture: one service whose suite has a test that passes and a test that fails,
+// so a run on legend-engine's test database reports one of each (--report; scripts/corpus/run.py reads that file).
+Class smoke::Account
+{
+  id: String[1];
+  balance: Integer[1];
+}
+
+###Relational
+Database smoke::DB
+(
+  Table ACCOUNT ( ID VARCHAR(8) PRIMARY KEY, BALANCE INTEGER )
+)
+
+###Mapping
+Mapping smoke::M
+(
+  smoke::Account: Relational
+  {
+    ~mainTable [smoke::DB]ACCOUNT
+    id: [smoke::DB]ACCOUNT.ID,
+    balance: [smoke::DB]ACCOUNT.BALANCE
+  }
+)
+
+###Connection
+RelationalDatabaseConnection smoke::Conn
+{
+  store: smoke::DB;
+  type: H2;
+  specification: LocalH2 { };
+  auth: DefaultH2;
+}
+
+###Runtime
+Runtime smoke::RT
+{
+  mappings: [ smoke::M ];
+  connections: [ smoke::DB: [ environment: smoke::Conn ] ];
+}
+
+###Data
+Data smoke::Rows
+{
+  Relational
+  #{
+    default.ACCOUNT:
+      'ID,BALANCE\n' +
+      'A1,10\n' +
+      'A2,20\n';
+  }#
+}
+
+###Service
+Service smoke::Rich
+{
+  pattern: '/smoke/rich';
+  documentation: 'One filter over two rows; the test named right expects its answer, the test named wrong does not.';
+  execution: Single
+  {
+    query: |smoke::Account.all()->filter(a|$a.balance > 15)->project(~[id: a|$a.id]);
+    mapping: smoke::M;
+    runtime: smoke::RT;
+  }
+  testSuites:
+  [
+    rich_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              smoke::Rows
+            }#
+        ]
+      ]
+      tests:
+      [
+        right:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            rows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A2"}]';
+                  }#;
+              }#
+          ]
+        },
+        wrong:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            rows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A1"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,8 @@ _RUNNER_RUNTIME = [
 
 _RUNNER_DEPS = [
     "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_service",
+    # ConnectionStateManager: TestableMain closes the test connections' pools between testables
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_executionPlan_connection",
     "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
     "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
     "@maven_runner//:org_finos_legend_engine_legend_engine_protocol_pure",
@@ -64,6 +66,8 @@ legend_java_library(
     testonly = True,
     main_class = "perf." + main,
     runtime_deps = [":runner"],
+    # testable: the stress corpus's engine verdict launches it from runfiles (//scripts/corpus:run, :engine_stress)
+    visibility = ["//scripts/corpus:__pkg__"],
 ) for (name, main) in [
     ("testable", "TestableMain"),
     ("parse", "ParseMain"),
@@ -98,12 +102,14 @@ junit_test(
     srcs = ["src/test/java/perf/RunnerSmokeTest.java"],
     data = [
         "src/test/resources/smoke/person.pure",
+        "src/test/resources/smoke/service.pure",
         ":lite_parse",
         ":parse",
         ":testable",
     ],
     jvm_flags = [
         "-Drunner.smoke.fixture=$(rlocationpath src/test/resources/smoke/person.pure)",
+        "-Drunner.smoke.service=$(rlocationpath src/test/resources/smoke/service.pure)",
         "-Drunner.parse=$(rlocationpath :parse)",
         "-Drunner.lite_parse=$(rlocationpath :lite_parse)",
         "-Drunner.testable=$(rlocationpath :testable)",

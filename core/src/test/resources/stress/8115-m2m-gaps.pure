@@ -1,0 +1,112 @@
+// The M2M pack's constructs legend-lite cannot load (the improvement plan's Phase 5, 2026-10-30): an M2M enumeration
+// transform and a complex property passthrough. lite refuses each when it builds the model, which would stop its whole
+// corpus loading, so they are apart from 8114-m2m.pure (whose source model, chain and runtimes they use) and lite
+// excludes this file (core StressExclusions, LegendLiteGapTest). Their services are in 94-gap-services.pure, excluded
+// with it; their relational twins run in both engines (99-m2m-services.pure). The engine reads every file.
+###Pure
+// Enumeration transforms: a String code, a String code from an optional value, and an INTEGER code.
+Class m2m::DealSide
+{
+    dealId: String[1];
+    side: trading::Side[0..1];
+}
+
+Class m2m::PartyTier
+{
+    partyId: String[1];
+    tier: m2m::Tier[0..1];
+    grade: m2m::RatingGrade[0..1];
+}
+
+Class m2m::DeskLoad
+{
+    bookId: String[1];
+    load: m2m::Load[0..1];
+}
+
+// Complex property passthrough: properties typed with the SOURCE classes, mapped with no set of their own, so the
+// source objects pass through as they are.
+Class m2m::TradeLink
+{
+    dealId: String[1];
+    party: m2m::src::Party[0..1];
+    desk: m2m::src::BookRecord[0..1];
+}
+
+###Mapping
+Mapping m2m::GapViews
+(
+    // The enumeration transforms' own mappings: the same translations m2m::SourceMapping applies to the columns,
+    // applied here to the raw codes the source model carries.
+    trading::Side: EnumerationMapping M2MSide
+    {
+        BUY: ['B', 'BOT'],
+        SELL: ['S']
+    }
+
+    m2m::Tier: EnumerationMapping M2MTier
+    {
+        PRIME: ['1'],
+        CORE: ['2'],
+        EDGE: ['3']
+    }
+
+    m2m::RatingGrade: EnumerationMapping M2MGrade
+    {
+        HIGH: ['AAA', 'AA-', 'A+'],
+        MEDIUM: ['BBB']
+    }
+
+    m2m::Load: EnumerationMapping M2MLoad
+    {
+        IDLE: [0],
+        LIGHT: [1],
+        BUSY: [2]
+    }
+
+    // TRD-0012's code, ZZ, is in no enumeration mapping; an unmapped code is not this pack's subject (F10's)
+    m2m::DealSide: Pure
+    {
+        ~src m2m::src::Deal
+        ~filter $src.sideCode != 'ZZ'
+        dealId: $src.dealId,
+        side: EnumerationMapping M2MSide: $src.sideCode
+    }
+
+    m2m::PartyTier: Pure
+    {
+        ~src m2m::src::Party
+        partyId: $src.partyId,
+        tier: EnumerationMapping M2MTier: $src.tierCode,
+        grade: EnumerationMapping M2MGrade: $src.rating
+    }
+
+    m2m::DeskLoad: Pure
+    {
+        ~src m2m::src::BookRecord
+        bookId: $src.bookId,
+        load: EnumerationMapping M2MLoad: $src.positions
+    }
+
+    m2m::TradeLink: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        party: $src.party,
+        desk: $src.desk
+    }
+)
+
+###Runtime
+Runtime m2m::GapViewsRT
+{
+    mappings:
+    [
+        m2m::GapViews
+    ];
+    connections:
+    [
+        ModelStore: [ chain: m2m::SourceChain ],
+        store::DB: [ environment: store::Conn ]
+    ];
+}

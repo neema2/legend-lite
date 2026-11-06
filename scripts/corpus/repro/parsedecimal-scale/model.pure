@@ -1,0 +1,110 @@
+// F79: `parseDecimal` in a query keeps three fractional digits, where legend-pure's keeps every digit of the string.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/parsedecimal-scale/model.pure \
+//       --testable=demo::ThreeDigits --testable=demo::MoreDigits
+//
+// legend-pure's parseDecimal(string:String[1]):Decimal[1] reads the string as a BigDecimal, so '12345678.123456789'
+// is 12345678.123456789. legend-engine 4.145.0's DuckDB SQL casts it to DECIMAL with no precision, which DuckDB reads
+// as DECIMAL(18,3): 12345678.123, and '0.0001' becomes 0.000. ThreeDigits passes; MoreDigits fails.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(40))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S\n' +
+      'R1,2.125\n' +
+      'R2,12345678.123456789\n' +
+      'R3,0.0001\n';
+  }#
+}
+
+###Service
+Service demo::ThreeDigits
+{
+  pattern: '/demo/threedigits';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R1')->project(~[id:x|$x.id, r:x|$x.s->parseDecimal()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    ThreeDigits_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":2.125} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::MoreDigits
+{
+  pattern: '/demo/moredigits';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id != 'R1')->project(~[id:x|$x.id, r:x|$x.s->parseDecimal()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    MoreDigits_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R2","r":12345678.123456789}, {"id":"R3","r":0.0001} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

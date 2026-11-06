@@ -20910,6 +20910,258 @@ PROJECTLINK_TRADE_FX = [
 ]
 
 
+# ---- typed values (8112-typedvalues.pure; docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 1) ----
+#
+# Written by COLUMN rather than by row, because what matters is each type's spread: every
+# comparison literals.py writes must keep some rows and drop others, and every optional column
+# must meet a NULL. Each list is the fifteen rows TV-01..TV-15 in order. The comparands
+# literals.py uses are marked; literals.check() asserts that each one discriminates under every
+# operator it is used with. TV-02 is absent in every optional column; otherwise each optional
+# column has NULLs of its own, so a predicate over two of them meets one absent side as well as
+# both (docs/UPSTREAM_FINDINGS.md, F64, turns on the difference).
+#
+#   * a tie on the comparand, and its neighbours either side (42 with 41 and 43; noon with a
+#     second before and after; 2024-02-29 with the days around it)
+#   * negatives, zero and the column's extremes (INTEGER's two, TINYINT's two)
+#   * strings differing only by case, carrying an apostrophe, or a trailing space
+#   * Decimals a double cannot tell apart: 1.0000000000000000 and 1.0000000000000001 are the
+#     same double, and 1.000000000000000001 needs 18 fractional digits, past the scale 16 the
+#     engine casts a Decimal literal to (docs/UPSTREAM_FINDINGS.md, F61)
+#   * grade codes, one with no EnumerationMapping entry ('Z'), which reads as absent
+#
+# TV-14 has no trade and TV-15 names one that does not exist, so they are visible only from the
+# typed-value root; seven trades (TRD-0013, TRD-0015..0020) have no typed value, so a navigation
+# from them lands on nothing.
+def _typed_values() -> list[dict]:
+    from decimal import Decimal as D
+
+    n = None
+    cols = {
+        "TRADE_ID": [f"TRD-{i:04d}" for i in range(1, 13)] + ["TRD-0014", n, "TRD-9999"],
+        # comparand 'alpha'
+        "NAME": ["alpha", "Alpha", "ALPHA", "alpha ", "alphabet", "beta", "beta", "O'Neil",
+                 "gamma", "Zeta", "alpha", "delta", "aleph", "omega", "kappa"],
+        "NAME_OPT": ["alpha", n, "ALPHA", "alpha ", n, "beta", "Alpha", "O'Neil", "gamma", "zeta",
+                     "alpha", "alphabet", n, "mu", "aleph"],
+        # comparand true
+        "ACTIVE": [True, False, True, False, True, True, False, True, False, True, False, True,
+                   True, False, True],
+        "ACTIVE_OPT": [True, n, False, False, True, n, True, False, True, n, False, True, True,
+                       False, True],
+        # comparand 42
+        "QUANTITY": [42, 41, 43, 42, 0, -1, -5, 1, 100, 2147483647, -2147483648, 7, 42, 13, 99],
+        "QUANTITY_OPT": [42, n, 43, 41, 0, -5, n, 42, 100, 2147483647, n, 7, -2147483648, 13, 99],
+        # comparand 2.25; every value exact in binary
+        "RATE": [2.25, 2.125, 2.375, 2.25, 0.0, -1.5, 0.5, 1.0e10, -0.25, 3.75, 10.5, 100.0,
+                 7.75, 1.25, 2.5],
+        "RATE_OPT": [2.25, n, 2.375, 2.125, 0.0, -1.5, 0.5, n, 1.0e10, -0.25, 2.25, 100.0, 7.75,
+                     n, 2.5],
+        # comparand 1.0000000000000001
+        "AMOUNT": [D("1.0000000000000001"), D("1.0000000000000000"), D("1.0000000000000002"),
+                   D("1.0000000000000001"), D("0"), D("-2.5"), D("1.000000000000000001"),
+                   D("12345678.123456789012345678"), D("-0.000000000000000001"), D("0.1"),
+                   D("1.00000000000000009"), D("99.99"), D("1.0000000000000001"),
+                   D("1000000"), D("0.3")],
+        "AMOUNT_OPT": [D("1.0000000000000001"), n, D("1.0000000000000002"), n, D("0"),
+                       D("-2.5"), D("1.0000000000000000"), D("1.000000000000000001"), n, D("0.1"),
+                       D("1.0000000000000001"), D("12345678.123456789012345678"),
+                       D("1.00000000000000009"), D("99.99"), D("0.3")],
+        # comparands 2 (ordered) and 2.5 (equality): a Number compared across Integer and Float
+        "METRIC": [2.0, 2.5, -1.0, 0.0, 7.0, 2.0, 3.0, 1.5, 4.25, 10.0, 2.5, -3.5, 2.75, 100.0,
+                   1.0],
+        "METRIC_OPT": [D("2.0000"), n, D("-1.0000"), D("2.5000"), D("7.0000"), n, D("3.0000"),
+                       D("1.5000"), D("4.2500"), D("10.0000"), D("2.5000"), n, D("2.7500"),
+                       D("100.0000"), D("1.0000")],
+        # comparand 2024-06-03
+        "VALUE_DATE": [_iso(2024, 6, 3), _iso(2024, 6, 2), _iso(2024, 6, 4), _iso(2024, 6, 3),
+                       _iso(1999, 12, 31), _iso(2000, 1, 1), _iso(2024, 2, 29),
+                       _iso(2024, 12, 31), _iso(2025, 1, 1), _iso(1970, 1, 1), _iso(2024, 6, 1),
+                       _iso(2024, 7, 3), _iso(2023, 6, 3), _iso(2024, 6, 30), _iso(2024, 6, 5)],
+        "VALUE_DATE_OPT": [_iso(2024, 6, 3), n, _iso(2024, 6, 4), _iso(2024, 6, 2),
+                           _iso(1999, 12, 31), _iso(2000, 1, 1), _iso(2024, 2, 29), _iso(2024, 6, 3), n,
+                           _iso(1970, 1, 1), _iso(2024, 6, 1), _iso(2024, 7, 3), n,
+                           _iso(2024, 6, 30), _iso(2025, 1, 1)],
+        # comparand 2024-02-29, a leap day between month ends
+        "TRADE_DATE": [_iso(2024, 2, 29), _iso(2024, 2, 28), _iso(2024, 3, 1), _iso(2024, 2, 29),
+                       _iso(2023, 12, 31), _iso(2024, 1, 1), _iso(2023, 2, 28), _iso(2023, 3, 1),
+                       _iso(2024, 12, 31), _iso(2025, 2, 28), _iso(2024, 2, 1), _iso(2024, 3, 31),
+                       _iso(2024, 2, 29), _iso(2020, 2, 29), _iso(2024, 4, 30)],
+        "TRADE_DATE_OPT": [_iso(2024, 2, 29), n, _iso(2024, 3, 1), _iso(2024, 2, 28),
+                           _iso(2023, 12, 31), _iso(2024, 1, 1), n, _iso(2023, 3, 1),
+                           _iso(2024, 12, 31), _iso(2025, 2, 28), _iso(2024, 2, 29), _iso(2024, 3, 31),
+                           _iso(2024, 2, 1), _iso(2020, 2, 29), n],
+        # comparand 2024-06-03T12:00:00; midnight and the last second of the day are both here
+        "STAMPED_AT": ["2024-06-03 12:00:00", "2024-06-03 11:59:59", "2024-06-03 12:00:01",
+                       "2024-06-03 12:00:00", "2024-06-03 00:00:00", "2024-06-03 23:59:59",
+                       "2024-06-04 00:00:00", "2024-06-02 23:59:59", "1999-12-31 23:59:59",
+                       "2000-01-01 00:00:00", "2024-02-29 12:00:00", "2024-06-03 12:30:00",
+                       "2024-06-03 12:00:00", "2025-01-01 00:00:00", "2024-06-03 06:00:00"],
+        "STAMPED_AT_OPT": ["2024-06-03 12:00:00", n, "2024-06-03 12:00:01",
+                           "2024-06-03 11:59:59", n, "2024-06-03 00:00:00", "2024-06-04 00:00:00",
+                           "2024-06-03 12:00:00", "1999-12-31 23:59:59", "2000-01-01 00:00:00", n,
+                           "2024-06-02 23:59:59", "2024-06-03 23:59:59", "2025-01-01 00:00:00",
+                           "2024-06-03 06:00:00"],
+        # comparand 17:30:00 (StrictTime has no ordering in legend-pure: == and != only)
+        "CUTOFF": ["17:30:00", "17:29:59", "17:30:01", "00:00:00", "23:59:59", "12:00:00",
+                   "17:30:00", "09:00:00", "17:30:00", "08:30:00", "16:00:00", "18:00:00",
+                   "06:00:00", "17:00:00", "20:00:00"],
+        "CUTOFF_OPT": ["17:30:00", n, "17:30:01", "00:00:00", "23:59:59", "12:00:00", "17:30:00",
+                       n, "09:00:00", "08:30:00", "17:29:59", "18:00:00", n, "17:00:00", "20:00:00"],
+        # projected only: Byte has no literal and no comparison
+        "OCTET": [-128, 0, 127, 1, -1, 64, 7, 0, 100, -100, 12, 13, 99, 42, 5],
+        "OCTET_OPT": [-128, n, 127, 1, 0, 64, 7, 0, 100, n, 12, 13, 99, n, 5],
+        # comparand STANDARD ('S'); 'Z' has no mapping entry
+        "GRADE": ["P", "S", "W", "D", "S", "P", "W", "S", "D", "P", "S", "W", "P", "D", "S"],
+        "GRADE_OPT": ["P", n, "W", "Z", "S", "P", n, "S", "D", "Z", "S", "W", n, "D", "S"],
+        # the groupBy key of the improvement plan's Phase 4 (stage 3): segment A holds TV-02 alone, the one row absent in
+        # every optional column, so a group whose values are all absent is there for each of them; B, C and D
+        # each hold present and absent values of every optional column
+        "SEGMENT": ["B", "A", "B", "B", "B", "B", "C", "C", "C", "C", "C", "D", "D", "D", "D"],
+    }
+    rows = [dict(VALUE_ID=f"TV-{i + 1:02d}") for i in range(15)]
+    for col, values in cols.items():
+        assert len(values) == len(rows), f"TYPED_VALUE.{col} has {len(values)} values"
+        for r, v in zip(rows, values):
+            r[col] = v
+    return rows
+
+
+TYPED_VALUE = _typed_values()
+
+
+# ---- intraday milestoning (8113-intraday.pure; docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 3) ----
+#
+# Processing time at time of day. Every version is [IN_Z, OUT_Z), and a book's versions never overlap
+# (check() proves it), so a book has at most one limit and one status in force at any instant:
+#
+#   * BK-CASH-US is cut at 09:21:00, raised at 09:45:30, and reset exactly at midnight: three versions in
+#     one day, and the midnight a StrictDate means
+#   * BK-VOL-01's first limit is recorded at 09:35:00 on the 3rd and changed at 09:13:00 on the 7th
+#   * BK-CASH-EU's limit is withdrawn at 09:52:00 on the 6th with no successor, so it is absent at %latest
+#   * BK-EQ has no limit from 12:00 to 13:00; BK-FX changes in the last second of a day; BK-RATES never
+#     changes; BK-LEGACY and BK-CREDIT never had one
+#
+# The limit checks run on both sides of those instants and exactly at them, so "the limit in force when
+# the check ran" meets every boundary; one check names no book (A2) and one a book that does not exist
+# (A1). The status halts BK-CASH-US between two limit changes and reopens it at the instant of the second,
+# so a limit and its status read at one instant meet a boundary on one side and not the other. Marks are
+# published at 17:30, made official minutes later, and restated at midnight; one lives for one second.
+# The valuation runs read them as believed when they ran, for the date they value.
+_INF_TS = "9999-12-31 00:00:00"
+
+
+def _limit(book, in_z, out_z, amount, ccy, rev, by):
+    return dict(BOOK_ID=book, IN_Z=in_z, OUT_Z=out_z, LIMIT_AMOUNT=amount, CURRENCY=ccy,
+                REVISION=rev, APPROVED_BY=by)
+
+
+BOOK_LIMIT_PT = [
+    _limit("BK-CASH-US", "2024-05-31 18:00:00", "2024-06-03 09:21:00", 5000000.0, "USD", 1, "M. Okafor"),
+    _limit("BK-CASH-US", "2024-06-03 09:21:00", "2024-06-03 09:45:30", 4000000.0, "USD", 2, "M. Okafor"),
+    _limit("BK-CASH-US", "2024-06-03 09:45:30", "2024-06-04 00:00:00", 6500000.0, "USD", 3, None),
+    _limit("BK-CASH-US", "2024-06-04 00:00:00", _INF_TS, 5500000.0, "USD", 4, "overnight batch"),
+    _limit("BK-VOL-01", "2024-06-03 09:35:00", "2024-06-07 09:13:00", 2000000.0, "USD", 1, "J. Lindqvist"),
+    _limit("BK-VOL-01", "2024-06-07 09:13:00", _INF_TS, 2500000.0, "USD", 2, "J. Lindqvist"),
+    _limit("BK-CASH-EU", "2024-06-05 09:35:00", "2024-06-06 09:52:00", 3000000.0, "EUR", 1, None),
+    _limit("BK-EQ", "2024-06-03 00:00:00", "2024-06-03 12:00:00", 1000000.0, "USD", 1, "A. O'Brien"),
+    _limit("BK-EQ", "2024-06-03 13:00:00", _INF_TS, 1200000.0, "USD", 2, "A. O'Brien"),
+    _limit("BK-FX", "2024-06-02 23:59:59", "2024-06-03 23:59:59", 8000000.0, "USD", 1, "fx-risk"),
+    _limit("BK-FX", "2024-06-03 23:59:59", _INF_TS, 9000000.0, "USD", 2, "fx-risk"),
+    _limit("BK-RATES", "2024-01-02 07:00:00", _INF_TS, 25000000.0, "EUR", 1, "rates-risk"),
+]
+
+
+def _status(book, in_z, out_z, state, reason):
+    return dict(BOOK_ID=book, IN_Z=in_z, OUT_Z=out_z, STATE=state, REASON=reason)
+
+
+BOOK_STATUS_PT = [
+    _status("BK-CASH-US", "2024-05-01 00:00:00", "2024-06-03 09:30:00", "OPEN", None),
+    _status("BK-CASH-US", "2024-06-03 09:30:00", "2024-06-03 09:45:30", "HALTED", "limit review"),
+    _status("BK-CASH-US", "2024-06-03 09:45:30", _INF_TS, "OPEN", "review cleared"),
+    _status("BK-VOL-01", "2024-06-01 08:00:00", _INF_TS, "OPEN", None),
+    _status("BK-CASH-EU", "2024-06-05 00:00:00", "2024-06-06 09:52:00", "OPEN", None),
+    _status("BK-CASH-EU", "2024-06-06 09:52:00", _INF_TS, "CLOSED", "desk wound down"),
+    _status("BK-EQ", "2024-06-03 06:00:00", _INF_TS, "OPEN", None),
+    _status("BK-FX", "2024-06-03 23:00:00", "2024-06-04 00:00:00", "HALTED", "end-of-day roll"),
+    _status("BK-FX", "2024-06-04 00:00:00", _INF_TS, "OPEN", None),
+]
+
+
+def _mark(instr, frm, thru, in_z, out_z, price, source):
+    return dict(INSTRUMENT_ID=instr, FROM_Z=frm, THRU_Z=thru, IN_Z=in_z, OUT_Z=out_z, PRICE=price,
+                SOURCE=source)
+
+
+MARK_REVISION_BI = [
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 17:30:00", "2024-06-03 18:05:00",
+          190.1, "PRELIM"),
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 18:05:00", "2024-06-04 00:00:00",
+          190.25, "OFFICIAL"),
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-04 00:00:00", _INF_TS,
+          190.2, "RESTATED"),
+    _mark("INST-AAPL", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:30:00", _INF_TS, 192.0, "OFFICIAL"),
+    _mark("INST-MSFT", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 17:45:00", _INF_TS,
+          415.5, "OFFICIAL"),
+    _mark("INST-MSFT", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:45:00", "2024-06-04 17:45:01",
+          416.0, "PRELIM"),
+    _mark("INST-MSFT", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:45:01", _INF_TS, 416.1, "OFFICIAL"),
+    _mark("INST-NESN", _iso(2024, 6, 3), INFINITY, "2024-06-03 08:00:00", _INF_TS, 98.4, None),
+    _mark("INST-GILT30", _iso(2024, 6, 3), INFINITY, "2024-06-03 23:59:59", _INF_TS, 98.75, "OFFICIAL"),
+    _mark("INST-HSBA", _iso(2024, 6, 5), INFINITY, "2024-06-05 16:30:00", _INF_TS, 6.85, "OFFICIAL"),
+]
+
+
+def _check(n, book, at, amount):
+    return dict(CHECK_ID=f"CHK-{n:02d}", BOOK_ID=book, CHECKED_AT=at, REQUESTED_AMOUNT=amount)
+
+
+# The limit in force at each check, by the history above, is noted beside it.
+LIMIT_CHECK = [
+    _check(1, "BK-CASH-US", "2024-06-03 09:07:00", 1200000.0),     # 5.0M
+    _check(2, "BK-CASH-US", "2024-06-03 09:20:59", 4500000.0),     # 5.0M, a second before the cut
+    _check(3, "BK-CASH-US", "2024-06-03 09:21:00", 4500000.0),     # 4.0M, at the cut
+    _check(4, "BK-VOL-01", "2024-06-03 09:34:59", 1000000.0),      # none yet
+    _check(5, "BK-VOL-01", "2024-06-03 09:35:00", 1000000.0),      # 2.0M, recorded at that instant
+    _check(6, "BK-CASH-US", "2024-06-03 09:45:30", 6000000.0),     # 6.5M, raised at that instant
+    _check(7, "BK-CASH-US", "2024-06-03 23:59:59", 6000000.0),     # 6.5M, the last second before reset
+    _check(8, "BK-CASH-US", "2024-06-04 00:00:00", 6000000.0),     # 5.5M, reset at midnight
+    _check(9, "BK-CASH-EU", "2024-06-05 09:31:00", 800000.0),      # none yet
+    _check(10, "BK-CASH-EU", "2024-06-05 09:38:00", 800000.0),     # 3.0M
+    _check(11, "BK-CASH-EU", "2024-06-06 09:52:00", 800000.0),     # none: withdrawn at that instant
+    _check(12, "BK-EQ", "2024-06-03 12:30:00", 500000.0),          # none: in the gap
+    _check(13, "BK-EQ", "2024-06-03 13:00:00", 500000.0),          # 1.2M
+    _check(14, "BK-FX", "2024-06-03 23:59:59", 8500000.0),         # 9.0M, changed at that instant
+    _check(15, "BK-LEGACY", "2024-06-03 10:00:00", 100000.0),      # none ever
+    _check(16, None, "2024-06-03 10:00:00", 100000.0),             # no book (A2)
+    _check(17, "BK-GONE", "2024-06-03 10:00:00", 100000.0),        # a book that does not exist (A1)
+    _check(18, "BK-VOL-01", "2024-06-07 09:13:00", 2200000.0),     # 2.5M, changed at that instant
+    _check(19, "BK-RATES", "2024-06-05 12:00:00", 30000000.0),     # 25.0M
+]
+
+
+def _run(n, instr, day, at):
+    return dict(RUN_ID=f"RUN-{n:02d}", INSTRUMENT_ID=instr, VALUATION_DATE=day, RUN_AT=at)
+
+
+# The mark each run reads, as believed when it ran, for the date it values.
+VALUATION_RUN = [
+    _run(1, "INST-AAPL", _iso(2024, 6, 3), "2024-06-03 18:04:59"),    # PRELIM
+    _run(2, "INST-AAPL", _iso(2024, 6, 3), "2024-06-03 18:05:00"),    # OFFICIAL
+    _run(3, "INST-AAPL", _iso(2024, 6, 3), "2024-06-04 00:00:00"),    # RESTATED, at midnight
+    _run(4, "INST-AAPL", _iso(2024, 6, 4), "2024-06-04 17:29:59"),    # none yet for the 4th
+    _run(5, "INST-AAPL", _iso(2024, 6, 4), "2024-06-04 17:30:00"),    # the 4th's
+    _run(6, "INST-MSFT", _iso(2024, 6, 4), "2024-06-04 17:45:00"),    # PRELIM, for one second
+    _run(7, "INST-MSFT", _iso(2024, 6, 4), "2024-06-04 17:45:01"),    # OFFICIAL
+    _run(8, "INST-MSFT", _iso(2024, 6, 3), "2024-06-05 09:00:00"),    # the 3rd's, read later
+    _run(9, "INST-GILT30", _iso(2024, 6, 3), "2024-06-03 23:59:58"),  # none yet
+    _run(10, "INST-GILT30", _iso(2024, 6, 5), "2024-06-05 08:00:00"),  # the 3rd's, still in force
+    _run(11, "INST-HSBA", _iso(2024, 6, 4), "2024-06-05 17:00:00"),   # none for the 4th
+    _run(12, "INST-SAP", _iso(2024, 6, 3), "2024-06-03 20:00:00"),    # no marks at all
+    _run(13, "INST-NESN", _iso(2024, 6, 7), "2024-06-07 08:00:00"),   # the 3rd's, still in force
+]
+
+
 # The books the ~100 TAXONOMY tables reference. Every taxonomy row carries a BOOK_ID, and
 # until now not one of those ids existed in BOOK -- the two sets were disjoint, so the
 # taxonomies were 1811 classes joined to nothing. That is what made 88% of the corpus's
@@ -20942,8 +21194,209 @@ BOOK += [
          DESCRIPTION="Cash credit and CDS, wound down in 2024", DESK_ID='DSK-CASH'),
 ]
 
+# ---- the inheritance dispatch's leaves (71-operation-surface.pure; the improvement plan's Phase 7) ----
+#
+# The pack's other tables (OP_A, OP_B, OP_C, MG_A, MG_B) take the expansion's rows, which already hold what its
+# services need: a NULL key, an orphan and matching keys on each join, an absent value in each table, and each merge
+# side filling the column its own set does not map. Seeded by hand, they would leave the expansion's candidates and
+# shift every later table's generated values. These two are new, with no join to be expanded across: each holds an
+# absent label, which the dispatch's filter drops.
+OP_CAR = [dict(K="CAR-1", LABEL="Saloon", DOORS=4), dict(K="CAR-2", LABEL=None, DOORS=2),
+          dict(K="CAR-3", LABEL="Estate", DOORS=None)]
+OP_TRUCK = [dict(K="TRK-1", LABEL="Tipper", PAYLOAD=12), dict(K="TRK-2", LABEL=None, PAYLOAD=None)]
+
+# ---- surface::JoinDB's J1 (70-surface-store2.pure; Phase 7) ----
+#
+# The host of every join condition the store declares. J2, J3 and MapDB's LEG keep the expansion's rows (J-0001 to
+# J-0005; J2's N 157, 164, absent, 178, 185 and NEXT_K absent, an orphan, J-0001, J-0002, J-0003; J3's N 87, 94,
+# absent, 108, 115; LEG L-0001 to L-0005), and unreached.check holds what each J1 row is for when they move. Each lands
+# on some conditions and misses the others:
+#   J-0001  no NEXT_K, so `is null` lands on J2 J-0001 and `is not null` does not; N 170 is at or above two of J2's
+#   J-0002  N -5, the numeric constant's; `is not null` lands on J3 J-0002; NEXT_K J-0004, whose own NEXT_K is J-0002,
+#           so the not-equal conditions refuse it
+#   J-0003  NEXT_K J-0002, whose NEXT_K is an orphan; LEG_ID an orphan
+#   J-0004  N 1, in the literal list; NEXT_K J-0005, then J3 J-0003, an absent N
+#   J-0005  NEXT_K J-0001, whose NEXT_K is absent: SQL's `!=` over NULL matches nothing
+#   j-000   toUpper(K) and NEXT_K concatenate to J-0004, the nested dynafunction's
+#   J-0009  no NEXT_K and no J2 of its key; N 160 is at or above one of J2's
+#   J-0010  nothing at all: an absent N is at or above nothing
+J1 = [dict(K="J-0001", N=170, NEXT_K=None, LEG_ID="L-0001"),
+      dict(K="J-0002", N=-5, NEXT_K="J-0004", LEG_ID="L-0003"),
+      dict(K="J-0003", N=2, NEXT_K="J-0002", LEG_ID="L-0009-GONE"),
+      dict(K="J-0004", N=1, NEXT_K="J-0005", LEG_ID="L-0004"),
+      dict(K="J-0005", N=50, NEXT_K="J-0001", LEG_ID="L-0002"),
+      dict(K="j-000", N=3, NEXT_K="4", LEG_ID=None),
+      dict(K="J-0009", N=160, NEXT_K=None, LEG_ID=None),
+      dict(K="J-0010", N=None, NEXT_K=None, LEG_ID=None)]
+
+# ---- checks::CheckDB (8117-checks.pure; Phase 8) ----
+#
+# The constraints pack's rows: each constraint is violated by a row of its own (the comment beside it names the
+# constraint), and some rows violate none. A child that violates a constraint is the only member of its parent's
+# collection, since a defect under a to-many carries the member's index and a relational fetch defines no order
+# (oracle._defects). scripts/corpus/checks.py's check holds that every constraint keeps a violating row.
+CK_DESK = [
+    dict(DESK_ID="DSK1", CODE="DSK-001", REGION="EU", ACTIVE=True, OPENED="2024-01-15"),
+    dict(DESK_ID="DSK2", CODE="DSK-002", REGION="US", ACTIVE=False, OPENED="2024-09-01"),   # inactive, opened late
+    dict(DESK_ID="DSK3", CODE="DSX-003", REGION="US", ACTIVE=True, OPENED="2024-02-01"),    # deskCodeShape: prefix
+    dict(DESK_ID="DSK4", CODE="DSK-0004", REGION="APAC", ACTIVE=True, OPENED="2024-03-01"),  # deskCodeShape: length
+    dict(DESK_ID="DSK5", CODE="DSK-005", REGION="LATAM", ACTIVE=True, OPENED="2024-04-01"),  # regionKnown
+    dict(DESK_ID="DSK6", CODE="DSK-006", REGION="EU", ACTIVE=True, OPENED="2024-07-01"),    # activeDeskOpened
+]
+
+
+def _ck_deal(deal_id, ref="", trade="2024-06-03", settle="2024-06-05", cancel=None, maturity=None, state="O",
+             kind="C", ccy="USD", notional=250000.0, fee=12.5):
+    return dict(DEAL_ID=deal_id, REF=ref or "CK-" + deal_id[1:].rjust(4, "0"), TRADE_DATE=trade, SETTLE_DATE=settle,
+                CANCEL_DATE=cancel, MATURITY=maturity, STATE=state, KIND=kind, CCY=ccy, NOTIONAL=notional, FEE=fee)
+
+
+CK_DEAL = [
+    _ck_deal("D01"),
+    _ck_deal("D02", trade="2024-06-05", settle="2024-06-03"),                 # settleNotBeforeTrade
+    _ck_deal("D03", state="X"),                                               # cancelledHasDate
+    _ck_deal("D04", state="X", cancel="2024-06-01"),                          # cancelAfterTrade
+    _ck_deal("D05", kind="FW"),                                               # forwardMatures: a forward, no maturity
+    _ck_deal("D06", maturity="2024-12-01"),                                   # forwardMatures: cash with a maturity
+    _ck_deal("D07", kind="FW", maturity="2024-06-04"),                        # maturityAfterSettle
+    _ck_deal("D08", ref="XK-0008"),                                           # refShape: prefix
+    _ck_deal("D09", ref="CK-00009"),                                          # refShape: length
+    _ck_deal("D10", ccy="usd"),                                               # ccyUpper
+    _ck_deal("D11", fee=5000.0),                                              # feeWithinNotional
+    _ck_deal("D12", settle="2024-06-12", state="S"),                          # settledWithinWeek: nine days
+    _ck_deal("D13", notional=1500000.0, fee=10.0),                            # notionalCap, a Warn
+    _ck_deal("D14", settle="2024-06-07", maturity="2025-06-03", state="S", kind="FW", fee=None),
+    _ck_deal("D15", ref="ck-0015", state="X", ccy="Eur"),                     # cancelledHasDate, refShape, ccyUpper
+]
+CK_BASKET = [
+    dict(BASKET_ID="B01", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),
+    dict(BASKET_ID="B02", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # hasLiveLine
+    dict(BASKET_ID="B03", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # linesInCcy
+    dict(BASKET_ID="B04", KIND="SW", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),  # swapHasTwoLines
+    dict(BASKET_ID="B05", KIND="C", CCY="USD", CLOSE_DATE="2024-06-15", DESK_ID=None),     # linesBeforeClose
+    dict(BASKET_ID="B06", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK1"),   # euDeskInEur
+    dict(BASKET_ID="B07", KIND="SW", CCY="EUR", CLOSE_DATE="2024-06-30", DESK_ID="DSK1"),
+    dict(BASKET_ID="B08", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID=None),     # hasLiveLine: no lines
+    dict(BASKET_ID="B09", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # its line's sideSign
+    dict(BASKET_ID="B10", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # its line's lineOfBasket
+    dict(BASKET_ID="B11", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK5"),   # its desk's regionKnown
+]
+
+
+def _ck_line(line_id, basket, qty, side="R", ccy="USD", pay="2024-06-10"):
+    return dict(LINE_ID=line_id, BASKET_ID=basket, QTY=qty, CCY=ccy, PAY_DATE=pay, SIDE=side)
+
+
+CK_LINE = [
+    _ck_line("B01-1", "B01", 100.0), _ck_line("B01-2", "B01", -50.0, side="P", pay="2024-06-20"),
+    _ck_line("B02-1", "B02", -10.0, side="P"), _ck_line("B02-2", "B02", -5.0, side="P", pay="2024-06-11"),
+    _ck_line("B03-1", "B03", 100.0), _ck_line("B03-2", "B03", 20.0, ccy="GBP"),
+    _ck_line("B04-1", "B04", 100.0),
+    _ck_line("B05-1", "B05", 100.0, pay="2024-06-20"),
+    _ck_line("B06-1", "B06", 100.0),
+    _ck_line("B07-1", "B07", 100.0, ccy="EUR"), _ck_line("B07-2", "B07", -100.0, side="P", ccy="EUR",
+                                                          pay="2024-06-11"),
+    _ck_line("B09-1", "B09", 30.0, side="P"),                                 # sideSign: a payment of a positive qty
+    _ck_line("Z10-1", "B10", 10.0),                                           # lineOfBasket
+    _ck_line("B11-1", "B11", 10.0),
+]
+
+# ---- semi-structured documents (8118-semi.pure; Phase 9) ----
+#
+# Booking payloads, one JSON document per row, in 66-store-surface.pure's SURFACE_TYPES.C_SEMI (the H2 side: TDS
+# services run their tests on H2) and in semi::SemiDB's SEMI_DOC.DOC (the DuckDB side: a relation-returning service
+# runs its tests on DuckDB, and DuckDB cannot create SURFACE_TYPES, whose REAL and OTHER columns it has no type for).
+# The same five documents in both, so each navigation answers alike on the two databases; SEMI_DOC adds a NULL
+# document, which H2's flatten cannot meet (it reads the whole table, scripts/corpus/semi.py's header). Each awkward
+# shape is placed: a JSON null (SD-03's ref), a zero (its qty), an empty array (its legs and grid), an absent object
+# (no dates), an index past the end (SD-02's second leg), a leg whose hop no SEMI_HOP row has (SD-04's HP-9) and a
+# null venue beside it, keys reachable only bracket-quoted ("desk info", "book.code"), and an empty document (SD-05).
+# No JSON string holds a comma, a quote or a backslash: H2's test-data splitter reads a field's quotes by parity
+# (semi.py). C_JSON stays NULL: neither test database loads a value into a JSON column at the pin (semi.py).
+_SEMI_DOCS = [
+    {"ref": "TKT-1001", "qty": 400, "px": 187.25, "fee": 12.5, "live": True,
+     "dates": {"trade": "2024-06-03", "stamp": "2024-06-03T09:30:15"},
+     "legs": [{"hop": "HP-1", "venue": "XNYS", "qty": 300}, {"hop": "HP-2", "venue": "XNAS", "qty": 100}],
+     "grid": [[1, 2], [3, 4]], "desk info": {"book.code": "EQ-NY"}},
+    {"ref": "TKT-1002", "qty": 50, "px": 0.75, "fee": 0.25, "live": False,
+     "dates": {"trade": "2024-06-04", "stamp": "2024-06-04T16:59:59"},
+     "legs": [{"hop": "HP-3", "venue": "XLON", "qty": 50}],
+     "grid": [[9, 8]], "desk info": {"book.code": "EQ-LN"}},
+    {"ref": None, "qty": 0, "px": -12.5, "live": False, "legs": [], "grid": []},
+    {"ref": "TKT-1004", "qty": 120,
+     "legs": [{"hop": "HP-9", "venue": None, "qty": 20}, {"hop": "HP-4", "venue": "BATS", "qty": 100},
+              {"hop": "HP-5", "venue": "XNAS", "qty": 0}]},
+    {},
+]
+
+
+def _semi_text(doc) -> str | None:
+    import json
+
+    return None if doc is None else json.dumps(doc, separators=(",", ":"))
+
+
+SURFACE_TYPES = [dict(TK=f"ST-0{i}", TK2=tk2, C_SEMI=_semi_text(d), C_JSON=None)
+                 for i, (tk2, d) in enumerate(zip("AABAC", _SEMI_DOCS), start=1)]
+SEMI_DOC = ([dict(DOC_ID=f"SD-0{i}", DOC=_semi_text(d)) for i, d in enumerate(_SEMI_DOCS, start=1)]
+            + [dict(DOC_ID="SD-06", DOC=None)])
+SEMI_HOP = [
+    dict(HOP_ID="HP-1", LABEL="NYSE primary"),
+    dict(HOP_ID="HP-2", LABEL="Nasdaq sweep"),
+    dict(HOP_ID="HP-3", LABEL="LSE auction"),
+    dict(HOP_ID="HP-4", LABEL="BATS route"),
+    dict(HOP_ID="HP-5", LABEL="Nasdaq odd lot"),
+    dict(HOP_ID="HP-7", LABEL="unused route"),           # no leg names it
+]
+
+# ---- outer::OuterDB (8119-outer.pure; Phase 9) ----
+#
+# An order allocated, an allocation booked to an account, with rows on ONE side only at each hop, so a join type read
+# wrongly changes which rows a ~filter's class has (scripts/corpus/outer.py): an order whose allocation does not exist
+# (OR-3), one with none (OR-4); an allocation whose account does not exist (AL-2's AC-9), one with none (AL-5), and one
+# no order reaches (AL-3); an account no allocation reaches (AC-4), and one with no label (AC-6).
+OJ_ORDER = [
+    dict(ORDER_ID="OR-1", ALLOC_ID="AL-1"),
+    dict(ORDER_ID="OR-2", ALLOC_ID="AL-2"),
+    dict(ORDER_ID="OR-3", ALLOC_ID="AL-9"),
+    dict(ORDER_ID="OR-4", ALLOC_ID=None),
+    dict(ORDER_ID="OR-5", ALLOC_ID="AL-5"),
+    dict(ORDER_ID="OR-6", ALLOC_ID="AL-6"),
+]
+OJ_ALLOC = [
+    dict(ALLOC_ID="AL-1", ACCOUNT_ID="AC-1"),
+    dict(ALLOC_ID="AL-2", ACCOUNT_ID="AC-9"),
+    dict(ALLOC_ID="AL-3", ACCOUNT_ID="AC-3"),
+    dict(ALLOC_ID="AL-5", ACCOUNT_ID=None),
+    dict(ALLOC_ID="AL-6", ACCOUNT_ID="AC-6"),
+]
+OJ_ACCOUNT = [
+    dict(ACCOUNT_ID="AC-1", LABEL="Prime brokerage"),
+    dict(ACCOUNT_ID="AC-3", LABEL="Custody"),
+    dict(ACCOUNT_ID="AC-4", LABEL="Dormant"),
+    dict(ACCOUNT_ID="AC-6", LABEL=None),
+]
+
+# The tables a Phase 7 pack writes by hand, apart from the expansion (expand.candidates, expand._reserved) and joined to
+# the seed after it (flat.all_tables). A hand-written table joins the expansion's base, so J1's joins made it reach J2
+# and LEG from J1 in its first ring, rings earlier than before, which moved every later table's generated values.
+# Phase 8's CK_ tables are apart for the same reason, and Phase 9's: SEMI_DOC, SEMI_HOP and the OJ_ tables have single
+# keys the expansion would otherwise fill, and SURFACE_TYPES, whose composite key the expansion never fills, is apart so
+# the rule names every hand-seeded table.
+PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1,
+                                      "CK_DESK": CK_DESK, "CK_DEAL": CK_DEAL, "CK_BASKET": CK_BASKET,
+                                      "CK_LINE": CK_LINE,
+                                      "SURFACE_TYPES": SURFACE_TYPES, "SEMI_DOC": SEMI_DOC, "SEMI_HOP": SEMI_HOP,
+                                      "OJ_ORDER": OJ_ORDER, "OJ_ALLOC": OJ_ALLOC, "OJ_ACCOUNT": OJ_ACCOUNT}
+
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
+    "TYPED_VALUE": TYPED_VALUE,
+    "BOOK_LIMIT_PT": BOOK_LIMIT_PT,
+    "BOOK_STATUS_PT": BOOK_STATUS_PT,
+    "MARK_REVISION_BI": MARK_REVISION_BI,
+    "LIMIT_CHECK": LIMIT_CHECK,
+    "VALUATION_RUN": VALUATION_RUN,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
     "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
     "CFX_RATE": CFX_RATE,
@@ -21289,6 +21742,59 @@ def check(c: Corpus) -> list[str]:
     venues = {r["EXECUTION_VENUE"] for r in TRADE}
     has("A12 CASE_SENSITIVE venue codes",
         any(v.lower() in {o.lower() for o in venues - {v}} for v in venues))
+    bad += _check_intraday(has)
+    return bad
+
+
+def _check_intraday(has) -> list[str]:
+    """A19, the intraday milestoning pack (Phase 3): each key's versions are well formed and never
+    overlap, so a navigation at any instant lands on at most one, and each shape the services ask
+    about is present."""
+    bad = []
+    keyed = {"BOOK_LIMIT_PT": (BOOK_LIMIT_PT, ("BOOK_ID",)),
+             "BOOK_STATUS_PT": (BOOK_STATUS_PT, ("BOOK_ID",)),
+             "MARK_REVISION_BI": (MARK_REVISION_BI, ("INSTRUMENT_ID", "FROM_Z"))}
+    chains = {}
+    for name, (rows, key) in keyed.items():
+        for r in rows:
+            if not r["IN_Z"] < r["OUT_Z"]:
+                bad.append(f"{name} {[r[k] for k in key]}: IN_Z {r['IN_Z']} is not before "
+                           f"OUT_Z {r['OUT_Z']}")
+            chains.setdefault(name, {}).setdefault(tuple(r[k] for k in key), []).append(r)
+        for k, vs in chains[name].items():
+            vs.sort(key=lambda r: r["IN_Z"])
+            for a, b in zip(vs, vs[1:]):
+                if b["IN_Z"] < a["OUT_Z"]:
+                    bad.append(f"{name} {k}: versions overlap between {b['IN_Z']} and {a['OUT_Z']}; "
+                               f"a navigation would land on two")
+    limits = chains["BOOK_LIMIT_PT"].values()
+    pairs = [(a, b) for vs in limits for a, b in zip(vs, vs[1:])]
+    has("A19 INTRADAY a limit superseded twice within one day",
+        any(sum(1 for r in vs if r["OUT_Z"][:10] == d and not r["OUT_Z"].endswith("00:00:00")) >= 2
+            for vs in limits for d in {r["OUT_Z"][:10] for r in vs}))
+    has("A19 INTRADAY a limit superseded exactly at midnight",
+        any(a["OUT_Z"] == b["IN_Z"] and a["OUT_Z"].endswith(" 00:00:00") for a, b in pairs))
+    has("A19 INTRADAY a gap between two versions of a limit",
+        any(b["IN_Z"] > a["OUT_Z"] for a, b in pairs))
+    has("A19 INTRADAY a limit withdrawn with no successor",
+        any(vs[-1]["OUT_Z"] != _INF_TS for vs in limits))
+    has("A19 INTRADAY a book with no limit at all",
+        bool({b["BOOK_ID"] for b in BOOK} - {r["BOOK_ID"] for r in BOOK_LIMIT_PT}))
+    has("A19 INTRADAY a limit check at the instant its book's limit is recorded",
+        any((r["BOOK_ID"], r["CHECKED_AT"]) in {(v["BOOK_ID"], v["IN_Z"]) for v in BOOK_LIMIT_PT}
+            for r in LIMIT_CHECK))
+    has("A19 INTRADAY a limit check at the instant its book's limit is withdrawn",
+        any((r["BOOK_ID"], r["CHECKED_AT"]) in {(vs[-1]["BOOK_ID"], vs[-1]["OUT_Z"]) for vs in limits}
+            for r in LIMIT_CHECK))
+    has("A19 INTRADAY a limit check with no book, and one whose book does not exist",
+        any(r["BOOK_ID"] is None for r in LIMIT_CHECK)
+        and any(r["BOOK_ID"] and r["BOOK_ID"] not in {b["BOOK_ID"] for b in BOOK} for r in LIMIT_CHECK))
+    has("A19 INTRADAY a valuation run before any mark of its instrument is believed",
+        any(not any(m["INSTRUMENT_ID"] == r["INSTRUMENT_ID"] and m["IN_Z"] <= r["RUN_AT"]
+                    for m in MARK_REVISION_BI) for r in VALUATION_RUN))
+    has("A19 INTRADAY a mark corrected within the day it was published",
+        any(a["OUT_Z"][:10] == a["IN_Z"][:10] and a["OUT_Z"] == b["IN_Z"]
+            for vs in chains["MARK_REVISION_BI"].values() for a, b in zip(vs, vs[1:])))
     return bad
 
 

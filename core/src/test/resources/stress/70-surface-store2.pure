@@ -1,4 +1,6 @@
-// The remaining STORE constructs, and the model primitives the corpus never used.
+// The remaining STORE constructs, and the model primitives the corpus never used. Since 2026-10-29 (the improvement
+// plan's Phase 7) the join conditions below are mapped and run: surface::JoinSurface reads each from J1, over the
+// seed's rows (J1 in seed.py; J2, J3 and MapDB's LEG the expansion's), in scripts/corpus/unreached.py's UJ_ services.
 ###Pure
 // NO documentation string on this class. `classDefinition: documentation? CLASS ...` is in
 // the domain grammar exactly as it is in the relational one, and a leading string is
@@ -18,6 +20,37 @@ Class surface::Primitives
    v: meta::pure::precisePrimitives::Varchar(200)[0..1];
 }
 
+// J1's row, reading J2, J3 and LEG through each join condition: a to-one value per condition, and the to-many end
+// the range condition reaches.
+Class surface::JoinHost
+{
+   k: String[1];
+   n: Integer[0..1];
+   nullLeg: Integer[0..1];
+   notNullTail: Integer[0..1];
+   constLeg: Integer[0..1];
+   listedLeg: Integer[0..1];
+   dynaLeg: Integer[0..1];
+   nextN: Integer[0..1];
+   tailN: Integer[0..1];
+   legLabel: String[0..1];
+   neLeg: Integer[0..1];
+   ansiNeLeg: Integer[0..1];
+}
+
+Class surface::JoinLeg
+{
+   k: String[1];
+   n: Integer[0..1];
+}
+
+// The range condition's rows: every J2 whose N is at or below the host's.
+Association surface::JoinHostRange
+{
+   rangeHosts: surface::JoinHost[*];
+   atOrBelow: surface::JoinLeg[*];
+}
+
 ###Relational
 Database surface::JoinDB
 (
@@ -28,7 +61,8 @@ Database surface::JoinDB
    (
       K VARCHAR(64) PRIMARY KEY,
       N INTEGER,
-      NEXT_K VARCHAR(64)
+      NEXT_K VARCHAR(64),
+      LEG_ID VARCHAR(64)
    )
    Table J2 ( K VARCHAR(64) PRIMARY KEY, N INTEGER, NEXT_K VARCHAR(64) )
    Table J3 ( K VARCHAR(64) PRIMARY KEY, N INTEGER )
@@ -45,6 +79,74 @@ Database surface::JoinDB
    // The hops a THREE-LINK chain needs.
    Join j_1to2(J1.NEXT_K = J2.K)
    Join j_2to3(J2.NEXT_K = J3.K)
-   // A join whose two sides are in DIFFERENT databases, for a cross-store chain hop.
-   Join j_CrossDb([surface::JoinDB]J3.K = [surface::MapDB]LEG.LEG_ID)
+   // A join whose two sides are in DIFFERENT databases, for a cross-store chain hop. JoinDB includes MapDB, so the
+   // two are one physical database (F26 is two). J1's own LEG_ID since 2026-10-29: J3's key, which it read before,
+   // shares no value with a LEG_ID, so the hop could only land on nothing.
+   Join j_CrossDb([surface::JoinDB]J1.LEG_ID = [surface::MapDB]LEG.LEG_ID)
+   // The two NOT-EQUAL operators, != (test) and <> (ANSI), moved here 2026-10-29 from 66-store-surface.pure, where
+   // they joined two tables no row was ever seeded into. A join condition is SQL, so a NULL on either side matches
+   // nothing.
+   Join j_NotEqual(J1.NEXT_K = J2.K and J2.NEXT_K != J1.K)
+   Join j_AnsiNotEqual(J1.NEXT_K = J2.K and J2.NEXT_K <> J1.K)
 )
+
+###Mapping
+Mapping surface::JoinSurface
+(
+   *surface::JoinHost[joinHost]: Relational
+   {
+      ~primaryKey ( [surface::JoinDB]J1.K )
+      ~mainTable [surface::JoinDB]J1
+      k: [surface::JoinDB]J1.K,
+      n: [surface::JoinDB]J1.N,
+      nullLeg: [surface::JoinDB]@j_IsNull | [surface::JoinDB]J2.N,
+      notNullTail: [surface::JoinDB]@j_IsNotNull | [surface::JoinDB]J3.N,
+      constLeg: [surface::JoinDB]@j_NumericConst | [surface::JoinDB]J2.N,
+      listedLeg: [surface::JoinDB]@j_ArrayArg | [surface::JoinDB]J2.N,
+      dynaLeg: [surface::JoinDB]@j_NestedDyna | [surface::JoinDB]J2.N,
+      nextN: [surface::JoinDB]@j_1to2 | [surface::JoinDB]J2.N,
+      tailN: [surface::JoinDB]@j_1to2 > @j_2to3 | [surface::JoinDB]J3.N,
+      legLabel: [surface::JoinDB]@j_CrossDb | [surface::MapDB]LEG.LABEL,
+      neLeg: [surface::JoinDB]@j_NotEqual | [surface::JoinDB]J2.N,
+      ansiNeLeg: [surface::JoinDB]@j_AnsiNotEqual | [surface::JoinDB]J2.N
+   }
+
+   *surface::JoinLeg[joinLeg]: Relational
+   {
+      ~primaryKey ( [surface::JoinDB]J2.K )
+      ~mainTable [surface::JoinDB]J2
+      k: [surface::JoinDB]J2.K,
+      n: [surface::JoinDB]J2.N
+   }
+
+   surface::JoinHostRange: Relational
+   {
+      AssociationMapping
+      (
+         rangeHosts[joinLeg, joinHost]: [surface::JoinDB]@j_GreaterEqual,
+         atOrBelow[joinHost, joinLeg]: [surface::JoinDB]@j_GreaterEqual
+      )
+   }
+)
+
+###Connection
+RelationalDatabaseConnection surface::JoinConn
+{
+   store: surface::JoinDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime surface::JoinRT
+{
+   mappings:
+   [
+      surface::JoinSurface
+   ];
+   connections:
+   [
+      surface::JoinDB: [ joinEnv: surface::JoinConn ]
+   ];
+}

@@ -1,0 +1,72 @@
+// F62: a service parameter of type Number fails with a NullPointerException rather than a message.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/number-parameter/model.pure \
+//       --testable=demo::NumberParam --testable=demo::FloatParam
+//
+// legend-engine 4.145.0: NumberParam errors with `NullPointerException: Cannot invoke "java.util.List.stream()"
+// because "parameterValidationContext" is null` at FunctionParametersParametersValidation.validate. Number is not
+// one of the engine's external parameter types (FunctionParameterTypeValidator: String, Boolean, Integer, Float,
+// Decimal, Date, StrictDate, DateTime, Byte), so the validator is null and the code falls through to a
+// validation-context list the service test runner never sets; given one, it would answer "Unknown external
+// parameter type: Number". FloatParam is the same query with the parameter typed Float, and passes. Both PASS on
+// an engine that takes a Number parameter; NumberParam fails.
+Class demo::Reading
+{
+  id: String[1];
+  metric: Number[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table READING (ID VARCHAR(4) PRIMARY KEY, METRIC DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Reading: Relational
+  {
+    ~primaryKey ( [demo::DB]READING.ID )
+    ~mainTable [demo::DB]READING
+    id: [demo::DB]READING.ID,
+    metric: [demo::DB]READING.METRIC
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.READING:
+      'ID,METRIC\n' +
+      'R1,2.0\n' +
+      'R2,2.5\n';
+  }#
+}
+
+###Service
+Service demo::NumberParam
+{
+  pattern: '/demo/number';
+  documentation: '';
+  execution: Single { query: {p: Number[1]|demo::Reading.all()->filter(x|$x.metric == $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ NumberParam_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = 2.5 ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::FloatParam
+{
+  pattern: '/demo/float';
+  documentation: '';
+  execution: Single { query: {p: Float[1]|demo::Reading.all()->filter(x|$x.metric == $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ FloatParam_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = 2.5 ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"R2"}]'; }#; }# ] } ] } ]
+}

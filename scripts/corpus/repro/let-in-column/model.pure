@@ -1,0 +1,171 @@
+// F81: a `let` inside a column lambda fails in legend-engine's router.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/let-in-column/model.pure \
+//       --testable=demo::TopLet --testable=demo::LetColumn --testable=demo::LetColumnBraces
+//
+// `r:x|let q = $x.g; $q + '!';` binds the row's g and extends it: legend-pure evaluates it as `$x.g + '!'`. legend-engine
+// 4.145.0 fails before any SQL is written, "Execution error at (resource:/core/pure/router/routing/router_routing.pure
+// line:609 column:101), Cannot cast a collection of size 2 to multiplicity [1]": the router takes the lambda's two
+// statements for one value. The braced lambda fails the same way; a `let` at the top of the query (TopLet) passes.
+###Pure
+Class demo::Parent
+{
+  id: String[1];
+  g: String[1];
+}
+
+Class demo::Child
+{
+  id: String[1];
+  v: Integer[1];
+}
+
+Association demo::ParentChild
+{
+  parent: demo::Parent[1];
+  children: demo::Child[*];
+}
+
+###Relational
+Database demo::DB
+(
+  Table P (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4))
+  Table C (ID VARCHAR(4) PRIMARY KEY, PID VARCHAR(4), V INTEGER)
+  Join PC(P.ID = C.PID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Parent: Relational
+  {
+    ~primaryKey ( [demo::DB]P.ID )
+    ~mainTable [demo::DB]P
+    id: [demo::DB]P.ID,
+    g: [demo::DB]P.G
+  }
+  demo::Child: Relational
+  {
+    ~primaryKey ( [demo::DB]C.ID )
+    ~mainTable [demo::DB]C
+    id: [demo::DB]C.ID,
+    v: [demo::DB]C.V
+  }
+  demo::ParentChild: Relational
+  {
+    AssociationMapping
+    (
+      children: [demo::DB]@PC,
+      parent: [demo::DB]@PC
+    )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.P:
+      'ID,G\n' +
+      'P1,a\n' +
+      'P2,b\n';
+    default.C:
+      'ID,PID,V\n' +
+      'C1,P1,1\n';
+  }#
+}
+
+###Service
+Service demo::TopLet
+{
+  pattern: '/demo/toplet';
+  documentation: '';
+  execution: Single
+  {
+    query: {|let t = 'a'; demo::Parent.all()->filter(x|$x.g == $t)->project(~[id:x|$x.id])->sort([~id->ascending()]);};
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    TopLet_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::LetColumn
+{
+  pattern: '/demo/letcolumn';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Parent.all()->project(~[id:x|$x.id, r:x|let q = $x.g; $q + '!';])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    LetColumn_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1","r":"a!"}, {"id":"P2","r":"b!"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::LetColumnBraces
+{
+  pattern: '/demo/letcolumnbraces';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Parent.all()->project(~[id:x|$x.id, r:{x|let q = $x.g; $q + '!';}])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    LetColumnBraces_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1","r":"a!"}, {"id":"P2","r":"b!"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

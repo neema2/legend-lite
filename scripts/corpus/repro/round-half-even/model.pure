@@ -1,0 +1,116 @@
+// F73: round(Number):Integer rounds a tie away from zero, where legend-pure rounds it to the even neighbour.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/round-half-even/model.pure \
+//       --testable=demo::NotATie --testable=demo::Ties
+//
+// legend-pure: "Rounding is half-even ... `17.5` rounds to `18` but `16.5` rounds to `16`". legend-engine 4.145.0's
+// DuckDB SQL is round(), which takes a tie away from zero: 0.5 gives 1, 2.5 gives 3, -1.5 gives -2 (the even one
+// too). NotATie (2.25 and 2.75) passes; Ties fails on 0.5 and 2.5.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[1];
+  i: Integer[1];
+  f: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20), I INTEGER, F DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S,
+    i: [demo::DB]T.I,
+    f: [demo::DB]T.F
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S,I,F\n' +
+      'R1,a,1,0.5\n' +
+      'R2,b,2,2.5\n' +
+      'R3,c,3,-1.5\n' +
+      'R4,d,4,2.25\n' +
+      'R5,e,5,2.75\n';
+  }#
+}
+
+###Service
+Service demo::NotATie
+{
+  pattern: '/demo/notatie';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id->in(['R4', 'R5']))->project(~[id:x|$x.id, r:x|$x.f->round()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    NotATie_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R4","r":2}, {"id":"R5","r":3} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Ties
+{
+  pattern: '/demo/ties';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id->in(['R1', 'R2', 'R3']))->project(~[id:x|$x.id, r:x|$x.f->round()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Ties_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":0}, {"id":"R2","r":2}, {"id":"R3","r":-2} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

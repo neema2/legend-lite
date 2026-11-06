@@ -1,0 +1,199 @@
+// F87: projected over a ModelChainConnection, an M2M enumeration transform of an absent code answers the empty string.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/m2m-absent-enum-tds/model.pure \
+//       --testable=demo::RelationalTds --testable=demo::M2mGraph --testable=demo::M2mTds
+//
+// demo::src::Trade carries a side CODE, absent for T3, and the same column through an EnumerationMapping; demo::Trade
+// is mapped from it in Pure with the same translation applied to the code. legend-engine 4.145.0:
+//   RelationalTds  the source's relational enumeration mapping, projected: T3's side is null; passes
+//   M2mGraph       the M2M enumeration transform, fetched as a graph: T3's side is null; passes
+//   M2mTds         the M2M enumeration transform, projected (a TDS: the chain inlines it into the source's SQL): T3's
+//                  side is '', the empty string, where legend-pure's transform of nothing is nothing
+// An unmapped code answers '' the same way in the projection, where the graph fetch raises ("Unmapped value: X").
+###Pure
+Enum demo::Side
+{
+  BUY,
+  SELL
+}
+
+Class demo::src::Trade
+{
+  id: String[1];
+  code: String[0..1];
+  side: demo::Side[0..1];
+}
+
+Class demo::Trade
+{
+  id: String[1];
+  side: demo::Side[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE (ID VARCHAR(8) PRIMARY KEY, CODE VARCHAR(4))
+)
+
+###Mapping
+Mapping demo::SrcMapping
+(
+  demo::Side: EnumerationMapping Codes
+  {
+    BUY: ['B'],
+    SELL: ['S']
+  }
+  demo::src::Trade: Relational
+  {
+    ~mainTable [demo::DB]TRADE
+    id: [demo::DB]TRADE.ID,
+    code: [demo::DB]TRADE.CODE,
+    side: EnumerationMapping Codes: [demo::DB]TRADE.CODE
+  }
+)
+
+Mapping demo::M
+(
+  demo::Side: EnumerationMapping M2MCodes
+  {
+    BUY: ['B'],
+    SELL: ['S']
+  }
+  *demo::Trade: Pure
+  {
+    ~src demo::src::Trade
+    id: $src.id,
+    side: EnumerationMapping M2MCodes: $src.code
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: H2;
+  specification: LocalH2 { };
+  auth: DefaultH2;
+}
+
+ModelChainConnection demo::Chain
+{
+  mappings: [ demo::SrcMapping ];
+}
+
+###Runtime
+Runtime demo::SrcRT
+{
+  mappings: [ demo::SrcMapping ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ ModelStore: [ chain: demo::Chain ], demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'ID,CODE\n' +
+      'T1,B\n' +
+      'T2,S\n' +
+      'T3,\n';
+  }#
+}
+
+###Service
+Service demo::RelationalTds
+{
+  pattern: '/relationalTds';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::src::Trade.all()->project([x|$x.id, x|$x.side], ['id', 'side']);
+    mapping: demo::SrcMapping;
+    runtime: demo::SrcRT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"T1","side":"BUY"},{"id":"T2","side":"SELL"},{"id":"T3","side":null}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::M2mGraph
+{
+  pattern: '/m2mGraph';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Trade.all()->graphFetch(#{demo::Trade{id,side}}#)->serialize(#{demo::Trade{id,side}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"T1","side":"BUY"},{"id":"T2","side":"SELL"},{"id":"T3","side":null}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::M2mTds
+{
+  pattern: '/m2mTds';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Trade.all()->project([x|$x.id, x|$x.side], ['id', 'side']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"T1","side":"BUY"},{"id":"T2","side":"SELL"},{"id":"T3","side":null}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

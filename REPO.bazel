@@ -1,0 +1,10 @@
+# The main repository's own settings.
+#
+# bazel-*: Bazel's convenience links (bazel-bin, bazel-out, bazel-testlogs, bazel-<checkout name>), which point into the
+# output tree. The root package's glob (//:all_files, tools/guards/defs.bzl) FOLLOWED them: its `exclude` drops their
+# files from the result only after the walk, so every load of the root package walked the whole output tree, while the
+# build was writing to it. On Windows, where the links are junctions, that walk failed the analysis of every target that
+# loads the root package (CI, 2026-11-02, the warehouse lane: "Inconsistent filesystem operations" on a rules_js link
+# under bazel-out/.../engine-client/node_modules, reached from //python:wheel's //:LICENSE). .bazelignore takes
+# literal paths, and a checkout's name varies, so the pattern lives here; .bazelignore keeps the rest.
+ignore_directories(["bazel-*"])

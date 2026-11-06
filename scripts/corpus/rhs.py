@@ -18,7 +18,7 @@ The grammar:
 
     expr    := call | chain | column | literal
     call    := IDENT '(' [expr (',' expr)*] ')'
-    chain   := [dbref] '@' IDENT ('>' '@' IDENT)* '|' [dbref] IDENT '.' IDENT
+    chain   := [dbref] '@' IDENT ('>' '@' IDENT)* '|' ([dbref] IDENT '.' IDENT | call)
     column  := [dbref] IDENT '.' IDENT
     literal := STRING | NUMBER
     dbref   := '[' path ']'
@@ -29,6 +29,10 @@ Nodes are tuples, tagged so the oracle can evaluate them without re-inspecting t
     ("chain", ([join, ...], table, column))
     ("call",  (fn, [node, ...]))
     ("lit",   value)
+
+A chain that ENDS IN A CALL, `@J1 > @J2 | fn(T.A, ...)`, evaluates the call on the row the
+chain lands on, which is what the same call over the chain's columns, `fn(@J1 > @J2 | T.A, ...)`,
+means; it is read as that, so it needs no node of its own.
 """
 from __future__ import annotations
 
@@ -166,6 +170,10 @@ class _Parser:
                 continue
             break
         self.expect("|")
+        if self.peek()[0] == "db" and self.peek(2)[1] == "(":
+            self.take()
+        if self.peek()[0] == "ident" and self.peek(1)[1] == "(":
+            return _landed(joins, self.call())
         table, col = self.column()[1]
         return ("chain", (joins, table, col))
 
@@ -193,6 +201,20 @@ class _Parser:
         if len(parts) != 2:
             raise ParseError(f"expected TABLE.COL or SCHEMA.TABLE.COL, found {'.'.join(parts)}")
         return ("col", tuple(parts))
+
+
+def _landed(joins: list[str], node):
+    """The expression a chain ends in, each of its columns read through the chain."""
+    tag, body = node
+    if tag == "col":
+        return ("chain", (joins, *body))
+    if tag == "call":
+        return ("call", (body[0], [_landed(joins, a) for a in body[1]]))
+    if tag == "array":
+        return ("array", [_landed(joins, a) for a in body])
+    if tag == "lit":
+        return node
+    raise ParseError(f"a chain inside the expression a chain ends in: {body!r}")
 
 
 def parse(text: str, default_table: str | None = None):

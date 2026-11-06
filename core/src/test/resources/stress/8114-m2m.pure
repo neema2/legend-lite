@@ -1,0 +1,574 @@
+// ============================================================
+// The M2M pack (the improvement plan's Phase 5): model-to-model mappings chained over relational sources
+// ============================================================
+// The chain is relational -> source model -> M2M -> target model, through ONE ModelChainConnection, so every
+// service's test data is the corpus's relational seed (stress::TestData) and lite's runner provisions it. The
+// source classes (m2m::src::) map the seeded TRADE, COUNTERPARTY, BOOK and ALLOCATION tables relationally; the
+// target classes (m2m::) map those source classes in Pure.
+//
+// Expected results come by INVARIANCE (scripts/corpus/m2m.py): each M2M service has a relational twin over the
+// source classes that computes the same values in SQL -- a derived property of the source, a function applied in
+// the query, the source's own relational enumeration mapping -- and the M2M service must return what its twin
+// does. The oracle evaluates only the twin; it needs no M2M evaluator.
+//
+// Each shape here was probed on the pinned release (4.145.0) before its services were written. Over a
+// ModelChainConnection the engine routes a TDS projection by inlining the transforms into the source query
+// (chain.pure's reprocess), and a graph fetch by fetching the source graph and transforming it in memory, so the
+// two forms fail apart: a projection refuses an Operation set (union, merge), a passthrough and a `^`, and a graph
+// fetch reads a source derived property as absent (F84). Each service uses the form the feature runs in, and the
+// defects are pinned by quarantined services (scripts/corpus/quarantine.py).
+//
+// The pack's enumeration transforms and complex property passthrough are in 8115-m2m-gaps.pure: legend-lite refuses
+// both when it builds the model, so that file is one lite excludes.
+###Pure
+Enum m2m::Tier
+{
+    PRIME,
+    CORE,
+    EDGE
+}
+
+Enum m2m::Load
+{
+    IDLE,
+    LIGHT,
+    BUSY
+}
+
+Enum m2m::RatingGrade
+{
+    HIGH,
+    MEDIUM
+}
+
+// ---- the source model, mapped relationally (m2m::SourceMapping)
+
+Class m2m::src::Deal
+{
+    dealId: String[1];
+    tradeDate: StrictDate[1];
+    settleDate: StrictDate[0..1];
+    qty: Float[1];
+    px: Float[1];
+    notional: Float[1];
+    // TRADE.SIDE twice: the raw code, which the M2M enumeration transform reads, and the same column through
+    // trading::Codes' SideMapping, which the twin reads
+    sideCode: String[1];
+    side: trading::Side[0..1];
+    status: String[1];
+    tradeType: String[1];
+    currency: String[1];
+    commission: Float[0..1];
+    fees: Float[0..1];
+    venue: String[0..1];
+    isBlock: Boolean[1];
+
+    // Read by the M2M transforms of m2m::TradeRef (a derived source property) and by the twins of the inline
+    // transforms of m2m::TradeView, which compute the same values.
+    gross() { $this.qty * $this.px }: Float[1];
+    ref() { $this.dealId + ':' + $this.currency }: String[1];
+    large() { $this.notional > 1000000.0 }: Boolean[1];
+    scaled(f: Float[1]) { $this.notional * $f }: Float[1];
+}
+
+Class m2m::src::Party
+{
+    partyId: String[1];
+    legalName: String[1];
+    shortName: String[1];
+    kind: String[1];
+    domicile: String[1];
+    isActive: Boolean[1];
+    rating: String[0..1];
+    // COUNTERPARTY.TIER twice, raw and through m2m::SourceMapping's PartyTierCodes; CREDIT_RATING the same way
+    tierCode: String[1];
+    tier: m2m::Tier[0..1];
+    grade: m2m::RatingGrade[0..1];
+    display() { $this.shortName + ' (' + $this.domicile + ')' }: String[1];
+}
+
+Class m2m::src::BookRecord
+{
+    bookId: String[1];
+    name: String[1];
+    currency: String[1];
+    isActive: Boolean[1];
+    strategy: String[0..1];
+    // POSITION_COUNT twice: an INTEGER code, raw and through DeskLoadCodes
+    positions: Integer[0..1];
+    load: m2m::Load[0..1];
+}
+
+Class m2m::src::Slice
+{
+    sliceId: String[1];
+    qty: Float[0..1];
+    status: String[0..1];
+    account: String[0..1];
+}
+
+// Two classes over COUNTERPARTY, each with part of a party, for the merge
+Class m2m::src::PartyName
+{
+    partyId: String[1];
+    legalName: String[1];
+}
+
+Class m2m::src::PartyRating
+{
+    partyId: String[1];
+    rating: String[0..1];
+    agency: String[0..1];
+}
+
+Association m2m::src::DealParty
+{
+    party: m2m::src::Party[0..1];
+    partyDeals: m2m::src::Deal[*];
+}
+
+Association m2m::src::DealDesk
+{
+    desk: m2m::src::BookRecord[0..1];
+    deskDeals: m2m::src::Deal[*];
+}
+
+Association m2m::src::DealSlices
+{
+    slices: m2m::src::Slice[*];
+    deal: m2m::src::Deal[0..1];
+}
+
+// ---- the target model, mapped from the source in Pure (m2m::Views, m2m::Merged)
+
+// Transforms written inline: arithmetic, concatenation, a comparison, functions of a value and of an optional one
+// (through map), and a conditional.
+Class m2m::TradeView
+{
+    dealId: String[1];
+    day: StrictDate[1];
+    gross: Float[1];
+    ref: String[1];
+    large: Boolean[1];
+    scaled: Float[1];
+    statusLower: String[1];
+    venueUpper: String[0..1];
+    feesDoubled: Float[0..1];
+    band: String[1];
+}
+
+// The same values read from the SOURCE's derived and qualified properties.
+Class m2m::TradeRef
+{
+    dealId: String[1];
+    gross: Float[1];
+    ref: String[1];
+    large: Boolean[1];
+    scaled: Float[1];
+}
+
+// Class-typed properties with nested set implementations: over an association of the source, and from the source
+// object itself. (No to-many: the oracle models no graph-fetch array, and a twin's projection cannot fan out.)
+Class m2m::TradeCard
+{
+    dealId: String[1];
+    party: m2m::PartyCard[0..1];
+    desk: m2m::DeskCard[0..1];
+    economics: m2m::Economics[0..1];
+}
+
+Class m2m::PartyCard
+{
+    partyId: String[1];
+    legalName: String[1];
+    domicile: String[1];
+}
+
+Class m2m::DeskCard
+{
+    bookId: String[1];
+    name: String[1];
+    currency: String[1];
+}
+
+Class m2m::Economics
+{
+    qty: Float[1];
+    px: Float[1];
+}
+
+// Target instantiation: `^` builds an object inside a transform, which the transform reads a value back from --
+// directly, through a function returning it (EMIT's form), and its optional property.
+Class m2m::Stamp
+{
+    text: String[1];
+    note: String[0..1];
+}
+
+Class m2m::TradeStamp
+{
+    dealId: String[1];
+    stamp: String[1];
+    ccy: String[1];
+    venue: String[0..1];
+    // `^Stamp(text = <a concatenation>).text`, which the engine answers with the concatenation's first operand (F85)
+    joined: String[1];
+}
+
+function m2m::stampOf(d: m2m::src::Deal[1]): m2m::Stamp[1]
+{
+    ^m2m::Stamp(text = $d.currency->toLower())
+}
+
+// ~filter: on a source property, and through a navigation.
+Class m2m::OpenTrade
+{
+    dealId: String[1];
+    notional: Float[1];
+    status: String[1];
+}
+
+Class m2m::UsdDeskTrade
+{
+    dealId: String[1];
+    deskName: String[0..1];
+}
+
+// A transform over a to-many end of the source.
+Class m2m::DealActivity
+{
+    dealId: String[1];
+    hasSlices: Boolean[1];
+}
+
+// A union of two Pure sets, each with its own ~filter and its own constant.
+Class m2m::Ticket
+{
+    dealId: String[1];
+    origin: String[1];
+    amount: Float[1];
+}
+
+// A merge of two Pure sets, each over its own source class (F86: not over a ModelChainConnection).
+Class m2m::PartyProfile
+{
+    partyId: String[0..1];
+    legalName: String[0..1];
+    rating: String[0..1];
+}
+
+###Mapping
+Mapping m2m::SourceMapping
+(
+    include trading::Codes
+
+    m2m::Tier: EnumerationMapping PartyTierCodes
+    {
+        PRIME: ['1'],
+        CORE: ['2'],
+        EDGE: ['3']
+    }
+
+    m2m::RatingGrade: EnumerationMapping PartyGradeCodes
+    {
+        HIGH: ['AAA', 'AA-', 'A+'],
+        MEDIUM: ['BBB']
+    }
+
+    m2m::Load: EnumerationMapping DeskLoadCodes
+    {
+        IDLE: [0],
+        LIGHT: [1],
+        BUSY: [2]
+    }
+
+    m2m::src::Deal: Relational
+    {
+        ~mainTable [store::DB] TRADE
+        dealId: [store::DB] TRADE.TRADE_ID,
+        tradeDate: [store::DB] TRADE.TRADE_DATE,
+        settleDate: [store::DB] TRADE.SETTLEMENT_DATE,
+        qty: [store::DB] TRADE.QUANTITY,
+        px: [store::DB] TRADE.PRICE,
+        notional: [store::DB] TRADE.NOTIONAL,
+        sideCode: [store::DB] TRADE.SIDE,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE.SIDE,
+        status: [store::DB] TRADE.STATUS,
+        tradeType: [store::DB] TRADE.TRADE_TYPE,
+        currency: [store::DB] TRADE.CURRENCY,
+        commission: [store::DB] TRADE.COMMISSION,
+        fees: [store::DB] TRADE.FEES,
+        venue: [store::DB] TRADE.EXECUTION_VENUE,
+        isBlock: [store::DB] TRADE.IS_BLOCK
+    }
+
+    m2m::src::Party: Relational
+    {
+        ~mainTable [store::DB] COUNTERPARTY
+        partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
+        legalName: [store::DB] COUNTERPARTY.LEGAL_NAME,
+        shortName: [store::DB] COUNTERPARTY.SHORT_NAME,
+        kind: [store::DB] COUNTERPARTY.COUNTERPARTY_TYPE,
+        domicile: [store::DB] COUNTERPARTY.DOMICILE,
+        isActive: [store::DB] COUNTERPARTY.IS_ACTIVE,
+        rating: [store::DB] COUNTERPARTY.CREDIT_RATING,
+        tierCode: [store::DB] COUNTERPARTY.TIER,
+        tier: EnumerationMapping PartyTierCodes: [store::DB] COUNTERPARTY.TIER,
+        grade: EnumerationMapping PartyGradeCodes: [store::DB] COUNTERPARTY.CREDIT_RATING
+    }
+
+    m2m::src::BookRecord: Relational
+    {
+        ~mainTable [store::DB] BOOK
+        bookId: [store::DB] BOOK.BOOK_ID,
+        name: [store::DB] BOOK.NAME,
+        currency: [store::DB] BOOK.CURRENCY,
+        isActive: [store::DB] BOOK.IS_ACTIVE,
+        strategy: [store::DB] BOOK.STRATEGY,
+        positions: [store::DB] BOOK.POSITION_COUNT,
+        load: EnumerationMapping DeskLoadCodes: [store::DB] BOOK.POSITION_COUNT
+    }
+
+    m2m::src::Slice: Relational
+    {
+        ~mainTable [store::DB] ALLOCATION
+        sliceId: [store::DB] ALLOCATION.ALLOCATION_ID,
+        qty: [store::DB] ALLOCATION.QUANTITY,
+        status: [store::DB] ALLOCATION.STATUS,
+        account: [store::DB] ALLOCATION.ACCOUNT
+    }
+
+    m2m::src::PartyName: Relational
+    {
+        ~mainTable [store::DB] COUNTERPARTY
+        partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
+        legalName: [store::DB] COUNTERPARTY.LEGAL_NAME
+    }
+
+    m2m::src::PartyRating: Relational
+    {
+        ~mainTable [store::DB] COUNTERPARTY
+        partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
+        rating: [store::DB] COUNTERPARTY.CREDIT_RATING,
+        agency: [store::DB] COUNTERPARTY.RATING_AGENCY
+    }
+
+    m2m::src::DealParty: Relational
+    {
+        AssociationMapping
+        (
+            party: [store::DB] @Trade_Counterparty,
+            partyDeals: [store::DB] @Trade_Counterparty
+        )
+    }
+
+    m2m::src::DealDesk: Relational
+    {
+        AssociationMapping
+        (
+            desk: [store::DB] @Trade_Book,
+            deskDeals: [store::DB] @Trade_Book
+        )
+    }
+
+    m2m::src::DealSlices: Relational
+    {
+        AssociationMapping
+        (
+            slices: [store::DB] @Trade_Allocation,
+            deal: [store::DB] @Trade_Allocation
+        )
+    }
+)
+
+Mapping m2m::Views
+(
+    m2m::TradeView: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        day: $src.tradeDate,
+        gross: $src.qty * $src.px,
+        ref: $src.dealId + ':' + $src.currency,
+        large: $src.notional > 1000000.0,
+        scaled: $src.notional * 2.0,
+        statusLower: $src.status->toLower(),
+        venueUpper: $src.venue->map(v | $v->toUpper()),
+        feesDoubled: $src.fees->map(f | $f * 2.0),
+        band: if($src.notional > 1000000.0, |'large', |'small')
+    }
+
+    m2m::TradeRef: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        gross: $src.gross,
+        ref: $src.ref,
+        large: $src.large,
+        scaled: $src.scaled(2.0)
+    }
+
+    m2m::TradeCard: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        party[partyCard]: $src.party,
+        desk[deskCard]: $src.desk,
+        economics[economics]: $src
+    }
+
+    m2m::PartyCard[partyCard]: Pure
+    {
+        ~src m2m::src::Party
+        partyId: $src.partyId,
+        legalName: $src.legalName,
+        domicile: $src.domicile
+    }
+
+    m2m::DeskCard[deskCard]: Pure
+    {
+        ~src m2m::src::BookRecord
+        bookId: $src.bookId,
+        name: $src.name,
+        currency: $src.currency
+    }
+
+    m2m::Economics[economics]: Pure
+    {
+        ~src m2m::src::Deal
+        qty: $src.qty,
+        px: $src.px
+    }
+
+    m2m::TradeStamp: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        stamp: ^m2m::Stamp(text = $src.dealId->toLower()).text,
+        ccy: m2m::stampOf($src).text,
+        venue: ^m2m::Stamp(text = $src.status, note = $src.venue).note,
+        joined: ^m2m::Stamp(text = $src.dealId + ':' + $src.currency).text
+    }
+
+    m2m::DealActivity: Pure
+    {
+        ~src m2m::src::Deal
+        dealId: $src.dealId,
+        hasSlices: $src.slices->isNotEmpty()
+    }
+
+    m2m::OpenTrade: Pure
+    {
+        ~src m2m::src::Deal
+        ~filter $src.status == 'EXECUTED'
+        dealId: $src.dealId,
+        notional: $src.notional,
+        status: $src.status
+    }
+
+    m2m::UsdDeskTrade: Pure
+    {
+        ~src m2m::src::Deal
+        ~filter $src.desk.currency == 'USD'
+        dealId: $src.dealId,
+        deskName: $src.desk.name
+    }
+
+    *m2m::Ticket: Operation
+    {
+        meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(agency, principal)
+    }
+
+    m2m::Ticket[agency]: Pure
+    {
+        ~src m2m::src::Deal
+        ~filter $src.tradeType == 'AGENCY'
+        dealId: $src.dealId,
+        origin: 'agency',
+        amount: $src.notional
+    }
+
+    m2m::Ticket[principal]: Pure
+    {
+        ~src m2m::src::Deal
+        ~filter $src.tradeType == 'PRINCIPAL'
+        dealId: $src.dealId,
+        origin: 'principal',
+        amount: $src.notional
+    }
+)
+
+// The merge in a mapping of its own. Its sets each map part of a party: legalName from one source class, rating
+// from the other, joined by the validation lambda on the key both carry. legend-engine merges instances only in a
+// graph fetch, and over a ModelChainConnection not even there (F86).
+Mapping m2m::Merged
+(
+    *m2m::PartyProfile: Operation
+    {
+        meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_([named, rated],
+            {a: m2m::src::PartyName[1], b: m2m::src::PartyRating[1] | $a.partyId == $b.partyId})
+    }
+
+    m2m::PartyProfile[named]: Pure
+    {
+        ~src m2m::src::PartyName
+        partyId: $src.partyId,
+        legalName: $src.legalName
+    }
+
+    m2m::PartyProfile[rated]: Pure
+    {
+        ~src m2m::src::PartyRating
+        rating: $src.rating
+    }
+)
+
+###Connection
+// The source model's relational mapping, which a runtime's ModelStore entry chains to: every M2M runtime below
+// names the M2M mapping alone and reaches TRADE and its neighbours through this.
+ModelChainConnection m2m::SourceChain
+{
+    mappings: [
+        m2m::SourceMapping
+    ];
+}
+
+###Runtime
+// The twins: the source model read straight from SQL.
+Runtime m2m::SourceRT
+{
+    mappings:
+    [
+        m2m::SourceMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}
+
+Runtime m2m::ViewsRT
+{
+    mappings:
+    [
+        m2m::Views
+    ];
+    connections:
+    [
+        ModelStore: [ chain: m2m::SourceChain ],
+        store::DB: [ environment: store::Conn ]
+    ];
+}
+
+Runtime m2m::MergedRT
+{
+    mappings:
+    [
+        m2m::Merged
+    ];
+    connections:
+    [
+        ModelStore: [ chain: m2m::SourceChain ],
+        store::DB: [ environment: store::Conn ]
+    ];
+}

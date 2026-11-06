@@ -56,12 +56,11 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 # makes this narrow enough to pin rather than a general nullability complaint. See
 # scripts/corpus/probe_qualified_broken_chain.py for the four-case separation.
 #
-# Two services reach it, both generated: the dense stack over curve summaries and the
-# filtered variant of the same reach. Both project the same `tickerOn` through the same
-# to-one chain, so they are one defect seen twice rather than two.
-for _n in ("D_CurveSummaryDense", "SP_defCurveSummaryFilter"):
-    ENGINE_QUARANTINE[f"stress::{_n}"] = (
-        "F54", "a concatenating qualified property fabricates a value on a broken chain")
+# Two services reached it, both generated: the dense stack over curve summaries and the
+# filtered variant of the same reach (D_CurveSummaryDense, SP_defCurveSummaryFilter). Both left
+# the corpus on 2026-08-22 (666a9b089) and their entries stayed until 2026-11-02, when the PR #87
+# review found them (finding 4; stale_keys, below, now refuses one): no service pins F54 now, and
+# repro/qualified-property-broken-chain/ holds it.
 
 ENGINE_QUARANTINE["stress::LE2_ExemptionMatches"] = (
     "F6", "count() over an empty to-many returns 1, not 0")
@@ -79,6 +78,14 @@ ENGINE_QUARANTINE["stress::MD7_UnrevisedPrintsEq"] = (
 ENGINE_QUARANTINE["stress::CV6_PillarEmptiness"] = (
     "F51", "isEmpty() over a to-many reached by a non-key join returns one row per joined row")
 
+# F51 through milestoning (the improvement plan's Phase 3): `bookLimitAllVersionsInRange(a, b)` adds
+# the range's `IN_Z <= b and OUT_Z > a` to the join, so it is not a single key equality, and each
+# check comes back once per version of its book's limit in the range. `bookLimitAllVersions`, the
+# same join without the range, is right, and so is count() over the range (ITN_LimitVersionsInRange).
+# Minimized in repro/milestoned-range-isempty/.
+ENGINE_QUARANTINE["stress::ITN_NoLimitInRange"] = (
+    "F51", "isEmpty() over a milestoned range of versions returns one row per version")
+
 # F52: both ends of a {target} self-join return the same set. `shorterPillars` and
 # `longerPillars` are opposite directions of one inequality and the engine answers the
 # forward one for both. Nothing in the model distinguishes the ends, which is why the oracle
@@ -91,11 +98,8 @@ ENGINE_QUARANTINE["stress::CV7_PillarsShorter"] = (
 # service asserts 155 for 2024-06-03, which is right, and fails. Kept rather than corrected:
 # an expectation adjusted to 3 would make the suite green by recording the defect as the
 # specification, and this one is invisible without an independently computed expectation.
-# F37 -- `substring` is 0-based with an exclusive end in memory and 1-based with a LENGTH in
-# SQL. The two services run the identical call on the identical string; the in-memory one
-# PASSES, which is what makes the relational one a defect rather than a corpus assumption.
-ENGINE_QUARANTINE["stress::F37_SubstringSql"] = (
-    "F37", "substring in SQL is 1-based and takes a length, not a 0-based exclusive end")
+# F37's property-mapping half (F37_SubstringSql) was withdrawn on 2026-10-29: a mapping's substring is the relational
+# dynafunction, SQL's, which the service now asserts and passes. Its TDS-extend half stands (VT_ExtendString, below).
 
 # F41 -- `first()` on a relation returns the whole relation. The service sorts four rows
 # into a total order and asserts the first one; the engine returns all four. Nothing errors,
@@ -170,44 +174,182 @@ ENGINE_QUARANTINE.update({
     )
 })
 
-# F28 -- `!=` is the ONLY comparison that keeps a row whose operand is NULL.
-#
-# Against a NULL column the engine excludes the row for `==` and for `>`, and KEEPS it for
-# `!=`. Those cannot both be right:
-#
-#   SQL three-valued logic     NULL <> 'x' is UNKNOWN, so `!=` must EXCLUDE  -- it does not
-#   Pure collection semantics  [] == 'x' is false, so `!=` is true and keeps -- but then the
-#                              ordered comparisons should not be excluding either
-#
-# So this is an internal inconsistency in the engine's filter lowering rather than a
-# disagreement about which model to prefer, and it holds whichever model Legend intends.
-# The oracle stays on three-valued logic: it is self-consistent, and it is what `==` and `>`
-# already do.
-#
-# Minimized in repro/not-equals-null/, which pins all three operators side by side -- the
-# `==` and `>` cases PASS there, which is the evidence that the `!=` case is the odd one.
-#
-# Found by the seed change that put a NULL in EVERY nullable column rather than only the
-# first. Until then no `!=` predicate in the corpus had ever met a NULL, so four generated
-# services diverged at once the moment one could.
+# F28 is WITHDRAWN (2026-10-23): `!=` keeping a row whose operand is NULL, while `==` and `>`
+# drop it, is legend-pure's definition of a comparison over an absent value, not an engine
+# defect; the oracle had followed SQL's three-valued logic and now follows Pure (oracle._cmp).
+# CB_NotEqualsNull passes on the engine and is no longer quarantined. See
+# docs/UPSTREAM_FINDINGS.md.
+
+# F61 -- a Decimal LITERAL is cast to DECIMAL(32,16) in the SQL, so a literal with 18 fractional
+# digits is rounded before it is compared: TL_AmountScale18_Eq_Root matches TV-07's 1.0 rather
+# than TV-08's 1.000000000000000001. Its parameter twin, bound exactly, passes beside it.
+# Minimized in repro/decimal-literal-scale/.
 ENGINE_QUARANTINE.update({
-    f"stress::{name}": ("F28", "`!=` keeps a row whose operand is NULL; `==` and `>` do not")
-    for name in (
-        # The trio lives in combos.predicate_specs; only the `!=` member diverges, and its
-        # two passing companions are what identify it as the odd one.
-        "CB_NotEqualsNull",
-    )
+    "stress::TL_AmountScale18_Eq_Root": ("F61", "a Decimal literal is rounded to scale 16 in the SQL"),
 })
+
+# F62 -- a service parameter typed Number fails with a NullPointerException in the engine's
+# parameter validation (Number is not an external parameter type, and the fall-through reads a
+# validation context the test runner never sets). The matrix's Number parameter twins; their
+# literal twins pass. Minimized in repro/number-parameter/.
+ENGINE_QUARANTINE.update({
+    f"stress::TP_Metric_{op}_{site}": ("F62", "a Number parameter fails with a NullPointerException")
+    for op in ("Eq", "Ne", "Lt", "Le", "Gt", "Ge") for site in ("Root", "Hop")
+})
+
+# F63 -- a StrictTime literal or parameter in a relational query fails plan generation (the
+# engine's type maps leave StrictTime "not supported yet"). Projecting one works:
+# TV_TimeAndOctet_Root and TV_TimeAndOctet_Hop pass. Minimized in repro/stricttime-relational/.
+ENGINE_QUARANTINE.update({
+    f"stress::T{form}_Cutoff_{op}_{site}": ("F63", "a StrictTime literal or parameter fails plan generation")
+    for form in ("L", "P") for op in ("Eq", "Ne") for site in ("Root", "Hop")
+})
+
+# F64 -- inside `!(a || b)` or `!(a && b)`, an `==` or `in` over an absent value reaches SQL bare
+# and reads as UNKNOWN, so the row is dropped where Pure's `!(false || false)` keeps it. A `!`
+# applied directly to an equality is rewritten correctly (TQ_NotEq_* pass), and an ordered
+# comparison is guarded. One absent equality is enough: TQ_AndNotOr_Root loses TV-07, whose
+# grade alone is absent. Minimized in repro/negated-composite-equality/.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F64", "an equality under a negated || or && reads an absent value as UNKNOWN")
+    for name in ("TQ_NotOr_Root", "TQ_NotOr_Hop", "TQ_AndNotOr_Root")
+})
+
+# F65 -- an enumeration PARAMETER under `!=` or `!in` drops the rows whose value is absent; the
+# same query with the value as a literal keeps them (TL_Grade_Ne_* pass), and so does a String or
+# Integer parameter. Minimized in repro/enum-parameter-negation/.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F65", "an enumeration parameter under != or !in drops the absent rows")
+    for name in ("TP_Grade_Ne_Root", "TP_Grade_Ne_Hop", "TM_Grade_NotIn_Hop")
+})
+
+# The function vocabulary's services (the improvement plan's Phase 4, vocab.py), each written with legend-pure's answer
+# and failing on legend-engine 4.145.0 for a recorded reason; the sibling services of each function that pass are noted.
+#
+# F35 -- `dayOfYear` lowers to DuckDB's day(), the day of the month, in a query as in a mapping. Pinned minimally by
+# 76-dayofyear.pure.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_DayOfYear": ("F35", "dayOfYear answers the day of the month") for v in "PNF"
+})
+# F38 -- a StrictDate result of date arithmetic renders as a DateTime; the values are right, so the filters pass
+# (VF_FirstDayOfWeek, VF_AdjustDays). Pinned minimally by 78-firstday-types.pure.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_{k}": ("F38", "a StrictDate rendered as a DateTime")
+    for v in "PN" for k in ("FirstDayOfWeek", "AdjustDays")
+})
+# F68 -- through `map`, an absent value reaches a NULL-tolerant SQL function and comes back a value: `+ '!'` gives
+# '!', regexpIndexOf -1; since stage 6 also toUpperFirstCharacter and toLowerFirstCharacter '' (their bodies concatenate),
+# greatest and least of [NULL, 7] 7 (SQL's GREATEST skips a NULL), and between false (its body's comparisons). The
+# projections over the required property pass. Minimized in repro/map-over-absent/.
+ENGINE_QUARANTINE.update({
+    f"stress::VN_{k}": ("F68", "map over an absent value applies the function to NULL")
+    for k in ("PlusString", "RegexpIndexOf", "ToUpperFirstCharacter", "ToLowerFirstCharacter", "Greatest", "Least",
+              "Between")
+})
+# F71 -- Integer arithmetic over an INTEGER column is 32-bit in the SQL: abs(-2147483648) and 2147483647 + 1 overflow,
+# and floor(1e10) is cast to INT32. Pure's Integer is 64-bit. VF_PlusInteger passes. Minimized in
+# repro/integer-arithmetic-32-bit/.
+ENGINE_QUARANTINE.update({
+    **{f"stress::V{v}_AbsInteger": ("F71", "abs over INTEGER's least value overflows 32 bits") for v in "PNF"},
+    **{f"stress::V{v}_PlusInteger": ("F71", "+ over INTEGER's greatest value overflows 32 bits") for v in "PN"},
+    **{f"stress::V{v}_Floor": ("F71", "floor's result is cast to a 32-bit integer") for v in "PNF"},
+})
+# F72 -- `indexOf` in a query is SQL's strpos: one-based, and 0 for a miss. Minimized in repro/indexof-strpos/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_IndexOf": ("F72", "indexOf is one-based with 0 for a miss") for v in "PNF"
+})
+# F73 -- `round` takes a tie away from zero, where legend-pure rounds it to the even neighbour. VF_Round's comparand
+# meets no tie and passes. Minimized in repro/round-half-even/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_Round": ("F73", "round takes a tie away from zero, not to the even neighbour") for v in "PN"
+})
+# F74 -- `dayOfWeekNumber` is Sunday-first in the SQL (DuckDB's dayofweek + 1), where legend-pure's is ISO, Monday
+# 1. Minimized in repro/dayofweeknumber-sunday-first/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_DayOfWeekNumber": ("F74", "dayOfWeekNumber counts from Sunday, not Monday") for v in "PNF"
+})
+# F75 (withdrawn 2026-10-29, the improvement plan's D8 reversed): in a groupBy, sum and joinStrings over a group whose
+# values are all absent are NULL, and that is legend-engine's own definition -- the groupBy native never reduces such a
+# group (oracle._reduce_group). Its 28 services left quarantine; repro/aggregate-over-nothing/ now shows the rule.
+# F37 -- a TDS extend's substring is SQL's, one-based, where the Relation extend of the same query is Pure's (VR_ExtendString
+# passes). Minimized in repro/substring-tds-extend/.
+ENGINE_QUARANTINE["stress::VT_ExtendString"] = ("F37", "a TDS extend's substring is one-based")
+# F77 -- a window count over a partition is written as a grouped COUNT with no OVER, which DuckDB refuses. The window's
+# sum and max, and the TDS olapGroupBy's count, pass. Minimized in repro/window-count/.
+ENGINE_QUARANTINE["stress::VR_WindowCount"] = ("F77", "a window count is written without OVER")
+# F78 -- bitShiftLeft of a negative Integer errors on DuckDB (`<<` refuses a negative left operand); legend-pure's is
+# Java's long shift. Minimized in repro/bitshiftleft-negative/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_BitShiftLeft": ("F78", "bitShiftLeft of a negative number errors") for v in "PNF"
+})
+# F79 -- parseDecimal is `cast(s as decimal)`, DuckDB's DECIMAL(18,3): three fractional digits. VF_ParseDecimal's
+# comparand survives the rounding and passes. Minimized in repro/parsedecimal-scale/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_ParseDecimal": ("F79", "parseDecimal keeps three fractional digits") for v in "PN"
+})
+# F76 -- in a groupBy, the sample variance and standard deviation of one value are SQL's NULL, where Pure's are 0
+# (`variance`: `if ($numbers->size() == 1, | 0, ...)`). The VG_ and VGN_ of both pass. Minimized in
+# repro/sample-variance-of-one/.
+ENGINE_QUARANTINE.update({
+    f"stress::VGS_{k}": ("F76", "the sample variance of one value is NULL, not 0")
+    for k in ("VarianceSampleQuantity", "StdDevSampleQuantity")
+})
+# F80 -- a window's lag or lead with an offset other than 1 is written with no offset, so it answers the row 1 away.
+# VR_Lag, VR_Lead and VR_Nth pass. Minimized in repro/lag-offset/.
+ENGINE_QUARANTINE["stress::VR_Lag2"] = ("F80", "lag with an offset of 2 answers the previous row")
+# F81 -- a let inside a column lambda fails in the router ("Cannot cast a collection of size 2 to multiplicity [1]"); a
+# top-level let passes (VC_LetInteger, VC_LetDate). Minimized in repro/let-in-column/.
+ENGINE_QUARANTINE["stress::VC_LetColumn"] = ("F81", "a let inside a column lambda fails in the router")
+# F82 -- sum over a to-many navigation that lands on nothing is SQL's NULL, where legend-pure's collection sum is 0.
+# Minimized in repro/sum-over-empty-to-many/.
+ENGINE_QUARANTINE["stress::VC_MapSumTrades"] = ("F82", "sum over no trades is NULL, not 0")
+# F83 -- a literal list in a relational property mapping or join, `coalesce([a, b])` or `in(col, ['x', 'y'])`, fails
+# at test setup: the compiler keeps each element as the protocol object the parser wrapped (HelperRelationalBuilder's
+# LiteralList branch converts only Integers), and SQL generation meets a Java object, "unhandled type for value" (the
+# improvement plan's Phase 7, unreached.py). Minimized in repro/literal-list-mapping/.
+ENGINE_QUARANTINE.update({
+    f"stress::UO_{k}": ("F83", "a literal list in a property mapping fails: unhandled type for value")
+    for k in ("LiteralListCoalesce", "LiteralListIn")
+})
+# The same branch builds a join's condition: a literal list in a join fails alike (stage 3, the joins' services).
+ENGINE_QUARANTINE["stress::UJ_JoinArrayArg"] = ("F83", "a literal list in a join fails: unhandled type for value")
+# F84 to F87 -- the M2M pack (the improvement plan's Phase 5, m2m.py), each M2M service against a relational twin that
+# passes. F84: fetched as a graph over a ModelChainConnection, a source class's derived property reads as absent (a
+# String; a primitive fails); projected it is right (MX_TradeRef). Minimized in repro/m2m-derived-source-graphfetch/.
+ENGINE_QUARANTINE["stress::MX_TradeRefTree"] = ("F84", "a source's derived property reads as absent in an M2M graph "
+                                                       "fetch over a chain")
+# F85: `^Class(prop = a + b).prop` in an M2M transform answers `a`; a function's result is kept (MX_TradeStampTree).
+# Minimized, with a JSON source, in repro/m2m-new-concatenation/.
+ENGINE_QUARANTINE["stress::MX_TradeStampJoined"] = ("F85", "^Class(prop = a + b).prop answers a")
+# F86: an M2M merge over a ModelChainConnection fails at test setup (chain.pure's reprocess casts every set to a Pure
+# instance set); a union fetched as a graph runs (MX_TicketTree). Minimized in repro/m2m-merge-chain/.
+ENGINE_QUARANTINE["stress::MX_PartyProfileTree"] = ("F86", "an M2M merge over a ModelChainConnection fails: "
+                                                           "MergeOperationSetImplementation cannot be cast")
+# F87: projected over a chain, an M2M enumeration transform of an absent code answers ''; fetched as a graph it is
+# absent (MX_PartyGradeTree). Minimized in repro/m2m-absent-enum-tds/.
+ENGINE_QUARANTINE["stress::MX_PartyGrade"] = ("F87", "an M2M enumeration transform of an absent code projects as ''")
+
+# F88 -- the relation-mapping pack (the improvement plan's Phase 6, relmap.py): a relation-API projection over a class
+# mapped from a grouped relation sends SQL DuckDB refuses ("GROUP BY term out of range"); the same class projected as a
+# TDS passes (RM_BookTotals). Minimized in repro/relation-groupby-project/.
+ENGINE_QUARANTINE["stress::RM_BookTotalsRelation"] = ("F88", "a relation-API projection over a grouped relation "
+                                                             "mapping: GROUP BY term out of range")
+
+# F90 -- the semi-structured pack (the improvement plan's Phase 9, semi.py): extractFromSemiStructured to 'DECIMAL'
+# answers the document's number on neither test database. H2 casts it to a DECIMAL of scale 0, so 12.5 is 13 and 0.25
+# is 0; DuckDB casts it to nothing, so the value is the document's JSON text, "12.5". Every other type of the whitelist
+# the pack reads passes on both (SJ_Numbers, SD_Numbers). Minimized in repro/semi-structured-decimal/.
+for _svc in ("stress::SJ_Fee", "stress::SD_Fee"):
+    ENGINE_QUARANTINE[_svc] = ("F90", "extractFromSemiStructured to DECIMAL: H2 rounds to a whole number, DuckDB "
+                                      "answers the JSON text")
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
 # same mapping and the same serialization format, so the JSON TYPE of `values` depends on
 # the row count. Minimized in repro/graphfetch-single-row/, which puts the one-row and
-# two-row cases side by side; the two-row case PASSES there.
-ENGINE_QUARANTINE.update({
-    "stress::GG_PortfolioTree": ("F29", "one-row graph fetch yields an object, not a "
-                                        "one-element array"),
-})
+# two-row cases side by side; the two-row case PASSES there. Its service, GG_PortfolioTree, left
+# the corpus on 2026-08-15 (7cb3a0cb9) and its entry stayed until 2026-11-02 (the PR #87 review's
+# finding 4): no service pins F29 now, and the repro holds it.
 
 # F26 -- a CROSS-DATABASE join compiles and then cannot execute. The chain
 # HIER_INSTRUMENT (hier::HierDB) -> HIER_ISSUER (hier::IssuerDB) -> HIER_COUNTRY is accepted
@@ -224,12 +366,11 @@ ENGINE_QUARANTINE.update({
 # compile time, and F26 records why it cannot be executed. Coverage of a construct and
 # coverage of its semantics are different claims, and this corpus can now make both.
 
-# F27 -- a Binding transformer returns the JSON-ENCODED value, not the decoded one. A
-# String property read out of a JSON payload comes back as "\"sector-001\"" -- quotes and
-# all -- where the value of the key is sector-001. The oracle asserts the decoded string
-# because that is what a String[0..1] property means; the engine disagrees.
-ENGINE_QUARANTINE["stress::H_IssuerBinding"] = (
-    "F27", "Binding returns each value as its raw JSON token, not its declared type")
+# F27 -- a Binding transformer returned the JSON-ENCODED value, not the decoded one: a
+# String property read out of a JSON payload came back as "\"sector-001\"", quotes and all
+# (repro/binding-json-token/, found at 4.138.2). FIXED upstream by 4.145.0: run.py reported
+# stress::H_IssuerBinding FIXED on 2026-10-21 (the stress corpus plan's Phase 0 baseline), so
+# its quarantine entry is gone and the service is an ordinary PASS.
 
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
@@ -256,10 +397,14 @@ HANGS = {
 
 # F58 (2026-10-05): dateDiff in HOURS, MINUTES or SECONDS is ELAPSED time with the remainder dropped (legend-pure's
 # m4 DateDiff); legend-engine's relational SQL counts unit boundaries (DATEDIFF), which differs whenever the start is off
-# a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it. To be
-# confirmed by run.py when it runs again (Bazel workplan P3-25). repro/datediff-hours-off-boundary/
-for _svc in ("stress::MO2_Confirmations", "stress::DSLocal_MiddleofficeConfirmation", "stress::REGX_All",
-             "stress::REGX_LiquidityCoverageReport", "stress::DSLocal_RegulatorySubmission"):
+# a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it.
+# Confirmed by run.py on 2026-10-21 (legend-engine 4.145.0): all five fail on the engine.
+# repro/datediff-hours-off-boundary/
+# DSLocal_MiddleofficeConfirmation and DSLocal_RegulatorySubmission left on 2026-10-27 (the stress corpus plan's
+# Phase 2): their filters now compare against a real value and their limits cut, so neither keeps a row on which the
+# two readings differ, and both pass on the engine (run.py, legend-engine 4.145.0). F58 stays witnessed by the three
+# below.
+for _svc in ("stress::MO2_Confirmations", "stress::REGX_All", "stress::REGX_LiquidityCoverageReport"):
     ENGINE_QUARANTINE[_svc] = ("F58", "dateDiff HOURS counts boundaries in SQL; Pure measures elapsed time")
 
 ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (
@@ -276,6 +421,20 @@ LITE_QUARANTINE: dict[str, tuple[str, str]] = {
 
 # Kept for callers that predate the split; run.py is the legend-engine harness.
 QUARANTINE = ENGINE_QUARANTINE
+
+
+def stale_keys(testables) -> list[str]:
+    """The entries of ENGINE_QUARANTINE, HANGS and LITE_QUARANTINE that name no testable of the corpus.
+
+    A stale entry never reports: run.py judges only the corpus's testables, so it is neither KNOWN-FAIL nor FIXED, and
+    the finding it cites reads as pinned when nothing pins it. Three entries sat that way for ten weeks (F54's two and
+    F29's one, found by the PR #87 review, finding 4), so it is checked: run.py refuses to run over one, and
+    //scripts/corpus:quarantine_test fails on one."""
+    known = set(testables)
+    return [f"{where}: {name} ({entry[0]}) names no testable of the corpus"
+            for where, entries in (("ENGINE_QUARANTINE", ENGINE_QUARANTINE), ("HANGS", HANGS),
+                                   ("LITE_QUARANTINE", LITE_QUARANTINE))
+            for name, entry in sorted(entries.items()) if name not in known]
 
 # stress::F5_TraderChildCounts is deliberately NOT quarantined. It is the only fan-out
 # service whose data contains no childless entity, and it passes. Keeping it in the green
@@ -294,10 +453,11 @@ def check_f24(c, tables) -> list[str]:
     """
     import json
     import graphs
+    import literals
     import oracle
 
-    seeded = {k for k, v in tables.items() if v}
-    by_name = {s.name: s for s in graphs.build(c, seeded, tables)}
+    # the generators' view of the seed, as build.py hands it them (literals.FIXTURE_TABLES)
+    by_name = {s.name: s for s in graphs.build(c, literals.walked(tables), tables)}
     bad = []
     for fqn, (fid, _why) in ENGINE_QUARANTINE.items():
         if fid != "F24":

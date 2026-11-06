@@ -1,0 +1,112 @@
+// F76: in a groupBy, `varianceSample` and `stdDevSample` over a group of one value answer SQL's NULL, where Pure's are 0.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/sample-variance-of-one/model.pure \
+//       --testable=demo::Population --testable=demo::Sample
+//
+// legend-engine's `variance(numbers, isBiasCorrected)` is `if ($numbers->size() == 1, | 0, ...)`, and varianceSample,
+// stdDevSample (its square root) and the population forms all go through it. legend-engine 4.145.0's DuckDB SQL is
+// VAR_SAMP and STDDEV_SAMP, which are NULL over one value (VAR_POP is 0 there). Population passes; Sample fails on G2.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  g: String[1];
+  i: Integer[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4), I INTEGER)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    g: [demo::DB]T.G,
+    i: [demo::DB]T.I
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,G,I\n' +
+      'R1,G1,1\n' +
+      'R2,G1,3\n' +
+      'R3,G2,5\n';
+  }#
+}
+
+###Service
+Service demo::Population
+{
+  pattern: '/demo/population';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[g:x|$x.g, i:x|$x.i])->groupBy(~[g], ~[v: x|$x.i : y|$y->variancePopulation(), s: x|$x.i : y|$y->stdDevPopulation()])->sort(~g->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Population_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"g":"G1","v":1.0,"s":1.0}, {"g":"G2","v":0.0,"s":0.0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Sample
+{
+  pattern: '/demo/sample';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[g:x|$x.g, i:x|$x.i])->groupBy(~[g], ~[v: x|$x.i : y|$y->varianceSample(), s: x|$x.i : y|$y->stdDevSample()])->sort(~g->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Sample_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"g":"G1","v":2.0,"s":1.4142135623730951}, {"g":"G2","v":0.0,"s":0.0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

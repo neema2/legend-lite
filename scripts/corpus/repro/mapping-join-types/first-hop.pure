@@ -1,0 +1,112 @@
+// Not a finding: the probe for the improvement plan's Phase 9 (docs/STRESS_CORPUS_PLAN_2026_10_19.md), which asked for
+// full and right outer joins in property-mapping join chains. A mapping's chain admits two join types, INNER and OUTER
+// (RelationalParseTreeWalker's JOIN_TYPES), and the compiler reads every type but INNER as LEFT_OUTER
+// (HelperRelationalBuilder.buildElementWithJoinsJoinTreeNode); a property mapping's first join takes none
+// (HelperRelationalBuilder.validatePropertyMappings). Run each file alone:
+//   bazel run //tools/engine-runner:testable -- <file> --testable=demo::Labels
+//   model.pure          `@A > (OUTER) [db]@B` and `> (INNER)`: both parse, compile and pass
+//   right-outer.pure    `(RIGHT_OUTER)`: "Unsupported join type 'RIGHT_OUTER'. The supported join types are: [INNER, OUTER]"
+//   full-outer.pure     `(FULL_OUTER)`: the same, for 'FULL_OUTER'
+//   left-outer.pure     `(LEFT_OUTER)`: the same, for 'LEFT_OUTER' (OUTER is its only spelling)
+//   first-hop.pure      `[db] (OUTER) @A > [db]@B`: "Do not support specifying join type for the first join in the
+//                       classMapping"
+// This file: the first hop typed (OUTER), refused at compile.
+###Pure
+Class demo::Head
+{
+  k: String[1];
+  outerLabel: String[0..1];
+  innerLabel: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table HD ( K VARCHAR(8) PRIMARY KEY, MID_ID VARCHAR(8) )
+  Table MD ( MID_ID VARCHAR(8) PRIMARY KEY, TL_ID VARCHAR(8) )
+  Table TL ( TL_ID VARCHAR(8) PRIMARY KEY, LABEL VARCHAR(16) )
+  Join Hd_Md(HD.MID_ID = MD.MID_ID)
+  Join Md_Tl(MD.TL_ID = TL.TL_ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Head: Relational
+  {
+    ~mainTable [demo::DB]HD
+    k: [demo::DB]HD.K,
+    outerLabel: [demo::DB] (OUTER) @Hd_Md > [demo::DB]@Md_Tl | [demo::DB]TL.LABEL,
+    innerLabel: [demo::DB]@Hd_Md > (INNER) [demo::DB]@Md_Tl | [demo::DB]TL.LABEL
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::D
+{
+  Relational
+  #{
+    default.HD:
+      'K,MID_ID\n' + 'H1,M1\n' + 'H2,M2\n' + 'H3,M9\n';
+    default.MD:
+      'MID_ID,TL_ID\n' + 'M1,T1\n' + 'M2,T9\n';
+    default.TL:
+      'TL_ID,LABEL\n' + 'T1,one\n';
+  }#
+}
+
+###Service
+Service demo::Labels
+{
+  pattern: '/demo/labels';
+  documentation: 'both typed hops answer alike';
+  execution: Single
+  {
+    query: |demo::Head.all()->project([x|$x.k, x|$x.outerLabel, x|$x.innerLabel], ['k', 'outerLabel', 'innerLabel']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    LabelsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::D }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"H1","outerLabel":"one","innerLabel":"one"},{"k":"H2","outerLabel":null,"innerLabel":null},{"k":"H3","outerLabel":null,"innerLabel":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 // F24 -- a DateTime serializes differently through TDS projection and through graph fetch.
 //
 // Run:
-//   java -cp <runner>/target/classes:$(cat cp.txt) perf.TestableMain model.pure
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=repro::ts::Projected --testable=repro::ts::Fetched
 //
-// Both services read the SAME column of the SAME row through the SAME mapping. The
-// assertions below record what each execution path actually returns:
+// Both services read the SAME column of the SAME rows through the SAME mapping, and both
+// assert the DateTime with its UTC offset. What each execution path returns (legend-engine
+// 4.145.0, 2026-11-02):
 //
-//   projection   "2024-06-03T09:07:00.000000000+0000"     <- UTC offset present
-//   graph fetch  "2024-06-03T09:07:00.000000000"          <- offset absent
+//   projection   "2024-06-03T09:07:00.000000000+0000"     <- UTC offset present: Projected PASSES
+//   graph fetch  "2024-06-03T09:07:00.000000000"          <- offset absent: Fetched FAILS
 //
 // Same data, same column, two execution paths, two serializations. This is the same family
 // as F10, F12, F13, F15 and F16: a construct is interpreted per execution path and the
@@ -17,6 +18,10 @@
 // graph probes never projected a timestamp, so nobody had looked. Ten of sixty generated
 // trees failed, and the ten were exactly the ten containing a DateTime anywhere in the tree
 // -- an exact correspondence, which is what made it a finding rather than a flake.
+//
+// Until 2026-11-02 this file held the model and data but not the two services the header
+// described (the PR #87 review's finding 4). There are two rows so that the graph fetch
+// answers an array, and F29's one-row object stays out of it.
 ###Pure
 Class repro::ts::Event
 {
@@ -66,6 +71,45 @@ Data repro::ts::TestData
    #{
     default.EVENT:
       'EVENT_ID,OCCURRED_AT\n' +
-      'E-1,2024-06-03 09:07:00\n';
+      'E-1,2024-06-03 09:07:00\n' +
+      'E-2,2024-06-04 17:30:00\n';
    }#
+}
+
+###Service
+Service repro::ts::Projected
+{
+  pattern: '/ts/projected';
+  documentation: 'The DateTime through a TDS projection, with its UTC offset. The control: it passes.';
+  execution: Single
+  {
+    query: |repro::ts::Event.all()->project([e|$e.eventId, e|$e.occurredAt], ['eventId', 'occurredAt']);
+    mapping: repro::ts::Map;
+    runtime: repro::ts::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ c1: Reference #{ repro::ts::TestData }# ] ]
+      tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+          data: '[{"eventId":"E-1","occurredAt":"2024-06-03T09:07:00.000000000+0000"},{"eventId":"E-2","occurredAt":"2024-06-04T17:30:00.000000000+0000"}]'; }#; }# ] } ] }
+  ]
+}
+
+Service repro::ts::Fetched
+{
+  pattern: '/ts/fetched';
+  documentation: 'The same DateTime through a graph fetch, asserted with its UTC offset: it fails, the offset absent.';
+  execution: Single
+  {
+    query: |repro::ts::Event.all()->graphFetch(#{repro::ts::Event{eventId,occurredAt}}#)->serialize(#{repro::ts::Event{eventId,occurredAt}}#);
+    mapping: repro::ts::Map;
+    runtime: repro::ts::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ c1: Reference #{ repro::ts::TestData }# ] ]
+      tests: [ t: { asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+          data: '{"builder":{"_type":"json"},"values":[{"eventId":"E-1","occurredAt":"2024-06-03T09:07:00.000000000+0000"},{"eventId":"E-2","occurredAt":"2024-06-04T17:30:00.000000000+0000"}]}'; }#; }# ] } ] }
+  ]
 }

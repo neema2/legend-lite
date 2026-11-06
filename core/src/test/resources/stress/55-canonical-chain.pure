@@ -1,0 +1,59 @@
+// The canonical M2M layer and its ModelChainConnection, apart from 55-canonical-store.pure since 2026-10-30 (the
+// improvement plan's Phase 5): that file keeps the Money measure's mapping, which legend-lite cannot load, and this
+// one has no measure, so stress::M1_TradeCanonical and M2_CanonicalWithEnum load in lite too.
+###Mapping
+// The M2M layer. `~src` names the SOURCE class; the source's own relational mapping is
+// supplied at runtime by the ModelChainConnection, NOT included here.
+Mapping canonical::M2MMapping
+(
+    include trading::Codes
+
+    *canonical::CanonicalTrade: Pure
+    {
+        ~src trading::Trade
+        identifier: $src.tradeId,
+        executedOn: $src.tradeDate,
+        // Arithmetic performed by the M2M engine rather than pushed into SQL.
+        grossValue: $src.quantity * $src.price,
+        unitPrice: $src.price,
+        units: $src.quantity,
+        side: $src.side,
+        state: $src.status
+    }
+)
+
+
+###Connection
+// Names the RELATIONAL mapping that feeds the source model. The store key for this in a
+// runtime is the bare literal `ModelStore`.
+ModelChainConnection stress::TradeChain
+{
+  mappings: [
+    trading::TradingMapping
+  ];
+}
+
+
+###Runtime
+// ONE runtime, TWO store entries. `mappings:` names only the M2M mapping -- the service
+// executes that. The relational mapping appears solely inside the ModelChainConnection,
+// and the relational STORE needs its own connection entry or the runtime fails coverage
+// validation.
+Runtime stress::CanonicalRT
+{
+    mappings:
+    [
+        canonical::M2MMapping
+    ];
+    connections:
+    [
+        ModelStore:
+        [
+            chain: stress::TradeChain
+        ],
+        store::DB:
+        [
+            environment: store::Conn
+        ]
+    ];
+}

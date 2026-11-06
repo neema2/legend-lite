@@ -15,6 +15,9 @@ Everything here is derived from the model -- real tables, real columns, real typ
 column rename breaks the generator loudly instead of producing a Database that compiles
 against tables that no longer have those columns.
 
+Its join forms were deleted on 2026-10-29: no mapping used them, and the combination matrix
+executes each form over data built to satisfy it (see build()).
+
 Every construct's spelling comes from scripts/corpus/verified/store.md, where it was run
 through the engine before being written down. Two rules from that survey are load-bearing
 here and are easy to get wrong:
@@ -57,10 +60,6 @@ def _tables_with(c: model.Corpus, kind: str, minimum: int = 1) -> list[str]:
 
 def _cols(c: model.Corpus, table: str, kind: str) -> list[str]:
     return sorted(col.name for col in c.tables[table].columns.values() if col.kind == kind)
-
-
-def _shared_columns(c: model.Corpus, a: str, b: str) -> list[str]:
-    return sorted(set(c.tables[a].columns) & set(c.tables[b].columns))
 
 
 def build(c: model.Corpus) -> str:
@@ -114,63 +113,15 @@ def build(c: model.Corpus) -> str:
         "",
     ]
 
-    joins: list[str] = []
-
-    # ---- multi-column join, over real shared columns -------------------------------------
-    pair = None
-    names = _seed(c)
-    for i, a in enumerate(names):
-        for b in names[i + 1:]:
-            shared = [s for s in _shared_columns(c, a, b) if s not in c.tables[a].pk]
-            if len(shared) >= 2:
-                pair = (a, b, shared[:2])
-                break
-        if pair:
-            break
-    if pair:
-        a, b, (c1, c2) = pair
-        joins.append(f"   // A multi-column join, over two columns the tables share.\n"
-                     f"   Join dense_MultiCol({a}.{c1} = {b}.{c1} and {a}.{c2} = {b}.{c2})")
-
-    # ---- non-equality, or, and mixed -----------------------------------------------------
-    # TWO tables, always. A join whose condition names only one table is rejected with "The
-    # system can only find one table in the join. Please use the '{target}' notation" -- the
-    # engine reads it as an undirected self-join. That is a COMPILE error, so the file still
-    # parses and the mistake survives any parse-only check.
+    # The JOIN forms this generator wrote -- multi-column, non-equality, `or` mixed with null tests, a dynafunction on
+    # one side and on both, a {target} self-join -- were deleted 2026-10-29 (the improvement plan's Phase 7, the user's
+    # decision). No mapping used one, and each repeats a form the combination matrix (combos.py: Combo_Multi,
+    # Combo_Ineq, Combo_Or, Combo_Dyna1, Combo_Dyna2; the self-joins Pillar_LongerPillar and Trader_Manager) executes
+    # over data derived to satisfy it, where over these tables the dynafunction pair matched no rows at all.
+    # The view and the filters below still root at the tables the joins were drawn from.
     num = _tables_with(c, "float", 1) or _tables_with(c, "int", 1)
-    if len(num) >= 2:
-        ta, tb = num[0], num[1]
-        fa = (_cols(c, ta, "float") or _cols(c, ta, "int"))[0]
-        fb = (_cols(c, tb, "float") or _cols(c, tb, "int"))[0]
-        joins.append(f"   // Non-equality join. `=` is the only operator the base model uses.\n"
-                     f"   Join dense_GreaterThan({ta}.{fa} > {tb}.{fb})")
-        joins.append(f"   // `or`, and a mixed condition PARENTHESISED because and/or are\n"
-                     f"   // equal-precedence and right-associative.\n"
-                     f"   Join dense_OrMixed(({ta}.{fa} > {tb}.{fb}) or "
-                     f"({ta}.{fa} is null and {tb}.{fb} is not null))")
-
-    # ---- dynafunction join ---------------------------------------------------------------
     strt = _tables_with(c, "string", 2)
-    if len(strt) >= 2:
-        ta, tb = strt[0], strt[1]
-        a1, a2 = _cols(c, ta, "string")[:2]
-        b1 = _cols(c, tb, "string")[0]
-        joins.append(f"   // Dynafunction inside a join condition, on one side and on both.\n"
-                     f"   // Note toUpper, NOT upper -- `upper` is not a dynafunction, and\n"
-                     f"   // neither name is validated until SQL generation.\n"
-                     f"   Join dense_DynaOneSide(concat({ta}.{a1}, {ta}.{a2}) = {tb}.{b1})")
-        joins.append(f"   Join dense_DynaBothSides(toUpper({ta}.{a1}) = toUpper({tb}.{b1}))")
-
-    # ---- self-join -----------------------------------------------------------------------
-    if strt:
-        t = strt[0]
-        pk = c.tables[t].pk[0]
-        other = next((s for s in _cols(c, t, "string") if s != pk), None)  # noqa: E501
-        if other:
-            joins.append(f"   // Self-join. {{target}} names the far side of the same table.\n"
-                         f"   Join dense_Self({t}.{other} = {{target}}.{pk})")
-
-    L += joins + [""]
+    L += [""]
 
     # ---- filters -------------------------------------------------------------------------
     # The view's root: the table its ~groupBy and columns read.

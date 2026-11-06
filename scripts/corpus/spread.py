@@ -41,6 +41,7 @@ from dataclasses import replace
 
 import executed
 import model
+import relmap
 import stacking
 import stacks
 from query import Pred, Proj, Spec
@@ -108,6 +109,10 @@ def _templates(c: model.Corpus, specs) -> list[Spec]:
     closure = executed.include_closure()
     best: dict[tuple, tuple[int, Spec]] = {}
     for s in specs:
+        # An M2M target (canonical::, m2m::) maps no table, so the oracle can evaluate no variant of it, and its paths
+        # do not resolve in the relational model (2026-10-30, the improvement plan's Phase 5)
+        if s.root not in c.main_table:
+            continue
         key = (s.root, getattr(s, "mapping", None))
         depth = len(stacking.spec_features(c, s, byclass, bymapping, closure))
         if key not in best or depth > best[key][0]:
@@ -238,8 +243,9 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
         return ps
 
     # A string-typed leaf the template already projects, for the filter. `> ' '` keeps the
-    # non-null rows and drops the nulls -- a real predicate -- and agrees with the engine
-    # over NULL where `!=` does not (F28).
+    # non-null rows and drops the nulls -- a real predicate -- and, like every ordered
+    # comparison, is false over an absent value (oracle._cmp). The chosen variants compare
+    # against a value of the column instead (selective.py, in _build).
     def _is(kind, p):
         """The DECLARED type of the property a projection lands on.
 
@@ -302,7 +308,7 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
     # guard belongs on both rather than on whichever one failed first.
     default_map = getattr(t, "mapping", None) in (None, executed.DEFAULT_MAPPING)
     tm_end = next((prop for (cls_, prop), end in c.ends.items()
-                   if cls_ == root and end.to_many and _key_joined(c, root, prop)),
+                   if cls_ == root and end.to_many and model.walked(c, end) and _key_joined(c, root, prop)),
                   None) if default_map else None
     if tm_end:
         add("Empty", projections=enriched() + [Proj("hasNone", [tm_end], agg="isEmpty")],
@@ -417,6 +423,11 @@ def _build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spe
     byclass = executed.class_features()
     bymapping = executed.mapping_features()
     closure = executed.include_closure()
+    # Neither a template nor the baseline: the relmap:: pack's services (2026-10-30, the improvement plan's Phase 6).
+    # As a template, a relation mapping's variant would be judged through its twin's relational mapping, the claim
+    # the pack's own services test, and a graph fetch over one does not run at the pin; in the baseline, the
+    # combinations they close took SP_JoinTradeGroup, a passing service, out of the selection for none it builds.
+    existing = [s for s in existing if s.name not in relmap.NAMES]
 
     covered_p, covered_t = set(), set()
     for s in existing:
@@ -455,4 +466,10 @@ def _build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spe
         fs = sorted(feats)
         covered_p.update(itertools.combinations(fs, 2))
         covered_t.update(itertools.combinations(fs, 3))
+    # The `> ' '` guards compare against a value of the column, and each limit cuts (the
+    # improvement plan's Phase 2, selective.py). After the cover is chosen: the features a
+    # candidate closes do not depend on its comparand.
+    import selective
+    for s in chosen:
+        selective.tune(c, s, tables)
     return chosen

@@ -1,0 +1,114 @@
+// F72: indexOf in a query is SQL's strpos: one-based, and 0 for a miss.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/indexof-strpos/model.pure \
+//       --testable=demo::Found --testable=demo::Missed
+//
+// legend-pure defines indexOf as "the zero-based position of the first occurrence of `toFind` in `str`, or `-1` if
+// it does not occur": 'alpha'->indexOf('p') is 2 and 'beta'->indexOf('z') is -1. legend-engine 4.145.0 answers 3
+// and 0. Both services fail; the same query's substring is Pure's at the pin (F37's addendum), so the two position
+// functions of one query disagree on the base.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[1];
+  i: Integer[1];
+  f: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20), I INTEGER, F DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S,
+    i: [demo::DB]T.I,
+    f: [demo::DB]T.F
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S,I,F\n' +
+      'R1,alpha,1,1.0\n' +
+      'R2,beta,2,2.0\n';
+  }#
+}
+
+###Service
+Service demo::Found
+{
+  pattern: '/demo/found';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R1')->project(~[id:x|$x.id, r:x|$x.s->indexOf('p')])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Found_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":2} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Missed
+{
+  pattern: '/demo/missed';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R2')->project(~[id:x|$x.id, r:x|$x.s->indexOf('z')])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Missed_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R2","r":-1} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

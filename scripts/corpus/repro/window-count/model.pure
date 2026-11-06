@@ -1,0 +1,113 @@
+// F77: a window `count` over a partition is lowered as a grouped COUNT, and the database refuses the statement.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/window-count/model.pure \
+//       --testable=demo::WindowSum --testable=demo::WindowCount
+//
+// `extend(over(~[g]), ~[w:{p,w,r|$r.v}:y|$y->count()])` puts the number of the partition's values on every row, as
+// `sum` there puts their total. legend-engine 4.145.0 writes the sum as SUM(...) OVER (PARTITION BY ...), and the
+// count as a COUNT(...) with no OVER, so DuckDB rejects it: "column ... must appear in the GROUP BY clause or must be
+// part of an aggregate function". WindowSum passes; WindowCount errors.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  g: String[1];
+  v: Integer[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4), V INTEGER)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    g: [demo::DB]T.G,
+    v: [demo::DB]T.V
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,G,V\n' +
+      'R1,a,1\n' +
+      'R2,a,2\n' +
+      'R3,b,4\n';
+  }#
+}
+
+###Service
+Service demo::WindowSum
+{
+  pattern: '/demo/windowsum';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g, v:x|$x.v])->extend(over(~[g]), ~[w:{p,w,r|$r.v}:y|$y->sum()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    WindowSum_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","g":"a","v":1,"w":3}, {"id":"R2","g":"a","v":2,"w":3}, {"id":"R3","g":"b","v":4,"w":4} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::WindowCount
+{
+  pattern: '/demo/windowcount';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g, v:x|$x.v])->extend(over(~[g]), ~[w:{p,w,r|$r.v}:y|$y->count()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    WindowCount_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","g":"a","v":1,"w":2}, {"id":"R2","g":"a","v":2,"w":2}, {"id":"R3","g":"b","v":4,"w":1} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
