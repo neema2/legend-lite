@@ -226,6 +226,9 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        if (tl.rows() != null) {
+            return sortRows(tl, alias);
+        }
         SqlExpr unnested = SqlExpr.Call.of(SqlFn.UNNEST, tl.positions());
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
@@ -235,6 +238,73 @@ final class TaggedLists {
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
         return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
+    }
+
+    /**
+     * A list over its rows sorted (a relation's cells, {@code $t.rows.values->sort()}): its CELLS renumbered by the
+     * comparable, ties by position (a stable sort's), so the sorted list is again a list over its rows, its positions
+     * {@code 1..n} in its own order and every array an aggregate over the renumbered cells -- no array read, no
+     * lambda: its root reads the cells (every database, H2's list-less dialect included), where reordering the
+     * positions read the comparable array at each one ({@code LIST_AT}), which H2 refuses, and nested the cells'
+     * own numbering inside the root's order (2026-11-06, the corpus's strictdate::testProject on both lanes). The
+     * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
+     * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
+     */
+    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
+        SqlSelect cells = cellsOf(tl);
+        var c = SqlExpr.Column.lookup(alias, cells.outputs());
+        String g = SqlExpr.TaggedList.ROW_COMPARABLE + "_g";
+        boolean struct = cells.outputs().stream().anyMatch(o -> o.name().equals(g));
+        List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of();
+        List<SqlSelect.SortKey> keys = new ArrayList<>(5);
+        if (struct) {
+            for (String f : rankFields) {
+                keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_COMPARABLE + "_" + f), true,
+                        SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+            }
+        } else {
+            keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_COMPARABLE), true,
+                    SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+        }
+        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
+        List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
+        for (OutputCol o : cells.outputs()) {
+            renumbered.add(o.name().equals(SqlExpr.TaggedList.ROW_POSITION)
+                    ? new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), keys, null), o.name(), o)
+                    : new SqlSelect.Projection(c.apply(o.name()), o.name(), o));
+        }
+        SqlSelect sorted = new SqlSelect(renumbered, false, new SqlSource.Subselect(cells, alias, null), null,
+                List.of(), null, null, List.of(), null, null, cells.outputs());
+        // the arrays: ordered aggregates over the renumbered cells, as a list over its rows builds them
+        String r = alias + "r";
+        var rc = SqlExpr.Column.lookup(r, sorted.outputs());
+        java.util.function.Function<SqlExpr, SqlExpr> agg = value -> new SqlExpr.ScalarSubquery(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value,
+                        rc.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
+                false, new SqlSource.Subselect(sorted, r, null), null, List.of(), null, null, List.of(), null, null,
+                List.of()));
+        SqlExpr comparable;
+        if (struct) {
+            List<SqlExpr.StructLit.Field> fields = new ArrayList<>(rankFields.size());
+            for (String f : rankFields) {
+                String name = SqlExpr.TaggedList.ROW_COMPARABLE + "_" + f;
+                OutputCol out = sorted.outputs().stream().filter(o -> o.name().equals(name)).findFirst()
+                        .orElseThrow();
+                fields.add(new SqlExpr.StructLit.Field(f, rc.apply(name), out.type()));
+            }
+            comparable = agg.apply(new SqlExpr.StructLit(fields));
+        } else {
+            comparable = agg.apply(rc.apply(SqlExpr.TaggedList.ROW_COMPARABLE));
+        }
+        List<SqlExpr.TaggedList.Channel> channels = new ArrayList<>(tl.channels().size());
+        for (int k = 0; k < tl.channels().size(); k++) {
+            SqlExpr.TaggedList.Channel ch = tl.channels().get(k);
+            channels.add(new SqlExpr.TaggedList.Channel(ch.kind(), ch.slot(),
+                    agg.apply(rc.apply(SqlExpr.TaggedList.ROW_CHANNEL(k)))));
+        }
+        return new SqlExpr.TaggedList(tl.positions(), agg.apply(rc.apply(SqlExpr.TaggedList.ROW_TAG)), comparable,
+                channels, new SqlExpr.ScalarSubquery(sorted));
     }
 
     /**
