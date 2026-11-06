@@ -197,13 +197,17 @@ public final class Snowflake extends AnsiSqlRenderer {
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
      * expression (Snowflake reads an integer one as a position); and the root's DECIMAL(p,s) and HUGEINT columns
-     * cast to their declared types. QUALIFY and star exclusion are native.
+     * cast to their declared types. QUALIFY and star exclusion are native. A select over one subselect merged into it
+     * where the answer is kept (SelectMerge), and a chain of windowed levels laid out again, each value once
+     * (SelectLayers), after the explosions as SQLite has them (the user, 2026-11-06: "Enable and run in the warm
+     * session that can connect to snowflake" -- rendered here, its answers checked on the account).
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
+                new SelectMerge(), new SelectLayers(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
