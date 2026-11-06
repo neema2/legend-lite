@@ -1031,8 +1031,7 @@ final class DatabaseJudge {
         // the document's -- under the host's own test (HostJudge.jsonOf: the actual's OrderView INCIDENTAL), so the two
         // judges decide the same documents the same way (2026-11-03: the deleted rootMany sniff had gated it, and its
         // deletion left these unjudged here while the host judged them). A dialect that cannot place the element rows
-        // is UNJUDGED by its own words (the final audit, 2026-11-06: until then it fell silently to the byte compare
-        // below, stricter than the host's multiset, so under BOTH the two judges could disagree)
+        // falls to the byte compare below, which equal sequences pass and others fail
         if (ja.why() == null && com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
                 == com.legend.compiler.spec.OrderView.INCIDENTAL) {
             TypedSpec elements = com.legend.compiler.spec.VerdictQueries.jsonRootElements(goldenText);
@@ -1041,18 +1040,17 @@ final class DatabaseJudge {
                 if (jr.why() == null) {
                     com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
                             jr.textRowsMany(), ja.textRows());
-                    com.legend.sql.dialect.DialectCapability refused = null;
+                    boolean placeable;
                     try {
                         env.dialect().render(mq);
+                        placeable = true;
                     } catch (com.legend.sql.dialect.DialectCapability wall) {
-                        refused = wall;
+                        placeable = false;
                     }
-                    if (refused != null) {
-                        return unjudged(name, "json-multiset: dialect-capability: "
-                                + String.valueOf(refused.getMessage()).split("\n")[0]);
+                    if (placeable) {
+                        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                        return runVerdict(name, true, mq, ja.on(env));
                     }
-                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
-                    return runVerdict(name, true, mq, ja.on(env));
                 }
             }
         }
