@@ -20593,3 +20593,28 @@ computed by `replace`, a few failing or verdictless) and 33 only the database ju
 run at its let; 19 refused by its static pass -- SQL or plan text reached through a helper let (the relational
 mapper's 10, the datetime plan tests' 5, `planToString`, `toSQLString`, `toSQL(...).sql`) and `toCSV()` of an
 `executeInDbToTDS` result.
+
+## 2026-11-06 — The walk list burns: a check over a frame, the CSV load step, nine failures off the walk (59 -> 35)
+
+- **A check over a frame under the database judge** (`356a3aa2`, full check green: both lanes, both judges, core):
+  the test door registers a frame a `println` reads as LAZY -- the check's own statement runs it and binds the frame's
+  activity stamp as its own; no run at the let (a first version ran it there: the outside-body register caught 16
+  statements the walk never sent). 14 bodies leave the walk; `testAssociationMixedDeep` passes under the database
+  judge on DuckDB for the first time (on H2 it fails under both judges as before, the list encoding).
+- **`loadCsvToDbTable` is a plan step the database runs** (`a2e9ae79`; the owner's ruling: the plan holds the file's
+  reference, never its rows): `SqlDml.LoadCsv`, DuckDB `read_csv`, H2 `CSVREAD`, every other dialect refused by name
+  (SQLite and Trino designed: one bound text parameter parsed in SQL). `testLoadCsv` 4/4 (both lanes, both judges).
+- **Nine bodies that fail on the walk fail at the router instead** (both fail rosters unchanged; scoped 9/9 FAIL on
+  both lanes under both judges). Their gaps, as the walk reported them, for the burn-down: `testTempTableSqlStatementsForH2`
+  and `testReAliasMergedJoinOperations` (store resolution left a user call: `DbConfig` translate hooks,
+  `buildAndTransformJoinMeta`); both `testPureExecutionStrategyFor*ExecutionNode` (a class query under a property
+  access); `testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements` (type inference in
+  `pureToSqlQuery`); `relationalResultSourcingOfListExecutionPlan` (a computed scalar projection's spelling);
+  `testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes` (an `executionPlan` mapping argument not a reference);
+  `toRelation::testJoinFunc` and `testJoinUsing` (an unknown `toRelation::transform`).
+
+Left on the walk (35): 17 engine-text asserts in system-routed bodies (their appeal reads the user's tables: walk
+deletion's step 3, the appeal as plan steps), `testModelConnectionJoin` (a let that raises at planning),
+`testExecuteInDbToTDS` (`toCSV` of a raw-SQL result), two verdictless bodies (`let r = execute(...); true;`: an unread
+let in a program with no assert), and 14 small passing ones (metadata reads, DDL and temp tables, post-processor hooks,
+paginate and slice with variables, two engine texts computed by `replace`).
