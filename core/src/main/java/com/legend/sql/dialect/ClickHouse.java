@@ -56,9 +56,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
      *  makes {@code groupArray} a NULLABLE array, which ClickHouse refuses (measured). And a CASE's branch runs only
      *  where its guard holds: the planner's merge of a subquery's expressions into its reader's drops that (a guarded
-     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off. */
+     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off; and so is
+     *  the plan's push-down of a filter below a join, which runs a WHERE's guarded branch where the WHERE's own AND
+     *  would not (W9, 2026-11-06: a #TS answer's FILTER of dates after latest - 3y, a WHERE over a join once SelectMerge
+     *  lifted it there, raised its date guard on four of the timeseries documents' examples; with the push-down off
+     *  each answers as without the merge). */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
-            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0";
+            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
+            + " query_plan_filter_push_down = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -156,8 +161,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
-                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
-                new RootNumericTypes());
+                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
+                // a select over one subselect merged into it where the answer is kept, and a chain of windowed levels
+                // laid out again, each value once (W9, 2026-11-06, as on the other dialects: the timeseries documents'
+                // 26 runnable examples the same answers, most 2-8x faster -- guide-14 22.8 -> 3.6 s, spec-14 23.0 ->
+                // 3.9 s -- with the filter push-down off, SETTINGS)
+                new SelectMerge(), new SelectLayers(), new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
     /**

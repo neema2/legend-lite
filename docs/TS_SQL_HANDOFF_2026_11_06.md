@@ -664,6 +664,22 @@ value"): a guarded CASE the merge moved is evaluated where it was not before. Pr
 untaken raising branch in a projection and in a WHERE over a Memory table, so the place is still to find (a join's
 condition is the likely one). Not to be enabled before that is fixed, and the user asked first (§3).
 
+**Step 2 found and enabled, 2026-11-06.** The place: a #TS answer's FILTER of dates (`date > latest - 3y`) is a WHERE
+over the join that brings `latest` in; without the passes it filters a subselect of the join, and SelectMerge lifts it
+onto the join's own select. ClickHouse's query plan then pushes the filter down below the join, and the pushed filter
+runs the guarded branch where the WHERE's own `AND` (`NOT lm IS NULL AND date > CASE ...`) would not -- measured on
+spec-06 in `clickhouse local` 25.8: `query_plan_filter_push_down = 0` answers it, `enable_optimize_predicate_expression
+= 0`, `short_circuit_function_evaluation = 'force_enable'` and the old analyzer do not. The dialect's SETTINGS gain it
+(beside `query_plan_merge_expressions = 0`, the same kind of guard), and its passes SelectMerge and SelectLayers: the
+documents' 26 runnable examples the same answers as without them (the worst 2.3e-13), most 2-8x faster (guide-14 22.8
+-> 3.6 s, spec-14 23.0 -> 3.9 s, spec-01 21.0 -> 6.6 s, spec-09 3.0 -> 0.5 s, guide-08 3.3 -> 0.8 s). **spec-15 still
+does not finish in 300 s**, with or without them: its statement shares eleven relations (`WITH __let<n>`, one read 17
+times, one 16), and ClickHouse 25.8 has no materialized common table expression (`AS MATERIALIZED` is a syntax error
+there), so it evaluates each at each read, the reads of the nested ones multiplying. Left: a ClickHouse shape for a
+shared relation read many times (a temporary table the plan stages first, as a write stages its rows), measured on
+spec-15 before it is built.
+
+
 ### W10. Defects found on the way, not yet fixed
 
 - **SQLite's date-time join holds a window's first day** (a closed start), where the window is open at its start. The
