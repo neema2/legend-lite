@@ -795,7 +795,7 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2321),   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2326),   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed. 2321 -> 2326 (2026-11-06, CI on #81, the user: "Fix it"): planValue writes a database-judge side's shared relations in place before its verdict composes it (the corpus's nine graph fetches cast a WITH to a SELECT) -- a plan rewritten, no value evaluated
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
