@@ -3459,3 +3459,7 @@ Status lives in the plan's Progress table (rule 0b.16).
     sharding. `gates/BUILD.bazel` gains `//scripts/corpus:quarantine_test` in the lane `:run_test` is in.
   - `core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java` (core's): a focused test of the
     `substring` dynafunction over a joined column (the review's finding 8).
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's):
+    `own_corpus.matched` 3017 -> 3020. The new test's model (`model::E`, `store::DB`, `model::M`) joined the own corpus
+    and matches. The desk's local runs missed it (the parity lane was not among them), and PR #87's CI caught it
+    (run 41483336882: `OwnCorpusParityTest` and `update_ratchets_test` on every OS).
