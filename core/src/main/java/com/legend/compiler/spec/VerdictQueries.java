@@ -83,6 +83,7 @@ public final class VerdictQueries {
     public static TypedSpec fromWrapped(TypedSpec query,
             com.legend.compiler.spec.typed.TypedPackageableRef mapping,
             com.legend.compiler.spec.typed.ExecutionContext base) {
+        com.legend.base.RunScope.planning("wrap a verdict's read");
         return new com.legend.compiler.spec.typed.TypedFrom(query,
                 base.withMapping(java.util.Optional.of(mapping)), query.info());
     }

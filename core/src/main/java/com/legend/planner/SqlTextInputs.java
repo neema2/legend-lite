@@ -42,6 +42,7 @@ public record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialec
      * that owns a wall throws its own). */
     public static @com.legend.base.Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             List<TypedSpec> letPrefix) {
+        com.legend.base.RunScope.planning("read an engine-text routine's inputs");
         String fqn = call.fqn();
         // the RECEIVER form: SQLResult's qualified property toSQLString(dbType,
         // dbTimeZone, quoteIdentifiers, format) — the routine implements it

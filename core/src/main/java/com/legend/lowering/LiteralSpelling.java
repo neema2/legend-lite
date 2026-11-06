@@ -57,6 +57,7 @@ public final class LiteralSpelling {
     /** The canon LEAF print of a scalar kind (no literal framing) —
      * null = unclaimed kind (the caller declines, counted). */
     public static @com.legend.base.Nullable SqlExpr leaf(SqlExpr v, Type t) {
+        com.legend.base.RunScope.planning("spell a literal");
         if (t == Type.Primitive.STRING) {
             return v;
         }
@@ -95,6 +96,7 @@ public final class LiteralSpelling {
      * that makes the six forms mutually disjoint (quotes + escapes for
      * strings, D suffix for decimals, % prefix for temporals). */
     public static @com.legend.base.Nullable SqlExpr literal(SqlExpr v, Type kind) {
+        com.legend.base.RunScope.planning("spell a literal");
         if (kind instanceof Type.EnumType et) {
             if ("meta::pure::metamodel::type::Enum".equals(et.fqn())) {
                 // the ABSTRACT Enum declaration (a mapping's toDomainValue,
