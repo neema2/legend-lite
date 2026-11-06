@@ -324,8 +324,6 @@ class BodyRouterParityTest {
                 // a value through a user class's chain (B1): kept 2026-11-03 -- the corpus's
                 // otherwiseTestQualifierPropertyConstantExpression, which the store resolver refuses on the program road
                 "{| my::P.all()->map(p|$p.name);}",
-                // a value statement before the last (B3): a check the walk holds and labels
-                "{| 'abc'->toUpper(); 'end';}",
                 // a to-one reader through a let (B4)
                 "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}",
                 // a temporal class read (S2): the exists-join form
@@ -339,7 +337,10 @@ class BodyRouterParityTest {
                 // a relation let before the last (S3): folded into its reader, as the product folds a query's let
                 "{| let t = #TDS\na\n1\n2\n#; $t->filter(r|$r.a > 1);}",
                 // an object built and answered (MV6's ids)
-                "{| ^my::P(name='x');}")) {
+                "{| ^my::P(name='x');}",
+                // a value statement before the last (B3): a CHECK, run for what it raises, its rows dropped, as the
+                // walk runs it (MOVED 2026-11-06, the user: "do all including last row" -- an unread let's value is one)
+                "{| 'abc'->toUpper(); 'end';}")) {
             assertEquals(BodyClass.QUERY_PROGRAM, BodyClass.of(typed(ctx, body), RT), body);
         }
     }

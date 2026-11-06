@@ -7,11 +7,6 @@
 # accepted rosters' not-offered:test-data-generator rows). When the list is empty the walk is deleted.
 meta::relational::functions::toPostgresModel::tests::testConvertAlias
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS
-meta::relational::tests::ddl::dropAndCreateTable
 meta::relational::tests::ddl::dropAndCreateTempTable
-meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData
-meta::relational::tests::functions::fetchDbMetaData::testFetchDbPrimaryKeysMetaData
-meta::relational::tests::functions::fetchDbMetaData::testFetchDbSchemasMetaData
-meta::relational::tests::functions::fetchDbMetaData::testFetchDbTablesMetaData
 meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor
 meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect

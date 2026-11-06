@@ -1,1 +1,8 @@
+meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy ||| not-offered:test-data-generator(S143) ||| database judge's planner refused an assert
 meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| (2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)

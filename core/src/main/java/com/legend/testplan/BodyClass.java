@@ -406,9 +406,15 @@ public enum BodyClass {
         if (n instanceof TypedTableReference table) {
             return !SystemMetamodel.STORE_FQN.equals(table.store());
         }
+        // a raw SQL read, a JDBC catalog grid and a database effect act on the CONNECTION's database, the user's (the
+        // walk deletion, 2026-11-06: a body whose metamodel read is the connection let alone was classed system-routed,
+        // and its effects and raw reads would have run on the system database)
         return n instanceof TypedFrom
+                || n instanceof TypedRawSqlRelation
+                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid
                 || n instanceof TypedNativeCall call && (NativeFn.Handle.isExecute(call.callee().id())
                         || NativeFn.Handle.runsAFrame(call.callee().id())
+                        || NativeFn.Effect.isDbEffect(call.callee().id())
                         || StatementEffects.containsTdgGenerator(call));
     }
 

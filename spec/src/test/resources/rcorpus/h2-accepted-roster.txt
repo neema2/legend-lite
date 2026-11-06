@@ -1,32 +1,32 @@
 meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews ||| not-offered:test-data-generator(S143) ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTableMultipleStartRows_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testSimpleViewRootToJoin_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testTableToTDSMultipleJoins ||| not-offered:test-data-generator(S143) ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTableMultipleStartRows_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testSimpleViewRootToJoin_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testTableToTDSMultipleJoins ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
 meta::relational::testDataGeneration::tests::alloy::testTableToTDSSimple ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFunctions ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithConcatenate ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithJoinAndUnion ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevelsWithStringHashing_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevels_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithConcatenate ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithJoinAndUnion ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevelsWithStringHashing_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevels_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
+meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy ||| not-offered:test-data-generator(S143) ||| class query under if() with a runtime condition is not resolvable yet
 meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body

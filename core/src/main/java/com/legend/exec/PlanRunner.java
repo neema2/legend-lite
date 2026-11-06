@@ -247,11 +247,17 @@ public final class PlanRunner {
         Held held = new Held();
         ExecutionPlan.Target on = shape.target();
         if (on == null) {
-            sink.reader(side -> constantRows(constantOnly(side)));
+            // a program of constants sends nothing of its own; a side read on demand (a compatibility appeal's rows:
+            // the walk deletion's step 3, 2026-11-06) runs on its target's session, opened at the first such read and
+            // closed with the program
+            UserBeside onDemand = new UserBeside(sessions);
+            sink.reader(side -> side instanceof ExecutionPlan.Side.Constant c ? constantRows(c)
+                    : onDemandRows(side, checked, onDemand));
             try {
                 constantsAlone(sequence, judging, held, sink);
             } finally {
                 sink.reader(null);
+                onDemand.close();
             }
         } else {
             try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
@@ -345,9 +351,9 @@ public final class PlanRunner {
         }
     }
 
-    /** The user's database beside a program on the graph's system database: its session opened from the program's
-     *  sessions source at the first statement that names it, kept for the program, closed with it. One user target a
-     *  program. */
+    /** A database a program reaches beside its own: the user's beside a program on the graph's system database, or
+     *  a side's beside a program of constants -- its session opened from the program's sessions source at the first
+     *  statement that names it, kept for the program, closed with it. One such target a program. */
     private static final class UserBeside {
         private final PlanSessions.Source sessions;
         /** The session and its statements once opened. */
@@ -368,8 +374,8 @@ public final class PlanRunner {
                 o = new Opened(s, opened(s, t), t);
                 opened.set(o);
             } else if (!t.equals(o.target())) {
-                throw new IllegalStateException("a program on the graph's system database names two user databases ("
-                        + o.target() + ", " + t + "): one beside it");
+                throw new IllegalStateException("a program names two databases beside its own (" + o.target() + ", "
+                        + t + "): one beside it");
             }
             return o.statements();
         }
@@ -516,14 +522,6 @@ public final class PlanRunner {
             }
         }
         return strictest;
-    }
-
-    /** {@code side}, read where the program has no session: a constant, or refused by name. */
-    private static ExecutionPlan.Side.Constant constantOnly(ExecutionPlan.Side side) {
-        if (!(side instanceof ExecutionPlan.Side.Constant c)) {
-            throw new IllegalStateException("a verdict side that sends a statement in a program with no target");
-        }
-        return c;
     }
 
     /** A branch's statements, whichever side runs: its condition's and both sides' (each side's steps verdict groups
@@ -916,6 +914,25 @@ public final class PlanRunner {
             case ExecutionPlan.Side.KeyedRows k -> {
                 Held h = new Held();
                 keyedOn(k.keyed(), values, st.on(k.keyed().keys()), heldSink(h));
+                yield collected(h);
+            }
+            case ExecutionPlan.Side.Constant c -> constantRows(c);
+        };
+    }
+
+    /** {@code side}'s rows read on demand in a program with no target of its own: on its statement's target's
+     *  session ({@link UserBeside}). */
+    private static Rows onDemandRows(ExecutionPlan.Side side, Map<String, PlanParameters.Checked> values,
+            UserBeside onDemand) throws IOException {
+        return switch (side) {
+            case ExecutionPlan.Side.Rows r -> {
+                Held h = new Held();
+                result(r.result(), values, onDemand.on(r.result().sql().target()), h);
+                yield collected(h);
+            }
+            case ExecutionPlan.Side.KeyedRows k -> {
+                Held h = new Held();
+                keyedOn(k.keyed(), values, onDemand.on(k.keyed().keys().target()), heldSink(h));
                 yield collected(h);
             }
             case ExecutionPlan.Side.Constant c -> constantRows(c);

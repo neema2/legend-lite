@@ -20618,3 +20618,37 @@ deletion's step 3, the appeal as plan steps), `testModelConnectionJoin` (a let t
 `testExecuteInDbToTDS` (`toCSV` of a raw-SQL result), two verdictless bodies (`let r = execute(...); true;`: an unread
 let in a program with no assert), and 14 small passing ones (metadata reads, DDL and temp tables, post-processor hooks,
 paginate and slice with variables, two engine texts computed by `replace`).
+
+## 2026-11-06 — The walk list burns on (29 -> 5): step 3's appeal inside the run, system programs reach the user's database
+
+- **The appeal reads inside the run** (walk deletion step 3): its planned rows through the running program's reader
+  (`driver/RunReader`), never a run of its own; a program of constants reads such a side on demand on its target's
+  session; a program on the graph's system database routes a statement naming the user's database to that
+  database's own session (`PlanRunner.UserBeside`; until now such a statement ran on the system session, silently).
+- **The database judge plans a system-routed body's engine-text assert as the host does** (`ExecEnv.appealOn`): the
+  verdict row on the program's environment, the appeal's rows, the referee and the store provision on the body's. 17
+  system-routed bodies move under both judges.
+- **Class rules**: a program with no assert runs a check before its last statement and a frame run as a statement of
+  its own (the user: "do all including last row"); a later frame rebinding an earlier frame's names makes it stale only
+  for reads after it (paginate and slice with variables); the assert scan skips a lambda a construction stores (a
+  runtime's SQL post-processor); a raw SQL read, a JDBC catalog grid and a database effect are reads of the user's
+  database (`BodyClass.userStoreRead`: such a body was classed system-routed); a runtime-dialect text defers with its
+  environment.
+- **Records**: DuckDB fail roster **108**, H2 **273**, both unchanged. 22 of the generator's alloy tests now fail
+  inside the generator's own Pure (a class query under a runtime `if()`) rather than at the router: their accepted
+  rows keep `not-offered:test-data-generator(S143)` with that witness; 7 of them fail under the database judge at its
+  planner and are rows of the database-mode accepted registers. Two failing bodies (`relationalResultSourcingOfListExecutionPlan`,
+  `testToSQLStringWithAbs`) are rows of the host-compared registers. Engine-order registers regenerated. Pins moved,
+  dated: `BodyDriver` 1043, `AssertVerdicts` 1956, `SqlTextVerdicts` 1653, `EffectPlanner` 186 (the CSV load step,
+  committed earlier without the census run); `RunReader` registered as a driver class.
+- **H2 notes**: on H2's database judge `dropAndCreateTable` and `testFetchDbColumnsMetaData` fail where the walk passed
+  (a JSON parameter type, empty catalog cells: the H2 database-judge parity item); paginate and slice with variables
+  meet H2's missing list encoding in scoped runs.
+
+Left on the walk (5): `testConvertAlias` (asserts inside a map of converter lambdas built by helpers),
+`testExecuteInDbToTDS` (database judge: `toCSV` of a raw-SQL TDS), `dropAndCreateTempTable` (a raw grid staged across
+an effect), `testWithParameterToClassNestedSelect` (`execute(...)->size()` run where it stands),
+`testToSqlStringReplaceTablesPostProcessor` (the host's system-routed engine-text arm).
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:census`, `//core:guardrails`, `//core:core_tests_driver`
+(×3 judges), `//core:core_tests_testplan` green; the core gate runs next.
