@@ -111,20 +111,29 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  database: such a body is the walk's (M10b). */
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted) {
-        return plan(typed, runtime, env, systemRouted, List.of(), "");
+        return plan(typed, runtime, env, systemRouted, null, List.of(), "");
+    }
+
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, boolean)} for a SYSTEM-ROUTED body ({@code bodyEnv}
+     *  non-null): an engine-text assert's compatibility appeal reads the user's tables on {@code bodyEnv}, the body's
+     *  own environment ({@code ExecEnv.appealOn}), its verdict row on the program's -- the host judge's split (M10c
+     *  item 10), the database judge's since 2026-11-06 (the walk deletion's step 3). */
+    static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            BodyDriver.@Nullable ExecEnv bodyEnv) {
+        return plan(typed, runtime, env, bodyEnv != null, bodyEnv, List.of(), "");
     }
 
     /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, boolean)} over a body whose statements follow {@code lets}
      *  (a branch's side: the value lets before the branch, the outer body's, already planned there), its segments'
      *  stamps named under {@code place} (the side's place in the outer body: no two fused statements share a stamp). */
     private static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
-            boolean systemRouted, List<TypedSpec> lets, String place) {
+            boolean systemRouted, BodyDriver.@Nullable ExecEnv bodyEnv, List<TypedSpec> lets, String place) {
         SpecCompiler specs = typed.specs();
         if (!plannable(typed, systemRouted)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
             return null;
         }
-        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted, lets)) {
+        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted && bodyEnv == null, lets)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the static pass");
             return null;
         }
@@ -219,9 +228,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 ExecutionPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false,
                         false, null).side();
                 DatabaseAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, systemRouted,
-                        letPrefix, place + i + "t.");
+                        bodyEnv, letPrefix, place + i + "t.");
                 DatabaseAsserts otherwise = then == null ? null : plan(AssertBranch.body(typed, parts.otherwise()),
-                        runtime, env, systemRouted, letPrefix, place + i + "e.");
+                        runtime, env, systemRouted, bodyEnv, letPrefix, place + i + "e.");
                 if (then == null || otherwise == null) {
                     return null;
                 }
@@ -288,6 +297,10 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             AssertVerdicts.SpliceHook hook = BodyDriver.spliceHook(frames, letPrefix, specs, benv)::apply;
             AssertVerdicts.DatabasePlan outcome;
             try {
+                if (bodyEnv != null) {
+                    // a system-routed body (above): an engine-text assert's appeal planned on the body's environment
+                    at = at.withAppealOn(bodyEnv);
+                }
                 outcome = AssertVerdicts.planDatabase(batch, bare, letPrefix, specs, at, hook);
             } catch (RuntimeException e) {
                 // the gate's own classification raised (a side's planning): the arm would raise the same at the
@@ -523,7 +536,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                             "the gate: " + AssertVerdicts.shapeOf(bare));
                     return false;
                 }
-                if (AssertVerdicts.engineText(gate) && systemRouted) {
+                if (AssertVerdicts.engineText(gate) && systemRouted
+                        && !AssertVerdicts.engineTextDecidedEqual(bare, letPrefix, specs, at, hook)) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, not this program's (M10b)
                     com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
@@ -643,6 +657,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // judged at the step with no row
                 outcome = gate == AssertVerdicts.DatabaseGate.UNPLANNED
                         || AssertVerdicts.engineText(gate) && systemRouted
+                                && !AssertVerdicts.engineTextDecidedEqual(bare, letPrefix, specs, at, hook)
                         ? AssertVerdicts.DatabasePlan.UNPLANNED
                         : AssertVerdicts.planDatabase(batch, bare, letPrefix, specs, at, hook);
             } catch (RuntimeException e) {

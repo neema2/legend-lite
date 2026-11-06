@@ -1937,8 +1937,11 @@ final class SqlTextVerdicts {
                 }
             }
         }
-        RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, env, hook),
-                sideAhead(populationRead, letPrefix, specs, env, hook), List.copyOf(fixtures));
+        // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
+        // under the database judge (ExecEnv.appealOn), this one otherwise
+        BodyDriver.ExecEnv on = env.appealOn() != null ? env.appealOn() : env;
+        RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, on, hook),
+                sideAhead(populationRead, letPrefix, specs, on, hook), List.copyOf(fixtures));
         if (collector instanceof Collecting c) {
             c.rowsAhead = ahead;
         }
@@ -1977,7 +1980,16 @@ final class SqlTextVerdicts {
             if (side.kind() == JudgePlans.Kind.CONSTANT) {
                 return side.answered();
             }
-            TypedSide read = JudgePlans.shape(side, JudgePlans.runSide(side, env));
+            // inside a moved body's run: the side the runner reads on the program's sessions (RunReader, the walk
+            // deletion's step 3) -- never a run of its own; the walk (no run) runs it in place
+            com.legend.exec.PlanRunner.SideReader reader = RunReader.current();
+            com.legend.exec.PlanRunner.Rows rows;
+            try {
+                rows = reader != null ? reader.read(side.side()) : JudgePlans.runSide(side, env);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            TypedSide read = JudgePlans.shape(side, rows);
             JudgePlans.toOneReader(side.root(), read);
             return read;
         }
@@ -2021,12 +2033,15 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayReferee.TempTable> temps, @com.legend.base.Nullable RowsAhead ahead) {
+        // the appeal's own environment: the body's for a system-routed body's assert under the database judge
+        // (ExecEnv.appealOn: its stores and its rows the user's), this one otherwise
+        BodyDriver.ExecEnv appealEnv = env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env;
         TypedSide rows;
         boolean priorSuspend = com.legend.judge.SqlTypeCensus
                 .probeSuspended();
         if (ahead == null) {
             // no rows planned with the assert: the stores' setups planned and run now, which a run refuses by name
-            provideStores(env, mappingFqn);
+            provideStores(appealEnv, mappingFqn);
         } else {
             ahead.provide();
         }
@@ -2075,9 +2090,9 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = goldenPlan != null
-                ? referee.verifyPlan(env.session(), goldenPlan, planBindings,
+                ? referee.verifyPlan(appealEnv.session(), goldenPlan, planBindings,
                         rows, mappingFqn, classFqn, facts, env.ctx())
-                : referee.verify(env.session(),
+                : referee.verify(appealEnv.session(),
                         replaySqlOrNull != null ? replaySqlOrNull : golden,
                         rows, mappingFqn, classFqn, facts, env.ctx(),
                         temps.isEmpty()

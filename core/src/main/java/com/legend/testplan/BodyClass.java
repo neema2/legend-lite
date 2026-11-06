@@ -457,11 +457,27 @@ public enum BodyClass {
         // a let naming them again plans no seed step)
         Set<Seeds.Sources> seeded = new HashSet<>();
         // the names the frames' query lambdas bind themselves (their parameters, their top-level lets), so far
-        Set<String> frameNames = new HashSet<>();
+        Map<String, Set<String>> framesBinding = new HashMap<>();
+        // the frames whose lambda's names a LATER frame rebound (by the let name that denotes them): a statement that
+        // reads one after the rebinding is the walk's -- the frames write one environment's query lets, so it would read
+        // the later binding (the walk's defect, upstream reads each frame's own; the M10c item 12 audit's F1). A frame
+        // read only BEFORE a later frame rebinds its names reads its own (the walk deletion, 2026-11-06: the corpus's
+        // paginate and slice tests run one executeLegendQuery per lambda, each binding `$i`, each read at once)
+        Set<String> stale = new HashSet<>();
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             boolean last = i == body.size() - 1;
+            if (!stale.isEmpty() && !java.util.Collections.disjoint(
+                    com.legend.compiler.spec.typed.FreeVars.of(statement instanceof TypedLet sl ? sl.value() : statement),
+                    stale)) {
+                // a read of a frame a later frame rebound (above)
+                return false;
+            }
+            if (statement instanceof TypedLet rebinding) {
+                // the name denotes this let's value from here: no longer a stale frame
+                stale.remove(rebinding.name());
+            }
             if (statement instanceof TypedLet && !last && !sentBefore) {
                 // a from()'s inline test data in a let (the corpus's `let func = {|...->from(mapping, $runtimeWithTestData)}`
                 // a frame then runs; M10c item 11): the test door seeds the let's sources before it, as the walk
@@ -528,17 +544,16 @@ public enum BodyClass {
                     // query until M10c item 11's lanes found a temporal graph fetch through it
                     TypedSpec boundQuery = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0),
                             body.subList(0, i));
-                    if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                            && !java.util.Collections.disjoint(frameNames, ownNames(lam))) {
-                        // the query lambda binds a name an earlier frame's lambda bound (an executeLegendQuery
-                        // parameter, a top-level let): the walk's frames write ONE environment's query lets, so the
-                        // earlier frame's readers read the later binding (`$r1` over the pairs of `$r2`: the walk's
-                        // defect, upstream reads each frame's own) -- the program road cannot agree with it and must
-                        // not copy it: the walk's, by name, until per-frame bindings (the M10c item 12 audit's F1)
-                        return false;
-                    }
                     if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
-                        frameNames.addAll(ownNames(lam));
+                        // the query lambda binds a name an earlier frame's lambda bound (an executeLegendQuery
+                        // parameter, a top-level let): the earlier frame is STALE from here (above)
+                        for (String n : ownNames(lam)) {
+                            Set<String> earlier = framesBinding.computeIfAbsent(n, k -> new HashSet<>());
+                            stale.addAll(earlier);
+                            earlier.add(let.name());
+                        }
+                        // this let's name denotes this frame now, even where an earlier frame bore it
+                        stale.remove(let.name());
                     }
                     TypedSpec frameQuery = framesAndHandlesAsTheirQueries(boundQuery);
                     if (StatementEffects.reaches(frameQuery, n -> frameQueryKind(n, systemClasses, ctx) != null
@@ -611,9 +626,6 @@ public enum BodyClass {
             // a frame program with no assert (2026-11-03, the core program: ExecuteFrameTest's `let r = execute(...);
             // $r.values`): its last statement is its answer, by the query program's answer rule -- the guard below (a
             // query planned after the asserts could fail before they ran) has no assert to guard.
-            // Only let-bound frames, no frame run as a statement of its own: the corpus's
-            // otherwiseTestQualifierPropertyConstantExpression (`let result = execute(|Product.all()->filter(...));
-            // true;`, its unread let a statement over an object query) the walk runs and the store resolver refuses.
             // A bare execute(...) of a relation-rooted query as the answer answers its frame's rows, the walk's forced
             // frame (2026-11-04, the core program: ExecuteFrameTest's executeInResultPosition; the test door's
             // ProductStatements.prepare, frameAnswered); any other execute(...) answered whole stays the walk's

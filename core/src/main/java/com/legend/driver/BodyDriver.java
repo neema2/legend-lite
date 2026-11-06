@@ -122,7 +122,8 @@ public final class BodyDriver {
             com.legend.judge.@com.legend.base.Nullable VerdictBatch verdictBatch,
             com.legend.exec.@com.legend.base.Nullable EffectSink effectSink,
             SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
-            com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage) {
+            com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
+            BodyDriver.@com.legend.base.Nullable ExecEnv appealOn) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), no listeners, a fresh trace, no batch, no sink. */
@@ -135,7 +136,7 @@ public final class BodyDriver {
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), session,
-                    null, null, options, new com.legend.exec.ExecutionTrace(), null, null, null, null);
+                    null, null, options, new com.legend.exec.ExecutionTrace(), null, null, null, null, null);
         }
 
         ModelContext ctx() {
@@ -174,23 +175,23 @@ public final class BodyDriver {
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
                     : new ExecEnv(p, session, assertListener, replayReferee, options, trace, verdictBatch, effectSink,
-                            engineText, failureMessage);
+                            engineText, failureMessage, appealOn);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.judge.VerdictBatch b) {
             return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, b, effectSink, engineText,
-                    failureMessage);
+                    failureMessage, appealOn);
         }
         /** Block-compiler stage 3: the effect natives' sends land in this sink (an
          * effect segment under construction) instead of the connection. */
         ExecEnv withEffectSink(com.legend.exec.@com.legend.base.Nullable EffectSink sink) {
             return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, sink,
-                    engineText, failureMessage);
+                    engineText, failureMessage, appealOn);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()), session, assertListener, replayReferee, o, trace,
-                    verdictBatch, effectSink, engineText, failureMessage);
+                    verdictBatch, effectSink, engineText, failureMessage, appealOn);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
@@ -202,21 +203,30 @@ public final class BodyDriver {
         }
         ExecEnv withListeners(com.legend.judge.@com.legend.base.Nullable AssertListener l,
                 com.legend.judge.@com.legend.base.Nullable SqlReplayReferee o) {
-            return new ExecEnv(plan, session, l, o, options, trace, verdictBatch, effectSink, engineText, failureMessage);
+            return new ExecEnv(plan, session, l, o, options, trace, verdictBatch, effectSink, engineText, failureMessage, appealOn);
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
             return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, effectSink, c,
-                    failureMessage);
+                    failureMessage, appealOn);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, effectSink,
-                    engineText, m);
+                    engineText, m, appealOn);
         }
+        /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
+         *  system-routed body's engine-text assert under the database judge: its rows read the user's tables on the
+         *  body's own environment while its verdict row runs on the program's; the walk deletion's step 3,
+         *  2026-11-06), or none: the appeal planned under this environment. */
+        ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
+            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, effectSink,
+                    engineText, failureMessage, on);
+        }
+
         /** The same environment over another session — the system
          * database's session for a body that reads the metamodel (the same
          * session object on every route, so two sides' sessions compare by
@@ -224,7 +234,7 @@ public final class BodyDriver {
         ExecEnv withSession(com.legend.exec.Sessions.Session other) {
             return other == session ? this
                     : new ExecEnv(plan, other, assertListener, replayReferee, options, trace, verdictBatch, effectSink,
-                            engineText, failureMessage);
+                            engineText, failureMessage, appealOn);
         }
 
         /** The plan runner's source for this environment's session: the body's session, each query's

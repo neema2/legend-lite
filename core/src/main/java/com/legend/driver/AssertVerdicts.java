@@ -183,6 +183,29 @@ final class AssertVerdicts {
      *  (the walk's). */
     enum DatabaseGate { PLANS, ENGINE_TEXT, ENGINE_TEXT_READ, RAISES, UNPLANNED }
 
+    /** Whether {@code bare} is an engine-text assert whose two texts are CONSTANTS of the plan and EQUAL: its verdict
+     *  decided at planning, never appealed (an appeal is heard on a failed text alone) -- so it reads no store, and a
+     *  system-routed body's program places it on its own target (the walk deletion, 2026-11-06: the corpus's
+     *  relational-mapper texts, byte-equal to their goldens, had kept ten system-routed bodies on the walk). A helper
+     *  root reduces first, as {@link #databaseGate} reduces it; a quantified form answers false. */
+    static boolean engineTextDecidedEqual(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        if (isHelperCall(bare)) {
+            TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
+            if (helper == null) {
+                return false;
+            }
+            bare = helper;
+        }
+        if (quantifiedForm(bare) != null) {
+            return false;
+        }
+        HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
+        return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e
+                && e.collected().golden() != null && e.collected().ours() != null && e.collected().textEqual();
+    }
+
     /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
      *  row computes ({@link DatabaseGate#ENGINE_TEXT_READ}, 2026-11-04, the core program). */
     static boolean engineText(DatabaseGate g) {
@@ -1085,6 +1108,8 @@ final class AssertVerdicts {
     private static void unplanned(TypedSpec bare, SpecCompiler specs, String label) {
         if (com.legend.compiler.spec.StatementEffects.callsVerdict(bare, specs, new java.util.HashMap<>())) {
             com.legend.exec.Census.unplannedAssert(label);
+            // the same refusal, named with its test (judge-declines: the walk deletion's measurement, 2026-11-06)
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", listenerName(bare), label);
         }
     }
 

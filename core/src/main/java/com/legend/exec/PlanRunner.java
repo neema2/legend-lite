@@ -258,19 +258,30 @@ public final class PlanRunner {
                 Statements st = opened(session, on);
                 ExecutionPlan.Target system = shape.system();
                 if (system == null) {
-                    Routes rt = new Routes(st, on.database() instanceof ExecutionPlan.Database.System, null, null);
-                    sink.reader(side -> sideRows(side, checked, rt));
+                    boolean homeIsSystem = on.database() instanceof ExecutionPlan.Database.System;
+                    // a program on the graph's system database reads the user's database for a statement that names it
+                    // (a compatibility appeal's rows: the walk deletion's step 3, 2026-11-06), on its own session,
+                    // opened at the first such statement and closed with the program
+                    UserBeside user = homeIsSystem ? new UserBeside(sessions) : null;
                     try {
-                        bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                        Routes rt = new Routes(st, homeIsSystem, null, null, user);
+                        sink.reader(side -> sideRows(side, checked, rt));
+                        try {
+                            bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
+                        } finally {
+                            sink.reader(null);
+                        }
                     } finally {
-                        sink.reader(null);
+                        if (user != null) {
+                            user.close();
+                        }
                     }
                 } else {
                     // a statement reading the graph's system metamodel store beside the body's: its own session, read
                     // only, outside the program's transaction (the walker-deletion program's per-statement routing,
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
-                        Routes rt = new Routes(st, false, opened(systemSession, system), systemSession);
+                        Routes rt = new Routes(st, false, opened(systemSession, system), systemSession, null);
                         sink.reader(side -> sideRows(side, checked, rt));
                         try {
                             bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
@@ -304,7 +315,7 @@ public final class PlanRunner {
     /** Where a program's statements run: the program's own session, and the graph's system database's where a
      *  statement names that target beside the program's (read only: no write, effect or seed is planned there). */
     private record Routes(Statements home, boolean homeIsSystem, @Nullable Statements system,
-            Sessions.@Nullable Session systemSession) {
+            Sessions.@Nullable Session systemSession, @Nullable UserBeside user) {
         /** The session {@code sql} runs on: the system database's where it names that target -- the program's own
          *  where the program runs there, else its second session -- and the program's otherwise. A statement naming
          *  the system database in a program that opened none for it is refused by name, never run on the user's
@@ -321,7 +332,53 @@ public final class PlanRunner {
                 }
                 return system;
             }
+            if (homeIsSystem) {
+                // a statement naming the user's database in a program on the system database: its own session, never
+                // the system one (until 2026-11-06 it ran on the home session, the system database, silently)
+                if (user == null) {
+                    throw new IllegalStateException("a statement on " + sql.target().database() + " in a program on"
+                            + " the graph's system database that opened no route to it");
+                }
+                return user.on(sql.target());
+            }
             return home;
+        }
+    }
+
+    /** The user's database beside a program on the graph's system database: its session opened from the program's
+     *  sessions source at the first statement that names it, kept for the program, closed with it. One user target a
+     *  program. */
+    private static final class UserBeside {
+        private final PlanSessions.Source sessions;
+        /** The session and its statements once opened. */
+        private final java.util.concurrent.atomic.AtomicReference<@Nullable Opened> opened =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        private record Opened(Sessions.Session session, Statements statements, ExecutionPlan.Target target) {
+        }
+
+        UserBeside(PlanSessions.Source sessions) {
+            this.sessions = sessions;
+        }
+
+        Statements on(ExecutionPlan.Target t) {
+            Opened o = opened.get();
+            if (o == null) {
+                Sessions.Session s = sessions.open(t);
+                o = new Opened(s, opened(s, t), t);
+                opened.set(o);
+            } else if (!t.equals(o.target())) {
+                throw new IllegalStateException("a program on the graph's system database names two user databases ("
+                        + o.target() + ", " + t + "): one beside it");
+            }
+            return o.statements();
+        }
+
+        void close() {
+            Opened o = opened.getAndSet(null);
+            if (o != null) {
+                o.session().close();
+            }
         }
     }
 

@@ -103,7 +103,7 @@ public final class BodyRouter {
                 boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
                 switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
+                    case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     // both judges in one plan: each assert's step carries the host's sides and the database's
                     // statement
                     case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
@@ -348,7 +348,10 @@ public final class BodyRouter {
         public void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) {
             if (agreement != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
-                TypedSide v = agreement.received(verdict, row, listener, reader);
+                TypedSide v;
+                try (var judging = RunReader.judging(reader)) {
+                    v = agreement.received(verdict, row, listener, reader);
+                }
                 if (v != null) {
                     lastVerdict = v;
                 }
@@ -368,7 +371,9 @@ public final class BodyRouter {
                 }
                 return;
             }
-            database.received(verdict, row, listener, reader);
+            try (var judging = RunReader.judging(reader)) {
+                database.received(verdict, row, listener, reader);
+            }
             lastVerdict = AssertVerdicts.ok();
         }
 
@@ -397,8 +402,10 @@ public final class BodyRouter {
             }
             HostAsserts.Planned p = hostPlanned(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
-            judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.sides(), rows),
-                    read == null ? null : HostSides.message(p.sides(), read), rules(verdict));
+            try (var judging = RunReader.judging(reader)) {
+                judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.sides(), rows),
+                        read == null ? null : HostSides.message(p.sides(), read), rules(verdict));
+            }
         }
 
         /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
