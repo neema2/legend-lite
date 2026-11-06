@@ -131,15 +131,12 @@ public final class MongoDbConnector implements DatabaseConnector {
                     + " through its own statements (Sessions.Session.statements)");
         }
 
+        /** The connector's statements, reached through the session's one guarded door ({@code Session.statements}:
+         *  inside a plan's run alone, THE WALL's rule 3). A MongoDB session's commands carry no SQL comment: no
+         *  execution trace rides them, and the body driver (whose activity rows read the trace) is not designed for
+         *  MongoDB; refused by name. */
         @Override
-        public Statements statements() {
-            return statements;
-        }
-
-        /** A MongoDB session's commands carry no SQL comment: no execution trace rides them, and the body driver
-         *  (whose activity rows read the trace) is not designed for MongoDB; refused by name. */
-        @Override
-        public Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
+        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace trace) {
             if (trace == null) {
                 return statements;
             }

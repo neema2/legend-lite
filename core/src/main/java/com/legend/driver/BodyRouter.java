@@ -51,49 +51,56 @@ public final class BodyRouter {
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
-        TypedQuery typed = lifted(given, options);
-        // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
-        // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
-        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
-        // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the database's):
-        // a body holding an assert of a shape the judge's planner does not plan yet has none, and the walk runs it (a
-        // named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
-        boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
-        // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so its
-        // asserts are planned on the system database's session (the walk's route for each side) and its program's
-        // target is that database, which the sessions source below opens -- the same session object, which the plan's
-        // own seed step writes once per graph (SystemRoutes.seeds; nothing is sent before the plan runs)
-        boolean systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
-                && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
+        TypedQuery typed;
+        BodyClass bodyClass;
+        boolean systemRouted;
         Sessions.Session system = null;
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
-        BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
-                : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session, listener, referee, options);
-        BodyDriver.ExecEnv env = bodyEnv;
-        if (systemRouted) {
-            BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
-            com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
-                    java.util.Objects.requireNonNull(runtimeFqn));
-            // opened, not written: the program's seed step writes the store (a server engine is refused by the class
-            // rule before this, so the tables keep their names)
-            system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
-            env = on.withSession(system);
-        }
-        if (assertsPlanned) {
-            // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned
-            // on it -- its appeal reads the user's tables on the body's session -- and its sides on the program's
-            // (M10c item 10)
-            BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(env);
-            String runtime = java.util.Objects.requireNonNull(runtimeFqn);
-            // a frame program with no assert judges nothing (2026-11-04, the core program): its frames run and its last
-            // statement answers as the host's planner plans them, whatever the judge -- the database judge's planner
-            // composes frames into verdict statements and splices none into an answer (ExecuteFrameTest under the
-            // database judge alone)
-            boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
-            // planning sends nothing (2026-11-05): a statement sent while the asserts are planned is refused by name
-            try (var p = com.legend.exec.StatementOrigin.planning("a test body's asserts")) {
+        // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
+        // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
+        // only the asserts' planning was scoped, and the system database's session was opened just before it)
+        try (var planning = com.legend.exec.StatementOrigin.planning("a test body")) {
+            typed = lifted(given, options);
+            // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
+            // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
+            bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
+            // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the
+            // database's): a body holding an assert of a shape the judge's planner does not plan yet has none, and the
+            // walk runs it (a named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
+            boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
+            // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so
+            // its asserts are planned on the system database's session (the walk's route for each side) and its
+            // program's target is that database, which the sessions source below opens -- the same session object,
+            // which the plan's own seed step writes once per graph (SystemRoutes.seeds; nothing is sent before the
+            // plan runs)
+            systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
+                    && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
+            BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
+                    : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session, listener, referee, options);
+            BodyDriver.ExecEnv env = bodyEnv;
+            if (systemRouted) {
+                BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
+                com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
+                        java.util.Objects.requireNonNull(runtimeFqn));
+                // named, not opened (Sessions.lazy: the run opens it at its first statement) and not written: the
+                // program's seed step writes the store (a server engine is refused by the class rule before this, so
+                // the tables keep their names)
+                system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
+                env = on.withSession(system);
+            }
+            if (assertsPlanned) {
+                // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM
+                // planned on it -- its appeal reads the user's tables on the body's session -- and its sides on the
+                // program's (M10c item 10)
+                BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(env);
+                String runtime = java.util.Objects.requireNonNull(runtimeFqn);
+                // a frame program with no assert judges nothing (2026-11-04, the core program): its frames run and its
+                // last statement answers as the host's planner plans them, whatever the judge -- the database judge's
+                // planner composes frames into verdict statements and splices none into an answer (ExecuteFrameTest
+                // under the database judge alone)
+                boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
                 switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted);
@@ -104,6 +111,7 @@ public final class BodyRouter {
                 }
             }
         }
+        boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
         TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
             String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"
@@ -185,7 +193,7 @@ public final class BodyRouter {
      * (the walk's, an assert's, a system-routed body's), which the caller cannot plan ahead.
      */
     public static @Nullable Execution.PlannedProgram planned(TypedQuery given, @Nullable String runtimeFqn,
-            SqlDialect dialect, Sessions.Session session, ExecuteOptions options) {
+            SqlDialect dialect, ExecuteOptions options) {
         TypedQuery typed = lifted(given, options);
         BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
         if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM
@@ -339,7 +347,7 @@ public final class BodyRouter {
         public void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) {
             if (agreement != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
-                TypedSide v = agreement.received(verdict, row, listener);
+                TypedSide v = agreement.received(verdict, row, listener, reader);
                 if (v != null) {
                     lastVerdict = v;
                 }
@@ -359,7 +367,7 @@ public final class BodyRouter {
                 }
                 return;
             }
-            database.received(verdict, row, listener);
+            database.received(verdict, row, listener, reader);
             lastVerdict = AssertVerdicts.ok();
         }
 

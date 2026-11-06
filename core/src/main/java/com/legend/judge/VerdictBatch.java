@@ -659,15 +659,19 @@ public final class VerdictBatch {
             this.ahead = ahead;
         }
 
-        /** The statement planned ahead for {@code key} (a pending step, or a root's message), run now on {@code on}. */
-        private List<Object> runAhead(Object key, String name, Sessions.Session on) {
+        /** The statement planned ahead for {@code key} (a pending step, or a root's message), read now: through the
+         *  running program's reader where the root loop runs inside its run -- the same run, no second one (THE WALL,
+         *  2026-11-06: a run started inside a run is refused) -- else run on {@code on}, after the batch's runs. */
+        private List<Object> runAhead(Object key, String name, Sessions.Session on,
+                PlanRunner.@com.legend.base.Nullable SideReader reader) {
             Ahead a = java.util.Objects.requireNonNull(ahead.get(key), "a statement the batch did not plan ahead");
             if (a.refused() != null) {
                 CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
                         + String.valueOf(a.refused().getMessage()).split("\n")[0]);
                 throw a.refused();
             }
-            return runPlanned(name, java.util.Objects.requireNonNull(a.plan()), on, runner);
+            ExecutionPlan.Node plan = java.util.Objects.requireNonNull(a.plan());
+            return reader != null ? readPlanned(name, plan, reader) : runPlanned(name, plan, on, runner);
         }
 
         /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
@@ -742,6 +746,13 @@ public final class VerdictBatch {
          *  split rung, lazily, nothing sent past the first failure), a resolved step's failure; each root's verdict to
          *  the listener; the first failure raises. */
         public void judge(@com.legend.base.Nullable AssertListener l) {
+            judge(l, null);
+        }
+
+        /** {@link #judge(AssertListener)} inside a program's run: a row planned ahead (the split rung's, a caller's
+         *  message) read through the program's {@code reader}, never a run of its own. */
+        public void judge(@com.legend.base.Nullable AssertListener l,
+                PlanRunner.@com.legend.base.Nullable SideReader reader) {
             counted();
             for (Root r : batch) {
                 RuntimeException failure = null;
@@ -761,7 +772,7 @@ public final class VerdictBatch {
                             }
                             if (row == null) {
                                 com.legend.diagnostics.Diagnostics.judgeSend("split-rung", p.name());
-                                row = runAhead(p, p.name(), p.on());
+                                row = runAhead(p, p.name(), p.on(), reader);
                             }
                             try {
                                 judge.judge(p.name(), row);
@@ -797,7 +808,7 @@ public final class VerdictBatch {
                 }
                 if (r.message != null && failure instanceof com.legend.error.AssertFailed af
                         && af.unjudgedReason() == null) {
-                    failure = messaged(r, this);
+                    failure = messaged(r, this, reader);
                 }
                 CanonicalDivergence.sqlRaised();
                 if (l != null && reported) {
@@ -821,10 +832,10 @@ public final class VerdictBatch {
 
     /** The failure of {@code r}, a root that did not hold, with its caller's message: the message's row sent now, at
      *  the root's place, its value the failure's text -- or the error reading it raised. */
-    private RuntimeException messaged(Root r, Planned planned) {
+    private RuntimeException messaged(Root r, Planned planned, PlanRunner.@com.legend.base.Nullable SideReader reader) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
         try {
-            List<Object> row = planned.runAhead(r, r.listenerName, java.util.Objects.requireNonNull(r.messageOn));
+            List<Object> row = planned.runAhead(r, r.listenerName, java.util.Objects.requireNonNull(r.messageOn), reader);
             return new com.legend.error.AssertFailed(String.valueOf(row.get(6)));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
@@ -922,6 +933,30 @@ public final class VerdictBatch {
             throw e;
         }
         return runPlanned(name, wrapper, on, runner);
+    }
+
+    /** ONE verdict statement already planned ({@code wrapper}) read through a running program's {@code reader} (the
+     *  root loop inside the program road's run: the same run reads it, THE WALL, 2026-11-06), its one row; a database
+     *  error is the database's verdict, as {@link #runPlanned}'s. */
+    private static List<Object> readPlanned(String name, ExecutionPlan.Node wrapper, PlanRunner.SideReader reader) {
+        ExecutionPlan.Side side = switch (wrapper) {
+            case ExecutionPlan.TdsResult t -> new ExecutionPlan.Side.Rows(t);
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Side.KeyedRows(k);
+            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed result");
+        };
+        PlanRunner.Rows rows;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
+            rows = reader.read(side);
+        } catch (com.legend.error.DataError e) {
+            CanonicalDivergence.sqlJudgedInDatabase(name);
+            throw e;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        if (rows.rows().size() != 1) {
+            throw new IllegalStateException(name + ": the verdict statement returned " + rows.rows().size() + " rows");
+        }
+        return rows.rows().get(0);
     }
 
     /** Run ONE verdict statement already planned ({@code wrapper}) on {@code on} and return its one row: the root

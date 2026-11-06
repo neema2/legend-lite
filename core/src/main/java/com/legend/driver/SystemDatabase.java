@@ -82,17 +82,22 @@ public final class SystemDatabase {
     }
 
     /**
-     * The graph's system database for {@code engine}, opened on first use: an in-process engine's private database, a
-     * server engine's the host's system connection for it, from {@code systemConnections} (a server engine with none
-     * is refused by name, never routed to a user's session). The same session object on every ask. The holder writes
-     * nothing: the store's tables and rows are the plan's own seed step ({@code SystemRoutes.seeds}), which the runner
-     * runs on this session once (the walker-deletion program, 2026-11-03: planning sends nothing).
+     * The graph's system database for {@code engine}, OPENED ON FIRST USE ({@link Sessions#lazy}; THE WALL,
+     * 2026-11-06: until then the router opened it as it PLANNED a system-routed body's asserts, a database touched by
+     * planning): an in-process engine's private database, a server engine's the host's system connection for it, from
+     * {@code systemConnections} (a server engine with none is refused by name when a run first reaches it, never
+     * routed to a user's session). The same session object on every ask, so a planner may name it -- the target its
+     * statements carry -- and open nothing. The holder writes nothing: the store's tables and rows are the plan's own
+     * seed step ({@code SystemRoutes.seeds}), which the runner runs on this session once (the walker-deletion program,
+     * 2026-11-03: planning sends nothing).
      */
     public synchronized Sessions.Session sessionFor(com.legend.model.ConnectionDefinition.DatabaseType engine,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
         Sessions.Session s = sessions.get(engine);
         if (s == null) {
-            s = Sessions.inProcess(engine) ? openPrivate(engine) : openSystem(engine, systemConnections);
+            Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> conns =
+                    java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
+            s = Sessions.lazy(() -> Sessions.inProcess(engine) ? openPrivate(engine) : openSystem(engine, conns));
             closer.open.add(s);
             sessions.put(engine, s);
         }

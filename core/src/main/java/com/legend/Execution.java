@@ -127,20 +127,18 @@ public final class Execution {
     }
 
     /**
-     * THE dialect of a program that runs on {@code session}: the database its runtime executes on
-     * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}). Its session setup is the
-     * body's target's, which the plan runner runs on the connection once (D66, 2026-10-30; until then this entry ran it as setup steps, once per program). The
-     * session is only CHECKED ({@code Sessions.check}): connected to another database than the one declared is
-     * refused, never reinterpreted.
+     * THE dialect of a program: the database its runtime executes on ({@link Compiler#executesOn}, upstream's
+     * {@code createDbConfig(connection.type)}), read from the model alone. Its session setup is the body's target's,
+     * which the plan runner runs on the connection once (D66, 2026-10-30; until then this entry ran it as setup
+     * steps, once per program). The session is not read here (THE WALL, 2026-11-06: until then this entry CHECKED it
+     * outside every run): the runner checks every session it is handed against each statement's target before the
+     * statement runs ({@code JdbcStatements.check}), so a session on another database than the one declared is
+     * refused there, never reinterpreted.
      */
-    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Session session) {
-        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
-        com.legend.exec.Sessions.check(session, decided.type());
+    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn) {
         // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
         // target's session statements, before the connection's first statement and not again (JudgePlans.target)
-        return com.legend.database.Databases.dialect(decided.type());
+        return Compiler.dialectOf(ctx, runtimeFqn);
     }
 
     /**
@@ -182,22 +180,19 @@ public final class Execution {
         void run(com.legend.exec.Sessions.Session session);
     }
 
-    /** {@code typed} PLANNED NOW for a session of {@code sessions}' database, to run later (zero exemptions, the
+    /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the
      *  owner, 2026-11-05: a test runner's fixture program planned with the assert whose compatibility appeal provides
-     *  it, run where the appeal provides it, inside a run that plans nothing): as {@link #runProgram} plans it, the
-     *  session read for its dialect and version and sent nothing; null for a body that cannot be planned ahead -- one
-     *  holding an assert, or of no moved class (the walk's). */
+     *  it, run where the appeal provides it, inside a run that plans nothing): as {@link #runProgram} plans it, with
+     *  no session at all (THE WALL, 2026-11-06: until then a session was opened and checked to plan it); null for a
+     *  body that cannot be planned ahead -- one holding an assert, or of no moved class (the walk's). */
     public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions, ExecuteOptions options) {
+            @com.legend.base.Nullable String runtimeFqn, ExecuteOptions options) {
         ModelContext ctx = typed.context();
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
-                    com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
-            return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, session,
-                    options);
-        }
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+        return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, options);
     }
 
     /** Where a program's last statement answers: the sink for its shape, made once the shape is known (a relation,
@@ -221,7 +216,7 @@ public final class Execution {
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
         // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =

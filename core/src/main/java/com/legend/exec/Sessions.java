@@ -70,9 +70,11 @@ public final class Sessions {
 
         /** The statements this session runs for the plan runner ({@link Statements}): JDBC's, over
          *  {@link #connection()}, unless the session's database speaks none -- a connector's session gives its own
-         *  (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12). */
-        public Statements statements() {
-            return new JdbcStatements(connection(), state());
+         *  (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12). Taken inside a plan's run alone (THE WALL's rule 3,
+         *  {@link com.legend.base.RunScope#statement}, 2026-11-06): the one door to a session's statements. */
+        public final Statements statements() {
+            com.legend.base.RunScope.statement("a session's statements");
+            return statementsOf(null);
         }
 
         /** The body driver's statements on this session: as {@link #statements()}, each query's execution-trace
@@ -80,20 +82,32 @@ public final class Sessions {
          *  {@link ExecutionTrace}); as {@link #statements()} when {@code trace} is null. A session whose statements
          *  carry no SQL comment refuses by name (track B's B1b, 2026-10-29: the driver holds a session, never a
          *  connection, and reaches the database only through its statements). */
-        public Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
-            return new JdbcStatements(connection(), state(), trace);
+        public final Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
+            com.legend.base.RunScope.statement("a session's statements");
+            return statementsOf(trace);
+        }
+
+        /** This session's statements, unguarded: the session's own form (JDBC's; a view's its owner's; a connector's
+         *  its own), reached through {@link #statements} alone -- and by the owner's transaction bracket. */
+        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace trace) {
+            return trace == null ? new JdbcStatements(connection(), state())
+                    : new JdbcStatements(connection(), state(), trace);
         }
 
         /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
          *  joined): the body driver's bracket for a program that writes or stages rows (the doors, 2026-10-29: a
-         *  session's own fact, reached without its statements, which only the plan runner takes). */
+         *  session's own fact, reached without its statements, which only the plan runner takes). The owner's act,
+         *  as an open is: refused while this thread plans (THE WALL's rule 2). */
         public <T> T inTransaction(java.util.function.Supplier<T> work) {
-            return statements().inTransaction(work);
+            com.legend.base.RunScope.opening("a transaction bracket");
+            return statementsOf(null).inTransaction(work);
         }
 
-        /** Whether a send on this session owns its transaction ({@link Statements#ownsTransaction}). */
+        /** Whether a send on this session owns its transaction ({@link Statements#ownsTransaction}). The owner's
+         *  question: refused while this thread plans. */
         public boolean ownsTransaction() {
-            return statements().ownsTransaction();
+            com.legend.base.RunScope.opening("a transaction's owner asked");
+            return statementsOf(null).ownsTransaction();
         }
 
         @Override
@@ -161,18 +175,67 @@ public final class Sessions {
         }
 
         @Override
-        public Statements statements() {
-            return owner.statements(trace);
-        }
-
-        @Override
-        public Statements statements(@com.legend.base.Nullable ExecutionTrace traced) {
-            return owner.statements(traced);
+        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace traced) {
+            return owner.statementsOf(traced != null ? traced : trace);
         }
 
         @Override
         public void close() {
             // a view: the owner closes
+        }
+    }
+
+    /** A session OPENED ON FIRST USE (THE WALL, 2026-11-06): {@code open} runs when the session's connection is first
+     *  reached -- a statement taken, inside a plan's run (rule 3) -- never when the session is made, so a planner may
+     *  name it (the graph's system database, {@code SystemDatabase}) and open nothing (rule 2). Its state is its own
+     *  from the start; closing it closes what it opened, if anything. */
+    public static Session lazy(java.util.function.Supplier<Session> open) {
+        return new Lazy(open);
+    }
+
+    /** {@link #lazy}'s session. */
+    private static final class Lazy extends Session {
+        private final java.util.function.Supplier<Session> open;
+        private final SessionState state = new SessionState();
+        /** The session beneath, once opened (set once). */
+        private final java.util.concurrent.atomic.AtomicReference<@com.legend.base.Nullable Session> opened =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        Lazy(java.util.function.Supplier<Session> open) {
+            this.open = open;
+        }
+
+        /** The session beneath, opened now if it is not yet. */
+        synchronized Session opened() {
+            Session o = opened.get();
+            if (o == null) {
+                o = open.get();
+                opened.set(o);
+            }
+            return o;
+        }
+
+        /** The session beneath where it was opened, else null (nothing opened by asking). */
+        @com.legend.base.Nullable Session ifOpened() {
+            return opened.get();
+        }
+
+        @Override
+        Connection connection() {
+            return opened().connection();
+        }
+
+        @Override
+        public SessionState state() {
+            return state;
+        }
+
+        @Override
+        public void close() {
+            Session o = ifOpened();
+            if (o != null) {
+                o.close();
+            }
         }
     }
 
@@ -207,20 +270,37 @@ public final class Sessions {
         return session.identity();
     }
 
-    /** The session beneath any number of views: the one whose connection and state they share. */
+    /** The session beneath any number of views (and a lazy session's, opened if it is not yet): the one whose
+     *  connection they share. */
     private static Session root(Session session) {
         Session s = session;
-        while (s instanceof View v) {
-            s = v.owner;
+        while (true) {
+            if (s instanceof View v) {
+                s = v.owner;
+            } else if (s instanceof Lazy l) {
+                s = l.opened();
+            } else {
+                return s;
+            }
         }
-        return s;
     }
 
     /** Whether {@code session}'s connection is closed -- or unanswerable, which only a broken connection produces;
      *  treating it live would cache the wreck (the handle stores' liveness test). A session over no JDBC connection
      *  (a connector's own) is never closed by this test: none is kept in a handle store. */
     public static boolean closed(Session session) {
-        if (!(root(session) instanceof Jdbc jdbc)) {
+        Session s = session;
+        while (s instanceof View v) {
+            s = v.owner;
+        }
+        if (s instanceof Lazy l) {
+            Session o = l.ifOpened();
+            if (o == null) {
+                return false;   // nothing opened: nothing closed (asking opens nothing)
+            }
+            return closed(o);
+        }
+        if (!(s instanceof Jdbc jdbc)) {
             return false;
         }
         try {
@@ -257,6 +337,7 @@ public final class Sessions {
 
     /** The session {@code opener} opens, owned: a failure of the open is a {@link com.legend.error.DataError}. */
     public static Session open(Opener opener) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(opener.open());
         } catch (SQLException e) {
@@ -278,6 +359,7 @@ public final class Sessions {
     /** {@code session} is a session on {@code declared}: a session on another database is refused, never
      *  reinterpreted (D67, 2026-10-30: the execution front door holds no connection). */
     public static void check(Session session, DatabaseType declared) {
+        com.legend.base.RunScope.statement("a session's check");
         check(session.connection(), declared);
     }
 
@@ -399,6 +481,7 @@ public final class Sessions {
     /** Opens {@code url}: an owned session (a failure of the open is a {@link com.legend.error.DataError}, as every
      *  opener's is since D70). */
     public static Session open(Opening.Url url) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(DriverManager.getConnection(url.url()));
         } catch (SQLException e) {
@@ -408,6 +491,7 @@ public final class Sessions {
 
     /** Opens a session on {@code named}'s in-memory database {@code name}, which outlives it. */
     public static Session openNamed(Opening.Named named, String name) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(named.memory().openNamed(name));
         } catch (SQLException e) {
@@ -418,6 +502,7 @@ public final class Sessions {
     /** Opens a session on {@code named}'s in-memory database {@code name}, which lives only while a connection to
      *  it is open: its opener keeps one, and when that one closes with no other open, the database is gone. */
     public static Session openKept(Opening.Named named, String name) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(named.memory().openKept(name));
         } catch (SQLException e) {
@@ -428,6 +513,7 @@ public final class Sessions {
     /** Opens another session on the kept database {@code name} ({@link #openKept}), which must still be open: one
      *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that name. */
     public static Session joinKept(Opening.Named named, String name) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(named.memory().joinKept(name));
         } catch (SQLException e) {
@@ -437,6 +523,7 @@ public final class Sessions {
 
     /** Opens the in-memory database a {@link Opening.Held} opening names: it lives as long as this session. */
     public static Session openHeld(Opening.Held held) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(held.connector().openPrivate());
         } catch (SQLException e) {
@@ -447,6 +534,7 @@ public final class Sessions {
     /** A PRIVATE in-memory database of {@code type}, gone when this session closes (the system database, the
      *  platform's engine); a type with none is refused by name. */
     public static Session openPrivate(DatabaseType type) {
+        com.legend.base.RunScope.opening("a session opened");
         try {
             return owned(Connectors.of(type).openPrivate());
         } catch (SQLException e) {

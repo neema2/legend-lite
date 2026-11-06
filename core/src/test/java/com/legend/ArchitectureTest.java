@@ -1487,9 +1487,8 @@ final class ArchitectureTest {
                 // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
                 // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
                 "com.legend.exec.Census.UNPLANNED_ASSERTS",
-                // the runtime wall's report mode (2026-11-05, the deep audit): the sites already printed under
-                // -Dlegend.runwall=report, so each prints once -- a diagnostic, never read by a verdict or a plan
-                "com.legend.base.RunScope.REPORTED",
+                // (com.legend.base.RunScope.REPORTED left 2026-11-06 with the wall's report mode: nothing turns the
+                // wall off)
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

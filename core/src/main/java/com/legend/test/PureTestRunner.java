@@ -307,8 +307,7 @@ public final class PureTestRunner implements AutoCloseable {
             return null;
         }
         Execution.PlannedProgram planned = Execution.planProgram(
-                Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn,
-                com.legend.Execution.Source.given(conn), options);
+                Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
         if (planned == null) {
             return null;
         }

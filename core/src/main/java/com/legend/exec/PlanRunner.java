@@ -952,6 +952,13 @@ public final class PlanRunner {
      * count of rows the database reports. Its transaction is the caller's (the body's, {@link Sessions#inTransaction}).
      */
     public static long update(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
+        // a run of one statement (THE WALL, 2026-11-06: every statement is a run's; none started inside a run)
+        try (var run = com.legend.base.RunScope.enter()) {
+            return updateIn(update, sessions);
+        }
+    }
+
+    private static long updateIn(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
         long[] count = {0};
         send(update.sql(), Map.of(), sessions, (st, statement, values) ->
                 count[0] = st.update(statement, update.sql().slots(), values));
@@ -961,6 +968,13 @@ public final class PlanRunner {
     /** The body driver's one effect: {@code effect} -- a raw statement a program wrote, a DDL, a script, a seed's
      *  rows -- on a session of {@code sessions} as {@link #update}'s; whether it answered rows (not read). */
     public static boolean effect(ExecutionPlan.Effect effect, PlanSessions.Source sessions) throws IOException {
+        // a run of one statement (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            return effectIn(effect, sessions);
+        }
+    }
+
+    private static boolean effectIn(ExecutionPlan.Effect effect, PlanSessions.Source sessions) throws IOException {
         if (!effect.sql().slots().isEmpty()) {
             throw new IllegalStateException("an effect binds no slot: its text is the statement");
         }
@@ -990,7 +1004,8 @@ public final class PlanRunner {
         if (!sql.slots().isEmpty()) {
             throw new IllegalStateException("a schema probe binds no slot: its text is the statement");
         }
-        try (Sessions.Session session = sessions.open(sql.target())) {
+        // a run of one statement (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(sql.target())) {
             return read.apply(opened(session, sql.target()), sql.statement());
         }
     }
@@ -1014,11 +1029,21 @@ public final class PlanRunner {
      */
     public static void setUp(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
             PlanSessions.Source sessions, @Nullable Ran ran) {
+        // a run of its steps (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            setUpIn(steps, target, sessions, ran);
+        }
+    }
+
+    /** {@link #setUp} inside the run in progress: a session the runner opened for a target, set up as it opens
+     *  ({@link PlanSessions}). */
+    static void setUpIn(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+            PlanSessions.Source sessions, @Nullable Ran ran) {
         for (int i = 0; i < steps.size(); i++) {
             boolean answeredRows = switch (steps.get(i)) {
                 case ExecutionPlan.SetupStep.Statement s -> {
                     try {
-                        yield effect(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
+                        yield effectIn(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -1333,7 +1358,10 @@ public final class PlanRunner {
             throw new IllegalStateException("the system store's seeds name the graph's system database");
         }
         systemStore(seeds);
-        seed(seeds, system, opened(system, seeds.target()), answered -> { });
+        // a run of the seed step (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            seed(seeds, system, opened(system, seeds.target()), answered -> { });
+        }
     }
 
     /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run

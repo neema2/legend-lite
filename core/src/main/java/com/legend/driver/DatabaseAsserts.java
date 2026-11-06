@@ -849,7 +849,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The runner's rows for {@code verdict} handed to its segment; the segment judged once its last verdict's row is
      *  in (the batch's root loop: the walk's census and listener protocol, the first failure raising). */
-    void received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row, @Nullable AssertListener listener) {
+    void received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row, @Nullable AssertListener listener,
+            com.legend.exec.PlanRunner.@Nullable SideReader reader) {
         HostAsserts.Planned error = errorVerdicts.get(verdict);
         if (error != null) {
             AssertVerdicts.judgedRowAtItsStep(error.assertion(), java.util.Objects.requireNonNull(row,
@@ -862,7 +863,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             s.planned().received(verdict, row);
         }
         if (s.closes(verdict)) {
-            s.planned().judge(listener);
+            // inside the program's run: a row the batch planned ahead is read through the program's reader (THE
+            // WALL, 2026-11-06: no run of its own)
+            s.planned().judge(listener, reader);
         }
     }
 

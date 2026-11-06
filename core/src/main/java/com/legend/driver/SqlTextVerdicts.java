@@ -1895,9 +1895,16 @@ final class SqlTextVerdicts {
         // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
         RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
-        return decide(env, name, golden, ours, textEqual, null, (o, eq) -> rowsLegNow(name, golden, o, eq,
-                referee, rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead, letPrefix, specs,
-                env, hook, query, goldenPlan, planBindings, temps, ahead));
+        // THE WALL's NAMED RESIDUE (2026-11-06): inside a body's run, the appeal provides its stores (a fixture's
+        // program) and reads our rows as runs of their own -- runs inside a run, admitted only where the lane opens
+        // this residue's door (the corpus lanes; core's engine-text parity tests), refused by name everywhere else;
+        // deleted when the appeal's reads and fixtures are steps of the body's plan (the corpus phase)
+        return decide(env, name, golden, ours, textEqual, null, (o, eq) -> {
+            try (var residue = com.legend.base.RunScope.residue(ENGINE_TEXT_APPEAL)) {
+                return rowsLegNow(name, golden, o, eq, referee, rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts,
+                        populationRead, letPrefix, specs, env, hook, query, goldenPlan, planBindings, temps, ahead);
+            }
+        });
     }
 
     /** The appeal's rows for an arm reaching its verdict under {@code env}: an arm re-run over a step's texts reads
@@ -1990,6 +1997,10 @@ final class SqlTextVerdicts {
         }
         return new SideAhead(side, failure);
     }
+
+    /** The residue the engine-text appeal's runs inside a body's run carry ({@link com.legend.base.RunScope#residue}:
+     *  {@code -Dlegend.wall.residue=engine-text-appeal} opens its door). */
+    public static final String ENGINE_TEXT_APPEAL = "engine-text-appeal";
 
     /** The rows leg itself: OUR rows through the one router, the golden replayed
      * via the referee, judged — now, on this thread. */

@@ -76,7 +76,8 @@ class TestBackendsTest {
         List<TestBackend> inProcess = TestBackends.all().stream().filter(TestBackend::inProcess).toList();
         assertTrue(inProcess.contains(TestBackends.platform()));
         for (TestBackend backend : inProcess) {
-            try (var session = backend.openSession()) {
+            // a session's check is a statement act: a run's alone (THE WALL's rule 3, 2026-11-06)
+            try (var session = backend.openSession(); var run = com.legend.base.RunScope.enter()) {
                 Sessions.check(session, backend.type());
             }
             assertThrows(IllegalStateException.class, backend::openSystem, backend.name());

@@ -107,37 +107,24 @@ public enum StatementOrigin {
         }
     }
 
-    private static final ThreadLocal<java.lang.@com.legend.base.Nullable String> PLANNING = new ThreadLocal<>();
-
-    /** PLANNING SENDS NOTHING, mechanically (2026-11-05, the strict database judge's group 3): while the scope is open
-     *  this thread is planning {@code what} -- a test body's plan, before any of it runs -- and a statement sent is
-     *  refused by name ({@link #sent}), whatever origin mark a site entered inside it. The scope nests: an inner
-     *  scope keeps the outer's name. */
-    public static Planning planning(String what) {
-        String previous = PLANNING.get();
-        PLANNING.set(previous != null ? previous : what);
-        return new Planning(previous);
+    /** PLANNING SENDS NOTHING, mechanically (2026-11-05, the strict database judge's group 3; THE WALL's rule 2 since
+     *  2026-11-06, {@link com.legend.base.RunScope#plans}): while the scope is open this thread is planning
+     *  {@code what} -- a test body's plan, before any of it runs -- and no run starts, no session opens and no
+     *  statement is sent, each refused by name. The scope nests: an inner scope keeps the outer's name. */
+    public static com.legend.base.RunScope.Planning planning(String what) {
+        return com.legend.base.RunScope.plans(what);
     }
 
-    /** Whether this thread is planning ({@link #planning}): a site that would send to prepare what it plans defers
-     *  that statement to the plan instead (the system store's route, whose seed is the plan's own step). */
+    /** Whether this thread is planning ({@link #planning}). */
     public static boolean isPlanning() {
-        return PLANNING.get() != null;
-    }
-
-    /** A planning scope; closing restores the one before it. */
-    public record Planning(java.lang.@com.legend.base.Nullable String previous) implements AutoCloseable {
-        @Override
-        public void close() {
-            PLANNING.set(previous);
-        }
+        return com.legend.base.RunScope.isPlanning();
     }
 
     /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
      *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. Refused while
      *  this thread plans ({@link #planning}). */
     public static void sent(String sql) {
-        String planning = PLANNING.get();
+        String planning = com.legend.base.RunScope.planningWhat();
         if (planning != null) {
             throw new IllegalStateException("a statement sent while planning " + planning + " (planning sends"
                     + " nothing): [" + current().name().toLowerCase(java.util.Locale.ROOT) + "] "

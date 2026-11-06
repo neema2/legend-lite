@@ -60,10 +60,19 @@ class BodyRouterParityTest {
 
     private static void inCompatibilityMode(Body body) throws Exception {
         COMPAT.set(Boolean.TRUE);
+        // compatibility mode's engine-text appeal runs inside the body's run: THE WALL's named residue, whose door these
+        // bodies open as the corpus lanes do (2026-11-06; refused on every other core test)
+        String doors = System.getProperty("legend.wall.residue");
+        System.setProperty("legend.wall.residue", SqlTextVerdicts.ENGINE_TEXT_APPEAL);
         try {
             body.run();
         } finally {
             COMPAT.remove();
+            if (doors == null) {
+                System.clearProperty("legend.wall.residue");
+            } else {
+                System.setProperty("legend.wall.residue", doors);
+            }
         }
     }
     private static final String EXEC = "meta::relational::metamodel::execute::executeInDb(";

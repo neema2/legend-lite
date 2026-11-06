@@ -83,19 +83,39 @@ public final class PlanSessions {
     }
 
     /** {@link #of(Sessions.Session)} with {@code target}'s setup run on the session first, once (the plan's seeds, the
-     *  session statements: {@link PlanRunner#setUp}, under the SEED mark); a plan whose setup has rows for a bulk
-     *  loader is refused by name on a database that has none. */
+     *  session statements, under the SEED mark): run INSIDE the plan's run, when the runner first opens a session
+     *  of this source (THE WALL's rule 3, 2026-11-06: until then it ran here, before the run, a statement sent
+     *  outside every run); a plan whose setup has rows for a bulk loader is refused by name there, before any
+     *  statement, on a database that has none. */
     public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
         Source source = of(session);
+        boolean[] established = {false};
+        return new Source() {
+            @Override
+            public Sessions.Session open(ExecutionPlan.Target t) {
+                synchronized (established) {
+                    if (!established[0]) {
+                        establish(session, target);
+                        established[0] = true;
+                    }
+                }
+                return source.open(t);
+            }
+        };
+    }
+
+    /** {@code target}'s setup run on {@code session} now, inside the run that opened it (the runner's own setup steps:
+     *  {@link PlanRunner#setUpIn}); refused by name before any statement where its rows need a bulk loader the
+     *  session's database has none of. */
+    private static void establish(Sessions.Session session, ExecutionPlan.Target target) {
         if (target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)
                 && !Sessions.loadsRows(session)) {
             throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
                     + " database has none (" + Sessions.product(session) + ")");
         }
         try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
-            PlanRunner.setUp(target.setup(), target, source, null);
+            PlanRunner.setUpIn(target.setup(), target, of(session), null);
         }
-        return source;
     }
 
     /** A session on the target's database kept by the target's content (its setup run once when opened): a view of a
@@ -172,7 +192,7 @@ public final class PlanSessions {
      *  for, the setup's failure the one told. */
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
         try {
-            setUp(session, target);
+            establish(session, target);
             return session;
         } catch (RuntimeException | Error e) {
             try {

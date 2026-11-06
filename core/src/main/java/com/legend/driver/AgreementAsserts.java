@@ -8,6 +8,7 @@ import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.AssertFailed;
+import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.judge.AssertListener;
 import com.legend.judge.TypedSide;
@@ -256,14 +257,14 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  At the last, both judges have read: the agreement rule decides, the listener is told the verdict of record, and
      *  a failure raises (the walk's tryAdjudicate over its agreement arm). */
     @Nullable TypedSide received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row,
-            @Nullable AssertListener listener) {
+            @Nullable AssertListener listener, PlanRunner.@Nullable SideReader reader) {
         One one = of(verdict);
         if (one.raising) {
             if (verdict != one.raisingVerdict) {
                 return null;   // the host's own step: its rows are the host's, read at hostSides
             }
             one.raisingRow = row;
-            return decided(one, listener);
+            return decided(one, listener, reader);
         }
         ExecutionPlan.Verdict member = one.members.get(verdict);
         if (member != null) {
@@ -272,7 +273,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         if (!one.closes(verdict)) {
             return null;
         }
-        return decided(one, listener);
+        return decided(one, listener, reader);
     }
 
     /** The runner's word on a group's fused statement, to the assert's database root. */
@@ -282,7 +283,10 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 .planned().fused(group, rejected);
     }
 
-    private static TypedSide decided(One one, @Nullable AssertListener listener) {
+    /** {@code one} decided at its last row, inside the program's run: a row its database half planned ahead read
+     *  through the program's {@code reader} (THE WALL, 2026-11-06: no run of its own). */
+    private static TypedSide decided(One one, @Nullable AssertListener listener,
+            PlanRunner.@Nullable SideReader reader) {
         AssertVerdicts.HostAssert a = one.host.assertion();
         AssertVerdicts.HostHeld held = one.held;
         if (held == null) {
@@ -307,7 +311,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                     if (database == null) {
                         return null;   // the database judge declines: not this shape -- strict, a failure
                     }
-                    database.planned().judge(null);
+                    database.planned().judge(null, reader);
                     return AssertVerdicts.ok();
                 }));
     }
