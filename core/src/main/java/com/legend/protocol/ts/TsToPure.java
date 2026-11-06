@@ -1017,6 +1017,10 @@ public final class TsToPure {
             private final Map<String, String> presence = new java.util.HashMap<>();
             /** Each set of lines met ({@link #met}), by each one's base, value and points, in order. */
             private final Map<List<Object>, TsLines.Line> mets = new java.util.HashMap<>();
+            /** Each met line's base, the bases whose rows hold its rows' periods (the lines met to make it, theirs in
+             *  turn): its parts' of its own key column (a line of no instrument has its own, ONE_LINE), by the very base --
+             *  a meeting keeps the periods every part has. */
+            private final Map<TsLines.Line, java.util.Set<TsLines.Line>> within = new java.util.IdentityHashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -1124,8 +1128,35 @@ public final class TsToPure {
                     m = TsLines.joined(this, read.stream().map(v -> new TsLines.Valued(
                             java.util.Objects.requireNonNull(pointed.get(v.line())), v.value())).toList(), pos, null);
                     mets.put(List.copyOf(key), m);
+                    // its rows' periods are every part's of its key (an INNER meeting), and so those parts' bases'
+                    java.util.Set<TsLines.Line> in = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                    for (TsLines.Valued v : read) {
+                        TsLines.Line b = base(v.line());
+                        if (b.part().equals(m.part())) {
+                            in.add(b);
+                            in.addAll(within.getOrDefault(b, java.util.Set.of()));
+                        }
+                    }
+                    within.put(m, in);
                 }
                 return newest(m);
+            }
+
+            @Override
+            public TsLines.@com.legend.base.Nullable Line containing(List<TsLines.Line> lines) {
+                for (TsLines.Line s : lines) {
+                    TsLines.Line sb = base(s);
+                    boolean all = true;
+                    for (TsLines.Line l : lines) {
+                        TsLines.Line lb = base(l);
+                        all &= lb == sb || l.part().equals(s.part())
+                                && within.getOrDefault(lb, java.util.Set.of()).contains(sb);
+                    }
+                    if (all) {
+                        return s;
+                    }
+                }
+                return null;
             }
 
             /** {@code line}'s base's newest line ({@link #newest}) with a column {@code add} adds to it: the base's

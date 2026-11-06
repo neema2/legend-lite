@@ -867,8 +867,12 @@ const CHART_BUDGET = 303_500;
  *  forms (the calendar spans, the pair words, sum since a date; 2026-11-04, no CI then) took it to 126,834, and the time
  *  model's D8 (a word that reads its line in order refused on a line with several rows on a date: lines::once,
  *  lines::untied and each such word's check, 2026-11-06) to 127,852 -- about 1.0 KB of the library's text gzipped.
- *  Measured 127,852; the headroom ~0.1%, A5 taking the text off the wire. */
-const TIMESERIES_BUDGET = 128_000;
+ *  Measured 127,852; the headroom ~0.1%, A5 taking the text off the wire.
+ *  128,000 -> 130,500 (2026-11-06, the roadmap's W3, the user: "keep going don't stop until we do the whole roadmap"):
+ *  timeseries::lines::within, the answer's spine on the line whose rows hold every other's (spec-13: 5 joins 4), 0.2 KB
+ *  of the library's text gzipped. Measured 128,096; the headroom ~2% again, as before the raise above, for the rows
+ *  forms the roadmap's W2 and W5 add until A5. */
+const TIMESERIES_BUDGET = 130_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

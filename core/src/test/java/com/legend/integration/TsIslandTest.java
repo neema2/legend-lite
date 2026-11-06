@@ -1177,6 +1177,25 @@ class TsIslandTest {
         assertEquals(1, sql.split(" JOIN ", -1).length - 1, sql);
     }
 
+    @Test
+    void anAnswerOfALineAndALineMetFromItIsThatLinesRows() throws Exception {
+        // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
+        // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values
+        // joined onto it -- no union of the two tables' periods, no grouping of them (spec-13's shape: its 5 joins 4)
+        String q = "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s, lag(s, 1) * diff(CLOSE['AAA'], 1) AS t"
+                + " FROM PRICES ON DAY BY SYMBOL}#";
+        for (TestBackend backend : TestBackends.inProcess()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            assertClose(each(AAA.length, i -> AAA[i] - BBB[i]), column(got, null, null, "s"), of + "every day's s");
+            assertClose(each(AAA.length, i -> i == 0 ? null : (AAA[i - 1] - BBB[i - 1]) * (AAA[i] - AAA[i - 1])),
+                    column(got, null, null, "t"), of + "t from the second day, none on the first");
+        }
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertFalse(sql.contains("UNION"), "s's table the spine, no union of periods: " + sql);
+        assertFalse(sql.contains("GROUP BY"), "no grouping of periods: " + sql);
+    }
+
     /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */
     private static double covariance(double[] x, double[] y, int from, int to) {
         double mx = 0;

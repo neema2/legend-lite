@@ -472,6 +472,8 @@ line's periods contain every other's, that line can be the spine: one LEFT JOIN,
 
 **Prove** it with method 1 of §7 and the D1 tests in `TsIslandTest`.
 
+**Built 2026-11-06:** `Lines.within` records each met base's containing bases (its parts' of its own key column, theirs in turn), `Writer.containing` finds the line holding every other's periods, and `TsLines.answer` makes it the spine with the library's `lines::within` (onto's join, D1's check and seen count, the later date). spec-13 22,303 -> 17,457 characters, 5 joins -> 4, SELECTs 30 -> 24; guide-13 the same move; every other example unchanged; every answer identical; the test `TsIslandTest.anAnswerOfALineAndALineMetFromItIsThatLinesRows`. Found on the way, not yet fixed: an expression reading a base's value again beside a table met from that base (`lag(s, 1) * CLOSE['AAA']`, s met from AAA) meets the table with the base and clashes on the carried column (`the column '__ts_base_0' already exists`).
+
 ### W4. SelectLayers follow-ups
 
 - **Duplicate windows inside one select.** SelectMerge runs first, and can write one window twice into a single

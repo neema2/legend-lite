@@ -79,6 +79,10 @@ final class TsLines {
         /** The line {@code key} reads (a source's rows, the column, how they are taken), made by {@code make} the
          *  first time: a column read twice is one line, its rows once (R7). */
         Valued read(Object key, java.util.function.Supplier<Valued> make);
+
+        /** The one of {@code lines} whose rows hold every other's periods -- the others met from it, of its key --
+         *  or null where none does: the Writer made them, and knows. */
+        @com.legend.base.Nullable Line containing(List<Line> lines);
     }
 
     /**
@@ -250,6 +254,49 @@ final class TsLines {
         return l;
     }
 
+    /**
+     * THE ANSWER'S PERIODS WHERE ONE LINE HOLDS THEM ALL (R6, 2026-11-06): every period any line has is the periods of
+     * the line whose rows hold every other's ({@link Writer#containing}: the others met from it, R7 part 3), so that
+     * line is the spine -- its rows, its values among them -- and each other line's values join it (the library's
+     * within: a lookup, D1's refusal, the later date). No union of the lines' periods, no grouping of them, one join a
+     * line. Else {@link #spread}.
+     */
+    private static Line within(Writer w, List<Valued> nodes, SqlAst.Pos pos) {
+        List<Line> distinct = new ArrayList<>();
+        List<List<String>> values = distinct(nodes, distinct);
+        Line s = w.containing(distinct);
+        if (s == null) {
+            return spread(w, nodes, pos).line();
+        }
+        String seen = w.fresh("sp_seen");
+        ValueSpecification spine = call(LINES + "perPeriod", s.rel(), new ColSpec(s.part()), new ColSpec(PERIOD),
+                new ColSpec(seen));
+        String at = s.at();
+        for (int d = 0; d < distinct.size(); d++) {
+            Line l = distinct.get(d);
+            if (l == s) {
+                continue;
+            }
+            String p = w.fresh("sp_p");
+            String per = w.fresh("sp_per");
+            String la = w.fresh("sp_la");
+            List<ColSpec> cols = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at())));
+            values.get(d).forEach(v -> cols.add(new ColSpec(v)));
+            ValueSpecification r = call("rename", call("select", l.rel(), new ColSpecArray(cols)),
+                    new ColSpec(l.part()), new ColSpec(p));
+            r = call("rename", call("rename", r, new ColSpec(PERIOD), new ColSpec(per)), new ColSpec(l.at()),
+                    new ColSpec(la));
+            String next = w.fresh("sp_seen");
+            String nat = w.fresh("sp_at");
+            spine = call(LINES + "within", spine, new ColSpec(s.part()), new ColSpec(PERIOD), new ColSpec(at), r,
+                    new ColSpec(p), new ColSpec(per), new ColSpec(la), new ColSpec(seen), new ColSpec(next),
+                    new ColSpec(nat));
+            seen = next;
+            at = nat;
+        }
+        return new Line(spine, s.part(), s.byInstrument(), at);
+    }
+
     /** Each line of {@code nodes} once, in order, into {@code lines} (several nodes may read one: a struct's fields);
      *  the values the nodes read of each, in its place. */
     private static List<List<String>> distinct(List<Valued> nodes, List<Line> lines) {
@@ -278,10 +325,11 @@ final class TsLines {
         return -1;
     }
 
-    /** THE ANSWER'S ROWS (R6): every period any item has a value in ({@link #spread}), the items' columns as named. */
+    /** THE ANSWER'S ROWS (R6): every period any item has a value in ({@link #spread}), the items' columns as named --
+     *  where one item's line holds every other's periods, its rows ({@link #within}). */
     static Line answer(Writer w, List<Valued> items, SqlAst.Pos pos) {
         Line l = items.stream().allMatch(v -> v.line() == items.get(0).line()) ? items.get(0).line()
-                : spread(w, items, pos).line();
+                : within(w, items, pos);
         List<ColSpec> keep = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at())));
         items.forEach(v -> keep.add(new ColSpec(v.value())));
         return l.with(call("select", l.rel(), new ColSpecArray(keep)));

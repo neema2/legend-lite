@@ -2157,6 +2157,19 @@ function timeseries::lines::onto<T,U,K,P,L,Q,S,N>(spine: Relation<T>[1], key: Co
     ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
 }
 
+// A LINE'S VALUES ONTO A LINE WHOSE ROWS CONTAIN ITS OWN (R6, 2026-11-06): the answer's periods are every period any
+// line has, and where one line's rows hold every other's period -- the others met from it (R7 part 3) -- they are its
+// own: spine is that line, its rows' counts on a period \`seen\`, and each other line joins it as onto does (a lookup
+// where one side has several rows on a period, refused where both have: D1). The answer's date is the later of the
+// two lines' (R5: one date for every line), \`outAt\`.
+function timeseries::lines::within<T,U,K,P,A,L,Q,B,S,N,OA>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1], lineAt: ColSpec<B⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1], outAt: ColSpec<OA>[1]): Relation<T+U+N+OA>[1]
+{
+  $spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|if($r->read($lineAt)->isEmpty() || ($r->read($at)->toOne() >= $r->read($lineAt)->toOne()), |$r->read($at), |$r->read($lineAt))])
+    ->without(~[ol])->rename(~on, $next)->rename(~oa, $outAt)
+}
+
 // ... of a line of no instrument (its key of timeseries::All, 2a): its row of the period whatever the instrument --
 // every instrument's (R2's broadcast).
 function timeseries::lines::onto<T,U,K,P,Q,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<(?:timeseries::All)⊆U>[1], linePeriod: ColSpec<Q⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
