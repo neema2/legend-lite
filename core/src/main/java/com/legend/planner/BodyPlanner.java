@@ -106,7 +106,6 @@ public final class BodyPlanner {
      * VALUE (helper calls inlined) and read ONCE. */
     public static ExecutionContext boundContext(
             TypedSpec runtimeArg, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
         TypedSpec value = new UserCallInliner(specs)
                 .inlineBody(List.of(runtimeArg)).get(0);
         return ExecutionContext.reader()
@@ -118,7 +117,6 @@ public final class BodyPlanner {
      * statement's preceding lets. */
     public static ExecutionContext boundContext(
             TypedSpec runtimeArg, List<TypedSpec> letPrefix, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
         TypedSpec value = new UserCallInliner(specs)
                 .inlineBody(List.of(Lets.bound(runtimeArg, letPrefix))).get(0);
         return ExecutionContext.reader()

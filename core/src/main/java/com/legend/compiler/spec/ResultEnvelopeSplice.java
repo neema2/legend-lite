@@ -147,10 +147,7 @@ public final class ResultEnvelopeSplice {
      */
     public static BiFunction<TypedSpec, Set<String>, TypedSpec> hook(
             Frames frames) {
-        return (n, boundVars) -> {
-            com.legend.base.RunScope.planning("splice a result envelope");
-            return rewrite(n, shadowed(frames, boundVars));
-        };
+        return (n, boundVars) -> rewrite(n, shadowed(frames, boundVars));
     }
 
     private static Frames shadowed(Frames frames, Set<String> boundVars) {
