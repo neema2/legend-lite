@@ -104,6 +104,42 @@ final class SideOrdinal {
         return over.withProjections(ps);
     }
 
+    /**
+     * {@code q}'s rows in their branches' order where it is a UNION ALL -- directly, or under selects that keep their
+     * source's rows in order -- for a side the HOST judge reads (2026-11-06, the final audit: f5693a95 numbered such a
+     * union by branch for the database judge alone, and the host read the same side in arrival order, so under BOTH
+     * the two could disagree): {@code SELECT o.<outputs> FROM (<q with its ordinal>) o ORDER BY o.__ord}, the ordinal
+     * the database judge numbers by ({@link #defined}). {@code q} itself where it holds no such union, or where the
+     * union's order is not defined (a branch that carries no ordinal: the database judge's order is the database's
+     * there too).
+     */
+    static SqlQuery inBranchOrder(SqlQuery q) {
+        if (!unionUnderPassThrough(q)) {
+            return q;
+        }
+        SqlQuery numbered = defined(q);
+        if (numbered == null) {
+            return q;
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>(q.outputs().size());
+        for (OutputCol o : q.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__bo", o), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Subselect(numbered, "__bo", null), null, List.of(), null, null,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of("__bo", ORD_OUT), true, null, null)), null, null,
+                q.outputs());
+    }
+
+    /** Whether {@code q} is a UNION ALL, or a select that keeps its one derived source's rows in order over one. */
+    private static boolean unionUnderPassThrough(SqlQuery q) {
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            return u.all();
+        }
+        return q instanceof SqlSelect s && !s.distinct() && s.orderBy().isEmpty() && s.groupBy().isEmpty()
+                && s.having() == null && s.limit() == null && s.offset() == null
+                && s.from() instanceof SqlSource.Subselect sub && unionUnderPassThrough(sub.inner());
+    }
+
     /** The branch's index in a {@link #branchOrder} union. */
     private static final String BRANCH = "__ob";
 

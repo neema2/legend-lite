@@ -533,8 +533,11 @@ final class JudgePlans {
             case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
                     root, null);
             case TABULAR -> tabularPlanned(w, env, assertBoundary, root);
-            case SCALAR, COLLECTION -> new PlannedSide(sideOf(
-                    rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env)), Kind.VALUES, w, null, root, null);
+            // a side that is a UNION ALL read in its branches' order, the order the database judge numbers it by
+            // (2026-11-06, the final audit: the two judges read one order)
+            case SCALAR, COLLECTION -> new PlannedSide(sideOf(rowsPlan(withFrames(
+                    com.legend.lowering.VerdictSql.inBranchOrder(w.plan()), env), TypedRows.schema(info), env)),
+                    Kind.VALUES, w, null, root, null);
         };
     }
 
@@ -635,6 +638,9 @@ final class JudgePlans {
             ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
             return new PlannedSide(new ExecutionPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
+        // a grid that is a UNION ALL read in its branches' order, the order the database judge numbers it by
+        // (2026-11-06, the final audit: the two judges read one order)
+        plan = com.legend.lowering.VerdictSql.inBranchOrder(plan);
         if (assertBoundary) {
             // ASSERT-BOUNDARY determinism (user design, 2026-08-29; the rule of the legacy TDS canon wrap this side
             // no longer rides, kept on the plan path): a grid under assertion is deterministically ordered even when

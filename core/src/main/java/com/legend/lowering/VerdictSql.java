@@ -1639,6 +1639,13 @@ public final class VerdictSql {
         return ctes.isEmpty() ? row : new SqlWith(ctes, row);
     }
 
+    /** {@code side}'s rows in their branches' order where it is a UNION ALL (directly or under pass-through selects),
+     *  for the HOST judge's read of a side: the order the database judge numbers the same side by
+     *  ({@code SideOrdinal.inBranchOrder}, 2026-11-06); {@code side} itself otherwise. */
+    public static SqlQuery inBranchOrder(SqlQuery side) {
+        return SideOrdinal.inBranchOrder(side);
+    }
+
     private static List<OutputCol> batchOutputs() {
         return List.of(new OutputCol(INDEX, SqlType.Scalar.BIGINT, false),
                 new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false),
