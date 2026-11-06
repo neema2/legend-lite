@@ -36,6 +36,7 @@ H2	H2	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	via 
 H2	H2	call	LIST_CONCAT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	2
 H2	H2	call	LIST_GET	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	69
 H2	H2	call	LIST_POSITION	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	39
+H2	H2	call	LIST_AT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	8
 H2	H2	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	3
 H2	H2	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	0
@@ -52,8 +53,8 @@ H2	H2	call	PI	spelled	pi		1
 H2	H2	call	SIN	spelled	sin		3
 H2	H2	call	COS	spelled	cos		3
 H2	H2	call	TAN	spelled	tan		2
-H2	H2	call	ASIN	spelled	asin		4
-H2	H2	call	ACOS	spelled	acos		4
+H2	H2	call	ASIN	emulated	domainGuarded: asin		4
+H2	H2	call	ACOS	emulated	domainGuarded: acos		4
 H2	H2	call	ATAN	spelled	atan		3
 H2	H2	call	ATAN2	spelled	atan2		3
 H2	H2	call	SINH	spelled	sinh		22
@@ -141,7 +142,7 @@ H2	H2	call	REPEAT_STR	spelled	repeat		4
 H2	H2	call	JARO_WINKLER	spelled	jaro_winkler_similarity		2
 H2	H2	call	DECODE_BASE64	refused	decodeBase64 reached H2, which has no from_base64()		4
 H2	H2	call	CURRENT_USER_FN	spelled	current_user		2
-H2	H2	call	LIST_LENGTH	spelled	len		27
+H2	H2	call	LIST_LENGTH	emulated	listLength		27
 H2	H2	call	LIST_ZIP	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	LIST_DISTINCT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	LIST_APPEND	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	8
@@ -179,8 +180,8 @@ H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'fa
 H2	H2	call	FLOAT_CANON	emulated	floatCanonByText		0
 H2	H2	call	FLOAT_PRINT	emulated	floatPrintByText		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
-H2	H2	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	14
-H2	H2	call	JSON_TYPE	spelled	json_type		1
+H2	H2	call	VARIANT_GET	emulated	variantGet		14
+H2	H2	call	JSON_TYPE	emulated	jsonType		1
 H2	H2	call	JSON_ARRAY_LENGTH	spelled	json_array_length		0
 H2	H2	call	JSON_PRETTY	spelled	json_pretty		0
 H2	H2	reducer	SUM	emulated	h2Aggregate: SUM		212
@@ -223,227 +224,6 @@ H2	H2	reducer	LEAD	not_here	is a window function: windowCall writes it		0
 H2	H2	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
 H2	H2	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
 H2	H2	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
-H2Modern	-	call	AND	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	OR	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	NOT	spelled	an operator (notPrefix)	as H2	-
-H2Modern	-	call	EQUAL	emulated	equalArm	as H2	-
-H2Modern	-	call	NOT_EQUAL	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	LESS	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	LESS_EQUAL	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	GREATER	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	GREATER_EQUAL	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	PLUS	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	MINUS	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	TIMES	spelled	an operator (infix)	as H2	-
-H2Modern	-	call	DIVIDE	emulated	divideAsDoubles	as H2	-
-H2Modern	-	call	MOD	emulated	modFloored	as H2	-
-H2Modern	-	call	REM	emulated	modTruncated	as H2	-
-H2Modern	-	call	NEGATE	spelled	an operator (negation)	as H2	-
-H2Modern	-	call	ABS	spelled	abs	as H2	-
-H2Modern	-	call	IS_NULL	spelled	an operator (isNullTest)	as H2	-
-H2Modern	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as H2	-
-H2Modern	-	call	IN	emulated	inList	as H2	-
-H2Modern	-	call	COALESCE	spelled	coalesce	as H2	-
-H2Modern	-	call	PARSE_INT	emulated	castAs: BIGINT	as H2	-
-H2Modern	-	call	CONCAT	emulated	concatFlat	as H2	-
-H2Modern	-	call	LENGTH	spelled	length	as H2	-
-H2Modern	-	call	UPPER	spelled	upper	as H2	-
-H2Modern	-	call	LOWER	spelled	lower	as H2	-
-H2Modern	-	call	GREATEST	spelled	greatest	as H2	-
-H2Modern	-	call	LEAST	spelled	least	as H2	-
-H2Modern	-	call	CONCAT_JOIN	spelled	concat	as H2	-
-H2Modern	-	call	LIST_FILTER	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_CONCAT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_GET	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_POSITION	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listExists	-
-H2Modern	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listForAll	-
-H2Modern	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as H2, via AnsiSqlRenderer.structInsert	-
-H2Modern	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as H2, via AnsiSqlRenderer.unnestProjection	-
-H2Modern	-	call	LIST_FLATTEN	spelled	flatten	as H2	-
-H2Modern	-	call	JSON_MERGE_PATCH	refused	a JSON merge reached H2, which has no json_merge_patch()	as H2	-
-H2Modern	-	call	SQRT	spelled	sqrt	as H2	-
-H2Modern	-	call	CBRT	spelled	cbrt	as H2	-
-H2Modern	-	call	EXP	spelled	exp	as H2	-
-H2Modern	-	call	LN	spelled	ln	as H2	-
-H2Modern	-	call	LOG10	spelled	log10	as H2	-
-H2Modern	-	call	POW	spelled	power	as H2	-
-H2Modern	-	call	PI	spelled	pi	as H2	-
-H2Modern	-	call	SIN	spelled	sin	as H2	-
-H2Modern	-	call	COS	spelled	cos	as H2	-
-H2Modern	-	call	TAN	spelled	tan	as H2	-
-H2Modern	-	call	ASIN	spelled	asin	as H2	-
-H2Modern	-	call	ACOS	spelled	acos	as H2	-
-H2Modern	-	call	ATAN	spelled	atan	as H2	-
-H2Modern	-	call	ATAN2	spelled	atan2	as H2	-
-H2Modern	-	call	SINH	spelled	sinh	as H2	-
-H2Modern	-	call	COSH	spelled	cosh	as H2	-
-H2Modern	-	call	TANH	spelled	tanh	as H2	-
-H2Modern	-	call	CEILING	emulated	bigintOf: ceil	as H2	-
-H2Modern	-	call	FLOOR	emulated	bigintOf: floor	as H2	-
-H2Modern	-	call	ROUND	emulated	roundHalfEven	as H2	-
-H2Modern	-	call	SIGN	emulated	bigintOf: sign	as H2	-
-H2Modern	-	call	XOR	emulated	xorAsAndOr	as H2	-
-H2Modern	-	call	BIT_AND	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
-H2Modern	-	call	BIT_OR	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
-H2Modern	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
-H2Modern	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
-H2Modern	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
-H2Modern	-	call	BIT_NOT	refused	bitNot reached H2, which has no xor()	as H2	-
-H2Modern	-	call	REGEXP_EXTRACT	emulated	regexpExtractArm	as H2	-
-H2Modern	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as H2	-
-H2Modern	-	call	REGEXP_REPLACE	spelled	regexp_replace	as H2	-
-H2Modern	-	call	REGEXP_FULL_MATCH	emulated	regexpFullMatch	as H2	-
-H2Modern	-	call	MAP_FROM_LISTS	spelled	map	as H2	-
-H2Modern	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as H2	-
-H2Modern	-	call	MAP_EMPTY	refused	an empty map reached H2, which has no map type	as H2	-
-H2Modern	-	call	MAP_EXTRACT	spelled	map_extract	as H2	-
-H2Modern	-	call	MAP_KEYS	spelled	map_keys	as H2	-
-H2Modern	-	call	MAP_VALUES	spelled	map_values	as H2	-
-H2Modern	-	call	MAP_CONCAT	spelled	map_concat	as H2	-
-H2Modern	-	call	SUBSTRING	spelled	substr	as H2	-
-H2Modern	-	call	STRPOS	spelled	LOCATE	as H2	-
-H2Modern	-	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)	as H2	-
-H2Modern	-	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)	as H2	-
-H2Modern	-	call	MATCHES	spelled	regexp_like	as H2	-
-H2Modern	-	call	LEFT	spelled	left	as H2	-
-H2Modern	-	call	RIGHT	spelled	right	as H2	-
-H2Modern	-	call	LPAD	emulated	padWithSpace: lpad	as H2	-
-H2Modern	-	call	RPAD	emulated	padWithSpace: rpad	as H2	-
-H2Modern	-	call	TRIM	spelled	trim	as H2	-
-H2Modern	-	call	LTRIM	spelled	ltrim	as H2	-
-H2Modern	-	call	RTRIM	spelled	rtrim	as H2	-
-H2Modern	-	call	REPLACE	spelled	replace	as H2	-
-H2Modern	-	call	SPLIT	spelled	string_split	as H2	-
-H2Modern	-	call	SPLIT_PART	emulated	splitPartArm	as H2	-
-H2Modern	-	call	TRANSLATE	emulated	translate	as H2	-
-H2Modern	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as H2	-
-H2Modern	-	call	REVERSE_STRING	spelled	reverse	as H2	-
-H2Modern	-	call	ASCII_CODE	spelled	ascii	as H2	-
-H2Modern	-	call	CHR	spelled	chr	as H2	-
-H2Modern	-	call	UC_FIRST	emulated	firstCharCased: upper	as H2	-
-H2Modern	-	call	LC_FIRST	emulated	firstCharCased: lower	as H2	-
-H2Modern	-	call	ENCODE_BASE64	refused	encodeBase64 reached H2, which has no to_base64()	as H2	-
-H2Modern	-	call	LEVENSHTEIN	spelled	levenshtein	as H2	-
-H2Modern	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as H2	-
-H2Modern	-	call	FORMAT	emulated	formatArm	as H2	-
-H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as H2, via AnsiSqlRenderer.hashSigned	-
-H2Modern	-	call	MD5	emulated	digest: MD5	as H2	-
-H2Modern	-	call	SHA1	emulated	digest: SHA-1	as H2	-
-H2Modern	-	call	SHA256	emulated	digest: SHA-256	as H2	-
-H2Modern	-	call	RANDOM	spelled	RAND	as H2	-
-H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
-H2Modern	-	call	TODAY	spelled	current_date	as H2	-
-H2Modern	-	call	NOW	spelled	now	as H2	-
-H2Modern	-	call	DATE_TRUNC_DAY	emulated	castAs: DATE	as H2	-
-H2Modern	-	call	MAKE_DATE	spelled	make_date	as H2	-
-H2Modern	-	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()	as H2	-
-H2Modern	-	call	DATE_TRUNC	emulated	dateTruncDateGrained	as H2	-
-H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
-H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
-H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
-H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
-H2Modern	-	call	DATE_AT_TIME	spelled	an operator (+)	as H2	-
-H2Modern	-	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
-H2Modern	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
-H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
-H2Modern	-	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)	as H2	-
-H2Modern	-	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)	as H2	-
-H2Modern	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as H2	-
-H2Modern	-	call	FROM_EPOCH_MS	refused	a date from epoch milliseconds reached H2, which has no epoch_ms()	as H2	-
-H2Modern	-	call	DAYNAME	spelled	dayname	as H2	-
-H2Modern	-	call	MONTHNAME	spelled	monthname	as H2	-
-H2Modern	-	call	COT	spelled	cot	as H2	-
-H2Modern	-	call	RADIANS	spelled	radians	as H2	-
-H2Modern	-	call	DEGREES	spelled	degrees	as H2	-
-H2Modern	-	call	INT_DIVIDE	emulated	CAST(… / … AS BIGINT)	as H2	-
-H2Modern	-	call	REPEAT_STR	spelled	repeat	as H2	-
-H2Modern	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as H2	-
-H2Modern	-	call	DECODE_BASE64	refused	decodeBase64 reached H2, which has no from_base64()	as H2	-
-H2Modern	-	call	CURRENT_USER_FN	spelled	current_user	as H2	-
-H2Modern	-	call	LIST_LENGTH	emulated	listLength		-
-H2Modern	-	call	LIST_ZIP	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_DISTINCT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_APPEND	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_SUM	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_MIN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_MAX	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_AVG	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_MEDIAN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_MODE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_SORT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_SORT_DESC	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_TAIL	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_INIT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	RANGE_FN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_PRODUCT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_REDUCE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_SLICE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	REPEAT_VALUE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_BOOL_AND	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	LIST_BOOL_OR	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as H2	-
-H2Modern	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.allDistinct	-
-H2Modern	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as H2	-
-H2Modern	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as H2	-
-H2Modern	-	call	STRFTIME	spelled	formatdatetime	as H2	-
-H2Modern	-	call	STRPTIME	spelled	parsedatetime	as H2	-
-H2Modern	-	call	PARSE_DATE	emulated	castAs: TIMESTAMP	as H2	-
-H2Modern	-	call	LIST_REVERSE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	TYPEOF	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
-H2Modern	-	call	ROUND_HALF_UP	spelled	ROUND	as H2	-
-H2Modern	-	call	ERROR	emulated	errorArm	as H2	-
-H2Modern	-	call	FLOOR_RAW	spelled	floor	as H2	-
-H2Modern	-	call	TO_VARIANT	emulated	variantConstruct	as H2	-
-H2Modern	-	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END	as H2	-
-H2Modern	-	call	FLOAT_CANON	emulated	floatCanonByText	as H2	-
-H2Modern	-	call	FLOAT_PRINT	emulated	floatPrintByText	as H2	-
-H2Modern	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as H2, via AnsiSqlRenderer.variantElements	-
-H2Modern	-	call	VARIANT_GET	emulated	variantGet	as H2	-
-H2Modern	-	call	JSON_TYPE	spelled	json_type	as H2	-
-H2Modern	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as H2	-
-H2Modern	-	call	JSON_PRETTY	spelled	json_pretty	as H2	-
-H2Modern	-	reducer	SUM	emulated	h2Aggregate: SUM	as H2	-
-H2Modern	-	reducer	COUNT	emulated	h2Aggregate: COUNT	as H2	-
-H2Modern	-	reducer	AVG	emulated	h2Aggregate: AVG	as H2	-
-H2Modern	-	reducer	MIN	emulated	h2Aggregate: MIN	as H2	-
-H2Modern	-	reducer	MAX	emulated	h2Aggregate: MAX	as H2	-
-H2Modern	-	reducer	ANY_VALUE	emulated	by its operands: composed / …ANY_VALUE	as H2	-
-H2Modern	-	reducer	STDDEV_SAMP	emulated	h2Aggregate: STDDEV_SAMP	as H2	-
-H2Modern	-	reducer	STDDEV_POP	emulated	h2Aggregate: STDDEV_POP	as H2	-
-H2Modern	-	reducer	VAR_SAMP	emulated	h2Aggregate: VAR_SAMP	as H2	-
-H2Modern	-	reducer	VAR_POP	emulated	h2Aggregate: VAR_POP	as H2	-
-H2Modern	-	reducer	MEDIAN	emulated	h2Aggregate: MEDIAN	as H2	-
-H2Modern	-	reducer	MODE	emulated	h2Aggregate: MODE	as H2	-
-H2Modern	-	reducer	STRING_AGG	emulated	h2Aggregate: STRING_AGG	as H2	-
-H2Modern	-	reducer	LIST	emulated	by its operands: composed / …LIST	as H2	-
-H2Modern	-	reducer	QUANTILE_CONT	emulated	by its operands: …PERCENTILE_CONT / …QUANTILE_CONT	as H2	-
-H2Modern	-	reducer	QUANTILE_DISC	emulated	by its operands: …PERCENTILE_DISC / …QUANTILE_DISC	as H2	-
-H2Modern	-	reducer	CORR	emulated	h2Aggregate: CORR	as H2	-
-H2Modern	-	reducer	COVAR_SAMP	emulated	h2Aggregate: COVAR_SAMP	as H2	-
-H2Modern	-	reducer	COVAR_POP	emulated	h2Aggregate: COVAR_POP	as H2	-
-H2Modern	-	reducer	ARG_MAX	emulated	h2Aggregate: ARG_MAX	as H2	-
-H2Modern	-	reducer	ARG_MIN	emulated	h2Aggregate: ARG_MIN	as H2	-
-H2Modern	-	reducer	WAVG	not_here	lowering marker reached the renderer	as H2	-
-H2Modern	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as H2	-
-H2Modern	-	reducer	BOOL_AND	emulated	h2Aggregate: BOOL_AND	as H2	-
-H2Modern	-	reducer	BOOL_OR	emulated	h2Aggregate: BOOL_OR	as H2	-
-H2Modern	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as H2	-
-H2Modern	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as H2	-
-H2Modern	-	reducer	VARIANCE	emulated	h2Aggregate: VARIANCE	as H2	-
-H2Modern	-	reducer	STDDEV	emulated	h2Aggregate: STDDEV	as H2	-
-H2Modern	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	RANK	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	LAG	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as H2	-
-H2Modern	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as H2	-
 Postgres	Postgres	call	AND	spelled	an operator (infix)		211
 Postgres	Postgres	call	OR	spelled	an operator (infix)		283
 Postgres	Postgres	call	NOT	spelled	an operator (notPrefix)		68
@@ -478,6 +258,7 @@ Postgres	Postgres	call	LIST_TRANSFORM	emulated	listTransform		31
 Postgres	Postgres	call	LIST_CONCAT	emulated	listConcat		2
 Postgres	Postgres	call	LIST_GET	emulated	composed in a block	via Postgres.listCall	69
 Postgres	Postgres	call	LIST_POSITION	spelled	array_position	via Postgres.listCall	39
+Postgres	Postgres	call	LIST_AT	emulated	composed in a block	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_EXISTS	emulated	listExists		8
 Postgres	Postgres	call	LIST_FOR_ALL	emulated	listForAll		3
 Postgres	Postgres	call	STRUCT_INSERT	emulated	structInsert		0
@@ -699,6 +480,7 @@ Snowflake	Snowflake	call	LIST_TRANSFORM	emulated	composed in a block	via Snowfla
 Snowflake	Snowflake	call	LIST_CONCAT	emulated	composed in a block	via Snowflake.list	5
 Snowflake	Snowflake	call	LIST_GET	emulated	typed, listGet	via Snowflake.list	72
 Snowflake	Snowflake	call	LIST_POSITION	emulated	(ARRAY_POSITION(TO_VARIANT(…), …) + 1)	via Snowflake.list	53
+Snowflake	Snowflake	call	LIST_AT	emulated	typed: …GET(…, … - 1)	via Snowflake.list	0
 Snowflake	Snowflake	call	LIST_EXISTS	emulated	listExists		8
 Snowflake	Snowflake	call	LIST_FOR_ALL	emulated	listForAll		3
 Snowflake	Snowflake	call	STRUCT_INSERT	emulated	structInsert		0
@@ -920,6 +702,7 @@ Trino	Trino	call	LIST_TRANSFORM	emulated	by its operands: zip_with(…, …, …
 Trino	Trino	call	LIST_CONCAT	emulated	composed in a block	via Trino.listCall	5
 Trino	Trino	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE element_at(…, …) END)	via Trino.listCall	72
 Trino	Trino	call	LIST_POSITION	emulated	list: (CASE WHEN array_position(…, …) = 0 THEN NULL ELSE array_position(…, …) END)	via Trino.listCall	53
+Trino	Trino	call	LIST_AT	emulated	list: element_at(…, …)	via Trino.listCall	0
 Trino	Trino	call	LIST_EXISTS	emulated	listExists		8
 Trino	Trino	call	LIST_FOR_ALL	emulated	listForAll		3
 Trino	Trino	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1141,6 +924,7 @@ BigQuery	BigQuery	call	LIST_TRANSFORM	emulated	listTransform		31
 BigQuery	BigQuery	call	LIST_CONCAT	emulated	emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))		2
 BigQuery	BigQuery	call	LIST_GET	emulated	listGet		79
 BigQuery	BigQuery	call	LIST_POSITION	emulated	param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)		39
+BigQuery	BigQuery	call	LIST_AT	emulated	listAt		0
 BigQuery	BigQuery	call	LIST_EXISTS	emulated	listExists		8
 BigQuery	BigQuery	call	LIST_FOR_ALL	emulated	listForAll		3
 BigQuery	BigQuery	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1362,6 +1146,7 @@ Databricks	Databricks	call	LIST_TRANSFORM	emulated	list, oneBasedIndex: transfor
 Databricks	Databricks	call	LIST_CONCAT	emulated	list: concat(, coalesce(…, array()))	via Databricks.listCall	5
 Databricks	Databricks	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE try_element_at(…, CAST(… AS INT)) END)	via Databricks.listCall	72
 Databricks	Databricks	call	LIST_POSITION	emulated	list: nullif(array_position(…, …), 0)	via Databricks.listCall	53
+Databricks	Databricks	call	LIST_AT	emulated	list: try_element_at(…, CAST(… AS INT))	via Databricks.listCall	0
 Databricks	Databricks	call	LIST_EXISTS	emulated	listExists		8
 Databricks	Databricks	call	LIST_FOR_ALL	emulated	listForAll		3
 Databricks	Databricks	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1583,6 +1368,7 @@ DuckDb	DuckDB	call	LIST_TRANSFORM	spelled	list_transform	via DuckDb.listCall	37
 DuckDb	DuckDB	call	LIST_CONCAT	spelled	list_concat	via DuckDb.listCall	5
 DuckDb	DuckDB	call	LIST_GET	spelled	list_extract	via DuckDb.listCall	75
 DuckDb	DuckDB	call	LIST_POSITION	spelled	list_position	via DuckDb.listCall	53
+DuckDb	DuckDB	call	LIST_AT	spelled	list_extract	via DuckDb.listCall	0
 DuckDb	DuckDB	call	LIST_EXISTS	emulated	listExists		8
 DuckDb	DuckDB	call	LIST_FOR_ALL	emulated	listForAll		3
 DuckDb	DuckDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -1772,7 +1558,7 @@ DuckDb	DuckDB	reducer	LAST_VALUE	not_here	is a window function: windowCall write
 DuckDb	DuckDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
 ClickHouse	ClickHouse	call	AND	spelled	an operator (infix)		204
 ClickHouse	ClickHouse	call	OR	spelled	an operator (infix)		262
-ClickHouse	ClickHouse	call	NOT	spelled	an operator (notPrefix)		61
+ClickHouse	ClickHouse	call	NOT	emulated	notCall		61
 ClickHouse	ClickHouse	call	EQUAL	emulated	equalArm		246
 ClickHouse	ClickHouse	call	NOT_EQUAL	emulated	equalArm		16
 ClickHouse	ClickHouse	call	LESS	spelled	an operator (infix)		125
@@ -1804,6 +1590,7 @@ ClickHouse	ClickHouse	call	LIST_TRANSFORM	emulated	lambdaArrays: arrayMap(…, �
 ClickHouse	ClickHouse	call	LIST_CONCAT	emulated	list: arrayConcat(, …)	via ClickHouse.listCall	5
 ClickHouse	ClickHouse	call	LIST_GET	emulated	by its operands: arrayElement(…, …) / (CASE WHEN … = 0 OR abs(…) > length(…) THEN NULL ELSE arrayElement(…, …) END)	via ClickHouse.listCall	72
 ClickHouse	ClickHouse	call	LIST_POSITION	emulated	list: nullIf(toInt64(indexOf(…, …)), 0)	via ClickHouse.listCall	53
+ClickHouse	ClickHouse	call	LIST_AT	emulated	list: arrayElement(…, …)	via ClickHouse.listCall	0
 ClickHouse	ClickHouse	call	LIST_EXISTS	emulated	listExists		8
 ClickHouse	ClickHouse	call	LIST_FOR_ALL	emulated	listForAll		3
 ClickHouse	ClickHouse	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2025,6 +1812,7 @@ SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	
 SQLite	SQLite	call	LIST_CONCAT	emulated	concatLists	via SQLite.lists	2
 SQLite	SQLite	call	LIST_GET	emulated	elementAt: (CASE WHEN … = 0 THEN NULL ELSE …CASE WHEN … < 0 THEN '#' || … ELSE … - 1 END...	via SQLite.lists	69
 SQLite	SQLite	call	LIST_POSITION	emulated	elements: (SELECT min() + 1 FROM …__e__o WHERE IS …)	via SQLite.lists	39
+SQLite	SQLite	call	LIST_AT	emulated	elementAt: … - 1	via SQLite.lists	0
 SQLite	SQLite	call	LIST_EXISTS	emulated	listExists		8
 SQLite	SQLite	call	LIST_FOR_ALL	emulated	listForAll		3
 SQLite	SQLite	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2246,6 +2034,7 @@ MariaDb	MariaDB	call	LIST_TRANSFORM	emulated	composed in a block	via MariaDb.lis
 MariaDb	MariaDB	call	LIST_CONCAT	emulated	composed in a block	via MariaDb.lists	2
 MariaDb	MariaDB	call	LIST_GET	emulated	composed in a block	via MariaDb.lists	69
 MariaDb	MariaDB	call	LIST_POSITION	emulated	elements: (SELECT min() FROM …__e__o WHERE <=> …)	via MariaDb.lists	39
+MariaDb	MariaDB	call	LIST_AT	emulated	composed in a block	via MariaDb.lists	0
 MariaDb	MariaDB	call	LIST_EXISTS	emulated	listExists		8
 MariaDb	MariaDB	call	LIST_FOR_ALL	emulated	listForAll		3
 MariaDb	MariaDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2467,6 +2256,7 @@ MySql	MySQL	call	LIST_TRANSFORM	emulated	composed in a block	as MariaDb, via Mar
 MySql	MySQL	call	LIST_CONCAT	emulated	composed in a block	as MariaDb, via MariaDb.lists	2
 MySql	MySQL	call	LIST_GET	emulated	composed in a block	as MariaDb, via MariaDb.lists	69
 MySql	MySQL	call	LIST_POSITION	emulated	elements: (SELECT min() FROM …__e__o WHERE <=> …)	as MariaDb, via MariaDb.lists	39
+MySql	MySQL	call	LIST_AT	emulated	composed in a block	as MariaDb, via MariaDb.lists	0
 MySql	MySQL	call	LIST_EXISTS	emulated	listExists	as MariaDb	8
 MySql	MySQL	call	LIST_FOR_ALL	emulated	listForAll	as MariaDb	3
 MySql	MySQL	call	STRUCT_INSERT	emulated	structInsert	as MariaDb	0
@@ -2688,6 +2478,7 @@ MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
 MongoDb	MongoDB	call	LIST_CONCAT	emulated	listConcat		0
 MongoDb	MongoDB	call	LIST_GET	emulated	{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}		0
 MongoDb	MongoDB	call	LIST_POSITION	emulated	listPosition		0
+MongoDb	MongoDB	call	LIST_AT	emulated	{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}		0
 MongoDb	MongoDB	call	LIST_EXISTS	emulated	listExists		0
 MongoDb	MongoDB	call	LIST_FOR_ALL	emulated	listForAll		0
 MongoDb	MongoDB	call	STRUCT_INSERT	emulated	structInsert		0
@@ -2909,6 +2700,7 @@ EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
 EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
 EngineStyleH2	-	call	LIST_GET	emulated	listCall		-
 EngineStyleH2	-	call	LIST_POSITION	emulated	listCall		-
+EngineStyleH2	-	call	LIST_AT	emulated	listCall		-
 EngineStyleH2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	-
 EngineStyleH2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	-
 EngineStyleH2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	-
@@ -3130,6 +2922,7 @@ EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_GET	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_POSITION	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_AT	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listExists	-
 EngineStyleDB2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
 EngineStyleDB2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
@@ -3351,6 +3144,7 @@ EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, 
 EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_GET	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_POSITION	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_AT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists	-
 EngineStyleComposite	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
 EngineStyleComposite	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert	-

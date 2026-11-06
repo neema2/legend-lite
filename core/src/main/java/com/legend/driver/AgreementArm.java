@@ -19,7 +19,8 @@ import java.util.function.Supplier;
  * statement's composition, a decode misreading a carrier), never a quiet pass. The routing is the host's: a shape the
  * host arm leaves to the generic path (null) is not put to the database arm. A shape the database arm leaves to the
  * generic path, or reports UNJUDGED (its own wall included: a shape its arm names it cannot judge), is told to the
- * listener and the host decides; a database statement that errors is a failure, since the judges did not agree.
+ * listener and FAILS the assert naming why and what the host said -- the host never decides alone (the user,
+ * 2026-11-05: no fallback mode); a database statement that errors is a failure, since the judges did not agree.
  */
 final class AgreementArm implements VerdictArm {
 
@@ -55,7 +56,7 @@ final class AgreementArm implements VerdictArm {
             return new Failed(e);
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the database judge's arm says it cannot judge (its own wall, named): UNJUDGED by that name --
-            // the host decides, the listener is told; never a disagreement
+            // the listener is told and the assert fails as undecided (agree), never as a disagreement
             return new Failed(AssertFailed.unjudged(first(e.getMessage()), String.valueOf(e.getMessage())));
         } catch (RuntimeException e) {
             return new Errored(e);
@@ -95,18 +96,24 @@ final class AgreementArm implements VerdictArm {
             case Failed f -> {
                 String unjudged = f.failure().unjudgedReason();
                 if (unjudged != null) {
+                    com.legend.diagnostics.Diagnostics.judgeDecline("unjudged", name, unjudged);
                     if (listener != null) {
                         listener.unjudged(name, unjudged);
                     }
+                    // STRICT (the user, 2026-11-05: "The database judge should not have a fallback mode at all, it
+                    // should hard fail if cannot judge something and then we need to fix"): never the host's alone
+                    throw undecided(name, "could not judge it (" + unjudged + ")", hostFailed);
                 } else if (hostFailed == null) {
                     throw disagreement(name, "the host judge holds, the database judge fails ("
                             + first(f.failure().getMessage()) + ")");
                 }
             }
             case Declined d -> {
+                com.legend.diagnostics.Diagnostics.judgeDecline("declined", name, "database judge: not this shape");
                 if (listener != null) {
                     listener.declined(name, "database judge: not this shape");
                 }
+                throw undecided(name, "declined it (not this shape)", hostFailed);
             }
             case Errored e -> throw new AssertFailed(name + ": THE JUDGES DID NOT AGREE — the database judge's"
                     + " statement failed (" + e.failure().getClass().getSimpleName() + ": "
@@ -117,6 +124,12 @@ final class AgreementArm implements VerdictArm {
             throw hostFailed;
         }
         return hostHeld;
+    }
+
+    /** The database judge decided nothing: the assert fails naming why, and what the host judge said. */
+    private static AssertFailed undecided(String name, String why, @com.legend.base.Nullable AssertFailed hostFailed) {
+        return new AssertFailed(name + ": THE DATABASE JUDGE " + why + ", where the host judge "
+                + (hostFailed == null ? "holds" : "fails (" + first(hostFailed.getMessage()) + ")"));
     }
 
     private static AssertFailed disagreement(String name, String how) {
@@ -221,20 +234,21 @@ final class AgreementArm implements VerdictArm {
     }
 
     @Override
-    public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        // the host arm fetches and unrolls by design (null here): the quantified arm then judges both
-        return agree(fqn, env, () -> host.quantifiedVector(fqn, predMap, letPrefix, specs, env, hook),
-                () -> database.quantifiedVector(fqn, predMap, letPrefix, specs, env, hook));
+    public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return agree(fqn, env, () -> host.quantifiedVector(fqn, predMap, source, lam, root, letPrefix, specs, env, hook),
+                () -> database.quantifiedVector(fqn, predMap, source, lam, root, letPrefix, specs, env, hook));
     }
 
     @Override
-    public @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return agree(name, env, () -> host.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook),
-                () -> database.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook));
+    public TypedSide perElement(String name, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
+            com.legend.compiler.element.type.ExprType actual, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return java.util.Objects.requireNonNull(agree(name, env,
+                () -> host.perElement(name, pairs, expected, actual, letPrefix, specs, env, hook),
+                () -> database.perElement(name, pairs, expected, actual, letPrefix, specs, env, hook)),
+                "both judges answer a per-element equality");
     }
 
     @Override
@@ -244,6 +258,15 @@ final class AgreementArm implements VerdictArm {
         return java.util.Objects.requireNonNull(agree(name, env,
                 () -> host.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook),
                 () -> database.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook)));
+    }
+
+    @Override
+    public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return java.util.Objects.requireNonNull(agree(name, env,
+                () -> host.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook),
+                () -> database.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook)));
     }
 
     @Override

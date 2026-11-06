@@ -50,6 +50,56 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
+            // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
+            // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back
+            // (a memo of a pure derivation): the typed body; the model builder's indexes; the context's two tables;
+            // the C3 linearizer; a substitution's read and mentioned sets; the lexer's line and token positions
+            // (benign-racy, documented at the field); the parser's non-Pure ranges; the resolver's element
+            // references and association navigators; the runner's fixtures-by-store; a mapping closure's sets
+            "TypedQuery.body", "ModelBuilder.legacySetsById", "ModelBuilder.directSubclasses", "ModelBuilder.knowledge",
+            "PureModelContext.declarations", "PureModelContext.implementations", "InferenceKernel.linearizer",
+            "SourceSubst.reads", "SourceSubst.mentioned", "TokenStream.lineStarts", "TokenStream.tokenPositions",
+            "ElementParser.nonPureRanges", "StoreResolver.elementsRef", "AssociationJoins.navMaterializer",
+            "AssociationJoins.unionHeads", "PureTestRunner.fixturesByStore", "MappingClosures.mappings",
+            "MappingClosures.sets", "MappingClosures.unions", "MappingClosures.inheritances", "MappingClosures.roots",
+            "MappingClosures.enums", "MappingClosures.relationalSets",
+            // (same date) A SESSION'S facts, learned once from its database: the decoding its driver needs (known at
+            // check), its server's version, the next query's minted stamp (one statement's); the test runner's shared
+            // session and the package it holds
+            "JdbcStatements.driver", "JdbcStatements.reserved", "ExecutionTrace.reserved", "Sessions.version",
+            "PureTestRunner.sessionConn", "PureTestRunner.sessionPkg",
+            // (same date) A FRAME'S cursor, one instance per pass and never shared: the verdict batch's open root, the
+            // canon rider's wrap and its decline, the lowerer's connection time zone and id minter (set at
+            // configuration), the temporal frame's sweep column, the database parser's schema spans, the Cypher
+            // translator's leading USE, a select item's taken name, a vector's lazily allocated nulls, the PURE v1
+            // writer's first object, the walk's segment state (deleted at M10), a statement's own stamp in its
+            // frames' recorder (frozen into its reads), the body router's opened answer sink (opened only to answer,
+            // as the walk opens it)
+            "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
+            // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
+            // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
+            // batch planned and left for the walk
+            "VerdictBatch.counted",
+            // 2026-11-05, the split rung's tripwire (the user's ruling: after a verdict the harness may only explain a
+            // failure): the planned batch's first rejected fused statement, latched when the runner reports it and read
+            // once the root loop is through -- a rejection no assert reproduces alone fails as a lite error
+            "VerdictBatch.rejected",
+            "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
+            "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
+            "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
+            "ProgramFrames.ownStamp", "BodyRouter.opened",
+            // (2026-11-01, the test-is-the-product plan's M6) the body router's last judged verdict: one moved body's
+            // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
+            // answers it (the walk's Segments.last, beside it above, until M10 deletes both)
+            "BodyRouter.lastVerdict",
+            // (2026-11-04, the assert bar) the body router's reader: the running program's, handed by the runner before
+            // its first step and taken back when its session closes (PlanRunner.ProgramSink#reader) -- one moved body's
+            // sink, one instance per run and never shared; a verdict's caller's message is read through it only where
+            // the verdict fails
+            "BodyRouter.reader",
+            // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
+            "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
             // with its non-finite tokens moved here from the parity harnesses' test sources): one parse's position,
             // the instance one parse's and never shared
@@ -70,6 +120,14 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // a raw grid report's input in flight (2026-10-31, the planner-driver seam program's S3c): the depth
+            // rawGrid consults so a report reads its grid as the grid itself, never as its rows' cells; raised and
+            // lowered around the input's lowering, correlatedReads' lifecycle
+            "Lowerer.reportInputs",
+            // the raw grids whose rows the statement reads as their cells (2026-10-31, the planner-driver seam
+            // program's S3c and its audit): computed once over the whole body before any of it is lowered, read by
+            // rawGrid; the builder flags' lifecycle (set once, then read during the lowering)
+            "Lowerer.cellGrids",
             // a writer's depth inside a set function's arguments the database evaluates when it plans (2026-10-17,
             // the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73):
             // raised and lowered around the write (SqlWriter.planned), one writer per statement; Postgres's raise
@@ -307,19 +365,23 @@ class CodeShapeGuardrailTest {
     /** Class-level non-final instance fields, ANY visibility — package-
      * private has no keyword, so the visibility group is optional (audit 15:
      * the private-only pattern let two refactors widen mutable fields out
-     * of the scan unaudited). */
+     * of the scan unaudited). A type may carry annotations ({@code @Nullable},
+     * {@code Outer.@Nullable Inner}, {@code Object @Nullable []}): until
+     * 2026-11-01 the type's characters held no {@code @}, and every annotated
+     * mutable field was outside the scan (the test-is-the-product plan's M5
+     * audit). */
     private static final Pattern MUTABLE_FIELD = Pattern.compile(
             "^    (?! )(?:(?:private|protected|public) )?"
             + "(?!static |final |private |protected |public |record |class"
             + " |interface |enum |abstract |sealed |non-sealed )(?! )"
-            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+            + "[\\w.@<>\\[\\], ?]+ (\\w+)( =.*)?;");
 
     /** Nested-class fields (8-space indent). A visibility modifier is
      * REQUIRED here to distinguish fields from method locals — declare
      * nested-class fields private/protected/public, never package-private. */
     private static final Pattern NESTED_MUTABLE_FIELD = Pattern.compile(
             "^        (?! )(?:private|protected|public) (?!static |final )(?! )"
-            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+            + "[\\w.@<>\\[\\], ?]+ (\\w+)( =.*)?;");
 
     /** Static mutable state is banned outright — NO allowlist. */
 

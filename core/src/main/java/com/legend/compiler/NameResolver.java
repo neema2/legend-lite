@@ -270,6 +270,13 @@ public final class NameResolver {
         Pure.allNativeEnums().forEach(e -> all.add(e.qualifiedName()));
         all.addAll(com.legend.builtin.Prelude.classFqns());
         all.addAll(com.legend.builtin.Prelude.enumFqns());
+        // the PRECISE PRIMITIVES (Int, Varchar(x), Numeric(precision, scale), ...): names a model spells bare through
+        // the core import group, whose last package is meta::pure::precisePrimitives (the engine's META_IMPORTS),
+        // or through its own `import meta::pure::precisePrimitives::*;` -- the engine's sql binding model declares
+        // `decimalIn: Numeric(2, 1)[1]` that way. Before 2026-11-05 (DecimalKindsTest) only their full paths resolved.
+        com.legend.compiler.element.type.Type.Primitive.byFqn().keySet().stream()
+                .filter(f -> f.startsWith(com.legend.compiler.element.type.Type.Primitive.PRECISE_PRIMITIVES))
+                .forEach(all::add);
         return List.copyOf(all);
     }
 

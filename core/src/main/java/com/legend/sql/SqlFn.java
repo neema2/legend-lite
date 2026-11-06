@@ -35,6 +35,11 @@ public enum SqlFn {
     // include Pure's empty-collection semantics (exists([])=false,
     // forAll([])=true) — the dialect's expansion must honor them.
     LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION,
+    /** {@code (list, position)}: the element at a 1-based position the list's own construction names (a tagged
+     *  list's positions, never negative; past the end NULL), written with its list and its position ONCE -- where
+     *  {@link #LIST_GET}'s negative-index arms write them two to five times, which nested positions multiply
+     *  (2026-11-03: the tagged list's statements, 18.7K -> 721.8K chars on Snowflake, past SQLite's 1 MB). */
+    LIST_AT,
     LIST_EXISTS, LIST_FOR_ALL,
     /** struct_insert(struct, name, value): the struct with one field
      * appended (the construction-site canon rides the bound struct). */

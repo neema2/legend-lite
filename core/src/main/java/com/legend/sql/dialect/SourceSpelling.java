@@ -25,19 +25,27 @@ import java.util.Map;
  * behind a join), the stamp says PHYSICAL and the rendered {@code "t3".id}
  * folds to {@code ID} against the label {@code "id"}. Rather than hunt
  * every construction site, this pass re-derives each reference's origin
- * from its SOURCE: aliases are unique per statement, so one alias →
- * outputs scope over the whole statement is correct (correlated outer
- * references included). (A raw SQL source's labels are born DERIVED at the
- * lowering: the query's own spelling, not DDL.) A name the source does
- * not declare keeps its stamp.
+ * from its SOURCE: aliases are unique per lowered statement, so one alias →
+ * outputs scope over each of the statement's query BLOCKS is correct
+ * (correlated outer references included; {@link QueryBlocks}: a statement
+ * composed of several lowered ones -- the fused verdict statement -- holds
+ * one alias in two blocks, 2026-11-05). (A raw SQL source's labels are born
+ * DERIVED at the lowering: the query's own spelling, not DDL.) A name the
+ * source does not declare keeps its stamp.
  */
 final class SourceSpelling extends SqlRewriter {
 
-    /** alias → declared outputs, over the whole statement. */
+    /** alias → declared outputs, over the query block being rewritten. */
     private final Map<String, List<OutputCol>> scope = new HashMap<>();
 
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
+        return QueryBlocks.each(q, this::block);
+    }
+
+    /** One query block: its aliases' outputs, then its references re-derived from them. */
+    private SqlQuery block(SqlQuery q) {
+        scope.clear();
         new SqlRewriter() {
             @Override
             protected SqlSource source(SqlSource s) {

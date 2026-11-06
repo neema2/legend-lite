@@ -117,8 +117,9 @@ public final class PctBackend {
             }
             if (held != null) {
                 // held for the suite (the JVM's exit closes it): ONE session over it, kept here, its memo kept (D70;
-                // the audit's finding: a cloud backend's held() answers a new unclosable proxy per call, so the
-                // connection's identity cannot key the session -- TestSessions.over would make one per plan)
+                // the audit's finding: a cloud backend's held() answered a new unclosable proxy per call, so the
+                // connection's identity could not key the session; since 2026-11-06 it answers one view per held
+                // session, so TestSessions.over finds the same session for channel B too)
                 com.legend.exec.Sessions.Session s = heldSession;
                 if (s == null) {
                     s = com.legend.testbackend.TestSessions.over(held);
@@ -138,6 +139,63 @@ public final class PctBackend {
         };
     }
 
+    /**
+     * The session source channel A's queries run through THE PRODUCT DOOR on ({@link PctPlanRoute},
+     * {@code Execution.run}; 2026-11-03), each session the one the plan route's sessions chose for the plan
+     * ({@link #planSessions}): an in-process lane's a new private session of its own, the query's declared setup run on
+     * it by the door; a lane whose sessions are its connector's (MongoDB) the connector's own for the declared
+     * connection; a server lane's a new SYSTEM session per query (the one that holds a session's own tables --
+     * ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session statements make for
+     * the system metamodel store), closed after; but where the backend holds a session (a cloud's) and the plan's
+     * session statements are its dialect's options alone, the held one ({@code planned}: the target the query's plan
+     * answers on, null for a constant -- asked of such a lane alone). Round 14 measured why (2026-11-03): a plain lane
+     * session, as the door's first route opened, lost getAll::testBasic on ClickHouse (a temporary table lives in its
+     * HTTP session) and Snowflake (no current schema).
+     */
+    public static com.legend.Execution.Source executionSource(
+            java.util.function.Supplier<com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target> planned) {
+        TestBackend backend = backend();
+        if (ownSessions(backend)) {
+            return (target, ctx) -> {
+                if (!(target instanceof com.legend.database.Target.Declared d) || d.connections().size() != 1) {
+                    throw new IllegalStateException("the " + name() + " lane's query names no one declared connection: "
+                            + target);
+                }
+                return com.legend.exec.Connectors.of(backend.type()).open(d.connections().get(0));
+            };
+        }
+        if (backend.inProcess()) {
+            return (target, ctx) -> {
+                try {
+                    return com.legend.testbackend.TestSessions.owning(backend.open());
+                } catch (SQLException e) {
+                    throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
+                            + e.getMessage(), e);
+                }
+            };
+        }
+        return (target, ctx) -> {
+            try {
+                Connection held = backend.held();
+                if (held != null) {
+                    com.legend.executionplan.ExecutionPlan.Target t = planned.get();
+                    if (t == null || optionsOnly(t)) {
+                        com.legend.exec.Sessions.Session s = heldSession;
+                        if (s == null) {
+                            s = com.legend.testbackend.TestSessions.over(held);
+                            heldSession = s;
+                        }
+                        return com.legend.exec.Sessions.view(s);
+                    }
+                }
+                return com.legend.testbackend.TestSessions.owning(backend.openSystem());
+            } catch (SQLException e) {
+                throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
+                        + e.getMessage(), e);
+            }
+        };
+    }
+
     /** Whether a plan's session statements are its dialect's own options alone (ALTER SESSION, run on any session
      *  again as on a new one): a plan that makes a table of the session's own (the system metamodel store's) runs on
      *  a new session, which drops the table when it closes. */
@@ -145,30 +203,8 @@ public final class PctBackend {
         return target.session().equals(com.legend.database.Databases.dialect(target.database().type()).sessionSetup());
     }
 
-    private static volatile @com.legend.base.Nullable String serverVersion;
-
     /** The one session over the lane's held connection ({@link #planSessions}). */
     private static volatile com.legend.exec.Sessions.@com.legend.base.Nullable Session heldSession;
-
-    /** The version of the server this lane's sessions connect to, read once off one session (the plan route plans
-     *  for it: H2's dialect spells by the version, `TypedQuery.executionPlan`'s last argument; step 9, 2026-10-19);
-     *  null for a lane with no JDBC session (MongoDB). */
-    public static @com.legend.base.Nullable String serverVersion() {
-        if (ownSessions(backend())) {
-            return null;
-        }
-        String v = serverVersion;
-        if (v == null) {
-            try (Connection c = connect()) {
-                v = com.legend.exec.Sessions.borrowed(c).version();
-            } catch (SQLException e) {
-                throw new IllegalStateException("the " + name() + " lane's server version could not be read: "
-                        + e.getMessage(), e);
-            }
-            serverVersion = v;
-        }
-        return v;
-    }
 
     /** The host's system connections: a server lane's own engine ({@link TestBackend#openSystem}); none for an
      *  in-process lane. */

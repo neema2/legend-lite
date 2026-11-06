@@ -215,7 +215,9 @@ legend_java_library(
 legend_java_library(
     name = "judge",
     srcs = glob(["src/main/java/com/legend/judge/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":lowering", ":sql", ":sql_dialect", ":values"],
+    # :execution_plan and :result since 2026-10-30 (the seam program's S2e): the verdict batch builds a verdict group
+    # and runs it through the plan runner, its program sink (a result sink) the batch's own
+    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":execution_plan", ":lowering", ":result", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -265,7 +267,23 @@ legend_java_library(
         "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
-        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":testplan", ":validation",
+        ":values",
+    ],
+)
+# THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
+# and 3): the test door (TestDoor) and the kinds only a test's program holds -- effects, seeds, the eager run, asserts
+# -- planned on the product's program road through the planner's extension point (planner.ProgramKinds). Not on the
+# plan side: the WebAssembly and native planners, and the product's query door, carry none of it
+# (ArchitectureTest.theTestPlanningLibraryIsTheDriversAlone).
+legend_java_library(
+    name = "testplan",
+    srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
+    # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them; the
+    # seeds' content key (Seeds, M3e): :cache's Hash
+    deps = [
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan",
+        ":model", ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
@@ -311,7 +329,8 @@ _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
+    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":driver", ":ide", ":test",
+    ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -541,7 +560,8 @@ legend_java_library(
         "//arrow_ipc",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
-        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
+        # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
+        # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
         "@h2//jar",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
@@ -621,6 +641,8 @@ _CORE_TEST_PACKAGES = [
     "test",
     "testdatagen",
     "testing",
+    # the test-planning library's door (the test-is-the-product plan's M3c, 2026-10-31)
+    "testplan",
     # ("values" left 2026-10-29 with its one test, LiteralTextTest, track L's L2: the package has no test)
 ]
 
@@ -644,9 +666,16 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
+# THE WALK'S DOOR (the walker-deletion program, 2026-11-03): a core test's body reaches the walk only where the allow
+# list names the test (driver/WalkDoor); the list only shrank. CLOSED 2026-11-04 (the core program: 73 -> 0, the last
+# entry a computed executeInDb text the user ruled a text hole lite does not have): no core test walks, and no list
+# remains that could grow back -- channel B's door since 2026-11-03
+_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
+
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
@@ -695,6 +724,7 @@ junit_test(
 junit_test(
     name = "core_tests_root",
     memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR,
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -730,7 +760,7 @@ _CORE_LANES = {
     select = ["--select-package=com.legend.integration", "--exclude-classname=.*CorpusDifferentialTest"],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     data = data,
-    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags + _WALK_DOOR,
     tags = tags,
     target_compatible_with = compatible,
     runtime_deps = [
@@ -743,6 +773,52 @@ _CORE_LANES = {
 test_suite(
     name = "core_tests_lanes",
     tests = [":core_tests_integration_" + lane for lane in ["sqlite", "h2"]],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE JUDGE MATRIX (the asserts-as-plan-nodes program, step 7, 2026-11-04; docs/ASSERT_NODES_PLAN_2026_11_04.md): the
+# packages whose tests run a body through a judge (testing.Program, the lanes' floors) again under the database judge
+# alone and under BOTH (testing.Program reads -Dlegend.test.judge), so every assert core holds is held by both judges
+# and their agreement, as the host's run holds it. Measured that day: the packages importing testing.Program or
+# LaneFloor, and the root package (its testcases); core under each judge ran 28 of 28 at 6038d060. Linux only in CI
+# for cost (the host's run is every platform's).
+_JUDGED_PACKAGES = ["compiler", "driver", "exec", "integration", "judge", "lowering", "normalizer", "planner",
+                    "resolver", "server", "sql", "testing"]
+
+[junit_test(
+    name = "core_tests_" + p + "_judge_" + judge.lower(),
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    size = "large" if p in _CORE_TEST_LARGE else "medium",
+    select = ["--select-package=com.legend." + p] + (
+        ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
+    ),
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["ci-linux-only"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+) for p in _JUDGED_PACKAGES for judge in ["DATABASE", "BOTH"]]
+
+[junit_test(
+    name = "core_tests_root_judge_" + judge.lower(),
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    size = "medium",
+    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["ci-linux-only"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+) for judge in ["DATABASE", "BOTH"]]
+
+test_suite(
+    name = "core_tests_judges",
+    tests = [":core_tests_" + p + "_judge_" + judge.lower() for p in _JUDGED_PACKAGES + ["root"]
+             for judge in ["DATABASE", "BOTH"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -1532,12 +1608,21 @@ legend_java_binary(
     ],
 )
 
+# THE STRESS CORPUS'S WALK (2026-11-06, PR #83's CI on 28a27931): the walk's door closed by default at 084cc1d3
+# (2026-11-05), which opened it for the relational corpus's lanes and tools and missed these two lanes and the stress
+# tool -- 461 service queries a lane refused by name (444 a graph fetch, 17 a temporal class read: the query program's
+# rule plans neither as a body's last statement yet, BodyClass.queryProgram), DuckDB 4251 and H2 4224 passing against
+# floors of 4705 and 4676. The stress corpus walks them as the relational corpus walks its own until the program road
+# plans both kinds; a corpus lane, not core's (core's door stays `none`)
+_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=all"]
+
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
 # //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
     memory_mb = 768,
+    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
@@ -1552,6 +1637,7 @@ junit_test(
     name = "stress_suites_h2",
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
+    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
@@ -1567,7 +1653,7 @@ legend_java_binary(
     name = "stress_tool",
     testonly = True,
     # the corpus is core_tests_lib's classpath resources (P3-05)
-    jvm_flags = ["-Duser.timezone=GMT"],
+    jvm_flags = ["-Duser.timezone=GMT"] + _STRESS_WALK_DOOR,
     main_class = "com.legend.integration.StressTool",
     tags = ["manual"],
     runtime_deps = [

@@ -162,6 +162,9 @@ final class TypeClassifier {
     void requireArguments(TypeExpression te, List<String> typeParams) {
         switch (te) {
             case TypeExpression.NameRef nr -> {
+                if (!typeParams.contains(nr.name())) {
+                    requireTypeVariables(nr.name(), List.of());
+                }
                 // a bare Result is the engine's Result<Any|1..*>, its backward compatibility (DomainParseTreeWalker
                 // rewrites a written `Result`; ProtocolReader reads it back bare; 2026-10-21, the independent audit:
                 // lite refused it). Resolved, the written `Result` and a bare full path are one name here, so the
@@ -172,6 +175,7 @@ final class TypeClassifier {
                 }
             }
             case TypeExpression.Generic g -> {
+                requireTypeVariables(g.name(), g.typeVariableValues());
                 if (g.arguments().isEmpty() && !g.typeVariableValues().isEmpty()) {
                     return;   // a precise primitive's values (P(8)), no type arguments
                 }
@@ -204,6 +208,72 @@ final class TypeClassifier {
      *  of each as it declares parameters, or refused in legend-engine's words (CompileContext.newGenericType: "Wrong
      *  type arguments count (N) for type: C<T|m>", the class printed by legend-pure's _Class.print; 2026-10-21, the
      *  independent audit: legend-pure's GenericTypeValidator sentence was used, where the engine has its own). */
+    /** One declared type variable of a primitive: its name, its type's name as the engine prints it, and that type
+     *  when it is a primitive. */
+    private record DeclaredVariable(String name, String typeName, Type.@com.legend.base.Nullable Primitive type) {
+    }
+
+    /**
+     * A PRIMITIVE's type-variable values against its declaration, as legend-engine's compiler checks every generic
+     * type it builds (CompileContext.newGenericType, in its words): as many values as the primitive declares variables
+     * ({@code Decimal(1)}, {@code Numeric(10)} and a bare {@code Numeric} are refused), each an instance of its
+     * variable's type ({@code Numeric('a', 2)} is refused). A name that is no primitive is not this check's: a class's
+     * arguments are {@link #requireArity}'s. Lite took any values and dropped them until 2026-11-05 (DecimalKindsTest).
+     */
+    private void requireTypeVariables(String fqn, List<com.legend.protocol.spec.ValueSpecification> values) {
+        List<DeclaredVariable> declared = new ArrayList<>();
+        if (model.primitiveExtensionFqns().contains(fqn)) {
+            for (com.legend.protocol.ParameterDefinition tv : model.primitiveTypeVariables(fqn)) {
+                String head = headFqn(tv.type());
+                Type.Primitive prim = findType(head).orElse(null) instanceof Type.Primitive p ? p : null;
+                declared.add(new DeclaredVariable(tv.name(), com.legend.protocol.Protocol.splitFqn(head)[1], prim));
+            }
+        } else if (findType(fqn).orElse(null) instanceof Type.Primitive) {
+            // a platform primitive: an m3 one (by its full path or its reserved bare name) declares none
+            for (Type.Primitive.TypeVariable tv : Type.Primitive.typeVariables(fqn).orElseThrow(
+                    () -> new IllegalStateException(fqn + " classifies as a platform primitive but is none"))) {
+                declared.add(new DeclaredVariable(tv.name(), tv.type().typeName(), tv.type()));
+            }
+        } else {
+            return;
+        }
+        String printed = com.legend.protocol.Protocol.splitFqn(fqn)[1] + (declared.isEmpty() ? ""
+                : declared.stream().map(d -> d.name() + ":" + d.typeName())
+                        .collect(java.util.stream.Collectors.joining(",", "(", ")")));
+        if (declared.size() != values.size()) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "Wrong type variables count (" + values.size() + ") for type: " + printed);
+        }
+        for (int i = 0; i < values.size(); i++) {
+            DeclaredVariable d = declared.get(i);
+            com.legend.protocol.spec.ValueSpecification v = values.get(i);
+            Type.Primitive valueType = switch (v) {
+                case com.legend.protocol.spec.CInteger ignored -> Type.Primitive.INTEGER;
+                case com.legend.protocol.spec.CFloat ignored -> Type.Primitive.FLOAT;
+                case com.legend.protocol.spec.CDecimal ignored -> Type.Primitive.DECIMAL;
+                case com.legend.protocol.spec.CString ignored -> Type.Primitive.STRING;
+                case com.legend.protocol.spec.CBoolean ignored -> Type.Primitive.BOOLEAN;
+                default -> throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "a type variable's value must be a literal: " + printed + ", variable '" + d.name() + "'");
+            };
+            boolean instance = d.type() != null && (d.type() == valueType
+                    || (d.type() == Type.Primitive.NUMBER && valueType.isNumeric()));
+            if (!instance) {
+                String name = switch (v) {
+                    case com.legend.protocol.spec.CInteger c -> String.valueOf(c.value());
+                    case com.legend.protocol.spec.CFloat c -> String.valueOf(c.value());
+                    case com.legend.protocol.spec.CDecimal c -> c.value().toPlainString();
+                    case com.legend.protocol.spec.CString c -> c.value();
+                    case com.legend.protocol.spec.CBoolean c -> String.valueOf(c.value());
+                    default -> throw new IllegalStateException("a literal was classified above: " + v);
+                };
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Error for type: " + printed + ", '" + name + "' is not an instance of " + d.typeName());
+            }
+        }
+    }
+
     private void requireArity(String fqn, int types, int multiplicities) {
         ClassDefinition def = classDef(fqn).orElseThrow(() -> new IllegalStateException(
                 fqn + " classifies as a class but has no definition"));

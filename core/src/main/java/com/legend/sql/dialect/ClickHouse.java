@@ -44,6 +44,13 @@ import java.util.Set;
  */
 public final class ClickHouse extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
+     *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */
+    @Override
+    public int fusedStatementBudget() {
+        return 100_000;
+    }
+
     /** The settings every statement carries: SQL's NULLs for an outer join's missing side, a bare UNION distinct, a cast
      *  keeping its value's NULL, the zone UTC (the platform's naive-UTC contract). An aggregate's NULL over no row is
      *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
@@ -1089,6 +1096,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     : writer.append("(CASE WHEN ").expr(args.get(1), 0).append(" = 0 OR abs(")
                     .expr(args.get(1), 0).append(") > length(").piece(list(xs)).append(") THEN NULL ELSE arrayElement(")
                     .piece(list(xs)).append(", ").expr(args.get(1), 0).append(") END)");
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.append("arrayElement(").piece(list(xs)).append(", ").expr(args.get(1), 0).append(")");
             case LIST_POSITION -> writer.append("nullIf(toInt64(indexOf(").piece(list(xs)).append(", ")
                     .expr(args.get(1), 0).append(")), 0)");
             case LIST_DISTINCT -> writer.append("arrayDistinct(").piece(present(xs)).append(")");
@@ -1557,6 +1566,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return super.variantAwareCast(writer, c);
     }
 
+    /**
+     * {@code NOT (x)}, its operand bracketed whole. ClickHouse reads {@code NOT (} as its function {@code not(}, so an
+     * operand that merely starts with a bracket is cut short: {@code NOT (SELECT ...) = (SELECT ...)} parses as a call
+     * whose argument list is a bare SELECT and is refused (PCT round 21, 2026-11-05: 89 tests' verdict statements, the
+     * TDS message's {@code CASE WHEN NOT} over two counts). Bracketed whole, the call is the whole negation.
+     */
+    private SqlWriter notCall(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        if (3 < parentPrec) {
+            writer.append("(");
+        }
+        writer.append("NOT (").expr(a.get(0), 0).append(")");
+        if (3 < parentPrec) {
+            writer.append(")");
+        }
+        return writer;
+    }
+
     // ==================================================================
     // Scalar functions -- every SqlFn decided here
     // ==================================================================
@@ -1571,7 +1597,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
             case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
-            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NOT -> notCall(writer, c.args(), parentPrec);
             case NEGATE -> negation(writer, c.args());
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
@@ -1594,7 +1620,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case HASH -> hashSigned(writer, c.args());
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
             case UNNEST -> unnestProjection(writer, c.args());
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
                  LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());

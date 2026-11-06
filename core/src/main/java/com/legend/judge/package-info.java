@@ -7,7 +7,9 @@
  * ({@link com.legend.judge.PureAsserts}, {@link com.legend.judge.Equality}), the grid compare
  * ({@link com.legend.judge.TdsCompare}), the canonical instruments ({@link com.legend.judge.CanonicalForm},
  * {@link com.legend.judge.CanonicalDivergence}), the verdict batch, the SQL replay referee, the judges' collected
- * side ({@link com.legend.judge.TypedSide}), the canon rider, the instance ids, the type and primitive censuses and
+ * side ({@link com.legend.judge.TypedSide}), the canon rider (the lowering's since the seam program's S4a, 2026-10-31:
+ * the canon wrap's outcome, written where a side is planned), the instance ids (the planner's since
+ * the seam program's S2g, 2026-10-31: planning state), the type and primitive censuses and
  * the assert listener lived in {@code com.legend.exec} until D71: they read the compiler's types and render through
  * the dialect, planning-side work the runtime ({@code exec}: a plan and a session to typed rows) must not carry.
  * Reachable only from the verdict seam ({@code ArchitectureTest.hostVerdictIsReachableOnlyFromTheVerdictSeam}); a

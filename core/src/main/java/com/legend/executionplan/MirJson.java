@@ -43,7 +43,7 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
@@ -233,6 +233,13 @@ public final class MirJson {
                 o.put("alias", r.alias());
                 o.put("outputs", outputCols(r.outputs()));
                 o.put("writtenFor", r.writtenFor());
+            }
+            case SqlSource.GridReport g -> {
+                o.put("_type", SourceTag.gridReport.name());
+                o.put("grid", query(g.grid()));
+                o.put("part", g.part().name());
+                o.put("alias", g.alias());
+                o.put("outputs", outputCols(g.outputs()));
             }
             case SqlSource.Catalog c -> {
                 o.put("_type", SourceTag.catalog.name());
@@ -900,6 +907,9 @@ public final class MirJson {
                     readOutputCols(o.getArr("outputs")));
             case rawSql -> new SqlSource.RawSql(o.getString("sql"), o.getString("alias"),
                     readOutputCols(o.getArr("outputs")), o.getString("writtenFor"));
+            case gridReport -> new SqlSource.GridReport(readQuery(o.getObj("grid")),
+                    named(SqlSource.GridReport.Part.class, o.getString("part"), "part"), o.getString("alias"),
+                    readOutputCols(o.getArr("outputs")));
             case catalog -> new SqlSource.Catalog(named(SqlSource.Catalog.Grid.class, o.getString("grid"), "grid"),
                     o.getStringOr("schemaPattern", null), o.getStringOr("tablePattern", null),
                     o.getStringOr("columnPattern", null), o.getString("alias"), readOutputCols(o.getArr("outputs")));

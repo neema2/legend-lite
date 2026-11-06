@@ -55,6 +55,10 @@ def junit_test(
         "-Xmx%dm" % memory_mb,
     ] + jvm_flags
     inputs = list(data)
+    # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath: every test JVM can
+    # open the referee (testbackend/EngineH2Referee; the user, 2026-11-05)
+    inputs.append("@h2_engine//jar:file")
+    flags.append("-Dlegend.referee.h2.rlocation=$(rlocationpath @h2_engine//jar:file)")
     if upstream:
         # each tree by the runfiles path of its root's pom.xml; Upstream resolves it through the runfiles
         # library and takes its directory (Bazel workplan P1-04)

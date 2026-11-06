@@ -124,9 +124,12 @@ class ChannelBEssentialTest {
         // The interpreter's "Unable to compute acos" error was a SQL
         // raise our lowering invented beyond the engine's relational
         // spec; every engine relational adapter carries this failure.
-        assertTrue(pass >= 314,
+        // 2026-11-03 (the walker-deletion program, channel B's walk closed: -Dlegend.walk.allowed=none): the floors
+        // TIGHTENED to the measured counts. A body the closed walk refuses is an ERROR row, so any slack here would let
+        // it, or a regression of a test channel A's ledger lists, pass silently (the channel B audit, 2026-11-03)
+        assertTrue(pass >= 336,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 314");
+                        + pass + " < 336");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
@@ -210,8 +213,10 @@ class ChannelBEssentialTest {
         // 292/10 -> 293/9 (2026-08-23 F10 slice 2): mixedSort flipped
         // FAIL -> PASS on the kind-faithful carrier (both sides keep
         // Integer-vs-Float identity; the frontier row retires).
-        assertTrue(agreePass >= 293, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 9, "WIRE-BUG census grew: " + wireBug);
+        // 2026-11-03: tightened to the measured counts (above): 324, and B's 12 fixes of A's ledger pinned
+        assertTrue(agreePass >= 324, "AGREE-PASS fell: " + agreePass);
+        assertTrue(bFixesA >= 12, "B-FIXES-A fell (a test channel A's ledger lists regressed in B): " + bFixesA);
+        assertTrue(wireBug <= 0, "WIRE-BUG census grew: " + wireBug);
         // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
         // verdict of record and the host-lattice referee may never
         // disagree silently; a disagreement fails the suite with the
@@ -296,6 +301,9 @@ class ChannelBEssentialTest {
         // failure is corroborated by a reference channel. Stays zero.
         assertTrue(trueWireBug == 0,
                 "TRUE wire-bug census grew from ZERO: " + trueWireBug);
+        // the EXACT gate (2026-11-03): every failure ledgered with its text, every ledgered test failing
+        ChannelBLedger.judge("Essential", out, ChannelBLedger.of(org.finos.legend.lite.pct.extension.PctBackend.name(),
+                "Essential"));
     }
 
     /** The engine's relational essential manifest exclusions (its relational

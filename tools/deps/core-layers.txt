@@ -96,7 +96,7 @@ setup	base cache compiler execution_plan model protocol sql sql_dialect
 # sql_dialect gone with the judges' column and row (`judge`), the driver's decode facts (the connector's), the session source
 # and the system database (the driver's), and the wire table's compiler type (a name in the plan's vocabulary).
 exec	base cache diagnostics error execution_plan json model result sql values
-judge	base compiler compiler_element_type diagnostics error exec lowering sql sql_dialect values
+judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
@@ -108,7 +108,16 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen testplan validation values
+# 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
+# test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
+# extension point; nothing on the plan side reaches it.
+# 2026-10-31, M3d: the effects' statements move in (EffectPlanner, from the planner: R17 C7, a test's effects ship in no
+# planner of the plan side) -- the store model, the DDL and the dialects that write them; the driver reaches the
+# library for them.
+# 2026-10-31, M3e: the seeds' owner moves in (Seeds, from the body driver), named in a plan by their content: `cache`
+# (Hash).
+testplan	base builtin cache compiler compiler_element_type database error execution_plan model planner platform setup sql sql_dialect
 ide	base door lexer model parser
 test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
 saved_queries	base json

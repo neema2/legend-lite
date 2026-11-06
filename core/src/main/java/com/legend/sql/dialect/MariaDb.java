@@ -1162,6 +1162,14 @@ public class MariaDb extends AnsiSqlRenderer {
         return valueAt(w -> w.expr(xs, 0), indexPath(index), listElement(xs));
     }
 
+    /** The element at a 0-based index the list holds (LIST_AT's position, a positive literal LIST_GET's): its path
+     *  {@code $[index]} with the index written once -- where {@link #indexPath} may write it again for a negative one
+     *  (MySQL's {@code $[last-n]}), which nested positions multiplied (2026-11-03, the tagged list's statements). */
+    private SqlWriter.Piece elementAtPosition(SqlExpr xs, SqlWriter.Piece index) {
+        return valueAt(w -> w.expr(xs, 0), w -> w.append("CONCAT('$[', ").piece(index).append(", ']')"),
+                listElement(xs));
+    }
+
     // ==================================================================
     // Lists: JSON arrays, lambda-less -- each operation a correlated subquery over JSON_TABLE(xs)
     // ==================================================================
@@ -2011,7 +2019,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "a date parsed by a DuckDB format has no measured " + product() + " spelling");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
                  LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_REVERSE, LIST_FLATTEN, LIST_ZIP,
                  LIST_PRODUCT, LIST_REDUCE, RANGE_FN, REPEAT_VALUE, TYPEOF -> lists(writer, c);
@@ -2036,7 +2044,10 @@ public class MariaDb extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
+                // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
+                // engine's answer), and says so -- not DuckDB's words
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold")),
                         SqlType.Scalar.DOUBLE))
                 .append(") END)");
     }
@@ -2474,6 +2485,13 @@ public class MariaDb extends AnsiSqlRenderer {
             }
             // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract)
             case LIST_GET -> {
+                if (a.get(1) instanceof SqlExpr.IntLit n && n.value() > 0) {
+                    // a positive literal index: the element at its path, nothing more to test
+                    SqlWriter.Piece at = elementAtPosition(a.get(0), w -> w.append(String.valueOf(n.value() - 1)));
+                    String type = listElement(a.get(0)) == null ? castTarget(typeOf(c)) : null;
+                    yield type == null ? writer.piece(at)
+                            : writer.append("CAST(").piece(at).append(" AS " + type + ")");
+                }
                 SqlWriter.Piece at = elementAt(a.get(0), w -> w.append("CASE WHEN ").expr(a.get(1), 4)
                         .append(" < 0 THEN ").expr(a.get(1), 0).append(" ELSE ").expr(a.get(1), 6).append(" - 1 END"));
                 // a list whose elements claim no type (an empty list's NULL): JSON_VALUE of a NULL is binary, so
@@ -2486,6 +2504,13 @@ public class MariaDb extends AnsiSqlRenderer {
                     writer.append("CAST(").piece(at).append(" AS " + type + ")");
                 }
                 yield writer.append(" END)");
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> {
+                SqlWriter.Piece at = elementAtPosition(a.get(0), w -> w.expr(a.get(1), 6).append(" - 1"));
+                // a list whose elements claim no type: cast to the call's own type, as LIST_GET
+                String type = listElement(a.get(0)) == null ? castTarget(typeOf(c)) : null;
+                yield type == null ? writer.piece(at) : writer.append("CAST(").piece(at).append(" AS " + type + ")");
             }
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS
             case LIST_POSITION -> writer.append("(SELECT min(" + o + ") FROM ")

@@ -102,6 +102,20 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     assert.deepEqual(await engine.exclusive((held) => held.rows('SELECT 1', [])), [[1]]);
   });
 
+  it('answers a value the program wrote with nothing sent for it: the constant node', async () => {
+    // the program's last statement a String literal: the plan's own value (the test-is-the-product plan's M2), the
+    // writes before it run in the one transaction
+    const plan = planned(fn('delete', target(), lambda(['r'], lit.boolean(true))), fn('write', src(), target()),
+      lit.string('done'));
+    assert.match(plan, /"_type":"constant"/);
+    assert.deepEqual(JSON.parse(await run(plan)), [{ value: 'done' }]);
+    assert.equal(await rows(), '1:a:15 2:b:25');
+    // a constant alone: no statement sent, the session never asked
+    const alone = planned(lit.boolean(true));
+    const untouched: PlanSession = { databaseType: 'DuckDB', run: async () => { throw new Error('ran'); }, transaction: async () => { throw new Error('ran'); } };
+    assert.deepEqual(JSON.parse(await runPlan(alone, untouched)), [{ value: true }]);
+  });
+
   it('refuses by name what a host never plans, nothing run', async () => {
     const plan = JSON.parse(planned(fn('write', src(), target()))) as Record<string, unknown>;
     const session: PlanSession = { databaseType: 'Postgres', run: async () => { throw new Error('ran'); }, transaction: async () => { throw new Error('ran'); } };
@@ -109,10 +123,22 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] }), session), /takes parameters/);
     await assert.rejects(() => runPlan('{"format":"other"}', session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 19/);
+    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 26/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
     await assert.rejects(() => runPlan(JSON.stringify(regioned), here), /per-key regions/);
+    // a relation of no declared column (a raw grid's: the columns its result reports): refused, never run as rows of
+    // no cell (the seam program's S3c, 2026-10-30)
+    const reported = { ...plan, root: { ...root, steps: root.steps.map((step) => ((step as { _type?: string })._type === 'tdsResult'
+      ? { ...step, shape: 'RELATION', columns: [] } : step)) } };
+    await assert.rejects(() => runPlan(JSON.stringify(reported), here), /the columns its result reports/);
+    // a program's seed step and a statement binding its own execution-trace stamp: a test's program's alone (the
+    // test-is-the-product plan's M3), refused by name, never run
+    const steps = root.steps as unknown as { _type: string; sql: { target: unknown } }[];
+    const seeded = { ...plan, root: { ...root, steps: [{ _type: 'setup', key: 'k', steps: [], target: steps[0]!.sql.target }, ...steps] } };
+    await assert.rejects(() => runPlan(JSON.stringify(seeded), here), /not a setup/);
+    const stamped = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, stamp: '#stamp0' } })) } };
+    await assert.rejects(() => runPlan(JSON.stringify(stamped), here), /its own execution-trace stamp/);
   });
 });

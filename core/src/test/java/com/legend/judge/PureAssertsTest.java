@@ -26,12 +26,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * adjudicated wire policies the platform owner carries.
  */
 class PureAssertsTest {
+    /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
+    private static final com.legend.executionplan.ExecutionPlan.JudgingRules LITE =
+            com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
+
     private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
-        return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a));
+        return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a), LITE);
     }
 
     private static boolean ordered(List<Object> e, List<Object> a) {
-        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null)) == null;
+        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null), LITE) == null;
     }
 
 
@@ -40,18 +44,18 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testSuccessAssertEquals + WithCollections")
     void specSuccess() {
-        assertNull(PureAsserts.assertEquals(List.of(1L), List.of(1L)));
-        assertNull(PureAsserts.assertEquals(List.of("aaa"), List.of("aaa")));
-        assertNull(PureAsserts.assertEquals(List.of(1L, 2L), List.of(1L, 2L)));
+        assertNull(PureAsserts.assertEquals(List.of(1L), List.of(1L), LITE));
+        assertNull(PureAsserts.assertEquals(List.of("aaa"), List.of("aaa"), LITE));
+        assertNull(PureAsserts.assertEquals(List.of(1L, 2L), List.of(1L, 2L), LITE));
         assertNull(PureAsserts.assertEquals(
-                List.of("aaa", 2L), List.of("aaa", 2L)));
+                List.of("aaa", 2L), List.of("aaa", 2L), LITE));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEquals — the exact message")
     void specFailureMessage() {
         assertEquals("\nexpected: 1\nactual:   2",
-                PureAsserts.assertEquals(List.of(1L), List.of(2L)));
+                PureAsserts.assertEquals(List.of(1L), List.of(2L), LITE));
     }
 
     @Test
@@ -59,12 +63,12 @@ class PureAssertsTest {
     void specFailureCollections() {
         assertEquals("\nexpected: [1, 3, 2]\nactual:   [2, 4, 1, 5]",
                 PureAsserts.assertEquals(List.of(1L, 3L, 2L),
-                        List.of(2L, 4L, 1L, 5L)));
+                        List.of(2L, 4L, 1L, 5L), LITE));
         assertEquals("\nexpected: [1, 2]\nactual:   [2, 1]",
-                PureAsserts.assertEquals(List.of(1L, 2L), List.of(2L, 1L)));
+                PureAsserts.assertEquals(List.of(1L, 2L), List.of(2L, 1L), LITE));
         assertEquals("\nexpected: ['aaa', 2]\nactual:   [2, 'aaa']",
                 PureAsserts.assertEquals(List.of("aaa", 2L),
-                        List.of(2L, "aaa")));
+                        List.of(2L, "aaa"), LITE));
     }
 
     // ---- assertSameElements.pure's own tests --------------------------
@@ -73,9 +77,9 @@ class PureAssertsTest {
     @DisplayName("spec: testSuccessAssertSameElements")
     void sameElementsSuccess() {
         assertNull(PureAsserts.assertSameElements(
-                List.of(1L, 2L), List.of(2L, 1L)));
+                List.of(1L, 2L), List.of(2L, 1L), LITE));
         assertNull(PureAsserts.assertSameElements(
-                List.of("aaa", 2L), List.of(2L, "aaa")));
+                List.of("aaa", 2L), List.of(2L, "aaa"), LITE));
     }
 
     @Test
@@ -83,10 +87,10 @@ class PureAssertsTest {
     void sameElementsFailureMessage() {
         assertEquals("\nexpected: [1, 2, 3]\nactual:   [1, 2, 4, 5]",
                 PureAsserts.assertSameElements(List.of(1L, 3L, 2L),
-                        List.of(2L, 4L, 1L, 5L)));
+                        List.of(2L, 4L, 1L, 5L), LITE));
         assertEquals("\nexpected: [1, 3, '2']\nactual:   [1, 4, 5, '2']",
                 PureAsserts.assertSameElements(List.of(1L, 3L, "2"),
-                        List.of("2", 4L, 1L, 5L)));
+                        List.of("2", 4L, 1L, 5L), LITE));
     }
 
     // ---- assertSize.pure ----------------------------------------------
@@ -121,12 +125,14 @@ class PureAssertsTest {
     }
 
     @Test
-    @DisplayName("policy: Decimal scale-SENSITIVE (the engine assert seam); 2-ULP doubles only")
+    @DisplayName("policy: Decimal by value in lite (S139), scale-SENSITIVE in compatibility mode (the engine assert seam)")
     void numericPolicies() {
-        // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is
-        // getValue().equals — SCALE-SENSITIVE
-        assertFalse(same(
+        // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value; compatibility mode keeps
+        // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is getValue().equals — SCALE-SENSITIVE
+        assertTrue(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
+        assertFalse(Equality.same(Equality.Typed.of(new BigDecimal("1.50")), Equality.Typed.of(new BigDecimal("1.5")),
+                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT));
         assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
         // X1/X3: NO cross-primitive-kind equality (engine eq requires
@@ -205,16 +211,16 @@ class PureAssertsTest {
         // TEXT order would put "2014-01-01 05:00:00" vs "2014-01-02" at
         // the mercy of the space-vs-dash byte
         assertNull(PureAsserts.assertSameElements(
-                Arrays.asList(t1, d2), Arrays.asList(d2, t1)));
+                Arrays.asList(t1, d2), Arrays.asList(d2, t1), LITE));
     }
 
     @Test
     @DisplayName("P2-5: assertEq — primitives compare, non-primitives are LOUD")
     void assertEqSemantics() {
-        assertNull(PureAsserts.assertEq(1L, 1L));
-        assertNotNull(PureAsserts.assertEq(1L, 2L));
+        assertNull(PureAsserts.assertEq(1L, 1L, LITE));
+        assertNotNull(PureAsserts.assertEq(1L, 2L, LITE));
         assertThrows(com.legend.error.NotImplementedException.class,
-                () -> PureAsserts.assertEq(Map.of("a", 1L), Map.of("a", 1L)),
+                () -> PureAsserts.assertEq(Map.of("a", 1L), Map.of("a", 1L), LITE),
                 "eq is INSTANCE identity — unobservable on a value wire");
     }
 

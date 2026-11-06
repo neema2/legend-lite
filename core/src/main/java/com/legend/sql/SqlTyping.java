@@ -364,7 +364,7 @@ public final class SqlTyping {
             case COALESCE, GREATEST, LEAST -> allNullable(a);
             // probed: out-of-range list_extract and missing
             // list_position -> NULL
-            case LIST_GET, LIST_POSITION, PURE_SPLIT_PART -> true;  // NULL past the end
+            case LIST_GET, LIST_AT, LIST_POSITION, PURE_SPLIT_PART -> true;  // NULL past the end
             // §E3 slack fix 2 — ELEMENT PURITY (probed 1.5.0:
             // unnest(NULL) and unnest([]) yield ZERO rows, so UNNEST's
             // value nullability is exactly its ELEMENTS')
@@ -508,7 +508,7 @@ public final class SqlTyping {
                     LIST_INIT, LIST_SLICE, LIST_DISTINCT, LIST_REVERSE ->
                     a.isEmpty() ? UNKNOWN : arrayPass(a.get(0).type());
             case LIST_CONCAT -> uniform(a, BOTTOM);
-            case LIST_GET, UNNEST ->
+            case LIST_GET, LIST_AT, UNNEST ->
                     a.isEmpty() ? UNKNOWN : element(a.get(0).type());
             // PROBED DuckDB 1.5.0 (2026-08-25, pct-tail burn):
             // list_max/list_min are ELEMENT-PRESERVING (int->int,

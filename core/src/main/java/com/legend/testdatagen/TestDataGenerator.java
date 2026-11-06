@@ -477,7 +477,7 @@ public final class TestDataGenerator {
      *  the driver's objects): the statement DESCRIBED by the database first ({@link PlanRunner#describe}: a prepare,
      *  no row), then run as a relation of the columns it reported, each cell read by its reported kind's slot
      *  ({@link PlanRunner#rows}, the typed method's carriers); a column the database reports in no kind of the
-     *  vocabulary is read as text, as a raw grid's is ({@code WireProbe.staticized}). {@code colsOut}, when given,
+     *  vocabulary is read as text (a raw grid's, since the seam program's S3c, is read as the driver's own kind: {@code Statements.reportedRows}). {@code colsOut}, when given,
      *  takes the reported labels. */
     private static List<List<Object>> captureRows(Session st, String sql,
             @com.legend.base.Nullable List<String> colsOut) {

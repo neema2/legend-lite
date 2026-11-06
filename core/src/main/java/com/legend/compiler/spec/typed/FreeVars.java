@@ -47,7 +47,7 @@ public final class FreeVars {
      * whole. */
     public static Set<String> of(TypedSpec term, TypedSpec known, Set<String> knownFree) {
         Set<String> out = new LinkedHashSet<>();
-        new Walk(known, knownFree).walk(term, Set.of(), out);
+        new Walk(known, knownFree, false).walk(term, Set.of(), out);
         return out;
     }
 
@@ -66,6 +66,16 @@ public final class FreeVars {
     public static Set<String> ofBody(List<? extends TypedSpec> statements) {
         Set<String> out = new LinkedHashSet<>();
         sequence(statements, Set.of(), out);
+        return out;
+    }
+
+    /** {@link #ofBody}, a graph tree's qualifier arguments read too ({@link TypedGraphTree#args}: no child of the
+     *  {@link TypedGraphFetch} or the {@link TypedSerialize} that holds the tree, so the plain walk -- the inliner's
+     *  and the substitution's -- does not enter them), under the same binders. The product's binding of a consumed let
+     *  reads it (M10c item 12: an executeLegendQuery lambda's parameter read in {@code customer($processingDate)}). */
+    public static Set<String> ofBodyReadingTrees(List<? extends TypedSpec> statements) {
+        Set<String> out = new LinkedHashSet<>();
+        TREES.sequence(statements, Set.of(), out);
         return out;
     }
 
@@ -122,11 +132,14 @@ public final class FreeVars {
         PLAIN.walk(n, bound, out);
     }
 
-    private static final Walk PLAIN = new Walk(null, Set.of());
+    private static final Walk PLAIN = new Walk(null, Set.of(), false);
+
+    /** The walk that also reads a graph tree's qualifier arguments ({@link #ofBodyReadingTrees}). */
+    private static final Walk TREES = new Walk(null, Set.of(), true);
 
     /** One walk; {@code known} is the subterm it does not enter (none
-     * when null). */
-    private record Walk(@com.legend.base.Nullable TypedSpec known, Set<String> knownFree) {
+     * when null); {@code trees}: a graph tree's arguments read too. */
+    private record Walk(@com.legend.base.Nullable TypedSpec known, Set<String> knownFree, boolean trees) {
 
         void sequence(List<? extends TypedSpec> statements, Set<String> bound, Set<String> out) {
             Set<String> scope = bound;
@@ -171,10 +184,26 @@ public final class FreeVars {
                     }
                 }
                 default -> {
+                    if (trees) {
+                        List<TypedGraphTree> tree = n instanceof TypedGraphFetch gf ? gf.tree()
+                                : n instanceof TypedSerialize sz ? sz.tree() : List.of();
+                        for (TypedGraphTree t : tree) {
+                            walkTree(t, bound, out);
+                        }
+                    }
                     for (TypedSpec c : n.children()) {
                         walk(c, bound, out);
                     }
                 }
+            }
+        }
+
+        private void walkTree(TypedGraphTree t, Set<String> bound, Set<String> out) {
+            for (TypedSpec arg : t.args()) {
+                walk(arg, bound, out);
+            }
+            for (TypedGraphTree c : t.children()) {
+                walkTree(c, bound, out);
             }
         }
     }

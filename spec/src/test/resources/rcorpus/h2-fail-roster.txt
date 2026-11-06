@@ -7,7 +7,6 @@ meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL
 meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode
 meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode
 meta::pure::executionPlan::tests::inheritance
-meta::pure::executionPlan::tests::tdsTwoJoinThreeDB
 meta::pure::executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes
 meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat
 meta::pure::executionPlan::tests::testGraphFetchH2TempTableStrategy
@@ -27,15 +26,9 @@ meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJs
 meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion
 meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithNoLocalProperties
 meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossStoreWithCSVDataSource
-meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestoned
-meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestonedFlowDown
 meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint
 meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne
-meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpression
-meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse
 meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMissingProperty
-meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements
-meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchPropertyLevel
 meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchReverseOrder
 meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchRightOrder
 meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchStringKey
@@ -108,10 +101,6 @@ meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested
 meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
 meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
-meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQuery
-meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithFiltersInMapping
-meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithParametersInUrl
-meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithPureDateAsParam
 meta::relational::graphFetch::tests::simple::testCheckedOneComplexProperty
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints
 meta::relational::graphFetch::tests::simple::testGraphFetchCheckedWithSize
@@ -213,7 +202,6 @@ meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDa
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
-meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping
 meta::relational::tests::mapping::sqlFunction::base64::testBase64H2
 meta::relational::tests::mapping::sqlFunction::parseDate::testToSQLStringParseDateForH2
 meta::relational::tests::mapping::sqlFunction::parseDate::testToSQLStringWithParseDateInQueryForH2
@@ -265,13 +253,6 @@ meta::relational::tests::query::drop::testDropWithVariables
 meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep
 meta::relational::tests::query::filter::exists::testIsNotEmpty
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChaining
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChainingOnIntegerColumn
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDateTimes
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDateTimesWithTz
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDates
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForNumbers
-meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForStrings
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector
 meta::relational::tests::query::limit::testLimitWithVariables

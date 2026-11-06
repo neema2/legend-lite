@@ -1,0 +1,23 @@
+#!/bin/bash
+set -u
+OUT=/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m5a
+B=/root/.local/bin/bazel
+cd /home/user/legend-lite
+clean() { local O=$($B info output_base 2>/dev/null); rm -rf $O/execroot/_main/_tmp/* $O/sandbox/* 2>/dev/null; }
+T=""
+for p in architecture builtin cache compiler driver exec ide integration judge ladder lexer lineage lowering model normalizer parser planner platform protocol resolver server setup sql test testdatagen testing testplan root; do T="$T //core:core_tests_$p"; done
+$B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 $T > $OUT/core.log 2>&1
+for f in bazel-testlogs/core/core_tests_*/test.log; do grep -a "^\[m5\]" $f | sed "s|^|$(basename $(dirname $f)) |"; done > $OUT/core.m5
+clean
+echo "core done"
+for t in //spec:corpus_duckdb //spec:corpus_h2; do
+  $B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 $t 2>&1 | grep -E "Executed"
+  clean
+done
+for f in bazel-bin/spec/judge_database_duckdb/database.log bazel-bin/spec/judge_database_h2/database.log bazel-bin/spec/judge_host_duckdb/host.log bazel-bin/spec/judge_host_h2/host.log; do
+  grep -a "^\[m5\]" $f | sed "s|^|$(basename $(dirname $f)) |"
+done > $OUT/corpus.m5
+$B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 //pct:pct_channel_b_essential //pct:pct_channel_b_grammar //pct:pct_channel_b_relation //pct:pct_channel_b_standard //pct:pct_channel_b_unclassified 2>&1 | grep Executed
+for f in bazel-testlogs/pct/pct_channel_b_*/test.log; do grep -a "^\[m5\]" $f | sed "s|^|$(basename $(dirname $f)) |"; done > $OUT/chb.m5
+clean
+echo "ALLDONE"

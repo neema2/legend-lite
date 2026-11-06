@@ -240,8 +240,8 @@ class ExecuteInDbDuckDbTest {
     }
 
     @Test
-    @DisplayName("T1.9: class-query-derived effect sql — Phase H runs; the scalar-root arm is the LOUD wall")
-    void classQueryDerivedSqlResolves() throws Exception {
+    @DisplayName("an executeInDb text built from a query at run time is refused by name: lite has no text holes")
+    void aComputedEffectTextIsRefused() throws Exception {
         String model = """
                 Class t9::P { name: String[1]; }
                 ###Relational
@@ -259,24 +259,22 @@ class ExecuteInDbDuckDbTest {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
-        // The effect-let path RUNS Phase H (T1.9). This pin was BISTABLE
-        // (resolved-rows OR the loud TypedGetAll wall, flipping per JVM
-        // run) until the T2.1/T3.1 arc: identity-preserving rebuilds
-        // (mapChildren) + the memoized space/anchor classifier removed
-        // every run-varying input the routing consumed — no identity-keyed
-        // structure is ITERATED anywhere in core (T3.1 B3 census), and
-        // 12 consecutive fresh-JVM runs resolve. Tightened to ROWS-ONLY:
-        // any recurrence of the wall (or a third behavior) fails loudly.
-        Program.last(model, CONN_LET
-            + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
-            + "let x = meta::relational::metamodel::execute::executeInDb("
-            + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
-            + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
-            + "true;}", "t9::RT", conn);
+        // A SQL text the database would compute before the effect is written (T1.9 pinned the walk running it, the
+        // value spliced into the text): a text hole, which lite does not have -- the user's ruling, 2026-11-04, the
+        // core program; a computed value is written with a store write. Refused by name at planning: nothing runs.
+        com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> Program.last(model, CONN_LET
+                        + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
+                        + "let x = meta::relational::metamodel::execute::executeInDb("
+                        + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
+                        + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
+                        + "true;}", "t9::RT", conn));
+        assertTrue(e.getMessage().contains("text hole"), e.getMessage());
         try (Statement st = conn.createStatement();
-                ResultSet rs = st.executeQuery("select v from T9OUT")) {
-            assertTrue(rs.next(), "resolved path must have inserted");
-            assertEquals("ann_bob", rs.getString(1));
+                ResultSet rs = st.executeQuery("select count(*) from information_schema.tables"
+                        + " where table_name = 'T9OUT'")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "nothing ran: no T9OUT");
         }
     }
 }

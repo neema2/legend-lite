@@ -18,7 +18,11 @@ import java.util.List;
  * cardinality rule — a SINGLETON result serializes as the bare object,
  * anything else as the array (the corpus goldens pin the dynamic
  * unwrap: {@code "values":{...}} for one row, {@code "values":[...]}
- * otherwise).
+ * otherwise). The same fold is the ROOT form of a graph read as the values of
+ * an engine {@code execute(...)} ({@code TypedSerializeGraph
+ * .engineExecuteCardinality}, {@code Lowerer.lower}): compatibility only, the
+ * engine's {@code execute()} contract; lite's own root stays the array (the
+ * user's ruling, 2026-11-03).
  */
 final class SnapshotEnvelope {
 
@@ -29,6 +33,17 @@ final class SnapshotEnvelope {
     static String typeName(String classFqn, boolean fq) {
         int cut = classFqn.lastIndexOf("::");
         return fq || cut < 0 ? classFqn : classFqn.substring(cut + 2);
+    }
+
+    /** The array aggregate a {@link #fold}ed projection chooses against
+     * (its {@code ELSE}), or null when {@code e} is not the fold's CASE: a
+     * reader of the graph plan's rows (VerdictSql.graphCount) counts the
+     * rows under it exactly as under the bare aggregate. */
+    static SqlExpr.@com.legend.base.Nullable JsonArrayAgg foldedAggregate(SqlExpr e) {
+        return e instanceof SqlExpr.Case c && c.whens().size() == 1
+                && c.whens().get(0).then() instanceof SqlAgg.Reducer r
+                && r.fn() == SqlAgg.Fn.MIN
+                && c.otherwise() instanceof SqlExpr.JsonArrayAgg ja ? ja : null;
     }
 
     static SqlSelect fold(SqlSelect env) {

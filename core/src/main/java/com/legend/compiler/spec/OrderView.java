@@ -41,11 +41,19 @@ public enum OrderView {
             com.legend.builtin.Pure.GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY
                     .qualifiedName(),
             com.legend.builtin.Pure.JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
+            // a RELATION's concatenate (SQL's UNION ALL leaves no order); a collection's concatenate and union keep the
+            // language's order -- the first's elements, then the second's (union its first occurrences) -- so a side
+            // that reads them is compared in order, as upstream compares it (2026-11-04, the asserts-as-plan-nodes
+            // program: assertEquals([3, 1, 2], [1, 2]->concatenate([3])) passed as a multiset where upstream fails it)
             com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName(),
             com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
             com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
+
+    /** A collection's concatenate and union (2026-11-04, the asserts-as-plan-nodes program): the language's order --
+     *  the first's elements, then the second's; union's first occurrences -- over its inputs', each read. */
+    public static final java.util.Set<String> ORDER_COMBINING = java.util.Set.of(
+            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName());
 
     /** Order-preserving native tails, EXACT identities from the catalog. */
     public static final java.util.Set<String> ORDER_PRESERVING = java.util.Set.of(
@@ -115,14 +123,39 @@ public enum OrderView {
                 return of(c.args().get(0), lets, seen, hook);
             }
             // an execute() FRAME returns its query's rows in the query's
-            // order: descend into the lambda's tail expression
-            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
-                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                    && !lam.body().isEmpty()) {
-                return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
+            // order: descend into the lambda's tail expression -- the query a
+            // let binds as well (let query = {|...}; execute($query, ...),
+            // 2026-11-05: the corpus's testCheckedWithCircularConstraints); a
+            // query not in sight is the database's rows, its order INCIDENTAL,
+            // never the language's
+            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()) {
+                TypedSpec query = c.args().get(0);
+                if (query instanceof com.legend.compiler.spec.typed.TypedVariable qv) {
+                    for (int i = lets.size() - 1; i >= 0; i--) {
+                        if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
+                                && l.name().equals(qv.name())) {
+                            query = l.value();
+                            break;
+                        }
+                    }
+                }
+                if (query instanceof com.legend.compiler.spec.typed.TypedLambda lam && !lam.body().isEmpty()) {
+                    return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
+                }
+                return OrderView.INCIDENTAL;
             }
             if (ORDER_DESTROYING.contains(fqn)) {
                 return OrderView.INCIDENTAL;
+            }
+            if (ORDER_COMBINING.contains(fqn)) {
+                // a collection's concatenate or union: the language's order over its inputs' -- as ordered as the
+                // least ordered of them (an input in arrival order leaves the whole in arrival order)
+                for (TypedSpec arg : c.args()) {
+                    if (of(arg, lets, seen, hook) == OrderView.INCIDENTAL) {
+                        return OrderView.INCIDENTAL;
+                    }
+                }
+                return OrderView.DEFINED;
             }
             return OrderView.DEFINED;
         }

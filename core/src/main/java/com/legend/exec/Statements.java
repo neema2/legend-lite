@@ -23,6 +23,11 @@ public interface Statements {
      *  version, of a version they are written for; anything else is refused by name, never run. */
     void check(ExecutionPlan.Target target);
 
+    /** The execution-trace comment the next query this session sends will carry, minted now (the test-is-the-product
+     *  plan's M3f, R17 C4: a statement's stamp a plan binds, {@code ExecutionPlan.Sql.stamp}); asked again before that
+     *  query is sent, the same comment. */
+    String nextStamp();
+
     /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
      *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
     boolean execute(String statement);
@@ -96,6 +101,23 @@ public interface Statements {
      */
     void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
+
+    /**
+     * {@code statement}'s rows with the columns its RESULT reports (the planner-driver seam program's S3c, 2026-10-30):
+     * a raw grid's, whose columns the program never named, read from the real run as the engine reads a raw result
+     * set. {@code columns} receives them before any row -- each its label, the Pure type the wire table names for the
+     * SQL type JDBC reports (Any where it names none, the cell then the driver's own kind), that type's slot, nullable
+     * as reported -- and each row's cells are read by them as {@link #rows} reads a plan's. Nothing is read at
+     * planning; the plan declared no column ({@code ExecutionPlan.TdsResult}: a relation of no column).
+     */
+    void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException;
+
+    /** Where a result's reported columns go, before its rows. */
+    @FunctionalInterface
+    interface ReportedColumns {
+        void columns(List<ExecutionPlan.Column> columns) throws IOException;
+    }
 
     /**
      * {@code work} with every statement it sends seeing one state of the data, as {@code snapshot} says (a keyed plan's

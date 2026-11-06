@@ -1,0 +1,87 @@
+"""Parse the temporary [H*] prints of one lane log into per-body facts."""
+import re, sys, collections, json
+TAGS = ['H1-LOWERED', 'H1-PROBE', 'H2-GRIDPROBE', 'H3-RETYPE', 'H3-SKEW', 'H5-SYSTEM-ROUTE', 'H5-FOLD', 'H7-TARGET']
+def parse(path):
+    body = None; setup = None; bodies = collections.OrderedDict(); setups = collections.OrderedDict(); snapshot = []
+    unattributed = collections.Counter()
+    for line in open(path, encoding='utf-8', errors='replace'):
+        line = line.rstrip('\n')
+        m = re.match(r'\[H-BODY\] (\S+)', line)
+        if m:
+            body = m.group(1); setup = None; bodies.setdefault(body, collections.defaultdict(list)); continue
+        m = re.match(r'\[H-SETUP\] (\S+)', line)
+        if m:
+            setup = m.group(1); setups.setdefault(setup, collections.defaultdict(list)); continue
+        if line.startswith('[H-SETUP-END]'):
+            setup = None; continue
+        if line.startswith('[H3-SNAPSHOT]'):
+            snapshot.append(line); continue
+        m = re.match(r'\[(H[1-7]-[A-Z-]+)\] ?(.*)', line)
+        if m:
+            tag, rest = m.group(1), m.group(2)
+            target = setups[setup] if setup else (bodies[body] if body else None)
+            if target is None: unattributed[tag] += 1
+            else: target[tag].append(rest)
+    return bodies, setups, snapshot, unattributed
+
+def report(path, label):
+    bodies, setups, snapshot, unattributed = parse(path)
+    out = []
+    P = out.append
+    P('### %s: %s' % (label, path))
+    P('- bodies ([H-BODY] lines): %d; setups ([H-SETUP] lines): %d; prints before any marker: %s' % (len(bodies), len(setups), dict(unattributed) or 'none'))
+    for tag in TAGS:
+        nb = sum(1 for b in bodies.values() if b[tag]); ns = sum(len(b[tag]) for b in bodies.values())
+        sb = sum(1 for b in setups.values() if b[tag]); ss = sum(len(b[tag]) for b in setups.values())
+        P('- %s: %d lines in %d bodies (and %d lines in %d setups)' % (tag, ns, nb, ss, sb))
+    # H1
+    h1 = [(n, b['H1-LOWERED'], b['H1-PROBE']) for n, b in bodies.items() if b['H1-LOWERED'] or b['H1-PROBE']]
+    P('- H1 bodies with a deferred TDS: %d' % len(h1))
+    piv = oth = 0
+    for n, lo, pr in h1:
+        kinds = []
+        for p in pr:
+            if 'innerHasPivot=true' in p: kinds.append('pivot' + ('(dynamic)' if 'innerDynamicPivot=true' in p else '(static/named)'))
+            else: kinds.append('other' + ('(late-bound: no outputs)' if 'innerOutputsEmpty=true' in p else ''))
+        if any(k.startswith('pivot') for k in kinds): piv += 1
+        if any(k.startswith('other') for k in kinds): oth += 1
+        P('    - %s: lowered=%s probes=%s' % (n, lo, kinds))
+    P('- H1 pivot-origin bodies: %d; other-origin bodies: %d' % (piv, oth))
+    # H2
+    h2 = [(n, b['H2-GRIDPROBE']) for n, b in bodies.items() if b['H2-GRIDPROBE']]
+    P('- H2 GridProbe probes: %d in %d bodies' % (sum(len(x[1]) for x in h2), len(h2)))
+    for n, g in h2: P('    - %s: %d probe(s): %s' % (n, len(g), [x[:100] for x in g]))
+    h2s = [(n, b['H2-GRIDPROBE']) for n, b in setups.items() if b['H2-GRIDPROBE']]
+    if h2s: P('- H2 GridProbe probes in setups: %d in %d setups: %s' % (sum(len(x[1]) for x in h2s), len(h2s), [n for n, _ in h2s]))
+    # H3
+    rt = [(n, b['H3-RETYPE']) for n, b in bodies.items() if b['H3-RETYPE']]
+    sk = [(n, b['H3-SKEW']) for n, b in bodies.items() if b['H3-SKEW']]
+    P('- H3 bodies with >=1 WireProbe retype: %d (retype lines %d); bodies with slot-skew: %d (lines %d)' % (len(rt), sum(len(x[1]) for x in rt), len(sk), sum(len(x[1]) for x in sk)))
+    for n, r in rt: P('    - retype %s: %s' % (n, r))
+    for n, r in sk: P('    - skew %s: %s' % (n, r))
+    P('- H3 snapshot line(s): %s' % (snapshot or 'NONE PRINTED'))
+    # H5
+    sr = [n for n, b in bodies.items() if b['H5-SYSTEM-ROUTE']]
+    P('- H5 system-route bodies: %d: %s' % (len(sr), sr))
+    srs = [n for n, b in setups.items() if b['H5-SYSTEM-ROUTE']]
+    if srs: P('- H5 system-route in setups: %s' % srs)
+    fo = [(n, collections.Counter(b['H5-FOLD'])) for n, b in bodies.items() if b['H5-FOLD']]
+    P('- H5 generator-fold bodies: %d (fold lines %d)' % (len(fo), sum(sum(c.values()) for _, c in fo)))
+    for n, c in fo: P('    - %s: %s' % (n, dict(c)))
+    # H7
+    kinds = {}
+    for n, b in bodies.items():
+        ks = set()
+        for t in b['H7-TARGET']:
+            ks.add('platform' if t.startswith('Platform') else ('declared' if t.startswith('Declared') else t[:30]))
+        kinds[n] = (ks, collections.Counter(b['H7-TARGET']))
+    mixed = [(n, dict(c)) for n, (ks, c) in kinds.items() if len(ks) > 1]
+    P('- H7 bodies with target lines: %d; kinds: %s; bodies mixing platform and declared: %d' % (
+        sum(1 for ks, _ in kinds.values() if ks), collections.Counter(frozenset(ks) and ','.join(sorted(ks)) for ks, _ in kinds.values()).most_common(), len(mixed)))
+    for n, c in mixed: P('    - %s: %s' % (n, c))
+    distinct = collections.Counter(t for b in bodies.values() for t in set(b['H7-TARGET']))
+    P('- H7 distinct target values (bodies using each): %s' % distinct.most_common(12))
+    return '\n'.join(out)
+
+if __name__ == '__main__':
+    print(report(sys.argv[1], sys.argv[2]))

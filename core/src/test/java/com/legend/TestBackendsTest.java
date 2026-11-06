@@ -55,7 +55,9 @@ class TestBackendsTest {
         }
         assertEquals(Databases.implemented(), TestBackends.all().stream().map(TestBackend::type).toList());
         assertSame(TestBackends.of(Databases.PLATFORM), TestBackends.platform());
-        assertSame(TestBackends.of(Databases.REPLAY_REFEREE), TestBackends.referee());
+        // the referee runs on the referee's database, legend-engine's own H2 (2.1.214) loaded apart from lite's
+        // (2026-11-05): another backend object than the lane's, of the same database
+        assertEquals(Databases.REPLAY_REFEREE, TestBackends.referee().type());
     }
 
     @Test
@@ -74,7 +76,8 @@ class TestBackendsTest {
         List<TestBackend> inProcess = TestBackends.all().stream().filter(TestBackend::inProcess).toList();
         assertTrue(inProcess.contains(TestBackends.platform()));
         for (TestBackend backend : inProcess) {
-            try (var session = backend.openSession()) {
+            // a session's check is a statement act: a run's alone (THE WALL's rule 3, 2026-11-06)
+            try (var session = backend.openSession(); var run = com.legend.base.RunScope.enter()) {
                 Sessions.check(session, backend.type());
             }
             assertThrows(IllegalStateException.class, backend::openSystem, backend.name());

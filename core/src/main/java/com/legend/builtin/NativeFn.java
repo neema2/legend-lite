@@ -894,6 +894,14 @@ public final class NativeFn {
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
         }
 
+        /** A call whose result is a frame bound by a let: the two execute spellings and
+         *  {@code executeLegendQuery} (the let kinds' test and the query door's, the
+         *  test-is-the-product plan's M3c). */
+        public static boolean runsAFrame(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Handle h = id == null ? null : BY_ID.get(id);
+            return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE || h == EXECUTE_LEGEND_QUERY;
+        }
+
         /** The ORCHESTRATION position of an execute call: its runtime
          * argument (the third), which the statement executor reads in its
          * SOURCE form — a let's name resolved through the query's lets,
@@ -988,6 +996,25 @@ public final class NativeFn {
         public static boolean isInertDiagnostic(@com.legend.base.Nullable com.legend.model.FunctionId id) {
             Effect e = id == null ? null : BY_ID.get(id);
             return e == PRINT || e == PRINTLN;
+        }
+
+        /** The effects with PLANNING-TIME arguments, read as a handle's or a Java routine's are: the connection chosen
+         *  for a store out of a runtime value ({@code connectionByElement}: both arguments, the step's target), and the
+         *  store and the dialect a test's CSV is spelled against ({@code setUpDataSQLs}, {@code setUpDataSQLsV2}: the
+         *  DDL and rows typed constants of the model's declared tables, AGENTS.md's decision rule -- their first
+         *  argument, the data, is a VALUE the walk evaluates when it is not a literal: {@link #argumentReadAtPlanning}).
+         *  A planning-time argument reads no row of any store, so an element or a runtime handed there is CONSUMED (the
+         *  test-is-the-product plan's M10c item 7b, its audit's MEDIUM-2). */
+        public static boolean readsArgumentsAtPlanning(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Effect e = id == null ? null : BY_ID.get(id);
+            return e == CONNECTION_BY_ELEMENT || e == SET_UP_DATA_SQLS || e == SET_UP_DATA_SQLS_V2;
+        }
+
+        /** Whether argument {@code k} of a planning-time effect ({@link #readsArgumentsAtPlanning}) is read at planning:
+         *  every argument of {@code connectionByElement}; the store and the config of the two seed forms, not their data. */
+        public static boolean argumentReadAtPlanning(@com.legend.base.Nullable com.legend.model.FunctionId id, int k) {
+            Effect e = id == null ? null : BY_ID.get(id);
+            return e == CONNECTION_BY_ELEMENT || (e == SET_UP_DATA_SQLS || e == SET_UP_DATA_SQLS_V2) && k >= 1;
         }
     }
 

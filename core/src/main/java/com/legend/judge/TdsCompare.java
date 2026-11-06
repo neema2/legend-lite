@@ -3,6 +3,7 @@
 
 package com.legend.judge;
 
+import com.legend.lowering.CanonRider;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,7 +39,7 @@ public final class TdsCompare {
     /** TDS grids compare STRUCTURALLY: column names ordered+exact, rows
      * under the order policy. */
     public static boolean grids(TypedSide.Tabular expected,
-            TypedSide.Tabular actual, boolean ordered) {
+            TypedSide.Tabular actual, boolean ordered, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (expected.columns().size() != actual.columns().size()) {
             return false;
         }
@@ -57,23 +58,26 @@ public final class TdsCompare {
         }
         // the grid's DECLARED column types decide each cell (step 2b);
         // the rows are the judge's, ordered or as a multiset
-        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
-        expected.columns().forEach(c -> kinds.add(c.pureType()));
+        // each grid's cells typed by its own declared columns (the user's ruling, 2026-11-03: never the peer's)
+        List<com.legend.compiler.element.type.Type> eKinds = new ArrayList<>();
+        expected.columns().forEach(c -> eKinds.add(c.pureType()));
+        List<com.legend.compiler.element.type.Type> aKinds = new ArrayList<>();
+        actual.columns().forEach(c -> aKinds.add(c.pureType()));
         List<Object> ef = new ArrayList<>();
         e.forEach(ef::addAll);
         List<Object> af = new ArrayList<>();
         a.forEach(af::addAll);
-        List<Equality.Typed> te = Equality.grid(ef, kinds);
-        List<Equality.Typed> ta = Equality.grid(af, kinds);
+        List<Equality.Typed> te = Equality.grid(ef, eKinds);
+        List<Equality.Typed> ta = Equality.grid(af, aKinds);
         if (ordered) {
-            return Equality.ordered(te, ta) == null;
+            return Equality.ordered(te, ta, rules) == null;
         }
-        if (!Equality.rowMultiset(te, ta, Math.max(1, kinds.size()))) {
+        if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()), rules)) {
             return false;
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
-        ordLeniency("row-multiset", () -> Equality.ordered(te, ta) == null);
+        ordLeniency("row-multiset", () -> Equality.ordered(te, ta, rules) == null);
         return true;
     }
 
@@ -470,7 +474,12 @@ public final class TdsCompare {
             return false;
         }
         try {
-            return Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
+            boolean within = Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
+            if (within) {
+                // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
+                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-cell " + e + " ~ " + a);
+            }
+            return within;
         } catch (NumberFormatException nfe) {
             return false;
         }

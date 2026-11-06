@@ -76,7 +76,10 @@ class ErrorShapeGuardrailTest {
             // helper it cannot splice (a call cycle, an un-typeable callee) with
             // its own walls; for the plan arm that is "no producer", the answer
             // it gave before the look-through existed, never a verdict
-            Map.entry("SqlTextVerdicts.java", 2),
+            // 2 -> 3 (2026-11-05, zero exemptions on the runtime wall): sideAhead -- an appeal's side planned with its
+            // assert keeps ANY planning failure and raises it where the appeal reads the side, as the side's evaluation
+            // there raised it (the rows leg's decline, or a fault); nothing judged at the catch
+            Map.entry("SqlTextVerdicts.java", 3),
             // 2026-10-18 (the plan path program's step 6): the agreement gate turns ANY failure of the database
             // judge's arm -- a statement the database rejects, a dialect's refusal, a planner wall -- into the one
             // outcome Errored, raised as a failure naming both judges' verdicts (AgreementArm.agree); the class
@@ -141,6 +144,40 @@ class ErrorShapeGuardrailTest {
             // decline, never a rescue (witness testRepeatStringNoString:
             // the BLOB wire under a STRING stamp).
             Map.entry("BodyDriver.java", 3),   // StatementExecutor.java until 2026-10-29 (track D)
+            // (2026-11-01, the test-is-the-product plan's M6; its audit's S1, S2 and N2; R14's planned raise): an
+            // assert program's asserts are planned BEFORE the program runs, so a failure the walk would raise at the
+            // assert's turn -- the classification's, a side's planning, a let's handle registration, the frame
+            // environment's, of whatever type -- is captured into a raise the sink throws at that turn, nothing
+            // swallowed (HostAsserts: 4 sites; AssertVerdicts.planHost: 1); and the runner hands a host side's read
+            // failure of any type to the program sink, which counts it as the walk counts it and returns the error
+            // the runner then throws (PlanRunner.verdicts: 1)
+            // 4 -> 6 (2026-11-03, the walker-deletion program): assertError planned as a verdict step -- its frame
+            // environment's failure raised before the arm at its turn (the walk's), and its side's planning failure:
+            // the error the arm takes is the judgment's answer, any other a wall raised at its turn, loud
+            Map.entry("HostAsserts.java", 6),
+            // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
+            // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
+            // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts
+            // (4): its static pass leaves a body whose let or frame environment raises to the walk (2: the walk raises
+            // at that turn, before anything is flushed -- the audit's F3, F4), leaves a gate that raises to the arm
+            // (1: the arm raises the same at its turn), and its planning pass records the gate's raise as the root's
+            // wall (1). Nothing swallowed
+            // 2 -> 3 (2026-11-04, the assert bar): a caller's message the database judge cannot plan is no refusal of
+            // the assert -- upstream evaluates the message only where the assert fails -- so its planning failure
+            // becomes the verdict's failure text (AssertMessages.unevaluated), raised where the row does not hold.
+            // Nothing swallowed: the failure is the assert's message
+            Map.entry("AssertVerdicts.java", 3),
+            // 0 -> 1 (2026-11-04, the assert bar): HostSides.planChecked -- a check whose sides fail to plan is
+            // planned again without its caller's message where the message is what raised (planning its own sides
+            // again raises theirs), the message's failure the judgment's raise where the assert fails
+            // (HostJudgment.Messaged#unplanned). Nothing swallowed
+            Map.entry("HostSides.java", 1),
+            // 4 -> 6 (2026-11-02, the walker-deletion program: the agreement judge's database half, planEach): a let
+            // the database half cannot build declines the asserts after it (the host half raises it at its place: a
+            // planned raise), and an assert's frame environment, gate or arm that raises is planned as the arm's wall
+            // at the root's place, as the planning pass records it. Nothing swallowed
+            Map.entry("DatabaseAsserts.java", 6),
+            Map.entry("PlanRunner.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable
@@ -192,7 +229,7 @@ class ErrorShapeGuardrailTest {
     // result carrying the platform's whole message — the designed sentinel
     // of a test runner (a failing test must never abort the run); the
     // harness had the same two catches before it moved into the product.
-    private static final int CATCH_RETURNS_VALUE = 26;   // 24 -> 26 (2026-10-18, the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6): AgreementArm.databaseOutcome's two arms ARE the designed sentinel of the agreement gate -- the database judge's outcome as data (Failed with its assert failure, Errored with its statement's failure), compared with the host's verdict of record and re-raised naming both when they differ; nothing is swallowed. 22 -> 24 (2026-10-13, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6's review): SavedQueries.answer's and SavedCubes.answer's 500 arm -- the store's designed sentinel, as PureV1Api.answer's arms are: the engine's error JSON for a failure, naming it. Both stores answered so before; the arm's return was then longer than this matcher's 80 characters, and one helper (SavedQueries.failed, the fields in the engine's order) made it short enough to be counted. 23 -> 22 (2026-10-12, the independent review of neema2/legend-lite#30): Executor.fetch's catch that kept a Timestamp for every driver is gone -- a dialect states its driver delivers no java.time (DatabaseConnector.decoding().javaTime), any other refusal fails. 22 -> 23 (2026-10-12, the rebase of the cloud-backends branch onto main, which took 22 with Protocol.java's own site: Executor.fetch's BC-faithful re-fetch as java.time is an upgrade of a cell the driver already delivered; Snowflake's driver refuses that re-fetch with a plain SQLException, and the cell keeps the Timestamp already read -- the read itself never fails into a value); 17 -> 19 (2026-09-16: ServiceTestRunner's resolve/execute FAIL sentinels, the PureTestRunner pair's twins); 19 -> 21 (2026-09-27: PureV1Api.answer's two arms ARE the designed sentinel of an HTTP API -- the engine's error JSON, 400 for an honest failure, 500 for a logged bug); 21 -> 22 (2026-09-27, E8: its third arm, a malformed request or the database refusing -- the engine's measured 500 with no errorType)
+    private static final int CATCH_RETURNS_VALUE = 29;   // 28 -> 29 (2026-11-05, the deep audit's runtime wall): VerdictBatch.planAhead's catch returns the dialect's refusal of a statement planned ahead as the designed sentinel Ahead.refused, raised (and counted UNJUDGED) where the root loop reaches it -- as executeOne raised it before, now planned before the run; nothing is swallowed. 27 -> 28 (2026-11-04, the assert bar): VerdictBatch.messaged's catch returns the error reading a failing root's caller's message as that root's failure -- upstream evaluates the message only where the assert fails, and its evaluation's error is the test's; nothing is swallowed. 26 -> 27 (2026-11-04, the assert bar): HostSides.planChecked's catch returns the check planned without its caller's message, the message's planning failure carried as the designed sentinel HostJudgment.Messaged#unplanned and raised where the assert fails (upstream evaluates the message only there); nothing is swallowed. 24 -> 26 (2026-10-18, the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6): AgreementArm.databaseOutcome's two arms ARE the designed sentinel of the agreement gate -- the database judge's outcome as data (Failed with its assert failure, Errored with its statement's failure), compared with the host's verdict of record and re-raised naming both when they differ; nothing is swallowed. 22 -> 24 (2026-10-13, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6's review): SavedQueries.answer's and SavedCubes.answer's 500 arm -- the store's designed sentinel, as PureV1Api.answer's arms are: the engine's error JSON for a failure, naming it. Both stores answered so before; the arm's return was then longer than this matcher's 80 characters, and one helper (SavedQueries.failed, the fields in the engine's order) made it short enough to be counted. 23 -> 22 (2026-10-12, the independent review of neema2/legend-lite#30): Executor.fetch's catch that kept a Timestamp for every driver is gone -- a dialect states its driver delivers no java.time (DatabaseConnector.decoding().javaTime), any other refusal fails. 22 -> 23 (2026-10-12, the rebase of the cloud-backends branch onto main, which took 22 with Protocol.java's own site: Executor.fetch's BC-faithful re-fetch as java.time is an upgrade of a cell the driver already delivered; Snowflake's driver refuses that re-fetch with a plain SQLException, and the cell keeps the Timestamp already read -- the read itself never fails into a value); 17 -> 19 (2026-09-16: ServiceTestRunner's resolve/execute FAIL sentinels, the PureTestRunner pair's twins); 19 -> 21 (2026-09-27: PureV1Api.answer's two arms ARE the designed sentinel of an HTTP API -- the engine's error JSON, 400 for an honest failure, 500 for a logged bug); 21 -> 22 (2026-09-27, E8: its third arm, a malformed request or the database refusing -- the engine's measured 500 with no errorType)
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */

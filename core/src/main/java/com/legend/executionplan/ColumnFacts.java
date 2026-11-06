@@ -57,8 +57,12 @@ public final class ColumnFacts {
                     : outs.stream().filter(o -> o.name().equals(p.name())).findFirst().orElse(null);
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
-                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), slot(out.type()),
-                        stored == null ? null : store(stored), precision(p.type(), out.type(), shape)));
+                // a raw grid's column read by the name the program wrote (the seam program's S3c, 2026-10-30): its
+                // kind is the wire's, so it carries no slot and the runner decodes the driver's own kind -- the
+                // engine reads a raw result set's cell by the type the database reports
+                boolean wire = rawGridCell(lowered, out.name(), Map.of());
+                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), wire ? null : slot(out.type()),
+                        stored == null ? null : store(stored), wire ? null : precision(p.type(), out.type(), shape)));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")
@@ -78,6 +82,62 @@ public final class ColumnFacts {
             }
         }
         return cols;
+    }
+
+    /** Whether {@code name} in {@code q} is a plain read, through subselects, CTEs, joins and a one-cell scalar
+     *  select, of a column of an authored SQL text whose columns nobody declared (a late-bound raw grid: no
+     *  outputs). */
+    static boolean rawGridCell(SqlQuery q, String name, Map<String, SqlQuery> ctes) {
+        return switch (q) {
+            case SqlSelect s -> {
+                // no projection at all is SELECT * (SqlSelect.starOf)
+                boolean star = s.projections().isEmpty();
+                for (SqlSelect.Projection p : s.projections()) {
+                    if (p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept) {
+                        star = true;
+                    } else if (name.equals(p.outputName())) {
+                        yield switch (p.expr()) {
+                            case SqlExpr.Column c -> rawGridCellIn(s.from(), c.table(), c.name(), ctes);
+                            // a cell picked from a grid ({@code ->at(0).value('X')}: a one-column scalar select)
+                            case SqlExpr.ScalarSubquery sq -> sq.subquery().outputs().size() == 1
+                                    && rawGridCell(sq.subquery(), sq.subquery().outputs().get(0).name(), ctes);
+                            default -> false;
+                        };
+                    }
+                }
+                yield star && rawGridCellIn(s.from(), null, name, ctes);
+            }
+            case SqlUnion u -> u.branches().stream().allMatch(b -> rawGridCell(b, name, ctes));
+            case SqlWith w -> {
+                Map<String, SqlQuery> scope = new HashMap<>(ctes);
+                for (SqlWith.Cte c : w.ctes()) {
+                    scope.put(c.name(), c.query());
+                }
+                yield rawGridCell(w.body(), name, scope);
+            }
+        };
+    }
+
+    private static boolean rawGridCellIn(SqlSource src, @com.legend.base.Nullable String alias, String col,
+            Map<String, SqlQuery> ctes) {
+        return switch (src) {
+            case SqlSource.RawSql r -> r.outputs().isEmpty() && (alias == null || alias.equals(r.alias()));
+            case SqlSource.Subselect sub -> (alias == null || alias.equals(sub.alias()))
+                    && rawGridCell(sub.inner(), col, ctes);
+            case SqlSource.Cte c -> {
+                SqlQuery defined = ctes.get(c.name());
+                yield defined != null && (alias == null || alias.equals(c.alias())) && rawGridCell(defined, col, ctes);
+            }
+            case SqlSource.Join j -> rawGridCellIn(j.left(), alias, col, ctes) || rawGridCellIn(j.right(), alias, col, ctes);
+            case SqlSource.Table t -> false;
+            case SqlSource.Pivot p -> false;
+            case SqlSource.Values v -> false;
+            case SqlSource.Dual d -> false;
+            case SqlSource.SourceUrl u -> false;
+            case SqlSource.GridReport g -> false;
+            case SqlSource.Catalog c -> false;
+            case SqlSource.VarSetPlaceholder v -> false;
+        };
     }
 
     /** The pivots' templates in {@code q}, the usings a generated column's name ends with. */
@@ -111,6 +171,7 @@ public final class ColumnFacts {
             case SqlSource.Dual d -> { }
             case SqlSource.SourceUrl u -> { }
             case SqlSource.RawSql r -> { }
+            case SqlSource.GridReport g -> { }
             case SqlSource.Catalog c -> { }
             case SqlSource.VarSetPlaceholder v -> { }
         }
@@ -266,6 +327,7 @@ public final class ColumnFacts {
             case SqlSource.Dual d -> null;
             case SqlSource.SourceUrl u -> null;
             case SqlSource.RawSql r -> null;
+            case SqlSource.GridReport g -> null;   // a raw grid's report: declared by nobody's store
             case SqlSource.Catalog c -> null;   // the database's own system tables: declared by nobody's store
             case SqlSource.VarSetPlaceholder v -> null;
         };

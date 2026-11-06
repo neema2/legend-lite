@@ -48,14 +48,11 @@ public final class TestBackends {
         return of(Databases.PLATFORM);
     }
 
-    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}): a backend with the
-     *  referee's own duties. */
+    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}, H2): legend-engine's own
+     *  H2, 2.1.214, loaded apart from lite's (2.5.252) -- the referee stands in for the engine's database (the user,
+     *  2026-11-05; {@link EngineH2Referee}). */
     public static RefereeBackend referee() {
-        if (of(Databases.REPLAY_REFEREE) instanceof RefereeBackend referee) {
-            return referee;
-        }
-        throw new IllegalStateException("the replay referee's database " + Databases.REPLAY_REFEREE
-                + " has no referee backend");
+        return EngineH2Referee.INSTANCE;
     }
 
     /** The backend {@code session} is on: the database whose connector names the product its driver reports

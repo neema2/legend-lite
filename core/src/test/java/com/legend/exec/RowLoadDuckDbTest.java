@@ -49,7 +49,7 @@ class RowLoadDuckDbTest {
     private static final com.legend.executionplan.ExecutionPlan.Target TARGET =
             new com.legend.executionplan.ExecutionPlan.Target(new com.legend.executionplan.ExecutionPlan.Database
                     .Platform(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
-                    new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());
+                    List.of(), List.of());
 
     /** {@code load} on {@code c} through the plan runner: the bulk path (the doors, 2026-10-29; SetupRunner's load
      *  until then). */

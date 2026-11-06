@@ -9,7 +9,6 @@ import com.legend.executionplan.ExecutionPlan.Database;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
 import com.legend.executionplan.ExecutionPlan.Sequence;
-import com.legend.executionplan.ExecutionPlan.Servers;
 import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
@@ -33,7 +32,7 @@ class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
         return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), new Servers.Versions(List.of("2.1", "2.2")), List.of(),
+                spec, auth)), List.of(),
                 List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
 
@@ -89,7 +88,7 @@ class PlanJsonTest {
     void bothSetupStepKindsReadBack_aNullCellStaysNull() {
         Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
-                new Servers.Every(), List.of("SET TimeZone='UTC'"),
+                List.of("SET TimeZone='UTC'"),
                 List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
@@ -103,17 +102,21 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(Databases.PLATFORM), new Servers.Every(),
-                List.of("SET TimeZone='UTC'"), List.of());
+        Target t = new Target(new Database.Platform(Databases.PLATFORM), List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
     @Test
-    void aStatementWrittenForSomeServerVersionsNamesOne() {
-        var refused = assertThrows(IllegalArgumentException.class, () -> new Servers.Versions(List.of()));
-        assertTrue(refused.getMessage().contains("names at least one"), refused.getMessage());
+    void theGraphsSystemDatabaseReadsBack() {
+        // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
+        // database on its engine; the plan names it by type alone (the one who opens it holds the session)
+        Target t = new Target(new Database.System(Databases.PLATFORM), List.of(), List.of());
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null)));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+        assertTrue(PlanJson.write(plan).contains("\"_type\":\"system\""), PlanJson.write(plan));
     }
 
     @Test
@@ -135,15 +138,19 @@ class PlanJsonTest {
         // the effect node (a statement sent for what it does, the body driver's effects on the plan); 16 the same day: a
         // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
         // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
-        // MINIMAL value, a value root's instant; 19 the same day: the LITERAL slot word retired (track L's L2)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":19,"), json);
+        // MINIMAL value, a value root's instant; 19 the same day: the LITERAL slot word retired (track L's L2); 20 since
+        // 2026-10-30: the verdicts node (the planner-driver seam program's S1b); 21 the same day: a constant side's
+        // folded flag (S2f); 22 the same day: a keyed result's key source, a statement's rows or its reported columns
+        // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
+        // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":26,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v19 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v26 plan"), refused.getMessage());
     }
 
     @Test

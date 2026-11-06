@@ -130,7 +130,7 @@ public final class StoreResolver {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
         this.constructed = new ConstructedInstances(ctx, sources);
-        sources.setConstructedRows(constructed::rowsFor);
+        sources.setConstructedRows(constructed::rowsFor, constructed::parametersFor);
         this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
@@ -168,6 +168,7 @@ public final class StoreResolver {
     public List<TypedSpec> resolve(List<TypedSpec> body,
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
+        com.legend.base.RunScope.planning("resolve a body");
         return resolve(body, driverRuntimeFqn, explicitMappingFqn,
                 List.of());
     }
@@ -178,6 +179,7 @@ public final class StoreResolver {
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
+        com.legend.base.RunScope.planning("resolve a body");
         // LAZY: runtime consulted only when a class fetch needs a
         // mapping; the runtime rides ALONGSIDE an explicit mapping
         // (self-sourced M2M upstream needs the candidate set)
@@ -1648,10 +1650,31 @@ public final class StoreResolver {
         // restores the caller's temporal frame on exit (T1.3 class kill)
         TemporalFrame caller = temporal;
         try {
-            return resolveObject(top, context);
+            return engineExecuteCardinality(top, resolveObject(top, context));
         } finally {
             temporal = caller;
         }
+    }
+
+    /** A serialize the result-envelope splice marked as an engine
+     * {@code execute(...)}'s values ({@code TypedSerialize
+     * .engineExecuteCardinality}) resolves to a graph carrying the same mark:
+     * the engine JsonBuilder's cardinality rule (exactly one object
+     * serializes bare), COMPATIBILITY ONLY — lite's own serialize results
+     * stay arrays (the user's ruling, 2026-11-03: "the right clean thing in
+     * lite, the backward-compatible thing in compatibility mode"). A serialize
+     * terminal always resolves to its graph; anything else is a resolver bug,
+     * loud (Invariant 4: the mark is never dropped silently). */
+    private static TypedSpec engineExecuteCardinality(TypedSpec top, TypedSpec resolved) {
+        if (!(top instanceof TypedSerialize sz) || !sz.engineExecuteCardinality()) {
+            return resolved;
+        }
+        if (!(resolved instanceof TypedSerializeGraph g)) {
+            throw new IllegalStateException("resolver bug: a serialize marked with the engine"
+                    + " execute() cardinality resolved to " + resolved.getClass().getSimpleName()
+                    + ", not its graph");
+        }
+        return g.withEngineExecuteCardinality();
     }
 
     /**

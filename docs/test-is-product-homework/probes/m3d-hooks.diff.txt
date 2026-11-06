@@ -1,0 +1,89 @@
+diff --git a/core/src/main/java/com/legend/driver/BodyCompiler.java b/core/src/main/java/com/legend/driver/BodyCompiler.java
+index 1779686a..b7c60df8 100644
+--- a/core/src/main/java/com/legend/driver/BodyCompiler.java
++++ b/core/src/main/java/com/legend/driver/BodyCompiler.java
+@@ -328,6 +328,7 @@ public final class BodyCompiler {
+             String where = effectFrom == effectTo ? "(statement " + effectFrom + ")"
+                     : "(statements " + effectFrom + "–" + effectTo + ")";
+             fragments.put("effects:" + effectFrom + "-" + effectTo, "effects " + where);
++            M3dCensus.walked(sink.entries().stream().map(com.legend.exec.EffectSink.Entry::executed).toList());   // M3d
+             BodyDriver.sendScript(env0, sink, where);
+             sink = new com.legend.exec.EffectSink();
+             effectFrom = -1;
+diff --git a/core/src/main/java/com/legend/driver/BodyDriver.java b/core/src/main/java/com/legend/driver/BodyDriver.java
+index 938c464b..60bfd0c0 100644
+--- a/core/src/main/java/com/legend/driver/BodyDriver.java
++++ b/core/src/main/java/com/legend/driver/BodyDriver.java
+@@ -51,13 +51,28 @@ public final class BodyDriver {
+             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
+             ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
++        M3dCensus.Frame m3d = M3dCensus.begin(typed, runtimeFqn, dialect, session, options);   // M3d (research)
++        try {
++            executeM3d(typed, runtimeFqn, dialect, session, assertListener, replayReferee, options, answer);
++        } catch (RuntimeException | Error e) {
++            M3dCensus.failed(m3d);
++            throw e;
++        } finally {
++            M3dCensus.end(m3d);
++        }
++    }
++
++    private static void executeM3d(TypedQuery typed,
++            @com.legend.base.Nullable String runtimeFqn,
++            com.legend.sql.dialect.SqlDialect dialect,
++            com.legend.exec.Sessions.Session session,
++            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
++            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
++            ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
+         ModelContext ctx = typed.context();
+         SpecCompiler specs = typed.specs();
+         java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
+         com.legend.protocol.spec.ValueSpecification resolved = typed.resolved();
+-        // the execution OPTIONS: the per-call ones ride each execute call's
+-        // own from (the engine's exeCtx overload binds them onto its bound
+-        // context); the caller's ride the environment
+         ExecEnv env0 = ExecEnv.of(ctx, runtimeFqn, dialect, session, options);
+         ExecEnv env = assertListener == null && replayReferee == null ? env0
+                 : env0.withListeners(assertListener, replayReferee);
+@@ -1520,17 +1535,17 @@ public final class BodyDriver {
+      * (testDDL.pure:42-45); createTableStatement renders from the
+      * compiled store model like dropAndCreateTableInDb. */
+ 
+-    /** {@code call}'s statements, the planner's ({@link com.legend.planner.EffectPlanner}, the seam program's S2d,
++    /** {@code call}'s statements, the planner's ({@link com.legend.testplan.EffectPlanner}, the seam program's S2d,
+      *  2026-10-31): its String arguments evaluated here (a literal folded; a computed one run, the one place a value
+      *  feeds a statement's text), the statements written from them, then sent in order as RAW (an effect segment
+      *  collects them for its script). */
+     private static void sendPlanned(java.util.List<TypedSpec> body,
+             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
+         java.util.List<String> values = new java.util.ArrayList<>();
+-        for (TypedSpec arg : com.legend.planner.EffectPlanner.stringArgs(call)) {
++        for (TypedSpec arg : com.legend.testplan.EffectPlanner.stringArgs(call)) {
+             values.add(evalStringArg(body, arg, env));
+         }
+-        for (var s : com.legend.planner.EffectPlanner.statements(call, values, body, env.plan())) {
++        for (var s : com.legend.testplan.EffectPlanner.statements(call, values, body, env.plan())) {
+             sendEffect(env, s.executed(), s.recorded(), com.legend.exec.StatementOrigin.RAW, s.ddl());
+         }
+     }
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 2f9ab4d4..771ca249 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -351,6 +351,7 @@ public final class PureTestRunner implements AutoCloseable {
+             // as it always did — the declared-footprint guard above still
+             // refuses the known clashes
+         }
++        com.legend.driver.M3dCensus.TEST.set("setup " + fqn);   // M3d (research)
+         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
+             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
+@@ -404,6 +405,7 @@ public final class PureTestRunner implements AutoCloseable {
+     /** Run one test: its package session (opened on demand), its setups once,
+      *  its body through the platform, one result. */
+     public Result run(PureTests.TestCase t) {
++        com.legend.driver.M3dCensus.TEST.set(t.fqn());   // M3d (research)
+         observer.testStarted(t);
+         if (!t.pkg().equals(sessionPkg)) {
+             beginSession(t.pkg());

@@ -174,7 +174,7 @@ user-visible error carries one of these eight.
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+| `Execution.runProgram(...)` | a TEST BODY through the body router: a body of a moved class (`testplan/BodyClass`) planned whole by the test door and run as one plan, its asserts judged at their verdict steps by the router's sink (the host judge, M6), every other G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -187,7 +187,21 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 error rather than the first, you want `buildModule`.
 
 `BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
-D73, 2026-10-30) and **has one caller by design**, `Execution.runProgram` (`ArchitectureTest.theDriverHasOneCaller`;
+D73, 2026-10-30) and **has one caller by design**, the body router `driver/BodyRouter`, which `Execution.runProgram`
+alone calls; the router runs a body of a moved class whole on the program road and walks every other body with the
+body driver (the test-is-the-product plan's M5, 2026-11-01, until M10 deletes both; the classes moved: the effect setup
+programs and the plain query programs (M5), the assert programs under the host judge (M6: each assert's sides planned
+before the program by `driver/HostAsserts` through the test library's `TestDoor.Asserts` hook, judged at its verdict
+step by the router's sink with the walk's census and listener protocol), the frame programs under the host judge (M9,
+2026-11-01: `let r = execute(...)` frames, aliases, inline executes, handles, activities reads -- the frame's trace
+stamp a plan parameter its eager run binds and the sides carry -- effects with literal arguments; a body a store write
+reaches, a side routed to another session than the body's, a system-store read, the engine-text asserts and the
+test-data generator stay on the walk), and the same two classes under the DATABASE judge (M7, 2026-11-01:
+`driver/DatabaseAsserts` plans the asserts under a collecting verdict batch before the program, a static pass first;
+the batch's planning half composes each segment's fused statement with the frames' CTEs at its head, the frames never
+run at their let; the router's sink judges each segment at its last verdict with the batch's own root loop; channel
+B's BOTH judging walks every assert body until M8); the kinds of each walked body are counted by `testplan/BodyKinds` into
+`Census.STAYED_KINDS` for the corpus lanes' histogram (measurement, deciding nothing); `ArchitectureTest.theDriverHasOneCaller`;
 package-private while it shared the root package with the door). The root package holds the five public doors alone:
 `Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
 machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
@@ -290,7 +304,8 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
-docs/MONGODB_PLAN_2026_10_16.md); `H2` → `H2Modern`; `EngineStyleH2` →
+docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
+chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
 one a declared database type runs on.
 
@@ -414,6 +429,7 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
@@ -421,6 +437,7 @@ otherwise, which is how it drifted:
 | `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
+| `docs/CORE_SQL_SIZE_2026_11_04.md` | **Core's SQL size, measured** (the user's question, 2026-11-03): 85% of core's SQL is the system metamodel's seed re-sent per test; the metamodel queries' 84K statements are the generic lowering's (no metamodel special case in lowering or SQL); where the metamodel IS special; the H2 OOM; what to do once the walkers and doors are gone (the user's order) |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/CLOUD_SESSIONS.md` | Bazel in a Claude Code cloud session: GitHub archives refused (`tools/cloud-distdir.sh`), the disk allowance, root |
 | `docs/ENGINEERING_LOG.md` | Standing tenets (its active queue is history; the plan above replaced it) |

@@ -62,6 +62,7 @@ public final class SpecCompiler {
      *  driver's view fetch plans this; nothing outside the compiler spells a
      *  view accessor). */
     public TypedSpec viewRelation(TypedFunction fn) {
+        com.legend.base.RunScope.planning("type a spec");
         return com.legend.compiler.spec.typed.TypedViewRelation.of(fn, viewBody(fn));
     }
 
@@ -79,6 +80,7 @@ public final class SpecCompiler {
      * variant built on top of it.
      */
     public CompiledFunction compile(TypedFunction fn) {
+        com.legend.base.RunScope.planning("type a spec");
         CompiledFunction cached = memo.get(fn);
         if (cached != null) {
             return cached;
@@ -137,6 +139,7 @@ public final class SpecCompiler {
      * compiled and stops.
      */
     public List<CompiledFunction> compileReachable(TypedFunction root) {
+        com.legend.base.RunScope.planning("type a spec");
         List<CompiledFunction> compiled = new ArrayList<>();
         Deque<TypedFunction> work = new ArrayDeque<>();
         work.add(root);
@@ -275,6 +278,7 @@ public final class SpecCompiler {
      * (an empty environment, inference mode).
      */
     public TypedSpec typeExpression(ValueSpecification query) {
+        com.legend.base.RunScope.planning("type a spec");
         List<TypedSpec> body = typeQueryBody(query);
         return body.get(body.size() - 1);
     }
@@ -285,6 +289,7 @@ public final class SpecCompiler {
      * result bound), typed once by the router. */
     public TypedSpec typeExpression(ValueSpecification expr,
             java.util.Map<String, com.legend.compiler.element.type.ExprType> bindings) {
+        com.legend.base.RunScope.planning("type a spec");
         Env env = Env.empty();
         for (var e : bindings.entrySet()) {
             env = env.with(e.getKey(), e.getValue());
@@ -294,6 +299,7 @@ public final class SpecCompiler {
 
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
     public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
+        com.legend.base.RunScope.planning("type a spec");
         return typer.declaredType(parameter);
     }
 
@@ -305,6 +311,7 @@ public final class SpecCompiler {
      * statement.
      */
     public List<TypedSpec> typeQueryBody(ValueSpecification query) {
+        com.legend.base.RunScope.planning("type a spec");
         query = withIslandPrograms(query);
         // A query's PARAMETERS ({minQty: Integer[1]|...}) are in scope at their declared types:
         // the query's value is its BODY's, as legend-engine types it (lambdaReturnType,

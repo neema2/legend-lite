@@ -88,14 +88,61 @@ public enum StatementOrigin {
         }
     }
 
+    private static final ThreadLocal<java.util.@com.legend.base.Nullable List<String>> OBSERVED =
+            new ThreadLocal<>();
+
+    /** Every statement this thread sends until the scope closes, each as {@code [origin] text}, appended to
+     *  {@code into}: what a parity test compares between two roads (measurement only, as the census). */
+    public static Observing observing(java.util.List<String> into) {
+        java.util.List<String> previous = OBSERVED.get();
+        OBSERVED.set(into);
+        return new Observing(previous);
+    }
+
+    /** An observing scope; closing restores the observer before it. */
+    public record Observing(java.util.@com.legend.base.Nullable List<String> previous) implements AutoCloseable {
+        @Override
+        public void close() {
+            OBSERVED.set(previous);
+        }
+    }
+
+    /** PLANNING SENDS NOTHING, mechanically (2026-11-05, the strict database judge's group 3; THE WALL's rule 2 since
+     *  2026-11-06, {@link com.legend.base.RunScope#plans}): while the scope is open this thread is planning
+     *  {@code what} -- a test body's plan, before any of it runs -- and no run starts, no session opens and no
+     *  statement is sent, each refused by name. The scope nests: an inner scope keeps the outer's name. */
+    public static com.legend.base.RunScope.Planning planning(String what) {
+        return com.legend.base.RunScope.plans(what);
+    }
+
+    /** Whether this thread is planning ({@link #planning}). */
+    public static boolean isPlanning() {
+        return com.legend.base.RunScope.isPlanning();
+    }
+
     /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
-     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. */
+     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. Refused while
+     *  this thread plans ({@link #planning}). */
     public static void sent(String sql) {
+        String planning = com.legend.base.RunScope.planningWhat();
+        if (planning != null) {
+            throw new IllegalStateException("a statement sent while planning " + planning + " (planning sends"
+                    + " nothing): [" + current().name().toLowerCase(java.util.Locale.ROOT) + "] "
+                    + (sql.length() > 300 ? sql.substring(0, 300) + "..." : sql));
+        }
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
+        java.util.List<String> observed = OBSERVED.get();
+        if (observed != null) {
+            observed.add("[" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+        }
         count();
         Census.add(Census.Key.SQL_CHARS, sql.length());
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             System.err.println("[sql:" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+        }
+        if (com.legend.diagnostics.Diagnostics.on("sql-sizes")) {
+            System.err.println("[sql-size] " + sql.length() + " " + System.getProperty("legend.test.current", "?") + " "
+                    + current().name().toLowerCase(java.util.Locale.ROOT));
         }
     }
 

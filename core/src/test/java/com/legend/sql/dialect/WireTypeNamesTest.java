@@ -23,7 +23,15 @@ class WireTypeNamesTest {
 
     private static @com.legend.base.Nullable Type typed(SqlDialect dialect, String driverName) {
         String wire = dialect.typingWireName(driverName);
-        return wire == null ? null : com.legend.driver.WireProbe.pureOfSqlTypeOrNull(wire);
+        String name = wire == null ? null : WireTypes.pureTypeNameOrNull(wire);
+        // the wire table's name as the typer's primitive (the driver side's rebuild until WireProbe's deletion,
+        // the planner-driver seam program's S3c, 2026-10-30)
+        for (Type.Primitive p : Type.Primitive.values()) {
+            if (p.typeName().equals(name)) {
+                return p;
+            }
+        }
+        return null;
     }
 
     /** The three names the defect named: none has a type as the driver gives it, each has one through its dialect. */
@@ -106,12 +114,4 @@ class WireTypeNamesTest {
         assertEquals("NUMBER", WireNames.fold("NUMBER"));
     }
 
-    /** A probed column its dialect does not type by name is absent from the probe's type names, and the lookup refuses
-     *  it: no fallback to the driver's own name (SQLite's NUMERIC would type Decimal) or to the probe's slot. */
-    @Test
-    void aProbedColumnWithNoTypeIsRefusedNotGuessed() {
-        var probe = new com.legend.sql.PlanProbe(java.util.List.of(), Map.of("a", "BIGINT"));
-        assertEquals("BIGINT", probe.typeName("a"));
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> probe.typeName("n"));
-    }
 }

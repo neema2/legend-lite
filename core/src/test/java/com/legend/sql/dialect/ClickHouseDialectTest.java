@@ -116,4 +116,19 @@ class ClickHouseDialectTest {
         // anything else is refused by name
         assertThrows(DialectCapability.class, () -> fractionalRange(SqlAgg.Fn.MODE));
     }
+
+    @Test
+    void aNegationBracketsItsWholeOperand() {
+        // ClickHouse reads `NOT (` as its function not(: an operand that only starts with a bracket would be cut short
+        // (PCT round 21, 2026-11-05: `NOT (SELECT ...) = (SELECT ...)` refused, "failed at position ... (toInt64)")
+        SqlSource.Table t = table("t", "t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr k = col("t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr one = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        SqlExpr two = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        String sql = render(select(t, SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.EQUAL, one, two)), k));
+        assertTrue(sql.contains("WHERE NOT ((SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\")"
+                + " = (SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\"))\n"), sql);
+    }
 }

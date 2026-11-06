@@ -104,6 +104,14 @@ final class SeedSqlForms {
                 || !isSetUpDataSqls(sg)) {
             return null;
         }
+        // the folded form is the one reader both roads share (testplan/Seeds.seedForm, M10c item 7c); a data argument
+        // that does not fold is the walk's own: evaluated as a statement
+        com.legend.testplan.Seeds.SeedForm form = com.legend.testplan.Seeds.seedForm(tm,
+                body.subList(0, body.size() - 1));
+        if (form != null) {
+            return new TypedSide.Collection(new java.util.ArrayList<>(form.texts(env.ctx(), env.dialect())),
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
         String seedCsv = BodyDriver.evalStringArg(body, sg.args().get(0), env);
         String seedDb = sg.args().get(1)
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef spr

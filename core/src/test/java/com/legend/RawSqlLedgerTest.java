@@ -3,7 +3,6 @@
 
 package com.legend;
 
-import com.legend.driver.GridProbe;
 
 import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
@@ -115,11 +114,8 @@ class RawSqlLedgerTest {
      * source level, and the SQL-text ratchet patrols the composition
      * side. */
     private static final Map<String, Integer> RAW_SOURCE_CTORS = Map.of(
-            // the LIMIT-0 schema probe (itself MIR-rendered; moved from
-            // ResultNav at its Phase 1c-endgame deletion, then to
-            // GridProbe at the Invariant-7 staged-compilation split —
-            // the resolver pass takes the roster through its referee)
-            "GridProbe.java", 1,
+            // GridProbe.java 1 -> gone (2026-10-30, the planner-driver seam program's S3c): the LIMIT-0 schema
+            // probe deleted with the stamp it fed; a raw grid's columns are read when the plan runs
             // Phase 1c: the compiler's TypedRawSqlRelation lowering,
             // carrying the AUTHORED text from the typed node verbatim
             "Lowerer.java", 1,

@@ -31,14 +31,14 @@ public final class Census {
         FRAME_PASTED("frame.pasted"),
         FRAME_CLASS("frame.class"),
         FRAME_CLASS_CTE("frame.class-cte"),
-        WIRE_RETYPED("wire.retyped"),
-        WIRE_SLOT_SKEW("wire.slot-skew"),
         SQL_ROUND_TRIPS("sql.round-trips"),
         SQL_CHARS("sql.chars"),
         /** Row loads an engine's own bulk API took ({@link BulkLoad}). */
         BULK_LOADS("sql.bulk-loads"),
         ULP_FIRINGS("host.ulp-firings"),
         EFFECTS_IN_SCRIPT("effects.in-script"),
+        /** Test bodies the body router moved whole onto the program road (the test-is-the-product plan's M5, R16). */
+        BODIES_MOVED("bodies.moved"),
         DIVERGENCE_AGREE("divergence.agree"),
         DIVERGENCE_DISAGREE("divergence.disagree"),
         DIVERGENCE_RESIDUE("divergence.residue"),
@@ -74,6 +74,25 @@ public final class Census {
      * a named list beside the counts (the lanes attribute them per test). */
     public static final List<String> FALLBACK_REASONS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** The kinds of each test body the body router left on the walk, appended as it routes (the test-is-the-product
+     * plan's M9, 2026-11-01): a named list beside {@link Key#BODIES_MOVED}'s count (the lanes attribute them per
+     * test and histogram them, so each movement step is aimed at the kinds holding the most bodies back). */
+    public static final List<String> STAYED_KINDS =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** The asserts the host planner declined to plan for the program road, each by the shape it declined (the
+     * test-is-the-product plan's M10c, 2026-11-02): a named list beside {@link #STAYED_KINDS} (the lanes attribute
+     * them per test and histogram them, so the remaining assert shapes are named by count). Measurement, deciding
+     * nothing: the body stays on the walk whatever is written here. */
+    public static final List<String> UNPLANNED_ASSERTS =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** {@link #UNPLANNED_ASSERTS}: one declined assert, by its shape. */
+    public static void unplannedAssert(String shape) {
+        com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", shape);
+        UNPLANNED_ASSERTS.add(shape);
+    }
 
     public static void inc(Key k) {
         COUNTS[k.ordinal()].increment();

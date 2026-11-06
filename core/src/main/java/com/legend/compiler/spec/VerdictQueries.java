@@ -49,6 +49,12 @@ public final class VerdictQueries {
                 read.callee(), List.of(read.args().get(0)), read.info());
     }
 
+    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
+     *  arms' two texts, the test-is-the-product plan's M10b). */
+    public static TypedSpec text(String text) {
+        return new TypedCString(text, scalar(Type.Primitive.STRING));
+    }
+
     /** {@code assertEquals(expected, actual)} as a typed call — the meaning
      * of a dual-golden assert once its golden is chosen (the verdict arm
      * adjudicates it as the plain verdict). Null when the catalog has no
@@ -273,6 +279,44 @@ public final class VerdictQueries {
         return a.size() <= values || a.get(values) instanceof com.legend.compiler.spec.typed.TypedCString;
     }
 
+    /**
+     * THE PER-ELEMENT OPERANDS of a quantified equality (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     * {@code source->map(x | pair(expected, actual))} -- both operands of each element computed by the database in one
+     * ordered value, never in Java -- or null where the lambda is not one statement or an operand is not one value per
+     * element (the pairing would not align). Compiler-owned synthesis over the typed tree, nothing evaluated.
+     */
+    public static @com.legend.base.Nullable TypedMap pairsVector(TypedSpec source, TypedLambda lam, TypedSpec expected,
+            TypedSpec actual, com.legend.compiler.element.ModelContext ctx) {
+        if (lam.parameters().size() != 1 || lam.body().size() != 1 || !one(expected) || !one(actual)) {
+            return null;
+        }
+        var pairFns = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.PAIR_FN).stream()
+                .filter(f -> f.parameters().size() == 2).toList();
+        if (pairFns.size() != 1) {
+            throw new IllegalStateException("verdict synthesis bug: expected one 2-arg collection::pair");
+        }
+        ExprType pairType = new ExprType(new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.PAIR,
+                List.of(expected.info().type(), actual.info().type()), List.of()), Multiplicity.Bounded.ONE);
+        TypedLambda pairLam = new TypedLambda(lam.parameters(),
+                List.of(new TypedNativeCall(pairFns.get(0), List.of(expected, actual), pairType)), lam.info());
+        return new TypedMap(source, pairLam, new ExprType(pairType.type(), Multiplicity.Bounded.ZERO_MANY));
+    }
+
+    private static boolean one(TypedSpec n) {
+        return n.info().multiplicity() instanceof Multiplicity.Bounded b && b.lower() == 1 && b.upper() != null
+                && b.upper() == 1;
+    }
+
+    /** The message an {@code assert}/{@code assertFalse} under the vector contract fails with: its literal message
+     *  ({@code (3)} admits no other), else upstream's default for the base overload, "Assert failed"
+     *  (2026-11-04, the asserts-as-plan-nodes program: both judges printed the default over a caller's message --
+     *  AssertBarTest's forAll-zip-assert-message). */
+    public static String assertMessage(TypedSpec root) {
+        List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value()
+                : "Assert failed";
+    }
+
     /** (1): rows the relation lane plans. */
     static boolean rowSource(TypedSpec source) {
         if (Type.relationValued(source.info())) {
@@ -420,8 +464,7 @@ public final class VerdictQueries {
      * collection, a value with no literal spelling). */
     public static @com.legend.base.Nullable List<TypedSpec> unrollElements(
             TypedSpec source, List<TypedSpec> letPrefix,
-            com.legend.compiler.element.ModelContext ctx,
-            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+            com.legend.compiler.element.ModelContext ctx) {
         if (source instanceof TypedCollection coll) {
             // elements that are let-bound values ([$_s1_hoisted, $_s2_hoisted]
             // — hoisted constructor programs) read through the caller's lets
@@ -440,8 +483,8 @@ public final class VerdictQueries {
                 && z.callee().qualifiedName().equals(
                         com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP)
                 && z.args().size() == 2) {
-            List<TypedSpec> left = armElements(z.args().get(0), letPrefix, fetch);
-            List<TypedSpec> right = armElements(z.args().get(1), letPrefix, fetch);
+            List<TypedSpec> left = armElements(z.args().get(0), letPrefix);
+            List<TypedSpec> right = armElements(z.args().get(1), letPrefix);
             if (left == null || right == null) {
                 return null;
             }
@@ -468,44 +511,23 @@ public final class VerdictQueries {
         return null;
     }
 
+    /** A zip arm's elements as the program SPELLED them: a literal collection's, or a bare literal as the
+     *  one-element collection pure's {@code [x] == x} law makes it; an arm the database would answer is null here --
+     *  the vector form reads it as rows (the seam program's step after S2f, 2026-10-30: the unroll fetches nothing). */
     private static @com.legend.base.Nullable List<TypedSpec> armElements(TypedSpec arm0,
-            List<TypedSpec> letPrefix,
-            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+            List<TypedSpec> letPrefix) {
         TypedSpec arm = com.legend.compiler.spec.typed.Lets.bound(arm0, letPrefix);
         if (arm instanceof TypedCollection c) {
             return c.elements();
         }
-        List<TypedSpec> out = new java.util.ArrayList<>();
-        for (Object v : fetch.apply(arm)) {
-            TypedSpec lit = literalSpec(v);
-            if (lit == null) {
-                return null;
-            }
-            out.add(lit);
+        if (arm instanceof com.legend.compiler.spec.typed.TypedCString
+                || arm instanceof com.legend.compiler.spec.typed.TypedCInteger
+                || arm instanceof com.legend.compiler.spec.typed.TypedCFloat
+                || arm instanceof com.legend.compiler.spec.typed.TypedCDecimal
+                || arm instanceof com.legend.compiler.spec.typed.TypedCBoolean) {
+            return List.of(arm);
         }
-        return out;
-    }
-
-    /** A database value as the literal spec that spells it; null when
-     * the value has no literal spelling (dates, structures). */
-    public static @com.legend.base.Nullable TypedSpec literalSpec(@com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case Long l -> new com.legend.compiler.spec.typed.TypedCInteger(l,
-                    ExprType.one(Type.Primitive.INTEGER));
-            case Integer i -> new com.legend.compiler.spec.typed.TypedCInteger((long) i,
-                    ExprType.one(Type.Primitive.INTEGER));
-            case Double d -> new com.legend.compiler.spec.typed.TypedCFloat(d, null,
-                    ExprType.one(Type.Primitive.FLOAT));
-            case Float f -> new com.legend.compiler.spec.typed.TypedCFloat(f, null,
-                    ExprType.one(Type.Primitive.FLOAT));
-            case java.math.BigDecimal bd -> new com.legend.compiler.spec.typed.TypedCDecimal(bd,
-                    ExprType.one(Type.Primitive.DECIMAL));
-            case String str -> new com.legend.compiler.spec.typed.TypedCString(str,
-                    ExprType.one(Type.Primitive.STRING));
-            case Boolean b -> new com.legend.compiler.spec.typed.TypedCBoolean(b,
-                    ExprType.one(Type.Primitive.BOOLEAN));
-            case null, default -> null;
-        };
+        return null;
     }
 
     public static List<TypedSpec> unrolledElement(SpecCompiler specs,
@@ -600,7 +622,7 @@ public final class VerdictQueries {
      * root rule, decided at compile time. Null when the text does not
      * parse (the golden itself is defective — named, never guessed). */
     public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedCString
-            canonicalJsonGolden(String text, boolean rootMany) {
+            canonicalJsonGolden(String text) {
         Object parsed;
         try {
             parsed = com.legend.sql.Json.parseOne(text);
@@ -608,9 +630,6 @@ public final class VerdictQueries {
             return null;   // the parser's own refusal; anything else stays loud
         }
         String canon = com.legend.sql.Json.canonical(parsed);
-        if (rootMany && parsed instanceof java.util.Map) {
-            canon = "[" + canon + "]";
-        }
         return new com.legend.compiler.spec.typed.TypedCString(canon,
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
     }
@@ -643,12 +662,41 @@ public final class VerdictQueries {
      * has no two-argument instanceOf. */
     public static @com.legend.base.Nullable TypedSpec instanceOfCondition(TypedSpec value,
             TypedSpec typeArg, SpecCompiler specs) {
+        // a value of a CONCRETE primitive static type is of that type and no other at run time (no primitive but Number
+        // and Date has a subtype), so instanceOf is the type system's own subtype relation, decided here by the
+        // compiler -- legend-pure's answer for any value of that type (2026-11-03: the lowering's fold decides a class
+        // type alone, so assertInstanceOf($dt, DateTime) and testHashCode's Integer walled under the database judge)
+        String target = typeTarget(typeArg);
+        if (target != null && value.info().multiplicity().equals(Multiplicity.Bounded.ONE)
+                && value.info().type() instanceof Type.Primitive p && CONCRETE_PRIMITIVES.contains(p)) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(
+                    specs.ctx().isSubtype(p.qualifiedName(), target),
+                    new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+        }
         return specs.ctx().findFunction(
                         com.legend.compiler.element.type.PlatformTypes.INSTANCE_OF)
                 .stream().filter(f -> f.parameters().size() == 2).findFirst()
                 .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(value, typeArg),
                         new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)))
                 .orElse(null);
+    }
+
+    /** The primitives no other primitive specializes: a value typed one of them is of exactly it at run time. Number
+     *  and Date are abstract (Integer, Float, Decimal; StrictDate, DateTime), and LatestDate is a date's marker. */
+    private static final java.util.Set<Type.Primitive> CONCRETE_PRIMITIVES = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT, Type.Primitive.DECIMAL,
+                    Type.Primitive.STRING, Type.Primitive.BOOLEAN, Type.Primitive.BYTE, Type.Primitive.STRICT_DATE,
+                    Type.Primitive.DATE_TIME, Type.Primitive.STRICT_TIME));
+
+    /** The type an {@code instanceOf}'s type argument names: a class or primitive {@code @Type}, or a bare type
+     *  reference; null for any other argument. */
+    private static @com.legend.base.Nullable String typeTarget(TypedSpec typeArg) {
+        return switch (typeArg) {
+            case com.legend.compiler.spec.typed.TypedTypeRef tr -> tr.target() instanceof Type.ClassType c ? c.fqn()
+                    : tr.target() instanceof Type.Primitive p ? p.qualifiedName() : null;
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr -> pr.fullPath();
+            default -> null;
+        };
     }
 
     /** A VERDICT FUNCTION CALL AS THE PREDICATE IT MEANS (2026-09-22): inside a

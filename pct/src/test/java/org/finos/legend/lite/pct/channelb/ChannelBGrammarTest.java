@@ -111,8 +111,11 @@ class ChannelBGrammarTest {
         // (METAMODEL_STORE_HANDOFF.md); the FULL grammar lane. Both
         // channels pass; the channel A ledger entry removed same-commit.
         // 137 -> 136 with the universe (above): 100% of 136
-        assertTrue(c.pass() >= 136, "grammar PASS fell: " + c.pass());
-        assertTrue(c.wireBug() <= 1,
+        // 2026-11-03 (the walker-deletion program, channel B's walk closed: -Dlegend.walk.allowed=none): the floors
+        // TIGHTENED to the measured counts. A body the closed walk refuses is an ERROR row, so any slack here would let
+        // it, or a regression of a test channel A's ledger lists, pass silently (the channel B audit, 2026-11-03)
+        assertTrue(c.pass() >= 137, "grammar PASS fell: " + c.pass());
+        assertTrue(c.wireBug() <= 0,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared (both oracles corroborate the"
@@ -194,5 +197,9 @@ class ChannelBGrammarTest {
 
 
 
+        // the EXACT gate (2026-11-03): no failure on the reference lane -- every test passes; a failure joins a
+        // ledger only with a dated reason (ChannelBLedger)
+        ChannelBLedger.judge("Grammar", out, ChannelBLedger.of(
+                org.finos.legend.lite.pct.extension.PctBackend.name(), "Grammar"));
     }
 }

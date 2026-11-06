@@ -39,20 +39,13 @@ class PlanRunnerH2Test {
     private static final DatabaseType H2 = DatabaseType.H2;
 
     @Test
-    void aSessionOfAnotherDatabaseOrServerVersionIsRefused_neverRun() throws Exception {
+    void aSessionOfAnotherDatabaseIsRefused_neverRun() throws Exception {
         DatabaseType other = TestBackends.inProcess().stream().map(TestBackend::type).filter(t -> t != H2).findFirst()
                 .orElseThrow();
-        ExecutionPlan another = counting(inMemory("s::Other", other, new ConnectionSpecification.InMemory()), "T",
-                new ExecutionPlan.Servers.Every());
-        ExecutionPlan h2ForNine = counting(inMemory("s::H2", H2, new ConnectionSpecification.LocalH2(null)),
-                "T", new ExecutionPlan.Servers.Versions(List.of("9.")));
+        ExecutionPlan another = counting(inMemory("s::Other", other, new ConnectionSpecification.InMemory()), "T");
         try (Connection h2 = TestBackends.of(H2).open()) {
             var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
             assertTrue(otherDatabase.getMessage().contains("dialect/connection mismatch"), otherDatabase.getMessage());
-            var otherVersion = assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> run(h2ForNine, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
-            assertTrue(otherVersion.getMessage().contains("written for H2 [9.], and the session is H2 2.1"),
-                    otherVersion.getMessage());
         }
     }
 
@@ -60,16 +53,12 @@ class PlanRunnerH2Test {
      *  database's in-memory target is ({@link PlanRunnerTest}, which declares {@code InMemory}). */
     @Test
     void aLocalH2TargetIsSharedAndSetUpOnce() throws Exception {
-        ExecutionPlan plan = counting(inMemory("s::H2", H2, new ConnectionSpecification.LocalH2(null)), "LOCAL_T",
-                H2_SERVERS);
+        ExecutionPlan plan = counting(inMemory("s::H2", H2, new ConnectionSpecification.LocalH2(null)), "LOCAL_T");
         long before = setupStatements();
         assertEquals("1", run(plan, PlanSessions.shared()));
         assertEquals("1", run(plan, PlanSessions.shared()));
         assertEquals(2, setupStatements() - before, "set up once");
     }
-
-    /** The H2 versions its plans are written for. */
-    private static final ExecutionPlan.Servers H2_SERVERS = new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2"));
 
     /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.holeType). */
     private static final Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> H2_TYPES = Map.of(
@@ -87,7 +76,7 @@ class PlanRunnerH2Test {
     private static ExecutionPlan holed(String type) {
         String before = "SELECT CAST(CAST(? AS ";
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
-                H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
+                H2, new ConnectionSpecification.LocalH2(null))), List.of(), List.of());
         return new ExecutionPlan(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
                 new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
@@ -136,7 +125,7 @@ class PlanRunnerH2Test {
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
-                    H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
+                    H2, new ConnectionSpecification.LocalH2(null))), List.of(), List.of());
             ExecutionPlan plan = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
@@ -158,7 +147,7 @@ class PlanRunnerH2Test {
     @Test
     void aDatabaseTheUserNamedIsNeverSetUp() {
         ExecutionPlan p = counting(inMemory("s::Named", H2,
-                new ConnectionSpecification.EmbeddedH2("users_own", "/never", false)), "NAMED_T", H2_SERVERS);
+                new ConnectionSpecification.EmbeddedH2("users_own", "/never", false)), "NAMED_T");
         var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
         assertEquals("connection 's::Named' is an in-memory database the user named ('users_own'), and the plan has"
                 + " setup for it: never run on it", refused.getMessage());
@@ -171,7 +160,7 @@ class PlanRunnerH2Test {
     void runsOfOneTargetThatStartTogetherSetItUpOnce() throws Exception {
         ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM TOGETHER_T",
                 target(new ExecutionPlan.Database.Declared(inMemory("s::H2", H2,
-                                new ConnectionSpecification.LocalH2(null))), H2_SERVERS,
+                                new ConnectionSpecification.LocalH2(null))),
                         statement("CREATE TABLE TOGETHER_T (ID INTEGER)"),
                         statement("INSERT INTO TOGETHER_T SELECT X FROM SYSTEM_RANGE(1, 100000)")));
         int runs = 8;

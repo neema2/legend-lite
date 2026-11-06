@@ -218,8 +218,8 @@ public sealed interface SqlExpr
                     channels.add(new TaggedList.Channel(ch.kind(), ch.slot(), cs.get(3 + i)));
                 }
                 int n = 3 + tl.channels().size();
-                yield tl.rows() == null ? new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels)
-                        : new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, cs.get(n));
+                yield new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, tl.rows() == null ? null : cs.get(n),
+                        tl.order(), SqlTyping.UNKNOWN);
             }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
@@ -1130,18 +1130,43 @@ public sealed interface SqlExpr
      * and a rule consuming the list reads its channels; any other consumer refuses by name until designed.
      */
     record TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
-                      @com.legend.base.Nullable SqlExpr rows, TypeFact type)
+                      @com.legend.base.Nullable SqlExpr rows, Order order, TypeFact type)
             implements SqlExpr {
         public TaggedList {
             channels = List.copyOf(channels);
             if (channels.isEmpty()) {
                 throw new IllegalArgumentException("a tagged list holds its elements in channels; none were given");
             }
+            java.util.Objects.requireNonNull(order, "a tagged list's order");
             type = SqlTyping.taggedListType(channels);
         }
 
+        /** A list as built: its positions in their own order (1..n, or a subset kept in order). */
         public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels) {
-            this(positions, tags, comparable, channels, null, SqlTyping.UNKNOWN);
+            this(positions, tags, comparable, channels, null, Order.POSITION, SqlTyping.UNKNOWN);
+        }
+
+        /** The order the list's positions hold, which its root's rows are returned in -- an unnest promises no order
+         *  (2026-11-03, round 18: BigQuery and MySQL returned a mixed list's elements out of order): by position
+         *  (a list as built, kept by a dedup or a filter), by comparable (a sort; ties by position, a stable sort's),
+         *  each either way (a reverse). */
+        public enum Order {
+            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC;
+
+            /** The order of the list reversed. */
+            public Order reversed() {
+                return switch (this) {
+                    case POSITION -> POSITION_DESC;
+                    case POSITION_DESC -> POSITION;
+                    case COMPARABLE -> COMPARABLE_DESC;
+                    case COMPARABLE_DESC -> COMPARABLE;
+                };
+            }
+        }
+
+        /** The same list in another order. */
+        public TaggedList withOrder(Order newOrder) {
+            return new TaggedList(positions, tags, comparable, channels, rows, newOrder, SqlTyping.UNKNOWN);
         }
 
         /** A list whose arrays are aggregated from {@code rows}: a {@link ScalarSubquery} over its CELLS, one row per
@@ -1151,7 +1176,7 @@ public sealed interface SqlExpr
          *  to the rewriters (the children contract); its reader refuses what is not a subquery. */
         public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
                           SqlExpr rows) {
-            this(positions, tags, comparable, channels, rows, SqlTyping.UNKNOWN);
+            this(positions, tags, comparable, channels, rows, Order.POSITION, SqlTyping.UNKNOWN);
         }
 
         /** The cells relation's columns ({@link #rows}): the element's position, its tag, its comparable, its
@@ -1195,19 +1220,20 @@ public sealed interface SqlExpr
             return out;
         }
 
-        /** The tag at {@code position}. */
+        /** The tag at {@code position}: a position the list holds, read by {@link SqlFn#LIST_AT} (each array and the
+         *  position written once: nested positions multiplied the general read's copies, 2026-11-03). */
         public SqlExpr tagAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, tags, position);
+            return Call.of(SqlFn.LIST_AT, tags, position);
         }
 
         /** The comparable at {@code position}. */
         public SqlExpr comparableAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, comparable, position);
+            return Call.of(SqlFn.LIST_AT, comparable, position);
         }
 
         /** Channel {@code k}'s value at {@code position}. */
         public SqlExpr channelAt(int k, SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, channels.get(k).values(), position);
+            return Call.of(SqlFn.LIST_AT, channels.get(k).values(), position);
         }
 
         /** The element at {@code position}: a tagged value whose tag is the channel index there, whose comparable
@@ -1223,7 +1249,7 @@ public sealed interface SqlExpr
 
         /** The same list over other positions (its rows, if any, no longer describe the order: dropped). */
         public TaggedList withPositions(SqlExpr newPositions) {
-            return new TaggedList(newPositions, tags, comparable, channels);
+            return new TaggedList(newPositions, tags, comparable, channels, null, order, SqlTyping.UNKNOWN);
         }
 
         /** The list's elements where every array is a literal and the positions are {@code 1..n} in order (a
@@ -1256,8 +1282,8 @@ public sealed interface SqlExpr
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
      * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — the EXECUTION BOUNDARY resolves it (DynamicPivot's
-     * two-phase discipline; the lowering layer records the typed
+     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
+     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
      * schema by {@code id}). Types-free by design — the sql package
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */

@@ -1,5 +1,5 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 19, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 22, as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
@@ -15,6 +15,7 @@
 // PURE: no DOM, no planner; a host gives its session.
 
 import type { HostOperationsSource } from './host-operations.ts';
+import { familyOf, isBoolean } from './types.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -31,19 +32,30 @@ export interface PlanSession {
 }
 
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
-interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown }
+interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown; readonly stamp?: string }
 
 /** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
  *  (the result boundary program: a plan's answer is a `tdsResult` of typed columns, never a text result of a format;
  *  the written-precision fact on a column since S1.4) -- `update`, `check` and `sequence` as version 5 wrote them; a
  *  statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are no write's. */
 // 19 since 2026-10-29: the LITERAL slot word retired (track L's L2; core's PlanJson.VERSION is the one owner)
-const PLAN_VERSION = 19;
+// 20 since 2026-10-30: the verdicts node (a run of asserts as one step: the planner-driver seam program's S1b) -- a
+// program's step, which this runner refuses by name as any step that is not an update, a check or a typed result
+// 21 since 2026-10-30: a verdict's constant side says whether the compiler folded its cells (S2f) -- inside the verdicts
+// node this runner refuses, so nothing here reads it
+// 22 since 2026-10-31: a keyed result's key source and a verdict's keyed wrapper (the seam program's S3c)
+// 23 since 2026-10-31: the constant node (a value the program wrote, answered with nothing sent: the test-is-the-product
+// plan's M2) -- its one column's cells as text, a String's or a Boolean's, written as the typed result's would be
+// 24 since 2026-10-31: an effect's script, the setup node (a program's seed step) and a verdict group's savepoint (the
+// test-is-the-product plan's M3) -- an effect and a seed step are refused by name, as any step that is not an update, a
+// check, a typed result or a constant
+const PLAN_VERSION = 26;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
   | { readonly _type: 'check'; readonly sql: Sql }
   | { readonly _type: 'tdsResult'; readonly shape: string; readonly columns: readonly Column[]; readonly sql: Sql }
+  | { readonly _type: 'constant'; readonly columns: readonly Column[]; readonly cells: readonly (readonly (string | null)[])[] }
   | { readonly _type: 'sequence'; readonly steps: readonly Step[] }
   | { readonly _type: string };
 
@@ -84,23 +96,36 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
-    : root._type === 'tdsResult' ? [root] : undefined;
-  if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence or a typed result, not a ${root._type}`);
-  const sqls = steps.map((s) => stepSql(s));
-  const results = steps.filter((s) => s._type === 'tdsResult');
+    : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
+  if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence, a typed result or a constant, not a ${root._type}`);
+  const results = steps.filter((s) => s._type === 'tdsResult' || s._type === 'constant');
   if (results.length !== 1) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
+  // a constant answer is the plan's own value: nothing to send for it (the test-is-the-product plan's M2)
+  const sent = steps.filter((s) => s._type !== 'constant');
+  if (sent.length === 0) return constantRows(results[0] as Extract<Step, { _type: 'constant' }>);
+  const sqls = sent.map((s) => stepSql(s));
   // one database, as it is: every step's target the same, of this session's type, set up by nothing first
   const [first] = sqls;
   const target = JSON.stringify(first!.target);
   if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
   const t = first!.target as { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string };
-    servers?: { _type?: string }; session?: readonly string[]; setup?: readonly unknown[] };
+    session?: readonly string[]; setup?: readonly unknown[] };
   const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
-  if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
   if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
+  for (const s of sent) {
+    // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
+    // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
+    if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
+        && (s as { readonly columns: readonly Column[] }).columns.length === 0) {
+      throw new PlanRefusal("a relation of the columns its result reports (a raw grid's) is not run here: the planner runs it");
+    }
+  }
   for (const s of sqls) {
     if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
+    // a statement's own execution-trace stamp (an activity's comment, the test-is-the-product plan's M3f): a host's
+    // session sends no trace comment, so a plan that reads one is not run here
+    if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
       if (slot.binding._type !== 'one') {
         throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);
@@ -118,8 +143,12 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   let text: string | undefined;
   if (changes) await session.transaction('begin');
   try {
-    for (const [i, step] of steps.entries()) {
-      const sql = sqls[i]!;
+    for (const step of steps) {
+      if (step._type === 'constant') {
+        text = constantRows(step as Extract<Step, { _type: 'constant' }>);
+        continue;
+      }
+      const sql = stepSql(step);
       const rows = await session.run(sql.statement, bound(sql));
       if (step._type === 'update') {
         // the database's count, a value it produced, bound where a later step reads it
@@ -141,6 +170,21 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
 function stepSql(s: Step): Sql {
   if (s._type === 'update' || s._type === 'check' || s._type === 'tdsResult') return (s as { readonly sql: Sql }).sql;
   throw new PlanRefusal(s._type === 'sequence' ? 'a sequence inside a sequence' : `a plan's step is an update, a check or a typed result, not a ${s._type}`);
+}
+
+/** A constant answer's rows (PlanRunner.constantRows' rule): a String's cell its text, a Boolean's `true` or `false`,
+ *  an absent value null; any other column the planner never writes, refused by name. */
+function constantRows(c: Extract<Step, { _type: 'constant' }>): string {
+  const [column] = c.columns;
+  if (c.columns.length !== 1 || column === undefined) throw new PlanRefusal(`a constant answer is one column, not ${c.columns.length}`);
+  const typed = c.cells.map((row) => row.map((text) => {
+    if (text === null) return null;
+    // the cell's kind by the column type's family (the one reader, types.ts), never by its name
+    if (familyOf(column.type) === 'text') return text;
+    if (isBoolean(column.type) && (text === 'true' || text === 'false')) return text === 'true';
+    throw new PlanRefusal(`a constant answer of ${column.type} ('${text}'): the planner writes a String or a Boolean`);
+  }));
+  return rowsOf(c.columns, typed);
 }
 
 /** The count a statement that changes the database answers: its one row's first value. */

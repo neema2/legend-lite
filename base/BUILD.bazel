@@ -3,6 +3,8 @@ load("//tools/guards:defs.bzl", "guards_package")
 # The bottom of the repository: the null annotations every Java module carries
 # (com.legend.base.Nullable / NonNull, the vocabulary //tools/nullaway checks). No dependencies,
 # ever. It lived inside core until 2026-09-26; everything depends on it, core included.
+# RunScope (2026-11-05, the deep audit's runtime wall): JDK-only like the annotations; the one place both the plan
+# runner and the planning libraries (the SQL renderer, the lowerer, the compiler) can see, so a run can refuse planning.
 
 package(default_visibility = ["//visibility:public"])
 

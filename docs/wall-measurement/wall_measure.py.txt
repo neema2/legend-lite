@@ -1,0 +1,141 @@
+# THE WALL MEASUREMENT (2026-11-06, the user: "this IS the invariant we need to ship"): report-only marks on every
+# boundary, applied to the working tree for one measurement run and NOT committed as is.
+#   [wall-touch]  a database touch (open, check, send, load, metadata, transaction) outside a plan's run
+#   [run-wall]    a planning act (type, inline, resolve, lower, render) while a plan runs (the existing report mode)
+#   [wall-nested] a run started inside a run
+# Enabled by -Dlegend.wall.measure=true; every mark only reports, so the patched tree behaves as the head (the strict
+# guards keep refusing): one run both verifies the head and measures the wall.
+import re
+
+root = './'   # run from the repository's root
+
+
+def edit(path, pairs):
+    p = root + path
+    s = open(p).read()
+    for old, new in pairs:
+        assert s.count(old) == 1, (path, old[:80])
+        s = s.replace(old, new)
+    open(p, 'w').write(s)
+
+
+def guard_after_signature(path, signature_prefixes, line):
+    """Insert `line` as the first statement of each method whose signature line starts with a prefix."""
+    p = root + path
+    src = open(p).read().split('\n')
+    out = []
+    pending = 0
+    hits = 0
+    for l in src:
+        out.append(l)
+        stripped = l.strip()
+        if pending == 0 and any(stripped.startswith(sp) for sp in signature_prefixes):
+            pending = 1
+        if pending == 1 and l.rstrip().endswith('{'):
+            indent = re.match(r'^(\s*)', l).group(1) + '    '
+            out.append(indent + line)
+            pending = 0
+            hits += 1
+    open(p, 'w').write('\n'.join(out))
+    return hits
+
+
+# --- base: RunScope gains the touch and nested reports
+edit('base/src/main/java/com/legend/base/RunScope.java', [
+    ('''    public static RunScope enter() {
+        DEPTH.get()[0]++;''', '''    public static RunScope enter() {
+        if (DEPTH.get()[0] > 0 && Boolean.getBoolean("legend.wall.measure")) {
+            report("[wall-nested] a run started inside a run <- " + outside("com.legend.exec.", 6));
+        }
+        DEPTH.get()[0]++;'''),
+    ('''    /** Whether a plan is running on this thread. */''', '''    /** THE WALL MEASUREMENT (report-only): a database touch outside a plan's run ({@code planning}: inside a planning
+     *  scope too). */
+    public static void touch(String act, boolean planning) {
+        if (DEPTH.get()[0] > 0 || !Boolean.getBoolean("legend.wall.measure")) {
+            return;
+        }
+        report((planning ? "[wall-touch-planning] " : "[wall-touch] ") + act + " <- " + outside("com.legend.exec.", 6));
+    }
+
+    private static void report(String site) {
+        if (REPORTED.putIfAbsent(site, Boolean.TRUE) == null) {
+            System.err.println(site + " [test " + System.getProperty("legend.test.current") + "]");
+        }
+    }
+
+    /** The nearest callers outside {@code skipPrefix} and base, for the measurement's report. */
+    private static String outside(String skipPrefix, int depth) {
+        StringBuilder out = new StringBuilder();
+        int named = 0;
+        for (StackTraceElement f : new Throwable().getStackTrace()) {
+            String c = f.getClassName();
+            if (c.startsWith(skipPrefix) || c.startsWith("com.legend.base.") || c.startsWith("java.")
+                    || c.startsWith("jdk.") || c.startsWith("sun.")) {
+                continue;
+            }
+            if (named++ == depth) {
+                break;
+            }
+            out.append(out.length() == 0 ? "" : " <- ").append(c.substring(c.lastIndexOf('.') + 1)).append('.')
+                    .append(f.getMethodName()).append(':').append(f.getLineNumber());
+        }
+        return out.toString();
+    }
+
+    /** THE WALL MEASUREMENT (report-only): a planning act at a seam the strict wall does not guard, while a plan runs. */
+    public static void measured(String what) {
+        if (DEPTH.get()[0] == 0 || !Boolean.getBoolean("legend.wall.measure")) {
+            return;
+        }
+        report("[run-wall-unguarded] " + what + " <- " + outside("com.legend.compiler.", 6));
+    }
+
+    /** Whether a plan is running on this thread. */'''),
+    ('''            if (n.startsWith("RunScope.") || n.startsWith("AnsiSqlRenderer.") || n.startsWith("Lowerer.")
+                    || n.startsWith("SpecCompiler.")) {''', '''            if (n.startsWith("RunScope.") || n.startsWith("AnsiSqlRenderer.") || n.startsWith("Lowerer.")
+                    || n.startsWith("SpecCompiler.") || n.startsWith("UserCallInliner.")
+                    || n.startsWith("StoreResolver.")) {'''),
+])
+
+# --- planning entries: every stage the runtime wall did not mark
+hits = {}
+hits['SpecCompiler'] = guard_after_signature('core/src/main/java/com/legend/compiler/spec/SpecCompiler.java', [
+    'public TypedSpec typeExpression(ValueSpecification expr,',
+    'public List<TypedSpec> typeQueryBody(ValueSpecification query)',
+    'public TypedSpec viewRelation(TypedFunction fn)',
+    'public List<CompiledFunction> compileReachable(TypedFunction root)',
+], 'com.legend.base.RunScope.measured("type a spec");')
+hits['UserCallInliner'] = guard_after_signature('core/src/main/java/com/legend/compiler/spec/UserCallInliner.java', [
+    'public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement)',
+], 'com.legend.base.RunScope.measured("inline a body");')
+hits['StoreResolver'] = guard_after_signature('core/src/main/java/com/legend/resolver/StoreResolver.java', [
+    'public List<TypedSpec> resolve(List<TypedSpec> body,',
+], 'com.legend.base.RunScope.measured("resolve a body");')
+hits['AnsiSqlRenderer'] = guard_after_signature('core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java', [
+    'protected final SqlWriter newWriter()',
+], 'com.legend.base.RunScope.measured("render SQL");')
+
+# --- exec: every database touch
+hits['JdbcStatements'] = guard_after_signature('core/src/main/java/com/legend/exec/JdbcStatements.java', [
+    'public String nextStamp()', 'public void check(ExecutionPlan.Target target)', 'public boolean execute(String statement)',
+    'public long update(String statement,', 'public List<Reported> columns(String statement)',
+    'public List<Reported> describe(String statement)', 'public boolean load(ExecutionPlan.SetupStep.Rows rows)',
+    'public <T> T inTransaction(', 'public void query(String statement,', 'public void rows(String statement,',
+    'public void reportedRows(String statement,', 'public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot,',
+], 'com.legend.base.RunScope.touch("jdbc " + new Throwable().getStackTrace()[0].getMethodName(), StatementOrigin.isPlanning());')
+hits['Sessions'] = guard_after_signature('core/src/main/java/com/legend/exec/Sessions.java', [
+    'public static Session open(Opener opener)', 'public static void check(Session session, DatabaseType declared)',
+    'public static Session open(Opening.Url url)', 'public static Session openNamed(Opening.Named named, String name)',
+    'public static Session openKept(Opening.Named named, String name)',
+    'public static Session joinKept(Opening.Named named, String name)', 'public static Session openHeld(Opening.Held held)',
+    'public static Session openPrivate(DatabaseType type)',
+], 'com.legend.base.RunScope.touch("session " + new Throwable().getStackTrace()[0].getMethodName(), StatementOrigin.isPlanning());')
+
+# --- the corpus passes take the two switches
+edit('spec/corpus.bzl', [
+    ('''        "-Dlegend.walk.allowed=all",
+    ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])''', '''        "-Dlegend.walk.allowed=all",
+        "-Dlegend.wall.measure=true",
+    ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])'''),
+])
+print(hits)

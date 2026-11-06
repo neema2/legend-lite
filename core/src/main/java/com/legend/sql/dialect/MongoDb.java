@@ -1125,7 +1125,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_TRANSFORM -> listMap(writer, a);
             case LIST_CONCAT -> listConcat(writer, a);
             // an element past the end is null (SqlTyping: NULL past the end), where $arrayElemAt answers nothing
-            case LIST_GET -> writer.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(a.get(0), 0)
+            case LIST_GET, LIST_AT -> writer.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(a.get(0), 0)
                     .append(", {\"$subtract\": [").expr(a.get(1), 0).append(", 1]}]}, null]}");
             case LIST_POSITION -> listPosition(writer, a);
             case LIST_EXISTS -> listExists(writer, a);
@@ -2601,6 +2601,7 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  collection's database is the connection's), nor has a temporary collection. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 if (ct.temporary()) {
@@ -2634,6 +2635,7 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  document. A copy between collections and a temporary collection from a query are not shaped. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> insert(iv);
             case com.legend.sql.SqlDml.InsertFromTable it -> throw new DialectCapability("a copy from a table"

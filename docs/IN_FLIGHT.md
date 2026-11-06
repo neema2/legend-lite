@@ -3,6 +3,9 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**The test-is-the-product program (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83), 2026-11-06:** a session
+picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
@@ -2936,14 +2939,166 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `driver/` (`BodyCompiler` and the four probes deleted; `BodyDriver` the interpreter), `TypedQuery` (its internals into
   `planner/`), the guards and `tools/deps/core-layers.txt`. Rewritten the same day in lite's execution model after the
   user's correction (D75: no allocation node, no variable map; the database executes, the verdict is its or the host
-  judge's, the `Keyed` pattern for a shape the planner cannot know). Nothing starts before the user rules on the plan's
-  §6, and then on a fresh branch from `main` after PR #82 lands.
+  judge's, the `Keyed` pattern for a shape the planner cannot know). **Ruled a GO 2026-10-30 (D77)**; the work on the
+  stacked branch `claude/wizardly-dirac-rw6tim-seam` (PR #83), S1a and S1b built that day (D78, D80), step H measured
+  (D79). **PR #82 merged by the user 2026-10-30 as `efff0406`**; PR #83 retargeted to `main`. **S2e built 2026-10-30 (D82)**: `judge/VerdictBatch.java` runs its verdicts as a verdict group through `PlanRunner.program` (`driver/JudgePlans.java`, `driver/DatabaseJudge.java`, `exec/PlanRunner.java`'s sink and transaction bracket; `//core:judge` gains `:execution_plan` and `:result`). **S2f built 2026-10-30 (D83, D84)**: `driver/HostSides.java` (new), `driver/HostJudge.java`, `driver/AssertVerdicts.java`, `driver/JudgePlans.java` (plan, run and shape halves; the constant side), `driver/BodyDriver.java` (`PlannedValue.joined`), `compiler/spec/typed/Literals.java` (`bare`), `executionplan/ExecutionPlan.java` and `PlanJson.java` (format 21), `exec/PlanRunner.java` (`collected`), the TypeScript runner's pin, the ledger's pins. **The step after S2f built 2026-10-30 (D85)**: `driver/HostJudge.java` (the quantified assert's row form), `driver/VerdictArm.java`, `driver/AgreementArm.java`, `driver/DatabaseJudge.java`, `driver/AssertVerdicts.java`, `compiler/spec/VerdictQueries.java` (the unroll reads nothing). **The user's go of 2026-10-30 for the whole remainder** (S2g to S5 and Z, through full severance, in this session). **S3a's first part built 2026-10-30 (D86)**: `driver/ColumnProbe.java` DELETED, `lowering/Render.java` (the deferral triggers), `driver/BodyDriver.java` (the refusal by name), the ledger's register and pin. **S3b built 2026-10-30 (D87)**: `lowering/CanonicalRenderSql.java` (`textOrStamp`), `driver/WireProbe.java` (the reconcile deleted), `driver/BodyDriver.java`, `judge/VerdictBatch.java` (the split rung member by member), `exec/Census.java` (two keys gone), `spec`'s `MinimalCorpusTest.java` and `h2-database-outside-body-register.txt`, `WireProbeTest.java`, `JavaEvalLedgerTest.java`, `parser-equivalence`'s `ratchets.tsv`. **S3c's first part built 2026-10-30 (D88)**: `resolver/RawGridSchema.java` (the demand), `executionplan/ColumnFacts.java` (`rawGridCell`), `driver/BodyDriver.java` (`wrapSide`), `exec/ExecuteInDbProbeCountTest.java`, the ledger's pin, the two database outside-body registers. **S3c's second part built 2026-10-30 (D89)**: `executionplan/ExecutionPlan.java` (a relation of no column), `exec/Statements.java`, `exec/JdbcStatements.java`, `mongodb`'s `MongoDbStatements.java` (`reportedRows`), `exec/WireTypes.java` (`column`), `exec/PlanRunner.java`, `driver/JudgePlans.java`, `driver/WireProbe.java` (the staticizer deleted), `testdatagen/TestDataGenerator.java` (a comment), `engine-client/src/plan-runner.ts` and its test, `exec/ReportedColumnsTest.java` (new), `WireProbeTest.java`. **The CI red on S3b's head fixed 2026-10-31 (77dfa672)**: `spec`'s `duckdb-database-engine-order-register.txt`, `native-claims.tsv`, GATES. **S3c's third part built 2026-10-31 (D90)**, reworked and its audit folded: `sql/SqlSource.java` (`GridReport`), `sql/SqlRewriter.java` (the `with` hook; a report's grid rewritten), `sql/dialect/AnsiSqlRenderer.java`, `DuckDb.java`, `H2.java`, `GridReportCtesInline.java` (new), `lowering/Lowerer.java`, `lowering/Render.java`, `planner/PlanMaker.java`, `exec/PlanRunner.java`, `exec/JdbcStatements.java`, `exec/WireTypes.java`, `exec/SessionState.java`, `judge/VerdictBatch.java`, `driver/BodyCompiler.java`, `driver/BodyDriver.java`, `driver/JudgePlans.java`, `driver/AssertVerdicts.java`, `resolver/StagedRows.java`, `executionplan/ExecutionPlan.java`, `PlanJson.java` (format 22), `ColumnFacts.java`, `MirJson.java`; DELETED `resolver/RawGridSchema.java`, `driver/GridProbe.java`, `driver/WireProbe.java`, `sql/PlanProbe.java`; the guards' allowlists and pins, the registers, the TypeScript runner's pin. **S3a's remainder built 2026-10-31 (D91)**: `driver/DynamicPivot.java` DELETED, `driver/BodyDriver.java`, `lowering/KeyedPivot.java` (the key as the database's text), `KeyedPivotKeyRoundTripTest.java` (new; `DynamicPivotKeyLiteralH2Test` retired into it), the ledger, `ArchitectureTest`, `SqlDialect`, `SqlExpr`, the driver's `package-info`. S3 done. **S2g's first two steps built 2026-10-31 (D92)**: `planner/PlanEnv.java`, `planner/BodyPlanner.java`, `planner/EnginePlans.java` (new); `PlanAllocations`, `PlanEnvelope`, `EngineText`, `SqlTextInputs`, `AggAwareActivities` moved from `driver/` and `InstanceIds` from `judge/` to `planner/`; `driver/BodyDriver.java` (the environment split, the helpers gone), `driver/BodyCompiler.java`, `driver/SqlTextVerdicts.java`, `testdatagen/TestDataGenerationNatives.java` (`planTextResult` returns the text); `ArchitectureTest`, `JavaEvalLedgerTest`, `HarnessDisciplineTest`, `DatabaseOwners`. **S2g's third step built 2026-10-31 (D93)**: `planner/FramePlanner.java` (new), `planner/EnginePlans.java` (`engineTestSql`), `driver/BodyDriver.java` (`buildFrame` the run, the comment, the CTE). **S2b built 2026-10-31 (D94)**: `planner/LetPlanner.java` (new), `planner/ConnectionLets.java` (moved from `driver/`), `driver/BodyCompiler.java` (the let branch dispatches on the kind), `driver/BodyDriver.java` (`aliasFrame` gone). **S2h built 2026-10-31 (D95)**: `planner/SystemRoutes.java` (new), `driver/BodyDriver.java` (`routeSystemDatabase` opens and checks; `ExecEnv.withSystemRoute` gone), `database/Databases.java` (a doc). **The shared preparation built 2026-10-31 (D96)**: `planner/Prepared.java` (new), `planner/BodyPlanner.java` (`prepare`, `bare`), `planner/FramePlanner.java` (`cte`), `planner/EnginePlans.java` (`ddlText`), `driver/BodyDriver.java` (the prelude dispatches; the handle arm, the DDL text and the frame's CTE gone). **S2d built 2026-10-31 (D97)**: `planner/EffectPlanner.java` (new), `driver/BodyDriver.java` (the effect arms send planned statements). **S2j's first piece 2026-10-31 (D98)**: `planner/BodyPlanner.java` (`viewSql`), `driver/BodyDriver.java`; S4's brief (the plan's §3.4b). **S4a's first piece 2026-10-31 (D99)**: `planner/SidePlanner.java` (new), `lowering/CanonRider.java` (moved from `judge/`), `driver/BodyDriver.java` (`openRoute`, `answer`; the prelude, `planStaged` and `wrapSide` delegate), `driver/DatabaseJudge.java`, `driver/HostJudge.java`, `judge/TdsCompare.java` (the import), the ledger, `HarnessDisciplineTest`. **Paused 2026-10-31 by the user's ruling (a test body is the product plan; the fused verdict statement kept):** the byte-for-byte relocation stops; the plan to merge the test road onto the product planner is drafted for the user's review, `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` (evidence `docs/test-is-product-homework/A_CODE_INVENTORY.md`). No code until it is agreed. **The plan v2 agreed
+2026-10-31 (R1-R14). M0 measured 2026-10-31 (no product change)**:
+`docs/test-is-product-homework/C_M0_MEASUREMENTS.md`, the probe as text in `docs/test-is-product-homework/probes/`
+(`M0Census.java.txt`, `m0-hooks.diff.txt`, `m0-agg.py.txt`). Checkpoint: the PR branch pushed, CI, the lane sessions
+asked. **The user's go for the whole program 2026-10-31, back to back, each step ending with an independent audit
+(R15). M1 built 2026-10-31 (D100)**: `lowering/ObjectSites.java` (one minter, its spelling),
+`compiler/spec/UserCallInliner.java` and `TypedQuery.java` (a program's statement inlined under its mark),
+`planner/PlanMaker.java` (one minter per program), `planner/PlanEnv.java`, `driver/BodyDriver.java`,
+`lowering/Lowerer.java` (a doc); `planner/InstanceIds.java` DELETED; `planner/ProgramObjectSitesTest.java` (new);
+`JavaEvalLedgerTest`. **M2 built 2026-10-31 (D101)**: `planner/ProductStatements.java` (new), `planner/PlanMaker.java`,
+`TypedQuery.java` (`lower` on the new road; `resolve` deleted), `planner/PlanEnv.java` (the dialect optional,
+`writtenIn`), `planner/BodyPlanner.java`, `SidePlanner.java`, `EffectPlanner.java`, `EnginePlans.java` (a call's own
+runtime renames), `executionplan/ExecutionPlan.java` (`Constant`, `Keyed.shape`), `PlanJson.java` (format 23),
+`exec/PlanRunner.java`, `Execution.java`, `driver/LiteralFold.java`, `driver/BodyDriver.java`, the TypeScript runner
+and its test, `planner/ProductStatementsTest.java` (new), `ConstantPlanParityTest`, the ledger and the ratchet. **M3
+built 2026-10-31 to 2026-11-01 (D103; sub-steps M3a-M3i)**: `planner/QueryDoor.java`, `ProgramState.java`,
+`ProgramKinds.java`, `ProgramFrames.java` (new), `planner/PlanMaker.java`, `ProductStatements.java`, `BodyPlanner.java`,
+`FramePlanner.java`, `LetPlanner.java`, `PlanAllocations.java`, `PlanEnv.java`; the test-planning library
+`testplan/TestDoor.java`, `TestKinds.java`, `Seeds.java` (new) and `EffectPlanner.java` (moved from `planner/`);
+`executionplan/ExecutionPlan.java`, `PlanJson.java` (format 24); `exec/PlanRunner.java`, `Statements.java`,
+`JdbcStatements.java`, `SessionState.java`, `ExecutionTrace.java`, mongodb's `MongoDbStatements.java`;
+`sql/dialect/SqlDialect.java`, `Postgres.java`, `DuckDb.java`; `judge/VerdictBatch.java`; `driver/BodyDriver.java`,
+`JudgePlans.java`; `resolver/ClassSources.java`, `ConstructedInstances.java`, `StoreResolver.java`;
+`compiler/spec/StatementEffects.java`, `compiler/spec/typed/TypedTds.java`; `plan/LazyRows.java`;
+`lowering/Lowerer.java`; `builtin/NativeFn.java`; the TypeScript runner and its test; the guards (`ArchitectureTest`,
+`JavaEvalLedgerTest`, the funnel registers, `TypedSpecChildrenTest`); `core/BUILD.bazel` (`//core:testplan`). Next:
+the M3 checkpoint, then M4 (brief B13). **MR built 2026-11-01 (D104; the user's R20, B14)**: `exec/PlanRunner.java`,
+`SessionState.java`; `planner/PlanMaker.java`, `ProgramState.java`, `ProgramFrames.java`, `ProgramKinds.java`,
+`ProductStatements.java`, `BodyPlanner.java`, `FramePlanner.java`, `PlanAllocations.java`, `QueryDoor.java`,
+`LetPlanner.java`, `SidePlanner.java`, `PlanEnv.java`; `testplan/TestKinds.java`, `TestDoor.java`, `Seeds.java`,
+`EffectPlanner.java`; `compiler/spec/ResultEnvelopeSplice.java`; `exec/SessionStateTest.java` (new),
+`testplan/TestDoorTest.java`; `JavaEvalLedgerTest`. Next (R19): M5, then M4. **M5's first class built 2026-11-01
+(D105; R16, B1)**: `driver/BodyRouter.java` (new), `Execution.java`; `testplan/BodyClass.java`, `EffectSegment.java`
+(new), `TestDoor.java`, `TestKinds.java`; `exec/PlanRunner.java`, `Census.java`; `planner/BodyPlanner.java`
+(`handleType` shared), `QueryDoor.java` (`declaresTestData` shared), `ProductStatements.java` (`asTheWalkAnswers`),
+`PlanMaker.java`; `driver/BodyDriver.java`, `BodyCompiler.java` (the segment's spelling shared); spec's
+`MinimalCorpusTest.java` (the moved count); `driver/BodyRouterParityTest.java` (new), `testplan/BodyClassTest.java`
+(new), `TestDoorTest.java`; the guards (`ArchitectureTest`, `CodeShapeGuardrailTest`, `JavaEvalLedgerTest`);
+AGENTS.md (the one-caller sentence). **M5f built 2026-11-01 (D106)**: `testplan/BodyClass.java` (`QUERY_PROGRAM`),
+`driver/BodyRouter.java` (the walk's answer contract and timing), `JudgePlans.java` (`holding`), `BodyDriver.java`
+(the to-one rule delegated), `planner/ProductStatements.java` (`toOneReader`), `exec/PlanRunner.java` (the answering
+statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouterParityTest`, `BodyClassTest`); the
+ledger; `parser-equivalence`'s `ratchets.tsv`. **The answer facts as upstream answers them 2026-11-01 (D107, R21)**:
+`driver/JudgePlans.java` (the host scalar), `planner/ProductStatements.java` (`asATestAnswers`), `PlanMaker.java`
+(the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. M4 DEFERRED (R23, 2026-11-01);
+M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OFF 2026-11-01**, then **built 2026-11-01
+(D108)** by the session that took the handoff (`docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`, closed): the WIP commit
+`89e604de` brought in by cherry-pick and the audit's S1-S4 folded -- `driver/HostSides.java` (`Check`, `Planned.NONE`),
+`HostJudge.java` (the `planX` halves), `AssertVerdicts.java` (`HostAssert`, `planHost`/`planArm`, `judgedAtItsStep`,
+`sideRefused`), `HostAsserts.java` (new), `BodyRouter.java`, `BodyDriver.java` (`bodyEnv`), `SqlTextVerdicts.java`
+(`mayArm`); `exec/PlanRunner.java` (`sidesFailed`, `constantsAlone`); `executionplan/ExecutionPlan.java` (`answers`);
+`planner/PlanMaker.java` (`sqls`); `testplan/BodyClass.java` (`ASSERT_PROGRAM`), `TestDoor.java` (`Asserts`),
+`TestKinds.java`; the tests (`BodyRouterParityTest`, `BodyClassTest`, `TestDoorTest`, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`); `pct`'s `PctCensusGate` (the moved-bodies count printed);
+`docs/test-is-product-homework/REVALIDATION_2026_11_01.md` (the plan revalidated with the user: the order M9, M7, M8,
+M10a-d; B3 struck -- the host judge is the harness; the engine-text asserts' appeal a Java harness on every lane; M4
+narrow in M10a with a product follow-up). **M9 built 2026-11-01 (D109)** in the same session, four sub-steps each
+audited and folded (the plan's §9 "M9a"-"M9d"): `testplan/BodyClass.java` (`FRAME_PROGRAM`, `Kind`, `sideKind`,
+`frameQueryKind`, `systemElementReference`, `framesAndHandlesAsTheirQueries`, `writesAStore`), `BodyKinds.java` (new,
+the kind census), `TestDoor.java` (`Asserts.frameStamp`), `TestKinds.java` (the adopted stamp); `driver/HostAsserts.java`
+(frames, stamps, the session guard, the pending-let rule), `BodyDriver.java` (`plannedFrame`), `BodyRouter.java` (the
+census record); `planner/PlanEnv.java` (`stamps`), `BodyPlanner.java` (the stamps bound), `ProgramFrames.java`
+(`adoptStamp`), `LetPlanner.java` (`badAliasIndex`, `unwrap`), `FramePlanner.java` (`relationRooted`);
+`compiler/spec/ExecuteChainAssembly.java` (`queryLambda`, `peeled`, `refused`); `exec/Census.java` (`STAYED_KINDS`),
+`PlanRunner.java` (`originOf`); the tests (`BodyRouterParityTest`, `BodyClassTest`, `ArchitectureTest`'s register,
+`HarnessDisciplineTest`, `JavaEvalLedgerTest`'s pins); `spec`'s `MinimalCorpusTest` (the histogram). **M7 built
+2026-11-01 (D110)** in the same session, its audit folded (the plan's §9 "M7"): `judge/VerdictBatch.java` (`plan`,
+`Planned`, `Group`, `wall`, `counted`), `driver/DatabaseAsserts.java` (new), `AssertVerdicts.java` (`planDatabase`,
+`DatabasePlan`, `databasePlansWithoutReading`), `BodyRouter.java` (the planner by judge mode; the sink's database
+verdicts), `BodyDriver.java` (`plannedFrame` under a batch), `HostAsserts.java` (a one-step list);
+`testplan/TestDoor.java` (`Asserts.at` a list, `runsFrames`), `TestKinds.java`, `BodyClass.java` (`of(..., oneJudge)`);
+the tests (`BodyRouterParityTest`'s DATABASE-mode runs, `ArchitectureTest`'s V3 exemption, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`). **M8a built 2026-11-01 (D111)** in the same session, its audit
+folded (the plan's §9 "M8a"): `driver/HostJudgment.java` (new), `HostJudge.java` (`judge`, the `planX` facts, the
+`xOf` over records), `HostSides.java` (`Check` over data), `AssertVerdicts.java` (`isDecided`, `Raise`;
+`instanceKeys`/`structuredSide` gone); `compiler/element/EqualityKeys.java` (`Key.declaredClass`, `declaresKeys`,
+`isKeyStereotype`), `ClassCompiler.java` (the shared stereotype test); the tests (`BodyRouterParityTest`'s
+`keyedClassPrograms` and the audit's cases, `JavaEvalLedgerTest`'s pins and register). **M8b built 2026-11-01 (D112)**:
+`lowering/VerdictSql.java` (`selfContained`, `HOLDS`, `MESSAGE`, the batch and verdict schemas), `judge/VerdictBatch.java`
+(`SelfContained`, `Judge.judge(name, row)`, `Pending` without polarity), `driver/DatabaseJudge.java` (`verdictOf(name,
+row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/ExecutionPlan.java` (`Verdict` without
+`wantEqual`), `PlanJson.java` (25); the tests (`ProgramRunnerTest`, `PlanJsonTest`, `PlanRoundTrip`,
+`JavaEvalLedgerTest`). **M8c OPEN 2026-11-01** (a design question posted:
+`docs/test-is-product-homework/M8C_DESIGN_QUESTION.md`; the identity lane unchanged until the ruling). **M10a built
+2026-11-01 (D113)**: `executionplan/ExecutionPlan.java` (`Database.System`), `PlanJson.java` (26);
+`exec/PlanSessions.java` (the system opener); `planner/SystemRoutes.java` (`inProcess`), `PlanMaker.java`
+(`testProgram(..., systemRouted)`); `testplan/BodyClass.java` (`systemRouted`, `readsStore`, `userStoreRead`,
+`sideKind(..., routed)`, `Kind.CSV_CENSUS`), `TestDoor.java`; `driver/BodyRouter.java`, `BodyDriver.java` (`systemRoute`,
+`systemRouteOf`), `JudgePlans.java` (`target`), `SystemDatabase.java` (`engineOf`); the tests
+(`BodyRouterParityTest.systemRoutedPrograms`, `PlanJsonTest`, `PlanRoundTrip`, `ProgramRunnerTest`,
+`JavaEvalLedgerTest`); with it M8b's omissions (the ladder goldens, `ratchets.tsv`, engine-client's `PLAN_VERSION`
+26). **M10b built 2026-11-02 (D114)**: `driver/SqlTextVerdicts.java` (`plan`, `judge`, `decide`, `Collector`,
+`Collected`, `NotAConstant`), `AssertVerdicts.java` (`planHost`'s root arms and producer shapes, `databaseGate`,
+`HostAssert.judge`'s route count), `HostJudgment.java` (`EngineText`), `HostJudge.java`, `JudgePlans.java`
+(`evalSide`'s constant guard), `BodyDriver.java` (`ExecEnv.engineText`, `withEngineText`), `DatabaseAsserts.java`
+(the static pass's gate); `testplan/BodyClass.java` (`Kind.TDG_GENERATOR`, the routine as its query, the let rule);
+`compiler/spec/VerdictQueries.java` (`text`); the tests (`BodyRouterParityTest.engineTextPrograms` with a referee
+double, `JavaEvalLedgerTest`). **M10c in progress 2026-11-02**: item 1a built (`driver/DatabaseAsserts.java`: `plannable`'s `scanned`;
+`BodyRouterParityTest`'s frame model carries the engine's `assertEqualsH2Compatible` body); item 2 built
+(`driver/VerdictArm.java` `gridPair`, its three arms in `HostJudge`, `DatabaseJudge`, `AgreementArm`;
+`AssertVerdicts.java` `adjudicate`'s pair branch, `databaseGate`, `staticGrid`, `renderedStatic`; the witness
+`gridPairsAndRenderedTextsUnderTheDatabaseJudge`); item 3 built (`testplan/BodyClass.java` `anotherWay`'s scan rule;
+`AssertVerdicts.java` `planHost`'s lineage rewrite; `DatabaseAsserts.java` `plannable(typed, systemRouted)`; the witness
+`lineagePrograms`); item 4 built (`driver/BodyDriver.java` `isHelperAssertRoot`, `helperAssertRoot`;
+`AssertVerdicts.java` `isHelperCall`, `planHost`, `databaseGate`, `planDatabase`; the witness `helperAssertPrograms`);
+item 5 built (`AssertVerdicts.java` `quantifiedForm`, `quantifiedShape`, `planQuantified`, `composite`, the forAll arm;
+`HostJudgment.java` `AllRows`, `Unrolled`; `HostJudge.java` `planAllRows`, `allRowsOf`, `unrolledOf`, `quantifiedRows`'s
+polarity; the witness `quantifiedPrograms`; the two database-host-compared registers); item 7 built
+(`testplan/BodyClass.java`'s element-let rule; the witness `consumedElementReferencePrograms`; the design note
+`docs/test-is-product-homework/MIXED_SYSTEM_USER_BODIES_DESIGN.md`, whose §6 read the 204 stayed system-read bodies by
+what they send: one genuine mixed body); item 7b built (`testplan/ElementConsumption.java`, replacing the two element-let
+predicates; `NativeFn.Effect.readsArgumentsAtPlanning`; `ElementConsumptionTest`; the chain bodies in
+`consumedElementReferencePrograms`); item 7c built (`testplan/Seeds.seedForm`, `TestKinds.effect`'s mapped seed form,
+`BodyClass.seedFormEffectMap`, `StatementEffects.reaches`' subsumed stop; the probe `//spec:consumption_probe`; the
+witnesses `seedFormEffectMapPrograms`, `aSubsumedCallsBodyIsNoKindOfTheStatement`); item 8 built
+(`driver/SqlTextVerdicts.java` `Collector.defer`, `TextAppeal`, `oursText`, `judge`; `JudgePlans.evalSide`;
+`AssertVerdicts.deferredTextOrigin`, `HostAssert.run`; `HostAsserts.find`; `BodyRouter`'s sink `deferredTextOrigins`; the
+witness `deferredTextPrograms`); item 9 built (`driver/HostJudge.java` `planCellPool`, `cellPoolOf`;
+`HostJudgment.CellPool`; `AssertVerdicts.planArm`; the witness `cellPoolPrograms`); item 10 built
+(`driver/HostAsserts.java` `plan(..., bodyEnv)`, `planAssert(..., env, program)`; `BodyRouter`; the witness
+`systemRoutedEngineTextPrograms`); item 11 built (`testplan/BodyClass.java` `frameProgram`: seeds on a let before
+anything sent, the frame's query through its let; the witness `inlineSeedFramePrograms`); item 12 built
+(`compiler/spec/typed/FreeVars.ofBodyReadingTrees`, read by `planner/ProductStatements.prepare`;
+`ProgramFrames.consumed`; `BodyClass.frameQueryKind`, `frameProgram`'s frame-name rule; the witness
+`graphFramePrograms`); item 13 built (`BodyClass.effectProgram`'s unread let; the witness
+`anUnreadLetInAnEffectProgram`). The
+user's rulings of 2026-11-02:
+burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
+last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
+the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session. **The walker-deletion
+program, 2026-11-02 (the user: "keep going until we can actually delete all the walkers and they cannot hide or come
+back")**: the inventory measured with the walk forbidden
+(`docs/test-is-product-homework/walker-deletion/INVENTORY_2026_11_02.md`); the agreement judge moved to the program road
+(`driver/AgreementAsserts.java`, `DatabaseAsserts.planEach`, `AssertVerdicts`' agreement step, `BodyRouter`'s BOTH
+branch, `PlanEnv.stamp`): channel B's residue 23 bodies. Next: core's 104 by group (system-routed query programs, raw
+grids and objects, frames ending in a query, `assertError`, seeded runtimes), channel B's 23, the corpus residue, then
+the deletion and the guards that keep it deleted. **2026-11-03:** the user's let rule built (`LetPlanner.unreadAsStatements`,
+`Execution.runProgram`, `BodyClass.check`, `PlanRunner`'s check origin, `DatabaseAsserts`' frame-check refusal;
+register S129). Next, the user's order: the seed-record fix (A, B, A), the statement-level store census, per-statement
+routing (the system database a read-only second target: the first step to a real cross-store join), then the
+generator (T8) and the system catalog's stage 1. **2026-11-03, built:** the seed record (A, B, A), the statement-level
+store census (no statement names both stores), per-statement routing (`PlanRunner`'s `Routes`, `ProgramKinds.targetOf`,
+`JudgePlans.plannedOf`, `BodyClass.storesOf`): the host pass's walked bodies 120 -> 105, none held by a system read. **2026-11-03, built:** the walk's door (`driver/WalkDoor`, `-Dlegend.walk.allowed`, shrink-only lists; core's 73
+tests, channel B on DuckDB `none`: zero bodies walk), `assertError` an ordinary verdict (the runner hands every verdict
+its side's rows or error; `sideRefused` deleted), the let rule on the last statement (S129), channel B's floors exact.
+The audit of PCT A and B (2026-11-03) and the user's order of fixes ("need to fix everything above now"): 1 the gauges
+(the type census rewired, channel B's own ledger by message, the walk closed on every channel B lane), 2 the judges
+strict (the user: sort strict, an unsorted query a multiset -- "no sort can be multiset compare"; corrected 2026-11-03, the first record misread it), 3 assert messages upstream's, 4 `assertError` as
+N3 under both judges, 5 planning sends nothing, 6 channel A through `Execution.run`, S119 refuse NaN, 7 re-measure
+every lane; then core, the corpus, the deletion.
+**2026-11-03, built (PCT closed out):** channel A through `Execution.run` (the lane's session per plan, `PctBackend.executionSource`), `assertError` its own verdict step under the database judge, the judges strict (S131's order rule, no `[x] ≡ x`, the engine's one-object-bare rule for an engine `execute()` value alone), float tolerance (S132, different doubles only), IEEE Float (S119), upstream's assert messages, channel B's ledgers by message on every lane (`channelb/ledger.tsv`), the system store seeded by the plan (`SystemRoutes.seeds`; `SystemDatabase` only opens). The database judge's planner covers channel B on DuckDB (1,239 of 1,240 alone; decided segments, instanceOf over a concrete primitive, eq with one primitive side); the door asks no version of a connector's own session (MongoDB). Measured on every lane (rounds 14-16): channel A exact everywhere but BigQuery's Track L item; channel B exact under BOTH but SQLite's held-out Track L item. Open, measured: the mixed-kind sort regressed at `63ddd3f4` (Track L (1), bisected); the database judge alone on the server lanes (the Variant cell, planning-time raises as steps, a server engine's system route, upstream's failure text, MySQL's doubled JSON read that kills mysqld); BigQuery's literal-list order through `filter`; Snowflake channel B essential 2x slower since `e8c341d0`; message arguments, element-identity `assertIs` text and `'TDSNull'` (no PCT body). Next: the database judge on every lane, then core's 73 walkers, the corpus, the deletion. **2026-11-03, built (the database judge on par with the host, GATES "The database judge on par with the host"):** a system-store verdict group a step naming that target, an unspelled segment and a planning-time raise decided steps, a declined side rendered first, the Variant cell, upstream's message text (the rendered-text family quoted), MySQL's single-copy JSON read; round 17: the same census under the database judge alone and BOTH on every lane, every lane at or above main's own channel B floor but SQLite essential (the Track L statement, the next change: first bad commit `63ddd3f4` by the Snowflake lane's bisect, also Snowflake's timeout). **2026-11-03, built (Track L's size, GATES "Track L's size"):** `SqlFn.LIST_AT`, a tagged list's reads written once on every dialect: the mixed-kind statements back from megabytes to under 85K chars (`TaggedListStatementSizeTest`); SQLite essential at main's floor; Snowflake's time and the server lanes are round 18's.
   **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
   path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
   `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests
   (`JdbcDecodeDuckDbTest`, `JdbcDecodeH2Test`, `PureDateSpellingTest` (new)) and the manual benchmark
   (`SeamBenchmark*`); PR #85. Isolated from the seam program's branch (PR #83) at the user's word; every output
-  byte-identical. PR #83 touches `JdbcStatements.java`'s read loop too: whichever lands second takes the reader there.
+  byte-identical. PR #83 touches `JdbcStatements.java`'s read loop too: whichever lands second takes the reader there --
+  PR #83 merged `main` on 2026-11-02 and took it (its wire-typed column read and `reportedRows` feed the reader).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

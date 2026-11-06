@@ -334,6 +334,7 @@ public final class CanonicalDivergence {
     }
 
     public static void sqlDeclined(String reason) {
+        com.legend.diagnostics.Diagnostics.judgeDecline("declined", "", reason);
         if (MUTED.get()) {
             return;
         }
@@ -455,6 +456,7 @@ public final class CanonicalDivergence {
     /** Leg 3.1: database mode could NOT decide the assert — the assert
      * failed with this reason; the per-mode ceiling the register pins. */
     public static void sqlUnjudged(String family, String reason) {
+        com.legend.diagnostics.Diagnostics.judgeDecline("unjudged", family, reason);
         if (MUTED.get()) {
             return;
         }

@@ -10,19 +10,13 @@ import java.sql.Types;
 import java.util.List;
 
 /** THE WIRE TABLE: JDBC's type codes and a database's SQL type names to the SQL vocabulary and the Pure kind a
- * column delivers ({@link #sqlTypeOf}, {@link #pureTypeNameOf}), and a column as the database REPORTS it for a prepared
- * statement ({@link ReportedColumn}, what the session's state memoizes per statement text). The wire kind of a
- * wire-decided column is the database's (leg 3.3, docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4t): the reconciliation
- * that reads this table -- one prepare through the plan runner, a stamped kind cast to the reported one, the census of
- * what moved -- is the root's {@code WireProbe} since D71 (2026-10-30); this class decides nothing. */
+ * column delivers ({@link #sqlTypeOf}, {@link #pureTypeNameOf}), and a column as a result REPORTS it ({@link #column}):
+ * a raw grid's columns, and a raw grid's column read by name ({@link #decodedAs}), are read as the database reports
+ * them when the plan runs (the planner-driver seam program's S3c, 2026-10-30; until then the root's {@code WireProbe}
+ * prepared statements at planning to reconcile them). This class decides nothing. */
 public final class WireTypes {
 
     private WireTypes() {
-    }
-
-    /** A column as the database reports it for a prepared statement: its
-     * label, its type in the SQL vocabulary (null outside it), nullability. */
-    public record ReportedColumn(String name, @com.legend.base.Nullable SqlType type, boolean nullable) {
     }
 
     /** JDBC's type code to the SQL vocabulary (the kinds
@@ -59,9 +53,9 @@ public final class WireTypes {
         return t;
     }
 
-    /** {@link #pureTypeNameOf}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted
-     *  Any, GridProbe). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the table is
-     *  exact-match. */
+    /** {@link #pureTypeNameOf}'s lookup: null for an unmapped SQL type (a raw grid's reported column of it refused
+     *  by name: {@link #column}). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the
+     *  table is exact-match. */
     public static @com.legend.base.Nullable String pureTypeNameOrNull(String sqlType) {
         String t = sqlType.toUpperCase(java.util.Locale.ROOT);
         int paren = t.indexOf('(');
@@ -78,5 +72,32 @@ public final class WireTypes {
             case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" -> "String";
             default -> null;
         };
+    }
+
+    /** A column a result reports, as the plan's: its label; the Pure type this table names for its SQL type, and
+     *  that type's slot; nullable as reported. The runtime NAMES the type, as the plan does (D72). A type JDBC's code
+     *  or this table names no Pure type for is refused by name, never read as some kind (AGENTS.md invariant 4; the
+     *  seam program's S3c audit, 2026-10-31: until then it was Any, its cell the driver's own kind). */
+    public static ExecutionPlan.Column column(Statements.Reported r) {
+        String slot = r.type() == null ? null : com.legend.executionplan.ColumnFacts.slot(r.type());
+        String pure = slot == null ? null : pureTypeNameOrNull(slot);
+        if (pure == null) {
+            throw new com.legend.error.NotImplementedException("a raw grid's column '" + r.name() + "' of the"
+                    + " database's type " + r.driverType() + ": no Pure type is named for it (WireTypes)");
+        }
+        return new ExecutionPlan.Column(r.name(), pure, new ExecutionPlan.Multiplicity(r.nullable() ? 0 : 1, 1), slot,
+                null, null);
+    }
+
+    /** {@code declared} as the cells are read: a column whose kind is the wire's (no slot, Any: a raw grid's column
+     *  read by name, {@code ColumnFacts.rawGridCell}) takes the type its result reports, {@link #column}; every other
+     *  as declared. Its name and multiplicity stay the plan's. */
+    static ExecutionPlan.Column decodedAs(ExecutionPlan.Column declared, Statements.Reported reported) {
+        if (declared.slot() != null || !com.legend.result.RowDecode.ANY.equals(declared.type())) {
+            return declared;
+        }
+        ExecutionPlan.Column wire = column(reported);
+        return new ExecutionPlan.Column(declared.name(), wire.type(), declared.multiplicity(), wire.slot(),
+                declared.store(), declared.precision());
     }
 }

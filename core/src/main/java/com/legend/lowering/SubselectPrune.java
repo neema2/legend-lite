@@ -127,6 +127,7 @@ final class SubselectPrune {
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
             case SqlSource.Values v -> r.starred().add(v.alias());
             case SqlSource.RawSql raw -> r.starred().add(raw.alias());
+            case SqlSource.GridReport g -> r.starred().add(g.alias());
             case SqlSource.Catalog c -> r.starred().add(c.alias());
             case SqlSource.Pivot p -> r.starred().add(p.alias());
             case SqlSource.Join j -> {
@@ -149,6 +150,8 @@ final class SubselectPrune {
             case SqlSource.VarSetPlaceholder vp -> {
             }
             case SqlSource.RawSql raw -> {
+            }
+            case SqlSource.GridReport g -> {
             }
             case SqlSource.Catalog c -> {
             }
@@ -333,6 +336,7 @@ final class SubselectPrune {
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: a leaf
+            case SqlSource.GridReport g -> g;   // a leaf
             case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> {
                 SqlQuery inner = rewriteQuery(sub.inner(), r);

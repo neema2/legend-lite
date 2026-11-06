@@ -54,6 +54,32 @@ final class DatabaseJudge {
             SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
             boolean cellPool, boolean csvStrings) {
+        return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook, canonicalOrder, cellPool,
+                csvStrings, false);
+    }
+
+    /** {@code renderedStrings}: the pair is the rendered-text family's (a golden String against a relation's text),
+     *  judged by their rows, its message the two Strings upstream prints ({@code VerdictSql.messageAsStrings}). */
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool, boolean csvStrings, boolean renderedStrings) {
+        return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook, canonicalOrder, cellPool,
+                csvStrings, renderedStrings, false);
+    }
+
+    /** {@code gridPairArm}: the pair is the GRID PAIR family's (two relation values compared as grids, the grid
+     *  owner's rule): its schemas decide where they differ -- names or widths false at planning, kinds spelled in the
+     *  expected's. Another family that reaches two grids (a flat cells compare) compares their cells alone
+     *  (2026-11-04: the corpus's validation tests, whose cells agree under other column names). */
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool, boolean csvStrings, boolean renderedStrings, boolean gridPairArm) {
+        java.util.function.UnaryOperator<com.legend.sql.SqlQuery> message = q -> renderedStrings
+                ? com.legend.lowering.VerdictSql.messageAsStrings(q) : q;
         KindClass ke = AssertVerdicts.kindKey(eSpec, letPrefix, env);
         KindClass ka = AssertVerdicts.kindKey(aSpec, letPrefix, env);
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
@@ -93,8 +119,8 @@ final class DatabaseJudge {
                 frameE = en.fqn();
             }
         }
-        var re = new com.legend.judge.CanonRider(false, false, frameE);
-        var ra = new com.legend.judge.CanonRider(false, false, frameA);
+        var re = new com.legend.lowering.CanonRider(false, false, frameE);
+        var ra = new com.legend.lowering.CanonRider(false, false, frameA);
         // the golden's ^TDSNull() cells spell the bare sentinel (direction-
         // aware: the EXPECTED side only, as TdsCompare.peerElementCanons) —
         // rewritten at plan time so the cell rides the literal channel as
@@ -133,16 +159,22 @@ final class DatabaseJudge {
                 var sa = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(wa));
                 com.legend.sql.SqlQuery pq;
                 if (se != null && sa != null && se.columns().size() == sa.columns().size()) {
+                    // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
-                            gridSide(wa.plan(), sa, csvStrings), canonicalOrder);
+                            gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
+                            canonicalOrder, env.options().judgingRules().floatTolerance());
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
-                return runVerdict(name, wantEqual, pq,
+                if (gridPairArm && AssertVerdicts.gridSchemasDiffer(eSpec, aSpec)) {
+                    // names or widths differ: false by the schemas (decided at planning), the rows read for the message
+                    pq = com.legend.lowering.VerdictSql.decidedFalse(pq);
+                }
+                return runVerdict(name, wantEqual, message.apply(pq),
                         env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
                 BodyDriver.WrappedSide gw = gridE ? we : wa;
-                com.legend.judge.CanonRider pr = gridE ? ra : re;
+                com.legend.lowering.CanonRider pr = gridE ? ra : re;
                 BodyDriver.WrappedSide pw = gridE ? wa : we;
                 var schema = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(gw));
                 int width = schema == null ? 0 : schema.columns().size();
@@ -168,7 +200,7 @@ final class DatabaseJudge {
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE)
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
                                     canonicalOrder);
-                    return runVerdict(name, wantEqual, gq,
+                    return runVerdict(name, wantEqual, message.apply(gq),
                             env.withSession(gw.storeFree() ? pw.session() : gw.session()));
                 }
             }
@@ -193,16 +225,182 @@ final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
+        // each side WRITTEN in the failure message as upstream writes it (VerdictSql.Message: toRepresentation, Pure's
+        // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
+        // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
+        com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool,
+                java.util.Objects.requireNonNull(we).plan(), eSpec);
+        com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool,
+                java.util.Objects.requireNonNull(wa).plan(), aSpec);
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
                         re.many(), canonicalOrder,
-                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT),
+                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT, me,
+                        com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), re.kinds().get(ie))),
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
-                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT));
-        return runVerdict(name, wantEqual, vq, runOn);
+                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
+                        com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), ra.kinds().get(ia))),
+                env.options().judgingRules().floatTolerance());
+        // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
+        // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
+        // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
+        // ClickHouse -- the host quotes it)
+        boolean rawStrings = ie != re.literalIndex() && ia != ra.literalIndex() && !re.many() && !ra.many()
+                && re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.STRING
+                && ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.STRING;
+        String expectedClass = rawStrings || !wantEqual ? null : instancesMessage(eSpec, aSpec);
+        if (expectedClass != null) {
+            // two class sides the database serializes as their objects: the failure message spells them as the host
+            // judge prints instances, <values instanceOf Type> (2026-11-04, the core program)
+            com.legend.sql.SqlQuery reprE = instancesRepr(we.plan(), eSpec, re.many(), expectedClass);
+            com.legend.sql.SqlQuery reprA = instancesRepr(wa.plan(), aSpec, ra.many(),
+                    java.util.Objects.requireNonNull(classOf(aSpec)));
+            if (reprE != null && reprA != null) {
+                vq = com.legend.lowering.VerdictSql.messageAsInstances(vq,
+                        com.legend.lowering.VerdictSql.firstValueRow(reprE),
+                        com.legend.lowering.VerdictSql.firstValueRow(reprA));
+            }
+        }
+        // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
+        // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
+        // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
+        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
+                env.options().judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT)) {
+            vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
+        }
+        // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
+        vq = com.legend.lowering.VerdictSql.messageWithDecimals(vq, !re.many() && decimal(re.kinds().get(ie)),
+                !ra.many() && decimal(ra.kinds().get(ia)));
+        return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
+                : message.apply(vq), runOn);
+    }
+
+    /** How a side's canon {@code i} is written in the failure message: its typed kind's (a literal channel's kind is
+     *  no element's, but an empty side's, Nil, which writes no element); null where it is no one primitive. */
+    private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
+            com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side) {
+        com.legend.compiler.element.type.Type kind = r.kinds().get(i);
+        if (side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            // a date LITERAL: its text spelled once at planning, as upstream's toRepresentation writes it ('%' + its
+            // toString: the written precision, the zone where a minute is written) -- the host's own printer; the
+            // database carries the literal's precision in no value it could print (2026-11-05, the user: "clean
+            // datetime for the clean plan")
+            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + d.value());
+        }
+        if (kind instanceof com.legend.compiler.element.type.Type.GenericType g && !com.legend.compiler.element.type
+                .Type.isRelation(g) && plan instanceof com.legend.sql.SqlSelect ps
+                && com.legend.lowering.VerdictSql.primitiveStruct(ps) != null) {
+            // instances of a generic class carried as structs (a Pair): each written as the host writes one
+            return com.legend.lowering.VerdictSql.Message.instances(g, sorted);
+        }
+        return i != r.literalIndex() || com.legend.compiler.element.type.PlatformTypes.isNil(kind)
+                ? com.legend.lowering.VerdictSql.Message.of(kind, sorted) : null;
+    }
+
+    /** Whether {@code e} and {@code a} are two numbers of different known kinds that are never equal (S127): any such
+     *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
+     *  legend-pure compares by text. An unrefined Number is no known kind. */
+    private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
+            com.legend.compiler.element.type.Type a, boolean compat) {
+        com.legend.compiler.element.type.Type fe = fineNumber(e);
+        com.legend.compiler.element.type.Type fa = fineNumber(a);
+        if (fe == null || fa == null || fe == fa) {
+            return false;
+        }
+        boolean integerAndDecimal = fe == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                && fa == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || fe == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                && fa == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+        return !(compat && integerAndDecimal);
+    }
+
+    /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type fineNumber(
+            com.legend.compiler.element.type.Type kind) {
+        if (decimal(kind)) {
+            return com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+        }
+        return kind == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || kind == com.legend.compiler.element.type.Type.Primitive.FLOAT ? kind : null;
+    }
+
+    /** Whether {@code kind} is a Decimal's (a declared precision one's too): its {@code %r} ends in {@code D}. */
+    private static boolean decimal(com.legend.compiler.element.type.Type kind) {
+        return kind == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || kind instanceof com.legend.compiler.element.type.Type.PrecisionDecimal;
+    }
+
+    /** The declared class of {@code e} when both {@code e} and {@code a} are class-typed (the expected side's, as the host
+     *  judge names each side by its own declared type): the instance message's case; null otherwise. */
+    private static @com.legend.base.Nullable String instancesMessage(TypedSpec e, TypedSpec a) {
+        String ce = classOf(e);
+        return ce != null && classOf(a) != null ? ce : null;
+    }
+
+    /** {@code side}'s instances written for the failure message: one instance of a GENERIC class (a Pair) from its
+     *  struct's fields (VerdictSql.genericInstanceRepr), every other the planned objects' own representation. */
+    private static com.legend.sql.@com.legend.base.Nullable SqlQuery instancesRepr(com.legend.sql.SqlQuery plan,
+            TypedSpec side, boolean many, String classFqn) {
+        return !many && side.info().type() instanceof com.legend.compiler.element.type.Type.GenericType
+                ? com.legend.lowering.VerdictSql.genericInstanceRepr(plan, classFqn)
+                : com.legend.lowering.VerdictSql.instancesRepr(plan, classFqn);
+    }
+
+    private static @com.legend.base.Nullable String classOf(TypedSpec s) {
+        com.legend.compiler.element.type.Type t = s.info().type();
+        // a generic class's instance (a Pair<Integer, String>) is of its raw class (the host's PureAsserts.classFqnOf)
+        return t instanceof com.legend.compiler.element.type.Type.ClassType ct
+                && !com.legend.compiler.element.type.PlatformTypes.isAny(ct) ? ct.fqn()
+                : t instanceof com.legend.compiler.element.type.Type.GenericType g ? g.rawFqn() : null;
+    }
+
+    private static boolean sameNames(com.legend.compiler.element.type.Type.RelationType e,
+            com.legend.compiler.element.type.Type.RelationType a) {
+        for (int i = 0; i < e.columns().size(); i++) {
+            if (!e.columns().get(i).name().equals(a.columns().get(i).name())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** {@code spec}, a rendered TEXT, as a one-row relation of its {@code value} for a verdict row (2026-11-04, the
+     *  core program: a rendered text's generic comparison) -- planned as the host judge plans the same side, a plain
+     *  value with no canon wrap (a canon would encode the render's own reduction, which a dialect without a list
+     *  encoding refuses: H2's {@code joinStrings}); null where the side is answered with no plan. */
+    /** {@code message}, a caller's failure text, planned as the verdict carries it -- a constant the compiler folds (a
+     *  literal, a join of literals), else the one-row relation the database computes -- with the session its row reads
+     *  (the body's where it reads no store). */
+    record PlannedMessage(com.legend.lowering.VerdictSql.FailureMessage message, com.legend.exec.Sessions.Session on) {
+    }
+
+    static PlannedMessage plannedMessage(TypedSpec message, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        Object folded = com.legend.compiler.spec.typed.Literals.fold(message, letPrefix);
+        if (folded instanceof String s) {
+            return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(s, null), env.session());
+        }
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(message, letPrefix, specs, env, false, false,
+                hook == null ? null : hook::apply);
+        BodyDriver.WrappedSide side = pv.side();
+        if (side == null) {
+            throw new IllegalStateException("an assert's message planned no side and folds to no String: "
+                    + message.getClass().getSimpleName());
+        }
+        return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(null,
+                com.legend.lowering.VerdictSql.firstValueRow(side.plan())),
+                side.storeFree() ? env.session() : side.session());
+    }
+
+    static com.legend.sql.@com.legend.base.Nullable SqlQuery textRow(TypedSpec spec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(spec, letPrefix, specs, env, false, false,
+                hook == null ? null : hook::apply);
+        BodyDriver.WrappedSide side = pv.side();
+        return side == null ? null : com.legend.lowering.VerdictSql.firstValueRow(side.plan());
     }
 
     /** Execute a verdict statement on {@code on} and read its one row:
@@ -210,26 +408,33 @@ final class DatabaseJudge {
      * (never NULL) with the two framed canons as the message. */
     static TypedSide runVerdict(String name, boolean wantEqual,
             com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
+        if (runOn.failureMessage() != null) {
+            // a caller's failure message (the asserts-as-plan-nodes program, step 2): the row's message the caller's
+            vq = com.legend.lowering.VerdictSql.withFailureMessage(vq, runOn.failureMessage());
+        }
         com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
-        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
-        return verdictOf(name, wantEqual, com.legend.judge.VerdictBatch.executeOne(
-                name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
+        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6), the row self-contained
+        // (M8b): its polarity and its message in the statement
+        com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, wantEqual);
+        com.legend.diagnostics.Diagnostics.judgeSend("no-batch", name);
+        return verdictOf(name, com.legend.judge.VerdictBatch.executeOne(
+                name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
                 runOn.session(), JudgePlans.runner(runOn)));
     }
 
-    /** The verdict of one row ({@code verdict, expected, actual, unjudged,
-     * lenient}): unjudged (counted, the assert fails with the reason), or
-     * the verdict with the two framed canons as the message. */
-    static TypedSide verdictOf(String name, boolean wantEqual, List<Object> row) {
+    /** The verdict of one row ({@code verdict, expected, actual, unjudged, lenient, holds, message}): unjudged
+     * (counted, the assert fails with the reason), or the row's own answer -- holds, or its message raised (the
+     * test-is-the-product plan's M8b: the polarity and the text are the statement's; this reads two columns). */
+    static TypedSide verdictOf(String name, List<Object> row) {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(0)
                     + " expected=" + row.get(1) + " actual=" + row.get(2)
-                    + " unjudged=" + row.get(3));
+                    + " unjudged=" + row.get(3) + " holds=" + row.get(5));
         }
         Object unjudged = row.get(3);
         if (unjudged != null) {
@@ -240,21 +445,20 @@ final class DatabaseJudge {
                     "\nexpected: " + AssertVerdicts.excerpt(row.get(1))
                     + "\nactual:   " + AssertVerdicts.excerpt(row.get(2)));
         }
-        if (!(row.get(0) instanceof Boolean held)) {
-            throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
+        if (!(row.get(5) instanceof Boolean holds)) {
+            throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(5));
         }
         com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
-        if (row.size() > 4 && Boolean.TRUE.equals(row.get(4))) {
+        if (Boolean.TRUE.equals(row.get(4))) {
             // the declared 2-ULP Float leniency decided it — counted as
             // host mode counts its own firings
             com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
+            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "database " + name);
         }
-        if (held == wantEqual) {
+        if (holds) {
             return AssertVerdicts.ok();
         }
-        return AssertVerdicts.fail(wantEqual
-                ? name + "\nexpected: " + row.get(1) + "\nactual:   " + row.get(2)
-                : "assertNotEquals: both sides are equal");
+        return AssertVerdicts.fail(String.valueOf(row.get(6)));
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,
@@ -283,7 +487,7 @@ final class DatabaseJudge {
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, @com.legend.base.Nullable String enumFrame, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        var rider = new com.legend.judge.CanonRider(false, canonicalJson, enumFrame);
+        var rider = new com.legend.lowering.CanonRider(false, canonicalJson, enumFrame);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
         BodyDriver.PlannedValue pv = BodyDriver.planValue(s, letPrefix, specs, env, rider, hook);
         BodyDriver.WrappedSide w = pv.side() != null ? pv.side()
@@ -291,11 +495,15 @@ final class DatabaseJudge {
         if (w == null) {
             return new SideRows(null, rider, "host-value side: " + describe(pv.answered()));
         }
-        if (needCanon && rider.declined() != null) {
-            return new SideRows(w, rider, "side: " + rider.declined());
-        }
-        if (needCanon && w.shape() == com.legend.plan.ResultShape.GRAPH) {
-            return new SideRows(w, rider, "graph AssertVerdicts.side (leg 3.2)");
+        if (needCanon && (rider.declined() != null || w.shape() == com.legend.plan.ResultShape.GRAPH)) {
+            // a decline is the database judge's own word only for a side the database could run: a side the dialect
+            // cannot write raises its refusal here, as the host judge's read of the same side raises it (2026-11-03:
+            // H2's Variant sides declined their canon before the side was written, so the database judge alone read
+            // UNJUDGED where the host judge, and the ledger, read the dialect's UNNEST refusal); planning only, a
+            // render with nothing sent
+            env.dialect().render(w.plan());
+            return new SideRows(w, rider, rider.declined() != null ? "side: " + rider.declined()
+                    : "graph AssertVerdicts.side (leg 3.2)");
         }
         return new SideRows(w, rider, null);
     }
@@ -342,8 +550,15 @@ final class DatabaseJudge {
             return unjudged(name, side.why());
         }
         var sw = java.util.Objects.requireNonNull(side.side());
+        // the elements written as the message writes them where the side's canon names one primitive kind (2026-11-04,
+        // the assert bar: upstream's '%s is not empty', the host's)
+        com.legend.lowering.CanonRider r = side.rider();
+        com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
+                || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.listed(r.kinds().get(0));
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
+                : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
+                        sw.plan(), "__canon0", java.util.Objects.requireNonNull(r).many(), listed), wantEmpty, true)
                 : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty);
         return runVerdict(name, true, vq, side.on(env));
     }
@@ -364,6 +579,17 @@ final class DatabaseJudge {
         boolean literal = cr.literalOnly() || vr.literalOnly();
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
+        }
+        // both written as upstream's message writes them where each names one primitive kind (2026-11-04, the assert
+        // bar: the canons left a String unquoted)
+        com.legend.lowering.VerdictSql.Message cm = literal ? null
+                : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll);
+        com.legend.lowering.VerdictSql.Message vm = literal ? null
+                : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val);
+        if (cm != null && vm != null && !cr.tdsWrapped()) {
+            return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(
+                    com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm.kind()), c.on(env));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
                 c.on(env));
@@ -412,13 +638,21 @@ final class DatabaseJudge {
                     + (delta.why() != null ? delta.why() : timeDelta.why()));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
-                        delta.rows(false), timeDelta.rows(false)),
+                        delta.rows(false), timeDelta.rows(false), n1),
                 env.withSession(w1.storeFree() ? w2.session() : w1.session()));
     }
 
     static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, null);
+    }
+
+    /** {@code message}: the failure's text where the assert has its own (an {@code assert}'s), the host's words;
+     *  null, the condition's canons framed (an assert judged by a condition of its own making). */
+    static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, @com.legend.base.Nullable String message) {
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
             SideRows need = planSide(fc[0], false, letPrefix, specs, env, hook);
@@ -439,8 +673,8 @@ final class DatabaseJudge {
         if (side.why() != null) {
             return unjudged(name, side.why());
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue),
-                side.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue,
+                message), side.on(env));
     }
 
     static TypedSide databaseTolerance(String name, List<TypedSpec> args,
@@ -453,8 +687,23 @@ final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false), t.scalarRow(false)),
-                a.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false),
+                t.scalarRow(false), toleranceArithmetic(args)), a.on(env));
+    }
+
+    /** The kind {@code assertEqWithinTolerance}'s three sides compute in: BIGINT where all three are Integers, DOUBLE
+     *  where one is a Float (the database's Float), else DECIMAL (a Decimal, or a Number the database holds exactly)
+     *  -- never DOUBLE for exact kinds (the user's ruling, 2026-11-03). */
+    private static com.legend.sql.SqlType toleranceArithmetic(List<TypedSpec> args) {
+        boolean allInteger = true;
+        for (TypedSpec s : args.subList(0, 3)) {
+            com.legend.compiler.element.type.Type t = s.info().type();
+            if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                return com.legend.sql.SqlType.Scalar.DOUBLE;
+            }
+            allInteger &= t == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+        }
+        return allInteger ? com.legend.sql.SqlType.Scalar.BIGINT : new com.legend.sql.SqlType.Decimal(38, 18);
     }
 
     /** A side the pipeline ANSWERED as a host constant (a TDG seed string, a
@@ -464,7 +713,7 @@ final class DatabaseJudge {
      * kind (the caller reports it unjudged by kind). */
     static BodyDriver.@com.legend.base.Nullable WrappedSide constantSide(
             @com.legend.base.Nullable TypedSide answered, TypedSpec spec,
-            com.legend.judge.CanonRider rider, boolean canonicalOrder,
+            com.legend.lowering.CanonRider rider, boolean canonicalOrder,
             BodyDriver.ExecEnv env, BodyDriver.ExecEnv on) {
         if (answered == null) {
             return null;
@@ -501,7 +750,7 @@ final class DatabaseJudge {
 
     /** A planned side for the predicate forms, or a reason it could not be. */
     record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             @com.legend.base.Nullable String why) {
         /** The side's canon rows; {@code literal} = the pair compares in the
          * literal channel (decided for BOTH sides — one channel per pair). */
@@ -581,9 +830,14 @@ final class DatabaseJudge {
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, incidental, false);
         }
-        @Override public TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+        @Override public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);
+            // the two planned grids' row canons against each other (VerdictSql.gridPair: the cells walked for the
+            // declared-Float leniency where the schemas agree), a row multiset unless the actual side is sorted --
+            // the grid owner's own rule (TdsCompare.grids), in the statement (the test-is-the-product plan's M10c
+            // item 2)
+            return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
+                    false, false, false, true);
         }
         @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -595,21 +849,67 @@ final class DatabaseJudge {
                 return unjudged(fqn, vector.why());
             }
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
-                    wantTrue), vector.on(env));
+                    wantTrue, message), vector.on(env));
         }
-        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+                com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
+                    .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
+            if (family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS) {
+                // an equality is judged element by element, by the judge's own spelling of the operands' kinds: the
+                // unroll over a literal source, the per-element form over any other (step 5, 2026-11-04) -- never the
+                // database's SQL equal over a predicate vector, which compares across kinds and drops a Decimal's scale
+                return null;
+            }
+            if (family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE
+                    && com.legend.compiler.spec.VerdictQueries.unrollElements(source, letPrefix, env.ctx()) != null) {
+                // a literal source (2026-11-04, the core program: every assert on its own merit): each element's assert
+                // judged as itself -- the spelled tokens rearranged, nothing computed -- each a row of the segment's
+                // statement, the first failing element's message upstream's own, as the host's row read words it
+                return null;
+            }
             SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
             }
-            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true),
+            // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), the call's literal
+            // message or "Assert failed"; another family's rows keep the count's frame
+            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
+                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
+                    assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root) : null),
                     vector.on(env));
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, true, true);
+        }
+        @Override public TypedSide perElement(String name, TypedSpec pairs,
+                com.legend.compiler.element.type.ExprType expected, com.legend.compiler.element.type.ExprType actual,
+                List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            // the operand pairs planned as any side the database computes (no canon over the pair itself: each
+            // operand is spelled by its own kind inside the verdict); one statement, the first failing element's words
+            SideRows vector = planSide(pairs, false, false, letPrefix, specs, env, hook);
+            if (vector.side() == null) {
+                return unjudged(name, java.util.Objects.requireNonNull(vector.why()));
+            }
+            com.legend.compiler.element.type.Type ek = expected.type();
+            com.legend.compiler.element.type.Type ak = actual.type();
+            boolean compat = env.options().judgingRules()
+                    == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+            com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
+                    crossNumberKinds(ek, ak, compat),
+                    compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
+                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek));
+            if (row == null) {
+                return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
+                        + ak.typeName() + ")");
+            }
+            return runVerdict(name, true, row, vector.on(env));
         }
         @Override public TypedSide is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -637,17 +937,41 @@ final class DatabaseJudge {
             if (cond == null) {
                 return unjudged(name, "instanceOf: no two-argument native in the catalog");
             }
+            String type = AssertVerdicts.typeRefName(args.get(1));
+            if (cond instanceof com.legend.compiler.spec.typed.TypedCBoolean decided && type != null
+                    && args.get(0).info().type() instanceof com.legend.compiler.element.type.Type.Primitive p) {
+                // the value's static type decided it: the value read for upstream's message, the host's words
+                SideRows side = planSide(args.get(0), false, letPrefix, specs, env, hook);
+                if (side.why() != null) {
+                    return unjudged(name, side.why());
+                }
+                // a primitive type is named as upstream's elementToPath names it, by its name alone (the type's own
+                // declaration read, never its spelling)
+                String typePath = java.util.Arrays.stream(com.legend.compiler.element.type.Type.Primitive.values())
+                        .filter(q -> q.qualifiedName().equals(type)).findFirst()
+                        .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(type);
+                return runVerdict(name, true, com.legend.lowering.VerdictSql.instanceOfDecided(side.scalarRow(false),
+                        decided.value(), typePath, p.typeName(),
+                        p == com.legend.compiler.element.type.Type.Primitive.STRING), side.on(env));
+            }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }
         @Override public TypedSide eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the database
-            // verdict decides; a class-instance pair keeps the host's LOUD identity wall
-            if (!AssertVerdicts.classKind(args.get(0)) && !AssertVerdicts.classKind(args.get(1))) {
+            // verdict decides; a class-instance pair keeps the host's LOUD identity wall. One side a primitive: the
+            // kind and the value, the database's kind-faithful canon decides (2026-11-03, the static gate's own rule)
+            if (!(AssertVerdicts.classKind(args.get(0)) && AssertVerdicts.classKind(args.get(1)))) {
                 return databaseVerdict(name, true, args.get(0), args.get(1),
                         letPrefix, specs, env, hook, false, false);
             }
-            return HostJudge.eq(name, args, letPrefix, specs, env, hook);
+            if (AssertVerdicts.keylessInstances(args.get(0), args.get(1), env.ctx())) {
+                // two keyless instances: identity, the database's identity canon (each construction's __id)
+                return databaseVerdict(name, true, args.get(0), args.get(1),
+                        letPrefix, specs, env, hook, false, false);
+            }
+            // no host fallback (the deep audit, 2026-11-05): a keyed pair has no identity form in SQL
+            return unjudged(name, "assertEq over keyed class instances: the database judge has no form for their identity");
         }
         @Override public @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -667,7 +991,8 @@ final class DatabaseJudge {
         }
         @Override public TypedSide condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook);
+            // the host's words (HostJudge.conditionOf): "Assert failed"
+            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, "Assert failed");
         }
         @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -702,18 +1027,14 @@ final class DatabaseJudge {
         TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
                 .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
-        // the engine's bare-object print applies to a serialize DOCUMENT
-        // whose root is many-valued — never to a RESULT ENVELOPE
-        // ({"builder":…,"values":…}, executeLegendQuery's contract:
-        // always one object; the many-ness lives inside "values") —
-        // read off the planned side's root object
-        boolean rootMany = ja.side() != null && !AssertVerdicts.planIsEnvelope(ja.side().plan())
-                && AssertVerdicts.serializedRootMany(actualJson, letPrefix, hook);
-        // bucket 9: an unsorted many-valued root is a MULTISET of root objects
-        if (rootMany && ja.why() == null
-                && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
-            TypedSpec elements = com.legend.compiler.spec.VerdictQueries
-                    .jsonRootElements(goldenText);
+        // bucket 9: a root the query does not order is a MULTISET of root objects -- the golden's root elements against
+        // the document's -- under the host's own test (HostJudge.jsonOf: the actual's OrderView INCIDENTAL), so the two
+        // judges decide the same documents the same way (2026-11-03: the deleted rootMany sniff had gated it, and its
+        // deletion left these unjudged here while the host judged them). A dialect that cannot place the element rows
+        // falls to the byte compare below, which equal sequences pass and others fail
+        if (ja.why() == null && com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                == com.legend.compiler.spec.OrderView.INCIDENTAL) {
+            TypedSpec elements = com.legend.compiler.spec.VerdictQueries.jsonRootElements(goldenText);
             if (elements != null) {
                 SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
                 if (jr.why() == null) {
@@ -733,8 +1054,9 @@ final class DatabaseJudge {
                 }
             }
         }
-        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
-                goldenText, rootMany);
+        // the golden as written otherwise (the user's ruling, 2026-11-03: no [x] for x -- a document serialized
+        // otherwise than the engine serializes it is the serializer's to fix)
+        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenText);
         if (golden == null) {
             return unjudged(name, "json golden does not parse");
         }

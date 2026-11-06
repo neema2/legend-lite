@@ -11,7 +11,8 @@ import com.legend.sql.dialect.SqlDialect;
  * C3): given a DECLARED {@link DatabaseType}, the dialect this platform writes its SQL in, which answers every plan
  * fact of its database itself (its server versions, how its rows load: the dialect program's Phase 5, 2026-10-16,
  * when this class shrank to type to dialect). legend-engine's golden TEXT for a type is not here: its renderers are
- * quarantined to the root layer (AGENTS invariant 4d), so their one owner is {@code com.legend.driver.EngineText}.
+ * quarantined (AGENTS invariant 4d), so their one owner is {@code com.legend.planner.EngineText} (the driver's until the
+ * seam program's S2g, 2026-10-31).
  * Upstream's own split: SQL generation per database type ({@code dbExtension.pure}, {@code loadDbExtension}) apart
  * from connection management (the execution side, {@code com.legend.exec.Connectors}). Every type is listed in the
  * switch, none has a {@code default} arm, and a database with no dialect is refused by name. Nothing here touches
@@ -98,11 +99,4 @@ public final class Databases {
         };
     }
 
-    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
-     *  its runner checks the session's version against. A version with no dot is itself. */
-    public static String majorMinor(String version) {
-        int first = version.indexOf('.');
-        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
-        return second < 0 ? version : version.substring(0, second);
-    }
 }

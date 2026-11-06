@@ -64,19 +64,34 @@ interface VerdictArm {
      * per-element assert is the predicate it means over a row source. The database arm plans the
      * vector and judges it in the fused statement; the host arm returns null (it fetches and
      * unrolls by design). 2026-09-22. */
-    @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+    /** A quantified assert under the vector contract: {@code predMap} the predicate vector the database computes,
+     *  {@code source} the rows, {@code lam} the per-element lambda, {@code root} the element assert call (the
+     *  host's row form reads the rows once and judges each as the element arm would: the seam program's step after
+     *  S2f, 2026-10-30). Null: not this arm's. */
+    @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** The sorted flat-cells idiom of {@code assertEquals} ({@code $r.values.rows.values->sort()}
-     * against a pool): the CELL-POOL multiset. Null (the host arm) = neither side is a grid,
-     * the ordinary equality continues. */
-    @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
+    /** A quantified EQUALITY judged element by element (the asserts-as-plan-nodes program, step 5, 2026-11-04):
+     *  {@code pairs} the operand pairs the database computes ({@code VerdictQueries.pairsVector}, one ordered value per
+     *  element), {@code expected} and {@code actual} the operands' static facts; every element equal under the run's
+     *  rules, a failure in upstream's words for the first element that is not. */
+    TypedSide perElement(String name, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
+            com.legend.compiler.element.type.ExprType actual, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
+
+    /** The GRID PAIR: {@code assertEquals} / {@code assertNotEquals} over two statically relation-typed sides
+     * (D3: the grid owner judges, never a byte decline); {@code sorted}: the actual side's order view is SORTED, so
+     * the rows compare in order (else as a row multiset). The host arm is the grid owner over both grids executed
+     * ({@code TdsCompare.grids}); the database arm the SQL grid pair over the two planned grids
+     * ({@code VerdictSql.gridPair}; the test-is-the-product plan's M10c item 2). */
+    TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text, cell-pool
-     * and grid-pair routes declined; {@code incidental}: the actual side's order is SQL arrival
-     * order (the judgment is order-insensitive); {@code gridPair}: a side is statically tabular. */
+    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text and grid-pair routes declined;
+     * {@code incidental}: the actual side's order is SQL arrival order (the judgment is order-insensitive);
+     * {@code gridPair}: a side is statically tabular. */
     TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);

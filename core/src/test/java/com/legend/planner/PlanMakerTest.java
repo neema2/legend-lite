@@ -397,6 +397,47 @@ class PlanMakerTest {
         }
     }
 
+    /**
+     * A keyed result as a STEP of a sequence runs as the root keyed plan does (the planner-driver seam program's S1a,
+     * 2026-10-30; refused by name until then, the plan's F5): a test body's dynamic pivot stands beside its lets and
+     * its verdicts. The sequence's transaction is the two statements' snapshot, opened at the isolation the keyed step
+     * asks (H2's REPEATABLE READ; DuckDB's and SQLite's own transaction): the same columns and rows on every
+     * in-process database, a step before it or not, and the sequence reads back from its JSON as any does.
+     */
+    @Test
+    void aKeyedResultAsAStepOfASequenceRunsAsTheRootKeyedPlanDoes() throws Exception {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan root = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
+            ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root(), type.name());
+            ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
+            assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, sequence.answerShape());
+            assertEquals(sequence, com.legend.executionplan.PlanJson.read(com.legend.executionplan.PlanJson.write(sequence)),
+                    type + ": the sequence read back");
+            String expected;
+            try (Connection c = fresh(type)) {
+                expected = csv(root, c);
+            }
+            try (Connection c = fresh(type)) {
+                assertEquals(expected, csv(sequence, c), type + ": the keyed step's answer");
+            }
+        }
+        // a step before the keyed one, on the platform's database: the sequence's one transaction holds both
+        ExecutionPlan root = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
+                .executionPlan("s::RT");
+        ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root());
+        ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
+                new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", keyed.keys().target())), keyed)));
+        String expected;
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            expected = csv(root, c);
+        }
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            assertEquals(expected, csv(sequence, c), "a check, then the keyed step");
+        }
+    }
+
     /** The PCT's trees by city, country and year, with a coefficient (testPivot_SingleMultiple_Dynamic_Aggregation). */
     private static final String TREES_PCT = "#TDS\n city, country, year, treePlanted, coefficient\n NYC, USA, 2011, 5000, 1\n"
             + " NYC, USA, 2000, 5000, 2\n SAN, USA, 2000, 2000, 1\n SAN, USA, 2011, 100, 2\n LDN, UK, 2011, 3000, 2\n"
