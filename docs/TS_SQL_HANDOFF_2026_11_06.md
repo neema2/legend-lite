@@ -455,7 +455,7 @@ value-identical, and a Java-computed test like `theWordsOfTwoLinesAreColumnsOfTh
 **Built 2026-11-06 for correlation, beta and r_squared** (each window kind): the profile's new tag
 `timeseries::Words.pairs = 'returns'` on each word's stated overload, `TsCatalog.PAIRS`, and `TsWords.pairForm` taking each
 line through the named word once a rows form matches (memoized by line and word through `Writer.read`, so every word of
-a pair reads one returns column and their meetings are one); `rows::returns` (by obs, and the one-observation default)
+a pair reads one returns column and their meetings are one); `rows::returns` (by obs; its one-observation default, written a second time here, deleted with W5's delegation)
 with the D8 check, so every `returns(x, n)` is now a column of its line's table; `rows::correlation`, `rows::beta`,
 `rows::r_squared`. spec-16 21,043 -> 16,316 characters, 7 joins -> 3, 38 ms (was 48); every answer the same. **The second part, the
 same day:** alpha, tracking_error and information_ratio (`rows::perYear`, each row's periods a year as
@@ -518,6 +518,17 @@ line's periods contain every other's, that line can be the spine: one LEFT JOIN,
 - **Before adding each one,** check that its table function's ramp and windows read the value's points, not the
   table's rows. `rampPeriod` dates from the value's first non-empty date, which is correct. A function that counts
   rows, or takes `MIN(date)` over all rows, would be wrong on a table whose first rows are not the value's points.
+
+**Built 2026-11-06, the defaults:** an overload whose body is one call of its own function, of its parameters and
+literals (`correlation(x, y)`'s `timeseries::line::correlation($x, $y, 63, $sample)`), is reported with that call
+(`TsToPure.Overload.delegate`, read by `TsIslands` from the parsed body; the callee matched by declaration, not name,
+for `IdentityGuardrailTest`), and `TsWords.keptForm` takes, where the default has no rows form, the rows form of the
+overload its body calls, of the arguments the body gives. 29 overloads over 27 words are such defaults; the words with
+a rows form for the called overload (alpha, beta, correlation, cov, diff, down_capture, hedge_ratio,
+information_ratio, lag, r_squared, range, residual, returns, tracking_error, up_capture) now write each default as the
+explicit call (`correlation(x, y), lag(x), returns(x)`: 9,469 -> 7,338 characters, 4 joins -> 2, the SQL of
+`correlation(x, y, 63), lag(x, 1), returns(x, 1)` byte for byte). `rows::returns`' own default deleted. No example
+changed (each names its window); the test `TsIslandTest.aDefaultIsReadAsTheCallItsBodyIs`.
 
 ### W6. Reconcile with `claude/cte-let-sharing` when #83 lands
 

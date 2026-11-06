@@ -2809,12 +2809,6 @@ function timeseries::rows::returns<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpe
     ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
-// ... and returns(x), one observation's.
-function timeseries::rows::returns<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], type: timeseries::Returns[0..1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
-{
-  $t->timeseries::rows::returns($key, $date, $value, $present, 1, $type, $out, $points)
-}
-
 // Where two values are both points (R6: a per-point figure of several values is a point where every one is): 1, else
 // none.
 function timeseries::rows::both<T,A,B,O>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]

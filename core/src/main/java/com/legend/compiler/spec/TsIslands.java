@@ -376,6 +376,25 @@ public final class TsIslands {
             return model.derived(Words.class, Words::new).aliased(pkg, word);
         }
 
+        /** The arguments of the one call {@code body} is, where it calls {@code f}'s own function -- the declarations
+         *  its name finds hold {@code f} -- of its parameters and literals alone (a default: W5, 2026-11-06); else
+         *  null. */
+        private static @com.legend.base.Nullable List<ValueSpecification> delegate(ModelContext model,
+                com.legend.compiler.element.TypedFunction f, List<ValueSpecification> body) {
+            if (body.size() != 1 || !(body.get(0) instanceof com.legend.protocol.spec.AppliedFunction a)
+                    || !model.findFunction(a.function()).contains(f)) {
+                return null;
+            }
+            for (ValueSpecification p : a.parameters()) {
+                if (!(p instanceof com.legend.protocol.spec.Variable || p instanceof com.legend.protocol.spec.CInteger
+                        || p instanceof com.legend.protocol.spec.CFloat || p instanceof com.legend.protocol.spec.CString
+                        || p instanceof com.legend.protocol.spec.CBoolean)) {
+                    return null;
+                }
+            }
+            return a.parameters();
+        }
+
         /** {@code fqn}'s overloads as the words read them, from the model's functions. */
         private static List<TsToPure.Overload> read(ModelContext model, String fqn) {
             List<TsToPure.Overload> out = new ArrayList<>();
@@ -413,7 +432,8 @@ public final class TsIslands {
                         }
                     }
                 }
-                out.add(new TsToPure.Overload(ps, gives, doc, aliases, facts, marks));
+                out.add(new TsToPure.Overload(ps, gives, doc, aliases, facts, marks,
+                        f.body().map(b -> delegate(model, f, b)).orElse(null)));
             }
             return List.copyOf(out);
         }

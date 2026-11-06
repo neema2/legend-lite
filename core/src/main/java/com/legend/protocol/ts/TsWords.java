@@ -167,7 +167,7 @@ final class TsWords {
                     + " overloads a call fits: " + given.keySet());
         }
         // a word that keeps its line's rows: its rows form, a column of its line's own table (R7, the time model's D5)
-        TsLines.Valued kept = rowsForm(c, fqn, word, fitting.get(0), fits.get(0), written, pos);
+        TsLines.Valued kept = keptForm(c, fqn, word, overloads, fitting.get(0), fits.get(0), written, pos);
         if (kept != null) {
             return kept;
         }
@@ -184,6 +184,47 @@ final class TsWords {
             c.struct(first, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(outs)));
         }
         return new TsLines.Valued(line, first);
+    }
+
+    /**
+     * {@code o}'s rows form ({@link #rowsForm}); a default's ({@link TsToPure.Overload#delegate}, W5, 2026-11-06)
+     * where it has none of its own: the rows form of the overload its body calls, of the arguments the body gives --
+     * each parameter the call's own, each literal itself -- so a default's value is written once, in its body (no rows
+     * form writes 63 again). Null where neither has one.
+     */
+    private static TsLines.@com.legend.base.Nullable Valued keptForm(TsFunctions.Ctx c, String fqn, String word,
+            List<TsToPure.Overload> overloads, TsToPure.Overload o, List<ValueSpecification> bound, List<Arg> args,
+            SqlAst.Pos pos) {
+        TsLines.Valued own = rowsForm(c, fqn, word, o, bound, args, pos);
+        List<ValueSpecification> body = o.delegate();
+        if (own != null || body == null) {
+            return own;
+        }
+        List<String> names = o.params().stream().map(TsToPure.Parameter::name).toList();
+        List<ValueSpecification> given = new ArrayList<>();
+        List<String> types = new ArrayList<>();
+        for (ValueSpecification v : body) {
+            int i = v instanceof com.legend.protocol.spec.Variable p ? names.indexOf(p.name()) : -1;
+            given.add(i >= 0 ? bound.get(i) : v);
+            types.add(i >= 0 ? o.params().get(i).type() : literalType(v));
+        }
+        for (TsToPure.Overload t : overloads) {
+            if (t != o && t.params().stream().map(TsToPure.Parameter::type).toList().equals(types)) {
+                return rowsForm(c, fqn, word, t, given, args, pos);
+            }
+        }
+        return null;
+    }
+
+    /** The type's path of a literal a default's body gives ({@link #keptForm}); a parameter's read, none. */
+    private static @com.legend.base.Nullable String literalType(ValueSpecification v) {
+        return switch (v) {
+            case CInteger i -> "Integer";
+            case CFloat f -> "Float";
+            case CString s -> "String";
+            case com.legend.protocol.spec.CBoolean b -> "Boolean";
+            default -> null;
+        };
     }
 
     /** The package of the words' rows forms (projects/timeseries/model.pure, A WORD'S ROWS FORM). */

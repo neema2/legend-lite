@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.IntFunction;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1213,6 +1214,32 @@ class TsIslandTest {
         // the two lines' returns met once, the answer that one table: one join
         String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
         assertEquals(1, sql.split(" JOIN ", -1).length - 1, sql);
+    }
+
+    @Test
+    void aDefaultIsReadAsTheCallItsBodyIs() throws Exception {
+        // W5 (2026-11-06): correlation(x, y) is the library's correlation($x, $y, 63, $sample), lag(x) its
+        // $x->lag(1), returns(x) its $x->returns(1, $type): each default read as that call, its rows form the called
+        // overload's -- the default's value written once, in its body -- so each is a column of its line's table, and
+        // its answer the explicit call's
+        String q = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB']) AS c, lag(CLOSE['AAA']) AS l,"
+                + " returns(CLOSE['AAA']) AS r FROM PRICES ON DAY BY SYMBOL}#";
+        String explicit = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 63) AS c, lag(CLOSE['AAA'], 1) AS l,"
+                + " returns(CLOSE['AAA'], 1) AS r FROM PRICES ON DAY BY SYMBOL}#";
+        for (TestBackend backend : TestBackends.inProcess()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            List<Map<String, String>> want = rows(backend, explicit);
+            for (String col : List.of("c", "l", "r")) {
+                assertArrayEquals(column(want, null, null, col), column(got, null, null, col), of + col + " as its call");
+            }
+            // from the second day: the first is no item's point (lag's ramp, a return's first)
+            assertClose(each(AAA.length - 1, i -> AAA[i]), column(got, null, null, "l"), of + "the day before's close");
+        }
+        // read as its call, a default writes the explicit call's SQL
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertEquals(Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), explicit)
+                .plan("ts::RT").sql(), sql);
     }
 
     @Test

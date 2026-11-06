@@ -84,13 +84,19 @@ public final class TsToPure {
      *  lower, upper and width), its documentation ({@code doc.doc}; none: null), and the other names #TS reads it by
      *  ({@code timeseries::Words.alias}: mean's avg); and its facts, the {@code timeseries::Words} profile's other
      *  tags by name in the order written ({@code unit}, {@code level}, {@code param}, ...), and its stereotypes
-     *  ({@code band}, {@code candles}, {@code anchored}) -- what a drawing and a formula box know of a word (A3 step 1). */
+     *  ({@code band}, {@code candles}, {@code anchored}) -- what a drawing and a formula box know of a word (A3 step 1);
+     *  and, where it is a default -- its body one call of its own function, of its parameters and literals
+     *  ({@code correlation(x, y)}'s {@code timeseries::line::correlation($x, $y, 63, $sample)}) -- that call's
+     *  arguments, each a parameter's {@link com.legend.protocol.spec.Variable} or a literal (W5, 2026-11-06: the
+     *  words read a default as the call it is, so its value is written once, in its body); else null. */
     public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc,
-            List<String> aliases, Map<String, List<String>> facts, List<String> marks) {
+            List<String> aliases, Map<String, List<String>> facts, List<String> marks,
+            @com.legend.base.Nullable List<ValueSpecification> delegate) {
         public Overload {
             aliases = List.copyOf(aliases);
             facts = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(facts));
             marks = List.copyOf(marks);
+            delegate = delegate == null ? null : List.copyOf(delegate);
         }
     }
 
