@@ -117,8 +117,9 @@ public final class PctBackend {
             }
             if (held != null) {
                 // held for the suite (the JVM's exit closes it): ONE session over it, kept here, its memo kept (D70;
-                // the audit's finding: a cloud backend's held() answers a new unclosable proxy per call, so the
-                // connection's identity cannot key the session -- TestSessions.over would make one per plan)
+                // the audit's finding: a cloud backend's held() answered a new unclosable proxy per call, so the
+                // connection's identity could not key the session; since 2026-11-06 it answers one view per held
+                // session, so TestSessions.over finds the same session for channel B too)
                 com.legend.exec.Sessions.Session s = heldSession;
                 if (s == null) {
                     s = com.legend.testbackend.TestSessions.over(held);
