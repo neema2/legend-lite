@@ -946,8 +946,12 @@ pins every statistic of the frame against the window worked in Java, on DuckDB, 
 Limits:
 
 - **MySQL and MariaDB** take no expression as a frame offset (S129), so at `b7d69d98b` these windows were refused there
-  by name. A day later C6.2b folded a spelled offset such as `-(6 * 31 - 1)` into the literal `185`, so they may now
-  run there; nobody has measured it. Do, with the probe recipe, before claiming either way.
+  by name. A day later C6.2b folded a spelled offset such as `-(6 * 31 - 1)` into the literal `185`. **Measured
+  2026-11-06:** they run there, exact -- every statistic of `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`
+  (mean, sum, min, max, range, std, var, count) over 3 and 6 months, a year, 10 days and 2 weeks, on MariaDB 11.4 and
+  MySQL 8.4 (the embedded servers, the dialect's session setup, the plan's own SQL): 0 of 8,352 values wrong each,
+  against the window worked in Java. A temporary probe in that test (the MariaDB driver is `//pct`'s alone, so it was
+  allowed for core only while it ran); nothing committed runs it, as no core test runs a server database.
 - **Date-times (intraday)** keep the join form. A month window from Aug 31 10:00 goes back to Feb 28 10:00; the key
   form would drop the readings later on Feb 28, which gs-quant keeps. Settle with the intraday work (B6b).
 - **`percentilesPeriod` and `quantilePeriod`** keep their self-joins: no frame says a rank against every value of the

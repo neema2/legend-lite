@@ -687,7 +687,8 @@ in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse m
    regression CI found, the database judge composing a side's WITH, fixed first: `72200a18b`, `b54facfa8`). *W2 built 2026-11-06*
    (correlation, beta, r_squared, returns, then alpha, tracking_error, information_ratio and the capture ratios as
    columns; spec-16 7 joins -> 3, guide-12 6 -> 4; lead_lag stays a line form, its y shifted over y's own dates).
-4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured;
+4. **W10**, SQLite's two defects (each posted to the user first); MySQL's and MariaDB's calendar windows measured
+   (*2026-11-06: exact on both*, 0 of 8,352 values wrong a window, the handoff's §13.3);
    **A9**'s remainder (spec-05, guide-06, spec v4, the guide).
 5. **A2′**: an independent review of the work since `a3388b40`, and the full gate.
 6. **A5**, **A4**, **A3** steps 3 to 5, as their rulings come.
