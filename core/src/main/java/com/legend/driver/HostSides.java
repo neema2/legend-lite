@@ -33,7 +33,11 @@ final class HostSides {
 
     /** One side an arm asks for: the argument and the flags {@link JudgePlans#evalSide} took for it. */
     record Ask(TypedSpec arg, boolean identity, boolean fold,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.@com.legend.base.Nullable ExecEnv at) {
+        /** An ask planned under the step's environment. */
+        Ask(TypedSpec arg, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+            this(arg, identity, fold, hook, null);
+        }
     }
 
     /**
@@ -149,8 +153,10 @@ final class HostSides {
         Sessions.Session on = null;
         Sessions.Session any = null;
         for (Ask a : asks) {
-            JudgePlans.PlannedSide p = JudgePlans.plannedSide(a.arg(), letPrefix, specs, env, a.identity(),
-                    a.fold(), a.hook());
+            // an ask the arm read under an environment of its own (`at`: a text side of a runtime-dialect form, its
+            // frame and table replaces rebound; 2026-11-06) is planned there, as the arm read it
+            JudgePlans.PlannedSide p = JudgePlans.plannedSide(a.arg(), letPrefix, specs, a.at() != null ? a.at() : env,
+                    a.identity(), a.fold(), a.hook());
             planned.add(p);
             base.add(p.side());
             if (p.wrapped() != null) {

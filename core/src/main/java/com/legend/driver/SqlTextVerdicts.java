@@ -71,11 +71,14 @@ final class SqlTextVerdicts {
         boolean readingGolden;
 
         /** Whether {@code side}, planned as {@code planned} under {@code at}, is a text this collector may defer: a
-         *  {@code VALUES} side declared a String to one, planned under the environment the arm was given ({@code env}:
-         *  a side the arm plans under another -- the runtime-dialect form rebinds the frame -- the step would not). */
+         *  {@code VALUES} side declared a String to one. A side the arm plans under an environment of its own (the
+         *  runtime-dialect form rebinds the frame and the table replaces) is deferred with that environment, which the
+         *  step plans it under (the host's {@code HostSides.Ask.at}; the database judge's row is planned at once,
+         *  under {@code at}): a VALUES side reads no store, so the environment shapes its text alone (2026-11-06;
+         *  until then such a side was refused and its body walked). */
         static boolean deferrable(TypedSpec side, JudgePlans.PlannedSide planned, BodyDriver.ExecEnv at,
                 BodyDriver.@com.legend.base.Nullable ExecEnv env) {
-            return planned.kind() == JudgePlans.Kind.VALUES && at == env
+            return planned.kind() == JudgePlans.Kind.VALUES
                     && side.info().type() == com.legend.compiler.element.type.Type.Primitive.STRING
                     && toOne(side.info());
         }
@@ -224,7 +227,7 @@ final class SqlTextVerdicts {
                 throw new NotAConstant(NotAConstant.LABEL + "two texts the plan reads under different statement origins");
             }
             deferredOrigin = origin;
-            HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook);
+            HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook, at == env ? null : at);
             if (readingGolden) {
                 deferredGolden = ask;
                 return new TypedSide.Scalar(goldenToken, side.info().type());

@@ -109,7 +109,9 @@ public final class QueryDoor {
                     && NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, catches)) {
                 kinds.add(TestOnly.ASSERT_ERROR);
             }
-            if (StatementEffects.reaches(statement, QueryDoor::isAssert, specs, verdicts)) {
+            // what running the statement reaches: a verdict inside a lambda a construction stores (a runtime's SQL
+            // post-processor) is none of the statement's (StatementEffects.reachesRunning, 2026-11-06)
+            if (StatementEffects.reachesRunning(statement, QueryDoor::isAssert, specs, verdicts)) {
                 kinds.add(TestOnly.ASSERT);
             }
             return kinds;

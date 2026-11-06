@@ -5,7 +5,6 @@
 # lane (the host judge 26 of them, the database judge 59), less the test data generator's tests, which the user ruled
 # skipped (2026-11-06, S143: lite offers no test data generator yet; they are accepted non-passes, the
 # accepted rosters' not-offered:test-data-generator rows). When the list is empty the walk is deleted.
-meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper
 meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper
 meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper
@@ -30,12 +29,8 @@ meta::relational::tests::functions::fetchDbMetaData::testFetchDbPrimaryKeysMetaD
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbSchemasMetaData
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbTablesMetaData
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
-meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
-meta::relational::tests::mapping::embedded::testExistsWithEmbeddedWithPostProcessor
 meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate
 meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor
 meta::relational::tests::query::paginate::testPaginatedWithVariables
 meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect
 meta::relational::tests::query::slice::testSliceWithVariables
-meta::relational::tests::tds::tdsExtend::testDecimal
-meta::relational::tests::tds::tdsRestrict::testRestrictWithPostProcessor

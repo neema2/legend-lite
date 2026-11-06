@@ -620,7 +620,9 @@ public enum BodyClass {
             if (bareExecute(last)) {
                 return !statementFrame && relationFrameAnswer(query, last, lets);
             }
-            return !statementFrame && !frames.isEmpty() && answered(query, Lets.bare(last));
+            // a frame run as a statement of its own (an unread frame let's execute(...), the user's ruling of
+            // 2026-11-02): run where it stands, its rows dropped, as the walk runs it (the user, 2026-11-06)
+            return (statementFrame || !frames.isEmpty()) && answered(query, Lets.bare(last));
         }
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
@@ -889,6 +891,10 @@ public enum BodyClass {
             }
             if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
                     && !(!(statement instanceof TypedLet) && StatementEffects.isStoreWrite(Lets.bare(statement)))
+                    // a CHECK before the last (an unread let's value is one, the user's ruling of 2026-11-02; a no-assert
+                    // program's run as it is, the user, 2026-11-06: "do all including last row"): a value statement run
+                    // for what it raises, its rows dropped, as the walk runs it
+                    && !check(statement, systemClasses, ctx, query, memo)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
                             new HashMap<>(), n -> false) == LetPlanner.Kind.STAGED)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),

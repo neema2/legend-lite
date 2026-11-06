@@ -142,6 +142,17 @@ final class TestKinds implements ProgramKinds {
         }
         // the statement's seeds, as the walk establishes its contexts before every statement (M3e)
         seed(program, statement);
+        if (!last && statement instanceof TypedNativeCall ec && NativeFn.Handle.runsAFrame(ec.callee().id())) {
+            // a FRAME RUN AS A STATEMENT of its own (an unread frame let's execute(...), the user's ruling of
+            // 2026-11-02; a program with no assert holds one since 2026-11-06, "do all including last row"): its query
+            // run where it stands as a check, its rows dropped, as Pure evaluates it and the walk runs it
+            TypedQuery query = program.query();
+            PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
+                    program.frames().planRows());
+            FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
+            program.add(eagerRun(program, index, fc, program.frames().newStamp()));
+            return true;
+        }
         if (kinds.isEmpty()) {
             return false;
         }

@@ -183,6 +183,64 @@ public final class StatementEffects {
         return false;
     }
 
+    /** {@link #reaches} over what RUNNING {@code n} runs: a lambda stored as a constructed instance's property
+     *  ({@code ^Conn(sqlQueryPostProcessors = [{q | ...}])}, a {@code ^$c(...)} copy's override) is a value the
+     *  construction holds, not code the statement runs -- the platform runs no stored lambda as Pure (a runtime's SQL
+     *  post-processors are recognized shapes it rewrites its own SQL tree by: {@code lowering/SqlPostProcessors}), so
+     *  a verdict inside one is none of the statement's (the walk deletion, 2026-11-06: the corpus's post-processor
+     *  tests, whose library helpers guard with asserts). Every other child is walked as {@link #reaches} walks it. */
+    public static boolean reachesRunning(TypedSpec n, java.util.function.Predicate<TypedSpec> p, SpecCompiler specs,
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        if (p.test(n)) {
+            return true;
+        }
+        if (n instanceof TypedUserCall uc && !subsumed(uc)) {
+            com.legend.model.FunctionId key = uc.callee().id();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);   // in-progress: cycles score false
+                boolean reaches = false;
+                try {
+                    for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                        if (reachesRunning(stmt, p, specs, memo)) {
+                            reaches = true;
+                            break;
+                        }
+                    }
+                } catch (TypeInferenceException e) {
+                    // an un-typeable callee cannot execute in either channel; this scan does not decide on it
+                }
+                memo.put(key, reaches);
+                known = reaches;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        java.util.Collection<TypedSpec> stored = n instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                ? ni.properties().values()
+                : n instanceof com.legend.compiler.spec.typed.TypedCopyInstance ci ? ci.overrides().values()
+                : java.util.List.of();
+        for (TypedSpec c : n.children()) {
+            if (stored.contains(c) && storedLambdas(c)) {
+                continue;
+            }
+            if (reachesRunning(c, p, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code value}, a constructed instance's property, is lambdas alone: one, or a collection of them. */
+    private static boolean storedLambdas(TypedSpec value) {
+        if (value instanceof com.legend.compiler.spec.typed.TypedLambda) {
+            return true;
+        }
+        return value instanceof com.legend.compiler.spec.typed.TypedCollection c && !c.elements().isEmpty()
+                && c.elements().stream().allMatch(e -> e instanceof com.legend.compiler.spec.typed.TypedLambda);
+    }
+
     /** Is {@code n} itself a write into a store table: {@code rel->write(#>{db.t}#)}, or lite's {@code delete},
      *  {@code update} or {@code merge} (each over a store table by its checker)? The statement the execution runs as
      *  the database's DML (BodyDriver's store-write arm). */
