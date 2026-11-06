@@ -1173,11 +1173,15 @@ public class H2 extends AnsiSqlRenderer {
 
     /** {@code ASIN} and {@code ACOS}: NaN outside the domain, as the engine's H2 answers. The function reads its
      *  argument CLAMPED to the domain: H2 folds a constant inside a CASE's untaken branch too, and raises on
-     *  {@code acos(2.0)} there (measured on 2.5.252); the CASE picks NaN outside the domain. */
+     *  {@code acos(2.0)} there (measured on 2.5.252); the CASE picks NaN outside the domain. An absent argument stays
+     *  absent, as {@code acos(NULL)} is on the engine's H2: NULL fails the BETWEEN, so NaN is the arm of a present
+     *  argument alone and a NULL falls through the CASE to NULL (2026-11-06: an ELSE NaN answered {@code true} for
+     *  {@code $x.rateOpt->map(v|$v->sin()->acos()->greaterThan(1.3))} over an absent value, the stress corpus's
+     *  VN_Acos and VN_Asin on the H2 lane; SQLite's and MariaDB's guards test for NULL first, for the same reason). */
     private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
-                .append("(LEAST(GREATEST(").expr(a.get(0), 0).append(", -1), 1)) ELSE CAST('NaN' AS DOUBLE PRECISION)"
-                        + " END)");
+                .append("(LEAST(GREATEST(").expr(a.get(0), 0).append(", -1), 1)) WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE PRECISION) END)");
     }
 
     /** {@code CARDINALITY} counts a JSON array's elements (probed: 3 for {@code '[1,2,3]'}); an Array-typed cast over
