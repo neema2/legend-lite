@@ -2534,6 +2534,65 @@ function timeseries::rows::zscores<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpe
     ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
+// The rows forms over a calendar span of five words more (W5, 2026-11-06): each its line form's table function on t,
+// as mean's above -- count's overPeriod, product's productPeriod, vol_swap_volatility's volSwapVolatilityPeriod,
+// dickey_fuller's dickeyFullerPeriod and half_life's halfLifePeriod (each one-row lag over t's rows reads none before
+// the value's first point, the prefix rule) -- each counting the window's values, its ramp from the value's first date
+// (rampPeriod). returns over a span keeps its line form: its
+// as-of join reads its table twice, and t is the line's table with every column before it, written again whole.
+function timeseries::rows::count<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::overPeriod($key, $date, $value, $w, $unit, timeseries::Statistic.count, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::product<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::productPeriod($key, $date, $value, $w, $unit, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::vol_swap_volatility<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::volSwapVolatilityPeriod($key, $date, $value, $w, $unit, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::dickey_fuller<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::dickeyFullerPeriod($key, $date, $value, $w, $unit, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+function timeseries::rows::half_life<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+{
+  $t->timeseries::halfLifePeriod($key, $date, $value, $w, $unit, ~rows_m)
+    ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
+    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
+    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+}
+
+// ... and the capture ratios over a calendar span: the pairs both lines' returns have, as the line forms'.
+function timeseries::rows::up_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)->timeseries::upCapturePeriod($key, $date, ~rows_pa, ~rows_pb, $w, $unit, ~rows_v)
+    ->without(~[rows_pa, rows_pb])->rename(~rows_v, $out)
+}
+
+function timeseries::rows::down_capture<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::pairs($x, $y, ~rows_pa, ~rows_pb)->timeseries::downCapturePeriod($key, $date, ~rows_pa, ~rows_pb, $w, $unit, ~rows_v)
+    ->without(~[rows_pa, rows_pb])->rename(~rows_v, $out)
+}
+
 // The rows forms of the words over a calendar span, and of a few more (R7 part 3, 2026-11-04): the line form's own
 // table function on t, its answer a point where the value is -- the line form's line is every point of the value -- and
 // none elsewhere. A value is none where it is no point (a source's column a point of every row; a word's answer none on

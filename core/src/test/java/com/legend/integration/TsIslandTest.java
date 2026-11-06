@@ -1306,6 +1306,37 @@ class TsIslandTest {
     }
 
     @Test
+    void wordsOverACalendarSpanAreColumnsOfTheirLinesTable() throws Exception {
+        // W5 (2026-11-06): count, product and vol_swap_volatility over a calendar span, and the capture ratios over one,
+        // as columns of their line's table (or of the two lines' returns met): each its line form's table function --
+        // the window (d - 3 days, d] of the daily dates, none until the line's first date is a span back (its ramp)
+        String q = "|#TS{SELECT count(CLOSE['AAA'], 3d) AS n, product(CLOSE['AAA'], 3d) AS p,"
+                + " vol_swap_volatility(CLOSE['AAA'], 3d) AS vs FROM PRICES ON DAY BY SYMBOL}#";
+        double[] lr = new double[AAA.length];
+        for (int i = 1; i < AAA.length; i++) {
+            lr[i] = Math.log(AAA[i] / AAA[i - 1]);
+        }
+        // from the fourth day: the three before are every word's ramp, no item's point (R6)
+        for (TestBackend backend : TestBackends.inProcess()) {
+            String of = backend + ": ";
+            List<Map<String, String>> got = rows(backend, q);
+            assertClose(each(AAA.length - 3, i -> 3.0), column(got, null, null, "n"), of + "three days' count");
+            assertClose(each(AAA.length - 3, i -> AAA[i + 3] * AAA[i + 2] * AAA[i + 1]), column(got, null, null, "p"),
+                    of + "three days' product");
+            // the root mean square of the three days' log returns, annualized, in percent
+            assertClose(each(AAA.length - 3, i -> {
+                double sq = 0;
+                for (int k = i + 1; k <= i + 3; k++) {
+                    sq += lr[k] * lr[k];
+                }
+                return Math.sqrt(sq / 3) * Math.sqrt(252) * 100;
+            }), column(got, null, null, "vs"), of + "three days' vol swap volatility");
+        }
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
+        assertFalse(sql.contains(" JOIN "), "every word a column of AAA's table: " + sql);
+    }
+
+    @Test
     void anAnswerOfALineAndALineMetFromItIsThatLinesRows() throws Exception {
         // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
         // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values

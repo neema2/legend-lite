@@ -555,8 +555,18 @@ drawdown, max_drawdown and zscores, each its line form's table function over the
 the points mask and the D8 check. Ten words over every instrument 25,485 -> 7,695 characters, 10 joins -> 0; words of
 words to date (`max_drawdown(mean(x, 20), all)`, `std(diff(x, 5), all)`) 5 joins -> 2; under SAMPLE BY 9,822 ->
 3,832, 4 joins -> 0; every answer identical. The test `TsIslandTest.wordsToDateAreColumnsOfTheirLinesTable` (values
-against Java, no join). Left of W5: calendar spans for count, product, vol_swap_volatility, dickey_fuller, half_life,
-percentiles, median, percentile, returns, up_capture and down_capture; `percentilesPeriod` and `quantilePeriod`.
+against Java, no join). **Built the same day, calendar spans:** `rows::` forms over `w, unit` of count, product,
+vol_swap_volatility, dickey_fuller and half_life (each its line form's table function over the table, the points
+mask; the one-row lags inside vol_swap_volatility, dickey_fuller and half_life read none before the value's first
+point, the prefix rule), and of up_capture and down_capture (the pairs of the two lines' returns met). Measured:
+count, product of returns + 1, vol_swap_volatility over every instrument 15,166 -> 18,355 characters (the points
+masks), 5 joins -> 3, SELECTs 29 -> 18; the captures over 3 and 6 months with a count of a mean 13,354 -> 9,631, 5
+joins -> 2; dickey_fuller and half_life over 3 and 6 months 35,233 -> 31,307, 5 joins -> 3; times the same; every
+answer identical. The test `TsIslandTest.wordsOverACalendarSpanAreColumnsOfTheirLinesTable`. **returns over a span
+keeps its line form:** its as-of join (`lagPeriod`) reads its table twice, and as a rows form that table is the
+line's with every column before it -- measured, the whole of it written again (15,166 -> 33,712 characters). Left of
+W5: percentiles, median and percentile over a span (`percentilesPeriod`, `quantilePeriod`: self-joins, no frame
+says a rank against every value of a window), and returns over a span.
 
 ### W6. Reconcile with `claude/cte-let-sharing` when #83 lands
 
