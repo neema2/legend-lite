@@ -403,19 +403,6 @@ final class DatabaseJudge {
         return side == null ? null : com.legend.lowering.VerdictSql.firstValueRow(side.plan());
     }
 
-    /** Whether {@code vq}, a verdict statement of the equality family, HOLDS: run now on {@code runOn}'s session (no
-     *  batch open), its row read for the polarity it computed -- an unjudged row holds nothing. A generic comparison
-     *  whose failure a ruled fallback decides ({@code AssertVerdicts.textFirst}, 2026-11-04, the core program). */
-    static boolean holdsNow(String name, com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
-        com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
-        com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, true);
-        com.legend.diagnostics.Diagnostics.judgeSend("holds-now", name);
-        List<Object> read = com.legend.judge.VerdictBatch.executeOne(
-                name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
-                runOn.session(), JudgePlans.runner(runOn));
-        return read.get(3) == null && Boolean.TRUE.equals(read.get(5));
-    }
-
     /** Execute a verdict statement on {@code on} and read its one row:
      * unjudged (counted, the assert fails with the reason), or the verdict
      * (never NULL) with the two framed canons as the message. */

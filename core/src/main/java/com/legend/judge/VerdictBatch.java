@@ -57,7 +57,7 @@ public final class VerdictBatch {
         void judge(String name, List<Object> row);
     }
 
-    /** The lowering's ONE row over a generic verdict row and its ruled fallback's (2026-11-06,
+    /** The lowering's ONE row over a generic verdict row and its ruled row (2026-11-06,
      *  {@code VerdictSql.either}): the generic row's columns where it holds, else the ruled row's. */
     @FunctionalInterface
     public interface Either {
@@ -145,9 +145,11 @@ public final class VerdictBatch {
     private sealed interface Step permits Pending, Resolved {
     }
 
-    /** {@code orElse}: what decides the row when it FAILS (2026-11-04, the core program: every assert on its own merit
-     *  generically first, a ruled fallback only after) -- a verdict statement of its own, run then and judged as any row
-     *  (never fused: nothing is sent for it while the generic row holds), or the failure decided at planning. */
+    /** {@code orElse}: the row's RULED comparison (2026-11-04, the core program: every assert on its own merit
+     *  generically first), as {@link #defer} records it -- a ruled row, which {@link #plan} makes part of the generic
+     *  row's own statement (2026-11-06, never a statement of its own sent after a failure) -- or, once planned, what
+     *  decided it at planning (the dialect's refusal of the ruled row, a failure its planning raised), raised where the
+     *  generic row fails. */
     private record Pending(int ix, String name, SqlQuery query,
             Sessions.Session on, @com.legend.base.Nullable Appeal appeal, @com.legend.base.Nullable Step orElse)
             implements Step {
@@ -219,7 +221,7 @@ public final class VerdictBatch {
     /** The body's execution trace: its fused statement publishes its stamp there. */
     private final ExecutionTrace trace;
 
-    /** The lowering's one row over a generic verdict row and its ruled fallback's. */
+    /** The lowering's one row over a generic verdict row and its ruled row. */
     private final Either either;
 
     public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained, Judge judge, Runner runner,
@@ -288,7 +290,8 @@ public final class VerdictBatch {
         SqlQuery row = selfContained.wrap(query, name, wantEqual);
         Pending of = orElseOf.peek();
         if (of != null) {
-            // the verdict of the root's last row's fallback (orElse): attached to that row, never a step of its own
+            // the verdict of the root's last row's ruled comparison (orElse): attached to that row, never a step of its
+            // own; plan() makes the two one row
             int at = r.steps.indexOf(of);
             if (at < 0 || of.orElse() != null || appeal != null) {
                 throw new IllegalStateException("verdict batch: a fallback for no row of the open root: " + name);
@@ -334,12 +337,13 @@ public final class VerdictBatch {
         }
     }
 
-    /** The row whose fallback {@link #orElse}'s arm is planning, while it does: a frame, pushed and popped by it. */
+    /** The row whose ruled comparison {@link #orElse}'s arm is planning, while it does: pushed and popped by it. */
     private final java.util.ArrayDeque<Pending> orElseOf = new java.util.ArrayDeque<>(1);
 
-    /** {@code arm} planned as the FALLBACK of the open root's last row (2026-11-04, the core program): the verdict it
-     *  defers -- or the failure it decides at planning -- decides the root only when that row fails. The generic
-     *  comparison first, the ruled fallback after: a rendered text's two strings, then its rows. */
+    /** {@code arm} planned as the RULED comparison of the open root's last row (2026-11-04, the core program): the
+     *  verdict it defers -- planned with that row as ONE row ({@link #plan}, 2026-11-06) -- or the failure it decides
+     *  at planning decides the root where the generic row does not hold: a rendered text's two strings, then its
+     *  rows (compatibility mode's S131 and S132). */
     public void orElse(Runnable arm) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         if (r.steps.isEmpty() || !(r.steps.get(r.steps.size() - 1) instanceof Pending last)) {
@@ -478,21 +482,49 @@ public final class VerdictBatch {
         List<Root> batch = new ArrayList<>(roots);
         roots.clear();
         current = null;
-        // a generic row with a ruled fallback ROW is ONE verdict row where the dialect spells it (2026-11-06, the
-        // user's "okay": compatibility mode's rendered text, S131/S132): the fallback computed in the same statement,
-        // so what is sent never depends on whether the generic comparison happened to hold -- a union's row order
-        // decided that, run to run, while the fallback was a statement of its own sent after a failed text. Where the
-        // dialect cannot spell the one row, the two stay as they were (a generic row it cannot spell: its fallback
-        // decides at its turn, every run; a fallback it cannot spell: refused there, nothing sent)
+        // ONE verdict row for a generic row and its ruled row, never a statement sent after another (2026-11-06,
+        // the user: "Remove fallback"; compatibility mode's rendered text, S131/S132): what is sent never depends on
+        // whether the generic comparison happened to hold -- a union's row order decided that, run to run, while the
+        // ruled row was a statement of its own sent after a failed text. Planned once, here, by what the dialect
+        // spells:
+        //  - both rows: ONE row, the generic row's columns where it holds, else the ruled row's (VerdictSql.either);
+        //  - the ruled row alone (the dialect cannot spell the generic one): the ruled row decides -- measured
+        //    2026-11-06 on the DuckDB and H2 corpora and PCT channel B on DuckDB, H2 and SQLite: H2's rendered text
+        //    over STRING_AGG, specialUnion::testGroupBy and association::mixed::testAssociationMixed, two asserts;
+        //  - the generic row alone (the dialect cannot spell the ruled one): the generic row decides, and where it fails
+        //    the assert fails with the dialect's refusal of the ruled comparison, by name, nothing sent for it (measured:
+        //    no such assert on those lanes);
+        //  - neither: the generic row's own refusal at its place (UNJUDGED, by name), as any member the dialect refuses.
         for (Root r : batch) {
             for (int i = 0; i < r.steps.size(); i++) {
-                if (r.steps.get(i) instanceof Pending p && p.appeal() == null && p.orElse() instanceof Pending f
-                        && f.orElse() == null && f.appeal() == null && f.on() == p.on()) {
-                    SqlQuery one = either.either(p.query(), f.query());
-                    if (spells(one, p.on())) {
-                        r.steps.set(i, new Pending(p.ix(), p.name(), one, p.on(), null, null));
-                    }
+                if (!(r.steps.get(i) instanceof Pending p && p.orElse() instanceof Pending f)) {
+                    continue;
                 }
+                if (p.appeal() != null || f.orElse() != null || f.appeal() != null || f.on() != p.on()) {
+                    throw new IllegalStateException("verdict batch: a ruled row in a shape no rule plans as one row: "
+                            + p.name());
+                }
+                com.legend.sql.dialect.DialectCapability genericRefused = planAhead(p.name(), p.query(), p.on()).refused();
+                com.legend.sql.dialect.DialectCapability ruledRefused = planAhead(f.name(), f.query(), p.on()).refused();
+                Pending one;
+                if (genericRefused == null && ruledRefused == null) {
+                    SqlQuery both = either.either(p.query(), f.query());
+                    com.legend.sql.dialect.DialectCapability bothRefused = planAhead(p.name(), both, p.on()).refused();
+                    if (bothRefused != null) {
+                        // each row spelled alone, the two together not: a composition bug of lite's, never a choice
+                        throw new IllegalStateException("verdict batch: " + p.name() + "'s generic and ruled rows are"
+                                + " each spelled but not as one row: " + bothRefused.getMessage(), bothRefused);
+                    }
+                    one = new Pending(p.ix(), p.name(), both, p.on(), null, null);
+                } else if (genericRefused != null && ruledRefused == null) {
+                    one = new Pending(p.ix(), p.name(), f.query(), p.on(), null, null);
+                } else if (genericRefused == null) {
+                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), null,
+                            new Resolved(java.util.Objects.requireNonNull(ruledRefused), true));
+                } else {
+                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), null, null);
+                }
+                r.steps.set(i, one);
             }
         }
         Map<Sessions.Session, List<Pending>> groups = new LinkedHashMap<>();
@@ -505,8 +537,8 @@ public final class VerdictBatch {
         }
         List<Group> out = new ArrayList<>();
         Map<ExecutionPlan.Verdict, Pending> members = new java.util.IdentityHashMap<>();
-        // the members the dialect cannot spell (the split rung at planning): a generic row with a ruled fallback is
-        // decided by its fallback at its turn, nothing sent for it (2026-11-04, the core program)
+        // the members the dialect cannot spell (the split rung at planning): each refused at its place, nothing sent
+        // for it (2026-11-04, the core program)
         java.util.Set<Pending> unspelled = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (var g : groups.entrySet()) {
             List<Pending> all = g.getValue();
@@ -573,7 +605,7 @@ public final class VerdictBatch {
             }
         }
         // THE RUNTIME WALL (the deep audit, 2026-11-05): every statement the root loop may send after the plan's
-        // rows are read -- a member's own statement (the split rung), a ruled fallback's, a caller's message -- is
+        // rows are read -- a member's own statement (the split rung), a caller's message -- is
         // planned HERE, with the fused statements; the root loop only runs what was planned, never plans
         Map<Object, Ahead> ahead = new java.util.IdentityHashMap<>();
         for (Root r : batch) {
@@ -587,16 +619,6 @@ public final class VerdictBatch {
             }
         }
         return new Planned(batch, out, members, unspelled, ahead);
-    }
-
-    /** Whether the dialect of {@code on}'s database spells {@code row} (with the batch's frames at its head). */
-    private boolean spells(SqlQuery row, Sessions.Session on) {
-        try {
-            runner.plan(com.legend.sql.FrameCtes.attach(row, frames), false, on);
-            return true;
-        } catch (com.legend.sql.dialect.DialectCapability e) {
-            return false;
-        }
     }
 
     /** A statement planned ahead of the run (the runtime wall): its plan, or the dialect's refusal of it, raised where
@@ -701,15 +723,19 @@ public final class VerdictBatch {
             }
         }
 
-        /** {@code p}'s ruled fallback decides it: the failure decided at planning raised, or the fallback's own
-         *  statement run now and judged as any row. */
+        /** {@code p}'s ruled comparison as decided at planning, raised where the generic row fails: the dialect's
+         *  refusal of it (counted UNJUDGED), or a failure its planning raised. Nothing is sent. */
         private void orElseDecides(Pending p) {
-            if (p.orElse() instanceof Resolved decided) {
-                throw decided.failure();
+            if (!(p.orElse() instanceof Resolved decided)) {
+                // a ruled row is planned as part of its generic row's own statement (plan(), 2026-11-06): never a
+                // statement of its own sent after a failure
+                throw new IllegalStateException("verdict batch: a ruled row left as a statement of its own: " + p.name());
             }
-            Pending fallback = (Pending) java.util.Objects.requireNonNull(p.orElse());
-            com.legend.diagnostics.Diagnostics.judgeSend("or-else", fallback.name());
-            judge.judge(fallback.name(), runAhead(fallback, fallback.name(), fallback.on()));
+            if (decided.failure() instanceof com.legend.sql.dialect.DialectCapability refused) {
+                CanonicalDivergence.sqlUnjudged(p.name(), "dialect-capability: "
+                        + String.valueOf(refused.getMessage()).split("\n")[0]);
+            }
+            throw decided.failure();
         }
 
         /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
@@ -728,7 +754,8 @@ public final class VerdictBatch {
                         if (s instanceof Pending p) {
                             List<Object> row = rows.get(p.ix());
                             if (row == null && p.orElse() != null && unspelled.contains(p)) {
-                                // a generic row the dialect cannot write: its ruled fallback decides
+                                // a generic row the dialect cannot write, whose ruled row was decided at planning:
+                                // that decision raises, nothing sent
                                 orElseDecides(p);
                                 continue;
                             }
@@ -740,7 +767,8 @@ public final class VerdictBatch {
                                 judge.judge(p.name(), row);
                             } catch (com.legend.error.AssertFailed e) {
                                 if (p.orElse() != null) {
-                                    // the generic row failed: the ruled fallback decides
+                                    // the generic row failed, its ruled comparison decided at planning (the dialect's
+                                    // refusal of it, or a failure its planning raised): that decision raises
                                     orElseDecides(p);
                                     continue;
                                 }

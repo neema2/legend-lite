@@ -2310,11 +2310,13 @@ final class AssertVerdicts {
                         env, hook, multiset, false, csv, true);
     }
 
-    /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically, a ruled fallback only
-     *  after it fails): a rendered text's equality is its two strings' ({@code textRow}, the database computing the
-     *  render), and {@code rows} -- the ruled line and row comparison -- decides only where they differ: under the
-     *  batch as the row's fallback ({@code VerdictBatch.orElse}), else run now on a failed text. {@code textRow} null
-     *  (a side the database judge cannot read as a String) or the negated family: {@code rows} alone. */
+    /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
+     *  equality is its two strings' ({@code textRow}, the database computing the render), and in compatibility mode
+     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- decides where they differ, planned with the
+     *  text as ONE verdict row ({@code VerdictBatch.orElse}, made one row by {@code VerdictBatch.plan}; 2026-11-06, the
+     *  user: "Remove fallback"). Outside a verdict batch the two cannot be one statement: refused by name, never a text
+     *  sent and then its rows. {@code textRow} null (a side the database judge cannot read as a String) or the negated
+     *  family: {@code rows} alone. */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
         if (env.options().judgingRules() != com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT) {
@@ -2334,7 +2336,9 @@ final class AssertVerdicts {
             batch.orElse(rows::get);
             return ok();
         }
-        return DatabaseJudge.holdsNow(name, textRow, env) ? ok() : rows.get();
+        // no batch to plan the two as one row (the walk's unbatched road): a text sent and then, where it failed, its
+        // rows was the two-statement fallback the one row replaced -- refused, by name
+        return DatabaseJudge.unjudged(name, "rendered-text: a ruled comparison outside a verdict batch");
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,
