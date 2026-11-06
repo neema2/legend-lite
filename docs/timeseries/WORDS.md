@@ -692,6 +692,26 @@ The returns of a type (simple unless given) over obs observations (1 unless give
 
 Forms: `returns(x: Line, type: Returns (optional))`, `returns(x: Line, obs: Integer, type: Returns (optional))`, `returns(x: Line, obs: Integer, unit: DurationUnit, type: Returns (optional))`.
 
+## `round_down`
+
+Each of x's values rounded down (SQL's floor; #TS refuses floor, D2).
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `x` | line |  | yes |
+
+Forms: `round_down(x: Line)`.
+
+## `round_up`
+
+Each of x's values rounded up (SQL's ceil; #TS refuses ceil, D2).
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `x` | line |  | yes |
+
+Forms: `round_up(x: Line)`.
+
 ## `rsi`
 
 The relative strength index over w observations (14 unless given), Wilder's.
@@ -928,14 +948,15 @@ Forms: `weighted_sum(members: Members)`.
 
 ## `winsorize`
 
-x's values winsorized: each held within limit (2.5 unless given) sample deviations of the whole line's mean.
+x's values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line's (whole).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
 | `limit` | number |  | no |
+| `w` | span | whole | no |
 
-Forms: `winsorize(x: Line, limit: Float (optional))`.
+Forms: `winsorize(x: Line, limit: Float (optional))`, `winsorize(x: Line, limit: Float (optional), w: Whole)`.
 
 ## `year`
 
@@ -949,11 +970,11 @@ Forms: `year(x: Line)`.
 
 ## `zscores`
 
-The z-score of each of x's values against its window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, or the whole line (its default, and today's all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line's start to date).
+The z-score of each of x's values against its window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date (its default, and all), or the whole line (whole).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `w` | span | observations, period, all | no |
+| `w` | span | observations, period, all, whole | no |
 
-Forms: `zscores(x: Line)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `zscores(x: Line)`, `zscores(x: Line, w: Whole)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`.

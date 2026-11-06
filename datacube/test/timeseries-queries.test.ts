@@ -426,9 +426,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
   it('z-scores over a window, and over every observation', async () => {
     const want = AAA.map((v, i) => (i < 9 ? null : (v - avg(AAA.slice(i - 9, i + 1))) / sd(AAA.slice(i - 9, i + 1))));
     close((await line(spec({ A: 'zscores(close[AAA], 10)' }))).values, ramp(want, 10), 'rolling z', 1e-7);
-    const m = avg(AAA);
-    const s = sd(AAA);
-    close((await line(spec({ A: 'zscores(close[AAA])' }))).values, AAA.map((v) => (v - m) / s), 'z', 1e-7);
+    // with no window, to date (D2's look-ahead rule, R7: docs/SEMANTICS_REGISTER.md S150, 2026-11-06): each date's
+    // z-score against the line's values to it, none at its first
+    close((await line(spec({ A: 'zscores(close[AAA])' }))).values,
+      AAA.map((v, i) => (i === 0 ? null : (v - avg(AAA.slice(0, i + 1))) / sd(AAA.slice(0, i + 1)))), 'z', 1e-7);
   });
 
   it('volatility: the annualized standard deviation of returns, in percent (gs-quant: 20% is 20)', async () => {
@@ -828,10 +829,14 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     close(b.upper!, band(2), 'upper 2w', 1e-7);
   });
 
-  it('winsorize and a Sharpe ratio over a count: within the limit of every value\'s mean; the mean return over its deviation, annualized', async () => {
-    const m = avg(AAA);
-    const s = sd(AAA);
-    close((await line(spec({ A: 'winsorize(close[AAA], 1)' }))).values, AAA.map((v) => Math.min(Math.max(v, m - s), m + s)), 'winsorize', 1e-9);
+  it('winsorize and a Sharpe ratio over a count: within the limit of the mean to date; the mean return over its deviation, annualized', async () => {
+    // to date (S150, 2026-11-06): each value held within the limit of the line's values to it, the first kept
+    close((await line(spec({ A: 'winsorize(close[AAA], 1)' }))).values, AAA.map((v, i) => {
+      if (i === 0) return v;
+      const m = avg(AAA.slice(0, i + 1));
+      const s = sd(AAA.slice(0, i + 1));
+      return Math.min(Math.max(v, m - s), m + s);
+    }), 'winsorize', 1e-9);
     const r = simple(AAA);
     close((await line(spec({ A: 'sharpe_ratio(close[AAA], 10)' }))).values, DAYS.map((_, i) => {
       const vals = r.slice(Math.max(0, i - 9), i + 1).filter((v) => v !== null) as number[];

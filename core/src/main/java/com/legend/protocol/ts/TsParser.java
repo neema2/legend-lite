@@ -53,6 +53,20 @@ public final class TsParser {
             "join", "as", "on", "using", "filter", "within", "lateral", "select", "where", "and", "or", "not", "when",
             "then", "else", "by", "with", "union", "except", "intersect");
 
+    /**
+     * The calls refused in a #TS statement, each with both fixes (the one-tree plan's D2, as narrowed by R7, ruled
+     * 2026-10-31): a function whose gs-quant meaning and SQL meaning differ. A statement holds SQL -- its WITH bodies,
+     * its WHERE, its FILTER keep Postgres's meaning, the #SQL island's -- so log cannot be natural in an item and base 10
+     * in a WHERE: the name is refused wherever it is called, and the message says what to write for either meaning.
+     */
+    private static final Map<String, String> REFUSED_CALLS = Map.of(
+            "log", "log(x) is refused: SQL's log is base 10, gs-quant's is natural -- write ln(x) (natural, gs-quant's"
+                    + " log) or log10(x) (D2)",
+            "floor", "floor(x) is refused: SQL's floor rounds, gs-quant's is a bound -- write greatest(x, 0) for"
+                    + " gs-quant's floor, or round_down(x) to round (D2)",
+            "ceil", "ceil(x) is refused: SQL's ceil rounds, gs-quant's is a bound -- write least(x, 0) for gs-quant's"
+                    + " ceil, or round_up(x) to round (D2)");
+
     /** The clauses that end the FROM clause: the language's own, and SQL's that it refuses with their fix. */
     private static final Set<String> AFTER_FROM = Set.of("where", "filter", "sample", "fill", "group", "order",
             "limit", "offset", "having", "window", "union", "except", "intersect", "fetch");
@@ -142,6 +156,11 @@ public final class TsParser {
                 Token before = i > 0 ? lexed.get(i - 1) : null;
                 boolean call = before != null && (before.kind() == Kind.QUOTED_IDENT
                         || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
+                String refused = before != null && call && before.kind() == Kind.IDENT
+                        ? REFUSED_CALLS.get(before.text().toLowerCase(java.util.Locale.ROOT)) : null;
+                if (before != null && refused != null) {
+                    throw invalid(refused, before.pos());
+                }
                 parens.push(new boolean[] {call, false});
             } else if (t.kind() == Kind.RPAREN && !parens.isEmpty()) {
                 parens.pop();

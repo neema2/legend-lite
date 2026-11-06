@@ -786,6 +786,83 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * D2 (the one-tree plan, as narrowed by R7, ruled 2026-10-31): a function whose gs-quant meaning and SQL meaning
+     * differ is refused wherever a #TS statement calls it -- an item, a WHERE, a WITH body -- with both fixes, so log is
+     * never natural in one clause and base 10 in another; the rounding its fix names is the library's round_down and
+     * round_up, each value, on every in-process database.
+     */
+    @Test
+    void logFloorAndCeilAreRefusedWithBothFixesAndTheRoundingWordsRound() throws Exception {
+        for (String ts : List.of("SELECT log(CLOSE) AS l FROM PRICES ON DAY BY SYMBOL",
+                "SELECT CLOSE AS c FROM (PRICES WHERE LOG(CLOSE) > 1) ON DAY BY SYMBOL",
+                "WITH q AS (SELECT SYMBOL, DAY, log(CLOSE) AS L FROM PRICES) SELECT L AS l FROM q ON DAY BY SYMBOL")) {
+            String why = refused(ts, true);
+            assertTrue(why.contains("log(x) is refused") && why.contains("write ln(x) (natural, gs-quant's log) or"
+                    + " log10(x) (D2)"), ts + ": " + why);
+        }
+        String floor = refused("SELECT floor(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
+        assertTrue(floor.contains("greatest(x, 0) for gs-quant's floor, or round_down(x) to round (D2)"), floor);
+        String ceil = refused("SELECT ceil(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
+        assertTrue(ceil.contains("least(x, 0) for gs-quant's ceil, or round_up(x) to round (D2)"), ceil);
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT round_down(CLOSE) AS d, round_up(CLOSE) AS u,"
+                    + " round_down(-CLOSE) AS nd FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> Math.floor(AAA[i])), column(got, "SYMBOL", "AAA", "d"),
+                    backend + ": round_down");
+            assertClose(each(AAA.length, i -> Math.ceil(AAA[i])), column(got, "SYMBOL", "AAA", "u"),
+                    backend + ": round_up");
+            assertClose(each(AAA.length, i -> Math.floor(-AAA[i])), column(got, "SYMBOL", "AAA", "nd"),
+                    backend + ": round_down of a negative value, below it");
+        }
+    }
+
+    /**
+     * D2's look-ahead rule (R7, ruled 2026-10-31: gs-quant's meaning "unless it looks ahead"): zscores with no window
+     * (or all) and winsorize answer each date from the line to that date, where gs-quant's read the whole series, the
+     * future included; gs-quant's is asked for by name, whole (D3's one way to ask for the future). Register S150.
+     */
+    @Test
+    void zscoresAndWinsorizeLookOnlyBackUnlessAskedForTheWholeLine() throws Exception {
+        int n = AAA.length;
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT zscores(CLOSE) AS z, zscores(CLOSE, all) AS za,"
+                    + " zscores(CLOSE, whole) AS zw, winsorize(CLOSE, 1.5) AS w, winsorize(CLOSE, 1.5, whole) AS ww"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            Double[] toDate = each(n, i -> i == 0 ? null : (AAA[i] - meanOf(AAA, 0, i)) / sampleStdOf(AAA, 0, i));
+            assertClose(toDate, column(got, "SYMBOL", "AAA", "z"), backend + ": zscores to date");
+            assertClose(toDate, column(got, "SYMBOL", "AAA", "za"), backend + ": zscores(x, all), to date");
+            assertClose(each(n, i -> (AAA[i] - meanOf(AAA, 0, n - 1)) / sampleStdOf(AAA, 0, n - 1)),
+                    column(got, "SYMBOL", "AAA", "zw"), backend + ": zscores(x, whole), gs-quant's whole line");
+            assertClose(each(n, i -> i == 0 ? AAA[0] : held(AAA[i], meanOf(AAA, 0, i), sampleStdOf(AAA, 0, i), 1.5)),
+                    column(got, "SYMBOL", "AAA", "w"), backend + ": winsorize to date");
+            assertClose(each(n, i -> held(AAA[i], meanOf(AAA, 0, n - 1), sampleStdOf(AAA, 0, n - 1), 1.5)),
+                    column(got, "SYMBOL", "AAA", "ww"), backend + ": winsorize(x, limit, whole), gs-quant's");
+        }
+    }
+
+    private static double meanOf(double[] v, int from, int to) {
+        double sum = 0;
+        for (int i = from; i <= to; i++) {
+            sum += v[i];
+        }
+        return sum / (to - from + 1);
+    }
+
+    private static double sampleStdOf(double[] v, int from, int to) {
+        double m = meanOf(v, from, to);
+        double ss = 0;
+        for (int i = from; i <= to; i++) {
+            ss += (v[i] - m) * (v[i] - m);
+        }
+        return Math.sqrt(ss / (to - from));
+    }
+
+    /** {@code x} held within {@code limit} deviations of {@code m}. */
+    private static double held(double x, double m, double s, double limit) {
+        return Math.max(m - limit * s, Math.min(m + limit * s, x));
+    }
+
     @Test
     void linesOfSeveralRowsOnADateMeetAsALookupAndBothSoAreRefused() throws Exception {
         // the time model's D1 (ruled 2026-11-03): PRICES read with no BY has two rows on each date (AAA's and BBB's).
@@ -1584,8 +1661,9 @@ class TsIslandTest {
                 Compiler.compileModel(library()));
         Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
         words.forEach(w -> byName.put(w.name(), w));
-        // 81 -> 82 (2026-11-03, A9): rank, each date's place among its instruments (the spec's §6)
-        assertEquals(82, words.size(), "the words: " + byName.keySet());
+        // 81 -> 82 (2026-11-03, A9): rank, each date's place among its instruments (the spec's §6); 82 -> 84
+        // (2026-11-06, A4): round_down and round_up, SQL's rounding, which D2's refusal of floor and ceil names
+        assertEquals(84, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         // a word's other spellings are the library's (timeseries::Words.alias, R15): mean's avg, Postgres's stddev and
         // variance; no word is named by one

@@ -711,6 +711,26 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     facts: { label: ['Returns'], family: ['Returns'], unit: ['input'], gsQuant: ['econometrics.returns'], about: ['The return over obs observations.'] },
     marks: [],
   },
+  round_down: {
+    params: [
+      { name: 'x', kind: 'line', takes: [], words: [], required: true },
+    ],
+    forms: ['round_down(x: Line)'],
+    doc: 'Each of x\'s values rounded down (SQL\'s floor; #TS refuses floor, D2).',
+    aliases: [],
+    facts: { label: ['Rounded down'], family: ['Math'], unit: ['same'], level: ['keeps'], about: ['Rounded down: -1.5 is -2.'] },
+    marks: [],
+  },
+  round_up: {
+    params: [
+      { name: 'x', kind: 'line', takes: [], words: [], required: true },
+    ],
+    forms: ['round_up(x: Line)'],
+    doc: 'Each of x\'s values rounded up (SQL\'s ceil; #TS refuses ceil, D2).',
+    aliases: [],
+    facts: { label: ['Rounded up'], family: ['Math'], unit: ['same'], level: ['keeps'], about: ['Rounded up: -1.5 is -1.'] },
+    marks: [],
+  },
   rsi: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
@@ -945,11 +965,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
       { name: 'limit', kind: 'number', takes: [], words: [], required: false },
+      { name: 'w', kind: 'span', takes: ['whole'], words: [], required: false },
     ],
-    forms: ['winsorize(x: Line, limit: Float (optional))'],
-    doc: 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the whole line\'s mean.',
+    forms: ['winsorize(x: Line, limit: Float (optional))', 'winsorize(x: Line, limit: Float (optional), w: Whole)'],
+    doc: 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line\'s (whole).',
     aliases: [],
-    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean over every observation.'], param: ['limit: standard deviations from the mean it is held within'] },
+    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean to date.'], differs: ['to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['limit: standard deviations from the mean it is held within'] },
     marks: [],
   },
   year: {
@@ -965,12 +986,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   zscores: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
+      { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'whole'], words: [], required: false },
     ],
-    forms: ['zscores(x: Line)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).',
+    forms: ['zscores(x: Line)', 'zscores(x: Line, w: Whole)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
+    doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole).',
     aliases: [],
-    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or (0) every one.'], param: ['w: observations in the window; 0 every observation'], search: ['zscore', 'z'] },
+    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, or whole'], search: ['zscore', 'z'] },
     marks: [],
   },
 };

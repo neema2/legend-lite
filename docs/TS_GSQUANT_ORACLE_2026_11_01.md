@@ -14,11 +14,14 @@ requirement of the repository: the oracle is a manual check, as the corpus lanes
 
 First run (2026-11-01): AGREE 119, DIFFER 27 (26 by a window's first value, O1; compare, O2), NO-GSQUANT 39,
 NOT-CHECKED 25. After O1 and O2 below (the same day): **AGREE 145, DIFFER 1**, NO-GSQUANT 39, NOT-CHECKED 25.
+2026-11-06, after D2's look-ahead rule (A4, S150): **AGREE 144, DIFFER 2**, both named departures -- `winsorize A`
+(`winsorize(returns(close[EURUSD]), 1.5)`) holds each return within 1.5 deviations of the returns to date, where
+gs-quant holds it within the whole series' (164 of its 1,303 points differ; `winsorize(x, 1.5, whole)` is gs-quant's).
 
 | | Series | |
 |---|---|---|
-| AGREE | 145 | every date lite answers gs-quant answers, the same |
-| DIFFER | 1 | `compare(close[SPX], mean(close[SPX], 200))` on the first 200 dates: gs-quant's step backfills the mean (R12, below) |
+| AGREE | 144 | every date lite answers gs-quant answers, the same |
+| DIFFER | 2 | `compare(close[SPX], mean(close[SPX], 200))` on the first 200 dates: gs-quant's step backfills the mean (R12, below); `winsorize(returns(close[EURUSD]), 1.5)`: to date, where gs-quant's reads the whole series (S150, 2026-11-06) |
 | NO-GSQUANT | 39 | a word gs-quant has no function for (`rebase`, `drawdown`, `percent_change`, the technicals, `dickey_fuller`, `half_life`, `lead_lag`, `hedge_ratio`), or one that asks its service (`sharpe_ratio`'s risk-free rate, `alpha`, `r_squared`, `tracking_error`, `information_ratio`: report APIs), or a form the oracle does not read yet (`volume[AAPL].sum`) |
 | NOT-CHECKED | 25 | a tile setting the oracle does not model yet: a from-date (13), a SAMPLE BY grain (7), a split per instrument (3), an alignment (2) |
 
