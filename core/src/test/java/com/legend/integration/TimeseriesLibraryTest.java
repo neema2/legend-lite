@@ -125,7 +125,11 @@ class TimeseriesLibraryTest {
                 for (int i = 0; i < CAL_DAYS.size(); i++) {
                     ps.setString(1, symbol);
                     ps.setObject(2, CAL_DAYS.get(i));
-                    ps.setObject(3, CAL_DAYS.get(i).atStartOfDay());
+                    // a date-time as text the database casts, as lite's own loader gives one (setup.RowLoad), its ISO
+                    // form with a space -- not a driver's LocalDateTime text: SQLite's driver wrote '2023-01-02T00:00',
+                    // whose 'T' sorts after a bound's space (the user, 2026-11-06, W10: "Seed canonical text")
+                    ps.setString(3, CAL_DAYS.get(i).atStartOfDay().format(
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)));
                     ps.setDouble(4, calClose(symbol, i));
                     ps.setDouble(5, calV2(symbol, i));
                     ps.addBatch();
@@ -327,8 +331,9 @@ class TimeseriesLibraryTest {
                                 pairStats.contains(stat) ? 1e-7 : 1e-9);
                     }
                 }
-                // the join of date-times, one statistic a query (a join reads its line three times), where it is right
-                if (backend.type() == Databases.PLATFORM) {
+                // the join of date-times, one statistic a query (a join reads its line three times), on every database
+                // (SQLite's since its date-times are seeded as lite writes them, W10 2026-11-06)
+                {
                     for (String stat : stats) {
                         List<Map<String, String>> joined = rows(backend, model, "|#>{ts::DB.CAL}#->timeseries::windowPeriod(~SYMBOL, ~DT, ~CLOSE, "
                                 + window + ", timeseries::Statistic." + stat + ", ~" + stat + ")->sort([~SYMBOL->ascending(), ~DAY->ascending()])");

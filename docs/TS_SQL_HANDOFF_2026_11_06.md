@@ -212,7 +212,7 @@ item comes up.
 | A3 | The same plan's decisions 1 to 3. Decision 2 (a word's facts as library tags) was built as recommended in step 1, after saying "tell me if you want otherwise"; no objection came. 1 and 3 are unasked in practice. | 2026-11-03 | 1(a), 2(a), 3(b) |
 | A4, the words' remainder | The one-tree plan's §9 R1 (§4.1 and §4.2, row by row) and R9 (two lines meeting: the dates both have, gs-quant's step, or pandas' union). R7 is ruled and built. | 2026-11-01 | as that plan recommends |
 | B7 | P2: the page period, option D with every tile zooming, read from "Yes do it"; to be confirmed. | 2026-11-01 | D |
-| W6's merge | Whether a `let` written once as a `WITH` needs a register row. Rows never change; only a relation that is not fixed (a `limit` with no sort, a random value) now gives the same rows at every read, which matches Pure's `let` and the engine's single evaluation. | 2026-11-04 | no row; say why in the merge's commit |
+| W6's merge | Whether a `let` written once as a `WITH` needs a register row. Rows never change; only a relation that is not fixed (a `limit` with no sort, a random value) now gives the same rows at every read, which matches Pure's `let` and the engine's single evaluation. **Ruled 2026-11-06 ("No row; say why"),** asked again as the A2′ review's finding 5: the engine's plan computes a query's `let` once (`executionPlan_generation.pure`, `letFunctionProcessor`, an allocation node). | 2026-11-04 | no row; say why in the merge's commit |
 
 ## 4. What was built, 2026-11-03 to 2026-11-04
 
@@ -681,6 +681,15 @@ condition is the likely one). Not to be enabled before that is fixed, and the us
 - **SQLite's correlation** is written from running sums and is about 8e-9 from the two-pass figure on a window of three.
   Within the frozen answers' tolerance, but worse than the other databases.
 - Neither has a register row or a test that pins it. Post each to the user before fixing (upstream fidelity).
+- **The first, diagnosed and ruled 2026-11-06:** not the dialect -- the test bound its date-times with JDBC's
+  `setObject(LocalDateTime)`, which SQLite's driver stores as `2023-01-02T00:00`; lite writes a date-time there as
+  its ISO text with a space (`SQLite.timestampLit`) and its bounds are `datetime()`'s `2022-10-02 00:00:00`, and as
+  text `T` sorts after the space, so each window took its start day (389 of 522 counts one too many, measured).
+  legend-engine has no SQLite dialect. The user: "Seed canonical text" -- the test binds a date-time as text the
+  database casts (as `setup.RowLoad` does), and the date-time join is now checked on every in-process database. That
+  check found a third: **SQLite's sample deviation and variance of one value were 0.0** (the driver's `stdev()` and
+  `variance()`), where DuckDB, Postgres and lite's own windowed moments give none; the aggregates now give none under
+  two values. The correlation's precision (the second) is still to post.
 
 ## 9. The toolkit
 

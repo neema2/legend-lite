@@ -2716,9 +2716,14 @@ public final class SQLite extends AnsiSqlRenderer {
             case MAX -> aggregate(writer, "MAX", r);
             // any non-NULL value: the least (SQLite has no any_value)
             case ANY_VALUE -> writer.append("min(").piece(aggregateArgs(r)).append(")");
-            // the driver's statistics extension: stdev and variance are the sample ones
-            case STDDEV_SAMP, STDDEV -> writer.append("stdev(").piece(aggregateArgs(r)).append(")");
-            case VAR_SAMP, VARIANCE -> writer.append("variance(").piece(aggregateArgs(r)).append(")");
+            // the driver's statistics extension: stdev and variance are the sample ones -- each of one value 0 there,
+            // where the sample statistic of one value is none (DuckDB's, Postgres's, and the windowed moments' own
+            // n > 1 below), so none where fewer than two values are read (W10, 2026-11-06, measured: a calendar
+            // window's deviation of its first day, 0.0 by the join, none by the frame and in Java)
+            case STDDEV_SAMP, STDDEV -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN stdev(").piece(aggregateArgs(r)).append(") END)");
+            case VAR_SAMP, VARIANCE -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN variance(").piece(aggregateArgs(r)).append(") END)");
             case VAR_POP -> writer.piece(populationVariance(r));
             case STDDEV_POP -> writer.append("sqrt(").piece(populationVariance(r)).append(")");
             case COVAR_POP, COVAR_SAMP, CORR -> writer.piece(moments(r));
