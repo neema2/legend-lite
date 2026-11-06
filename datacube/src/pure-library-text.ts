@@ -2271,7 +2271,7 @@ function timeseries::line::helpers::returnsType(type: timeseries::Returns[0..1])
 
 function {meta::pure::profiles::doc.doc = 'The mean of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.alias = 'avg', timeseries::Words.label = 'Moving average', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.mean, technicals.moving_average', timeseries::Words.about = 'The average over the last w observations.', timeseries::Words.differs = 'w defaults to 22 observations (gs-quant: every observation)', timeseries::Words.search = 'moving_average', timeseries::Words.search = 'sma', timeseries::Words.search = 'ma', timeseries::Words.search = 'average'} timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2281,7 +2281,7 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 
 function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2376,13 +2376,16 @@ function timeseries::rows::range<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<
 }
 
 // A LINE OF ONE ROW A DATE, READ IN ITS ROWS' ORDER (the user, 2026-11-06, the time model's D8): x, its value refused
-// while the query runs where its key has several rows on the date (once) -- a word's line form that counts
-// observations reads its line through it (each line it meets), as its rows form reads once over its answer. Its rows
-// are x's: the check is in the value the word reads, never a filter of its own (a level of its own, which H2's planner
-// nests exponentially: //core:ts_island_test's five words ran out of memory, 2026-11-06).
+// while the query runs where its key has several rows on the date (once). A word's line form that reads its line in
+// order (a count of rows, a window to date or since a date, a value as of a date or from the line's first, an
+// exponential average) checks its answer so -- its rows are its line's, but for a ramp's first rows -- and a word of
+// several value columns (a band) each line it reads. Never a filter of its own (a level of its own, which H2's planner
+// nests exponentially: //core:ts_island_test's five words ran out of memory, 2026-11-06), and on the answer rather than
+// on the value the word's windows read (a value that may raise, read inside a window, keeps the dialects' passes from
+// merging its levels: the examples' planning +15-20%, their run +6-12%, measured 2026-11-06).
 function timeseries::lines::untied<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::perPeriod(~key, ~date, ~lo)->extend(~lv:r|if(timeseries::lines::once($r.lo), |$r.value, |[]))->select(~[key, date, lv])->rename(~lv, ~value)
+  $x->extend(over(~[key, date]), ~lo:{p,f,r|1}:y|$y->count())->extend(~lv:r|if(timeseries::lines::once($r.lo), |$r.value, |[]))->select(~[key, date, lv])->rename(~lv, ~value)
 }
 
 // A line's rows on one date, n, where a word counts its observations (the user, 2026-11-06, the time
@@ -2391,7 +2394,7 @@ function timeseries::lines::untied<K,D>(x: Relation<(key:K, date:D, value:Number
 // the store declares makes the count 1 (D2, S132).
 function timeseries::lines::once(n: Integer[1]): Boolean[1]
 {
-  if($n > 1, |fail('a word of n observations reads its line in order, and the line has several rows on one date: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)'), |true)
+  if($n > 1, |fail('a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)'), |true)
 }
 
 // The rows forms of the words over w observations whose table functions read a window over another (R7 part 3,
@@ -2522,18 +2525,18 @@ function timeseries::rows::max_drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: C
 
 function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
-  $t->timeseries::lagPeriod($key, $date, $value, $w, $unit, ~rows_m)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::lagPeriod($key, $date, $value, $w, $unit, ~rows_m)
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
-    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
-    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 function timeseries::rows::diff<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
-  $t->timeseries::diffPeriod($key, $date, $value, $w, $unit, ~rows_m)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::diffPeriod($key, $date, $value, $w, $unit, ~rows_m)
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
-    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
-    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 function timeseries::rows::diff<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], obs: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
@@ -2546,11 +2549,11 @@ function timeseries::rows::diff<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K
 
 function timeseries::rows::sum<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: StrictDate[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
-  $t->extend(~rows_v:r|if($r->read($date)->cast(@Date) >= $w, |$r->read($value), |[]))
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->extend(~rows_v:r|if($r->read($date)->cast(@Date) >= $w, |$r->read($value), |[]))
     ->timeseries::sum(over($key, [$date->ascending()], rows(unbounded(), 0)), ~rows_v, 1, ~rows_m)->without(~rows_v)
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
-    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
-    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~rows_m)->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 // The rows forms of the words of two lines' levels (R7 part 3, 2026-11-04): the word of t's columns x and y, t the two
@@ -2568,7 +2571,9 @@ function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColS
 
 function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
 }
 
 function timeseries::rows::hedge_ratio<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
@@ -2585,7 +2590,9 @@ function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec
 
 function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->timeseries::residual(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::residual(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
 }
 
 function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
@@ -2602,7 +2609,9 @@ function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆
 
 function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->timeseries::covariance(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, $out)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::covariance(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
+    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
 }
 
 function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
@@ -2633,7 +2642,7 @@ function timeseries::rows::points<T,P>(t: Relation<T>[1], present: ColSpec<P⊆T
 
 function {meta::pure::profiles::doc.doc = 'The sum of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.label = 'Rolling sum', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'statistics.sum_', timeseries::Words.about = 'The sum over the last w observations; from the start, a running total.', timeseries::Words.search = 'sum_', timeseries::Words.search = 'cumsum'} timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2643,7 +2652,7 @@ function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2653,7 +2662,7 @@ function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function {meta::pure::profiles::doc.doc = 'The least of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.label = 'Rolling minimum', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.min_', timeseries::Words.about = 'The least over the last w observations.', timeseries::Words.differs = 'w defaults to 22 observations (gs-quant: every observation)', timeseries::Words.search = 'min_'} timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::min(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::min(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2663,7 +2672,7 @@ function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::min(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::min(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2673,7 +2682,7 @@ function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function {meta::pure::profiles::doc.doc = 'The greatest of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.label = 'Rolling maximum', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.max_', timeseries::Words.about = 'The most over the last w observations.', timeseries::Words.differs = 'w defaults to 22 observations (gs-quant: every observation)', timeseries::Words.search = 'max_'} timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::max(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::max(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2683,7 +2692,7 @@ function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::max(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::max(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2693,7 +2702,7 @@ function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function {meta::pure::profiles::doc.doc = 'The sample standard deviation of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.alias = 'stddev', timeseries::Words.label = 'Rolling standard deviation', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'statistics.std', timeseries::Words.about = 'The sample standard deviation over the last w observations.', timeseries::Words.differs = 'w defaults to 22 observations (gs-quant: every observation)', timeseries::Words.search = 'stdev'} timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::std(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::std(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2703,7 +2712,7 @@ function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::std(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::std(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2713,7 +2722,7 @@ function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function {meta::pure::profiles::doc.doc = 'The sample variance of x\\'s values over a window: w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date, or a date on.', timeseries::Words.alias = 'variance', timeseries::Words.label = 'Rolling variance', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.var', timeseries::Words.about = 'The sample variance over the last w observations.', timeseries::Words.differs = 'w defaults to 22 observations (gs-quant: every observation)', timeseries::Words.search = 'variance'} timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::var(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::var(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2723,7 +2732,7 @@ function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
 
 function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::var(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::var(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2738,7 +2747,7 @@ function {meta::pure::profiles::doc.doc = 'The number of x\\'s values over a cal
 
 function timeseries::line::count<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::count(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::count(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::count<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2753,16 +2762,16 @@ function {meta::pure::profiles::doc.doc = 'The annualized volatility of x\\'s re
 
 function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], type: timeseries::Returns[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::line::helpers::annualized($annualization_factor, $sample)
+  $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
     ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::line::helpers::returnsType($type), ~r)
-    ->timeseries::volatility(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::volatility(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], type: timeseries::Returns[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
     ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::line::helpers::returnsType($type), ~r)
-    ->timeseries::volatility(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~r, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::volatility(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~r, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], type: timeseries::Returns[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2779,12 +2788,12 @@ function {meta::pure::profiles::doc.doc = 'The z-score of each of x\\'s values a
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::zscores(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::zscores()
+  $x->timeseries::line::zscores()->timeseries::lines::untied()
 }
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2799,16 +2808,16 @@ function {meta::pure::profiles::doc.doc = 'The annualized Sharpe ratio of x\\'s 
 
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::line::helpers::annualized($annualization_factor, $sample)
+  $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
     ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
     ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~r, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~r, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2828,12 +2837,12 @@ function {meta::pure::profiles::doc.doc = 'The range of x\\'s values (greatest l
 
 function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::range(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::range(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::range(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::range(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2848,12 +2857,12 @@ function {meta::pure::profiles::doc.doc = 'Each value\\'s drawdown from the grea
 
 function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::drawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::drawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::drawdown(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::drawdown(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2868,12 +2877,12 @@ function {meta::pure::profiles::doc.doc = 'The deepest drawdown of x\\'s values 
 
 function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2888,12 +2897,12 @@ function {meta::pure::profiles::doc.doc = 'The product of x\\'s values over a wi
 
 function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::product(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::product(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::product(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::product(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2908,12 +2917,12 @@ function {meta::pure::profiles::doc.doc = 'The volatility a variance swap\\'s re
 
 function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::volSwapVolatility(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::volSwapVolatility(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::volSwapVolatility(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::volSwapVolatility(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2928,12 +2937,12 @@ function {meta::pure::profiles::doc.doc = 'The Dickey-Fuller statistic of x\\'s 
 
 function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::dickeyFuller(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 3, |3, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::dickeyFuller(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 3, |3, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::dickeyFuller(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 3, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::dickeyFuller(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 3, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2948,12 +2957,12 @@ function {meta::pure::profiles::doc.doc = 'The half-life of mean reversion of x\
 
 function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::halfLife(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 3, |3, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::halfLife(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 3, |3, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::halfLife(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 3, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::halfLife(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 3, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2968,12 +2977,12 @@ function {meta::pure::profiles::doc.doc = 'Each of x\\'s values\\' percentile am
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::percentiles(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::percentiles(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::percentiles(~key, ~date, ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::percentiles(~key, ~date, ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2996,12 +3005,12 @@ function {meta::pure::profiles::doc.doc = 'The median of x\\'s values over a win
 
 function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::quantile(~key, ~date, ~value, $w, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::quantile(~key, ~date, ~value, $w, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::quantile(~key, ~date, ~value, 0, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::quantile(~key, ~date, ~value, 0, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3016,7 +3025,7 @@ function {meta::pure::profiles::doc.doc = 'The n-th percentile (50 unless given)
 
 function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[0..1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::quantile(~key, ~date, ~value, $w, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
+  $x->timeseries::quantile(~key, ~date, ~value, $w, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)->timeseries::lines::untied()
 }
 
 function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[0..1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3047,12 +3056,12 @@ function {meta::pure::profiles::doc.doc = 'The value obs observations back (1 un
 
 function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::lag(over(~[key], [~date->ascending()]), ~value, $obs, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::lag(over(~[key], [~date->ascending()]), ~value, $obs, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lagPeriod(~key, ~date, ~value, $obs, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::lagPeriod(~key, ~date, ~value, $obs, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'Each value less the one obs observations back (1 unless given), or a calendar period back.', timeseries::Words.label = 'Difference', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'analysis.diff', timeseries::Words.about = 'The change over obs observations: x - x[-obs].'} timeseries::line::diff<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3062,12 +3071,12 @@ function {meta::pure::profiles::doc.doc = 'Each value less the one obs observati
 
 function timeseries::line::diff<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::diff(over(~[key], [~date->ascending()]), ~value, $obs, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::diff(over(~[key], [~date->ascending()]), ~value, $obs, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::diff<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::diffPeriod(~key, ~date, ~value, $obs, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::diffPeriod(~key, ~date, ~value, $obs, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The returns of a type (simple unless given) over obs observations (1 unless given), or as of a calendar period back.', timeseries::Words.label = 'Returns', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'input', timeseries::Words.gsQuant = 'econometrics.returns', timeseries::Words.about = 'The return over obs observations.'} timeseries::line::returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], type: timeseries::Returns[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3077,17 +3086,17 @@ function {meta::pure::profiles::doc.doc = 'The returns of a type (simple unless 
 
 function timeseries::line::returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], type: timeseries::Returns[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::returns(over(~[key], [~date->ascending()]), ~value, $obs, timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::returns(over(~[key], [~date->ascending()]), ~value, $obs, timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], type: timeseries::Returns[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::returnsPeriod(~key, ~date, ~value, $obs, $unit, timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::returnsPeriod(~key, ~date, ~value, $obs, $unit, timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The prices x\\'s returns of a type (simple unless given) make, from initial (1 unless given).', timeseries::Words.label = 'Prices from returns', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'index', timeseries::Words.level = 'makes', timeseries::Words.gsQuant = 'econometrics.prices', timeseries::Words.about = 'A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.', timeseries::Words.param = 'initial: the level it starts from'} timeseries::line::prices<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], initial: Float[0..1], type: timeseries::Returns[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::prices(~key, ~date, ~value, if($initial->isEmpty(), |1.0, |$initial->toOne()), timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::prices(~key, ~date, ~value, if($initial->isEmpty(), |1.0, |$initial->toOne()), timeseries::line::helpers::returnsType($type), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'Each of x\\'s values annualized by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the line\\'s dates infer.', timeseries::Words.label = 'Annualize', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'econometrics.annualize', timeseries::Words.about = 'Times the square root of the periods in a year (252 days, 52 weeks, 12 months, 4 quarters).', timeseries::Words.differs = 'with a frequency, the periods in a year are the tile\\'s (gs-quant always reads them off the dates, as DataCube does with none)'} timeseries::line::annualize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3097,47 +3106,47 @@ function {meta::pure::profiles::doc.doc = 'Each of x\\'s values annualized by th
 
 function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value over the line\\'s first (or its value as of from), times initial (1 unless given).', timeseries::Words.label = 'Index', timeseries::Words.family = 'Level', timeseries::Words.unit = 'index', timeseries::Words.level = 'makes', timeseries::Words.gsQuant = 'econometrics.index', timeseries::Words.about = 'Divided by its value as of the first date shown (its last at or before it), times initial.', timeseries::Words.param = 'initial: its value as of the first date shown'} timeseries::line::index<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], initial: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::index(~key, ~date, ~value, if($initial->isEmpty(), |1.0, |$initial->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::index(~key, ~date, ~value, if($initial->isEmpty(), |1.0, |$initial->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::index<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], initial: Float[0..1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($initial->isEmpty(), |1.0, |$initial->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($initial->isEmpty(), |1.0, |$initial->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value over the line\\'s first (or its value as of from), times base (100 unless given).', timeseries::Words.label = 'Rebase to 100', timeseries::Words.family = 'Level', timeseries::Words.unit = 'index', timeseries::Words.level = 'makes', timeseries::Words.gsQuant = 'DataCube (econometrics.index)', timeseries::Words.about = 'Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).', timeseries::Words.param = 'base: its value as of the first date shown'} timeseries::line::rebase<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], base: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::index(~key, ~date, ~value, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::index(~key, ~date, ~value, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::rebase<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], base: Float[0..1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value less the line\\'s first (or its value as of from).', timeseries::Words.label = 'Change from start', timeseries::Words.family = 'Level', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'econometrics.change', timeseries::Words.about = 'Less its value as of the first date shown (its last at or before it).'} timeseries::line::change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::change(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::change(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::changeFrom(~key, ~date, ~value, $from, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::changeFrom(~key, ~date, ~value, $from, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value\\'s change from the line\\'s first (or its value as of from), in percent.', timeseries::Words.label = '% change from start', timeseries::Words.family = 'Level', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (econometrics.index - 1)', timeseries::Words.about = 'Its change from its value as of the first date shown (its last at or before it), as a share of it.'} timeseries::line::percent_change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::percentChange(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::percentChange(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::percent_change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::percentChangeFrom(~key, ~date, ~value, $from, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::percentChangeFrom(~key, ~date, ~value, $from, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The relative strength index over w observations (14 unless given), Wilder\\'s.', timeseries::Words.label = 'Relative strength index', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'number', timeseries::Words.bounds = '0, 100', timeseries::Words.gsQuant = 'technicals.relative_strength_index', timeseries::Words.about = '100 - 100 / (1 + average gain / average loss), each Wilder\\'s smoothed average of the last w changes: 0 to 100.', timeseries::Words.differs = 'w a whole number of changes (gs-quant also takes a calendar period, its smoothing then over each date\\'s count)', timeseries::Words.param = 'w: the changes its gains and losses are smoothed over', timeseries::Words.search = 'relative_strength_index'} timeseries::line::rsi<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::rsi(~key, ~date, ~value, if($w->isEmpty(), |14, |$w->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::rsi(~key, ~date, ~value, if($w->isEmpty(), |14, |$w->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The smoothed (Wilder\\'s) moving average over w observations (14 unless given). w reaches the library as written: its smoothedMean folds its own case of one observation.', timeseries::Words.label = 'Smoothed moving average', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'technicals.smoothed_moving_average', timeseries::Words.about = 'Wilder\\'s: from the mean of w observations, each value (w - 1) parts the one before and one part the series.', timeseries::Words.differs = 'w defaults to 14 observations (gs-quant: every observation); a whole number of them (gs-quant also takes a calendar period)', timeseries::Words.param = 'w: the observations it is smoothed over', timeseries::Words.search = 'smma', timeseries::Words.search = 'wilder'} timeseries::line::smoothed_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3147,7 +3156,7 @@ function {meta::pure::profiles::doc.doc = 'The smoothed (Wilder\\'s) moving aver
 
 function timeseries::line::smoothed_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::lines::untied()->timeseries::smoothedMean(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::smoothedMean(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The exponentially weighted moving average, each value\\'s weight beta (0.75 unless given) of the one after it; beta 0, the line itself.', timeseries::Words.label = 'Exponential moving average', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'technicals.exponential_moving_average', timeseries::Words.about = 'Each value the average before weighed beta and the series 1 - beta: y0 = x0, y = beta·y[-1] + (1 - beta)·x.', timeseries::Words.differs = 'a value of none between others is passed over, as pandas\\' ignore_na (gs-quant\\'s weights decay across it)', timeseries::Words.param = 'beta: the weight of the average before, 0 to under 1', timeseries::Words.search = 'ema', timeseries::Words.search = 'ewma'} timeseries::line::exponential_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3159,59 +3168,59 @@ function {meta::pure::profiles::doc.doc = 'The exponentially weighted moving ave
 // decay of 0 has no logarithm, which the library's closed form takes.
 function timeseries::line::exponential_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  if($beta == 0.0, |$x, |$x->timeseries::ewma(~key, ~date, ~value, $beta, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
+  if($beta == 0.0, |$x, |$x->timeseries::lines::untied()->timeseries::ewma(~key, ~date, ~value, $beta, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
 }
 
 function {meta::pure::profiles::doc.doc = 'The exponentially weighted standard deviation (beta 0.75 unless given).', timeseries::Words.label = 'Exponential standard deviation', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'statistics.exponential_std', timeseries::Words.about = 'The exponentially weighted standard deviation, bias-corrected (pandas\\' ewm(alpha = 1 - beta, adjust=False).std()).', timeseries::Words.differs = 'a value of none between others is passed over, as pandas\\' ignore_na (gs-quant\\'s weights decay across it)', timeseries::Words.param = 'beta: the weight of the observations before, 0 to under 1', timeseries::Words.search = 'ewm_std', timeseries::Words.search = 'ewstd'} timeseries::line::exponential_std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::ewmStd(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::ewmStd(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The exponentially weighted volatility of x\\'s returns (beta 0.75 unless given), annualized by the periods a year given, SAMPLE BY\\'s, or the line\\'s dates infer.', timeseries::Words.label = 'Exponential volatility', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'technicals.exponential_volatility', timeseries::Words.about = 'The annualized exponentially weighted standard deviation of its returns, in percent (20% is 20).', timeseries::Words.differs = 'a return of none between others is passed over, as pandas\\' ignore_na (gs-quant\\'s weights decay across it)', timeseries::Words.param = 'beta: the weight of the returns before, 0 to under 1', timeseries::Words.search = 'ewvol', timeseries::Words.search = 'ewma_volatility'} timeseries::line::exponential_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
-    ->timeseries::exponentialVolatility(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::exponentialVolatility(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The exponentially weighted volatility of x\\'s differences (a spread\\'s; beta 0.75 unless given), annualized.', timeseries::Words.label = 'Exponential spread volatility', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'technicals.exponential_spread_volatility', timeseries::Words.about = 'The annualized exponentially weighted standard deviation of its changes, in its own units (a spread\\'s, a yield\\'s).', timeseries::Words.differs = 'a change of none between others is passed over, as pandas\\' ignore_na (gs-quant\\'s weights decay across it)', timeseries::Words.param = 'beta: the weight of the changes before, 0 to under 1'} timeseries::line::exponential_spread_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
-    ->timeseries::exponentialSpreadVolatility(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::exponentialSpreadVolatility(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The moving average convergence divergence: the exponential averages over m and n observations (12 and 26 unless given) apart, smoothed over s (1 unless given).', timeseries::Words.label = 'MACD', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'technicals.macd', timeseries::Words.about = 'The short exponential average less the long one, itself averaged over s -- a span k weighs each new value 2 / (k + 1).', timeseries::Words.param = 'm: the short average\\'s span', timeseries::Words.param = 'n: the long average\\'s span', timeseries::Words.param = 's: the span its difference is averaged over (1: as it is)'} timeseries::line::macd<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], m: Integer[0..1], n: Integer[0..1], s: Integer[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::macd(~key, ~date, ~value, if($m->isEmpty(), |12, |$m->toOne()), if($n->isEmpty(), |26, |$n->toOne()), if($s->isEmpty(), |1, |$s->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::macd(~key, ~date, ~value, if($m->isEmpty(), |12, |$m->toOne()), if($n->isEmpty(), |26, |$n->toOne()), if($s->isEmpty(), |1, |$s->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The product of one plus each of x\\'s values, to date: returns compounded.', timeseries::Words.label = 'Compounded', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'algebra.geometrically_aggregate', timeseries::Words.about = 'Returns compounded to date: the product of (1 + each) less 1.'} timeseries::line::geometrically_aggregate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::geometricallyAggregate(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::geometricallyAggregate(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'x with each spike -- a value apart from both neighbours by more than threshold (0.5 unless given), as a percentage unless absolute -- the mean of its neighbours.', timeseries::Words.label = 'Spikes smoothed', timeseries::Words.family = 'Math', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.smooth_spikes', timeseries::Words.about = 'A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.', timeseries::Words.differs = 'threshold defaults to 0.5 (gs-quant: no default)', timeseries::Words.param = 'threshold: how far above or below both neighbours a spike is', timeseries::Words.param = 'type: percentage: 1 + threshold times both; absolute: threshold beyond both'} timeseries::line::smooth_spikes<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], threshold: Float[0..1], type: timeseries::ThresholdType[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::smoothSpikes(~key, ~date, ~value, if($threshold->isEmpty(), |0.5, |$threshold->toOne()), if($type->isEmpty(), |timeseries::ThresholdType.percentage, |$type->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::smoothSpikes(~key, ~date, ~value, if($threshold->isEmpty(), |0.5, |$threshold->toOne()), if($type->isEmpty(), |timeseries::ThresholdType.percentage, |$type->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The number of values in a row to date that rose (positive, unless given) or fell.', timeseries::Words.label = 'Consecutive', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'analysis.consecutive', timeseries::Words.about = 'How many values in a row to each date have been above 0 (or below); 0 where it breaks.', timeseries::Words.param = 'direction: positive: values above 0; negative: below'} timeseries::line::consecutive<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], direction: timeseries::Direction[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::consecutive(~key, ~date, ~value, if($direction->isEmpty(), |timeseries::Direction.positive, |$direction->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::consecutive(~key, ~date, ~value, if($direction->isEmpty(), |timeseries::Direction.positive, |$direction->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'x\\'s value as of a date: its last on or before it, on every date.'} timeseries::line::value_at<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], date: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::valueAt(~key, ~date, ~value, $date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::valueAt(~key, ~date, ~value, $date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'x\\'s first value, on every date (gs-quant\\'s first): first(x, all), the line\\'s start to date. Under SAMPLE BY, first(x) is each period\\'s first (D3).', timeseries::Words.label = 'Its first value', timeseries::Words.family = 'Dates', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.first', timeseries::Words.about = 'Its first value, on every date it has.', timeseries::Words.differs = 'its first value, where gs-quant\\'s is its first date\\'s even when that is none'} timeseries::line::first<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::first(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::first(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'x\\'s last value, on every date (gs-quant\\'s last): last(x, whole), the whole line\\'s -- the future read, so asked for by name (D3). Under SAMPLE BY, last(x) is each period\\'s last (D3).', timeseries::Words.label = 'Its last value', timeseries::Words.family = 'Dates', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.last', timeseries::Words.about = 'Its last value, on every date it has.'} timeseries::line::last<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Whole[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::last(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::last(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'x\\'s values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).', timeseries::Words.label = 'Drop values', timeseries::Words.family = 'Math', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'algebra.filter_', timeseries::Words.about = 'x without the values the operator matches (gs-quant\\'s filter_ removes them; by not_equals, the dates of none too): every figure after it reads the dates left.', timeseries::Words.param = 'operator: empty: the dates of none; else the values where x is less_than, greater_than, l_equals, g_equals, equals or not_equals value', timeseries::Words.param = 'value: what x is compared with', timeseries::Words.search = 'filter_'} timeseries::line::filter<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], operator: timeseries::FilterOperator[0..1], value: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3256,7 +3265,7 @@ function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, valu
 
 function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
 {
-  $x->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
+  $x->timeseries::lines::untied()->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
 }
 
 function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
@@ -3375,14 +3384,14 @@ function {meta::pure::profiles::doc.doc = 'The sample covariance of x\\'s and y\
 
 function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::lines::untied(), $y->timeseries::lines::untied(), $sample)
-    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($x, $y, $sample)
+    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($x, $y, $sample)
-    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3421,14 +3430,14 @@ function {meta::pure::profiles::doc.doc = 'The hedge ratio of x\\'s values on y\
 
 function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::lines::untied(), $y->timeseries::lines::untied(), $sample)
-    ->timeseries::beta(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($x, $y, $sample)
+    ->timeseries::beta(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($x, $y, $sample)
-    ->timeseries::beta(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::beta(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3467,14 +3476,14 @@ function {meta::pure::profiles::doc.doc = 'The residual of x\\'s value from its 
 
 function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::lines::untied(), $y->timeseries::lines::untied(), $sample)
-    ->timeseries::residual(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($x, $y, $sample)
+    ->timeseries::residual(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($x, $y, $sample)
-    ->timeseries::residual(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::residual(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3622,8 +3631,8 @@ function {meta::pure::profiles::doc.doc = 'The average true range over w observa
 
 function timeseries::line::atr<K,D>(high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($high->timeseries::lines::untied(), $low->timeseries::lines::untied(), $close->timeseries::lines::untied(), $sample)
-    ->timeseries::atr(~key, ~date, ~x, ~y, ~z, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($high, $low, $close, $sample)
+    ->timeseries::atr(~key, ~date, ~x, ~y, ~z, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The stochastic oscillator %K over w observations (14 unless given): where the close stands between the window\\'s lowest low and highest high, in percent.', timeseries::Words.label = 'Stochastic oscillator (%K)', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'number', timeseries::Words.bounds = '0, 100', timeseries::Words.gsQuant = 'DataCube (Lane\\'s stochastic oscillator)', timeseries::Words.about = '100 × (close − the lowest low) / (the highest high − the lowest low) over the last w observations: 0 to 100; none where the high and the low are one.', timeseries::Words.param = 'w: observations its highest high and lowest low are of', timeseries::Words.search = 'stoch', timeseries::Words.search = 'stochastic_oscillator'} timeseries::line::stochastic<K,D>(high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3633,8 +3642,8 @@ function {meta::pure::profiles::doc.doc = 'The stochastic oscillator %K over w o
 
 function timeseries::line::stochastic<K,D>(high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($high->timeseries::lines::untied(), $low->timeseries::lines::untied(), $close->timeseries::lines::untied(), $sample)
-    ->timeseries::stochastic(~key, ~date, ~x, ~y, ~z, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($high, $low, $close, $sample)
+    ->timeseries::stochastic(~key, ~date, ~x, ~y, ~z, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.band>> {meta::pure::profiles::doc.doc = 'Keltner channels: the close\\'s exponential mean of span w (20 unless given) less and plus k (2 unless given) average true ranges over a (10 unless given). A struct (R10): its lower, upper and width.', timeseries::Words.label = 'Keltner channels', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (Keltner\\'s channels, as Raschke\\'s)', timeseries::Words.about = 'A band k average true ranges (over a) either side of the exponential moving average of the close (of span w, from the first close), drawn once it holds w closes.', timeseries::Words.param = 'w: the close\\'s exponential average\\'s span (its weight of the one before (w − 1) / (w + 1))', timeseries::Words.param = 'a: the true ranges averaged', timeseries::Words.param = 'k: average true ranges either side', timeseries::Words.search = 'keltner'} timeseries::line::keltner_channels<K,D>(high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], k: Float[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
@@ -3666,7 +3675,7 @@ function timeseries::line::donchian_channels<K,D>(high: Relation<(key:K, date:D,
 
 function timeseries::line::donchian_channels<K,D>(high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
 {
-  timeseries::line::helpers::meet($high, $low, $sample)
+  timeseries::line::helpers::meet($high->timeseries::lines::untied(), $low->timeseries::lines::untied(), $sample)
     ->timeseries::donchianChannels(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 0, ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
 }
 
@@ -3679,7 +3688,7 @@ function timeseries::line::donchian_channels<K,D>(high: Relation<(key:K, date:D,
 function {meta::pure::profiles::doc.doc = 'On-balance volume: the running sum of the volume, signed by the close\\'s move.', timeseries::Words.label = 'On-balance volume', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (Granville\\'s on-balance volume)', timeseries::Words.about = 'The running total of each period\\'s volume, added when the close rose and taken off when it fell: 0 at the first (StockCharts\\'; TA-Lib\\'s starts at the first volume). At a frequency, each period\\'s whole volume.', timeseries::Words.search = 'on_balance_volume'} timeseries::line::obv<K,D>(close: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($close, $volume, $sample)
-    ->timeseries::obv(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::obv(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The volume-weighted average price over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; 20 observations unless given.', timeseries::Words.label = 'Volume-weighted average price', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a volume-weighted average price)', timeseries::Words.about = 'Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none.'} timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3689,14 +3698,14 @@ function {meta::pure::profiles::doc.doc = 'The volume-weighted average price ove
 
 function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($price->timeseries::lines::untied(), $volume->timeseries::lines::untied(), $sample)->timeseries::tradedValue(~x, ~y, ~traded)
-    ->timeseries::vwap(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~traded, ~y, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($price, $volume, $sample)->timeseries::tradedValue(~x, ~y, ~traded)
+    ->timeseries::vwap(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~traded, ~y, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($price, $volume, $sample)->timeseries::tradedValue(~x, ~y, ~traded)
-    ->timeseries::vwap(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~traded, ~y, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::vwap(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~traded, ~y, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3881,26 +3890,26 @@ function {meta::pure::profiles::doc.doc = 'x\\'s rows before y\\'s first, then y
 
 function {meta::pure::profiles::doc.doc = 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\\'s total_return).', timeseries::Words.label = 'Total return', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a total return index)', timeseries::Words.about = 'The price with its dividends reinvested, from its first value: each period\\'s (price + the dividends since the price before) / the price before, compounded, on the price\\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.', timeseries::Words.search = 'tr'} timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 // y a rate, accrued on each value's time: its number in time, in seconds since 1970 (#TS gives a line's own: its
 // date's, under SAMPLE BY its period's last tick's).
 function timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::totalReturn(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::totalReturn(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The excess returns of x over a cash index y (on the dates both have), or over a rate accrued actual/360 (gs-quant\\'s excess_returns).', timeseries::Words.label = 'Excess returns', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'econometrics.excess_returns', timeseries::Words.about = 'x over a benchmark: over a cash index y, x\\'s first value times the product of (1 + x\\'s return - y\\'s); over a rate (a number, 0.05 for 5%), x less the rate accrued on it day by day (actual/360).'} timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x, $y, $sample)->timeseries::excessReturnsOver(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::meet($x, $y, $sample)->timeseries::excessReturnsOver(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 // y a rate, accrued on each value's time: its number in time, in seconds since 1970 (#TS gives a line's own: its
 // date's, under SAMPLE BY its period's last tick's).
 function timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::excessReturns(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::excessReturns(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.candles>> {meta::pure::profiles::doc.doc = 'A candle (R10): its open, high, low and close lines on the dates all have (under FILL, filled) -- under SAMPLE BY each its period\\'s own: ohlc(first(open), max(high), min(low), last(close)).', timeseries::Words.label = 'Candles (open, high, low, close)', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (PlotTool Pro\\'s candlesticks)', timeseries::Words.about = 'A candle per period: its first open, its highest high, its lowest low and its last close (each a column of the grid, taken so by the period unless its expression says how), green when it closed above its open, red below.', timeseries::Words.search = 'candles', timeseries::Words.search = 'candlestick'} timeseries::line::ohlc<K,D>(open: Relation<(key:K, date:D, value:Number)>[1], high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]
@@ -3915,7 +3924,7 @@ function {meta::pure::profiles::doc.doc = 'x on y\\'s dates (gs-quant\\'s interp
 
 function timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::Interpolation[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  if($method == timeseries::Interpolation.step, |timeseries::line::helpers::stepOnto(timeseries::line::helpers::spread($x, $y, $sample)),
+  if($method == timeseries::Interpolation.step, |timeseries::line::helpers::stepOnto(timeseries::line::helpers::spread($x->timeseries::lines::untied(), $y, $sample)),
     |if($method == timeseries::Interpolation.intersect, |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty() && $r.xo->isNotEmpty())->select(~[key, date, x])->rename(~x, ~value),
       |if($method == timeseries::Interpolation.zero, |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty())->timeseries::fillZero(~x, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value),
         |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty())->select(~[key, date, x])->rename(~x, ~value))))

@@ -862,8 +862,13 @@ const CHART_BUDGET = 303_500;
  *  family, unit, level, bounds, gs-quant's name and how lite's differs, a sentence on it and on its parameters, the
  *  words a picker finds it by -- moved from the tile's table into the library as timeseries::Words tags, about 7.6 KB of
  *  the library's text gzipped; the tile's own copy is deleted with its grammar, A3 step 5, and the text leaves the wire
- *  with A5). Measured 123,986. */
-const TIMESERIES_BUDGET = 126_500;
+ *  with A5). Measured 123,986.
+ *  126,500 -> 128,000 (2026-11-06, the user: "Sure raise it", asked after CI on #81 found it over): R7 part 3's rows
+ *  forms (the calendar spans, the pair words, sum since a date; 2026-11-04, no CI then) took it to 126,834, and the time
+ *  model's D8 (a word that reads its line in order refused on a line with several rows on a date: lines::once,
+ *  lines::untied and each such word's check, 2026-11-06) to 127,852 -- about 1.0 KB of the library's text gzipped.
+ *  Measured 127,852; the headroom ~0.1%, A5 taking the text off the wire. */
+const TIMESERIES_BUDGET = 128_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

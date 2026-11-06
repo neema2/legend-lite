@@ -814,19 +814,27 @@ class TsIslandTest {
         // each date (AAA's and BBB's) in no order, so a word that counts observations has no one answer there -- the
         // same SQL gave three answers in three runs (docs/ts-sql-homework/data/equivalence_queries.sql, q13). Refused
         // while the query runs, naming the fix: a rows form (a window of n, lag and diff by obs), a line form (returns,
-        // volatility), a word of a word, and a word of two lines (PRICES declares no key, so the count is the data's)
+        // volatility), a word of a word, and a word of two lines (PRICES declares no key, so the count is the data's).
+        // Extended the same day ("Okay extend the refusal") to the words that read one of a date's rows without
+        // counting: a window to date or since a date, a lag as of a date (an as-of join), a value from the line's
+        // first (rebase), an exponential average
         for (TestBackend backend : TestBackends.inProcess()) {
             for (String q : List.of("SELECT mean(CLOSE, 3) AS m", "SELECT CLOSE AS c, diff(CLOSE, 1) AS d",
                     "SELECT lag(CLOSE, 1) AS l", "SELECT returns(CLOSE, 1) AS r", "SELECT volatility(CLOSE, 3) AS v",
-                    "SELECT max(diff(CLOSE, 1), 2d) AS mx", "SELECT correlation(CLOSE, CLOSE['AAA'], 3) AS k")) {
+                    "SELECT max(diff(CLOSE, 1), 2d) AS mx", "SELECT correlation(CLOSE, CLOSE['AAA'], 3) AS k",
+                    "SELECT sum(CLOSE, all) AS s", "SELECT sum(CLOSE, '2024-01-25') AS s", "SELECT lag(CLOSE, 2d) AS l",
+                    "SELECT rebase(CLOSE) AS rb", "SELECT exponential_moving_average(CLOSE, 0.5) AS e")) {
                 String query = "|#TS{" + q + " FROM PRICES ON DAY}#";
                 if (q.contains("['AAA']")) {
                     query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"
                             + " PRICES q ON DAY BY SYMBOL}#";
                 }
+                if (q.contains("2d) AS l") && !deep().contains(backend)) {
+                    continue; // a lag as of a date is an as-of join, which H2's and SQLite's dialects have none of
+                }
                 String run = query;
                 Exception e = assertThrows(Exception.class, () -> rows(backend, run), backend + ": " + q);
-                assertTrue(String.valueOf(e.getMessage()).contains("several rows on one date: add BY or a subscript"),
+                assertTrue(String.valueOf(e.getMessage()).contains("several rows on one date, which have no order: add BY"),
                         backend + ": " + q + " refused by name: " + e.getMessage());
             }
             // a calendar window reads all of a date's rows at once, in any order: it answers
