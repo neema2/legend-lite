@@ -245,7 +245,8 @@ public final class Lowerer {
     /** {@code spec}, a relation the statement reads more than once: lowered the first time it is read, its rows a
      *  common table expression of the statement's head; each read the expression by name. Written where it stands at
      *  each read instead: a relation whose order the statement keeps (an ORDER BY at its top: a sort before a
-     *  positional read; a common table expression carries no order), and a bare read of one source (a raw grid, a
+     *  positional read; a union's members, which a graph envelope serializes in their order, {@link
+     *  UnionSerialOrder}; a common table expression carries no order), and a bare read of one source (a raw grid, a
      *  table: no larger than a reference to it, and a raw grid's report reads the grid as it is written). */
     private SqlSelect sharedRead(SharedRelations.Frame frame, TypedSpec spec) {
         SqlSource.Cte cte = frame.read.get(spec);
@@ -257,7 +258,7 @@ public final class Lowerer {
             } finally {
                 frame.lowering.remove(spec);
             }
-            if (!body.orderBy().isEmpty() || SharedRelations.bare(body)) {
+            if (!body.orderBy().isEmpty() || UnionSerialOrder.surfaces(body) || SharedRelations.bare(body)) {
                 frame.nodes.remove(spec);
                 return body;
             }

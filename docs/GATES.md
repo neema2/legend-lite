@@ -16869,12 +16869,17 @@ fast-forwarded to them (the user, 2026-11-06: "Yes, push to #81's branch"). Run 
    registers back to the committed ones.
 2. **`//core:census`: BodyDriver's ledger pin.** `72200a18b`'s five lines; the pin moved 2321 -> 2326 with the reason
    (`b54facfa8`).
-3. **`//spec:corpus_duckdb`: `testUnionWithQualifiedProperty` failed the host judge on every runner** (passing here):
-   its graph fetch unions two mappings' rows, the golden's employee order is H2's insertion order, and a shared WITH
-   let DuckDB order the rows otherwise. Fixed in the commit that adds this entry: the test lanes' scan-order emulation
-   (`StableScanOrder`, behind `legend.exec.engineScanOrder`) writes a statement's shared relations in place before it
-   keys the scans, as legend-engine pastes a let at each read. Its two engine-order registers (host and database)
-   gain one line each, `testExistsAsNullWithSubType`: with its let pasted, that statement has a scan the emulation
-   keys (an order it lacked, added; the test passes either way).
+3. **`//spec:corpus_duckdb`: `testUnionWithQualifiedProperty` failed the host judge on every runner** (passing here).
+   A first fix, `5bdffbcc9` (the test lanes' scan-order emulation writing a statement's shared relations in place),
+   moved the failure, not its cause: run 42190923965 failed it on the database judge on Linux and on the host judge on
+   Windows. The cause, read in the SQL (`LEGEND_LITE_DUMP_SQL`, `//spec:corpus_one`): a graph fetch's members
+   serialize in branch order, a key the lowering adds to a union under the envelope (`UnionSerialOrder`,
+   `list(... ORDER BY u_serial_ord__)`); since `4c3a2cfbe` the test's person union is read twice, so it was one
+   `WITH`, the envelope read `SELECT * FROM __let<n>`, found no union, and wrote `json_group_array` with no order --
+   in product SQL too, not only in the test lanes; which order DuckDB gave was the runner's. Fixed by the commit that
+   corrects this entry: `Lowerer.sharedRead` writes a union's relation at each read, as it does one with an ORDER BY
+   (a common table expression carries no order), and `UnionSerialOrder` keys a star member (`SELECT *, -i AS
+   u_serial_ord__ FROM __let<n>`, a member shared by name). `5bdffbcc9` reverted, its two register lines with it.
+   The test now failed here before the fix (with the union in place and its members shared) and passes after it.
 4. **`//datacube:bundle_budget_test`**: R7 part 3's rows forms took the timeseries tile to 126,834 of 126,500 bytes;
    raised with the user's word ("Sure raise it"), `5beeed931` and `aa4980178`.

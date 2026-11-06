@@ -631,7 +631,6 @@ engine-order meta::relational::tests::projection::enumeration::testProjectionWit
 engine-order meta::relational::tests::projection::enumeration::testProjectionWithEnumThroughAssociation
 engine-order meta::relational::tests::projection::enumeration::testProjectionWithEnumUsingLambda
 engine-order meta::relational::tests::projection::enumeration::testProjectionWithInheritedEnum
-engine-order meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 engine-order meta::relational::tests::projection::exists::testSimpleExists
 engine-order meta::relational::tests::projection::filter::in::testDeepContains
 engine-order meta::relational::tests::projection::filter::in::testDeepContainsWithMultipleProject

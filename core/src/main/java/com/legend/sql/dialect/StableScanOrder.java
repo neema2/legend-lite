@@ -47,12 +47,7 @@ public final class StableScanOrder extends SqlRewriter {
     private final java.util.Set<String> frames = new java.util.HashSet<>();
 
     @Override
-    public SqlQuery rewriteRoot(SqlQuery shared) {
-        // the engine pastes a let at each read, and its goldens lean on the insertion order those pasted reads keep: a
-        // relation the statement reads twice, which the lowering writes once (WITH __let<n>, 2026-11-04), written back
-        // where each read stands first -- a shared WITH let DuckDB order a union graph fetch's rows otherwise (CI on
-        // #81, 2026-11-06: testUnionWithQualifiedProperty failed the host judge on every runner)
-        SqlQuery q = SharedRelationsInPlace.all().rewriteRoot(shared);
+    public SqlQuery rewriteRoot(SqlQuery q) {
         SqlQuery in = q;
         cteOrds.clear();
         frames.clear();

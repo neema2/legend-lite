@@ -36,6 +36,17 @@ class LetSharingTest extends AbstractDatabaseTest {
             }
             """;
 
+    /** A let of a union read twice (2026-11-06), each member a filter of the same rows. */
+    private static final String UNIONED = """
+            ###Pure
+            function test::unionJoined(t: Relation<(ID:Integer, AGE_VAL:Integer)>[1]): Relation<(ID:Integer, AGE_VAL:Integer)>[1]
+            {
+              let u = $t->filter(r|$r.AGE_VAL > 29)->concatenate($t->filter(r|$r.AGE_VAL < 29));
+              $u->join($u->rename(~ID, ~ID2)->rename(~AGE_VAL, ~AGE2), meta::pure::functions::relation::JoinKind.INNER,
+                       {a, b|$a.ID == $b.ID2})->select(~[ID, AGE_VAL]);
+            }
+            """;
+
     private static final String PEOPLE =
             "#>{store::PersonDatabase.T_PERSON}#->select(~[ID, AGE_VAL])";
 
@@ -54,7 +65,7 @@ class LetSharingTest extends AbstractDatabaseTest {
 
     @Override
     protected String getCompletePureModelWithRuntime() {
-        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS;
+        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS + "\n" + UNIONED;
     }
 
     private static int count(String sql, String pattern) {
@@ -107,6 +118,24 @@ class LetSharingTest extends AbstractDatabaseTest {
         int expressions = count(sql, "__let\\d+\\s+AS\\s*\\(");
         assertTrue(expressions == 1 && tableReads(sql) == 1 || expressions == 0 && tableReads(sql) == 2, sql);
         assertEquals(tableReads(sql), count(sql, "\\?"), sql);
+    }
+
+    @Test
+    @DisplayName("a union read twice is written at each read, what its members read shared: a common table expression carries"
+            + " no order, and a graph envelope serializes a union's members in theirs (UnionSerialOrder)")
+    void aUnionReadTwiceIsWrittenAtEachRead() throws SQLException {
+        // CI on #81, 2026-11-06: a graph fetch's union written once, the envelope over its read found no union to
+        // order by, and testUnionWithQualifiedProperty's employees came in another order on each runner
+        String q = "test::unionJoined(" + PEOPLE + ")->sort(ascending(~ID))->from(test::TestRuntime)";
+        String sql = generateSql(q);
+        assertEquals(2, count(sql, "UNION ALL"), sql);
+        // what the members read is still written once: the table's one expression, read by each member
+        assertEquals(1, count(sql, "__let\\d+\\s+AS\\s*\\("), sql);
+        assertEquals(1, tableReads(sql), sql);
+        var result = executeRelation(q);
+        assertEquals(List.of(List.of(1, 30), List.of(2, 28), List.of(3, 45)),
+                result.rows().stream().map(r -> List.of(((Number) r.get(0)).intValue(),
+                        ((Number) r.get(1)).intValue())).toList());
     }
 
     @Test
