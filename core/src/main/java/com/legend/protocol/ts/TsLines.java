@@ -165,6 +165,20 @@ final class TsLines {
     record Spread(Line line, List<String> ords) {
     }
 
+    /** Relations put together pairwise as a balanced tree, {@code (a + b) + (c + d)}, never the left-deep chain
+     *  {@code ((a + b) + c) + d}: where the order of putting together is no one's (UNION ALL; the union of periods), N
+     *  relations are log2 N calls deep, not N -- B2 (docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07): a basket of
+     *  500 members, a chain of 500, overflowed the typer's stack. */
+    static ValueSpecification balanced(List<ValueSpecification> parts,
+            java.util.function.BinaryOperator<ValueSpecification> together) {
+        if (parts.size() == 1) {
+            return parts.get(0);
+        }
+        int half = parts.size() / 2;
+        return together.apply(balanced(parts.subList(0, half), together),
+                balanced(parts.subList(half, parts.size()), together));
+    }
+
     /**
      * EVERY PERIOD ANY OF {@code nodes} HAS (R6): each (instrument, period) one of them has a row in -- a line of one
      * instrument under every instrument of the lines per instrument (R2's broadcast, the instruments those lines have)
@@ -182,26 +196,29 @@ final class TsLines {
         String at = w.fresh("sp_at");
         String ord = w.fresh("sp_ord");
         // the instruments the lines per instrument have (each line's own: the library's broadcast reads them)
-        ValueSpecification instruments = null;
+        List<ValueSpecification> owned = new ArrayList<>();
         for (Line l : distinct) {
             if (l.byInstrument()) {
-                ValueSpecification own = call("select", l.rel(), new ColSpecArray(List.of(new ColSpec(part))));
-                instruments = instruments == null ? own : call("concatenate", instruments, own);
+                owned.add(call("select", l.rel(), new ColSpecArray(List.of(new ColSpec(part)))));
             }
         }
+        ValueSpecification instruments = owned.isEmpty() ? null
+                : balanced(owned, (a, b) -> call("concatenate", a, b));
         // the periods each line has, keyed alike: the library's periodsOf, picked by the line's key's type (a line of
         // no instrument, its key of timeseries::All, is every instrument's, under the instruments the others have);
         // the answer's periods, each dated at its latest line's date and number in time (R5: one date for every line),
         // the library's spine
-        ValueSpecification keys = null;
+        List<ValueSpecification> periods = new ArrayList<>();
         for (Line l : distinct) {
             ValueSpecification k = call(LINES + "periodsOf", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
                     new ColSpec(l.at()), new ColSpec(ORD),
                     instruments != null ? instruments : l.rel(), new ColSpec(instruments != null ? part : l.part()),
                     new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
-            // the lines' periods together, the library's (lines of two grains refused, D4)
-            keys = keys == null ? k : call(LINES + "union", keys, new ColSpec(PERIOD), k, new ColSpec(PERIOD));
+            periods.add(k);
         }
+        // the lines' periods together, the library's (lines of two grains refused, D4)
+        ValueSpecification keys = periods.isEmpty() ? null
+                : balanced(periods, (a, b) -> call(LINES + "union", a, new ColSpec(PERIOD), b, new ColSpec(PERIOD)));
         // (seen: the most rows a line spread so far has on a period, the library's to keep and check -- D1)
         String seen0 = w.fresh("sp_seen");
         ValueSpecification spine = call(LINES + "spine", java.util.Objects.requireNonNull(keys, "lines to spread"),

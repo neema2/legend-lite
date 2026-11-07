@@ -302,15 +302,24 @@ class TsScaleMeasureTest {
             items.add(words[i % words.length].formatted("CLOSE['S" + (i / words.length) + "']") + " AS i" + i);
         }
         measure("wide, 20 items", "SELECT " + String.join(", ", items) + " FROM PRICES ON DAY BY SYMBOL");
+        // a table of 100 lines, each its own: the spread puts each line onto the answer's dates in turn
+        String hundred = IntStream.range(0, 100).mapToObj(i -> "CLOSE['S" + i + "'] AS c" + i)
+                .collect(Collectors.joining(", "));
+        try {
+            measure("wide, 100 lines", "SELECT " + hundred + " FROM PRICES ON DAY BY SYMBOL");
+        } catch (StackOverflowError e) {
+            TABLE.add(String.join("\t", "wide, 100 lines", "stack overflow", "", "", ""));
+        }
     }
 
     @Test
     @Order(3)
     void sampled() throws Exception {
-        measure("sampled, 1w", "SELECT last(CLOSE['S7']) AS c, avg(returns(CLOSE['S7'])) AS r FROM PRICES ON DAY BY"
-                + " SYMBOL SAMPLE BY 1w");
-        measure("sampled, 1mo", "SELECT last(CLOSE['S7']) AS c, avg(returns(CLOSE['S7'])) AS r FROM PRICES ON DAY BY"
-                + " SYMBOL SAMPLE BY 1mo");
+        // a period's last and its mean (R5: of a source's column)
+        measure("sampled, 1w", "SELECT last(CLOSE['S7']) AS c, avg(CLOSE['S7']) AS a FROM PRICES ON DAY BY SYMBOL"
+                + " SAMPLE BY 1w");
+        measure("sampled, 1mo", "SELECT last(CLOSE['S7']) AS c, avg(CLOSE['S7']) AS a FROM PRICES ON DAY BY SYMBOL"
+                + " SAMPLE BY 1mo");
     }
 
     @Test

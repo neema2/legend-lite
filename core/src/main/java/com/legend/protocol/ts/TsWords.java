@@ -458,7 +458,7 @@ final class TsWords {
     /** Members as the long relation a basket reads, as written: each line (every instrument's, as {@link #each}; with
      *  its time, {@code timed}, as {@link #timed}), its number from 0, its weight and how many they are, concatenated. */
     private static ValueSpecification members(MembersArg m, TsLines.Line key, SqlAst.Pos pos, boolean timed) {
-        ValueSpecification all = null;
+        List<ValueSpecification> all = new ArrayList<>();
         for (int i = 0; i < m.lines().size(); i++) {
             ValueSpecification line = timed ? timed(m.lines().get(i), key, pos) : each(m.lines().get(i), key, pos);
             ValueSpecification one = TsLines.call("extend", line, new ColSpecArray(List.of(
@@ -472,9 +472,12 @@ final class TsWords {
             columns.addAll(List.of(new ColSpec("member"), new ColSpec("weight"), new ColSpec("members"),
                     new ColSpec("value")));
             one = TsLines.call("select", one, new ColSpecArray(List.copyOf(columns)));
-            all = all == null ? one : TsLines.call("concatenate", all, one);
+            all.add(one);
         }
-        return java.util.Objects.requireNonNull(all, "members");
+        if (all.isEmpty()) {
+            throw new IllegalStateException("a basket of no members");
+        }
+        return TsLines.balanced(all, (a, b) -> TsLines.call("concatenate", a, b));
     }
 
     /** {@code g} as the value of {@code p}, or null where it is of another kind. */
