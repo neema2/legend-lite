@@ -7,8 +7,9 @@
 
 import type { TimeGrain } from './chart-spec.ts';
 import {
-  aliasFor, firstPlot, inlined, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, type TsColumn,
+  aliasFor, firstPlot, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, wholeOf, type TsColumn,
 } from './timeseries-expr.ts';
+import { treeOf } from './timeseries-text.ts';
 import {
   ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMatch, type TsPane, type TsRange,
   type TsSeries, type TsSource, type TsState, type TsView,
@@ -111,11 +112,11 @@ const noPlot = (grid: TsGridColumns): string =>
  *  columns' -- its problem is said where it is drawn; what it reads directly still keeps its sources. */
 function readBy(spec: TimeseriesSpec, s: TsSeries): string[] {
   try {
-    return sourcesOf(spec, inlined(s.expr, spec.series));
+    return sourcesOf(spec, wholeOf(s, spec.series));
   } catch (e) {
     // one that cannot be inlined alone (the second audit's G notes: any error was taken for one)
     if (!(e instanceof TsInlineError)) throw e;
-    return sourcesOf(spec, s.expr);
+    return sourcesOf(spec, treeOf(s, spec.series));
   }
 }
 
@@ -202,7 +203,7 @@ export function instrumentsOf(spec: TimeseriesSpec): { readonly alias: string; r
       e.args.forEach(walk);
     }
   };
-  for (const s of spec.series) walk(s.expr);
+  for (const s of spec.series) walk(treeOf(s, spec.series));
   return out;
 }
 
@@ -255,7 +256,7 @@ function swapped(spec: TimeseriesSpec, fromTold: string, toTold: string, alias: 
   const said = new RegExp(`(?<![\\p{L}\\p{N}_&]|[\\p{L}\\p{N}][.\\-])${word}(?![\\p{L}\\p{N}_&]|[.\\-][\\p{L}\\p{N}])`, 'gu');
   const exprs = new Map(spec.series.map((s) => {
     const before = swaps;
-    const expr = swap(s.expr);
+    const expr = swap(treeOf(s, spec.series));
     return [s.id, swaps === before ? undefined : expr] as const;
   }));
   // a series that read it -- itself, or through the series it reads ($A) -- plots the other: its name says so
@@ -264,7 +265,7 @@ function swapped(spec: TimeseriesSpec, fromTold: string, toTold: string, alias: 
     if (seen.has(id)) return false;
     seen.add(id);
     const s = spec.series.find((x) => x.id === id);
-    return s !== undefined && refsOf(s.expr).some((r) => reads(r, seen));
+    return s !== undefined && refsOf(treeOf(s, spec.series)).some((r) => reads(r, seen));
   };
   const series = spec.series.map((s) => {
     const expr = exprs.get(s.id);
@@ -323,7 +324,7 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
     }
     case 'unplot': {
       seriesNamed(spec, change.id);
-      const readers = spec.series.filter((s) => s.id !== change.id && refsOf(s.expr).includes(change.id)).map((s) => s.id);
+      const readers = spec.series.filter((s) => s.id !== change.id && refsOf(treeOf(s, spec.series)).includes(change.id)).map((s) => s.id);
       if (readers.length > 0) {
         throw new TsEditRefusal(`series ${readers.join(', ')} ${readers.length === 1 ? 'reads' : 'read'} $${change.id}: take ${readers.length === 1 ? 'it' : 'them'} off first, or write ${readers.length === 1 ? 'it' : 'them'} without $${change.id}`);
       }
@@ -392,7 +393,7 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       const sources = spec.sources.map((s) => (s.alias === change.alias ? made : s));
       // an alias renamed: every expression that names it follows, and every marks of its rows (the Phase 6 review's 4)
       if (to === undefined || to === change.alias) return { ...spec, sources };
-      const series = spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, change.alias, to) }));
+      const series = spec.series.map((s) => ({ ...s, expr: renameSource(treeOf(s, spec.series), change.alias, to) }));
       const annotations = spec.annotations?.map((a) => (a.kind === 'marks' && a.source === change.alias ? { ...a, source: to } : a));
       return { ...spec, sources, series, ...(annotations !== undefined ? { annotations } : {}) };
     }

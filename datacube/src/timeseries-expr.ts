@@ -8,6 +8,7 @@
 // (test/bundle-budget.test.ts). Nothing here computes a value either: it reads and writes words.
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
+import { treeOf } from './timeseries-text.ts';
 import {
   AGGREGATES, ALIAS, isConditionOp, manyProblem, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
@@ -649,6 +650,11 @@ export function aliasFor(title: string | undefined, taken: readonly string[]): s
   for (let n = 2; ; n++) if (!taken.includes(`${base}${n}`)) return `${base}${n}`;
 }
 
+/** A series' tree with every series it reads inlined: what is computed of it. */
+export function wholeOf(s: TsSeries, series: readonly TsSeries[]): TsExpr {
+  return inlined(treeOf(s, series), series);
+}
+
 /** A series that cannot be inlined: one reading itself, or a series there is not -- said where it is drawn. */
 export class TsInlineError extends Error {}
 
@@ -659,7 +665,7 @@ export function inlined(e: TsExpr, series: readonly TsSeries[], seen: readonly s
       if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].map((id) => `$${id}`).join(' reads ')}`);
       const s = series.find((x) => x.id === e.series);
       if (!s) throw new TsInlineError(`there is no series ${e.series}`);
-      return inlined(s.expr, series, [...seen, e.series]);
+      return inlined(treeOf(s, series), series, [...seen, e.series]);
     }
     case 'binary':
       return { ...e, left: inlined(e.left, series, seen), right: inlined(e.right, series, seen) };
@@ -1289,19 +1295,19 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
   if (ts.series.length === 0) out.push(NO_SERIES);
   for (const s of ts.series) {
     const name = `Series ${s.id}`;
-    for (const ref of refsOf(s.expr)) {
+    for (const ref of refsOf(treeOf(s, ts.series))) {
       const other = ts.series.find((x) => x.id === ref);
       if (!other) {
         out.push(`${name} reads $${ref}, which there is not.`);
         continue;
       }
       if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads $${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
-      const drawn = drawnOnly(other.expr);
+      const drawn = drawnOnly(treeOf(other, ts.series));
       if (drawn !== undefined) out.push(`${name} reads $${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
     }
     let whole: TsExpr;
     try {
-      whole = inlined(s.expr, ts.series);
+      whole = wholeOf(s, ts.series);
     } catch (e) {
       out.push(`${name}: ${e instanceof Error ? e.message : String(e)}.`);
       continue;

@@ -29,9 +29,10 @@ import {
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, exprSource, exprText, firstValue, functionNamed, inlined, matchesText, nextSeriesId, parseExpr, parseMatches, seriesName,
+  candleOf, columnRef, exprSource, exprText, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseExpr, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
+import { treeOf } from '../timeseries-text.ts';
 import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
@@ -190,7 +191,7 @@ export interface MountOn {
 function queryKey(ts: TimeseriesSpec): string {
   return JSON.stringify({
     sources: ts.sources, grain: ts.grain ?? null, align: ts.align ?? null, compare: ts.view?.compare ?? null,
-    series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
+    series: ts.series.map((s) => ({ id: s.id, expr: treeOf(s, ts.series), split: s.split ?? null })),
     // marks from grids' rows are asked too (the Phase 6 review's 1: marks added once drawn were never asked)
     marks: (ts.annotations ?? []).filter((a) => a.kind === 'marks').map(marksKey),
     // and each trend projected (Phase 5)
@@ -1738,7 +1739,7 @@ export class TimeseriesView {
    */
   async #statementOf(grid: TsGrid, spec: TimeseriesSpec, series: TsSeries, window: TsWindow, opened: Opened): Promise<TsShown> {
     if (grid.tsStatement === undefined) return { refused: 'its grid\'s planner is legend-engine\'s, which has no #TS' };
-    const on = await this.#inputsOn(sourcesOf(spec, inlined(series.expr, spec.series)), opened);
+    const on = await this.#inputsOn(sourcesOf(spec, wholeOf(series, spec.series)), opened);
     return grid.tsStatement(tsSeriesQuery(on.inputs, spec, series, readsAnchor(spec, series) ? window.from : undefined));
   }
 

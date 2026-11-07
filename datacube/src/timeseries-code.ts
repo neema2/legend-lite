@@ -20,6 +20,7 @@ import { layoutTiles, type PageDocument } from './page-document.ts';
 import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { columnsOf, exprSource, nextSeriesId } from './timeseries-expr.ts';
+import { treeOf } from './timeseries-text.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
 /** The languages a tile's code is written in. */
@@ -60,7 +61,7 @@ export function codeOfPage(page: PageDocument, tile: string): { readonly spec: T
 function columnsRead(spec: TimeseriesSpec, alias: string): string[] {
   const src = spec.sources.find((s) => s.alias === alias);
   const out = [src?.date, src?.key].filter((c): c is string => c !== undefined);
-  for (const s of spec.series) for (const c of columnsOf(spec, s.expr).get(alias) ?? []) if (!out.includes(c)) out.push(c);
+  for (const s of spec.series) for (const c of columnsOf(spec, treeOf(s, spec.series)).get(alias) ?? []) if (!out.includes(c)) out.push(c);
   return out;
 }
 

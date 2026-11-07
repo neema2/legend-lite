@@ -36,7 +36,7 @@ import {
   type TsExpr, type TsMatch, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
   TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS,
 } from './timeseries-spec.ts';
-import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { wholeOf, isBand, isCandles, isCondition, levelOf, TsInlineError, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -484,7 +484,7 @@ export function periodType(ts: TimeseriesSpec, input: TsInput, src: TsSource): s
  * index starts.
  */
 function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined, names: { n: number } = { n: 0 }): Built {
-  const expr = inlined(series.expr, ts.series);
+  const expr = wholeOf(series, ts.series);
   const read = sourcesOf(ts, expr);
   if (read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   // `names`: a query of two series' relations names their columns apart (a scatter's)
@@ -633,7 +633,7 @@ function queryOf(rel: Relation, ...of: readonly Built[]): Lambda {
 
 /** The sources a series reads, by alias, in the order it reads them: one, run where its grid runs; more, a combination. */
 export function seriesSources(ts: TimeseriesSpec, series: TsSeries): string[] {
-  return sourcesOf(ts, inlined(series.expr, ts.series));
+  return sourcesOf(ts, wholeOf(series, ts.series));
 }
 
 /**
@@ -871,7 +871,7 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   const names = { n: 0 };
   let periodType: string | undefined;
   const side = (s: TsSeries): { readonly w: Writer; readonly v: string; readonly sources: readonly string[]; readonly b: Built } => {
-    const expr = inlined(s.expr, ts.series);
+    const expr = wholeOf(s, ts.series);
     if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`series ${s.id} is drawn, never correlated: a band, candles or a condition`);
     const built = seriesRelation(inputs, ts, s, view.from, names);
     if (periodType === undefined) periodType = built.periodType;
@@ -938,7 +938,7 @@ const overAll = (k: string): AppliedFunction => fn('over', { _type: 'classInstan
 /** A series a view draws, as it is read: one line (a view of a split series' lines is a curve's), no band, no candles,
  *  no condition -- refused in words, by the view's name. */
 function viewLine(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, what: string, names: { n: number }, anchor?: string): Built {
-  const expr = inlined(s.expr, ts.series);
+  const expr = wholeOf(s, ts.series);
   if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a ${what} draws a series' values: series ${s.id} is a band, candles or a condition`);
   if (s.split !== undefined) throw new CubeRefusal(`a ${what} is of one line: series ${s.id} is a line per ${s.split} -- read one ${s.split} (close[SPX])`);
   return seriesRelation(inputs, ts, s, anchor, names);
@@ -1127,7 +1127,7 @@ export const curveColumns = (k: number): { readonly asked: string; readonly valu
  */
 export function curveQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, dates: readonly string[] = ts.view?.dates ?? TS_CURVE_DATES): TsQuery {
   if (s.split === undefined) throw new CubeRefusal(`a curve is of a line per value of a column (tenors): series ${s.id} is one line -- split it`);
-  const expr = inlined(s.expr, ts.series);
+  const expr = wholeOf(s, ts.series);
   if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a curve draws a series' values: series ${s.id} is a band, candles or a condition`);
   // its lines as they are: the tile's compare is the time view's, never each line from its own first value (the Phase 3
   // review's 7)
@@ -1202,7 +1202,7 @@ export const TS_CAL_LOW = '__ts_cal_low';
  * and the first year none (no level before them). Of every date the line has, each line apart -- the database's.
  */
 export function calendarQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries): TsQuery {
-  const expr = inlined(s.expr, ts.series);
+  const expr = wholeOf(s, ts.series);
   if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a calendar of returns is of a level: series ${s.id} is a band, candles or a condition`);
   // months of a level read at least monthly: a quarterly tile's quarters were written under months (the Phase 3 review's 1)
   if (ts.grain === 'quarter' || ts.grain === 'year') {
@@ -1224,7 +1224,7 @@ export function calendarQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries)
 /** The series a tile's views can draw: of one line drawn on an axis (a scatter's, a seasonality's, a histogram's), and
  *  split (a curve's) -- no band, no condition, no candles. Settings' pickers offer these alone. */
 export function viewChoices(ts: TimeseriesSpec): { readonly oneLine: readonly string[]; readonly split: readonly string[] } {
-  const drawable = tableSeries(ts).statistics.filter((id) => !isCandles(inlined(ts.series.find((x) => x.id === id)!.expr, ts.series)));
+  const drawable = tableSeries(ts).statistics.filter((id) => !isCandles(wholeOf(ts.series.find((x) => x.id === id)!, ts.series)));
   const splitOf = (id: string): boolean => ts.series.find((x) => x.id === id)!.split !== undefined;
   return { oneLine: drawable.filter((id) => !splitOf(id)), split: drawable.filter(splitOf) };
 }
@@ -1269,7 +1269,7 @@ export type TsTable = 'statistics' | 'drawdowns' | 'correlations' | 'scatter' | 
 export function tableSeries(ts: TimeseriesSpec): { readonly statistics: readonly string[]; readonly drawdowns: readonly string[]; readonly correlations: readonly (readonly [string, string])[] } {
   const read = ts.series.flatMap((s) => {
     try {
-      return [{ s, e: inlined(s.expr, ts.series) }];
+      return [{ s, e: wholeOf(s, ts.series) }];
     } catch (e) {
       if (e instanceof TsInlineError) return [];
       throw e;
@@ -1551,7 +1551,7 @@ export function readsAnchor(ts: TimeseriesSpec, series: TsSeries): boolean {
     ? ['index', 'rebase', 'change', 'percent_change'].includes(e.fn) || e.args.some(walk)
     : e.kind === 'binary' ? walk(e.left) || walk(e.right) : false;
   // a series that cannot be inlined (one reading itself) is refused here, as where it is drawn
-  const expr = inlined(series.expr, ts.series);
+  const expr = wholeOf(series, ts.series);
   return walk(expr) || (ts.view?.compare !== undefined && !isBand(expr) && !isCandles(expr) && levelOf(expr));
 }
 

@@ -13,7 +13,7 @@
 // NOTHING HERE PARSES. Text goes to core; core's tree comes back and is mapped, refusing what no tile tree is.
 
 import type { TsNode } from './lite-planner.ts';
-import { TS_SIGNATURES, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator } from './timeseries-spec.ts';
+import { TS_SIGNATURES, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries } from './timeseries-spec.ts';
 
 /** The words whose parameters the language takes by place (the platform's builder's own: TsToPure's), the rest by
  *  name (`w => 21`). */
@@ -30,6 +30,15 @@ const SPELLED_BACK: ReadonlyMap<string, TsFunctionName> = new Map(Object.entries
 /** The words whose window of the whole line is written after the series: `first(x, all)`, `last(x, whole)`,
  *  `count(x, all)`. */
 const WHOLE: Readonly<Partial<Record<TsFunctionName, 'all' | 'whole'>>> = { first: 'all', last: 'whole', count: 'all' };
+
+/**
+ * A SERIES' TREE, the one way every walker reads it: `series` the tile's series, whose ids name the series it reads.
+ * (Today the tree the tile holds; once the tile stores text, core's reading of that text.)
+ */
+export function treeOf(s: TsSeries, series: readonly TsSeries[]): TsExpr {
+  void series;
+  return s.expr;
+}
 
 /** A failure to read core's tree as a tile's: the text is the language's, but no series a tile draws. */
 export class TsTextRefusal extends Error {}

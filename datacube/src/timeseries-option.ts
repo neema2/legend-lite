@@ -17,7 +17,7 @@ import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
   marksCut, marksName, MAX_PANES, projectionName, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsMarks, type TsPoint, type TsProjection, type TsSeries,
 } from './timeseries-spec.ts';
-import { boundsOf, exprText, inlined, seriesName, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
+import { boundsOf, exprText, seriesName, wholeOf, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
   TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, readsAnchor, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
@@ -295,7 +295,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     // in the split's order as a person reads it: 2Y before 10Y
     const ordered = [...groups.values()].sort((a, b) => String(a.split ?? '').localeCompare(String(b.split ?? ''), UI_LOCALE, { numeric: true }));
     // answered, so written as a query already: its expression inlines (a failure here is a bug, never a line unformatted)
-    const expr = inlined(s.expr, ts.series);
+    const expr = wholeOf(s, ts.series);
     const formatColumn = r.query.unit === 'same' ? firstColumn(expr) : undefined;
     const bounds = boundsOf(expr);
     for (const g of ordered) {
@@ -712,7 +712,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       if (gi < 0 || ts.view?.compare !== undefined) continue;
       // on the axis of their pane's line of their source, else its first line's (the Phase 6 review's 2)
       const here = placed.filter((p) => p.grid === gi);
-      const own = here.find((p) => sourcesOf(ts, inlined(p.line.series.expr, ts.series)).includes(m.marks.source)) ?? here[0];
+      const own = here.find((p) => sourcesOf(ts, wholeOf(p.line.series, ts.series)).includes(m.marks.source)) ?? here[0];
       series.push({
         id: `marks:${m.at}`,
         name: m.name,

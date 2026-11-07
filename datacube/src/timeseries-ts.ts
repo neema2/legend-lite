@@ -9,7 +9,7 @@
 import { fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { filterNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal } from './snapshot.ts';
-import { inlined, isBand, isCandles, sourceAlias, sourcesOf } from './timeseries-expr.ts';
+import { isBand, isCandles, sourceAlias, sourcesOf, wholeOf } from './timeseries-expr.ts';
 import type { TsInputs } from './timeseries-query.ts';
 import { filterRead, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsSeries } from './timeseries-spec.ts';
 import type { TimeGrain } from './chart-spec.ts';
@@ -134,7 +134,7 @@ interface Written {
  *  technical of computed series (and a VWAP, its traded value each row's) reads them computed on their own dates in a
  *  query of their own, each period then taken by its role (the tile's rolled: the review's N4). */
 export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: string, present = false): string {
-  const expr = inlined(series.expr, ts.series);
+  const expr = wholeOf(series, ts.series);
   const grain = seriesGrain(ts, expr);
   const split = series.split;
   const fill = FILL[ts.align ?? 'intersect'];
@@ -173,7 +173,7 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
  *  (A3 step 2: core reads it back, the one reader). Undefined where the series is a query of its own (a candle or a
  *  technical of computed series under the tile's frequency, a VWAP's): its item reads that query's columns. */
 export function tsItemText(ts: TimeseriesSpec, series: TsSeries, anchor?: string): string | undefined {
-  const expr = inlined(series.expr, ts.series);
+  const expr = wholeOf(series, ts.series);
   const grain = seriesGrain(ts, expr);
   if (grain !== undefined && expr.kind === 'call' && ROLLED.has(expr.fn)
     && (expr.fn === 'vwap' || expr.args.some((a) => a.kind !== 'column'))) {
@@ -336,6 +336,6 @@ export function tsIsland(text: string): ValueSpecification {
 /** The #TS query of `series`: each source it reads bound by `let` to its grid's rows (its derived columns too), then the
  *  island over them. */
 export function tsSeriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor?: string): Lambda {
-  const read = sourcesOf(ts, inlined(series.expr, ts.series));
+  const read = sourcesOf(ts, wholeOf(series, ts.series));
   return lambda([], ...tsLets(inputs, ts, read), tsIsland(tsQueryText(ts, series, anchor)));
 }
