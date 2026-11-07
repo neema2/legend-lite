@@ -327,8 +327,12 @@ public final class PureV1Api {
             Map<String, Object> out = new LinkedHashMap<>();
             try {
                 com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
-                out.put("text", com.legend.protocol.ts.TsPrinter.print(line));
-                out.put("item", TsTree.of(line));
+                // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
+                // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
+                String printed = com.legend.protocol.ts.TsPrinter.print(line);
+                Map<String, Object> tree = TsTree.of(line);
+                out.put("text", printed);
+                out.put("item", tree);
             } catch (com.legend.protocol.sql.SqlTranslationException e) {
                 Map<String, Object> error = new LinkedHashMap<>();
                 error.put("message", e.getMessage());

@@ -426,11 +426,14 @@ py_test(
         "//datacube:headless_bundle",
         "//datacube:markets_data",
         "//datacube:markets_page",
+        "//datacube:tools/markets-data/markets-model.pure",
         "//native:compiler",
         "//scripts/corpus:trading_model",
     ],
     env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_MARKETS_DATA": "$(rlocationpath //datacube:markets_data)",
+        # the project's own elements, which its Data fills since the copies over classes (2026-11-07: the macro table)
+        "LEGEND_LITE_MARKETS_OWN": "$(rlocationpath //datacube:tools/markets-data/markets-model.pure)",
         "LEGEND_LITE_MARKETS_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
         "LEGEND_LITE_MARKETS_PAGE": "$(rlocationpath //datacube:markets_page)",
     },

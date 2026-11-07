@@ -132,7 +132,7 @@ class Document(Paged):
     def test_a_page_is_datacubes_own_document_one_cube_per_grid_over_its_frame(self):
         page, grid, chart = self.built()
         doc = page.to_dict()
-        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 6, 'Q3 review'))
+        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 7, 'Q3 review'))
         cube = doc['cubes'][0]
         self.assertEqual(cube['id'], grid.id)
         self.assertEqual(cube['cube']['source']['_type'], 'frame')
@@ -955,7 +955,7 @@ class Document(Paged):
         self.assertEqual(list(tile.frame()['A']), [90.0, 91.0, 92.0, 83.0, 84.0, 85.0], 'every date, T its last close')
         with self.assertRaisesRegex(ValueError, 'alignment "sideways" is not one of'):
             tile.options(align='sideways')
-        tile.plot('weekday(close[S])')
+        tile.plot("weekday(close['S'])")
         self.assertEqual(list(tile.frame('B')['B']), [d.weekday() for d in days])
 
     def test_a_timeseries_swaps_an_instrument_shows_its_query_and_its_lines_side_by_side(self):
@@ -981,11 +981,11 @@ class Document(Paged):
         self.assertIn('SELECT', q['sql'].upper())
         both = tile.table()
         # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
-        self.assertEqual(list(both.columns), ['T close', 'mean(close[T], 2)'], "named as the screen's Data tab names its columns")
+        self.assertEqual(list(both.columns), ['T close', "mean(close['T'], 2)"], "named as the screen's Data tab names its columns")
         self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
         # gs-quant's mean of two: its first two points dropped (helper.apply_ramp; docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
-        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[:2]).all(), 'a mean of two has none on the first two dates')
-        self.assertEqual(list(both['mean(close[T], 2)'].iloc[2:]), [11.5, 12.5])
+        self.assertTrue(pd.isna(both["mean(close['T'], 2)"].iloc[:2]).all(), 'a mean of two has none on the first two dates')
+        self.assertEqual(list(both["mean(close['T'], 2)"].iloc[2:]), [11.5, 12.5])
         self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
         # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
         # base its first date shown; frame and query as the screen draws them, every date, that base
@@ -1021,7 +1021,7 @@ class Document(Paged):
         tile = page.timeseries({'px': px}, ["close['S']", "close['T']"], grain='month')
         # a scatter of the first two, T up and S across: y's least squares on x, the database's
         sc = tile.scatter()
-        self.assertEqual((list(sc.columns), len(sc)), (['close[S]', 'close[T]'], 30))
+        self.assertEqual((list(sc.columns), len(sc)), (["close['S']", "close['T']"], 30))
         slope, intercept = np.polyfit(s, t, 1)
         fit = sc.attrs['regression']
         self.assertAlmostEqual(fit['slope'], slope, places=9)
@@ -1067,7 +1067,7 @@ class Document(Paged):
         self.assertEqual(c.attrs['dates'], {'latest': '2024-03-10', '1m': '2024-02-10'})
         self.assertEqual(c.attrs['line_dates']['latest'], {'3M': '2024-03-10', '2Y': '2024-03-10', '10Y': '2024-03-10'}, "each line's own day")
         # the Phase 3 review's 11: a series against itself, two columns
-        self.assertEqual(list(tile.scatter('A', 'A').columns), ['close[S] (x)', 'close[S] (y)'])
+        self.assertEqual(list(tile.scatter('A', 'A').columns), ["close['S'] (x)", "close['S'] (y)"])
         with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
             tile.curve('A')
 
@@ -1090,7 +1090,7 @@ class Document(Paged):
             self.assertNotIn('refused', q, q['what'])
             self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['what'])  # braced where it binds its grids first
             self.assertIn('SELECT', q['sql'].upper(), q['what'])
-        self.assertEqual(asked[1]['what'], 'Series A (close[S]): its points')
+        self.assertEqual(asked[1]['what'], "Series A (close['S']): its points")
         self.assertIn("'S'", asked[1]['pure'])
         # a return is #TS's returns (2026-10-31, the tile's #TS), which the compiler writes as the timeseries library's
         # call (timeseries::returns), planned over the model with the library after it (datacube/src/pure-library.ts)
@@ -1207,13 +1207,13 @@ class Document(Paged):
                                'close': [100.0 + i for i in range(8)] + [50.0 - i for i in range(8)]})
         px = page.grid(prices, name='prices')
         tile = page.timeseries({'px': px}, ["close['S']", {'text': "returns(close['T'], 1, 'log')", 'name': "T's log returns", 'pane': 1},
-                                            'basket($A, 0.5, close[T], 0.5, rebalance=weekly)'], title='Two',
+                                            "basket(A, 0.5, close['T'], 0.5, rebalance => 'weekly')"], title='Two',
                                view={'stats': True}, annotations=[{'kind': 'level', 'value': 0, 'pane': 1}])
         code = tile.code()
         self.assertIn('page = ll.Page()', code)
         self.assertIn("prices = page.grid(prices_frame, name='prices')", code)
         self.assertIn('tile = prices.timeseries(', code)
-        self.assertIn("'returns(close[T], type=log)'", code)
+        self.assertIn("'returns(close[\\'T\\'], 1, \\'log\\')'", code)
         for lookup in ('Page.load', 'page.sheets', 'page.grids', '.id =='):
             self.assertNotIn(lookup, code)
         # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid
@@ -1250,7 +1250,7 @@ class Document(Paged):
         one = page.grid(prices, name='prices', title='Line\rends\u2028here')
         two = page.grid(prices, name='prices', title='Again')
         tile = page.timeseries({'a': {'grid': one, 'date': 'day', 'key': None}, 'b': {'grid': two, 'date': 'day', 'key': None}},
-                               ['a:close', 'b:open'], title='Two\nlines\r\nimport os')
+                               ['a.close', 'b.open'], title='Two\nlines\r\nimport os')
         code = tile.code()
         compile(code, 'tile.py', 'exec')
         self.assertEqual([line for line in code.splitlines() if line.startswith(('import', 'print'))], ['import legend_lite as ll'])
@@ -1338,7 +1338,7 @@ class Document(Paged):
         rates = page.grid(yields, name='rates')
         tile = page.timeseries({'px': px, 'rates': rates}, ["close['SPX']", "returns(A, 1, 'simple')"])
         # a series another reads is not taken off; a source a series reads -- by a column of no alias too -- is not let go
-        with self.assertRaisesRegex(ValueError, r'series B reads \$A'):
+        with self.assertRaisesRegex(ValueError, r'series B reads series A'):
             tile.unplot('A')
         with self.assertRaisesRegex(ValueError, 'series A, B read source px'):
             tile.unread('px')
@@ -1389,7 +1389,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'has no date column with a number to plot along it'):
             dates.timeseries()
         # an alias named `grid`, by alias: two sources, not one
-        both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
+        both = page.timeseries({'grid': px, 'curve': rates}, ["grid.close['SPX']"])
         self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
 
     def test_a_timeseries_is_judged_as_its_viewer_judges_it_and_its_frame_says_what_the_screen_says(self):
@@ -2015,7 +2015,7 @@ class Document(Paged):
         unplaced['sheets'][0]['layout']['bands'] = []
         with self.assertRaisesRegex(ValueError, 'no sheet has a place for grid-1'):
             ll.Page.load(unplaced, frames={'trades': trades()})
-        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 6\)'):
+        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 7\)'):
             ll.Page.load({**doc, 'version': 99}, frames={'trades': trades()})
         twice = copy.deepcopy(doc)
         twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
@@ -3541,7 +3541,7 @@ class Joined(Paged):
         self.assertIn("'nope' is no grid nor cube of the page", body)
         # the second audit's P-4: a grid removed while a timeseries reads it -- its cube kept for the tile -- read with
         # the other as the tab reads them, not refused as no grid of the page
-        page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX] / rates:yield[10Y]'])
+        page.timeseries({'px': px, 'rates': rates}, ["px.close['SPX'] / rates.yield['10Y']"])
         kept = rates.id
         page.remove(rates)
         self.assertIn(kept, [c['id'] for c in page.to_dict()['cubes']], 'its cube kept for the tile')

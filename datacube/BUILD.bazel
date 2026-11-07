@@ -55,6 +55,9 @@ exports_files(
         "test/fixtures/pages/trades.page.json",
         # the screen's and Python's one document for one edit (test/parity-screen.test.ts, //python:headless_test)
         "test/fixtures/parity/parity.json",
+        # the markets project's own elements (the macro class, its table, the copies' mapping and runtime), which its
+        # Data fills (:markets_data) -- the project Python's test_markets.py opens as the site's config.json lists it
+        "tools/markets-data/markets-model.pure",
     ],
     visibility = ["//python:__pkg__"],
 )
