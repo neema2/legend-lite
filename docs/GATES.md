@@ -20889,3 +20889,16 @@ and four notes, each fixed here.
   previous run, every roster and register exact, no wall crossing); core architecture, guardrails, census, driver
   (three judges), judge (three), exec, integration, lowering, resolver and root green; `//spec:all` and `//pct:all`
   build. The milestone's lanes (H2 corpus, PCT, stress, Postgres) run next, on this commit.
+
+## 2026-11-07 — The P1 milestone lanes at 69ba09c2 (before the plan-as-data step)
+
+Run one at a time with the disk kept clear: `//gates:core` and `//gates:checks` (all but the Postgres tests), the
+Postgres tests as an unprivileged user, `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_duckdb`,
+`//gates:pct_h2`, `//gates:pct_channel_b`, `//core:stress_suites`, `//core:stress_suites_h2`: all green but one gate,
+the H2 judges' differential. P1.2's deletion of the run-time retry of a rejected fused verdict statement moved where
+five failures land under the H2 database judge (the same database error on both judges, the body failing by name
+with no assert's verdict where the split rung used to record each assert): four rows joined
+`h2-database-differential-register.txt` and the untriaged row for
+`stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat` (2026-09-23) left for it with its explanation
+(`83f68e44`). The H2 lane rerun green: `unregistered=0`. This is the baseline the plan-as-data step
+(`docs/PLAN_AS_DATA_2026_11_07.md`) is held to.
