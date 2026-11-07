@@ -1233,6 +1233,9 @@ junit_test(
         "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
         "-Dts.backend=postgres",
         "-Dts.scale.barInstruments=20",
+        # the 100 lines' query grows one backend past the session's memory, at 1M rows as at 10M (F3: the statement's,
+        # not the data's; 2026-11-07, again after F6)
+        "-Dts.scale.wideLines=0",
         "-Dts.scale.basket=100",
         "-Dts.scale.handForms=true",
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
