@@ -367,16 +367,16 @@ class TsDocumentsTest {
      * A statement past the lane's bound ({@code ts.documents.session}, a session statement) is named, not waited on.
      */
     @Test
-    void everyExampleAnswersAsOnDuckDb() throws Exception {
+    void everyExampleAnswersAsOnThePlatform() throws Exception {
         String named = System.getProperty("ts.backend");
         org.junit.jupiter.api.Assumptions.assumeTrue(named != null, "the lane names its database");
         TestBackend backend = TestBackends.named(named);
-        TestBackend duckDb = TestBackends.platform();
+        TestBackend platform = TestBackends.platform();
         Map<String, String> examples = examples(Runfile.property("ts.examples"));
-        Map<String, Object> want = answers(duckDb, examples, null);
-        List<String> refusedOnDuckDb = want.entrySet().stream().filter(e -> e.getValue() instanceof String)
+        Map<String, Object> want = answers(platform, examples, null);
+        List<String> refusedOnThePlatform = want.entrySet().stream().filter(e -> e.getValue() instanceof String)
                 .map(e -> e.getKey() + ": " + e.getValue()).toList();
-        assertEquals(List.of(), refusedOnDuckDb, "every example answers on DuckDB");
+        assertEquals(List.of(), refusedOnThePlatform, "every example answers on DuckDB");
         Map<String, String> run = new LinkedHashMap<>(examples);
         run.keySet().removeIf(id -> UNRUN.containsKey(backend.name() + " " + id));
         Map<String, Object> got = answers(backend, run, System.getProperty("ts.documents.session"));

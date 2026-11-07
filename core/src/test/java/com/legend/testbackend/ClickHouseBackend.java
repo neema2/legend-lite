@@ -10,7 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-/** ClickHouse's sessions: this JVM's embedded ClickHouse 25.8, a new session (its driver's HTTP) on {@code default}. */
+/** ClickHouse's sessions: this JVM's embedded ClickHouse 26.3, a new session (its driver's HTTP) on {@code default}. */
 final class ClickHouseBackend extends ServerBackend {
 
     static final ClickHouseBackend INSTANCE = new ClickHouseBackend();

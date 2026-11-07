@@ -87,8 +87,9 @@ class TsReplayTest {
         return List.of(TestBackends.named(named));
     }
 
-    private static TestBackend duckDb() {
-        return TestBackends.of(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+    /** The reference every lane is held to: the platform's own database. */
+    private static TestBackend reference() {
+        return TestBackends.platform();
     }
 
     /** One Show #TS statement of the fixture: its series' name and its text. */
@@ -114,7 +115,7 @@ class TsReplayTest {
             SAMPLES.forEach((sample, columns) -> tables.add(new CatalogModel.Table(null, page + "_" + sample, columns,
                     true)));
         }
-        String database = CatalogModel.database("local::DB", tables, duckDb().dialect()).text();
+        String database = CatalogModel.database("local::DB", tables, reference().dialect()).text();
         return database + """
 
                 ###Connection
@@ -187,7 +188,7 @@ class TsReplayTest {
             seed(backend, c, samples);
             // the lane's bound on a statement's run, where it sets one (a server's: Postgres's statement_timeout)
             String bound = System.getProperty("ts.replay.session", System.getenv("TS_REPLAY_SESSION"));
-            if (bound != null && !backend.name().equals(duckDb().name())) {
+            if (bound != null && !backend.name().equals(reference().name())) {
                 try (java.sql.Statement st = c.createStatement()) {
                     st.execute(bound);
                 }
@@ -209,15 +210,15 @@ class TsReplayTest {
     }
 
     @Test
-    void everySeriesAnswersAsOnDuckDb() throws Exception {
+    void everySeriesAnswersAsOnThePlatform() throws Exception {
         List<Statement> statements = statements();
         assertTrue(statements.size() > 200, "the gallery's statements: " + statements.size());
         Json.Obj samples = Json.parseObject(Files.readString(Runfile.property("ts.replay.samples"),
                 StandardCharsets.UTF_8));
-        Map<String, Object> reference = replay(duckDb(), statements, samples);
-        List<String> refusedOnDuckDb = reference.entrySet().stream().filter(e -> e.getValue() instanceof String)
+        Map<String, Object> reference = replay(reference(), statements, samples);
+        List<String> refusedOnThePlatform = reference.entrySet().stream().filter(e -> e.getValue() instanceof String)
                 .map(e -> e.getKey() + ": " + e.getValue()).toList();
-        assertEquals(List.of(), refusedOnDuckDb, "every series answers on DuckDB");
+        assertEquals(List.of(), refusedOnThePlatform, "every series answers on DuckDB");
         List<String> unexpected = new ArrayList<>();
         List<String> agreed = new ArrayList<>();
         StringBuilder report = new StringBuilder();
