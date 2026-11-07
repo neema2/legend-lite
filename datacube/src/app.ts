@@ -80,6 +80,7 @@ import {
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
+import type { TsReader } from './timeseries-text.ts';
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
@@ -227,6 +228,10 @@ export type CubeAppQuerySource =
 export interface CubeAppBaseOptions {
   /** Named hierarchies offered in the toolbar and the editor. */
   readonly dimensions?: readonly Dimension[];
+  /** Core's reader of a timeseries series' #TS text, for the board this cube makes alone (page/cube-page.ts
+   *  CubePageOptions.readText): without it a timeseries tile there says its host reads none. A page's grid has its
+   *  page's (onTimeseries). */
+  readonly readText?: TsReader;
   /**
    * The configuration to open on.
    *
@@ -3070,6 +3075,7 @@ export class CubeApp {
   #gridOver(source: GridSource): (host: HTMLElement, options: SpawnOptions) => SpawnedGrid {
     return (host, spawned) => new CubeApp(host, source.snapshot, {
       ...source.place,
+      ...(this.#options.readText ? { readText: this.#options.readText } : {}),
       ...(source.snapTarget ? { snapTarget: source.snapTarget } : {}),
       ...(source.hostSnap ? { hostSnap: source.hostSnap } : {}),
       ...(source.signInAgain ? { signInAgain: source.signInAgain } : {}),
@@ -3130,6 +3136,8 @@ export class CubeApp {
       grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
         ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
+      // its timeseries tiles' texts read by core, as a page's are (A3 step 3)
+      ...(this.#options.readText ? { readText: this.#options.readText } : {}),
       // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
       onPageEdit: (edit) => this.#pageEdit(edit),
       taken: () => (this.#page ? takenIds(this.#page.state.draft) : []),
@@ -3219,6 +3227,7 @@ export class CubeApp {
           : { engine: o.engine, planner: o.planner, ...(o.live ? { live: o.live } : {}) };
         const grid = new CubeApp(host, snapshot, {
           ...source,
+          ...(o.readText ? { readText: o.readText } : {}),
           ...(o.snapTarget ? { snapTarget: o.snapTarget } : {}),
           ...(o.hostSnap ? { hostSnap: o.hostSnap } : {}),
           ...(o.signInAgain ? { signInAgain: o.signInAgain } : {}),

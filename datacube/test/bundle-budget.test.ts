@@ -514,8 +514,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  431,400 -> 431,700 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
  *  don't stop"): a timeseries tile's series stored as #TS text, read by core -- the page's reader passed to its tiles
  *  (cube-page.ts readText, page-app.ts, the hosts' QueryReading.tsItem), a tile drawn once its texts are read; no
- *  startup file added. Measured 431,505. */
-const BUDGET = 431_700;
+ *  startup file added. Measured 431,505.
+ *  431,700 -> 432,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 1, the user: "Looks good to
+ *  me"): each word's signature generated from core's catalog -- the library's stated defaults and limits, whether a
+ *  call gives it, gs-quant's own default beside it -- in place of the tile's hand-kept table
+ *  (src/generated/ts-signatures.ts, read at a page's start to judge a saved series); the words' facts a module of their
+ *  own, fetched with a tile (src/generated/ts-facts.ts); a cube alone's board given its host's #TS reader (app.ts
+ *  readText). Measured 432,159. */
+const BUDGET = 432_400;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -729,8 +735,10 @@ const BUDGET = 431_700;
  *  419,100 -> 419,400 (2026-11-07, the copies over classes -- the grid-only page's note of the same date). Measured
  *  419,259.
  *  419,400 -> 419,700 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
- *  date). Measured 419,439. */
-const ENGINE_BUDGET = 419_700;
+ *  date). Measured 419,439.
+ *  419,700 -> 420,300 (2026-11-07, the order's step 1, the words' signatures generated -- the grid-only page's note of
+ *  the same date). Measured 420,094. */
+const ENGINE_BUDGET = 420_300;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -899,8 +907,13 @@ const CHART_BUDGET = 303_500;
  *  (timeseries-expr.ts's parser and timeseries-ts.ts: this budget falls then). Measured 134,055.
  *  135,000 -> 136,500 (2026-11-07, item 11, A3 step 3, decision 9b): the formula box's completions (timeseries-text.ts
  *  completionsAt, the words core's catalog offers -- the catalog itself a chunk fetched as the editor opens, not here)
- *  and its error's place marked. Measured 135,747; step 5's deletions take it down. */
-const TIMESERIES_BUDGET = 136_500;
+ *  and its error's place marked. Measured 135,747; step 5's deletions take it down.
+ *  136,500 -> 137,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 1, the user: "Looks good to
+ *  me"): the words' signatures and facts generated from core's catalog (src/generated/ts-signatures.ts,
+ *  ts-facts.ts) in place of the tile's two hand-kept tables, every word of the library's facts among them, and the rule
+ *  of a parameter neither told nor defaulted (timeseries-spec.ts writtenParams, begunParams). Measured 137,191; step
+ *  3's deletions take it down. */
+const TIMESERIES_BUDGET = 137_400;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1155,8 +1168,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  src/pure-library-text.ts, carries each word's facts as tags, and the word rank with its enumeration Order; A5 takes
  *  the library's text off the wire). Measured 447,016.
  *  447,600 -> 447,900 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
- *  date). Measured 447,678. */
-const WIDGET_BUDGET = 447_900;
+ *  date). Measured 447,678.
+ *  447,900 -> 448,700 (2026-11-07, the order's step 1, the words' signatures generated, and the library's text with
+ *  its lines named by role (price and dividends, benchmark) and compare's method said -- the grid-only page's note of
+ *  the same date). Measured 448,472. */
+const WIDGET_BUDGET = 448_700;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

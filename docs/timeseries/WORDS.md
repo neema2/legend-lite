@@ -207,15 +207,15 @@ Forms: `donchian_channels(high: Line, low: Line)`, `donchian_channels(high: Line
 
 ## `down_capture`
 
-The down-market capture of x's simple returns against y's over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 63 observations unless given.
+The down-market capture of x's simple returns against the benchmark's over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 63 observations unless given.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `y` | line |  | yes |
+| `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 
-Forms: `down_capture(x: Line, y: Line)`, `down_capture(x: Line, y: Line, w: Integer)`, `down_capture(x: Line, y: Line, w: Scope)`, `down_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `down_capture(x: Line, benchmark: Line)`, `down_capture(x: Line, benchmark: Line, w: Integer)`, `down_capture(x: Line, benchmark: Line, w: Scope)`, `down_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`.
 
 ## `drawdown`
 
@@ -367,16 +367,16 @@ Forms: `index(x: Line, initial: Float (optional))`, `index(x: Line, initial: Flo
 
 ## `information_ratio`
 
-The annualized information ratio of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
+The annualized information ratio of x's simple returns against the benchmark's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `y` | line |  | yes |
+| `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
 
-Forms: `information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))`, `information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))`, `information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))`, `information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `information_ratio(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
 
 ## `interpolate`
 
@@ -809,27 +809,27 @@ Forms: `sum(x: Line, w: Integer)`, `sum(x: Line, w: Integer, unit: DurationUnit)
 
 ## `total_return`
 
-The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant's total_return).
+The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (gs-quant's total_return).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
-| `x` | line |  | yes |
-| `y` | line_or_number |  | yes |
+| `price` | line |  | yes |
+| `dividends` | line_or_number |  | yes |
 
-Forms: `total_return(x: Line, y: Line)`, `total_return(x: TimedLine, y: Float)`.
+Forms: `total_return(price: Line, dividends: Line)`, `total_return(price: TimedLine, dividends: Float)`.
 
 ## `tracking_error`
 
-The annualized tracking error of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
+The annualized tracking error of x's simple returns against the benchmark's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `y` | line |  | yes |
+| `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
 
-Forms: `tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))`, `tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))`, `tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))`, `tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `tracking_error(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
 
 ## `trend`
 
@@ -856,15 +856,15 @@ Forms: `union(x: Line, y: Line)`.
 
 ## `up_capture`
 
-The up-market capture of x's simple returns against y's over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 63 observations unless given.
+The up-market capture of x's simple returns against the benchmark's over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 63 observations unless given.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `y` | line |  | yes |
+| `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 
-Forms: `up_capture(x: Line, y: Line)`, `up_capture(x: Line, y: Line, w: Integer)`, `up_capture(x: Line, y: Line, w: Scope)`, `up_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `up_capture(x: Line, benchmark: Line)`, `up_capture(x: Line, benchmark: Line, w: Integer)`, `up_capture(x: Line, benchmark: Line, w: Scope)`, `up_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`.
 
 ## `value_at`
 
