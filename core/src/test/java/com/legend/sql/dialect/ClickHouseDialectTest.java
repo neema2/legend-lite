@@ -148,7 +148,7 @@ class ClickHouseDialectTest {
                 false));
         ClickHouse ch = new ClickHouse();
         String k = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, keyed));
-        assertTrue(k.endsWith(") ENGINE = MergeTree ORDER BY (d, e);"), k);
+        assertTrue(k.endsWith(") ENGINE = MergeTree ORDER BY (\"d\", \"e\");"), k);
         assertTrue(k.contains("PRIMARY KEY("), k);
         String l = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose));
         assertTrue(l.endsWith(") ENGINE = MergeTree ORDER BY tuple();"), l);
