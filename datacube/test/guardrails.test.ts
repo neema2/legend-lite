@@ -225,6 +225,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // example's two saved queries, the text a person saved in Query -- a query store's content is text -- each written
     // out, never assembled, and held parsed to the tree its grid reads (stress-markets.test.ts)
     ['src/examples/markets-classes.ts', 'the saved queries\' text, as Query saved it'],
+    // added 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md §4, a': the markets page and the gallery over classes): the
+    // copies' three saved queries, each written out as markets-classes.ts's are, held to the tree its grid reads
+    // (stress-markets.test.ts answers every series of the copies over them)
+    ['src/examples/on-classes.ts', 'the copies\' saved queries\' text, as Query saved it'],
   ]);
 
   /**
@@ -267,6 +271,7 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
     assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
     assert.equal(count('src/examples/markets-classes.ts'), 2, 'markets-classes.ts: its two saved queries');
+    assert.equal(count('src/examples/on-classes.ts'), 3, 'on-classes.ts: its three saved queries');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {
