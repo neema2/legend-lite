@@ -126,8 +126,25 @@ public final class PlanMaker {
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
-        return new ExecutionPlan(declarations(declared, l.ctx()),
-                stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
+        Staged staged = stagedShared(dialect, lowered, target, 0);
+        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target),
+                st.reads().ownStamp());
+        if (staged.tables().isEmpty()) {
+            return new ExecutionPlan(declarations(declared, l.ctx()), answer);
+        }
+        // the shared relations' tables made ahead of the answer and dropped after it (stagedShared)
+        List<ExecutionPlan.Node> steps = new ArrayList<>();
+        for (String table : staged.tables()) {
+            steps.add(new ExecutionPlan.Update(staging(dialect, staged, table, target), null));
+        }
+        steps.add(answer);
+        if (!dialect.dropsStagedTablesWithTheirTransaction()) {
+            for (String table : staged.tables()) {
+                steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null,
+                        table, NameQuoting.BARE)), List.of(), target, null, List.of()), null));
+            }
+        }
+        return new ExecutionPlan(declarations(declared, l.ctx()), new ExecutionPlan.Sequence(steps));
     }
 
     /** {@code slots} and the stamp parameters of {@code frames}, which every statement's lowering binds. */
@@ -502,7 +519,12 @@ public final class PlanMaker {
             unplannedOnTheTestDoor(st);
         }
         Prepared.Planned p = ProductStatements.planned(st);
-        SqlQuery q = stagedShared(state, state.lowered(st, last), target);
+        Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
+        for (String table : staged.tables()) {
+            state.add(new ExecutionPlan.Update(staging(dialect, staged, table, target), null));
+            state.stage(table);
+        }
+        SqlQuery q = staged.statement();
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
                 : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
@@ -513,15 +535,17 @@ public final class PlanMaker {
      * database writes each read of a common table expression again ({@link SqlDialect#writesEachReadOfAWithAgain}:
      * ClickHouse), each relation {@code q} reads more than once -- the lowering's shared ones, {@code __let<n>} at its
      * head ({@code lowering.SharedRelations}) -- is computed once, in the WITH's order, into a temporary table of the
-     * session (a staged table, dropped with the program's others), and the statement and the relations after read it
-     * by name. Elsewhere {@code q} as it is.
+     * session (named {@code __stage<n>__let<m>} from {@code first}, so a program's statements never share one), and
+     * the statement and the relations after read it by name. Elsewhere {@code q} as it is, and no table.
      */
-    private static SqlQuery stagedShared(ProgramState state, SqlQuery q, ExecutionPlan.Target target) {
-        if (!state.dialect().writesEachReadOfAWithAgain() || !(q instanceof SqlWith w)
+    static Staged stagedShared(SqlDialect dialect, SqlQuery q, ExecutionPlan.Target target, int first) {
+        if (!dialect.writesEachReadOfAWithAgain() || !(q instanceof SqlWith w)
                 || w.ctes().stream().noneMatch(c -> c.name().startsWith(SqlWith.SHARED_PREFIX))) {
-            return q;
+            return new Staged(q, List.of(), Map.of());
         }
         Map<String, String> tables = new HashMap<>();
+        List<String> order = new ArrayList<>();
+        Map<String, SqlQuery> bodies = new LinkedHashMap<>();
         List<SqlWith.Cte> kept = new ArrayList<>();
         for (SqlWith.Cte c : w.ctes()) {
             SqlQuery body = readingTables(c.query(), tables);
@@ -529,15 +553,25 @@ public final class PlanMaker {
                 kept.add(new SqlWith.Cte(c.name(), body, c.materialized()));
                 continue;
             }
-            // a name of the program's own: two statements' __let0 are two tables
-            String table = "__stage" + state.staged().size() + c.name();
-            state.add(new ExecutionPlan.Update(sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table,
-                    body)), target, null), null));
-            state.stage(table);
+            String table = "__stage" + (first + order.size()) + c.name();
+            order.add(table);
+            bodies.put(table, body);
             tables.put(c.name(), table);
         }
         SqlQuery body = readingTables(w.body(), tables);
-        return kept.isEmpty() ? body : w.with(kept, body);
+        return new Staged(kept.isEmpty() ? body : w.with(kept, body), List.copyOf(order),
+                java.util.Collections.unmodifiableMap(bodies));
+    }
+
+    /** A statement with its shared relations staged: the statement reading the tables, the tables in the order they
+     *  are made, and each one's query. */
+    record Staged(SqlQuery statement, List<String> tables, Map<String, SqlQuery> queries) {
+    }
+
+    /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */
+    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target) {
+        return sql(dialect.renderStatement(new SqlDml.CreateTempTableAs(table,
+                Objects.requireNonNull(staged.queries().get(table), table))), target, null);
     }
 
     /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
