@@ -502,8 +502,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the merge). Measured 430,054.
  *  430,500 -> 431,000 (2026-10-30, the timeseries language's P5, docs/TS_LANGUAGE_BUILD_2026_10_30.md: a query holding a
  *  #TS{...}# island is planned over the timeseries library, every figure of the island being the library's
- *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509. */
-const BUDGET = 431_000;
+ *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509.
+ *  431,000 -> 431,100 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 8b, the user: "keep going, don't stop"): a
+ *  project's saved query and class planned over the library from the start (ModelOptions.overLibrary), the trading
+ *  model compiled once on the class page, not again under the library (its first sheet 5.9-6.2 s -> 4.8 s); a few lines
+ *  of app/sources.ts, no startup file added. Measured 431,038. */
+const BUDGET = 431_100;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -712,8 +716,9 @@ const BUDGET = 431_000;
  *  same date). Measured 417,953.
  *  418,500 -> 419,000 (2026-11-01, the library's text, which the engine page carries for its timeseries -- the
  *  timeseries budget's note of the same date: O1's ramp and O2's compare, 0.8 KB gzipped). Measured 418,511; S4 (the
- *  planner resolving the library) takes the text out. */
-const ENGINE_BUDGET = 419_000;
+ *  planner resolving the library) takes the text out.
+ *  419,000 -> 419,100 (2026-11-07, item 8b -- the grid-only page's note of the same date). Measured 419,032. */
+const ENGINE_BUDGET = 419_100;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
