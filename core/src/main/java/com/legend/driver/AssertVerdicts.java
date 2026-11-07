@@ -1831,28 +1831,6 @@ final class AssertVerdicts {
         return s.length() <= 600 ? s : s.substring(0, 600) + "…(" + s.length() + " chars)";
     }
 
-    /** A side's per-ROW canon texts via the grid policy owner: a
-     * grid side reads its harvested row canons; a value peer frames
-     * rows from its literal-channel element canons ({@link
-     * com.legend.judge.TdsCompare} owns every rule and decline). */
-    static @com.legend.base.Nullable List<String> sideRowCanons(
-            HostJudge.SideFetch side, int width, boolean isExpected) {
-        return side.grid() != null
-                ? com.legend.judge.TdsCompare.tdsRowCanons(side.rider())
-                : com.legend.judge.TdsCompare.peerRowCanons(side.rider(),
-                        side.values().size(), width, isExpected);
-    }
-
-    /** A side's per-CELL canon texts (the sameElements view), via the
-     * grid policy owner. */
-    static @com.legend.base.Nullable List<String> sideCellCanons(
-            HostJudge.SideFetch side, boolean isExpected) {
-        return side.grid() != null
-                ? com.legend.judge.TdsCompare.tdsCellCanons(side.rider())
-                : com.legend.judge.TdsCompare.peerElementCanons(
-                        side.rider(), side.values().size(), isExpected);
-    }
-
     /** Whether a side is STATICALLY table-shaped (its declared result
      * shape — the same fact the executor's canon routing reads). */
     static boolean tabularShaped(TypedSpec s) {
@@ -2334,21 +2312,6 @@ final class AssertVerdicts {
         return com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR.equals(fqn) ? null : fqn;
     }
 
-    /** The engine golden's null spelling anywhere in the EXPECTED wire
-     * values (scalar cells, instance properties, nested lists). */
-    static boolean containsTdsNullSentinel(
-            @com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case null -> false;
-            case String s -> "TDSNull".equals(s);
-            case List<?> l -> l.stream()
-                    .anyMatch(AssertVerdicts::containsTdsNullSentinel);
-            case java.util.Map<?, ?> m -> m.values().stream()
-                    .anyMatch(AssertVerdicts::containsTdsNullSentinel);
-            default -> false;
-        };
-    }
-
     static boolean isAnyStamped(TypedSpec s) {
         return s.info().type() instanceof
                 com.legend.compiler.element.type.Type.ClassType ct
@@ -2406,16 +2369,6 @@ final class AssertVerdicts {
             }
         }
         return false;
-    }
-
-    /** True iff both sides are same-length all-finite-Double vectors
-     * whose pairs each hold under the lattice's declared 2-ULP arm —
-     * PureAsserts OWNS the tolerance, this only vectorizes it. */
-    static boolean withinDeclaredUlp(List<Object> eVals,
-            List<Object> aVals, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        return com.legend.judge.Equality.differByLeniencyOnly(
-                com.legend.judge.Equality.Typed.all(eVals, null),
-                com.legend.judge.Equality.Typed.all(aVals, null), rules);
     }
 
     static String typeName(TypedSpec spec) {

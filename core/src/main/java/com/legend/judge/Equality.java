@@ -68,7 +68,6 @@ public final class Equality {
 
     // ---- THE LENIENCY (one, counted) --------------------------------------
 
-
     /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
      * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
      * the referee (RefereeVerify) call HERE; the database judge spells the same
@@ -296,29 +295,6 @@ public final class Equality {
             out.add(new Typed(cells.get(i), w == 0 ? null : columnKinds.get(i % w)));
         }
         return out;
-    }
-
-    /** True when the sides are equal under the judge AND every pair that
-     * is not identical is a finite Double pair — i.e. the ONLY thing
-     * between them is the counted Float leniency. The mixed verdict's
-     * arbitration reads this (a byte canon that differs by the last
-     * digit while the host holds); it goes with the mixed verdict. */
-    public static boolean differByLeniencyOnly(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        if (e.isEmpty() || e.size() != a.size() || ordered(e, a, rules) != null) {
-            return false;
-        }
-        for (int i = 0; i < e.size(); i++) {
-            Object x = e.get(i).value();
-            Object y = a.get(i).value();
-            if (java.util.Objects.equals(x, y)) {
-                continue;
-            }
-            if (!(x instanceof Double dx && y instanceof Double dy
-                    && Double.isFinite(dx) && Double.isFinite(dy))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one

@@ -234,7 +234,6 @@ public final class CanonicalDivergence {
         MUTED.set(on);
     }
 
-
     public static void r1Suspend(boolean on) {
         R1_SUSPENDED.set(on);
     }
@@ -262,16 +261,6 @@ public final class CanonicalDivergence {
         }
     }
 
-    /** R2a: one dual-verdict row — the DB byte verdict against the
-     * host lattice. Disagreement is the permanent referee's alarm. */
-    public static void probeSqlVerdict(String family, boolean hostHeld,
-            boolean sqlHeld) {
-        if (MUTED.get()) {
-            return;
-        }
-        probeSqlVerdict(family, hostHeld, sqlHeld, "");
-    }
-
     /** RESERVED witness buffer for the DUAL-VERDICT ALARM: a
      * disagreement is the gated-to-zero signal and must never lose its
      * witness to shared-buffer crowding (a 200-cap buffer full of
@@ -293,33 +282,6 @@ public final class CanonicalDivergence {
 
     public static List<Row> disagreeSamples() {
         return List.copyOf(DISAGREE_SAMPLES);
-    }
-
-    /** {@code detail} carries the two canon texts + fine kinds so a
-     * disagreement names its own diagnosis in the census. */
-    public static void probeSqlVerdict(String family, boolean hostHeld,
-            boolean sqlHeld, String detail) {
-        if (MUTED.get()) {
-            return;
-        }
-        SQL_CENSUS.merge("claimed " + family, 1L, Long::sum);
-        CHANNEL_SEEN.set(true);
-        if (hostHeld == sqlHeld) {
-            Census.inc(Census.Key.SQL_AGREE);
-        } else {
-            Census.inc(Census.Key.SQL_DISAGREE);
-            // ATTRIBUTION (charter §8.3b adjudication need): an alarm
-            // witness without its test name was unactionable — the
-            // running test rides CONTEXT_SOURCE
-            Row r = new Row(family, hostHeld,
-                    "sql-verdict host=" + hostHeld + " sql=" + sqlHeld
-                            + " " + detail + " [" + CONTEXT_SOURCE.get().get()
-                            + "]");
-            if (SQL_DISAGREE_SAMPLES.size() < 50) {
-                SQL_DISAGREE_SAMPLES.add(r);
-            }
-            sample(r);
-        }
     }
 
     /** R2a: a side the SQL channel declined (non-scalar kind, unclaimed
@@ -403,18 +365,6 @@ public final class CanonicalDivergence {
         SQL_CENSUS.merge("not-attempted " + CURRENT_FAMILY.get() + " raised",
                 1L, Long::sum);
         CHANNEL_SEEN.set(true);   // a nested entry's raise is one raise
-    }
-
-    /** The verdict finished with NO byte verdict and no channel spoke
-     * (no claim, no decline, no route): the residue named by
-     * construction, so the census always sums. */
-    public static void sqlNoChannel() {
-        if (MUTED.get() || CHANNEL_SEEN.get()) {
-            return;
-        }
-        SQL_CENSUS.merge("not-attempted " + CURRENT_FAMILY.get() + " no-channel",
-                1L, Long::sum);
-        CHANNEL_SEEN.set(true);
     }
 
     /** The current assert's switch arm yielded null (not this arm's

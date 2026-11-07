@@ -20784,3 +20784,20 @@ two packages is the first step's input).
   raises the database's own error, as upstream's `executeInDb` does, its bracket's abort sent first; the ledger records
   nothing from a failed script.
 - Checks: core driver (two judges), exec, testplan, census and guardrails green.
+
+## 2026-11-07 — P1: the dead CanonRider construction and the host judge's byte channel, deleted
+
+- `HostJudge.sideCanonOf` built a `lowering.CanonRider` at run and declined it on the spot ("plan path: the database
+  judge is the referee", since the plan path's step 6, 2026-10-18), so the host judge's second, "byte" verdict -- the
+  canon texts compared beside the host lattice, its census of claims and disagreements -- could only ever decline.
+  Deleted with everything only it reached: `sqlByteVerdict` and `SqlVerdict`, the canon framing (`Framed`, `frame`,
+  `selectedFineKind`, `candidateIndex`), the grid and cell-multiset byte blocks, `SideFetch.rider`,
+  `AssertVerdicts.sideRowCanons`/`sideCellCanons`/`withinDeclaredUlp`/`containsTdsNullSentinel`, `TdsCompare`'s rider
+  methods (and its import of a lowering type), `KindClass.Fine.mixed`/`ofValues`/`integral`,
+  `Equality.differByLeniencyOnly`, `CanonicalDivergence.probeSqlVerdict`/`sqlNoChannel`. About 700 lines; no verdict
+  changes (the host lattice was always the verdict of record).
+- Registers shrink: `VerdictChannelRegisterTest` (AssertVerdicts no longer calls the judge), `HarnessDisciplineTest`
+  (HostJudge's four sorts, 4 -> 0); pins HostJudge 1087 -> 840, AssertVerdicts 1847 -> 1815, TdsCompare 350 -> 235,
+  Equality 461 -> 444. `InstanceIdentityTest.lambdaCtorDeclines` loses its count of the channel's decline.
+- Checks: DuckDB corpus, both judges, unchanged and every roster exact (identical failure lines); core driver (three
+  judges), judge (two), exec, integration, census and guardrails green; `//pct:all` builds.

@@ -139,40 +139,5 @@ sealed interface KindClass {
             return null;
         }
 
-        /** The RUNTIME numeric kind of a side's fetched values (uniform, or
-         * null when empty / unknowable — the mixed case gated earlier). */
-        static @com.legend.base.Nullable Fine ofValues(List<Object> vals) {
-            Fine kind = null;
-            for (Object v : vals) {
-                Fine k = v instanceof java.math.BigDecimal ? DECIMAL
-                        : (v instanceof Double || v instanceof Float) ? FLOAT
-                        : integral(v) ? INTEGER : null;
-                if (k == null) {
-                    return null;
-                }
-                kind = k;
-            }
-            return kind;
-        }
-
-        /** Integral and floating values side by side (unsound under SQL
-         * column promotion: pure refuses 1 == 1.0 element-wise). */
-        static boolean mixed(List<Object> vals) {
-            boolean integral = false;
-            boolean floating = false;
-            for (Object v : vals) {
-                if (integral(v)) {
-                    integral = true;
-                } else if (v instanceof Double || v instanceof Float) {
-                    floating = true;
-                }
-            }
-            return integral && floating;
-        }
-
-        private static boolean integral(Object v) {
-            return v instanceof Long || v instanceof Integer || v instanceof Short
-                    || v instanceof Byte || v instanceof java.math.BigInteger;
-        }
     }
 }

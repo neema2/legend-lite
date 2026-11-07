@@ -158,21 +158,15 @@ class InstanceIdentityTest {
     }
 
     @Test
-    @DisplayName("v1 exclusion: a keyless ctor under a LAMBDA declines the"
-            + " byte verdict (counted), host referee still judges")
+    @DisplayName("a keyless ctor under a LAMBDA: each judge judges the pair (the host referee; the database judge's"
+            + " identity canon)")
     void lambdaCtorDeclines() throws Exception {
-        long before = CanonicalDivergence.sqlDeclinedCount();
         assertEquals(Boolean.TRUE, run(
                 "{|let l = [1,2]->map(x|^m::P(name=$x->toString()));"
                         + " assertEquals($l, $l);}").one());
-        // the HOST judge's byte channel declines a lambda-minted pair; the database judge's identity canon carries each
-        // element's own identity (`<i2#1 ...>`, `<i2#2 ...>`) and judges it -- both judges answer
-        // `assertEquals($l->at(0), $l->at(1))` as distinct (measured 2026-11-04, the core parity program)
-        if (com.legend.testing.Program.laneJudge() == com.legend.ExecuteOptions.JudgeMode.HOST) {
-            assertTrue(CanonicalDivergence.sqlDeclinedCount() > before,
-                    "the lambda-minted ctor pair must DECLINE the byte"
-                            + " verdict, never claim it");
-        }
+        // the database judge's identity canon carries each element's own identity (`<i2#1 ...>`, `<i2#2 ...>`) --
+        // both judges answer `assertEquals($l->at(0), $l->at(1))` as distinct (measured 2026-11-04, the core parity
+        // program). (2026-11-07, P1: the host judge's byte channel, whose decline this test counted, is deleted.)
     }
 
     @Test

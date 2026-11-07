@@ -28,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class VerdictChannelRegisterTest {
 
     private static final List<String> JUDGE_CALLERS = List.of(
-            "core/src/main/java/com/legend/driver/AssertVerdicts.java",
+            // (AssertVerdicts left 2026-11-07, P1: its one call, the grid byte channel's declared-ULP vector, went with
+            // the host judge's dead byte channel)
             // task #27 (2026-09-21): the HOST ARM of the verdict seam — the Java compare
             // over database rows moved out of the router verbatim; the router only
             // classifies and dispatches

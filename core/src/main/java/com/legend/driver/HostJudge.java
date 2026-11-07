@@ -24,31 +24,20 @@ final class HostJudge {
     private HostJudge() {
     }
 
-    static TypedSide finish(String family, boolean wantEqual,
-            boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
-            String detail,
+    static TypedSide finish(String family, boolean wantEqual, boolean hostHeld,
             java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage) {
-        return finish(family, wantEqual, hostHeld, byteHeld, detail, hostMessage, () -> {
+        return finish(family, wantEqual, hostHeld, hostMessage, () -> {
             throw new IllegalStateException(family + ": an assertNotEquals with no sides to name");
         });
     }
 
     /** {@link #finish} where the assert may be {@code assertNotEquals}: {@code notEqualMessage} its upstream
      *  message over the two sides. */
-    static TypedSide finish(String family, boolean wantEqual,
-            boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
-            String detail,
+    static TypedSide finish(String family, boolean wantEqual, boolean hostHeld,
             java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage,
             java.util.function.Supplier<String> notEqualMessage) {
-        if (byteHeld != null) {
-            com.legend.judge.CanonicalDivergence.probeSqlVerdict(family,
-                    hostHeld, byteHeld, detail);
-        } else {
-            com.legend.judge.CanonicalDivergence.sqlNoChannel();   // census residue, by construction
-        }
-        // JUDGING_TWO_MODES: the host judge's verdict is the verdict of
-        // record; the byte channel reported as a census above and never
-        // decides (one judge mode per run, on its options)
+        // the host judge's verdict (P1, 2026-11-07: the byte channel beside it -- a canon rider built and declined at
+        // run since the plan path's step 6, 2026-10-18 -- is deleted; the database judge is the referee)
         if (hostHeld == wantEqual) {
             return AssertVerdicts.ok();
         }
@@ -122,44 +111,7 @@ final class HostJudge {
                         te, ta, w > 1 && e.size() % w == 0 ? w : 1, rules);
             }
         }
-        Boolean byteHeld = null;
-        String detail = "";
-        if (!mixedFlatVsTds) {
-            TypedSide.Tabular wg = af.grid() != null ? af.grid()
-                    : java.util.Objects.requireNonNull(ef.grid(),
-                            "grid verdict without a grid side");
-            int w = wg.columns().size();
-            List<String> ec = AssertVerdicts.sideRowCanons(ef, w, true);
-            List<String> ac = AssertVerdicts.sideRowCanons(af, w, false);
-            if (ec != null && ac != null) {
-                List<String> es = new ArrayList<>(ec);
-                List<String> as2 = new ArrayList<>(ac);
-                if (incidental) {
-                    es.sort(String::compareTo);
-                    as2.sort(String::compareTo);
-                }
-                byteHeld = es.equals(as2);
-                // the DECLARED 2-ULP dialect-arithmetic policy, grid
-                // form (the scalar channel's withinDeclaredUlp arm):
-                // byte-differing rows whose every POSITIONAL cell pair
-                // holds in the lattice with only finite-Double drift
-                // hold BY POLICY — counted in the policy's own census
-                // row, never a disagreement rescue.
-                if (!byteHeld && hostHeld
-                        && com.legend.judge.Equality.differByLeniencyOnly(
-                                com.legend.judge.Equality.grid(e, eKinds),
-                                com.legend.judge.Equality.grid(a, aKinds), rules)) {
-                    com.legend.judge.CanonicalDivergence.sqlUlpPolicy(
-                            "grid " + com.legend.judge.TdsCompare
-                                    .firstCanonDiff(es, as2));
-                    byteHeld = true;
-                }
-                detail = "tds rows=" + ec.size() + "/" + ac.size()
-                        + (byteHeld ? "" : com.legend.judge.TdsCompare
-                                .firstCanonDiff(es, as2));
-            }
-        }
-        return finish(name, wantEqual, hostHeld, byteHeld, detail,
+        return finish(name, wantEqual, hostHeld,
                 () -> mixedFlatVsTds
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
@@ -189,22 +141,7 @@ final class HostJudge {
                 && com.legend.judge.Equality.rowMultiset(
                         com.legend.judge.Equality.Typed.all(e, null),
                         com.legend.judge.Equality.Typed.all(a, null), 1, rules);
-        List<String> ec = AssertVerdicts.sideCellCanons(ef, true);
-        List<String> ac = AssertVerdicts.sideCellCanons(af, false);
-        Boolean byteHeld = null;
-        String detail = "";
-        if (ec != null && ac != null) {
-            List<String> es = new ArrayList<>(ec);
-            List<String> as2 = new ArrayList<>(ac);
-            es.sort(String::compareTo);
-            as2.sort(String::compareTo);
-            byteHeld = es.equals(as2);
-            detail = "tds cells=" + ec.size() + "/" + ac.size()
-                    + (byteHeld ? "" : com.legend.judge.TdsCompare
-                            .firstCanonDiff(es, as2));
-        }
-        return finish(family, true, hostHeld, byteHeld,
-                detail,
+        return finish(family, true, hostHeld,
                 () -> {
                     String d = PureAsserts.assertSameElements(e, a, rules);
                     return d != null
@@ -212,291 +149,6 @@ final class HostJudge {
                             : family + " (TDSRow.values): cell"
                                     + " multiset differs";
                 });
-    }
-
-    /** One assert SIDE: the argument expression executed in the
-     * database through the ordinary pipeline, flattened to wire values
-     * (a null scalar is the EMPTY collection — pure [0..1] emptiness). */
-    /** R2a kind gate + DB renders: both sides must have the SAME
-     * statically-stamped kind class (cross-kind incl. empty-vs-empty
-     * stays the host lattice's — DECLINE, not a guess); the byte
-     * verdict is equality of the two DB-computed canonical texts
-     * (null text = EMPTY side; empty==empty holds, empty==value
-     * fails — pure's own rule). */
-    record SqlVerdict(boolean held, String detail) {
-    }
-
-    static @com.legend.base.Nullable SqlVerdict sqlByteVerdict(
-            HostJudgment.SideFacts eSpec, HostJudgment.SideFacts aSpec, HostJudgment.ByteGate gate,
-            SideFetch ef, SideFetch af, boolean hostHeld, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        List<Object> eVals = ef.values();
-        List<Object> aVals = af.values();
-        // the sides' static facts, read when the arm was planned (M8a): the kind classes, the Any stamps, the Nil
-        // stamps, the map carrier, the type names for the census
-        KindClass ke = eSpec.kind();
-        KindClass ka = aSpec.kind();
-        boolean eAny = eSpec.anyStamped();
-        boolean aAny = aSpec.anyStamped();
-        // MIXED-KIND numeric collections are unsound under SQL column
-        // promotion (pure refuses 1 == 1.0 element-wise; one DOUBLE
-        // column erases the distinction) — the HOST-fetched element
-        // kinds gate the route (a routing fact, not a verdict). An
-        // ANY side is EXEMPT (F10 v1): its JSON carrier never promotes
-        // — each cell keeps its own kind and the literal channel spells
-        // 1 and 1.0 apart.
-        // ... and a LITERAL-ONLY AssertVerdicts.side (the F10 kind-faithful carrier —
-        // Number-stamped mixed LITERAL collections and mixed-sort
-        // results ride it, label LITERAL) is equally exempt: its cells
-        // never promote. RESIDUAL GUARD (F10 slice 2): only a COMPUTED
-        // mixed collection (concatenated/derived, not a literal — no
-        // carrier claim yet) can reach this decline; zero witnesses
-        // today and the ceiling is pinned 0, so a firing is a NAMED
-        // work item, never a silent count.
-        if ((!eAny && !ef.rider().literalOnly() && KindClass.Fine.mixed(eVals))
-                || (!aAny && !af.rider().literalOnly()
-                        && KindClass.Fine.mixed(aVals))) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    "mixed-kind-collection");
-            return null;
-        }
-        // X5: a Nil-stamped side is the []-born EMPTY value — pure
-        // equality against ANY kind is decided by emptiness alone
-        // (equal([], x) is element-wise vacuous), so the kind classes
-        // need not match; both canons frame '[]' when empty and any
-        // non-empty side byte-differs from '[]' — the engine's answer.
-        boolean anyNil = eSpec.nil() || aSpec.nil();
-        // F10 v1: an ANY-stamped side has no static kind — the pair
-        // compares in the pure-LITERAL channel (six disjoint spellings
-        // carry kind in the bytes), so the static gate defers
-        boolean anyAny = eAny || aAny;
-        if (ke == null || ka == null
-                || (!anyNil && !anyAny && !ke.equals(ka))) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined("kind-gate: "
-                    + eSpec.typeName() + " / " + aSpec.typeName());
-            return null;
-        }
-        // V11: the canon rode each side's OWN query (wrapWithCanon) —
-        // a decline recorded by the wrap (non-SQL arm, unclaimed kind,
-        // non-scalar shape) routes the pair to the host lattice.
-        if (ef.rider().declined() != null) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    "side-e: " + ef.rider().declined());
-            return null;
-        }
-        if (af.rider().declined() != null) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    "side-a: " + af.rider().declined());
-            return null;
-        }
-        // F13 — IDENTITY-pair guards (keyless class: the canon claimed
-        // via the synthetic __id identity field). Map carriers are NOT
-        // identity pairs — mapEquals (F12) is their own claimed rule.
-        if (!anyNil && !anyAny && ke instanceof KindClass.Instance
-                && !eSpec.mapCarrier() && !gate.hasInstanceKeys()) {
-            // v1 exclusion: a constructor under a LAMBDA evaluates per
-            // element but mints ONE site id (no row index reaches
-            // list_transform) — identity would conflate distinct
-            // instances; decline, counted (OPEN_REGISTER F13). The scan
-            // over the verdict's scope ran when the arm was planned.
-            if (gate.keylessCtorUnderLambda()) {
-                com.legend.judge.CanonicalDivergence.sqlDeclined(
-                        "keyless-ctor-in-lambda: " + ke);
-                return null;
-            }
-            // an instance wire that carries NO id (a producer outside
-            // the minting sites) must never byte-judge — identity
-            // unknown is a decline, never a fabricated equality
-            for (Object v : AssertVerdicts.concat(eVals, aVals)) {
-                if (v instanceof java.util.Map<?, ?> m
-                        && m.get(com.legend.compiler.element.ClassLayouts
-                                .SYNTHETIC_ID) == null) {
-                    com.legend.judge.CanonicalDivergence.sqlDeclined(
-                            "identityless-instance-wire: " + ke);
-                    return null;
-                }
-            }
-        }
-        // X4 (VERDICT_RULE_AUDIT): the engine has NO cross-primitive-
-        // kind equality — numeric pairs must be the SAME fine kind.
-        // Abstract Number stamps projected one candidate column per
-        // kind; the RUNTIME value kinds (pure's own Number dispatch)
-        // SELECT the column — selection, never evaluation. Cross-kind
-        // pairs decline to the host lattice's engine-FALSE.
-        if (!anyNil && anyAny
-                && (ke instanceof KindClass.Enum || ka instanceof KindClass.Enum)) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    "any-pair: enum against an untyped (Any) wire: "
-                            + (ke instanceof KindClass.Enum ? ke : ka));
-            return null;
-        }
-        int ei = 0;
-        int ai = 0;
-        if ((anyAny || ef.rider().literalOnly()
-                || af.rider().literalOnly()) && !anyNil) {
-            // both sides compare in the literal channel; a side without
-            // AssertVerdicts.one (unrefined Number, non-literal kind) declines
-            ei = ef.rider().literalIndex();
-            ai = af.rider().literalIndex();
-            if (ei < 0 || ai < 0) {
-                com.legend.judge.CanonicalDivergence.sqlDeclined(
-                        "any-pair: no literal channel: " + eSpec.typeName()
-                                + " / " + aSpec.typeName());
-                return null;
-            }
-        } else if (!anyNil && ke == KindClass.Primitive.NUMERIC) {
-            KindClass.Fine fe = selectedFineKind(ef, eVals);
-            KindClass.Fine fa = selectedFineKind(af, aVals);
-            if (fe == null || fa == null) {
-                com.legend.judge.CanonicalDivergence.sqlDeclined(
-                        "unrefined-number: " + eSpec.typeName() + " / "
-                                + aSpec.typeName());
-                return null;
-            }
-            if (fe != fa) {
-                com.legend.judge.CanonicalDivergence.sqlDeclined(
-                        "cross-kind-numeric: " + fe + "/" + fa);
-                return null;
-            }
-            ei = candidateIndex(ef, fe);
-            ai = candidateIndex(af, fa);
-            if (ei < 0 || ai < 0) {
-                com.legend.judge.CanonicalDivergence.sqlDeclined(
-                        "unrefined-number: no candidate for " + fe);
-                return null;
-            }
-        }
-        Framed fe2 = frame(ef, ei);
-        Framed fa2 = frame(af, ai);
-        if (fe2.decline() != null || fa2.decline() != null) {
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    fe2.decline() != null ? "render-e: " + fe2.decline()
-                            : "render-a: " + fa2.decline());
-            return null;
-        }
-        if (AssertVerdicts.containsTreeMarker(fe2.text())
-                || AssertVerdicts.containsTreeMarker(fa2.text())) {
-            // an Any cell held a JSON tree — the literal channel cannot
-            // spell it (F10 proper's kind-tagged carrier will); decline,
-            // never compare markers (equal trees would fabricate)
-            com.legend.judge.CanonicalDivergence.sqlDeclined(
-                    "any-wire-tree: " + eSpec.typeName() + " / "
-                            + aSpec.typeName());
-            return null;
-        }
-        boolean byteEqual = java.util.Objects.equals(fe2.text(), fa2.text());
-        String detail = "kinds=" + ef.rider().kinds().get(ei) + "/"
-                + af.rider().kinds().get(ai)
-                + " e<" + fe2.text() + "> a<" + fa2.text() + ">";
-        // DECLARED 2-ULP dialect-arithmetic policy (OPEN_REGISTER §5,
-        // X6/R3 owns its retirement): cross-dialect libm computes
-        // transcendentals a last ULP apart (H2-derived corpus goldens
-        // vs DuckDB acos/log/tan). The policy rides ON TOP of the byte
-        // channel — byte-differing all-finite-Double pairs within
-        // 2 ULP hold BY POLICY, counted in their own census row (the
-        // host lattice carries the same policy, so this is never a
-        // disagreement rescue). Before runtime-kind refinement these
-        // pairs declined as unrefined NUMBER and the host policy
-        // decided; the refinement must not silently retire the policy.
-        if (!byteEqual && AssertVerdicts.withinDeclaredUlp(eVals, aVals, rules)) {
-            com.legend.judge.CanonicalDivergence.sqlUlpPolicy(detail);
-            return new SqlVerdict(true, "2ulp-policy " + detail);
-        }
-        // DECLARED TDSNull-sentinel policy (PureAsserts equalScalar:
-        // an EXPECTED literal 'TDSNull' equals an actual NULL cell —
-        // the engine golden's null spelling; audit 16 F5 keeps it
-        // direction-aware). The canon spells the two differently by
-        // construction, so a byte-differing pair that the host lattice
-        // HOLDS and whose expected side carries the sentinel holds BY
-        // POLICY — counted in its own census row (the 2-ULP shape),
-        // never a silent rescue.
-        if (!byteEqual && hostHeld && AssertVerdicts.containsTdsNullSentinel(eVals)) {
-            com.legend.judge.CanonicalDivergence.sqlTdsNullPolicy(detail);
-            return new SqlVerdict(true, "tdsnull-policy " + detail);
-        }
-        return new SqlVerdict(byteEqual, detail);
-    }
-
-    /** The fine numeric kind whose candidate column judges this side:
-     * a refined stamp names it directly; an unrefined Number resolves
-     * from the RUNTIME value kinds; null = undeterminable (decline). */
-    static KindClass.@com.legend.base.Nullable Fine selectedFineKind(
-            SideFetch f, List<Object> vals) {
-        List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
-        if (kinds.size() == 1) {
-            return KindClass.Fine.ofType(kinds.get(0));
-        }
-        KindClass.Fine k = KindClass.Fine.ofValues(vals);
-        // B8: a runtime BigDecimal is evidence of the CARRIER, not the
-        // kind — precision-exact Float literals are decimal-carried BY
-        // DESIGN (the reference's own interpreted Float is
-        // BigDecimal-backed; receipt in CFloat). When the compiler's
-        // candidate set rules pure-Decimal OUT (no decimal candidate)
-        // and a float candidate exists, the value IS a decimal-carried
-        // Float and judges through the float canon. Static truth gates
-        // the resolution; the value alone never decides a kind.
-        if (k == KindClass.Fine.DECIMAL && candidateIndex(f, KindClass.Fine.DECIMAL) < 0
-                && candidateIndex(f, KindClass.Fine.FLOAT) >= 0) {
-            return KindClass.Fine.FLOAT;
-        }
-        return k;
-    }
-
-    /** Index of the fine kind's candidate column in the rider's
-     * projection order, or -1. */
-    static int candidateIndex(SideFetch f, KindClass.Fine fine) {
-        List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
-        for (int i = 0; i < kinds.size(); i++) {
-            if (fine == KindClass.Fine.ofType(kinds.get(i))) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    /** A framed side canon: {@code text} null = EMPTY (two empties are
-     * byte-equal, as before); {@code decline} = an unframeable side. */
-    record Framed(@com.legend.base.Nullable String text,
-            @com.legend.base.Nullable String decline) {
-    }
-
-    /** CanonicalForm.renderSide framing over the DB-computed element
-     * texts (V11): 0 elements → '[]', 1 → the bare text, N → '[a, b]'.
-     * The DATABASE computed every element's canonical text and (for
-     * assertSameElements) the canonical order; this join writes only
-     * the spec's separators — framing, never rendering. */
-    static Framed frame(SideFetch f, int idx) {
-        List<String[]> rows = f.rider().rows();
-        if (!f.rider().many()) {
-            // EVERY empty form canons '[]' (X5 unification): pure has
-            // no null value — a [0..1] with no row and a NULL cell are
-            // both the EMPTY collection, and equal([],[]) holds across
-            // multiplicities, so scalar-empty must byte-match
-            // collection-empty ('[]' == '[]'), never null-vs-'[]'.
-            if (rows.isEmpty() || rows.get(0)[idx] == null) {
-                return new Framed("[]", null);
-            }
-            return new Framed(rows.get(0)[idx], null);
-        }
-        if (rows.isEmpty()) {
-            return new Framed("[]", null);
-        }
-        if (rows.size() == 1) {
-            String t = rows.get(0)[idx];
-            return t == null ? new Framed(null, "null-canon-cell")
-                    : new Framed(t, null);
-        }
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < rows.size(); i++) {
-            String t = rows.get(i)[idx];
-            if (t == null) {
-                return new Framed(null, "null-canon-cell");
-            }
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(t);
-        }
-        return new Framed(sb.append(']').toString(), null);
     }
 
     /** Every wire value is an instance stamped {@code __type} = {@code cls}. */
@@ -578,15 +230,10 @@ final class HostJudge {
         return v;
     }
 
-    /** One assert side under V11: the values (host referee, gates,
-     * declared policies) and the canon rider (byte verdict texts) —
-     * both produced by the SAME single execution. §8 leg 1: a TABULAR
-     * side keeps its grid ({@code grid} non-null; {@code values} are
-     * the row-major CELLS, NULL slots kept — engine TDSRow semantics,
-     * column names OUT) and its canon is the rider's per-ROW texts. */
-    record SideFetch(List<Object> values,
-            com.legend.lowering.CanonRider rider,
-            TypedSide.@com.legend.base.Nullable Tabular grid) {
+    /** One assert side: its values (the host judge's, the gates', the declared policies'). §8 leg 1: a TABULAR side
+     *  keeps its grid ({@code grid} non-null; {@code values} are the row-major CELLS, NULL slots kept -- engine
+     *  TDSRow semantics, column names OUT). */
+    record SideFetch(List<Object> values, TypedSide.@com.legend.base.Nullable Tabular grid) {
     }
 
     /** NUMERIC CHARTER Rule 3: both sides DECLARED Float — their kind is
@@ -636,20 +283,14 @@ final class HostJudge {
         return new HostSides.Ask(arg, true, false, hook);
     }
 
-    /** {@code r}, a side read on the identity lane (never folded: a literal evaluates in the database here too; a
-     *  keyless instance's identity, minted per construction site, is the rider's layout), as the canon fetch the
-     *  arms judge. */
-    static SideFetch sideCanonOf(TypedSide r, boolean canonicalOrder) {
-        // step 6 (2026-10-18, the plan path program): the side is a plan's result, decoded by its declared types;
-        // the byte channel that rode the side query declines here by name -- the database judge is the referee
-        // (the agreement gate, AgreementArm) -- and the rider's wrap machinery is dead by construction until the
-        // deletions (step 11)
-        var rider = new com.legend.lowering.CanonRider(canonicalOrder);
-        rider.decline("plan path: the database judge is the referee");
+    /** {@code r}, a side read on the identity lane (never folded: a literal evaluates in the database here too), as
+     *  the arms judge it: a plan's result, decoded by its declared types (P1, 2026-11-07: the canon rider built and
+     *  declined here since the plan path's step 6 is deleted, with the byte channel it fed). */
+    static SideFetch sideCanonOf(TypedSide r) {
         if (r instanceof TypedSide.Tabular t) {
             List<Object> cells = AssertVerdicts.cells(t);
             com.legend.judge.CanonicalDivergence.v7SideRows(cells.size());
-            return new SideFetch(cells, rider, t);
+            return new SideFetch(cells, t);
         }
         // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): a
         // side's cells are converted ONCE by the side's DECLARED kind —
@@ -660,7 +301,7 @@ final class HostJudge {
         // path, so a DECIMAL carrier under a Float declaration and a Float
         // literal meet as the SAME kind (Rule 3 then judges same-kind,
         // same-value).
-        return new SideFetch(AssertVerdicts.decodeSide(r), rider, null);
+        return new SideFetch(AssertVerdicts.decodeSide(r), null);
     }
 
     /** Failure-message sketch of a frame (columns + row count — the
@@ -1013,8 +654,8 @@ final class HostJudge {
     }
 
     private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        SideFetch ef = sideCanonOf(pair.get(0), false);
-        SideFetch af = sideCanonOf(pair.get(1), false);
+        SideFetch ef = sideCanonOf(pair.get(0));
+        SideFetch af = sideCanonOf(pair.get(1));
         Object ee = AssertVerdicts.one(ef.values(), "assertEq expected");
         Object aa = AssertVerdicts.one(af.values(), "assertEq actual");
         // host judgment FIRST: eq's non-primitive identity rule
@@ -1023,13 +664,7 @@ final class HostJudge {
         com.legend.judge.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
                 java.util.Collections.singletonList(aa), d == null);
-        // V5/V11 — byte verdict of record (primitive eq
-        // coincides with equal; the identity rule walled above)
-        SqlVerdict byteVerdict = sqlByteVerdict(j.e(), j.a(), j.gate(), ef, af, d == null, rules);
-        return finish("assertEq", true, d == null,
-                byteVerdict == null ? null : byteVerdict.held(),
-                byteVerdict == null ? "" : byteVerdict.detail(),
-                () -> d);
+        return finish("assertEq", true, d == null, () -> d);
     }
 
     static HostSides.Check planInstanceOf(List<TypedSpec> args, BodyDriver.ExecEnv env,
@@ -1100,8 +735,8 @@ final class HostJudge {
     }
 
     private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        SideFetch ef = sideCanonOf(pair.get(0), !j.gridPair());
-        SideFetch af = sideCanonOf(pair.get(1), !j.gridPair());
+        SideFetch ef = sideCanonOf(pair.get(0));
+        SideFetch af = sideCanonOf(pair.get(1));
         // §8 leg 1 — TABULAR sides under the MULTISET form:
         // loose CELL pool (the corpus writes flat expected sets
         // column-grouped — loose multiset IS this assert's
@@ -1129,10 +764,7 @@ final class HostJudge {
         // arrive ORDER BY canon text (the wrap's sort key) in
         // the SAME execution; the host multiset judgment above
         // is the parallel referee.
-        SqlVerdict byteVerdict = sqlByteVerdict(j.e(), j.a(), j.gate(), ef, af, d == null, rules);
         return finish("assertSameElements", true, d == null,
-                byteVerdict == null ? null : byteVerdict.held(),
-                byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> d);
     }
 
@@ -1375,8 +1007,8 @@ final class HostJudge {
         String name = j.name();
         boolean wantEqual = j.wantEqual();
         boolean incidental = j.incidental();
-        SideFetch ef = sideCanonOf(pair.get(0), incidental && !j.gridPair());
-        SideFetch af = sideCanonOf(pair.get(1), incidental && !j.gridPair());
+        SideFetch ef = sideCanonOf(pair.get(0));
+        SideFetch af = sideCanonOf(pair.get(1));
         // the FLAT-CELLS verdict (grid canon byte channel +
         // host cell lattice referee)
         if (ef.grid() != null || af.grid() != null) {
@@ -1413,10 +1045,7 @@ final class HostJudge {
         // design): disagreement is a pinned census row, never a
         // rescue. A decline (unclaimed kind, non-SQL arm,
         // non-scalar shape) is counted and the host judges.
-        SqlVerdict byteVerdict = sqlByteVerdict(j.e(), j.a(), j.gate(), ef, af, equal, rules);
         return finish(name, wantEqual, equal,
-                byteVerdict == null ? null : byteVerdict.held(),
-                byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> incidental
                         ? com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules)
                         : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().type(), j.a().type(), rules),

@@ -215,7 +215,8 @@ class HarnessDisciplineTest {
             // (2026-11-03, the user's ruling: the flat-cells byte channel compares in order -- assertSameElements
             // keeps its own sort, upstream's sort-then-compare); 2 -> 4 (2026-11-03, the user's ruling "no sort can be
             // multiset compare" restored: an INCIDENTAL actual side's flat-cells byte channel sorts both sides again)
-            Map.entry("HostJudge.java", 4),
+            // 4 -> 0 (2026-11-07, P1: the four sorts were the byte channel's, a canon rider built and declined at run
+            // since 2026-10-18; deleted with it -- the host lattice's own order policy is Equality's)
             // (BodyDriver: 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings
             // left for the planner with the engine's plan text (EnginePlans, below); 1 -> 0 (2026-10-31, S4a): the
             // canon's JSON key order left for the planner with the side's plan (SidePlanner, below))
