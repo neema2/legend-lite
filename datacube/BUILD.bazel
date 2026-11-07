@@ -59,6 +59,13 @@ exports_files(
     visibility = ["//python:__pkg__"],
 )
 
+# every gallery series' Show #TS statement, held by the parity test (test/timeseries-ts-parity.test.ts) and replayed
+# on the other databases by //core:ts_replay_test (docs/TS_DECISIONS_2026_11_07.md item 9)
+exports_files(
+    ["test/fixtures/timeseries/show-ts.txt"],
+    visibility = ["//core:__pkg__"],
+)
+
 
 # the app's sources as the tests read them; package.json carries
 # "type": "module" (the sources are ES modules)
@@ -216,6 +223,8 @@ _EXTRA_ENV = {
     # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
     "timeseries-ts-parity": {
         "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
+        # every series' Show #TS statement, held: //core:ts_replay_test replays them (2026-11-07, item 9)
+        "TS_STATEMENTS": "$(rlocationpath test/fixtures/timeseries/show-ts.txt)",
     },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
@@ -306,6 +315,7 @@ _EXTRA_DATA = {
     ],
     "timeseries-ts-parity": [
         "test/fixtures/timeseries/gallery-answers.json",
+        "test/fixtures/timeseries/show-ts.txt",
         "test/timeseries-frozen.ts",
     ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
@@ -1859,6 +1869,27 @@ js_run_binary(
     tool = ":emit_markets_data",
     # and Python's test of the example over it (python/tests/test_markets.py)
     visibility = ["//python:__pkg__"],
+)
+
+# The gallery's samples as the pages make them (tools/ts-replay/samples.ts: the prices, the rates and the macro series,
+# one JSON object of their CSV texts), which //core:ts_replay_test loads into each database it replays the gallery's
+# Show #TS statements on (docs/TS_DECISIONS_2026_11_07.md item 9)
+js_binary(
+    name = "emit_ts_replay_samples",
+    data = [":src"],
+    entry_point = "tools/ts-replay/samples.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "ts_replay_samples",
+    srcs = ["tools/ts-replay/samples.ts"],
+    stdout = "generated/ts-replay-samples.json",
+    tool = ":emit_ts_replay_samples",
+    visibility = ["//core:__pkg__"],
 )
 
 # The example over the project as a saved page (tools/markets-data/page.ts), for Python's test of it

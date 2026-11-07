@@ -21,7 +21,8 @@ import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts
 import { readsBase, TS_ITEM, tsIsland, tsItemText, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 import { exprText, inlined } from '../src/timeseries-expr.ts';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { join } from 'node:path';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
@@ -224,6 +225,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   }
   console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
   if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));
+  holdStatements(`${statements.join('\n')}\n`);
   const sorted = [...itemTimes].sort((a, b) => a - b);
   const at = (q: number): string => (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0).toFixed(2);
   console.log(`One reader: ${items} series' items read by core; a read takes ${at(0.5)} ms (median), ${at(0.9)} ms`
@@ -234,6 +236,23 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');
 });
+
+/**
+ * Every series' Show #TS statement, held to its fixture (test/fixtures/timeseries/show-ts.txt): //core:ts_replay_test
+ * replays them on the other databases beside DuckDB (docs/TS_DECISIONS_2026_11_07.md item 9), so a statement printed
+ * otherwise is seen here first. A change on purpose rewrites it, as the frozen answers are (timeseries-frozen.ts):
+ *   bazel test //datacube:timeseries_ts_parity_test --strategy=TestRunner=local \
+ *     --test_env=TS_STATEMENTS_UPDATE=$PWD/datacube/test/fixtures/timeseries/show-ts.txt
+ */
+function holdStatements(text: string): void {
+  const update = process.env['TS_STATEMENTS_UPDATE'];
+  if (update) {
+    writeFileSync(update, text);
+    return;
+  }
+  assert.equal(readFileSync(runfileFromEnv('TS_STATEMENTS'), 'utf8'), text,
+    'every series\' Show #TS statement as held (a change on purpose rewrites the fixture: holdStatements says how)');
+}
 
 /** A tile's view without its compare: the series as computed. */
 function uncompared(v: TsView): TsView {

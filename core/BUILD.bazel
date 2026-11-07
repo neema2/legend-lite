@@ -510,6 +510,9 @@ legend_java_library(
             # the scale measurement is :ts_scale_measure's and :ts_scale_measure_postgres's alone (manual): it reads the
             # timeseries project's file and makes ten million rows (2026-11-07, docs/TS_SCALE_2026_11_07.md)
             "src/test/java/com/legend/integration/TsScaleMeasureTest.java",
+            # the gallery's replay is :ts_replay_test's and :ts_replay_postgres_test's alone: it reads the gallery's
+            # statements and samples (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9)
+            "src/test/java/com/legend/integration/TsReplayTest.java",
             # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
             "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
@@ -1226,6 +1229,77 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GALLERY ON ANOTHER DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9, 2026-11-07): every series of the timeseries
+# gallery and the markets example as Show #TS prints it (the parity test's statements, held to the datacube fixture),
+# over the pages' samples (//datacube:ts_replay_samples) loaded into each database, each answer held to DuckDB's run
+# beside it -- the same dates and lines, each figure within 1e-9 of its series' scale (as ruled that day). Here the other
+# in-process databases; the embedded Postgres in :ts_replay_postgres_test (as root, through
+# tools/postgres/as_unprivileged.sh, docs/CLOUD_SESSIONS.md).
+_TS_REPLAY_DATA = [
+    "//projects:timeseries/model.pure",
+    "//datacube:test/fixtures/timeseries/show-ts.txt",
+    "//datacube:ts_replay_samples",
+]
+
+_TS_REPLAY_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.replay.statements=$(rlocationpath //datacube:test/fixtures/timeseries/show-ts.txt)",
+    "-Dts.replay.samples=$(rlocationpath //datacube:ts_replay_samples)",
+]
+
+junit_test(
+    name = "ts_replay_test",
+    # manual until it passes (2026-11-07, item 9 in progress: its first run refused the samples' model; fixed since,
+    # not yet rerun)
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsReplayTest.java"],
+    data = _TS_REPLAY_DATA,
+    jvm_flags = _TS_REPLAY_FLAGS,
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_replay_postgres_test",
+    # manual until it passes (2026-11-07, item 9 in progress: its first run refused the samples' model; fixed since,
+    # not yet rerun)
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsReplayTest.java"],
+    data = _TS_REPLAY_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
