@@ -39,22 +39,10 @@ public interface AssertListener {
     default void refereed(String assertName, String outcome) {
     }
 
-    /** The rows leg is about to read a mapping over {@code storeFqn}
-     * (fixture on demand, corpus-zero program 2026-09-12): the engine's
-     * suite runs a package's BeforePackage setups only for that package's
-     * tests, so a golden whose mapping reads another package's store was
-     * judged by text. A runner that OWNS fixtures may run the one setup
-     * whose program seeds the store (the platform's
-     * {@code ProgramFacts.seedsStores}, a typed element reference) in the
-     * session and return true. Default: no fixture. The platform never
-     * guesses a fixture: an ambiguous store (seeded by several packages
-     * with different data) is not provided. */
-    default boolean provideStore(String storeFqn) {
-        return false;
-    }
-
-    /** {@link #provideStore} PLANNED AHEAD (zero exemptions, the owner, 2026-11-05): an engine-text assert planned
-     *  under the compatibility rules whose rows leg would read a mapping over {@code storeFqn} asks while it is
+    /** A fixture PLANNED AHEAD (zero exemptions, the owner, 2026-11-05; the run-now provision, provideStore, deleted
+     *  with the walk, 2026-11-07): the engine's suite runs a package's BeforePackage setups only for that package's
+     *  tests, so a golden whose mapping reads another package's store needs that store seeded. An engine-text assert
+     *  planned under the compatibility rules whose rows leg would read a mapping over {@code storeFqn} asks while it is
      *  planned, and the provision it answers -- the one setup's program planned now -- runs where the rows leg reads,
      *  inside a run that plans nothing; true where it seeded the store. Null: no fixture to provide, or none that can
      *  be planned ahead. Default: none. */

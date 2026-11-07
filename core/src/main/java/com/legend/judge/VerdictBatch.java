@@ -184,15 +184,11 @@ public final class VerdictBatch {
     /** CENSUS (printed by the corpus lanes): fused statements sent, and the
      * batches that fell to the split rung. */
 
-
-
-
     /** CENSUS: frames built under a batch, by how the asserts read them —
      * {@code cte} (a relation-rooted frame of static schema, planned once),
      * {@code pasted} (relation-rooted but late-bound or not eager), {@code
      * class} (a class- or scalar-rooted frame: the chain pastes). */
     public enum FrameRead { CTE, PASTED, CLASS, CLASS_CTE }
-
 
     public static void frame(FrameRead how) {
         switch (how) {
@@ -425,43 +421,6 @@ public final class VerdictBatch {
         return roots.isEmpty();
     }
 
-    /** Send the deferred statements (one fused statement per session), then
-     * report every root in body order; the first failure raises. */
-    public void flush(@com.legend.base.Nullable AssertListener l) {
-        Planned planned = plan();
-        if (planned == null) {
-            return;
-        }
-        planned.counted();
-        for (Group g : planned.groups()) {
-            VerdictSink sink = new VerdictSink() {
-                @Override
-                public void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
-                    planned.fused(group, rejected);
-                }
-
-                @Override
-                public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
-                    planned.received(verdict, row);
-                }
-            };
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-                // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
-                PlanRunner.program(new ExecutionPlan(List.of(), g.step()), Map.of(), PlanSessions.of(g.on(), trace),
-                        PlanRunner.Judging.DATABASE, sink);
-            } catch (com.legend.error.DataError e) {
-                if (!g.keyed()) {
-                    throw e;
-                }
-                // the database rejected a keyed statement: the rows read before it stand; the rest are reached at
-                // their place (the root loop's executeOne), the error at its owner
-            } catch (java.io.IOException e) {
-                throw new java.io.UncheckedIOException(e);
-            }
-        }
-        planned.judge(l);
-    }
-
     /** One verdict group of a planned batch: its step, the session it runs on, whether it is the keyed members' group
      *  (each verdict its keyed wrapper, no fused statement; a rejection leaves its rows absent). */
     public record Group(ExecutionPlan.Verdicts step, Sessions.Session on, boolean keyed) {
@@ -471,7 +430,7 @@ public final class VerdictBatch {
      * THE BATCH PLANNED (the test-is-the-product plan's M7): the deferred verdicts as verdict groups -- one fused
      * statement per session over the batch's frames (the dialect's split rung at planning, member by member:
      * {@link #spelled}), the keyed members a group of their own -- and the judgment over the rows the groups answer
-     * ({@link #judge}: the root loop, in body order, the first failure raising). The walk's {@link #flush} runs the
+     * ({@link #judge}: the root loop, in body order, the first failure raising). The walk's flush (deleted 2026-11-07) ran the
      * groups through the plan runner between the two; the program road places the groups as steps of the body's plan
      * and judges at the last of them. Null where nothing was deferred (no root).
      */
@@ -700,13 +659,6 @@ public final class VerdictBatch {
             }
         }
 
-        /** Whether every root of the batch was decided at planning (a static decision, an unjudged decline, a planned
-         *  raise): no root has a statement for the database to read, so the batch has no group and its root loop
-         *  needs no row (the database judge's own planner carries such a segment as a step with no statement). */
-        public boolean decidedAtPlanning() {
-            return batch.stream().allMatch(r -> r.steps.stream().noneMatch(s -> s instanceof Pending));
-        }
-
         /** The verdict groups, in the order they run: a session's keyed group, then its fused group, per session. */
         public List<Group> groups() {
             return java.util.Collections.unmodifiableList(groups);
@@ -760,8 +712,6 @@ public final class VerdictBatch {
             }
             throw decided.failure();
         }
-
-
 
         /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
          *  split rung, lazily, nothing sent past the first failure), a resolved step's failure; each root's verdict to
@@ -938,22 +888,6 @@ public final class VerdictBatch {
         Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
                 + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
                 + attribute(m));
-    }
-
-    /** Execute ONE verdict statement on {@code on}, as a verdict group of one step through the plan runner (its
-     * wrapper under the FALLBACK origin), and return its one row; a canon the dialect cannot spell is counted UNJUDGED
-     * with the dialect's own words, a statement the database rejects is the database's verdict (judged: the test's
-     * failure, its error), and either surfaces as itself — never a bare re-run, never a host rescue. */
-    public static List<Object> executeOne(String name, SqlQuery vq, Sessions.Session on, Runner runner) {
-        ExecutionPlan.Node wrapper;
-        try {
-            wrapper = runner.plan(vq, false, on);
-        } catch (com.legend.sql.dialect.DialectCapability e) {
-            CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
-                    + String.valueOf(e.getMessage()).split("\n")[0]);
-            throw e;
-        }
-        return runPlanned(name, wrapper, on, runner);
     }
 
     /** ONE verdict statement already planned ({@code wrapper}) read through a running program's {@code reader} (the

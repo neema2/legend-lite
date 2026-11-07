@@ -99,7 +99,7 @@ public interface TestObserver extends AssertListener {
     }
 
     /** The runner seeded {@code storeFqn} on demand by running {@code
-     *  setupFqn} mid-test ({@link com.legend.judge.AssertListener#provideStore}):
+     *  setupFqn} mid-test ({@link com.legend.judge.AssertListener#fixtureAhead}):
      *  the rows leg of an assert reads a mapping over a store another
      *  package's fixture owns. */
     default void fixtureProvided(String storeFqn, String setupFqn) {

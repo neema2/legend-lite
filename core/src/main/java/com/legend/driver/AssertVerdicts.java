@@ -109,23 +109,6 @@ final class AssertVerdicts {
         return DatabasePlan.PLANNED;
     }
 
-    /**
-     * THE STATIC GATE of the database judge's planner (M7): whether {@code bare} is a shape whose database arm plans
-     * its verdict statement without READING a side on the host at its turn. The host checks' own classification
-     * ({@link #planHost}, null for the shapes neither judge plans statically: a lineage print, the quantified forms,
-     * the declining judgments) gates first; then the shapes whose database
-     * arm would READ a side at the assert -- the grid pair of two relation-typed sides ({@code HostJudge
-     * .planGridPair}, D3), the rendered-text sides ({@link #renderedArm}), {@code assertEq} over a class-kind side
-     * ({@code HostJudge.eq}, D43) -- which would run their sides where the planner only plans. Such a body is the
-     * walk's, refused by name where the walk's door is closed ({@code WalkDoor}: core and PCT); no shape is handed to
-     * the host judge. Planning only: the host checks plan the sides; nothing is sent.
-     */
-    static boolean databasePlansWithoutReading(TypedSpec bare, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        return databaseGate(bare, letPrefix, specs, env, rawHook) != DatabaseGate.UNPLANNED;
-    }
-
     /** The static gate's answers: the arm PLANS its verdict statement without reading; an ENGINE_TEXT assert plans its
      *  text row with the appeal deferred (M10b); the arm RAISES at planning (its classification raised inside the arm:
      *  {@link HostAssert#raising}) -- the planning pass walls the root at its place, which the program carries only
@@ -383,14 +366,6 @@ final class AssertVerdicts {
             BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
-        if (env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST) {
-            // the host judge's planned shapes (the test-is-the-product plan's M6): the two halves the program road
-            // places as a verdict step, run back to back here
-            HostAssert planned = planHost(bare, letPrefix, specs, env, rawHook);
-            if (planned != null) {
-                return planned.run(letPrefix, specs, env);
-            }
-        }
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
         // task #14 leg 1 (2026-09-21): a lineage tree print is judged as LINES —
         // the golden brought to its canon rows here, ours the prelude's own
@@ -581,15 +556,10 @@ final class AssertVerdicts {
                         yield arm.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook);
                     }
                     // two grids whose declared schemas differ (a width, a name, a kind) or whose columns the
-                    // planning does not know: the grid owner on the host decides under the host judge; the database
-                    // judge has no form for them and fails by name, never handing them to the host (the deep audit,
-                    // 2026-11-05; the program road's static pass refuses the shape before it)
-                    if (env.options().judgeMode() != ExecuteOptions.JudgeMode.HOST) {
-                        yield DatabaseJudge.unjudged(name,
-                                "two grids whose schemas differ or are unknown: the database judge has no form for them");
-                    }
-                    yield HostSides.judged(name, HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook),
-                            letPrefix, specs, env);
+                    // planning does not know: the database judge has no form for them and fails by name, never handing
+                    // them to the host (the deep audit, 2026-11-05; the host judge plans them with its own planner)
+                    yield DatabaseJudge.unjudged(name,
+                            "two grids whose schemas differ or are unknown: the database judge has no form for them");
                 }
                 // D3 — the ORDER VIEW: an INCIDENTAL-order actual side
                 // (unsorted store read / frame read) has SQL arrival
@@ -778,35 +748,6 @@ final class AssertVerdicts {
             return v;
         }
 
-        /** Run in place (the walk): counted, its sides fetched, judged. */
-        @com.legend.base.Nullable TypedSide run(List<TypedSpec> letPrefix, SpecCompiler specs,
-                BodyDriver.ExecEnv env) {
-            if (beforeTheArm != null) {
-                throw beforeTheArm;
-            }
-            if (HostJudgment.core(check.judgment()) instanceof HostJudgment.Unrolled u) {
-                // the walk's unroll: each element entered, fetched and judged in turn, the first failure stopping it
-                // (the program road reads every element's sides in one step and judges them in order: the one
-                // difference, on a failing body -- its later elements' sides are read; M10c item 5)
-                TypedSide last = null;
-                for (HostAssert part : u.parts()) {
-                    last = part.run(letPrefix, specs, env);
-                    if (last == null) {
-                        throw new com.legend.error.NotImplementedException(
-                                "unrolled quantified assert: element verdict not adjudicable for " + part.listenerName());
-                    }
-                }
-                return last == null ? ok() : last;
-            }
-            enter();
-            // an engine-text check reading our text as a side: fetched under the origin the arm marked for it, as
-            // the arm sent it before the side was deferred and as the program road's step is sent (M10c item 8)
-            com.legend.exec.StatementOrigin marked = deferredTextOrigin(check.judgment());
-            try (var __o = marked == null ? null : com.legend.exec.StatementOrigin.enter(marked)) {
-                HostSides.Fetched f = HostSides.fetchChecked(name(), check, letPrefix, specs, env);
-                return judge(f::sides, env.options().judgingRules(), f.message());
-            }
-        }
     }
 
     private static void familyEntered(String family) {
@@ -1853,11 +1794,14 @@ final class AssertVerdicts {
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
      * arm; the router classifies and hands the sides over, nowhere else forks. */
     static VerdictArm arm(BodyDriver.ExecEnv env) {
-        return switch (env.options().judgeMode()) {
-            case HOST -> HostJudge.ARM;
-            case DATABASE -> DatabaseJudge.ARM;
-            case BOTH -> AgreementArm.ARM;
-        };
+        // the host judge's asserts are planned by its own planner (HostAsserts) and judged at their verdict steps; the
+        // agreement judge plans each half with its judge's planner: an arm judged in place is the database planner's
+        // alone (I2, 2026-11-07: the host arm in place and the agreement arm deleted with the walk, measured unreached)
+        if (env.options().judgeMode() != ExecuteOptions.JudgeMode.DATABASE) {
+            throw new IllegalStateException("the arms are the database judge's planner's; a " + env.options().judgeMode()
+                    + " judge plans its asserts with its own planner");
+        }
+        return DatabaseJudge.ARM;
     }
 
     /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
@@ -2273,9 +2217,8 @@ final class AssertVerdicts {
             batch.orElse(rows::get);
             return ok();
         }
-        // no batch to plan the two as one row (the walk's unbatched road): a text sent and then, where it failed, its
-        // rows was the two-statement fallback the one row replaced -- refused, by name
-        return DatabaseJudge.unjudged(name, "rendered-text: a ruled comparison outside a verdict batch");
+        throw new IllegalStateException(name + ": a ruled rendered-text comparison is planned on its body's verdict"
+                + " batch (I2, 2026-11-07: the walk's unbatched road deleted)");
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

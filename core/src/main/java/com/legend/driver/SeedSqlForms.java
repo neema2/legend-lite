@@ -20,13 +20,6 @@ final class SeedSqlForms {
     private SeedSqlForms() {
     }
 
-    private static boolean isSetUpDataSqls(
-            com.legend.compiler.spec.typed.TypedNativeCall c) {
-        return com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2
-                        .equals(c.callee().qualifiedName())
-                || com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS
-                        .equals(c.callee().qualifiedName());
-    }
 
     /** The ENGINE-TEXT statement list (golden-asserted). Unresolvable
      *  db keeps the CsvSeed execution form (nothing asserts its text). */
@@ -94,30 +87,4 @@ final class SeedSqlForms {
         return out;
     }
 
-    /** The EXECUTION form for a mapped {@code ->map(executeInDb)} source;
-     *  null when the source is not a setUpDataSQLs call. */
-    static TypedSide.@com.legend.base.Nullable Collection mappedExecutionForm(
-            java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedMap tm,
-            BodyDriver.ExecEnv env) {
-        if (!(tm.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sg)
-                || !isSetUpDataSqls(sg)) {
-            return null;
-        }
-        // the folded form is the one reader both roads share (testplan/Seeds.seedForm, M10c item 7c); a data argument
-        // that does not fold is the walk's own: evaluated as a statement
-        com.legend.testplan.Seeds.SeedForm form = com.legend.testplan.Seeds.seedForm(tm,
-                body.subList(0, body.size() - 1));
-        if (form != null) {
-            return new TypedSide.Collection(new java.util.ArrayList<>(form.texts(env.ctx(), env.dialect())),
-                    com.legend.compiler.element.type.Type.Primitive.STRING);
-        }
-        String seedCsv = BodyDriver.evalStringArg(body, sg.args().get(0), env);
-        String seedDb = sg.args().get(1)
-                instanceof com.legend.compiler.spec.typed.TypedPackageableRef spr
-                ? spr.fullPath() : null;
-        return new TypedSide.Collection(new java.util.ArrayList<>(
-                com.legend.setup.CsvSeed.sqls(seedCsv, seedDb, env.ctx(), env.dialect())),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
-    }
 }

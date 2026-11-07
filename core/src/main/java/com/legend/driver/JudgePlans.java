@@ -37,7 +37,7 @@ import java.util.Map;
  * declared types ({@code exec.JdbcDecode}, the typed seam of step 7: the Z2 ruling's carrier-decode bridge at the
  * plan boundary), then compares. The body driver PLANS a side ({@link BodyDriver#planHostSide}: the let prefix, the
  * inliner's splice, the natives' staging, the store resolution, the wire reconciliation) -- the one road both judges'
- * sides and the body's streamed answer ({@link #streamResult}, door 1, 2026-10-29) take.
+ * sides and the body's streamed answer (door 1, 2026-10-29) take.
  */
 final class JudgePlans {
 
@@ -113,61 +113,6 @@ final class JudgePlans {
             }
         }
         return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), target(env));
-    }
-
-    /**
-     * The body's last statement's answer STREAMED to the caller's sink (the doors, 2026-10-29): the same plan the
-     * judges' side runs ({@link #rowsPlan}; a late-bound grid framed by the database's columns; a dynamic pivot's
-     * keyed plan), its typed rows through the plan runner to the writer, as the service's answer goes -- the
-     * product's rules, not the judges' canon ({@link #valueLane}'s trim and the collection's null cells are the
-     * judges' own); a graph fetch's objects read as one cell and written as host rows. The root's cardinality is
-     * held on the stream: a scalar root and a to-one reader ({@code toOne}) answer at most one row, a required root
-     * at least one -- the collected side's refusals ({@link #values}, {@code BodyDriver.enforceToOneReader}).
-     */
-    static void streamResult(BodyDriver.WrappedSide w, boolean toOne, BodyDriver.ExecEnv env,
-            Execution.Answer answer) {
-        ExprType info = w.shapeInfo();
-        PlanSessions.Source on = PlanSessions.of(w.session(), env.trace());
-        switch (w.shape()) {
-            case GRAPH -> host(new TypedSide.Graph(objectsShape(run(objectsPlan(w, env),
-                    PlanSessions.of(w.session(), env.trace()))), info.type()), answer);
-            case TABULAR -> {
-                SqlQuery plan = w.plan();
-                Type.RelationType schema = Type.schemaView(info.type());
-                boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
-                if (lateBound) {
-                    // a raw grid as the answer: a relation of no declared column, its columns the ones its result
-                    // reports (the seam program's S3c, 2026-10-30; until then a describe at planning framed it)
-                    stream(new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, List.of(),
-                            PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env))), on,
-                            answer.of(ExecutionPlan.TdsResult.Shape.RELATION), toOne, 0, "", toOne);
-                    return;
-                }
-                if (schema == null) {
-                    throw new IllegalStateException("TABULAR result without a relation root type: "
-                            + info.type().typeName());
-                }
-                schema = TypedRows.flat(schema);
-                SqlQuery framed = withFrames(plan, env);
-                ExecutionPlan.Node node;
-                if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
-                    com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
-                            com.legend.lowering.KeyedPivot.dynamic(framed),
-                            "a dynamic pivot side whose plan holds no such pivot");
-                    node = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
-                } else {
-                    node = rowsPlan(framed, schema, env);
-                }
-                stream(node, on, answer.of(ExecutionPlan.TdsResult.Shape.RELATION), toOne, 0, "", toOne);
-            }
-            case SCALAR, COLLECTION -> {
-                com.legend.compiler.element.type.Multiplicity.Bounded m = info.multiplicity()
-                        .requireBounded("result shape");
-                stream(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env,
-                        ExecutionPlan.TdsResult.Shape.VALUE), on, answer.of(ExecutionPlan.TdsResult.Shape.VALUE),
-                        w.shape() == com.legend.plan.ResultShape.SCALAR, m.lower(), m.text(), false);
-            }
-        }
     }
 
     /** A side the body driver holds in Java (the doors, door 1, 2026-10-29) written to the caller's sink through a batcher, as a host's rows are: its
@@ -333,16 +278,6 @@ final class JudgePlans {
         return batch == null ? plan : com.legend.sql.FrameCtes.attach(plan, batch.frames());
     }
 
-    /** {@code node} run on a session of {@code on} -- the body's own ({@link PlanSessions#of}): checked
-     *  against the plan's target, never closed. */
-    static PlanRunner.Rows run(ExecutionPlan.TdsResult node, PlanSessions.Source on) {
-        try {
-            return PlanRunner.rows(new ExecutionPlan(List.of(), node), Map.of(), on);
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-    }
-
     /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement,
      *  or a fused batch's, as a typed-rows plan of the verdict schema the batch runs as a verdict group (the seam
      *  program's S2e, 2026-10-30; until then the batch asked this for the rows). */
@@ -416,17 +351,18 @@ final class JudgePlans {
                                         : p.root() instanceof com.legend.compiler.spec.typed.TypedUserCall uc
                                         ? " " + uc.callee().qualifiedName() : "")));
             }
-            return shape(p, runSide(p, env));
+            return shape(p, constantRows(p));
         }
+        // with no collector: the side is a constant the compiler answers (a literal text the arm reads while the assert
+        // is planned); one that needs a plan would run a statement at planning -- refused by name (I2, 2026-11-07: the
+        // walk's run of the side in place deleted, measured unreached on every lane)
         BodyDriver.PlannedValue pv = BodyDriver.planHostSide(value, letPrefix, specs, env, identity,
                 fold, hook);
-        BodyDriver.WrappedSide side = pv.side();
-        if (side == null) {
-            return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
+        if (pv.side() != null) {
+            throw new IllegalStateException("a side read while its assert is planned is a constant or a side the"
+                    + " verdict step reads; this one needs a plan of its own: " + value.getClass().getSimpleName());
         }
-        TypedSide result = sideResult(side, env);
-        toOneReader(pv.root(), result);
-        return result;
+        return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
     }
 
     /** The engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check). */
@@ -438,47 +374,6 @@ final class JudgePlans {
             throw new IllegalStateException("toOne() over a relation returned " + tab.rows().size()
                     + " row(s) — the exactly-one contract (engine reader semantics)");
         }
-    }
-
-    /** A planned side's result: its plan run by the runner, its rows decoded by the plan's types and shaped as the
-     *  side's declared shape (the legacy executor's own shaping rules, read from the plan's facts instead of JDBC). */
-    static TypedSide sideResult(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
-        return result(w, env, true);
-    }
-
-    /** A value statement's result (the body driver's, not a side under assertion): {@link #sideResult}'s, its grid
-     *  in the order its query gives -- the assert boundary's deterministic order is the assertion surface's feature,
-     *  never an ordinary statement's (2026-10-27, the result boundary program's phase 5: a statement's VALUES rows
-     *  have no scan key to order by). */
-    static TypedSide statementResult(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
-        return result(w, env, false);
-    }
-
-    private static TypedSide result(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
-            boolean assertBoundary) {
-        ExprType info = w.shapeInfo();
-        TypedSide result = sideResult0(w, env, assertBoundary);
-        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
-            // the SQL dump's companion: the side's plan columns and the cells the decode gave, with their carriers
-            StringBuilder sb = new StringBuilder("[side] " + w.shape() + " " + info.type().typeName() + " slots=");
-            for (com.legend.sql.OutputCol oc : w.plan().outputs()) {
-                sb.append(oc.name()).append(':').append(oc.type()).append(' ');
-            }
-            sb.append("cells=");
-            for (Row r : result.rows()) {
-                for (Object v : r.values()) {
-                    sb.append(v == null ? "null" : v + "<" + v.getClass().getSimpleName() + ">").append(' ');
-                }
-            }
-            System.err.println(sb);
-        }
-        return result;
-    }
-
-    private static TypedSide sideResult0(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
-            boolean assertBoundary) {
-        PlannedSide p = plannedOf(w, env, assertBoundary, null);
-        return shape(p, runSide(p, env));
     }
 
     // ---- a side as a plan value, and its shaping once read (the seam program's S2f, 2026-10-30) ------------------
@@ -541,27 +436,17 @@ final class JudgePlans {
         };
     }
 
-    /** {@code p}'s rows read in place (the one-side route): its typed rows or its keyed result through the runner on
-     *  the side's session; a constant's its text cells, as the runner hands a constant side's. */
-    static PlanRunner.Rows runSide(PlannedSide p, BodyDriver.ExecEnv env) {
-        return switch (p.side()) {
-            case ExecutionPlan.Side.Rows r -> run(r.result(), PlanSessions.of(p.wrappedSide().session(), env.trace()));
-            case ExecutionPlan.Side.KeyedRows k -> {
-                try {
-                    yield PlanRunner.rows(new ExecutionPlan(List.of(), k.keyed()), Map.of(),
-                            PlanSessions.of(p.wrappedSide().session(), env.trace()));
-                } catch (java.io.IOException e) {
-                    throw new java.io.UncheckedIOException(e);
-                }
-            }
-            case ExecutionPlan.Side.Constant c -> {
-                List<List<Object>> rows = new ArrayList<>(c.cells().size());
-                for (List<String> row : c.cells()) {
-                    rows.add(new ArrayList<Object>(row));
-                }
-                yield new PlanRunner.Rows(c.columns(), rows);
-            }
-        };
+    /** A constant side's rows: its text cells, as the runner hands a constant side's (I2, 2026-11-07: the one-side
+     *  route that ran a planned side in place deleted with the walk -- a side's rows are a verdict step's). */
+    static PlanRunner.Rows constantRows(PlannedSide p) {
+        if (!(p.side() instanceof ExecutionPlan.Side.Constant c)) {
+            throw new IllegalStateException("a planned side's rows are read by its verdict step, never in place");
+        }
+        List<List<Object>> rows = new ArrayList<>(c.cells().size());
+        for (List<String> row : c.cells()) {
+            rows.add(new ArrayList<Object>(row));
+        }
+        return new PlanRunner.Rows(c.columns(), rows);
     }
 
     /** {@code rows}, read for {@code p}, shaped as the side's declared shape (the legacy executor's own shaping

@@ -417,13 +417,9 @@ final class DatabaseJudge {
             batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
-        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6), the row self-contained
-        // (M8b): its polarity and its message in the statement
-        com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, wantEqual);
-        com.legend.diagnostics.Diagnostics.judgeSend("no-batch", name);
-        return verdictOf(name, com.legend.judge.VerdictBatch.executeOne(
-                name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
-                runOn.session(), JudgePlans.runner(runOn)));
+        // a verdict statement is a step of its body's plan, deferred on the body's batch and judged at its verdict step
+        // (I2, 2026-11-07: the walk's verdict sent on its own, outside a batch, deleted -- measured unreached)
+        throw new IllegalStateException(name + ": a verdict statement outside its body's verdict batch");
     }
 
     /** The verdict of one row ({@code verdict, expected, actual, unjudged, lenient, holds, message}): unjudged

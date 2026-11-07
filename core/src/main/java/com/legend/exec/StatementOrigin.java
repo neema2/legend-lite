@@ -66,13 +66,6 @@ public enum StatementOrigin {
         return enter(now == OTHER || now == STATEMENT && origin != STATEMENT ? origin : now);
     }
 
-    /** A GENERATED seeding site: under a fixture it refines {@link #SEED} to
-     * {@link #SEED_GENERATED}; elsewhere it is {@code otherwise}. */
-    public static Scope enterGenerated(StatementOrigin otherwise) {
-        StatementOrigin now = CURRENT.get();
-        return enter(now == SEED ? SEED_GENERATED : now == OTHER || now == STATEMENT ? otherwise : now);
-    }
-
     /** Sets the mark until the scope closes (restoring the previous one). */
     public static Scope enter(StatementOrigin origin) {
         StatementOrigin previous = CURRENT.get();

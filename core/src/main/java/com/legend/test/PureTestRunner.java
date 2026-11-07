@@ -277,24 +277,6 @@ public final class PureTestRunner implements AutoCloseable {
         return out;
     }
 
-    /** {@link AssertListener#provideStore}: run, in this session, THE
-     * setup that seeds {@code storeFqn}. False when no setup seeds it, or
-     * when several do (the shared test database is seeded by many
-     * packages' fixtures with different contents — which one the golden
-     * meant is not a fact, and an order-dependent pick judged
-     * tdsWithEnumReturn on a stranger's rows), or when the store declares
-     * a table that a setup already run in this session ({@code ran})
-     * seeds — NEVER OVERLAY: a fixture dropping and refilling a table
-     * under the running package's tests lost query::filter::exists 8
-     * rows on the first measurement. A setup that fails raises: a fixture
-     * the platform named but could not seed is a fault of ours, never a
-     * quiet decline. */
-    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
-            java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
-        return provideFixture(storeFqn, conn, ran, shared,
-                (fqn, target) -> runSetup(deriveSetup(fqn), target, options));
-    }
-
     /** {@link #provideFixture} PLANNED AHEAD ({@link AssertListener#fixtureAhead}; zero exemptions, the owner,
      *  2026-11-05): the one setup that seeds {@code storeFqn} planned now, while the assert that asks is planned, and
      *  provided -- by {@link #provideFixture}'s rules, read when it runs -- where the rows leg reads, inside the body's
@@ -332,7 +314,18 @@ public final class PureTestRunner implements AutoCloseable {
         return called;
     }
 
-    /** {@link #provideFixture} with {@code program} the setup's run on the session it is given. */
+    /** Run, in this session, THE setup that seeds {@code storeFqn} ({@code program}: the setup's planned run on
+     * the session it is given). False when no setup seeds it, or
+     * when several do (the shared test database is seeded by many
+     * packages' fixtures with different contents — which one the golden
+     * meant is not a fact, and an order-dependent pick judged
+     * tdsWithEnumReturn on a stranger's rows), or when the store declares
+     * a table that a setup already run in this session ({@code ran})
+     * seeds — NEVER OVERLAY: a fixture dropping and refilling a table
+     * under the running package's tests lost query::filter::exists 8
+     * rows on the first measurement. A setup that fails raises: a fixture
+     * the platform named but could not seed is a fault of ours, never a
+     * quiet decline. */
     private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
             java.util.Collection<String> ran, boolean shared,
             java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
@@ -560,16 +553,6 @@ public final class PureTestRunner implements AutoCloseable {
                                     refereeMatched[0] = true;
                                 }
                                 observer.refereed(name, outcome);
-                            }
-
-                            @Override
-                            public boolean provideStore(String storeFqn) {
-                                boolean shared = !facts.seedsInlineCsv();
-                                // a private workspace ran every candidate
-                                // of its package fresh (runSetups)
-                                return provideFixture(storeFqn, conn,
-                                        shared ? setupsDone : setupCandidates(t.pkg()),
-                                        shared, options);
                             }
 
                             @Override

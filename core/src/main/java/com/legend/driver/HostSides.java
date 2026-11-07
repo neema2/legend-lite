@@ -57,37 +57,6 @@ final class HostSides {
         }
     }
 
-    /** {@code check} run in place (the walk): its sides fetched, then judged; null where there is no check (the arm
-     *  declined the shape before any side) or the judgment declined. */
-    static @com.legend.base.Nullable TypedSide run(String name, @com.legend.base.Nullable Check check,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env) {
-        if (check == null) {
-            return null;
-        }
-        // judged by the run's rules (ExecuteOptions.judgingRules), as the program road's step names them
-        Fetched f = fetchChecked(name, check, letPrefix, specs, env);
-        return HostJudge.judge(check.judgment(), f.sides(), env.options().judgingRules(), f.message());
-    }
-
-    /** A check's sides read in place, and its caller's message's reader where the message is not one of them. */
-    record Fetched(List<TypedSide> sides, java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-    }
-
-    /** {@code check}'s sides fetched in place (the walk): a caller's MESSAGE (HostJudgment.Messaged, the check's last
-     *  side) is not fetched with them -- its reader is handed to the judgment, which reads it only where the assert
-     *  fails, as upstream evaluates it only there and as the program road reads it (the assert bar, 2026-11-04: the
-     *  walk's message read first lost the corpus's 55 test-data generation bodies, whose messages read a query the
-     *  program cannot plan). */
-    static Fetched fetchChecked(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env) {
-        if (!(check.judgment() instanceof HostJudgment.Messaged m) || m.unplanned() != null
-                || m.innerSides() != check.asks().size() - 1) {
-            return new Fetched(fetch(name, check.asks(), letPrefix, specs, env), null);
-        }
-        Ask message = check.asks().get(m.innerSides());
-        return new Fetched(fetch(name, check.asks().subList(0, m.innerSides()), letPrefix, specs, env),
-                () -> fetch(name, List.of(message), letPrefix, specs, env).get(0));
-    }
 
     /** {@code check}'s sides planned as one verdict's base, with the check they plan: a caller's message whose
      *  planning raised is no side, its failure the judgment's raise where the assert fails ({@link #withoutTheMessage}). */
@@ -118,13 +87,6 @@ final class HostSides {
         }
         return new Check(check.asks().subList(0, m.innerSides()),
                 new HostJudgment.Messaged(m.inner(), m.innerSides(), failure));
-    }
-
-    /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */
-    static TypedSide judged(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env) {
-        return java.util.Objects.requireNonNull(run(name, check, letPrefix, specs, env),
-                () -> name + ": an arm that always decides declined its sides");
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}
@@ -215,37 +177,6 @@ final class HostSides {
             }
             return shaped;
         };
-    }
-
-    /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
-    static List<TypedSide> fetch(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env) {
-        return fetched(name, plan(name, asks, letPrefix, specs, env), env);
-    }
-
-    /** {@code planned}'s sides run as one verdict's base, shaped. */
-    private static List<TypedSide> fetched(String name, Planned planned, BodyDriver.ExecEnv env) {
-        Sessions.Session on = planned.on();
-        List<TypedSide> out = new ArrayList<>(planned.sides().size());
-        if (on == null) {
-            for (JudgePlans.PlannedSide p : planned.sides()) {
-                out.add(JudgePlans.shape(p, JudgePlans.runSide(p, env)));
-            }
-            return out;
-        }
-        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, planned.base(), null);
-        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(verdict), null, env.options().judgingRules());
-        List<List<PlanRunner.Rows>> got = new ArrayList<>(1);
-        try {
-            PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, env.trace()),
-                    PlanRunner.Judging.HOST, new Sink(got));
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        if (got.size() != 1) {
-            throw new IllegalStateException(name + ": the runner handed " + got.size() + " verdicts' sides for one");
-        }
-        return shaped(name, planned, got.get(0));
     }
 
     /** The receiver of one verdict's sides; a verdict group of host sides answers no rows and is judged by no
