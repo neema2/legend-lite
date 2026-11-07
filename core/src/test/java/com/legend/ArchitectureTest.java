@@ -1411,6 +1411,21 @@ final class ArchitectureTest {
     // spelling carrier, its parser and the decoders' arms are deleted; a mixed value is a tagged value, read in its
     // slot, and no cell is parsed by its text's shape.)
 
+    /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
+     *  isolated"): no product class, and no other judging class, reads JSON through it. It moves to the edge (P2). */
+    @Test
+    void theCompatibilityJsonReaderIsTheJudgesAlone() {
+        noClasses()
+            .that().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson$JsonSimple")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson$JsonSimple$Kind")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
+            .as("S144: json-simple's grammar is read by the two judges alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()
