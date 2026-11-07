@@ -168,3 +168,32 @@ Each phase ends green; the status column is updated in the commit that does the 
 | 15 | B7: the page as a dashboard (option D) | 15 | |
 | 16 | B8: the tile kinds | -- | |
 | 17 | v1's gate: every check, then CI on #81 when the user asks | 17 | |
+| 18 | F3: Postgres's wide table (the 100 lines' statement grows a backend past memory, at 1M rows as at 10M) -- the spread read once and pivoted, not a join a line (the lean SQL) | -- | added 2026-11-07 (the user: "Add fixing postgres to roadmap") |
+
+## 4. Rulings of 2026-11-07, the second set
+
+Asked with pros, cons and costs (the decisions 1-10 of the message of that day); the user's words:
+
+- **Class-first pages: (a')**, "I like A' that's fine - basically copies of the charts that start with classes": the
+  markets page and the gallery copied over the trading model's classes (each grid a saved query of the markets project,
+  its columns the samples' names, so every series reads as written), the catalog opening the copies; the sample pages
+  stay as the frozen answers' fixtures, unchanged.
+- **The gallery's Dates sheet: a macro class**, "Add macro class obviously!": a class of the macro series and its Data in
+  the markets project, so the copy's every grid starts from a class (recommended (a), keeping that grid a table, was the
+  cost-weighted answer and the wrong one for a class-first page).
+- **P5, the scale budgets: (b)**, "Pin sql size and plan is fine": each benchmark's SQL size (its measure + 5%) and plan
+  time pinned in the scale targets; run times reported, not pinned.
+- **F3: on the roadmap** (row 18).
+- **Answers across databases: a tolerance, smartly** ("I think we need some smart way to do tolerance or bad idea?"):
+  DuckDB's frozen digests stay exact (the gate); another database's answers are compared with DuckDB's, run beside them
+  in the same replay, point by point -- the same dates and lines exactly, each figure within 1e-9 of the series' own
+  scale (its largest magnitude), so a sum taken in another order passes and a wrong figure does not; a difference of
+  meaning is a ledger row, named.
+- **The model's reads: not optimized** ("Let's not optimize model read if only one time cost"): the elements read and
+  the hold are once per tab and project (the planner and `once(projectElements)` keep them), so 8b's rest is dropped.
+- **The test Postgres's version: later** ("Can do postgres upgrade later").
+- **The bundle budgets raised under this run: kept** ("Budget is fine").
+- **Snowflake (item 10): the warm Snowflake session** ("Yes snowflake send to warm session"): sent 2026-11-07 to the
+  Snowflake lanes' session -- the workspace, a manual island lane, its report.
+- **CI on #81: when useful, not waited on** ("If need CI go for it but I wouldn't wait on it").
+
