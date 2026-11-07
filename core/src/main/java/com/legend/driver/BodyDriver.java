@@ -22,10 +22,9 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * dropAndCreateTableInDb/Schema, print). {@link Execution#runProgram} is the one entry and delegates here; nothing in
  * this class decides pipeline ORDER -- it runs already-typed statements, each through its plan.
  *
- * <p>The execution environment is ONE ambient session ({@link com.legend.exec.Sessions.Session}: the driver holds
- * no JDBC connection since track B's B1b, 2026-10-29, and reaches the database only through the
- * session's statements), one dialect, one optional raw-SQL failure sink ({@link ExecEnv}) — connection-valued
- * expressions are never evaluated.
+ * <p>The execution environment names a TARGET, never a session (I3, 2026-11-07): the planning of a test body's
+ * frames and sides, and the shared environment its judges plan on ({@link ExecEnv}); the run opens the sessions.
+ * Connection-valued expressions are never evaluated.
  *
  * <p>Public since step C (D73, 2026-10-30), for ONE caller: the body router ({@link BodyRouter}, since the
  * test-is-the-product plan's M5, 2026-11-01), which walks here every body of a class not yet moved onto the program
@@ -43,10 +42,10 @@ public final class BodyDriver {
      *  the environment), the listeners, the query's protocol statements. The body router plans an assert program's
      *  asserts on it (the test-is-the-product plan's M6). */
     static ExecEnv bodyEnv(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect, com.legend.exec.Sessions.Session session,
+            com.legend.sql.dialect.SqlDialect dialect,
             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee, ExecuteOptions options) {
-        ExecEnv env0 = ExecEnv.of(typed.context(), runtimeFqn, dialect, session, options);
+        ExecEnv env0 = ExecEnv.of(typed.context(), runtimeFqn, dialect, options);
         ExecEnv env = assertListener == null && replayReferee == null ? env0
                 : env0.withListeners(assertListener, replayReferee);
         if (typed.resolved() instanceof com.legend.protocol.spec.LambdaFunction rlf
@@ -62,11 +61,12 @@ public final class BodyDriver {
 
     /** The K-phase execution environment: the body's PLANNING half ({@link com.legend.planner.PlanEnv}: the model,
      * the runtime, the ONE dialect -- audit 17: recomputing it per arm invited a future mixed-dialect bug -- the
-     * query's lets, the renames, the frame, the features, the site ids) and what the body RUNS on: ONE ambient
-     * session, the trace, the verdict batch, the listeners and the caller's execute options. Split
-     * in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver; until then one record. */
+     * query's lets, the renames, the frame, the features, the site ids) and WHERE its statements run: the TARGET,
+     * never a session (I3, 2026-11-07: planning names a target, the run opens its session -- the runner's
+     * PlanSessions.Source maps one to the other), the trace, the verdict batch, the listeners and the caller's execute
+     * options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
     record ExecEnv(com.legend.planner.PlanEnv plan,
-            com.legend.exec.Sessions.Session session,
+            com.legend.executionplan.ExecutionPlan.Target target,
             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options,
@@ -79,14 +79,13 @@ public final class BodyDriver {
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), no listeners, a fresh trace, no batch. */
         static ExecEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-                com.legend.sql.dialect.SqlDialect dialect, com.legend.exec.Sessions.Session session,
-                ExecuteOptions options) {
+                com.legend.sql.dialect.SqlDialect dialect, ExecuteOptions options) {
             return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
-                                    + "\")")), session,
+                                    + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     null, null, options, new com.legend.exec.ExecutionTrace(), null, null, null, null);
         }
 
@@ -125,17 +124,17 @@ public final class BodyDriver {
         /** The same environment over another planning half. */
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
-                    : new ExecEnv(p, session, assertListener, replayReferee, options, trace, verdictBatch,
+                    : new ExecEnv(p, target, assertListener, replayReferee, options, trace, verdictBatch,
                             engineText, failureMessage, appealOn);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.judge.VerdictBatch b) {
-            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, b, engineText,
+            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, b, engineText,
                     failureMessage, appealOn);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
-            return new ExecEnv(plan.withFeatures(o.features()), session, assertListener, replayReferee, o, trace,
+            return new ExecEnv(plan.withFeatures(o.features()), target, assertListener, replayReferee, o, trace,
                     verdictBatch, engineText, failureMessage, appealOn);
         }
         /** The executing frame's bound context (post-processors, time zone,
@@ -148,19 +147,19 @@ public final class BodyDriver {
         }
         ExecEnv withListeners(com.legend.judge.@com.legend.base.Nullable AssertListener l,
                 com.legend.judge.@com.legend.base.Nullable SqlReplayReferee o) {
-            return new ExecEnv(plan, session, l, o, options, trace, verdictBatch, engineText, failureMessage, appealOn);
+            return new ExecEnv(plan, target, l, o, options, trace, verdictBatch, engineText, failureMessage, appealOn);
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
-            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch, c,
+            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch, c,
                     failureMessage, appealOn);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
-            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch,
                     engineText, m, appealOn);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
@@ -168,32 +167,21 @@ public final class BodyDriver {
          *  body's own environment while its verdict row runs on the program's; the walk deletion's step 3,
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
-            return new ExecEnv(plan, session, assertListener, replayReferee, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch,
                     engineText, failureMessage, on);
         }
 
-        /** The same environment over another session — the system
-         * database's session for a body that reads the metamodel (the same
-         * session object on every route, so two sides' sessions compare by
-         * identity). */
-        ExecEnv withSession(com.legend.exec.Sessions.Session other) {
-            return other == session ? this
+        /** The same environment over another target -- the graph's system database for a body that reads the
+         *  metamodel (targets compare by value: two sides on one database name one target). */
+        ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
+            return other.equals(target) ? this
                     : new ExecEnv(plan, other, assertListener, replayReferee, options, trace, verdictBatch,
                             engineText, failureMessage, appealOn);
         }
 
-        /** The plan runner's source for this environment's session: the body's session, each query's
-         *  execution-trace stamp published to this environment's trace ({@link com.legend.exec.PlanSessions#of}) --
-         *  the one way the body driver reaches the database (the doors, 2026-10-29: the schema probes and the seeds
-         *  are plan statements the runner sends, the transaction bracket the session's own; track B's B1a and B1b had
-         *  them on the session's statements, and before that on a JDBC connection). */
-        com.legend.exec.PlanSessions.Source planSessions() {
-            return com.legend.exec.PlanSessions.of(session, trace);
-        }
-
-        /** Where a statement of this environment runs: the body's target ({@link JudgePlans#target}). */
-        com.legend.executionplan.ExecutionPlan.Target target() {
-            return JudgePlans.target(this);
+        /** Whether this environment's statements run on the graph's system database. */
+        boolean onSystem() {
+            return target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System;
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -595,43 +583,27 @@ public final class BodyDriver {
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
 
-    /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading
-     * the metamodel store executes on the GRAPH's own system database —
-     * separate from every user connection, written once per graph, never
-     * per execution ({@link SystemDatabase}); on a server
-     * engine, the host's system connection, its tables read through the
-     * route's renames (2026-10-11). The route is the planner's, a fact of the body's plan (the seam program's S2h and
-     * S4a, 2026-10-31: the database and store it reads, the tables' names its plan is written with, a body mixing
-     * the store with a user store refused by name); the session -- one per graph -- is the driver's, opened here once
-     * the body is planned, and seeded by the plan side's own seed step ({@link #systemRoute}). {@code env} as it is
-     * where the body reads no system store. */
+    /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading the metamodel store executes on the
+     * GRAPH's own system database -- separate from every user connection, written once per graph, never per execution
+     * ({@link SystemDatabase}). The route is the planner's, a fact of the body's plan (the seam program's S2h and S4a,
+     * 2026-10-31: the database and store it reads, the tables' names its plan is written with, a body mixing the store
+     * with a user store refused by name); planning NAMES its target ({@link #systemTarget}) and the run opens its
+     * session, seeded by the plan's own seed step (I3, 2026-11-07: the session the walk opened here deleted).
+     * {@code env} as it is where the body reads no system store. */
     private static ExecEnv openRoute(com.legend.planner.SystemRoutes.@com.legend.base.Nullable Route route,
             ExecEnv env) {
         if (route == null) {
             return env;
         }
-        return env.withSession(systemRoute(env, route));
+        return env.withTarget(systemTarget(route, env.dialect()));
     }
 
-    /** The graph's system database for {@code route}'s engine ({@link SystemDatabase}, opened once per graph), with the
-     *  store written on it by the plan side's own seed step ({@code SystemRoutes.seeds}) through the runner, once: the
-     *  walk's route ({@link #openRoute}) and a system-routed body's program (the router, M10a; its plan carries the
-     *  step) reach the same session object and the same seed record, whichever comes first. Deleted with the walk. */
-    static com.legend.exec.Sessions.Session systemRoute(ExecEnv env, com.legend.planner.SystemRoutes.Route route) {
-        ModelContext ctx = env.ctx();
-        com.legend.exec.Sessions.Session system = SystemDatabase.of(ctx).sessionFor(route.engine(),
-                env.options().systemConnections());
-        com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()),
-                env.dialect().sessionSetup(),
+    /** The target naming the graph's system database for {@code route}'s engine, in {@code dialect}'s session setup. */
+    static com.legend.executionplan.ExecutionPlan.Target systemTarget(com.legend.planner.SystemRoutes.Route route,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        return new com.legend.executionplan.ExecutionPlan.Target(
+                new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()), dialect.sessionSetup(),
                 java.util.List.of());
-        if (!com.legend.exec.StatementOrigin.isPlanning()) {
-            // the walk, running as it plans: the store written here; while a program is planned, its own seed step
-            // writes it (PlanMaker: ahead of every step that reads the store), and nothing is sent now
-            com.legend.exec.PlanRunner.seedSystemStore(com.legend.planner.SystemRoutes.seeds(ctx, target,
-                    env.dialect()), system);
-        }
-        return system;
     }
 
     /** The system store's route for a body the class rule found system-routed ({@code BodyClass.systemRouted}):
@@ -691,10 +663,10 @@ public final class BodyDriver {
     record WrappedSide(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType shapeInfo,
             com.legend.plan.ResultShape shape,
-            com.legend.exec.Sessions.Session session,
+            com.legend.executionplan.ExecutionPlan.Target target,
             boolean storeFree) {
         /** A side reading no store (a literal, a pure expression) runs on
-         * ANY session; a side reading a store runs where it was routed. */
+         * ANY target; a side reading a store runs where it was routed. */
     }
 
     /** {@link #planValue}'s outcome: a planned side, or the value the
@@ -759,7 +731,7 @@ public final class BodyDriver {
             return new PlannedValue(null, b.answered(), null, false);
         }
         var sp = com.legend.planner.SidePlanner.wrap(b.plan(), b.root(), b.declaredInfo(), rider, b.env().plan());
-        return new PlannedValue(new WrappedSide(sp.plan(), sp.shapeInfo(), sp.shape(), b.env().session(),
+        return new PlannedValue(new WrappedSide(sp.plan(), sp.shapeInfo(), sp.shape(), b.env().target(),
                 b.storeFree()), null, b.root(), false);
     }
 

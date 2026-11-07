@@ -304,7 +304,7 @@ final class HostAsserts implements TestDoor.Asserts {
     private static @Nullable Planned planAssert(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env,
             BodyDriver.ExecEnv program) {
-        Sessions.Session target = program.session();
+        com.legend.executionplan.ExecutionPlan.Target target = program.target();
         // the lets before the assert, as they stood at its turn (its judgment reads them after the program ran)
         List<TypedSpec> before = new ArrayList<>(letPrefix);
         BodyDriver.ExecEnv at;
@@ -366,8 +366,8 @@ final class HostAsserts implements TestDoor.Asserts {
             assertion = AssertVerdicts.HostAssert.raising(assertion.listenerName(), assertion.family(), e);
             sides = HostSides.Planned.NONE;
         }
-        if (sides.on() != null && sides.on() != target
-                && SystemDatabase.of(program.ctx()).engineOf(sides.on()) == null) {
+        if (sides.on() != null && !sides.on().equals(target)
+                && !(sides.on().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System)) {
             // a side the walk's planner routed to another session than the body's (the system database's: a lineage
             // scan's rows join the metamodel tables, an element's row) -- the walk runs the group there; a moved
             // body's program has ONE target (the body's session, or the system database's when the body is
@@ -469,8 +469,8 @@ final class HostAsserts implements TestDoor.Asserts {
             }
             sides = HostSides.Planned.NONE;
         }
-        if (sides.on() != null && sides.on() != env.session()
-                && SystemDatabase.of(env.ctx()).engineOf(sides.on()) == null) {
+        if (sides.on() != null && !sides.on().equals(env.target())
+                && !(sides.on().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System)) {
             return null;
         }
         AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,

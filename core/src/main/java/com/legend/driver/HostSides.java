@@ -5,8 +5,6 @@ package com.legend.driver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.PlanRunner;
-import com.legend.exec.PlanSessions;
-import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.judge.TypedSide;
 
@@ -93,7 +91,7 @@ final class HostSides {
      *  the session the group runs on, null where every side is a constant (nothing sent: each is read from its own
      *  text, and no side is a to-one reader's). */
     record Planned(List<JudgePlans.PlannedSide> sides, List<ExecutionPlan.Side> base,
-            Sessions.@com.legend.base.Nullable Session on) {
+            ExecutionPlan.@com.legend.base.Nullable Target on) {
         Planned {
             sides = List.copyOf(sides);
             base = List.copyOf(base);
@@ -108,12 +106,12 @@ final class HostSides {
             BodyDriver.ExecEnv env) {
         List<JudgePlans.PlannedSide> planned = new ArrayList<>(asks.size());
         List<ExecutionPlan.Side> base = new ArrayList<>(asks.size());
-        // the group's one session: where a side reading a store was routed (two such sides on two sessions are
-        // refused by name: the one-target rule, the plan's §3.2); a side reading no store runs on ANY session
+        // the group's one target: where a side reading a store was routed (two such sides on two targets are refused
+        // by name: the one-target rule, the plan's §3.2); a side reading no store runs on ANY target
         // (BodyDriver.WrappedSide), so it joins the store-reading side's -- the metamodel bodies pair a side on the
         // system database with a literal side, 33 of them on the DuckDB host pass
-        Sessions.Session on = null;
-        Sessions.Session any = null;
+        ExecutionPlan.Target on = null;
+        ExecutionPlan.Target any = null;
         for (Ask a : asks) {
             // an ask the arm read under an environment of its own (`at`: a text side of a runtime-dialect form, its
             // frame and table replaces rebound; 2026-11-06) is planned there, as the arm read it
@@ -122,14 +120,14 @@ final class HostSides {
             planned.add(p);
             base.add(p.side());
             if (p.wrapped() != null) {
-                Sessions.Session s = p.wrapped().session();
+                ExecutionPlan.Target s = p.wrapped().target();
                 if (p.wrapped().storeFree()) {
                     any = any == null ? s : any;
                 } else if (on == null) {
                     on = s;
-                } else if (on != s) {
+                } else if (!on.equals(s)) {
                     throw new com.legend.error.NotImplementedException("the sides of " + name
-                            + " read stores on two sessions: a verdict step's sides run on one");
+                            + " read stores on two databases: a verdict step's sides run on one");
                 }
             }
         }

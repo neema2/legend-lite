@@ -6,9 +6,7 @@ package com.legend.judge;
 import com.legend.exec.Census;
 import com.legend.exec.ExecutionTrace;
 import com.legend.exec.PlanRunner;
-import com.legend.exec.PlanSessions;
 import com.legend.exec.PrepTrace;
-import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 
 import com.legend.sql.SqlQuery;
@@ -81,7 +79,7 @@ public final class VerdictBatch {
          *  target the database of the session {@code on} it runs on (the body's, or the graph's system database beside
          *  it: per-statement routing, 2026-11-03 -- until then a verdict over the system store on a server engine was
          *  planned against the body's target, so the database judge left such a body to the walk). */
-        ExecutionPlan.Node plan(SqlQuery statement, boolean fused, Sessions.Session on);
+        ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on);
 
         /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
          *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
@@ -151,7 +149,7 @@ public final class VerdictBatch {
      *  decided it at planning (the dialect's refusal of the ruled row, a failure its planning raised), raised where the
      *  generic row fails. */
     private record Pending(int ix, String name, SqlQuery query,
-            Sessions.Session on, @com.legend.base.Nullable Appeal appeal, @com.legend.base.Nullable Step orElse)
+            ExecutionPlan.Target on, @com.legend.base.Nullable Appeal appeal, @com.legend.base.Nullable Step orElse)
             implements Step {
     }
 
@@ -174,7 +172,7 @@ public final class VerdictBatch {
         final List<Step> steps = new ArrayList<>();
         /** The caller's message where it READS ({@link #message}): its row, sent only where the root fails. */
         @com.legend.base.Nullable SqlQuery message;
-        Sessions.@com.legend.base.Nullable Session messageOn;
+        ExecutionPlan.@com.legend.base.Nullable Target messageOn;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -261,17 +259,17 @@ public final class VerdictBatch {
      *  ({@code VerdictSql.messageRow}), on {@code on} -- sent by the root loop at the root's place only where the root
      *  fails, its value the failure's text; a raise reading it is the failure (upstream evaluates the message only
      *  where the assert fails, and its evaluation's error is the test's; the assert bar, 2026-11-04). */
-    public void message(SqlQuery row, Sessions.Session on) {
+    public void message(SqlQuery row, ExecutionPlan.Target on) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         r.message = row;
         r.messageOn = on;
     }
 
-    public void defer(String name, boolean wantEqual, SqlQuery query, Sessions.Session on) {
+    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on) {
         defer(name, wantEqual, query, on, null);
     }
 
-    public void defer(String name, boolean wantEqual, SqlQuery query, Sessions.Session on,
+    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on,
             @com.legend.base.Nullable Appeal appeal) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
@@ -325,7 +323,7 @@ public final class VerdictBatch {
     /** {@link #sole}'s answer: a verdict row the database computes, or a failure decided at planning. */
     public sealed interface Sole permits Sole.Row, Sole.Decided {
         /** The verdict row ({@code VerdictSql.schema}'s columns) and the session it reads. */
-        record Row(SqlQuery query, Sessions.Session on) implements Sole {
+        record Row(SqlQuery query, ExecutionPlan.Target on) implements Sole {
         }
 
         /** The assert's failure, decided at planning. */
@@ -423,7 +421,7 @@ public final class VerdictBatch {
 
     /** One verdict group of a planned batch: its step, the session it runs on, whether it is the keyed members' group
      *  (each verdict its keyed wrapper, no fused statement; a rejection leaves its rows absent). */
-    public record Group(ExecutionPlan.Verdicts step, Sessions.Session on, boolean keyed) {
+    public record Group(ExecutionPlan.Verdicts step, ExecutionPlan.Target on, boolean keyed) {
     }
 
     /**
@@ -463,7 +461,7 @@ public final class VerdictBatch {
                     throw new IllegalStateException("verdict batch: a ruled row in a shape no rule plans as one row: "
                             + p.name());
                 }
-                if (f.on() != p.on()) {
+                if (!f.on().equals(p.on())) {
                     // the texts on one session, the rows they render on another (a side routed to the graph's system
                     // database): no one statement holds both, and two would be the fallback ruled out -- this assert
                     // UNJUDGED by name, the batch's other asserts judged (the final audit, 2026-11-06)
@@ -494,7 +492,7 @@ public final class VerdictBatch {
                 r.steps.set(i, one);
             }
         }
-        Map<Sessions.Session, List<Pending>> groups = new LinkedHashMap<>();
+        Map<ExecutionPlan.Target, List<Pending>> groups = new LinkedHashMap<>();
         for (Root r : batch) {
             for (Step s : r.steps) {
                 if (s instanceof Pending p) {
@@ -601,7 +599,7 @@ public final class VerdictBatch {
         return com.legend.error.AssertFailed.unjudged(why, name + ": UNJUDGED in database mode -- " + why);
     }
 
-    private Ahead planAhead(String name, SqlQuery query, Sessions.Session on) {
+    private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {
         try {
             return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
         } catch (com.legend.sql.dialect.DialectCapability e) {
@@ -633,10 +631,11 @@ public final class VerdictBatch {
             this.ahead = ahead;
         }
 
-        /** The statement planned ahead for {@code key} (a pending step, or a root's message), read now: through the
-         *  running program's reader where the root loop runs inside its run -- the same run, no second one (THE WALL,
-         *  2026-11-06: a run started inside a run is refused) -- else run on {@code on}, after the batch's runs. */
-        private List<Object> runAhead(Object key, String name, Sessions.Session on,
+        /** The statement planned ahead for {@code key} (a pending step, or a root's message), read now through the
+         *  running program's reader: the root loop runs inside the body's run -- the same run, no second one (THE
+         *  WALL, 2026-11-06: a run started inside a run is refused; I3, 2026-11-07: the walk's run on a session the
+         *  batch held, after its flush, deleted). */
+        private List<Object> runAhead(Object key, String name,
                 PlanRunner.@com.legend.base.Nullable SideReader reader) {
             Ahead a = java.util.Objects.requireNonNull(ahead.get(key), "a statement the batch did not plan ahead");
             com.legend.sql.dialect.DialectCapability refused = a.refused();
@@ -647,7 +646,11 @@ public final class VerdictBatch {
                 throw refused;
             }
             ExecutionPlan.Node plan = java.util.Objects.requireNonNull(a.plan());
-            return reader != null ? readPlanned(name, plan, reader) : runPlanned(name, plan, on, runner);
+            if (reader == null) {
+                throw new IllegalStateException(name + ": a statement the batch planned ahead is read inside its"
+                        + " body's run, by the run's reader");
+            }
+            return readPlanned(name, plan, reader);
         }
 
         /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
@@ -743,7 +746,7 @@ public final class VerdictBatch {
                             }
                             if (row == null) {
                                 com.legend.diagnostics.Diagnostics.judgeSend("split-rung", p.name());
-                                row = runAhead(p, p.name(), p.on(), reader);
+                                row = runAhead(p, p.name(), reader);
                             }
                             try {
                                 judge.judge(p.name(), row);
@@ -806,7 +809,7 @@ public final class VerdictBatch {
     private RuntimeException messaged(Root r, Planned planned, PlanRunner.@com.legend.base.Nullable SideReader reader) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
         try {
-            List<Object> row = planned.runAhead(r, r.listenerName, java.util.Objects.requireNonNull(r.messageOn), reader);
+            List<Object> row = planned.runAhead(r, r.listenerName, reader);
             return new com.legend.error.AssertFailed(String.valueOf(row.get(6)));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
@@ -822,7 +825,7 @@ public final class VerdictBatch {
      *  planner-driver seam program's S3c, 2026-10-31): the body's statements, run with the fused group's. A wrapper
      *  the dialect cannot spell leaves its member out: the root loop reaches it at its place (executeOne), where its
      *  refusal is its own. Null where no member is keyed (or none is spelled). */
-    private @com.legend.base.Nullable Group keyedGroup(List<Pending> keyed, Sessions.Session on,
+    private @com.legend.base.Nullable Group keyedGroup(List<Pending> keyed, ExecutionPlan.Target on,
             Map<ExecutionPlan.Verdict, Pending> members) {
         List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
@@ -845,7 +848,7 @@ public final class VerdictBatch {
      *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
      *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
     private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
-            ExecutionPlan.TdsResult fused, Sessions.Session on) {
+            ExecutionPlan.TdsResult fused, ExecutionPlan.Target on) {
         if (ps.size() == 1 || fused.sql().statement().length() <= runner.fusedBudget()) {
             return List.of(Map.entry(ps, fused));
         }
@@ -914,38 +917,4 @@ public final class VerdictBatch {
         return rows.rows().get(0);
     }
 
-    /** Run ONE verdict statement already planned ({@code wrapper}) on {@code on} and return its one row: the root
-     *  loop's form, which plans nothing while the program runs (the runtime wall, 2026-11-05). */
-    static List<Object> runPlanned(String name, ExecutionPlan.Node wrapper, Sessions.Session on, Runner runner) {
-        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
-                new ExecutionPlan.Verdict(name, armOf(name), List.of(), wrapper)), null, runner.rules());
-        List<List<Object>> rows = new ArrayList<>(1);
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
-            PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, null),
-                    PlanRunner.Judging.DATABASE, new VerdictSink() {
-                        @Override
-                        public void fused(ExecutionPlan.Verdicts g, com.legend.error.@com.legend.base.Nullable DataError rejected) {
-                            throw new IllegalStateException("a group of one wrapper has no fused statement");
-                        }
-
-                        @Override
-                        public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
-                            rows.add(row);
-                        }
-                    });
-        } catch (com.legend.error.DataError e) {
-            // the database raised evaluating the test's own values (a date past its range, a value it refuses): it
-            // judged, and the verdict is that error -- the test's failure, as the host judge's side read raises it;
-            // never UNJUDGED (2026-11-03: channel B's BigNumber date tests counted 4 "unjudged" under the database
-            // judge alone). A statement lite composed wrongly would fail a test its lane's exact ledger does not list.
-            CanonicalDivergence.sqlJudgedInDatabase(name);
-            throw e;
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        if (rows.size() != 1 || rows.get(0) == null) {
-            throw new IllegalStateException(name + ": the verdict statement returned " + rows.size() + " rows");
-        }
-        return rows.get(0);
-    }
 }

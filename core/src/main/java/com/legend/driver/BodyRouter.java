@@ -54,7 +54,6 @@ public final class BodyRouter {
         TypedQuery typed;
         BodyClass bodyClass;
         boolean systemRouted;
-        Sessions.Session system = null;
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
@@ -71,24 +70,22 @@ public final class BodyRouter {
             // walk runs it (a named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
             boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
             // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so
-            // its asserts are planned on the system database's session (the walk's route for each side) and its
-            // program's target is that database, which the sessions source below opens -- the same session object,
-            // which the plan's own seed step writes once per graph (SystemRoutes.seeds; nothing is sent before the
-            // plan runs)
+            // its asserts are planned on the system database's TARGET and its program's target is that database, whose
+            // session the run's sessions source opens -- one per graph, which the plan's own seed step writes
+            // (SystemRoutes.seeds; nothing is sent before the plan runs, and planning names no session: I3)
             systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
                     && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
             BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
-                    : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session, listener, referee, options);
+                    : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, listener, referee, options);
             BodyDriver.ExecEnv env = bodyEnv;
             if (systemRouted) {
                 BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
                 com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
                         java.util.Objects.requireNonNull(runtimeFqn));
-                // named, not opened (Sessions.lazy: the run opens it at its first statement) and not written: the
-                // program's seed step writes the store (a server engine is refused by the class rule before this, so
-                // the tables keep their names)
-                system = SystemDatabase.of(typed.context()).sessionFor(route.engine(), options.systemConnections());
-                env = on.withSession(system);
+                // named, never opened at planning: the run opens the system database's session, and the program's
+                // seed step writes the store (a server engine is refused by the class rule before this, so the tables
+                // keep their names)
+                env = on.withTarget(BodyDriver.systemTarget(route, dialect));
             }
             if (assertsPlanned) {
                 // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM
@@ -135,17 +132,15 @@ public final class BodyRouter {
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
         try {
+            // the graph's system database for a step that names it -- the body's own target when the body is
+            // system-routed, else the second, read-only session a statement reading the system store alone runs on
+            // (per-statement routing, 2026-11-03) -- one session per graph and engine (SystemDatabase), opened when a
+            // step first asks
+            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
+                    target -> SystemDatabase.of(typed.context()).sessionFor(target.type(), options.systemConnections());
             Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
                     toOneReader(typed), host,
-                    database, agreement, listener);
-            // the graph's system database for a step that names it: the body's own target when the body is
-            // system-routed, else the second, read-only session a statement reading the system store alone runs on
-            // (per-statement routing, 2026-11-03), opened when a step first asks
-            Sessions.Session routed = system;
-            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    routed != null ? target -> routed
-                            : target -> SystemDatabase.of(typed.context()).sessionFor(target.type(),
-                                    options.systemConnections());
+                    database, agreement, listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
                 listener.beforeRun();
@@ -200,12 +195,12 @@ public final class BodyRouter {
         boolean toOne = toOneReader(typed);
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
+            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
+                    system -> SystemDatabase.of(typed.context()).sessionFor(system.type(), options.systemConnections());
             Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null, toOne,
-                    null, null, null, null);
+                    null, null, null, null, sessionsByTarget(target, systemSessions));
             try {
-                PlanRunner.program(planned.plan(), Map.of(),
-                        PlanSessions.of(target, null, system -> SystemDatabase.of(typed.context())
-                                .sessionFor(system.type(), options.systemConnections())),
+                PlanRunner.program(planned.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
                         PlanRunner.Judging.HOST, moved);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -225,6 +220,16 @@ public final class BodyRouter {
      *  replay the golden SQL of later bodies), and an effect's failure named as the walk names it; each assert's
      *  sides judged by the host judge at its verdict step, counted and reported to the listener as the walk does
      *  (M6). The database judge's verdicts reach no moved body: its bodies stay on the walk until M7. */
+    /** The run's session for a target: the graph's system database for a target naming it, the body's own session for
+     *  every other -- as the run's sessions source maps them ({@link PlanSessions#of}), unviewed: a judgment that needs
+     *  the body's session (the referee's replay) asks the run for it ({@link RunReader#session}). */
+    private static java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessionsByTarget(
+            Sessions.Session session,
+            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions) {
+        return target -> target.database() instanceof ExecutionPlan.Database.System s ? systemSessions.apply(s)
+                : session;
+    }
+
     private static final class Moved implements PlanRunner.ProgramSink {
         private final TestDoor.Planned planned;
         private final SqlDialect dialect;
@@ -246,6 +251,8 @@ public final class BodyRouter {
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
         private final @Nullable AssertListener listener;
+        /** The run's sessions by target, published to the judgments it runs ({@link RunReader#session}). */
+        private final java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
         /** {@code node}'s verdict steps' rules recorded by verdict, each checked against the run's: a planner that
@@ -285,8 +292,10 @@ public final class BodyRouter {
                 RawSqlBoundary.@Nullable Recorder recorder,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader,
                 @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
-                @Nullable AgreementAsserts agreement, @Nullable AssertListener listener) {
+                @Nullable AgreementAsserts agreement, @Nullable AssertListener listener,
+                java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
             this.planned = planned;
+            this.sessions = sessions;
             this.dialect = dialect;
             this.recorder = recorder;
             this.answer = answer;
@@ -341,7 +350,7 @@ public final class BodyRouter {
             if (agreement != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
                 TypedSide v;
-                try (var judging = RunReader.judging(reader)) {
+                try (var judging = RunReader.judging(reader, sessions)) {
                     v = agreement.received(verdict, row, listener, reader);
                 }
                 if (v != null) {
@@ -363,7 +372,7 @@ public final class BodyRouter {
                 }
                 return;
             }
-            try (var judging = RunReader.judging(reader)) {
+            try (var judging = RunReader.judging(reader, sessions)) {
                 database.received(verdict, row, listener, reader);
             }
             lastVerdict = AssertVerdicts.ok();
@@ -394,7 +403,7 @@ public final class BodyRouter {
             }
             HostAsserts.Planned p = hostPlanned(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
-            try (var judging = RunReader.judging(reader)) {
+            try (var judging = RunReader.judging(reader, sessions)) {
                 judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.sides(), rows),
                         read == null ? null : HostSides.message(p.sides(), read), rules(verdict));
             }

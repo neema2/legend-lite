@@ -104,18 +104,6 @@ public final class SystemDatabase {
         return s;
     }
 
-    /** The engine whose system database {@code session} is (the very session object {@link #sessionFor} answered), or
-     *  null for any other session: how a body environment on the system database is known (the test-is-the-product
-     *  plan's M10a: its sides' statements then name the system target, {@code JudgePlans.target}). */
-    public synchronized com.legend.model.ConnectionDefinition.@com.legend.base.Nullable DatabaseType engineOf(
-            Sessions.Session session) {
-        for (Map.Entry<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Session> e : sessions.entrySet()) {
-            if (e.getValue() == session) {
-                return e.getKey();
-            }
-        }
-        return null;
-    }
 
     private static void closeQuietly(Sessions.Session c) {
         try {

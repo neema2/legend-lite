@@ -378,7 +378,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         null);
                 base = List.of();
                 raises = false;
-            } else if (sole instanceof com.legend.judge.VerdictBatch.Sole.Row r && r.on() == env.session()) {
+            } else if (sole instanceof com.legend.judge.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
                 var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
                 var schema = new com.legend.compiler.element.type.Type.RelationType(List.of(
                         new com.legend.compiler.element.type.Type.RelationType.Column("value",
@@ -753,7 +753,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  database's session (per-statement routing; 2026-11-03: until then such a group left the body to the walk, so
      *  the database judge alone refused {@code getAll::testBasic} on Postgres, MariaDB and ClickHouse). */
     private static boolean placed(VerdictBatch.Group g, BodyDriver.ExecEnv env) {
-        return g.on() == env.session() || SystemDatabase.of(env.ctx()).engineOf(g.on()) != null;
+        return g.on().equals(env.target())
+                || g.on().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System;
     }
 
     /** The shapes the planner refuses BEFORE planning anything, so a body it leaves for the walk has nothing counted

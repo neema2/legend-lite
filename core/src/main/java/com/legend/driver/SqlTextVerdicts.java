@@ -429,7 +429,7 @@ final class SqlTextVerdicts {
             batch.defer(name, true, collector instanceof BatchTexts bt && ours == bt.token
                     ? com.legend.lowering.VerdictSql.textEquals(golden,
                             java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
-                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session());
+                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target());
             return ok();
         }
         if (batch != null && batch.active()) {
@@ -437,7 +437,7 @@ final class SqlTextVerdicts {
                 // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
                 // equality in the verdict row, and a failed row hands the text it read to the appeal
                 batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden,
-                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), env.session(),
+                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), env.target(),
                         row -> {
                             String read = actualText(row);
                             return read == null
@@ -447,7 +447,7 @@ final class SqlTextVerdicts {
                         });
                 return ok();
             }
-            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session(),
+            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
                     row -> appealed(appeal, golden, ours, textEqual));
             return ok();
         }
@@ -1518,42 +1518,11 @@ final class SqlTextVerdicts {
     private static TypedSide tdgRowsNow(String name, String golden, String ours,
             boolean textEqual, SqlReplayReferee referee, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env) {
+        // the generator's rows leg planned the generator's transcript and ran it at the verdict -- a run inside the
+        // body's run (THE WALL) and planning at run; the generator is not offered (S143), so the leg is refused by name
+        // (I3, 2026-11-07: its session and the planning it reached deleted)
         com.legend.base.RunScope.planning("the test-data generator's rows leg");
-        // batch 64: a hop addressed as $testData.sqls->at(i) carries its
-        // hop index and the carrier's generator node — the referee's
-        // chained arm replays ancestor temps from the earlier hops'
-        // goldens and compares the hop's transcript rows
-        TdgHop hop = tdgHop(actualSide, letPrefix);
-        SqlReplayReferee.RowVerdict rv;
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
-            rv = hop == null
-                ? referee.verifyFetchTexts(env.session(), golden, ours)
-                : referee.verifyFetchChain(env.session(), hop.index(),
-                        golden, ours, () -> fetchTranscript(
-                                com.legend.testdatagen.TestDataGenerationNatives
-                                        .transcript(hop.source(), env.ctx(),
-                                                env.planSessions(), env.target(), env.dialect(),
-                                                BodyDriver.viewSqlRenderer(specs, env))));
-        }
-        refereed(env, name, rv);
-        return switch (rv.outcome()) {
-            case MATCH -> {
-                yield ok();
-            }
-            case DIVERGED -> fail(name + " (tdg fetch-text ROW verdict"
-                    + " — golden rows vs ours diverged, whatever the"
-                    + " text said): " + rv.detail());
-            case FAULT -> fail(name + " (tdg fetch-text: referee FAULT —"
-                    + " the referee's own machinery failed, the text cannot"
-                    + " stand in): " + rv.detail());
-            case DECLINED -> {
-                declined(env, name, "oracle-declined");
-                yield textEqual ? ok()
-                        : fail(name + " (tdg fetch-text, declined: "
-                                + rv.detail() + "): expected " + golden
-                                + ", got " + ours);
-            }
-        };
+        throw new IllegalStateException(name + ": the test-data generator's rows leg is not offered (S143)");
     }
 
     /** The folded (S2) form of the generator carrier — what a let holds
@@ -1561,71 +1530,6 @@ final class SqlTextVerdicts {
      * ({@code CsvCensusChecker.literalTestData}). */
     private static final String TDG_RESULT_FQN =
             "meta::relational::testDataGeneration::TestDataGenResult";
-
-    /** A generator fetch hop: its index in {@code sqls} and the carrier's
-     * kept generator node. */
-    private record TdgHop(int index,
-            com.legend.compiler.spec.typed.TypedTestDataGen source) {
-    }
-
-    /** The hop address of a {@code $testData.sqls->at(i)} side: after the
-     * fold the at() receiver IS the carrier's sqls collection (postFold
-     * reads the property over the instance literal), the carrier is the
-     * letPrefix binding whose sqls equals that collection, and its
-     * {@code source} is the generator node the fold kept. Null = not
-     * the shape (the plain fetch-text verdict owns it). */
-    private static @com.legend.base.Nullable TdgHop tdgHop(TypedSpec actualSide,
-            List<TypedSpec> letPrefix) {
-        // the H2Compatible spelling flattens the hop's text through the
-        // String overload: $testData.sqls->at(i)->sqlRemoveFormatting()
-        if (actualSide instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                && uc.callee().qualifiedName().equals(
-                        com.legend.compiler.spec.ResultEnvelopeSplice
-                                .SQL_REMOVE_FORMATTING_FQN)
-                && uc.args().size() == 1) {
-            actualSide = uc.args().get(0);
-        }
-        if (!(actualSide instanceof TypedNativeCall at
-                && at.callee().qualifiedName().equals(
-                        com.legend.builtin.Pure.AT__T_MANY__INTEGER_1
-                                .qualifiedName())
-                && at.args().size() == 2
-                && at.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCInteger idx)) {
-            return null;
-        }
-        TypedSpec receiver = at.args().get(0);
-        // the let-bound spelling: $testData.sqls, the let still holding
-        // the generator call (the fold runs at the let's own execution)
-        String var = receiver instanceof
-                com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.property().equals("sqls")
-                && pa.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable v
-                ? v.name() : null;
-        for (TypedSpec l : letPrefix) {
-            if (!(l instanceof com.legend.compiler.spec.typed.TypedLet let)) {
-                continue;
-            }
-            if (let.value() instanceof
-                            com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && TDG_RESULT_FQN.equals(ni.classFqn())
-                    && ni.properties().get("source") instanceof
-                            com.legend.compiler.spec.typed.TypedTestDataGen g
-                    && (receiver.equals(ni.properties().get("sqls"))
-                            || let.name().equals(var))) {
-                return new TdgHop(idx.value().intValue(), g);
-            }
-            if (let.name().equals(var)) {
-                com.legend.compiler.spec.typed.TypedTestDataGen g =
-                        generatorIn(let.value());
-                if (g != null) {
-                    return new TdgHop(idx.value().intValue(), g);
-                }
-            }
-        }
-        return null;
-    }
 
     private static final java.util.regex.Pattern NUMBERED_IN_TEMP =
             java.util.regex.Pattern.compile("tempTableForIn_(\\d+)");
@@ -1716,37 +1620,6 @@ final class SqlTextVerdicts {
             values.add(v);
         }
         return kind == null ? null : new InListSeed(kind, values);
-    }
-
-    /** The generator's run in the SPI's own terms (exec never depends on
-     * the generator package). */
-    private static SqlReplayReferee.FetchTranscript fetchTranscript(
-            com.legend.testdatagen.TestDataGenerator.Result r) {
-        List<SqlReplayReferee.FetchHop> hops = new java.util.ArrayList<>();
-        if (r.fetches() != null) {
-            for (com.legend.testdatagen.TestDataGenerator.Fetch f : r.fetches()) {
-                hops.add(new SqlReplayReferee.FetchHop(f.parentIndex(),
-                        f.table(), f.columns(), f.rows()));
-            }
-        }
-        return new SqlReplayReferee.FetchTranscript(r.sqls(), hops);
-    }
-
-    /** The generator node inside a let's value (through toOne and other
-     * wrappers); null when absent or a plan flavor. */
-    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTestDataGen
-            generatorIn(TypedSpec t) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(t);
-        while (!work.isEmpty()) {
-            TypedSpec cur = work.poll();
-            if (cur instanceof com.legend.compiler.spec.typed.TypedTestDataGen g
-                    && !"plan".equals(g.flavor())) {
-                return g;
-            }
-            work.addAll(cur.children());
-        }
-        return null;
     }
 
     /** A generateTestData producer under {@code t} — the typed carrier
@@ -2042,9 +1915,9 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = goldenPlan != null
-                ? referee.verifyPlan(appealEnv.session(), goldenPlan, planBindings,
+                ? referee.verifyPlan(RunReader.session(appealEnv.target()), goldenPlan, planBindings,
                         rows, mappingFqn, classFqn, facts, env.ctx())
-                : referee.verify(appealEnv.session(),
+                : referee.verify(RunReader.session(appealEnv.target()),
                         replaySqlOrNull != null ? replaySqlOrNull : golden,
                         rows, mappingFqn, classFqn, facts, env.ctx(),
                         temps.isEmpty() ? (seed == null ? List.of() : seed.temps(golden)) : temps);

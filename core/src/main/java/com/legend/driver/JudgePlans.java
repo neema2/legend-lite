@@ -44,26 +44,8 @@ final class JudgePlans {
     private JudgePlans() {
     }
 
-    /**
-     * The target a judge's plan names: the body's runtime's database (its first declared connection: every
-     * connection of a runtime is of one database type, the one fact a given session is checked against); no session
-     * statements and no setup -- the body's session was established by the runner that opened it
-     * ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#of}).
-     */
-    static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
-        com.legend.model.ConnectionDefinition.DatabaseType system = SystemDatabase.of(env.ctx()).engineOf(env.session());
-        if (system != null) {
-            // the environment runs on the graph's system database (the walk's route, BodyDriver.openRoute, or a
-            // system-routed body's program, M10a): its statements name that target, so a program of such sides and
-            // its steps share the one target the runner requires
-            return new ExecutionPlan.Target(new ExecutionPlan.Database.System(system), env.dialect().sessionSetup(),
-                    List.of());
-        }
-        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.dialect());
-    }
-
-    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided} and the body's
-     *  {@code dialect}, whose session statements are the target's: the runner runs
+    /** The target a judge's plan names: the body's runtime's database the compiler {@code decided} (its first
+     *  declared connection: every connection of a runtime is of one database type), in the body's {@code dialect}, whose session statements are the target's: the runner runs
      *  them on the body's connection once (D66, 2026-10-30; the program entry ran them as setup steps per program,
      *  the doors, 2026-10-29). */
     static ExecutionPlan.Target target(com.legend.database.Target decided, com.legend.sql.dialect.SqlDialect dialect) {
@@ -112,7 +94,7 @@ final class JudgePlans {
                 }
             }
         }
-        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), target(env));
+        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), env.target());
     }
 
     /** A side the body driver holds in Java (the doors, door 1, 2026-10-29) written to the caller's sink through a batcher, as a host's rows are: its
@@ -284,9 +266,9 @@ final class JudgePlans {
     static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.judge.VerdictBatch.Runner() {
             @Override
-            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, com.legend.exec.Sessions.Session on) {
+            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
-                return rowsPlan(statement, schema, on == env.session() ? env : env.withSession(on));
+                return rowsPlan(statement, schema, env.withTarget(on));
             }
 
             @Override
@@ -419,10 +401,9 @@ final class JudgePlans {
      *  stabilized); a value root's one-column rows. */
     static PlannedSide plannedOf(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env0, boolean assertBoundary,
             @com.legend.base.Nullable TypedSpec root) {
-        // planned on the side's own session: a side routed to the graph's system database names that target, so a
-        // program running it beside the body's own sends it there (per-statement routing, 2026-11-03); the walk runs
-        // a side on its session whatever its target says
-        BodyDriver.ExecEnv env = w.session() == env0.session() ? env0 : env0.withSession(w.session());
+        // planned on the side's own target: a side routed to the graph's system database names it, so a program
+        // running it beside the body's own sends it there (per-statement routing, 2026-11-03)
+        BodyDriver.ExecEnv env = env0.withTarget(w.target());
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
             case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
@@ -477,7 +458,7 @@ final class JudgePlans {
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
-                PlanMaker.sql(plan, env.dialect(), target(env)));
+                PlanMaker.sql(plan, env.dialect(), env.target()));
     }
 
     private static String objectsShape(PlanRunner.Rows rows) {
@@ -504,7 +485,7 @@ final class JudgePlans {
             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env)));
+                    List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), env.target()));
             return new PlannedSide(new ExecutionPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }
@@ -520,7 +501,7 @@ final class JudgePlans {
             SqlQuery framed = withFrames(plan, env);
             com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                     com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
-            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
+            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target());
             return new PlannedSide(new ExecutionPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
         // a grid that is a UNION ALL read in its branches' order, the order the database judge numbers it by

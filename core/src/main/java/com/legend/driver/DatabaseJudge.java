@@ -132,8 +132,8 @@ final class DatabaseJudge {
         // literal evaluates anywhere; a planned side reads where its tables
         // are — the system database for a metamodel read)
         BodyDriver.ExecEnv on = pe.side() != null && !pe.side().storeFree()
-                ? env.withSession(pe.side().session())
-                : pa.side() != null && !pa.side().storeFree() ? env.withSession(pa.side().session())
+                ? env.withTarget(pe.side().target())
+                : pa.side() != null && !pa.side().storeFree() ? env.withTarget(pa.side().target())
                 : env;
         BodyDriver.WrappedSide we = pe.side() != null ? pe.side()
                 : constantSide(pe.answered(), eSpec, re, false, env, on);
@@ -143,7 +143,7 @@ final class DatabaseJudge {
                 : wa == null ? "host-value AssertVerdicts.side (actual): " + describe(pa.answered())
                 : re.declined() != null ? "side-e: " + re.declined()
                 : ra.declined() != null ? "side-a: " + ra.declined()
-                : we.session() != wa.session() && !we.storeFree() && !wa.storeFree()
+                : !we.target().equals(wa.target()) && !we.storeFree() && !wa.storeFree()
                         ? "sides on different databases"
                 : null;
         // leg 3.1b — a GRID AssertVerdicts.side (the tabular wrap): the statement compares
@@ -171,7 +171,7 @@ final class DatabaseJudge {
                     pq = com.legend.lowering.VerdictSql.decidedFalse(pq);
                 }
                 return runVerdict(name, wantEqual, message.apply(pq),
-                        env.withSession(we.storeFree() ? wa.session() : we.session()));
+                        env.withTarget(we.storeFree() ? wa.target() : we.target()));
             } else {
                 BodyDriver.WrappedSide gw = gridE ? we : wa;
                 com.legend.lowering.CanonRider pr = gridE ? ra : re;
@@ -201,13 +201,13 @@ final class DatabaseJudge {
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
                                     canonicalOrder);
                     return runVerdict(name, wantEqual, message.apply(gq),
-                            env.withSession(gw.storeFree() ? pw.session() : gw.session()));
+                            env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
             }
         }
         // a store-free side rides the store-reading side's database
         BodyDriver.ExecEnv runOn = we != null && wa != null
-                ? env.withSession(we.storeFree() ? wa.session() : we.session()) : env;
+                ? env.withTarget(we.storeFree() ? wa.target() : we.target()) : env;
         int ie = -1;
         int ia = -1;
         if (why == null) {
@@ -374,14 +374,14 @@ final class DatabaseJudge {
     /** {@code message}, a caller's failure text, planned as the verdict carries it -- a constant the compiler folds (a
      *  literal, a join of literals), else the one-row relation the database computes -- with the session its row reads
      *  (the body's where it reads no store). */
-    record PlannedMessage(com.legend.lowering.VerdictSql.FailureMessage message, com.legend.exec.Sessions.Session on) {
+    record PlannedMessage(com.legend.lowering.VerdictSql.FailureMessage message, com.legend.executionplan.ExecutionPlan.Target on) {
     }
 
     static PlannedMessage plannedMessage(TypedSpec message, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         Object folded = com.legend.compiler.spec.typed.Literals.fold(message, letPrefix);
         if (folded instanceof String s) {
-            return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(s, null), env.session());
+            return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(s, null), env.target());
         }
         BodyDriver.PlannedValue pv = BodyDriver.planHostSide(message, letPrefix, specs, env, false, false,
                 hook == null ? null : hook::apply);
@@ -392,7 +392,7 @@ final class DatabaseJudge {
         }
         return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(null,
                 com.legend.lowering.VerdictSql.firstValueRow(side.plan())),
-                side.storeFree() ? env.session() : side.session());
+                side.storeFree() ? env.target() : side.target());
     }
 
     static com.legend.sql.@com.legend.base.Nullable SqlQuery textRow(TypedSpec spec, List<TypedSpec> letPrefix,
@@ -414,7 +414,7 @@ final class DatabaseJudge {
         }
         com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
-            batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
+            batch.defer(name, wantEqual, vq, runOn.target());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
         // a verdict statement is a step of its body's plan, deferred on the body's batch and judged at its verdict step
@@ -635,7 +635,7 @@ final class DatabaseJudge {
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
                         delta.rows(false), timeDelta.rows(false), n1),
-                env.withSession(w1.storeFree() ? w2.session() : w1.session()));
+                env.withTarget(w1.storeFree() ? w2.target() : w1.target()));
     }
 
     static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
@@ -728,11 +728,11 @@ final class DatabaseJudge {
         if (w.declineReason() != null) {
             rider.decline(w.declineReason());
             return new BodyDriver.WrappedSide(plan, spec.info(),
-                    com.legend.plan.ResultShape.COLLECTION, on.session(), true);
+                    com.legend.plan.ResultShape.COLLECTION, on.target(), true);
         }
         rider.wrap(w.kinds(), w.many(), w.literalIndex());
         return new BodyDriver.WrappedSide(w.plan(), spec.info(),
-                com.legend.plan.ResultShape.COLLECTION, on.session(), true);
+                com.legend.plan.ResultShape.COLLECTION, on.target(), true);
     }
 
     static String describe(@com.legend.base.Nullable TypedSide r) {
@@ -791,7 +791,7 @@ final class DatabaseJudge {
         /** The environment a statement over this side runs in: the side's own
          * session when it reads a store, the body's otherwise. */
         BodyDriver.ExecEnv on(BodyDriver.ExecEnv env) {
-            return side != null && !side.storeFree() ? env.withSession(side.session()) : env;
+            return side != null && !side.storeFree() ? env.withTarget(side.target()) : env;
         }
     }
 

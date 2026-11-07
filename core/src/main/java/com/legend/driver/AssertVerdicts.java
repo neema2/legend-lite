@@ -481,7 +481,7 @@ final class AssertVerdicts {
                 // a message the planner cannot plan: the assert fails naming it, as the host judge's does
                 // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
                 message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null), env.session());
+                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null), env.target());
             }
             com.legend.judge.VerdictBatch batch = env.verdictBatch();
             com.legend.sql.SqlQuery read = message.message().row();
@@ -2213,7 +2213,7 @@ final class AssertVerdicts {
         }
         com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
-            batch.defer(name, true, textRow, env.session());
+            batch.defer(name, true, textRow, env.target());
             batch.orElse(rows::get);
             return ok();
         }
