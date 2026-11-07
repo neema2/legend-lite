@@ -147,11 +147,22 @@ The referee (the edge's, P2) decides it after the run from this data alone: it p
 reads `ours` and `population` as plans of their own, replays the golden, compares. Present only under
 `COMPILED_PURE_COMPAT`.
 
-### 4.6 The run's type vocabulary
+### 4.6 The run's types: exec's way, no type model at run
 
-The run stops using the compiler's `Type`. `TypedSide` carries a `TypeRef` (the plan's spelling); `Equality`,
-`PureAsserts` and `TdsCompare` decide kinds from it through one small classifier in `execution_plan` (primitive
-names, decimal precision, class and enum FQNs, relation columns), as the result writers already read `Column.type`.
+`exec` already runs with no type vocabulary of its own: the planner decides every type question and writes the answers
+into each column as facts -- `type` (the Pure type's name, a string, carried as a label), `slot` (what the database
+answers with, the instruction for reading the cell) and `precision`/`store` -- and exec reads each cell by its slot
+into a plain Java value. Only a few named rules read the label itself (`result/RowDecode.numericPure`, `ANY`,
+`VARIANT`). The judges take the same road:
+
+- a judged value is already a Java value paired with a declared type (`Equality.Typed(value, kind)`), and its carrier
+  kind already comes from the Java value (`Long`, `BigDecimal`, `String`, a date literal); the declared half becomes
+  the plan's type name (a string), not the compiler's `Type`;
+- every decision a judge makes today from a declared type (the numeric family, whether a decimal's scale counts, a
+  class's keys, a relation's columns) is made at planning and written into the judgment as a fact, the way `slot` is.
+
+At run a judge reads facts and values; it classifies nothing (the user's question, 2026-11-07: "How does exec run
+without its own Type vocabulary?").
 
 ### 4.7 Where the code lives afterwards (compile safety)
 
@@ -178,13 +189,15 @@ cost first (one write and one read per body).
    the compatibility rules and read only by the edge, rather than a separate attachment beside the plan. Recommended:
    inside -- one artifact, one JSON, one round trip; the product run ignores it.
 2. **A failure known at planning is data** (type and message); its planning-time stack trace is not kept.
-3. **The run's own type vocabulary** (4.6) replaces the compiler's in the judges. This touches every comparison, so it
-   lands first, alone, held to identical verdicts on every lane.
+3. **The judges take exec's way with types** (4.6): the plan's type names and planning-time facts replace the
+   compiler's `Type` at run. This touches every comparison, so it lands first, alone, held to identical verdicts on
+   every lane.
 4. **Every lane runs the decoded plan** (4.8), permanently.
 
 ## 6. Order of work (each step compiles and keeps the fast loop green)
 
-1. The run's type vocabulary (4.6): `TypedSide`, `Equality`, `PureAsserts`, `TdsCompare` off the compiler's `Type`.
+1. The judges' types the exec way (4.6): `TypedSide`, `Equality`, `PureAsserts`, `TdsCompare` off the compiler's
+   `Type`, onto the plan's type names and planning-time facts.
 2. Failures as data (4.4).
 3. Judgments and side shapes in the plan (4.2, 4.3); `HostJudgment`, `HostSides.Planned`, `JudgePlans.PlannedSide`
    deleted from the run's view.
