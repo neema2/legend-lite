@@ -507,6 +507,9 @@ legend_java_library(
             # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
             # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
             "src/test/java/com/legend/integration/TsLineSpikeTest.java",
+            # the scale measurement is :ts_scale_measure's and :ts_scale_measure_postgres's alone (manual): it reads the
+            # timeseries project's file and makes ten million rows (2026-11-07, docs/TS_SCALE_2026_11_07.md)
+            "src/test/java/com/legend/integration/TsScaleMeasureTest.java",
             # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
             "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case

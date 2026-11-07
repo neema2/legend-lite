@@ -790,6 +790,61 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
         }
     }
 
+    // ==================== On a database without an ASOF JOIN ====================
+
+    @Nested
+    @DisplayName("as-of where the database has no ASOF JOIN")
+    class WindowPass {
+
+        /** docs/TS_SCALE_2026_11_07.md F2 (2026-11-07): where the database has no ASOF JOIN, the join is one window
+         *  pass over both sides' keys and dates (CarrierStrategies.asOfByWindow), not a correlated MAX a left row --
+         *  and a star over it answers the join's own columns, never the pass's. */
+        @Test
+        @DisplayName("keys and >=: one window pass, the join's own columns, each row's match")
+        void oneWindowPassTheJoinsOwnColumns() throws SQLException {
+            String query = """
+                    #TDS
+                        id, k, event_time
+                        1, a, 10
+                        2, a, 20
+                        3, b, 20
+                        4, b, 5
+                        5, c, 30
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, value
+                            a, 10, 100
+                            a, 15, 150
+                            b, 18, 180
+                            b, 21, 210
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""";
+            String sql = generateSql(query);
+            String database = backend().name();
+            if (java.util.Set.of("h2", "sqlite", "postgres", "mariadb", "mysql").contains(database)) {
+                // the pass's stream (_asu), never the correlated MAX's copy (_asof, a word of its own)
+                assertTrue(sql.contains("_asu") && !java.util.regex.Pattern.compile("(?<![_a-z])_asof(?![_a-z])")
+                        .matcher(sql).find(), database + ": a window pass: " + sql);
+            } else if ("duckdb".equals(database)) {
+                assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("ASOF"), "DuckDB's own ASOF JOIN: " + sql);
+            }
+            var result = executeRelation(query);
+            assertEquals(java.util.List.of("id", "k", "event_time", "rk", "ts", "value"),
+                    result.columns().stream().map(c -> c.name()).toList(), "the join's columns, no more");
+            assertEquals(5, result.rowCount(), "one row a left row");
+            var byId = CheckerResults.collect(result, "id", "value");
+            // 1: a at 10 -> a's 10 (at the date: >=); 2: a at 20 -> a's 15; 3: b at 20 -> b's 18 (not 21, after);
+            // 4: b at 5 -> none; 5: c -> no c on the right
+            assertEquals(100L, ((Number) byId.get(1L)).longValue());
+            assertEquals(150L, ((Number) byId.get(2L)).longValue());
+            assertEquals(180L, ((Number) byId.get(3L)).longValue());
+            assertNull(byId.get(4L));
+            assertNull(byId.get(5L));
+        }
+    }
+
     // ==================== Utilities ====================
 
     /** Collects results into a map keyed by the group column value. */
