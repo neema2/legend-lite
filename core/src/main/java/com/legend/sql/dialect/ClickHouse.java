@@ -60,10 +60,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  the plan's push-down of a filter below a join, which runs a WHERE's guarded branch where the WHERE's own AND
      *  would not (W9, 2026-11-06: a #TS answer's FILTER of dates after latest - 3y, a WHERE over a join once SelectMerge
      *  lifted it there, raised its date guard on four of the timeseries documents' examples; with the push-down off
-     *  each answers as without the merge). */
+     *  each answers as without the merge). And a count of a value is never read from its column's null map: the
+     *  rewrite that does so ({@code optimize_functions_to_subcolumns}, {@code count(x)} as {@code sum(not(x.null))})
+     *  lost the column under a window over a join ("Not found column __table2.close.null in block", measured
+     *  2026-11-07 on the gallery's replay: {@code count(close[symbol = 'SPX'], all)}), so it is off. */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
             + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
-            + " query_plan_filter_push_down = 0";
+            + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -1003,16 +1006,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
     private java.util.function.BiConsumer<SqlWriter, SqlExpr> unified(List<SqlExpr> members) {
         boolean dbl = members.stream().anyMatch(e -> typeOf(e) == SqlType.Scalar.DOUBLE);
         boolean dec = members.stream().anyMatch(e -> typeOf(e) instanceof SqlType.Decimal);
-        if (!(dbl && dec)) {
+        // an integer beside a Float64 is its Float64, as DuckDB's DOUBLE ("There is no supertype for types Float64,
+        // Int64", measured 2026-11-07 on the gallery's replay: CASE WHEN z < -2 THEN -2 ELSE z END, floor-ceil B)
+        boolean whole = members.stream().anyMatch(e -> integral(typeOf(e)));
+        if (!(dbl && (dec || whole))) {
             return (w, e) -> w.expr(e, 0);
         }
         return (w, e) -> {
-            if (typeOf(e) instanceof SqlType.Decimal) {
+            if (typeOf(e) instanceof SqlType.Decimal || integral(typeOf(e))) {
                 w.append("toFloat64(").expr(e, 0).append(")");
             } else {
                 w.expr(e, 0);
             }
         };
+    }
+
+    private static boolean integral(@com.legend.base.Nullable SqlType t) {
+        return t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.HUGEINT;
     }
 
     @Override
