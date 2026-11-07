@@ -109,6 +109,30 @@ public final class PlanJson {
         throw new IllegalArgumentException("unknown " + what + " '" + name + "'");
     }
 
+    /** Why {@code plan} does not survive its JSON (written, read back, compared), or null where it does: the goals of
+     *  record's G11, the plan as portable data. Measured 2026-11-07 on every plan of the DuckDB corpus under both judges
+     *  and of the stress lane: none differs; {@link #requireRoundTrip} is the guard. */
+    public static @com.legend.base.Nullable String roundTripDifference(ExecutionPlan plan) {
+        // a plan that cannot be written or read back raises here, as itself
+        String json = write(plan);
+        ExecutionPlan back = read(json);
+        if (back.equals(plan)) {
+            return null;
+        }
+        String again = write(back);
+        return again.equals(json) ? "read back unequal, its JSON the same (a field the JSON does not carry)"
+                : "read back with different JSON";
+    }
+
+    /** G11's guard: {@code plan} survives its JSON, or the planner made a plan that is not portable data -- refused by
+     *  name, never run. */
+    public static void requireRoundTrip(ExecutionPlan plan) {
+        String why = roundTripDifference(plan);
+        if (why != null) {
+            throw new IllegalStateException("a plan that is not portable data (G11): " + why);
+        }
+    }
+
     // ---- write ------------------------------------------------------------------------------------------------------
 
     public static String write(ExecutionPlan plan) {

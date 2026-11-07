@@ -109,7 +109,18 @@ public final class Execution {
     private static com.legend.executionplan.ExecutionPlan planned(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn, java.util.Set<com.legend.platform.Feature> features) {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
-            return typed.executionPlan(runtimeFqn, features);
+            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
+            roundTrip(plan);
+            return plan;
+        }
+    }
+
+    /** G11's guard on the product door: a plan that does not survive its JSON is refused. Checked where the test lanes
+     *  ask for it ({@code -Dlegend.plan.roundtrip=true}, every junit lane: tools/junit/defs.bzl), so a product query pays
+     *  nothing; the test-body door checks every plan it makes (BodyRouter). */
+    static void roundTrip(com.legend.executionplan.ExecutionPlan plan) {
+        if (Boolean.getBoolean("legend.plan.roundtrip")) {
+            com.legend.executionplan.PlanJson.requireRoundTrip(plan);
         }
     }
 

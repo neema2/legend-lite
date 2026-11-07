@@ -129,6 +129,8 @@ public final class BodyRouter {
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
         ExecutionPlan plan = planned.plan();
+        // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
+        com.legend.executionplan.PlanJson.requireRoundTrip(plan);
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
         try {
@@ -192,6 +194,7 @@ public final class BodyRouter {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
                     options.resources());
         }
+        com.legend.executionplan.PlanJson.requireRoundTrip(planned.plan());
         boolean toOne = toOneReader(typed);
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
