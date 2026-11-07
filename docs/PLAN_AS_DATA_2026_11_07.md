@@ -92,8 +92,7 @@ ExecutionPlan (execution_plan: the product's)       TestPlan (test_plan: new, on
                                                                  | Verdicts(verdicts, fused, judge, rules, savepoint)
                                                                  | Branch(condition, then, otherwise)
                                                                  | FrameRun(Check)
-                                                      compat: the edge's part (goldens, appeals, ledger texts), read
-                                                              by the edge alone
+                                                      (no compatibility part: the edge renders the test plan, 4.5)
 ```
 
 - `planner` makes product plans only; `testplan` makes test plans (`PlanMaker.testProgram` moves there), composing the
@@ -168,19 +167,31 @@ exception object carried today: `Raise`, `Resolved`, `beforeTheArm`, `Messaged.u
 `SideAhead.failure`, `Sole.Decided`, the dialect's refusals. What is lost: the planning-time stack trace (the message,
 the type and the assert's place are kept).
 
-### 4.5 Appeal: the compatibility rules' rows leg, as data
+### 4.5 The edge is a renderer of the test plan (no appeal record, no third artifact)
 
-Today a closure capturing the referee, the planned row sides, the replay facts and fixture closures. In the plan:
+The user's question (2026-11-07): "Are we sure the edge should not just be a renderer of the test plan instead of yet
+another third artifact thing by ID?" Yes, it should: lite already treats legend-engine's text this way (the engine-text
+printer, `EngineStyleH2`, is a render target of the one compiler, as a dialect renders the SQL tree). So the test plan
+holds FACTS about its reads and never a compatibility record; renderers derive their views from it -- the product's
+dialects lite's own text, the edge's engine style the engine texts and ledger texts, the edge's referee the appeal.
 
-```
-Appeal(golden, goldenPlan?, planBindings: {name: [value]}, temps: [TempTable], inListSeed?: (kind, [value]),
-       replaySql?, mapping?, classFqn?, facts: (extentSubset, ordered, sortKeys?),
-       ours: Side, population: Side?, fixtures: [storeFqn])
-```
+Each appeal input today, and where the renderer finds it:
 
-The referee (the edge's, P2) decides it after the run from this data alone: it provides the named stores' fixtures,
-reads `ours` and `population` as plans of their own, replays the golden, compares. Present only under
-`COMPILED_PURE_COMPAT`.
+| Appeal input (today, captured by a closure) | From the test plan |
+|---|---|
+| our engine text; the ledger texts | rendered in engine style from each statement's SQL tree (the plan carries the tree) |
+| the golden; a plan golden's bindings | constants and parameters of the body |
+| the in-list seed; extra temp tables the golden reads | the in-list literals in the tree; the temps from the golden text |
+| our rows | the read's own step |
+| ordered, and the sort keys | a neutral ORDER fact on the read (the planner's order view: sorted, keys) |
+| the mapping, the class, the stores the read touches (the fixtures to provide) | a neutral PROVENANCE fact on the read (mapping, class, stores) |
+| the page population (our read without its tail page) | a neutral PAGE fact on a paged read: its unpaged form, planned with it (deriving it from the SQL tree instead risks differing from re-planning; measured before choosing) |
+
+The facts are true of a query whatever the rules (legend-engine's own plans carry provenance), so the test plan is the
+same under both rules but for the values a rule renders: what `sqlRemoveFormatting()` returns is rendered at planning
+by the renderer the rules name and kept as a plain string. The edge depends on the test plan, never the reverse (G5).
+Each appeal kind's inputs are checked one by one when this step is built; one that cannot be derived becomes a
+neutral fact on the read, never an edge record.
 
 ### 4.6 The run's types: exec's way, no type model at run
 
@@ -239,9 +250,9 @@ cost first (one write and one read per body).
 
 ## 5. Decisions for the user
 
-1. **Compatibility data in the TEST plan's edge part** (4.0: the engine-text goldens, the appeals, the ledger texts),
-   present only under the compatibility rules and read only by the edge: one artifact, one JSON, and the product
-   plan never sees it.
+1. **The edge is a renderer of the test plan** (4.5, the user's correction): no compatibility record in any plan and
+   no third artifact; the test plan carries neutral facts about its reads (order, provenance, page), and the edge's
+   engine style and referee derive the engine texts, ledgers and appeals from it.
 2. **A failure known at planning is data** (type and message); its planning-time stack trace is not kept.
 3. **The judges take exec's way with types** (4.6): the plan's type names and planning-time facts replace the
    compiler's `Type` at run. This touches every comparison, so it lands first, alone, held to identical verdicts on
@@ -263,8 +274,8 @@ cost first (one write and one read per body).
    identity maps deleted; the batch's judge a plain function.
 6. The agreement pairing in the test plan.
 7. The sidecar into the test plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the test plan.
-8. Appeals as data in the edge part (4.5); the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures'
-   `BooleanSupplier`s).
+8. The edge as a renderer (4.5): the reads' order, provenance and page facts in the test plan; the referee derives each
+   appeal from the plan; the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures' `BooleanSupplier`s).
 9. Every lane runs the decoded plan (4.8); the move (4.7): all assert planning into `testplan`, the sink and the
    judging into `testexec`, the sequencing into `Execution.runProgram`, `driver` deleted, the deps pinned, R1-R4 hard.
 10. All lanes and an audit (the P1 milestone), held to the baseline of 2026-11-07 (GATES).
