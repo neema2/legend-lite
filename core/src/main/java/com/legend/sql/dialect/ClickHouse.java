@@ -2948,6 +2948,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return rows == null ? List.of(render(table)) : List.of(render(table), render(rows));
     }
 
+    /** {@inheritDoc} ClickHouse's own: {@code CREATE TEMPORARY TABLE t ENGINE = Memory AS <query>}, a table of the HTTP
+     *  session (a connection with none makes it and loses it with the request) -- a statement's shared relations
+     *  staged (writesEachReadOfAWithAgain), measured 2026-11-07 on the documents' examples on 25.8. */
+    @Override
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct, false, "CREATE TEMPORARY TABLE ", " ENGINE = Memory");
+    }
+
     /** {@inheritDoc} Yes: ClickHouse writes a WITH's relation in place at each read, and 25.8 has no materialized CTE
      *  ({@code AS MATERIALIZED} a syntax error, no setting; measured 2026-11-07) -- the documents' spec-15, 111 KB of SQL,
      *  was 2.8 MB written so, a relation's windows computed hundreds of times, and never finished. */
