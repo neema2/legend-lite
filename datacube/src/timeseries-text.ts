@@ -49,8 +49,16 @@ export const NOT_BUILT: Readonly<Record<string, string>> = {
   mode: 'the most frequent value of a window: no aggregate every database shares',
 };
 
-/** A failure to read a series' text: core refused it, or its reading is no series a tile draws -- said where it is drawn. */
-export class TsTextRefusal extends CubeRefusal {}
+/** A failure to read a series' text: core refused it, or its reading is no series a tile draws -- said where it is drawn;
+ *  `at` its place in the text (line and column, from 1), where core gave one. */
+export class TsTextRefusal extends CubeRefusal {
+  readonly at: readonly [number, number] | undefined;
+
+  constructor(message: string, at?: readonly [number, number]) {
+    super(message);
+    this.at = at;
+  }
+}
 
 // ------------------------------------------------------------------ the readings
 
@@ -77,7 +85,7 @@ export async function readSeriesTexts(series: readonly TsSeries[], reader: TsRea
 /** Core's answer for a text, as the tile holds its reading. */
 function readingOf(read: TsItemAnswer): TsExpr | TsTextRefusal {
   if (read.text === undefined) {
-    return new TsTextRefusal(`${read.error.message} (line ${read.error.line}, column ${read.error.column})`);
+    return new TsTextRefusal(`${read.error.message} (line ${read.error.line}, column ${read.error.column})`, [read.error.line, read.error.column]);
   }
   if (read.item.alias !== null) {
     return new TsTextRefusal(`a series' text is its expression: its name is its id, not AS ${read.item.alias}`);
@@ -167,6 +175,107 @@ function unref(e: TsExpr): TsExpr {
     default:
       return e;
   }
+}
+
+// ------------------------------------------------------------------ the formula box's completions
+
+/** A completion of the formula box: what it puts over the text it completes, what the list shows, and why. */
+export interface TsCompletion {
+  readonly insert: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly kind: 'word' | 'column' | 'series' | 'instrument';
+}
+
+/** What the box may offer (decision 9b): core's words the tile reads (core's catalog, each its name and why), the tile's
+ *  sources' columns (each its source's alias), its other series, and -- in a column's subscript -- the instruments of
+ *  that column's source, asked of the database (`instruments`, by the column the subscript is of). */
+export interface TsOffer {
+  readonly words: readonly { readonly name: string; readonly detail: string }[];
+  readonly columns: readonly { readonly source: string; readonly name: string; readonly detail: string }[];
+  readonly series: readonly { readonly id: string; readonly detail: string }[];
+  readonly instruments?: { readonly of: string; readonly values: readonly string[] };
+}
+
+/** What the box completes at the caret: the text [from, to) the chosen one replaces, the completions, and -- in a
+ *  subscript -- the column it is of (`subscript`: the source's alias and the column), whose instruments the box asks. */
+export interface TsCompleting {
+  readonly from: number;
+  readonly to: number;
+  readonly items: readonly TsCompletion[];
+  readonly subscript?: { readonly source: string | undefined; readonly column: string };
+}
+
+/** Whether the tile reads `word` (a word of core's catalog): its own spelling's, or the language's of one of its own
+ *  (ln, greatest, least) -- what the box offers. */
+export function tileReads(word: string): boolean {
+  return SPELLED_BACK.has(word) || (Object.hasOwn(TS_SIGNATURES, word) && !Object.hasOwn(SPELLED, word));
+}
+
+/** The words the box offers: core's catalog's the tile reads (its label, else its description), and the tile's words
+ *  that are SQL's per point (the spec's R3: ln, greatest, sqrt, ...), which no library word is. */
+export function offeredWords(catalog: Readonly<Record<string, { readonly doc: string | null; readonly facts: Readonly<Record<string, readonly string[]>> }>>):
+  { readonly name: string; readonly detail: string }[] {
+  const out = Object.entries(catalog).filter(([name]) => tileReads(name))
+    .map(([name, w]) => ({ name, detail: w.facts['label']?.[0] ?? w.doc ?? '' }));
+  for (const fn of Object.keys(TS_SIGNATURES) as TsFunctionName[]) {
+    const name = SPELLED[fn] ?? fn;
+    if (!Object.hasOwn(catalog, fn) && !Object.hasOwn(catalog, name) && tileReads(name)) out.push({ name, detail: `SQL's ${name}, per point` });
+  }
+  return out;
+}
+
+/**
+ * THE COMPLETIONS AT `caret` IN `text` (A3 step 3, decision 9b): the name being written -- a series, a column (of the
+ * source its alias names, `px.c`), a word -- or, in a column's subscript, an instrument. Found by the characters before
+ * the caret alone: no reading of the text, which is core's.
+ */
+export function completionsAt(text: string, caret: number, offer: TsOffer): TsCompleting {
+  const before = text.slice(0, caret);
+  const after = /^[A-Za-z0-9_]*/.exec(text.slice(caret))![0].length;
+  const none: TsCompleting = { from: caret, to: caret, items: [] };
+  // in a subscript: close['SP| or close[venue = 'X', 'SP|
+  const sub = /([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?\[(?:[^\][]*,\s*)?('?)([^',\][]*)$/.exec(before);
+  if (sub !== null) {
+    const [whole, a, b, quote, typed] = sub;
+    const subscript = b === undefined ? { source: undefined, column: a! } : { source: a!, column: b };
+    const from = caret - typed!.length - quote!.length;
+    const values = offer.instruments !== undefined && offer.instruments.of === `${subscript.source ?? ''}.${subscript.column}`
+      ? offer.instruments.values : [];
+    void whole;
+    const items = values.filter((v) => v.toLowerCase().startsWith(typed!.toLowerCase())).slice(0, 12)
+      .map((v): TsCompletion => ({ insert: `'${v.replaceAll("'", "''")}'`, label: v, detail: `an instrument of ${subscript.column}`, kind: 'instrument' }));
+    return { from, to: caret, items, subscript };
+  }
+  // a source's column: px.cl|
+  const dotted = /([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)?$/.exec(before);
+  if (dotted !== null) {
+    const typed = dotted[2] ?? '';
+    const items = offer.columns.filter((c) => c.source === dotted[1] && c.name.toLowerCase().startsWith(typed.toLowerCase())).slice(0, 12)
+      .map((c): TsCompletion => ({ insert: ident(c.name), label: c.name, detail: c.detail, kind: 'column' }));
+    return { from: caret - typed.length, to: caret + after, items };
+  }
+  const word = /[A-Za-z_][A-Za-z0-9_]*$/.exec(before);
+  if (word === null) return none;
+  // smart case: what is typed in lower case matches any case; a capital in it, its case (B: series B, not basket)
+  const typed = word[0];
+  const exact = /[A-Z]/.test(typed);
+  const starts = (name: string): boolean => (exact ? name.startsWith(typed) : name.toLowerCase().startsWith(typed));
+  const first = offer.columns[0]?.source;
+  const items: TsCompletion[] = [
+    ...offer.series.filter((s) => starts(s.id))
+      .map((s): TsCompletion => ({ insert: s.id, label: s.id, detail: s.detail, kind: 'series' })),
+    // a column of the tile's first source by its name, another's through its alias (the tile's tree: a column of no
+    // source reads the first)
+    ...offer.columns.filter((c) => starts(c.name))
+      .map((c): TsCompletion => {
+        const name = c.source === first ? ident(c.name) : `${ident(c.source)}.${ident(c.name)}`;
+        return { insert: name, label: name, detail: c.detail, kind: 'column' };
+      }),
+    ...offer.words.filter((w) => starts(w.name))
+      .map((w): TsCompletion => ({ insert: `${w.name}(`, label: w.name, detail: w.detail, kind: 'word' })),
+  ];
+  return { from: caret - word[0].length, to: caret + after, items: items.slice(0, 12) };
 }
 
 // ------------------------------------------------------------------ the writer
@@ -283,7 +392,7 @@ function matchText(m: TsMatch): string {
  */
 export function seriesExpr(node: TsNode, ids: readonly string[]): TsExpr {
   const no = (what: string, n: TsNode = node): never => {
-    throw new TsTextRefusal(`${what} (line ${n.at[0]}, column ${n.at[1]})`);
+    throw new TsTextRefusal(`${what} (line ${n.at[0]}, column ${n.at[1]})`, n.at);
   };
   const part = (name: string): TsNode => node[name] as TsNode;
   switch (node.k) {

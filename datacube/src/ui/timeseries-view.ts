@@ -32,7 +32,10 @@ import {
   candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
-import { allRead, heldReading, readSeriesTexts, readTyped, seriesText, treeOf, writtenText, type TsReader } from '../timeseries-text.ts';
+import {
+  allRead, completionsAt, heldReading, offeredWords, readSeriesTexts, readTyped, seriesText, treeOf, TsTextRefusal, writtenText,
+  type TsCompleting, type TsOffer, type TsReader,
+} from '../timeseries-text.ts';
 
 export { readSeriesTexts };
 import {
@@ -2636,7 +2639,65 @@ export class TimeseriesView {
     });
     expr.value = was ? was.text : '';
     const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
+    // where core says the error is: the box's text, the place marked
+    const errorAt = el(doc, 'div', 'dc-ts-error-at');
     const reads = el(doc, 'div', 'dc-ts-hint');
+    // COMPLETIONS (decision 9b): what is being written at the caret -- a series, a column, a word of core's catalog (its
+    // module fetched as the editor opens), or in a subscript an instrument, the database's
+    const completions = el(doc, 'ul', 'dc-ts-complete', undefined, { 'aria-label': 'Completions' });
+    let offer: TsOffer = {
+      words: [],
+      columns: spec.sources.flatMap((src) => (columns.get(src.alias) ?? []).filter((c) => c.name !== src.date)
+        .map((c) => ({ source: src.alias, name: c.name, detail: `${src.alias}'s ${c.name}${c.type ? `, ${c.type}` : ''}` }))),
+      series: spec.series.filter((s) => s.id !== sid).map((s) => ({ id: s.id, detail: seriesName(s) })),
+    };
+    const instrumentsOf = new Map<string, Promise<readonly string[]>>();
+    let completing: TsCompleting | undefined;
+    const complete = (): void => {
+      completing = completionsAt(expr.value, expr.selectionStart ?? expr.value.length, offer);
+      const sub = completing.subscript;
+      if (sub !== undefined) {
+        const of = `${sub.source ?? ''}.${sub.column}`;
+        const src = spec.sources.find((s) => s.alias === (sub.source ?? spec.sources[0]?.alias));
+        if (offer.instruments?.of !== of && src?.key !== undefined) {
+          const key = src.key;
+          const asked = instrumentsOf.get(src.alias) ?? this.#keyValues(src, key);
+          instrumentsOf.set(src.alias, asked);
+          void asked.then((values) => {
+            offer = { ...offer, instruments: { of, values } };
+            complete();
+          }, () => undefined);
+        }
+      }
+      completions.replaceChildren(...completing.items.map((c, i) => {
+        const b = el(doc, 'button', undefined, undefined, { type: 'button', title: c.detail, 'data-insert': c.insert });
+        b.append(el(doc, 'span', 'dc-ts-complete-label', c.label), el(doc, 'span', 'dc-ts-complete-detail', c.detail));
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => take(i));
+        const li = el(doc, 'li');
+        li.append(b);
+        return li;
+      }));
+    };
+    /** Completion `i` put where it completes, the caret after it, and the box read again. */
+    const take = (i: number): void => {
+      const c = completing?.items[i];
+      if (completing === undefined || c === undefined) return;
+      expr.value = expr.value.slice(0, completing.from) + c.insert + expr.value.slice(completing.to);
+      const caret = completing.from + c.insert.length;
+      expr.setSelectionRange(caret, caret);
+      expr.focus();
+      void check();
+      complete();
+    };
+    void import('../generated/ts-words.ts').then(({ TS_WORDS }) => {
+      offer = {
+        ...offer,
+        words: offeredWords(TS_WORDS),
+      };
+      // what is written by now completed with them
+      if (expr.value !== '') complete();
+    }, () => undefined);
     // the box's text as core read it (A3 step 3: core's reader the one, asked as it is typed) -- its canonical text, and
     // its tree as the tile reads it; none while it is read, or where it is no series
     let parsed: { readonly text: string; readonly tree: TsExpr } | undefined;
@@ -2668,9 +2729,19 @@ export class TimeseriesView {
     /** A reading of the box's text shown: its error, or what it reads and its sliders. */
     const shown = (read: { readonly text: string } | { readonly refused: Error }, paint: boolean): void => {
       error.textContent = '';
+      errorAt.replaceChildren();
+      expr.removeAttribute('aria-invalid');
       if ('refused' in read) {
         error.textContent = read.refused.message;
         reads.textContent = '';
+        expr.setAttribute('aria-invalid', 'true');
+        // where core says it is: one line (the box holds one), the place marked
+        const at = read.refused instanceof TsTextRefusal ? read.refused.at : undefined;
+        const text = expr.value;
+        if (at !== undefined && at[0] === 1 && at[1] >= 1 && at[1] <= text.length + 1) {
+          const i = at[1] - 1;
+          errorAt.append(text.slice(0, i), el(doc, 'mark', undefined, i < text.length ? text[i]! : ' '), text.slice(i + 1));
+        }
       } else {
         try {
           const own: TsSeries = { id: sid, text: read.text };
@@ -2728,7 +2799,22 @@ export class TimeseriesView {
         return row;
       }));
     };
-    expr.addEventListener('input', () => void check());
+    expr.addEventListener('input', () => {
+      void check();
+      complete();
+    });
+    // the caret moved: what it completes there
+    expr.addEventListener('click', () => complete());
+    expr.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') complete();
+    });
+    // Tab takes the first completion
+    expr.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey && (completing?.items.length ?? 0) > 0) {
+        e.preventDefault();
+        take(0);
+      }
+    });
     // building one: a source, a column, an instrument, a line per instrument
     const sourceSel = select(doc, spec.sources.map((s) => [s.alias, `${s.alias} (${this.#host.grid(s.cube)?.title ?? 'its grid is gone'})`] as const),
       spec.sources[0]?.alias ?? '', () => paintPickers(), 'Source');
@@ -2917,7 +3003,7 @@ export class TimeseriesView {
     const actions = el(doc, 'div', 'dc-ts-actions');
     actions.append(remove, el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Leave it as it was (Escape)', () => this.#close()), ok);
     this.#open(was ? `Series ${sid}` : `New series ${sid}`,
-      labelled(doc, 'Expression', expr), error, reads, sliders, builder, splitSel, fnSel, about,
+      labelled(doc, 'Expression', expr), completions, error, errorAt, reads, sliders, builder, splitSel, fnSel, about,
       labelled(doc, 'Name', name), style, swatches, reference, actions);
     // put away (Cancel, Escape, its close, another editor): a drag's stop forgotten, and what it tried taken back
     this.#leaving = () => {

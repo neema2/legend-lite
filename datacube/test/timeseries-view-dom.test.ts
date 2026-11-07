@@ -587,6 +587,21 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       assert.match(await typed('vola(A)'), /there is no function vola/);
       assert.match(await typed('smooth_outliers(A)'), /an iterative procedure/);
       assert.match(await typed('vola(A'), /line 1/, 'core\'s own error, placed');
+      assert.equal(pop.querySelector('.dc-ts-error-at mark') !== null, true, 'the place core names, marked');
+      // COMPLETIONS (decision 9b): a word of core's catalog, taken by a click, its call opened; a column; an instrument
+      const items = (): string[] => [...pop.querySelectorAll('.dc-ts-complete .dc-ts-complete-label')].map((x) => x.textContent ?? '');
+      expr.value = 'vol';
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      await until(() => items().includes('volatility'), 'the catalog\'s words offered');
+      [...pop.querySelectorAll<HTMLButtonElement>('.dc-ts-complete button')].find((b) => b.dataset['insert'] === 'volatility(')!.click();
+      assert.equal(expr.value, 'volatility(');
+      expr.value = 'volatility(clo';
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      assert.deepEqual(items(), ['close']);
+      expr.value = "volatility(close['N";
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      await until(() => items().includes('NDX'), 'the instruments its source has, the database\'s');
+      assert.ok(!items().includes('SPX'), 'those it starts with');
       // gs-quant's recursions are built now (the expert functions, 2026-10-26): read as typed
       assert.equal(await typed('macd(A)'), '');
       assert.equal(await typed('mean(A, 50)'), '');

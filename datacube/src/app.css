@@ -5738,6 +5738,15 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-small { width: 8ch; }
 .dc-ts-error { min-height: 1em; color: var(--tw-red-600); font-size: var(--dc-text-sm-size); }
 .dc-ts-error:empty { display: none; }
+/* the formula box's completions (A3 step 3, decision 9b) and where core says its error is */
+.dc-ts-complete { list-style: none; margin: 0; padding: 2px 0; border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm); max-height: 12em; overflow-y: auto; font-size: var(--dc-text-sm-size); }
+.dc-ts-complete:empty { display: none; }
+.dc-ts-complete button { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0; padding: 2px 6px; cursor: pointer; color: inherit; font: inherit; }
+.dc-ts-complete button:hover, .dc-ts-complete button:focus { background: var(--dc-hover); }
+.dc-ts-complete-detail { color: var(--dc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-ts-error-at { font-family: var(--dc-font-mono); font-size: var(--dc-text-sm-size); white-space: pre; overflow-x: auto; }
+.dc-ts-error-at:empty { display: none; }
+.dc-ts-error-at mark { background: none; color: var(--tw-red-600); text-decoration: underline wavy var(--tw-red-500); }
 .dc-ts-hint { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-ts-actions { display: flex; justify-content: flex-end; gap: var(--dc-pad-1); }
 .dc-ts-swatches { display: inline-flex; gap: 3px; }

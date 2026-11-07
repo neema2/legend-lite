@@ -896,8 +896,11 @@ const CHART_BUDGET = 303_500;
  *  132,000 -> 135,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
  *  don't stop"): a series stored as its #TS text and read by core -- timeseries-text.ts, its own text's writer, core's
  *  tree read back as the tile's, the readings held -- beside the tile's own grammar, which A3 step 5 deletes
- *  (timeseries-expr.ts's parser and timeseries-ts.ts: this budget falls then). Measured 134,055. */
-const TIMESERIES_BUDGET = 135_000;
+ *  (timeseries-expr.ts's parser and timeseries-ts.ts: this budget falls then). Measured 134,055.
+ *  135,000 -> 136,500 (2026-11-07, item 11, A3 step 3, decision 9b): the formula box's completions (timeseries-text.ts
+ *  completionsAt, the words core's catalog offers -- the catalog itself a chunk fetched as the editor opens, not here)
+ *  and its error's place marked. Measured 135,747; step 5's deletions take it down. */
+const TIMESERIES_BUDGET = 136_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

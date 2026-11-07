@@ -11,7 +11,7 @@ import {
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
 } from '../src/timeseries-expr.ts';
 import { TS_WORDS } from '../src/generated/ts-words.ts';
-import { treeOf, writtenText } from '../src/timeseries-text.ts';
+import { completionsAt, offeredWords, treeOf, writtenText, type TsOffer } from '../src/timeseries-text.ts';
 
 const ROUND_TRIPS = [
   'close',
@@ -521,5 +521,46 @@ describe('a first timeseries of a grid', () => {
   it('a grid grouped by a text column takes it as the instruments', () => {
     const ts = defaultTimeseries([{ name: 'd', type: 'DateTime' }, { name: 'desk', type: 'String' }, { name: 'pnl', type: 'Float' }], ['desk'], 'g', 'pnl');
     assert.equal(ts?.sources[0]?.key, 'desk');
+  });
+});
+
+describe('the formula box\'s completions (A3 step 3, decision 9b): found by the characters before the caret, never a reading', () => {
+  const offer: TsOffer = {
+    words: offeredWords(TS_WORDS),
+    columns: [{ source: 'px', name: 'close', detail: '' }, { source: 'px', name: 'volume', detail: '' }, { source: 'rates', name: 'yield', detail: '' }],
+    series: [{ id: 'A', detail: 'S&P 500' }, { id: 'B', detail: 'Its volatility' }],
+  };
+  const strip = (text: string): string => text.replace('|', '');
+  const labels = (text: string): string[] => completionsAt(strip(text), text.indexOf('|'), offer).items.map((c) => c.label);
+
+  it('a word of core\'s catalog the tile reads, its call opened; a series; a column of the first source by its name', () => {
+    assert.ok(labels('vol|').includes('volatility'), labels('vol|').join());
+    assert.ok(!labels('vol|').includes('log'), 'gs-quant\'s log is no word the tile writes: ln is');
+    assert.deepEqual(completionsAt('vol', 3, offer).items.find((c) => c.label === 'volatility')?.insert, 'volatility(');
+    assert.deepEqual(labels('mean(clo|'), ['close']);
+    assert.deepEqual(labels('A + |'), []);
+    assert.deepEqual(labels('mean(|'), []);
+    assert.deepEqual(labels('B|'), ['B']);
+    assert.deepEqual(labels('yi|'), ['rates.yield'], 'another source\'s column through its alias');
+    assert.deepEqual(labels('rates.y|'), ['yield']);
+    assert.ok(labels('l|').includes('ln') && !labels('l|').includes('log'));
+  });
+
+  it('what it replaces: the word at the caret, its rest after the caret too', () => {
+    const c = completionsAt('mean(clo, 5)', 8, offer);
+    assert.deepEqual([c.from, c.to], [5, 8]);
+    const inside = completionsAt('mean(clxx, 5)', 7, offer);
+    assert.deepEqual([inside.from, inside.to], [5, 9]);
+  });
+
+  it('in a subscript, the instruments of its column\'s source, asked of the database; a match on another column too', () => {
+    const asked = completionsAt("close['SP", 9, offer);
+    assert.deepEqual(asked.subscript, { source: undefined, column: 'close' });
+    assert.deepEqual(asked.items, [], 'none until the database answers');
+    const answered = completionsAt("close['SP", 9, { ...offer, instruments: { of: '.close', values: ['SPX', 'SPY', 'TLT'] } });
+    assert.deepEqual(answered.items.map((c) => c.insert), ["'SPX'", "'SPY'"]);
+    assert.deepEqual([answered.from, answered.to], [6, 9]);
+    assert.deepEqual(completionsAt("rates.yield[venue = 'X', '1", 27, offer).subscript, { source: 'rates', column: 'yield' });
+    assert.deepEqual(completionsAt("close['SPX'] + ", 15, offer).subscript, undefined, 'a subscript closed');
   });
 });
