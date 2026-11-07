@@ -1191,6 +1191,61 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# #TS AT SCALE, MEASURED (docs/TS_V1_PROGRAM_2026_11_01.md B2; docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07):
+# about ten million daily rows and as many minute bars, made by the database; each query's plan time, SQL size and run.
+# Manual, a measurement (in //gates:heavy): the budgets are proposed from it and ruled by the user (P5). On Postgres the
+# as-of forms besides (lite's correlated MAX, the experts' LATERAL), without and with an index; the bars there are 20
+# instruments' (the session's disk). As root, the Postgres one through tools/postgres/as_unprivileged.sh.
+junit_test(
+    name = "ts_scale_measure",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_scale_measure_postgres",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dts.scale.barInstruments=20",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
 # (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
 # documents name them, or is listed with why (only allowed to shrink)
