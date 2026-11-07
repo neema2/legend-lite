@@ -77,6 +77,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
     static final String CORRELATED = ", allow_experimental_correlated_subqueries = 1";
     static final String UNCORRELATED = ", allow_experimental_correlated_subqueries = 0";
 
+    /** Numbers each raise this dialect writes ({@link #error}): no two of a statement are one expression. */
+    private final int[] raises = {0};
+
     /** How deep the writer is in {@link #query}: the root query (depth 0 on entry) writes the SETTINGS clause. */
     private final int[] nesting = {0};
 
@@ -1834,10 +1837,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** The {@code ERROR} arm of {@link #call}: a parse of the enveloped message as an Int64, which fails with the
-     *  message quoted. It ends in an empty text of {@code rand()}'s, so the server can never fold it as a constant:
-     *  26.3 evaluated a constant raise in a WHERE whatever its CASE's guard said (the earlier
-     *  {@code toInt64(materialize(...))}, measured 2026-11-07 on the documents' examples' {@code latest - 2y}), and
-     *  the guard holds again with it (a SELECT's raise was guarded on both versions). */
+     *  message quoted. It ends in an empty text of {@code rand(n)}'s, {@code n} its own in the statement, so the
+     *  server neither folds it as a constant nor makes two raises one: 26.3 evaluated a raise its CASE's guard held
+     *  back wherever the same raise stood twice in one WHERE (one shared expression, computed eagerly: the documents'
+     *  {@code latest - 2y}, its date check nested in its month check, measured 2026-11-07 -- even throwIf raised
+     *  there; distinct raises answer, as on 25.8). */
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         writer.append("toInt64(concat(char(31), ");
@@ -1847,7 +1851,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
         // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
         return writer.append("replaceAll(toString(").expr(a.get(0), 0)
-                .append("), '\\'', char(29)), char(31), substring(toString(rand()), 1, 0)))");
+                .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
+                        + ")), 1, 0)))");
     }
 
     /** The message a date past ClickHouse's years raises. */
