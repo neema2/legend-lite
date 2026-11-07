@@ -92,6 +92,17 @@ function readingOf(read: TsItemAnswer): TsExpr | TsTextRefusal {
   }
 }
 
+/** Whether every text of `series` has its reading held: a tile drawn at once, no reading asked. */
+export function allRead(series: readonly TsSeries[]): boolean {
+  return series.every((s) => READINGS.has(s.text));
+}
+
+/** The reading held of `text`, as core read it or as the tile wrote it -- undefined where it was never read. */
+export function heldReading(text: string): { readonly text: string } | { readonly refused: TsTextRefusal } | undefined {
+  const r = READINGS.get(text);
+  return r === undefined ? undefined : r instanceof TsTextRefusal ? { refused: r } : { text };
+}
+
 /** Core's canonical text of what a person typed, or why it is no series: what the tile keeps of it (each series' text
  *  as core prints it, so two texts of one meaning are one text). */
 export async function readTyped(text: string, reader: TsReader): Promise<{ readonly text: string } | { readonly refused: TsTextRefusal }> {

@@ -32,7 +32,7 @@ import {
   candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
-import { readSeriesTexts, readTyped, seriesText, treeOf, writtenText, type TsReader } from '../timeseries-text.ts';
+import { allRead, heldReading, readSeriesTexts, readTyped, seriesText, treeOf, writtenText, type TsReader } from '../timeseries-text.ts';
 
 export { readSeriesTexts };
 import {
@@ -531,8 +531,13 @@ export class TimeseriesView {
     const tried = this.#tried !== undefined;
     this.#tried = undefined;
     if (!tried && JSON.stringify(spec) === JSON.stringify(this.#spec)) return;
-    // its texts read by core first (another editor's, Python's: none the tile wrote), the latest spec the one drawn
+    // its texts read by core first (another editor's, Python's: none the tile wrote), the latest spec the one drawn --
+    // at once where every one is read already (the tile's own change, an undo)
     const mine = ++this.#reading;
+    if (allRead(spec.series)) {
+      this.#apply(spec);
+      return;
+    }
     void readSeriesTexts(spec.series, this.#host.readText).then(() => {
       if (mine === this.#reading && !this.#disposed) this.#apply(spec);
     }, (e: unknown) => {
@@ -2639,7 +2644,7 @@ export class TimeseriesView {
     // its outermost function's parameters as sliders, painted as the expression is read (`paint` false: a slider moving,
     // which stays the one dragged)
     const sliders = el(doc, 'div', 'dc-ts-sliders');
-    const check = async (paint = true): Promise<void> => {
+    const check = (paint = true): Promise<void> => {
       const mine = ++asked;
       const typed = expr.value;
       parsed = undefined;
@@ -2647,11 +2652,21 @@ export class TimeseriesView {
         error.textContent = '';
         reads.textContent = '';
         if (paint) paintSliders();
-        return;
+        return Promise.resolve();
       }
-      const read = await readTyped(typed, this.#host.readText);
-      // a later keystroke's reading is the one shown
-      if (mine !== asked) return;
+      // a text read already (the series' own, one a slider or a picker wrote) shown at once; else asked of core
+      const held = heldReading(typed);
+      if (held !== undefined) {
+        shown(held, paint);
+        return Promise.resolve();
+      }
+      return readTyped(typed, this.#host.readText).then((read) => {
+        // a later keystroke's reading is the one shown
+        if (mine === asked) shown(read, paint);
+      });
+    };
+    /** A reading of the box's text shown: its error, or what it reads and its sliders. */
+    const shown = (read: { readonly text: string } | { readonly refused: Error }, paint: boolean): void => {
       error.textContent = '';
       if ('refused' in read) {
         error.textContent = read.refused.message;
@@ -2701,11 +2716,12 @@ export class TimeseriesView {
           shown.textContent = String(v);
           // the expression as it is now: another slider moved too
           const now = parsed?.tree.kind === 'call' && parsed.tree.fn === call!.fn ? parsed.tree : call!;
-          void write({ ...now, params: { ...now.params, [p.name]: v } }, false).then(() => {
-            if (was === undefined) return;
-            clearTimeout(live);
-            live = setTimeout(() => void apply(false), 400);
-          });
+          // the tree's text written (its reading held: shown at once), its stop timed now -- so Escape, Cancel or another
+          // editor, which clear it, take the drag back before it lands
+          void write({ ...now, params: { ...now.params, [p.name]: v } }, false);
+          if (was === undefined) return;
+          clearTimeout(live);
+          live = setTimeout(() => void apply(false), 400);
         });
         const row = el(doc, 'label', 'dc-ts-field dc-ts-slider-row');
         row.append(el(doc, 'span', 'dc-ts-field-label', p.name), range, shown);
@@ -2890,7 +2906,7 @@ export class TimeseriesView {
     for (const f of TS_FUNCTIONS) {
       const reads = f.reads !== undefined ? [...f.reads] : f.series === 'many' ? ['x', 'wx', 'y', 'wy'] : f.series === 3 ? ['flags', 'x', 'y']
         : Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y'));
-      const sig = seriesText({ kind: 'call', fn: f.name, args: reads.map((r) => ({ kind: 'column', column: r })) }, []);
+      const sig = seriesText({ kind: 'call', fn: f.name, args: reads.map((r) => columnRef(r)) }, []);
       list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));
     }
     reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px.close, close[\'AAPL\'], close[venue = \'NYSE\', \'AAPL\'], sum(volume[\'AAPL\']). Series: A. Arithmetic: + - * /.'));

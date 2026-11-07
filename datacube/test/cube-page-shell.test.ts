@@ -19,6 +19,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, openCube, writeCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
+import { readText } from './catalog-builder.ts';
 import { CubePage, type SpawnedGrid } from '../src/page/cube-page.ts';
 import { PAGE_CUBE, pageToJson, readPage, startingViews, writePageOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageSources } from '../src/app/sources.ts';
@@ -113,7 +114,7 @@ const over = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawn
 };
 
 function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
-  page = new PageApp({ host, title: 'Q3', empty: (slot) => { slot.textContent = 'Add a data source'; }, ...extra });
+  page = new PageApp({ host, title: 'Q3', empty: (slot) => { slot.textContent = 'Add a data source'; }, readText, ...extra });
   return page;
 }
 

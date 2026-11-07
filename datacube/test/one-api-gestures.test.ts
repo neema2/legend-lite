@@ -32,6 +32,7 @@ import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS, type PageCommand } from '.
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
+import { readText } from './catalog-builder.ts';
 import { chartPick, readEdits } from '../src/headless/page.ts';
 import { timeseriesEdit } from '../src/headless/timeseries.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
@@ -213,7 +214,7 @@ const onScreen = (): PageDocument => pg().document(pg().title || 'Q3', undefined
  */
 function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
   page = new PageApp({
-    host, title: 'Q3', confirm: () => true, empty: (slot) => { slot.textContent = 'empty'; },
+    host, title: 'Q3', confirm: () => true, empty: (slot) => { slot.textContent = 'empty'; }, readText,
     onChange: () => channel?.changed(),
     onPageCommand: (command) => channel?.edit({ page: command }),
     onRename: (name) => {

@@ -392,9 +392,12 @@ _EXTRA_DATA = {
 _WASM_TESTS = [
     "timeseries-queries",
     "timeseries-ts-parity",
-    # the example pages' series are #TS text, which core alone reads (A3 step 3, 2026-11-07)
+    # the example pages' series are #TS text, which core alone reads (A3 step 3, 2026-11-07); a page's timeseries tile
+    # reads its series' texts by core before it is drawn, and its editor what is typed
     "examples",
     "timeseries-code",
+    "cube-page-shell",
+    "one-api-gestures",
     "stress-markets",
     "pure-library-spike",
     "timeseries-view-dom",
