@@ -372,7 +372,10 @@ try {
   // the database answered, no line refused and no problem in its banner (a tile on a sheet not shown draws when shown).
   // The markets example over the trading model's classes (§11, Phase 6) opens two saved queries of the site's markets
   // project (config.json `projects[]`), its rows the project's Data: how long that takes, cold, is said with it.
-  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36], ['markets-classes', 'sectors', 3]]) {
+  // the copies over classes (docs/TS_DECISIONS_2026_11_07.md §4, a', 2026-11-07): the same pages, each grid a saved query
+  // of the markets project
+  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36], ['markets-classes', 'sectors', 3],
+    ['markets-on-classes', 'performance', 6], ['gallery-on-classes', 'returns', 36]]) {
     await check(`the example page ${example} opens from Open…, and every timeseries on every sheet draws`, async () => {
       await page.click('.dc-titlebar-menu');
       const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();

@@ -8,7 +8,7 @@
 
 import type { Band, Node } from '../layout/bands.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
-import { MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile } from './markets.ts';
+import { MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile, type PageOver } from './markets.ts';
 
 const ON_PRICES = [PRICES];
 const PRICES_AND_MACRO = [PRICES, MACRO];
@@ -717,8 +717,9 @@ function bandsOf(rows: GallerySheet['rows']): Band[] {
   });
 }
 
-/** The page: a sheet per family of functions, the ways to view, and the two grids every tile reads. */
-export async function timeseriesGalleryPage(): Promise<PageDocument> {
+/** The page: a sheet per family of functions, the ways to view, and the two grids every tile reads -- over the samples,
+ *  or over the cubes `over` gives. */
+export async function timeseriesGalleryPage(over?: PageOver): Promise<PageDocument> {
   const sheets: PageSheet[] = TIMESERIES_GALLERY.map((g, i) => ({
     id: `sheet-${i + 1}`, name: g.name, layout: { kind: 'bands', fit: true, bands: bandsOf(g.rows) },
   }));
@@ -728,8 +729,8 @@ export async function timeseriesGalleryPage(): Promise<PageDocument> {
     }] },
   });
   return writePageOf({
-    name: 'Timeseries gallery',
-    cubes: [...await marketCubes(), await macroCube()],
+    name: over?.name ?? 'Timeseries gallery',
+    cubes: over?.cubes ?? [...await marketCubes(), await macroCube()],
     views: { views: [...MARKET_GRIDS, MACRO_GRID, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
   });
 }

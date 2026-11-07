@@ -8,7 +8,7 @@
 // order, a value of its type wherever the store's class has one (DuckDB's own reader types them), none where the class
 // has none. Deterministic: the same call, the same text.
 
-import { marketBars, type MarketBar } from './samples.ts';
+import { macroCsv, marketBars, ratesCsv, type MarketBar } from './samples.ts';
 
 /** Each table's columns, in the order the store declares them (core/src/test/resources/stress/30-store.pure). */
 export const STRESS_MARKET_COLUMNS = {
@@ -27,11 +27,18 @@ export const STRESS_MARKET_COLUMNS = {
   TRADE: ['TRADE_ID', 'TRADE_DATE', 'SETTLEMENT_DATE', 'QUANTITY', 'PRICE', 'NOTIONAL', 'SIDE', 'STATUS', 'TRADE_TYPE',
     'CURRENCY', 'COMMISSION', 'FEES', 'EXECUTION_VENUE', 'IS_BLOCK', 'CREATED_TIME', 'LAST_MODIFIED_TIME', 'ORDER_ID',
     'BLOCK_ID', 'AVG_PRICE_TRADE_ID', 'BOOK_ID', 'COUNTERPARTY_ID', 'INSTRUMENT_ID', 'TRADER_ID'],
+  // the rates sample's Treasury curve, a point a tenor a day (curves::CurvePoint, the store's RATE_CURVE_POINT), and the
+  // macro sample's series (markets::MacroObservation, the project's own markets-model.pure): the copies over classes
+  // (src/examples/on-classes.ts; docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-07)
+  RATE_CURVE_POINT: ['CURVE_ID', 'COB_DATE', 'TENOR_LABEL', 'TENOR_DAYS', 'ZERO_RATE', 'DISCOUNT_FACTOR', 'IS_INTERPOLATED',
+    'SOURCE_SERIES_ID', 'CURVE_NAME', 'CURVE_CURRENCY', 'CURVE_TYPE', 'CURVE_BENCHMARK_ID'],
+  MACRO_SERIES: ['SERIES', 'OBS_DATE', 'VALUE'],
 } as const;
 
 /** The tables, in the order a page reads them in (each one's references before it). */
 export type StressMarketTable = keyof typeof STRESS_MARKET_COLUMNS;
-export const STRESS_MARKET_TABLES: readonly StressMarketTable[] = ['EXCHANGE', 'SECTOR', 'CURRENCY', 'INSTRUMENT', 'MARKET_QUOTE', 'TRADE'];
+export const STRESS_MARKET_TABLES: readonly StressMarketTable[] = ['EXCHANGE', 'SECTOR', 'CURRENCY', 'INSTRUMENT', 'MARKET_QUOTE', 'TRADE',
+  'RATE_CURVE_POINT', 'MACRO_SERIES'];
 
 /** A row: each column's value as the CSV writes it, none for a column not named. */
 type Row = Readonly<Record<string, string | number | boolean>>;
@@ -144,6 +151,31 @@ function trades(bars: readonly MarketBar[], seed: number): Row[] {
   return out;
 }
 
+/** A sample's CSV text as its rows: each line's cells by its header's names. */
+function sampleRows(text: string): Readonly<Record<string, string>>[] {
+  const [header, ...lines] = text.trim().split('\n');
+  const names = header!.split(',');
+  return lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [names[i]!, v])));
+}
+
+/** The rates sample's curve (its defaults: the gallery's) as the curve's points: a US Treasury curve, each tenor its days
+ *  (a year 365 of them) and its zero rate the sample's yield, value for value; its discount factor from it. */
+function curvePoints(): Row[] {
+  return sampleRows(ratesCsv()).map((r) => {
+    const years = Number(r['years']);
+    return {
+      CURVE_ID: 'UST', COB_DATE: r['date']!, TENOR_LABEL: r['tenor']!, TENOR_DAYS: Math.round(years * 365),
+      ZERO_RATE: r['yield']!, DISCOUNT_FACTOR: Math.exp(-Number(r['yield']) / 100 * years).toFixed(8),
+      IS_INTERPOLATED: false, CURVE_NAME: 'US Treasury', CURVE_CURRENCY: 'USD', CURVE_TYPE: 'GOVT',
+    };
+  });
+}
+
+/** The macro sample's series (its defaults: the gallery's), value for value. */
+function macroObservations(): Row[] {
+  return sampleRows(macroCsv()).map((r) => ({ SERIES: r['series']!, OBS_DATE: r['date']!, VALUE: r['value']! }));
+}
+
 /** The markets sample's days (`rows`, `seed`: marketBars's) as the trading model's tables: each table's CSV text. */
 export function stressMarketCsvs(rows = 13_050, seed = 20261058): Readonly<Record<StressMarketTable, string>> {
   const bars = marketBars(rows, seed);
@@ -165,6 +197,8 @@ export function stressMarketCsvs(rows = 13_050, seed = 20261058): Readonly<Recor
     INSTRUMENT: csv('INSTRUMENT', instruments),
     MARKET_QUOTE: csv('MARKET_QUOTE', bars.map(quote)),
     TRADE: csv('TRADE', trades(bars, seed + 1)),
+    RATE_CURVE_POINT: csv('RATE_CURVE_POINT', curvePoints()),
+    MACRO_SERIES: csv('MACRO_SERIES', macroObservations()),
   };
 }
 

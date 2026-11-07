@@ -115,8 +115,16 @@ export async function macroCube(): Promise<{ readonly id: string; readonly cube:
     { ...DEFAULT_CONFIGURATION, reportTitle: 'Macro', columns: { value: { aggregateFn: 'average' } } }) };
 }
 
-/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid. */
-export async function marketsPage(): Promise<PageDocument> {
+/** A page's grids given: its name and its cubes by the ids its views read (src/examples/on-classes.ts: the same page
+ *  over the markets project's classes). */
+export interface PageOver {
+  readonly name: string;
+  readonly cubes: readonly { readonly id: string; readonly cube: CubeDocument }[];
+}
+
+/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid -- over the
+ *  samples, or over the cubes `over` gives. */
+export async function marketsPage(over?: PageOver): Promise<PageDocument> {
   const views: PageView[] = [
     ...MARKET_GRIDS,
     // performance: every line rebased to 100 at the first date shown (a zoom rebases again), a pane of realized vol
@@ -203,8 +211,8 @@ export async function marketsPage(): Promise<PageDocument> {
       band(0.5, { tile: 'bonds' })] } },
   ];
   return writePageOf({
-    name: 'Markets',
-    cubes: await marketCubes(),
+    name: over?.name ?? 'Markets',
+    cubes: over?.cubes ?? await marketCubes(),
     views: { views, sheets },
   });
 }

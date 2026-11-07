@@ -210,6 +210,8 @@ _EXTRA_ENV = {
         "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
         # every series of the class page, its answer frozen (test/timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md)
         "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/markets-classes-answers.json)",
+        # the copies over classes answer every series as the pages over the samples froze it (2026-11-07, a')
+        "GALLERY_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
     },
     # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
     "timeseries-ts-parity": {
@@ -298,6 +300,7 @@ _EXTRA_DATA = {
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
+        "test/fixtures/timeseries/gallery-answers.json",
         "test/fixtures/timeseries/markets-classes-answers.json",
         "test/timeseries-frozen.ts",
     ],
@@ -1881,11 +1884,15 @@ copy_to_directory(
     name = "markets_project",
     srcs = [
         ":markets_data",
+        # the project's own elements: the macro class, its table, the mapping and runtime of the copies over classes
+        # (docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-07)
+        "tools/markets-data/markets-model.pure",
         "//scripts/corpus:trading_model",
     ],
     out = "demo/projects/markets",
     root_paths = [
         "datacube/generated",
+        "datacube/tools/markets-data",
         "scripts/corpus",
     ],
 )

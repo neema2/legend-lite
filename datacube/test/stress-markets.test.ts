@@ -25,10 +25,10 @@ import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
-import { marksQuery, seriesQuery, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
-import { tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
-import type { TimeseriesSpec, TsAnnotation } from '../src/timeseries-spec.ts';
+import { inlined, parseExpr } from '../src/timeseries-expr.ts';
+import { marksQuery, seriesQuery, seriesSources, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
+import { readsBase, tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import type { TimeseriesSpec, TsAnnotation, TsView } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
@@ -40,6 +40,8 @@ const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8
 const SERVED = runfileFromEnv('MARKETS_PROJECT');
 const served = (url: string): string => readFileSync(join(SERVED, url.slice('./projects/markets/'.length)), 'utf8');
 const MODEL = served('./projects/markets/trading-model.pure');
+/** The project's own elements: the macro class, its store, the copies' mapping and runtime (2026-11-07, a'). */
+const OWN = served('./projects/markets/markets-model.pure');
 const writer = plannerFor('', 'local::RT');
 
 /** The model a page holds: the project's files joined as the page joins them (app/sources.ts openedRecord) -- the
@@ -180,21 +182,36 @@ function same(over: Line, flat: Line, what: string): void {
 describe('the markets project, as config.json lists it and the site serves it', () => {
   it('its files the trading model and its Data, in that order, each served', () => {
     assert.ok(CONFIGURED, 'config.json lists the markets project');
-    assert.deepEqual(CONFIGURED.models, ['./projects/markets/trading-model.pure', './projects/markets/markets-data.pure']);
-    assert.deepEqual(readdirSync(SERVED).sort(), ['markets-data.pure', 'trading-model.pure'], 'the site serves those two');
+    assert.deepEqual(CONFIGURED.models, ['./projects/markets/trading-model.pure', './projects/markets/markets-model.pure',
+      './projects/markets/markets-data.pure']);
+    assert.deepEqual(readdirSync(SERVED).sort(), ['markets-data.pure', 'markets-model.pure', 'trading-model.pure'],
+      'the site serves those three');
     assert.equal(served('./projects/markets/markets-data.pure'), stressMarketsData(), 'its Data the generator\'s');
-    assert.equal(PROJECT, `${MODEL}\n${stressMarketsData()}`);
+    assert.equal(PROJECT, `${MODEL}\n${OWN}\n${stressMarketsData()}`);
   });
 });
 
 describe('the trading model\'s tables, as its store declares them', () => {
   it('each table the generator writes has the store\'s columns, in its order', () => {
-    // the corpus's one store: its tables after its name (a linked project's store may name a table so too)
+    // the corpus's one store: its tables after its name (a linked project's store may name a table so too); the
+    // project's own table (the macro series) its own store's (markets-model.pure)
     const store = MODEL.slice(MODEL.indexOf('Database store::DB'));
+    const own = OWN.slice(OWN.indexOf('Database markets::DB'));
+    // a table's declaration up to its closing parenthesis (a column's type has its own: VARCHAR(20)), over lines
+    const declaredIn = (text: string, t: string): string | undefined => {
+      const start = text.indexOf(`Table ${t} (`);
+      if (start < 0) return undefined;
+      let depth = 0;
+      for (let i = start + `Table ${t} `.length; i < text.length; i++) {
+        if (text[i] === '(') depth += 1;
+        else if (text[i] === ')' && --depth === 0) return text.slice(start + `Table ${t} (`.length, i);
+      }
+      return undefined;
+    };
     for (const t of STRESS_MARKET_TABLES) {
-      const declared = new RegExp(`Table ${t} \\(([^\\n]*)\\)\\n`).exec(store);
-      assert.ok(declared, `the store declares ${t}`);
-      const names = declared[1]!.split(/,\s*/).map((c) => c.trim().split(/\s+/)[0]);
+      const declared = declaredIn(t === 'MACRO_SERIES' ? own : store, t);
+      assert.ok(declared !== undefined, `the store declares ${t}`);
+      const names = declared.split(/,(?![^(]*\))/).map((c) => c.trim().split(/\s+/)[0]);
       assert.deepEqual([...STRESS_MARKET_COLUMNS[t]], names, `${t}'s columns`);
     }
   });
@@ -410,5 +427,46 @@ describe('the example page over the classes, opened the page\'s way', () => {
       assert.ok(want.length > 20, `${side}: the sample's Apple trades`);
       assert.deepEqual(col(TS_DATE).map((d, k) => [String(d).slice(0, 10), Number(col(TS_VALUE)[k]), Number(col(TS_TEXT)[k])]), want, `${side}: each a TRADE row, latest first`);
     }
+  });
+});
+
+// THE COPIES OVER CLASSES (docs/TS_DECISIONS_2026_11_07.md §4, a', 2026-11-07, the user: "copies of the charts that start
+// with classes"): every series of the markets page and of the gallery, their grids the markets project's classes
+// (src/examples/on-classes.ts), answers as the pages over the samples froze it (timeseries-ts-parity's
+// gallery-answers.json, the same ids and anchors) -- the same digests, so a figure over the classes is the figure over
+// the tables.
+describe('the markets page and the gallery over classes answer as over the samples', () => {
+  /** The date a base-reading series is also answered from (timeseries-ts-parity's). */
+  const ANCHOR = '2022-03-15';
+  const uncompared = (v: TsView): TsView => {
+    const { compare, ...rest } = v;
+    void compare;
+    return rest;
+  };
+  it('every series of both copies answers as frozen over the samples', async () => {
+    const { CLASS_GRIDS, classQueryTree, galleryOnClassesPage, marketsOnClassesPage } = await import('../src/examples/on-classes.ts');
+    const over = plannerFor(PROJECT, 'markets::RT');
+    const got = new Map<string, Frozen>();
+    for (const page of [await marketsOnClassesPage(), await galleryOnClassesPage()]) {
+      // each grid's saved query read as the page reads it: its class's query, the cube's columns and grouping
+      const grids: TsInputs = new Map(page.cubes.map((c) => [c.id, { snapshot: { ...c.cube.query,
+        source: { query: classQueryTree(CLASS_GRIDS.find((g) => g.id === c.id)!) }, epoch: 1 }, filter: undefined }]));
+      for (const view of page.views) {
+        if (view.kind !== 'timeseries') continue;
+        // the series as the tile computes it, before its view's compare (timeseries-ts-parity's)
+        const ts: TimeseriesSpec = view.spec.view === undefined ? view.spec : { ...view.spec, view: uncompared(view.spec.view) };
+        for (const series of ts.series) {
+          for (const anchor of readsBase(inlined(series.expr, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
+            const id = `${view.id} ${series.id}${anchor === undefined ? '' : ` from ${anchor}`}`;
+            const inputs: TsInputs = new Map(seriesSources(ts, series)
+              .map((a) => [a, grids.get(ts.sources.find((x) => x.alias === a)!.cube)!] as const));
+            const q = seriesQuery(inputs, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
+            const t = await projectEngine.execute(await over.plan(q.query), 0);
+            got.set(id, frozenOf(t, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, drawnColumns(q)));
+          }
+        }
+      }
+    }
+    holdFrozen('GALLERY_ANSWERS', got, 'gallery-on-classes-answers');
   });
 });

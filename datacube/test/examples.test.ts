@@ -50,7 +50,7 @@ describe('the macro sample', () => {
 
 describe('the example pages', () => {
   it('each is a page of charts, the join example, a timeseries example or the flow example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'markets-classes', 'prep-flow']);
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'markets-classes', 'markets-on-classes', 'gallery-on-classes', 'prep-flow']);
   });
 
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
@@ -244,12 +244,39 @@ describe('the example pages', () => {
     }
   });
 
+  // the user, 2026-11-07 (a'): copies of the markets page and the gallery whose grids start from classes -- the same
+  // views and sheets, each grid a saved query of the markets project (test/stress-markets.test.ts: every series answers as
+  // over the samples)
+  it('the markets page and the gallery over classes: their pages\' views and sheets, each grid a class of the project', async () => {
+    const { CLASS_GRIDS, galleryOnClassesPage, marketsOnClassesPage } = await import('../src/examples/on-classes.ts');
+    const { marketsPage } = await import('../src/examples/markets.ts');
+    const { timeseriesGalleryPage } = await import('../src/examples/timeseries-gallery.ts');
+    for (const [copy, page, id] of [[await marketsOnClassesPage(), await marketsPage(), 'markets-on-classes'],
+      [await galleryOnClassesPage(), await timeseriesGalleryPage(), 'gallery-on-classes']] as const) {
+      assert.deepEqual(EXAMPLE_PAGES.find((e) => e.id === id)?.project, MARKETS_PROJECT, `${id}: offered where the project is`);
+      assert.deepEqual(copy.views, page.views, `${id}: the page's views`);
+      assert.deepEqual(copy.sheets, page.sheets, `${id}: the page's sheets`);
+      assert.deepEqual(copy.cubes.map((c) => c.id), page.cubes.map((c) => c.id), `${id}: a grid for each of the page's`);
+      for (const c of copy.cubes) {
+        const source = c.cube.source;
+        const g = CLASS_GRIDS.find((x) => x.id === c.id)!;
+        assert.ok(source._type === 'savedQuery', `${id} ${c.id}: a saved query`);
+        const { groupId, artifactId, versionId } = source.query;
+        assert.deepEqual({ groupId, artifactId, versionId }, MARKETS_PROJECT, `${id} ${c.id}: the markets project's`);
+        assert.match(source.query.content, new RegExp(`^\\|${g.className}\\.all\\(\\)->project\\(`), `${id} ${c.id}: a class projected`);
+        const sample = page.cubes.find((x) => x.id === c.id)!.cube;
+        assert.deepEqual(c.cube.query.columns.map((x) => x.name), sample.query.columns.map((x) => x.name), `${id} ${c.id}: the sample's columns`);
+      }
+    }
+  });
+
   // the user, 2026-10-27: the charts from the trading model's classes (test/stress-markets.test.ts opens each grid the
   // page's way and runs every series of it)
   it('the markets example over the classes: each grid a saved query of the markets project, each tile drawable over them', () => {
     const page = readPage(pageToJson(marketsClassesPage()));
     assert.deepEqual(EXAMPLE_PAGES.find((e) => e.id === 'markets-classes')?.project, MARKETS_PROJECT, 'offered where the project is');
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => e.project !== undefined).map((e) => e.id), ['markets-classes'], 'every other example over the samples');
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => e.project !== undefined).map((e) => e.id),
+      ['markets-classes', 'markets-on-classes', 'gallery-on-classes'], 'every other example over the samples');
     assert.deepEqual(page.sheets.map((s) => s.name), ['By sector', 'By venue', 'Trades']);
     const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
     assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
