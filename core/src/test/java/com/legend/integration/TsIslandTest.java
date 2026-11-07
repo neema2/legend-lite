@@ -1025,8 +1025,17 @@ class TsIslandTest {
             List<Map<String, String>> scaled = rows(backend, "{k: Float[1] | #TS{SELECT CLOSE['AAA'] * $k AS c FROM PRICES"
                     + " ON DAY BY SYMBOL}#}", Map.of("k", 2.5));
             assertClose(each(AAA.length, i -> AAA[i] * 2.5), column(scaled, null, null, "c"), backend + ": CLOSE * $k");
-            List<Map<String, String>> windowed = rows(backend, "{w: Integer[1] | #TS{SELECT avg(CLOSE['AAA'], $w) AS m"
-                    + " FROM PRICES ON DAY BY SYMBOL}#}", Map.of("w", 3L));
+            String byVariable = "{w: Integer[1] | #TS{SELECT avg(CLOSE['AAA'], $w) AS m FROM PRICES ON DAY BY SYMBOL}#}";
+            List<Map<String, String>> windowed;
+            try {
+                windowed = rows(backend, byVariable, Map.of("w", 3L));
+            } catch (com.legend.sql.dialect.DialectCapability refused) {
+                // a database whose frame bound is a literal (Snowflake's, measured 2026-11-07, item 10): refused by
+                // name, never sent
+                assertTrue(String.valueOf(refused.getMessage()).contains("whose frame bound is a literal"),
+                        backend + ": " + refused.getMessage());
+                continue;
+            }
             assertEquals(whole, windowed, backend + ": avg(x, $w) is avg(x, 3) with $w bound to 3");
         }
         TestBackend one = backends().get(0);

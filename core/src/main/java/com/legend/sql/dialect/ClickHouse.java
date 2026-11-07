@@ -2659,6 +2659,39 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return ms;
     }
 
+    /** {@code lagInFrame} ({@code lag}) or {@code leadInFrame} of {@code args}' nullable value over the whole partition,
+     *  its offset {@code offset} where given, else {@code args}' own. */
+    private SqlWriter inFrame(SqlWriter writer, SqlExpr.WindowCall w, boolean lag, List<SqlExpr> args,
+            SqlWriter.@com.legend.base.Nullable Piece offset) {
+        writer.append(lag ? "lagInFrame(toNullable(" : "leadInFrame(toNullable(").expr(args.get(0), 0).append(")");
+        for (int i = 1; i < args.size(); i++) {
+            writer.append(", ");
+            if (i == 1 && offset != null) {
+                writer.piece(offset);
+            } else {
+                writer.expr(args.get(i), 0);
+            }
+        }
+        writer.append(") OVER (");
+        if (!w.partitionBy().isEmpty()) {
+            writer.append("PARTITION BY ").list(w.partitionBy());
+        }
+        if (!w.orderBy().isEmpty()) {
+            writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ",
+                    this::sortKey);
+        }
+        return writer.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+    }
+
+    /** Whether {@code e} is an integer literal of 1 or more, under casts. */
+    private static boolean positiveLiteral(SqlExpr e) {
+        SqlExpr x = e;
+        while (x instanceof SqlExpr.Cast c) {
+            x = c.value();
+        }
+        return x instanceof SqlExpr.IntLit i && i.value() >= 1;
+    }
+
     private static final java.util.Map<String, Long> UNIT_MILLIS = java.util.Map.of("WEEK", 604800000L, "DAY",
             86400000L, "HOUR", 3600000L, "MINUTE", 60000L, "SECOND", 1000L, "MILLISECOND", 1L);
 
@@ -2685,20 +2718,20 @@ public final class ClickHouse extends AnsiSqlRenderer {
             }
         }
         if (w.fn() instanceof SqlAgg.ValueFn v && (v.fn() == SqlAgg.Fn.LAG || v.fn() == SqlAgg.Fn.LEAD)) {
-            writer.append(v.fn() == SqlAgg.Fn.LAG ? "lagInFrame(toNullable(" : "leadInFrame(toNullable(")
-                    .expr(v.args().get(0), 0).append(")");
-            for (SqlExpr e : v.args().subList(1, v.args().size())) {
-                writer.append(", ").expr(e, 0);
+            if (v.args().size() < 2 || positiveLiteral(v.args().get(1))) {
+                return inFrame(writer, w, v.fn() == SqlAgg.Fn.LAG, v.args(), null);
             }
-            writer.append(") OVER (");
-            if (!w.partitionBy().isEmpty()) {
-                writer.append("PARTITION BY ").list(w.partitionBy());
-            }
-            if (!w.orderBy().isEmpty()) {
-                writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ",
-                        this::sortKey);
-            }
-            return writer.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+            // an offset of any sign (a lag of -1 is a lead of 1, as DuckDB's, Postgres's and Snowflake's LAG read it):
+            // ClickHouse takes an offset in (0, max] alone ("The offset for function lagInFrame must be in (0,
+            // 9223372036854775807], -1 given", measured 2026-11-07 on the gallery's replay, lead_lag at lag -1), so
+            // the database picks the function by the offset's sign, each offset at least 1, and the value itself at 0
+            SqlExpr k = v.args().get(1);
+            boolean lag = v.fn() == SqlAgg.Fn.LAG;
+            writer.append("multiIf((").expr(k, 0).append(") >= 1, ");
+            inFrame(writer, w, lag, v.args(), w2 -> w2.append("greatest(").expr(k, 0).append(", 1)"));
+            writer.append(", (").expr(k, 0).append(") <= -1, ");
+            inFrame(writer, w, !lag, v.args(), w2 -> w2.append("greatest(-(").expr(k, 0).append("), 1)"));
+            return writer.append(", toNullable(").expr(v.args().get(0), 0).append("))");
         }
         // cume_dist (ClickHouse has none): the rows up to the current one's value over the partition's rows
         if (w.fn() instanceof SqlAgg.RankingFn r && r.fn() == SqlAgg.Fn.CUME_DIST) {

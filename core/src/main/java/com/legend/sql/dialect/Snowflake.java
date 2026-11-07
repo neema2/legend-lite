@@ -2671,9 +2671,12 @@ public final class Snowflake extends AnsiSqlRenderer {
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
         if (frame != null && frame.computed()) {
-            // not measured on Snowflake (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
-            throw new DialectCapability("a window frame offset the database computes reached Snowflake, where it is"
-                    + " not yet measured");
+            // measured 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md item 10, the Snowflake session's probes over JDBC): a
+            // frame's bound there is a literal or a session variable -- a bind parameter (ROWS BETWEEN ? PRECEDING) and
+            // an expression ((1 + 1) PRECEDING) are syntax errors; a bound value could reach it through SET var = ?
+            // before the query (open: a plan step the runner does not take yet)
+            throw new DialectCapability("a window frame offset the database computes (a parameter, arithmetic) reached"
+                    + " Snowflake, whose frame bound is a literal or a session variable");
         }
         if (frame != null && w.orderBy().isEmpty()) {
             if (!(frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
