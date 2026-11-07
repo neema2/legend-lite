@@ -1194,6 +1194,44 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# THE TIMESERIES LANGUAGE ON SNOWFLAKE (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): the island's cases on a
+# real Snowflake account, each query in a workspace of its own (a schema made for it, dropped with everything in it as it
+# closes: SnowflakeBackend.openWorkspace). The account's coordinates and credentials come as //pct:pct_snowflake's do,
+# from the properties file LEGENDLITE_PCT_CLOUD_PROPERTIES names (docs/CLOUD_BACKENDS_PCT_2026_10_11.md). Manual, in
+# //gates:heavy: a run needs the account and costs money.
+junit_test(
+    name = "ts_island_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # #TS AT SCALE, MEASURED (docs/TS_V1_PROGRAM_2026_11_01.md B2; docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07):
 # about ten million daily rows and as many minute bars, made by the database; each query's plan time, SQL size and run.
 # Manual, a measurement (in //gates:heavy): the budgets are proposed from it and ruled by the user (P5). On Postgres the

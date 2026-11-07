@@ -134,12 +134,19 @@ class TsIslandTest {
                 s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(t, null)));
             }
         }
+        // Snowflake's driver binds no java.time value (LocalDate, LocalDateTime): there, a java.sql one; elsewhere the
+        // java.time one, as SQLite's driver writes a java.sql.Date as its epoch milliseconds (2026-11-07, item 10)
+        boolean snowflake = backend.type() == com.legend.model.ConnectionDefinition.DatabaseType.Snowflake;
         String prices = backend.dialect().storedName(tables.get(0).name(), tables.get(0).quoted());
         try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + prices + " VALUES (?, ?, ?)")) {
             for (Map.Entry<String, double[]> line : Map.of("AAA", AAA, "BBB", BBB).entrySet()) {
                 for (int i = 0; i < line.getValue().length; i++) {
                     ps.setString(1, line.getKey());
-                    ps.setObject(2, FIRST.plusDays(i));
+                    if (snowflake) {
+                        ps.setDate(2, java.sql.Date.valueOf(FIRST.plusDays(i)));
+                    } else {
+                        ps.setObject(2, FIRST.plusDays(i));
+                    }
                     ps.setDouble(3, line.getValue()[i]);
                     ps.addBatch();
                 }
@@ -161,7 +168,11 @@ class TsIslandTest {
             for (int i = 0; i < AAA.length; i++) {
                 for (int hour : new int[] {10, 15}) {
                     ps.setString(1, "AAA");
-                    ps.setObject(2, FIRST.plusDays(i).atTime(hour, 0));
+                    if (snowflake) {
+                        ps.setTimestamp(2, java.sql.Timestamp.valueOf(FIRST.plusDays(i).atTime(hour, 0)));
+                    } else {
+                        ps.setObject(2, FIRST.plusDays(i).atTime(hour, 0));
+                    }
                     ps.setDouble(3, hour == 10 ? AAA[i] - 1 : AAA[i]);
                     ps.addBatch();
                 }

@@ -357,6 +357,9 @@ test_suite(
         # #TS at scale (docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07): manual, its numbers printed
         "//core:ts_scale_measure",
         "//core:ts_scale_measure_postgres",
+        # the #TS island on Snowflake (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): manual, a real account's
+        # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost
+        "//core:ts_island_snowflake_test",
         # the library-defines-the-language spike and C1's frame-offset probe (2026-10-31,
         # docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3 and §3a): manual evidence, run by hand; found in no lane
         # by the lane guard on PR #86 (2026-11-01)
