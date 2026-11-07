@@ -1,14 +1,17 @@
 # The goals of record (2026-11-07)
 
-> **Status: DRAFT for the user's ratification.** Goals G1-G6 are the user's own, in their words (2026-11-07). G7-G11
-> were proposed and the user accepted them (2026-11-07: "I really love it! Including the missing ones you added!"). Section 3 records rulings the user made on 2026-11-06/07.
-> Section 5 records the decisions, all ruled on 2026-11-07. Once ratified, this file is the first thing to read before reopening any
-> "where should this live / may this run here" debate: it exists to stop the loop.
+> **Status: RATIFIED by the user on 2026-11-07** ("Yes perfect", after a full review of this file).
+> - Goals G1-G6 are the user's own, in their words.
+> - G7-G11 were proposed and the user accepted them: "I really love it! Including the missing ones you added!"
+> - Section 3 records the user's rulings, and section 5 the decisions, all ruled.
+>
+> This file is the first thing to read before reopening any "where should this live / may this run here" debate. It
+> exists to stop the loop. A change to it is the user's call alone, and is dated here.
 >
 > It sits above the older tenet documents and does not replace them: `docs/TENETS.md` (eager knowledge, lazy work),
 > `docs/TENET_CHARTER.md` (what Java may and may not do), `docs/WORLD_MAP.md` (natives, platform semantics, programs).
-> Where this file and an older one disagree, this file wins and the older one is amended (section 5 lists the known
-> conflicts).
+> Where this file and an older one disagree, this file wins and the older one is amended. The charter's amendments of
+> 2026-11-07 are its Clause 7.
 
 ## 1. The goals
 
@@ -58,7 +61,7 @@ appear in product SQL. Exec streams typed rows and does nothing else.
 - **Guard (to build):**
   - The writer guard extended to `exec`'s decode (today it scans only `result/`).
   - A product-SQL size baseline and an exec speed baseline, both shrink-only.
-- **State:** open. See section 4 items P1-P8.
+- **State:** open. See section 4, P3 and P4.
 
 ### G4. Provable separation: plan only plans, exec only execs, judge and driver included
 
@@ -97,7 +100,7 @@ contained place, depending on the product, never the reverse. Section 2 defines 
   - the judges' `COMPILED_PURE_COMPAT` branches;
   - the engine-text printer;
   - the writers' Pure-text spellings;
-  - the SQL comment stamp.
+  - legend-engine's per-statement SQL comment stamp (D3).
 
 ### G6. The database does the work
 
@@ -108,7 +111,7 @@ derive values, decide types from values, reshape rows, or count rows (charter Cl
   step at the edge (section 2), in one contained place, is preferred to bloating product SQL. The same goes for appeals
   and the referee: raw JDBC is acceptable there, contained at the edge.
 - **Guard:**
-  - `JavaEvalLedgerTest`, shrink-only, with its text corrected (section 4, P8).
+  - `JavaEvalLedgerTest`, shrink-only, with its text corrected (section 4, P3).
   - The writer guard extended to `exec`.
 - **State:** open. Section 4 lists the product-path Java computation found on 2026-11-07.
 
@@ -145,6 +148,7 @@ upstream's goldens:
 - golden replays;
 - corpus-authored raw SQL (`RawSqlBoundary`);
 - the PCT adapter (`ValueBridge`);
+- legend-engine's per-statement SQL comment stamp (D3);
 - the corpus and PCT harnesses.
 
 **The rules of the edge:**
@@ -173,6 +177,10 @@ upstream's goldens:
   - "Keyed is fine." The runner may write a keyed region once per key read from the database: the dynamic pivot.
   - "If at the edges of compatibility we need java code to do small formatting things so that our product SQL doesn't
     get super bad then that's okay but it should be … confined to the edges and be in one place."
+  - On relation `toOne()`: "sql guard is good" (D2).
+  - On the type hole, the comment stamp, MariaDB's read-back and the charter amendments: "I love everything" (D1 as
+    first proposed, D3, D4, D5).
+  - On run-time parameters typed by their declared Pure type as upstream does: "Yes perfect" (D1, revised).
 
 ## 4. Plan of attack
 
@@ -180,8 +188,8 @@ The phases run in order. Each phase ends when its guard is green on every lane: 
 H2 and channel B, both stress suites, and the core Postgres tests as an unprivileged user. Each step lands on the
 branch, never on main without the user's word.
 
-**P0. Ratify this file.** The user corrects it. G7-G11 are accepted or struck, and the open decisions (section 5) are
-ruled. Then AGENTS.md points here.
+**P0. Ratify this file: DONE (2026-11-07).** G7-G11 accepted, every decision ruled, the charter amended (Clause 7),
+and AGENTS.md points here.
 
 **P1. Finish the separation (G4, G1).**
 - Exec runs only the plan's statements, and the runner's reader refuses a side that is not in the plan:
@@ -189,7 +197,7 @@ ruled. Then AGENTS.md points here.
   - caller-message rows use the plan's own per-verdict message side;
   - the appeal plans and runs its own statements at the edge after the body's run, never through the body's reader.
 - Planning objects leave run data:
-  - the to-one decision moves to planning (see P4);
+  - relation-level `toOne()` is checked in SQL (D2), so no typed tree is read at run and Java counts no rows;
   - the runner reports which statement failed (no dialect parsing of error text);
   - the dead `CanonRider` construction and the inert typed trees and environments in planned checks are deleted.
 - The package split, plus ArchUnit rules R1-R4 (R1: run code reaches no planning package; R2: planning holds no session;
@@ -201,9 +209,9 @@ ruled. Then AGENTS.md points here.
 - the engine-text printers;
 - the appeals and referee wiring;
 - the compatibility judging rules;
-- the legacy writers' Pure-text spellings;
+- the legacy writers' Pure-text spellings (charter Clause 7, A1);
 - `RawSqlBoundary`;
-- the SQL comment stamp, if the user rules it compatibility.
+- legend-engine's per-statement SQL comment stamp (D3).
 
 Then add the ArchUnit rule that the product never depends on the edge.
 
@@ -220,10 +228,10 @@ on 2026-11-07, either the database does it (a cast in SQL), or it moves to the e
 Then extend the writer guard to `exec`, and correct the ledger's text.
 
 **P4. Lean product, part 2: no SQL edited or sent outside the plan (G4, G6).**
-- The type hole (decision D1).
-- Relation-level `toOne()` (decision D2).
-- The per-statement comment stamp (decision D3).
-- MariaDB's raise read-back (decision D4).
+- Delete the type hole. Run-time parameters are typed by their declared Pure type, per database, as upstream does (D1).
+- The product's traceability: a planned comment plus exec's own trace (D3).
+- MariaDB/MySQL's raise read-back declared by the plan's target (D4).
+- AGENTS.md invariant 3's "one designed hole" text corrected (Clause 7, A4).
 
 **P5. Judge parity (G2).** Bring H2 to parity (task #20), then keep the agreement judge on every lane with empty
 registers.
@@ -236,26 +244,49 @@ registers.
 - The null-to-`""` fabrication deleted.
 - Register rows for the appeal and the Java-judged helpers.
 
-**Then:** the corpus and stress burn-down (parked), and the stress lane's memory, which keeps one seeded DuckDB per test
-runtime open at ~11 GB.
+**Then:** the corpus and stress burn-down. The stress batch (CSV seeds, service parameters bound as lets, the M2M
+chain, the legacy join's verbatim condition) is parked in the stash, its patch in the session scratchpad. The stress
+lane's memory also needs fixing: it keeps one seeded DuckDB per test runtime open, at about 11 GB.
 
 ## 5. Decisions (all ruled by the user, 2026-11-07)
 
-- **D1. The type hole: RULED (the user, 2026-11-07: "I love everything").**
-  - **Ruling:** delete it. The runner writes a SQL type into `CAST(? AS ___)`, chosen by the bound value's kind and
-    digits (it breaks charter C2.2, C5.1 and C5.2). No product caller needs it.
-  - **Services keep their parameters; they bind them at compile time.** The server turns each `{name, value}` of a call
-    into `let name = value;` ahead of the query's body (`PureV1Api.boundParameters`, used by `execute`, `executeArrow`
-    and the hosted runs). The compiler then types each value against the parameter's declared type, and the plan is
-    made with the value known, so its SQL types are exact. A value may be an expression (`today()`), which the database
-    computes.
-  - **Run-time parameters:** Integer, String, Boolean, StrictDate and DateTime keep the fixed SQL types they already
-    have. One typed Float, Decimal, Number or Date is refused at planning, by name: bind it at compile time.
-  - **Plan-once, run-many:** if service traffic ever needs it, a fixed cast per declared Pure type would serve it, decided
-    when measured.
+- **D1. The type hole, and run-time parameters: RULED (the user, 2026-11-07: "I love everything", then "Yes
+  perfect" on the revision below).**
+  - **Delete the type hole.** Today the runner writes a SQL type into `CAST(? AS ___)`, chosen by the bound value's kind
+    and digits. That breaks charter C2.2, C5.1 and C5.2.
+  - **Services bind their parameters at compile time, as today.** The server turns each `{name, value}` of a call into
+    `let name = value;` ahead of the body (`PureV1Api.boundParameters`). The compiler types each value against the
+    parameter's declared type, and the plan is made with the value known. This works because each call is compiled and
+    planned again.
+  - **Run-time parameters ("plan once, run many") are typed by their DECLARED Pure type, per database, as upstream
+    does.** This was read in legend-engine's pinned sources: `dbExtension.pure` `processPlaceHolder`,
+    `extensionDefaults.pure`, and each database's extension. Upstream writes a template `${param}` whose prefix and
+    suffix its database extension picks from the declared type, fixed when the plan is made. Only the value's text is
+    substituted at run time.
+    - The planner writes each placeholder with the SQL type upstream's extension uses for that declared type on that
+      database. The runner checks the caller's value against the declared type and binds it. Nothing at run time picks
+      a type from the value, and the SQL text is the same on every call.
+    - **`Date`** (a StrictDate or a DateTime) is a timestamp almost everywhere. Upstream writes `TIMESTAMP'…'` on H2,
+      Postgres, Trino, Presto, Redshift and Spanner, `'…'::timestamp` on Snowflake, and `'…'::DateTime` on ClickHouse.
+      On BigQuery it is a date (`PARSE_DATE`). A StrictDate value passed to a `Date` parameter becomes a midnight
+      timestamp, as upstream. For a database upstream has no extension for (its default writes an untyped string the
+      database coerces), lite uses a timestamp, the majority choice. That is a register row.
+    - **`StrictDate`** is a date. **`DateTime`** is a timestamp at the database's finest precision.
+    - **Numbers.** Upstream writes the bare value, so the database types it from its digits; on H2 a Float is
+      `CAST(… AS FLOAT)`. Lite binds the bare value on the databases that type a bound value as its literal (DuckDB and
+      Postgres, by lite's probes). On H2, which types a placeholder before it sees the value, lite uses the closest fixed
+      type: Integer `BIGINT`, Float `FLOAT` (upstream's own), Decimal and Number `DECFLOAT` (exact). Each place an answer
+      can differ from upstream's literal is a register row for the user to rule (a Decimal parameter's computed-result
+      scale on H2, for instance).
+    - **Lists** are bound as one array (`= ANY(?)`), as now.
+    - **Time zones.** Where a database time zone is configured, upstream converts date parameters into it (`GMTtoTZ`).
+      Lite plans the same conversion.
+  - **Later decision:** whether product services move from compile-per-call to plan-once, run-many. To be decided when
+    measured.
 - **D2. Relation `toOne()`: RULED (the user, 2026-11-07: "sql guard is good").** An aggregate guard in SQL
   (`CASE WHEN COUNT(*) = 1 … ELSE error(...)` joined back), proven on each database. A window column alone would miss
-  the zero-row case. The Java row count is deleted.
+  the zero-row case. The message is Pure's: `Cannot cast a collection of size N to multiplicity [1]`. The Java row
+  count, and the typed tree read at run to decide it, are deleted. This is done in P1.
 - **D3. The SQL comment stamp: RULED (2026-11-07).**
   - **Product:** traceability without editing SQL at run time. At planning, the dialect writes a fixed comment naming the
     plan and the statement. Exec records the per-execution id beside the plan id in lite's own trace. Where a database

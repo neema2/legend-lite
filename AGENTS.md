@@ -2,7 +2,7 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
-> **The goals of record (the user, 2026-11-07; DRAFT until ratified): `docs/GOALS_OF_RECORD_2026_11_07.md`.
+> **The goals of record (ratified by the user, 2026-11-07): `docs/GOALS_OF_RECORD_2026_11_07.md`.
 > Read it before reopening any "where does this live / may this run here" debate.**
 > - **G1 One road:** one compiler, one planner, one exec. No walk, no second evaluator.
 > - **G2 Judge parity:** the host and database judges reach the same verdict everywhere.
