@@ -3704,7 +3704,7 @@ function timeseries::line::helpers::shifted<K,D>(x: Relation<(key:K, date:D, val
   let n = $x->extend(over(~[key], [~date->ascending()]), ~rn:{p,w,r|$p->rowNumber($r)});
   $n->join($n->select(~[key, rn, value])->rename(~key, ~sk)->rename(~rn, ~srn)->rename(~value, ~sv), meta::pure::functions::relation::JoinKind.LEFT,
       {a,b|($a.key->toOne() == $b.sk->toOne()) && ($b.srn->toOne() == ($a.rn->toOne() - $k))})
-    ->select(~[key, date, sv])->rename(~sv, ~value)
+    ->select(~[key, date, sv])->rename(~sv, ~value);
 }
 
 function {meta::pure::profiles::doc.doc = 'The correlation of x\'s and y\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling correlation', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.correlation', timeseries::Words.about = 'The correlation of the two series\' simple returns over the last w observations, on the dates both have.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.search = 'corr', timeseries::Words.pairs = 'returns'} timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
