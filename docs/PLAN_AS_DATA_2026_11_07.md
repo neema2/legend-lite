@@ -120,12 +120,14 @@ Verdict(name, arm, base, wrapper, message, raises,
         + failure: Failure?                                     -- decided at planning, raised at its turn (4.4)
         + root: int                                             -- the statement-root assert it belongs to
         + orElse: int?                                          -- database judge: its ruled row's place
-        + pairedWith: VerdictRef?                               -- agreement judge: the other half's verdict
-        + appeal: Appeal?)                                      -- compatibility rules only (4.5)
+        + pairedWith: VerdictRef?)                              -- agreement judge: the other half's verdict
 
-Effect(sql, script, + ledger: [Recorded(text, query)])         -- today TestDoor.Planned.effects
-Setup(key, steps, target, + ledger: [String])                   -- today TestDoor.Planned.seeds
+a read (a side, a query step) + facts: ReadFacts(order: (sorted, keys)?,   -- the neutral facts the edge renders
+                                      provenance: (mapping, class, stores)?, -- from (4.5); no compatibility record
+                                      page: (unpaged: Node)?)
 Check(sql, + origin: LET?)                                      -- today TestDoor.Planned.frameRuns
+(the effects' and seeds' ledger texts, today TestDoor.Planned.effects/seeds, are not stored: the edge renders them
+ from the statements, 4.5)
 Verdict ... + oursOrigin                                        -- today the sink's deferredTextOrigins
 ```
 
@@ -223,7 +225,7 @@ takes the same shape, beside it:
 | `planner` | `testplan` (exists) | planning: for tests, the body's program (today), and ALL assert planning (moved in): the three judges' planners, the arms, `DatabaseJudge`, `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, the planning environment (`BodyDriver.ExecEnv`) |
 | `exec` | `testexec` (new; today's `judge` becomes it) | running: for tests, the body's sink, the judges' comparisons (`HostJudge`'s run half, `Equality`, `PureAsserts`, `TdsCompare`, the agreement rule, `assertError`'s judging), the database judge's root loop over the verdict rows. It depends on `exec`, never the reverse: the product runtime carries no test judging (D71) |
 | `Execution.run` | `Execution.runProgram` | the front door: plans with `testplan`, runs with `exec` + `testexec`; what `BodyRouter` does today, in the front door as the product's is |
-| `execution_plan` | `test_plan` (new, on `execution_plan`) | the plan types (4.0): the product's; the test's, with the judgments and the rest of 4.1 to 4.6 and the edge's part |
+| `execution_plan` | `test_plan` (new, on `execution_plan`) | the plan types (4.0): the product's; the test's, with the judgments and the rest of 4.1 to 4.6 and the reads' neutral facts the edge renders from (4.5) |
 
 Where each piece of today's `driver` goes:
 
@@ -361,14 +363,13 @@ assertEquals -> HostAssert(..., judgment=EngineText(collected=Collected(name=ass
    "judgment": {"_type": "engineText", "decline": null, "routed": true},
    "base": [ ...the golden and our text, the same two constants as today... ],
    "shapes": [{"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}},
-              {"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}}],
-   "appeal": null}]}
+              {"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}}]}]}
 ```
 
-`appeal` is null here because both texts are constants of the plan and equal, so no rows leg can be needed. Where
-our text is read at run, or differs, the verdict carries the appeal as data (4.5): the golden, our rows and the page
-population as sides, the stores whose fixtures it needs, the replay facts. The `Ask`s' typed trees, the splice
-closure and the environment are planning's alone and are not in the plan.
+There is no appeal in the plan: under the compatibility rules, where the texts differ, the edge's referee derives
+the appeal from the plan (4.5) -- here the golden and our text are constants of the plan and equal, so it has nothing
+to decide. The `Ask`s' typed trees, the splice closure and the environment are planning's alone and are not in the
+plan.
 
 ### 7.4 The database judge, today and proposed
 
@@ -381,7 +382,8 @@ holds the roots (which assert each verdict belongs to, in body order), identity 
 and, under the compatibility rules, an appeal closure per engine-text row.
 
 Proposed: each of the four verdicts carries its `assertion` and `root`; an engine-text row whose text may differ
-carries its `appeal` as data; a member the dialect could not spell carries its `failure`. The statement is unchanged.
+is appealed by the edge from the plan (4.5); a member the dialect could not spell carries its `failure`. The
+statement is unchanged.
 
 ### 7.5 Things the example shows that are not about data (noted, not in this step)
 
