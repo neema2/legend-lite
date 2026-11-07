@@ -14,8 +14,8 @@
 > - **G5 Compatibility at the edge:** contained, one direction (the edge depends on the product, never the reverse).
 > - **G6 The database does the work.** Small Java formatting, the appeals and the referee are allowed only at the edge.
 >
-> G7-G11 (no fallbacks, ledgered fidelity, guards for every goal, determinism, the plan as portable data) are proposed,
-> not ratified.
+> G7-G11 were accepted by the user (2026-11-07): no fallbacks, ledgered fidelity, a guard for every goal, determinism,
+> and the plan as portable data.
 >
 > **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
 > total about Knowledge (parse/index/manifest), lazy about Work (type-check

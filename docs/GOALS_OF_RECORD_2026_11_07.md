@@ -1,7 +1,7 @@
 # The goals of record (2026-11-07)
 
 > **Status: DRAFT for the user's ratification.** Goals G1-G6 are the user's own, in their words (2026-11-07). G7-G11
-> are proposed and are NOT ratified until the user says so. Section 3 records rulings the user made on 2026-11-06/07.
+> were proposed and the user accepted them (2026-11-07: "I really love it! Including the missing ones you added!"). Section 3 records rulings the user made on 2026-11-06/07.
 > Section 5 lists decisions still open. Once ratified, this file is the first thing to read before reopening any
 > "where should this live / may this run here" debate: it exists to stop the loop.
 >
@@ -112,7 +112,7 @@ derive values, decide types from values, reshape rows, or count rows (charter Cl
   - The writer guard extended to `exec`.
 - **State:** open. Section 4 lists the product-path Java computation found on 2026-11-07.
 
-### Proposed additional goals: NOT ratified
+### Additional goals: proposed, and accepted by the user (2026-11-07)
 
 - **G7. No fallbacks, no silent defaults, anywhere.** A shape lite does not handle fails by name. This includes RUNTIME
   fallbacks: a rejected statement retried another way, a decline that rescues a failed text, a positional read when a
@@ -246,9 +246,9 @@ runtime open at ~11 GB.
   parameter values into the query at compile time. Only library callers and tests reach it.
   - Proposal: a fixed cast chosen at planning from the declared Pure type, measured across the lanes first. What changes
     becomes register rows.
-- **D2. Relation `toOne()`.** Counting rows in Java breaks C2.3 and C2.1.
-  - Proposal: an aggregate guard in SQL (`CASE WHEN COUNT(*) = 1 … ELSE error(...)` joined back), proven on each
-    database. A window column alone would miss the zero-row case.
+- **D2. Relation `toOne()`: RULED (the user, 2026-11-07: "sql guard is good").** An aggregate guard in SQL
+  (`CASE WHEN COUNT(*) = 1 … ELSE error(...)` joined back), proven on each database. A window column alone would miss
+  the zero-row case. The Java row count is deleted.
 - **D3. The SQL comment stamp.** Every statement gets a per-execution comment line prepended when it is sent, for
   upstream's activity-comment parity. Either it is compatibility (the edge, P2), or it becomes a planned, bound
   parameter.
