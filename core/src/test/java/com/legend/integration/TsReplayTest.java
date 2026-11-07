@@ -41,8 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * passes and a wrong figure does not. DuckDB's own answers are held to the frozen digests on DuckDB-WASM by the
  * parity test; here another database is held to DuckDB's.
  *
- * <p>Its own targets ({@code //core:ts_replay_test}: the other in-process databases; {@code
- * //core:ts_replay_postgres_test}: the embedded Postgres, {@code -Dts.backend=postgres}).
+ * <p>Its own targets, one a database ({@code //core:ts_replay_postgres_test}, {@code _clickhouse_test}, {@code
+ * _snowflake_test}: {@code -Dts.backend}).
  */
 class TsReplayTest {
 
@@ -79,13 +79,14 @@ class TsReplayTest {
         return new CatalogModel.Column(name, "BIGINT", "BIGINT", null, null, false);
     }
 
-    /** The databases each series is replayed on beside DuckDB: every other in-process one, or the one the lane names
-     *  ({@code -Dts.backend}). */
+    /** The database each series is replayed on beside DuckDB: the one the lane names ({@code -Dts.backend}), a v1
+     *  database (P4 as widened 2026-11-07: Postgres, ClickHouse, Snowflake). */
     private static List<TestBackend> others() {
         String named = System.getProperty("ts.backend", System.getenv("TS_BACKEND"));
-        return named == null
-                ? TestBackends.inProcess().stream().filter(b -> !b.name().equals(duckDb().name())).toList()
-                : List.of(TestBackends.named(named));
+        if (named == null) {
+            throw new IllegalStateException("the replay's database is the lane's: -Dts.backend names it");
+        }
+        return List.of(TestBackends.named(named));
     }
 
     private static TestBackend duckDb() {
