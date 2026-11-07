@@ -55,7 +55,7 @@ final class ClickHouseBackend extends ServerBackend {
     private final java.util.concurrent.atomic.AtomicInteger workspaceIds = new java.util.concurrent.atomic.AtomicInteger();
 
     /** {@inheritDoc} A database made for it, {@code ws_<n>}, and a session of its own on it (an HTTP session: a
-     *  {@code SET} holds for its statements), its tables Memory ones; closing it drops the database with everything in it, then closes the
+     *  {@code SET} holds for its statements); closing it drops the database with everything in it, then closes the
      *  session (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9: the gallery's replay on ClickHouse, a v1
      *  database). */
     @Override
@@ -68,12 +68,6 @@ final class ClickHouseBackend extends ServerBackend {
         Connection session;
         try {
             session = DriverManager.getConnection(EmbeddedClickHouse.shared().sessionJdbcUrl(ws));
-            try (java.sql.Statement st = session.createStatement()) {
-                // its tables the Memory engine's, as the dialect's are (ClickHouse.java; a MergeTree table, the server's
-                // default, needs an ORDER BY a declared table does not say)
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                st.execute("SET default_table_engine = 'Memory'");
-            }
         } catch (SQLException e) {
             drop(ws, e);
             throw e;

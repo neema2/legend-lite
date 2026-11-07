@@ -1890,7 +1890,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     // (translateCreateTableStatementDefault)
                     sb.append(", PRIMARY KEY(").append(String.join(",", pks)).append(')');
                 }
-                yield sb.append(");").toString();
+                yield sb.append(")").append(ddlTableOptions(ct)).append(";").toString();
             }
             case com.legend.sql.SqlDdl.DropTable dt ->
                     "Drop table if exists " + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
@@ -1899,6 +1899,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDdl.DropSchema ds ->
                     "Drop schema if exists " + storedName(ds.schema(), ds.quoted()) + " cascade;";
         };
+    }
+
+    /** What a CREATE TABLE writes after its columns, before its ';': nothing here (a dialect whose database needs a
+     *  table's engine or storage said, ClickHouse's, writes it). */
+    protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
+        return "";
     }
 
     @Override

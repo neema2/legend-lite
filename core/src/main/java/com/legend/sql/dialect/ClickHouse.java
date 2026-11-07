@@ -2948,6 +2948,16 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return rows == null ? List.of(render(table)) : List.of(render(table), render(rows));
     }
 
+    /** A table of the database's own (not a session's TEMPORARY one, a Memory one without saying so) is legend-engine's
+     *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
+     *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
+     *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
+     *  docs/TS_DECISIONS_2026_11_07.md item 9). */
+    @Override
+    protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
+        return ct.temporary() ? "" : " ENGINE = MergeTree ORDER BY tuple()";
+    }
+
     /** ClickHouse DDL: {@code BIT} is a UInt64 there (measured), so a Pure Boolean column is a {@code Bool}. */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
