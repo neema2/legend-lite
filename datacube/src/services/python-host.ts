@@ -758,7 +758,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
         // with Data rows in that project's own database (C5), and refuses any other.
         // PlanAndRun on Python (§15): planned against the model Python holds, by Python's own planner, and run on its
         // DuckDB, in one call
-        return { runner: pythonRunner(link, model, runtime, how ?? {}) };
+        // Python holds its own models, the library with them (A5): over the model alone (item 8b's overLibrary is the tab's)
+        return { runner: pythonRunner(link, how?.overLibrary?.model ?? model, runtime, how ?? {}) };
       },
       database: pythonDatabase(link, o.offers),
       // the model actions: Python's native library writes, a project's facts planned and run in Python (PlanAndRun)

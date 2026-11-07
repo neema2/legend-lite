@@ -179,6 +179,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const other = new LitePlanner({ ...readsOf(this.#options), model, runtime, ...readsHow(how) });
     other.#t = this.#t;
     other.#borrowed = true;
+    // over the library from the start (item 8b): its text the two together, held apart, every query planned on it
+    if (how.overLibrary !== undefined) {
+      if (withLibrary(how.overLibrary.model, how.overLibrary.library) !== model) {
+        throw new Error('a planner over the library is given its model with the library after it');
+      }
+      other.#ofLibrary = how.overLibrary;
+    }
     return other;
   }
 
