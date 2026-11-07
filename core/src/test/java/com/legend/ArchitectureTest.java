@@ -1105,6 +1105,86 @@ final class ArchitectureTest {
                 "an exec plug-in provider outside com.legend.exec (move it into exec): " + outside);
     }
 
+    /**
+     * <strong>The plan/run split's rules R1, R2 and R4 in REPORT MODE (P1 of docs/GOALS_OF_RECORD_2026_11_07.md,
+     * 2026-11-07).</strong> Written before the split, as the runtime wall was built: every crossing listed, the counts
+     * pinned, each pin moving only DOWN with a dated note, until the package split makes them hard rules. R1: the run's
+     * own code (the body's sink, the run's reader, the held appeals) reaches no planning package and no planning class
+     * of the driver. R2: planning (the planner, the test door, the lowering, the compiler, the resolver, the driver's
+     * planning classes) holds no session and runs no plan. R4: the judge package holds no session. R3 (only the router
+     * sees both halves) is the split's own, measured once the halves are packages.
+     */
+    @Test
+    void thePlanRunSplitInReportMode() {
+        java.util.Set<String> planningPackages = java.util.Set.of("com.legend.planner", "com.legend.testplan",
+                "com.legend.lowering", "com.legend.resolver", "com.legend.testdatagen");
+        java.util.Set<String> drivePlanning = java.util.Set.of("com.legend.driver.HostAsserts",
+                "com.legend.driver.DatabaseAsserts", "com.legend.driver.AgreementAsserts", "com.legend.driver.JudgePlans",
+                "com.legend.driver.HostSides", "com.legend.driver.BodyDriver", "com.legend.driver.AssertBranch",
+                "com.legend.driver.SeedSqlForms", "com.legend.driver.LiteralFold");
+        java.util.Set<String> runOnly = java.util.Set.of("com.legend.driver.BodyRouter$Moved",
+                "com.legend.driver.RunReader", "com.legend.driver.Appeals");
+        java.util.Set<String> sessionTypes = java.util.Set.of("com.legend.exec.Sessions$Session",
+                "com.legend.exec.PlanSessions", "com.legend.exec.PlanSessions$Source", "com.legend.exec.PlanRunner");
+        java.util.Map<String, java.util.Set<String>> r1 = new java.util.TreeMap<>();
+        java.util.Map<String, java.util.Set<String>> r2 = new java.util.TreeMap<>();
+        java.util.Map<String, java.util.Set<String>> r4 = new java.util.TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String pkg = c.getPackageName();
+            String top = topLevel(c);
+            boolean planning = planningPackages.contains(pkg) || pkg.startsWith("com.legend.compiler")
+                    || drivePlanning.contains(top);
+            boolean run = runOnly.contains(c.getName()) || c.getName().startsWith("com.legend.driver.BodyRouter$Moved$")
+                    || runOnly.contains(top) && !top.equals("com.legend.driver.BodyRouter");
+            for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
+                com.tngtech.archunit.core.domain.JavaClass t = d.getTargetClass().getBaseComponentType();
+                String tName = t.getName();
+                String tTop = topLevel(t);
+                String tPkg = t.getPackageName();
+                if (run && (planningPackages.contains(tPkg) || tPkg.startsWith("com.legend.compiler")
+                        || drivePlanning.contains(tTop))) {
+                    r1.computeIfAbsent(c.getName(), k -> new java.util.TreeSet<>()).add(tTop);
+                }
+                if (planning && sessionTypes.contains(tName)) {
+                    r2.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tName);
+                }
+                if (pkg.equals("com.legend.judge") && sessionTypes.contains(tName)) {
+                    r4.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tName);
+                }
+            }
+        }
+        java.util.Set<String> crossings = new java.util.TreeSet<>();
+        r1.forEach((from, to) -> to.forEach(t -> crossings.add("R1 " + from + " -> " + t)));
+        r2.forEach((from, to) -> to.forEach(t -> crossings.add("R2 " + from + " -> " + t)));
+        r4.forEach((from, to) -> to.forEach(t -> crossings.add("R4 " + from + " -> " + t)));
+        java.util.Set<String> grew = new java.util.TreeSet<>(crossings);
+        grew.removeAll(SPLIT_CROSSINGS);
+        java.util.Set<String> gone = new java.util.TreeSet<>(SPLIT_CROSSINGS);
+        gone.removeAll(crossings);
+        org.junit.jupiter.api.Assertions.assertTrue(grew.isEmpty(), "a NEW plan/run crossing (move the work to its side,"
+                + " or carry the fact in the plan's records): " + grew);
+        org.junit.jupiter.api.Assertions.assertTrue(gone.isEmpty(), "a crossing is gone: shrink SPLIT_CROSSINGS, dated: "
+                + gone);
+    }
+
+    /** {@link #thePlanRunSplitInReportMode}'s pinned crossings, shrink-only (the first measure, 2026-11-07). */
+    private static final java.util.Set<String> SPLIT_CROSSINGS = java.util.Set.of(
+            // R1: the body's sink holds the judges' planned asserts and judges through them at each verdict step: the
+            // planned values move to their own package (driver.planned) with the split
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.compiler.element.type.Multiplicity",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.AgreementAsserts",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.DatabaseAsserts",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostAsserts",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostSides",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.JudgePlans",
+            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.testplan.TestDoor",
+            // R2: the test-data generator's own run (generate(), kept for its one test and the generator's redesign,
+            // S143) runs plans while it plans
+            "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanRunner",
+            "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanSessions$Source",
+            // R4: the referee's SPI takes the body's session (the compatibility referee: the edge's, P2)
+            "R4 com.legend.judge.SqlReplayReferee -> com.legend.exec.Sessions$Session");
+
     @Test
     void execReachesNoPlanning() {
         java.util.Map<String, java.util.Set<String>> reached = new java.util.TreeMap<>();

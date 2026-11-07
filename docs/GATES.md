@@ -20815,3 +20815,14 @@ two packages is the first step's input).
   (`planText`, `planTextResult`) the engine-text arms read.
 - Checks: core driver, judge, testdatagen, census and guardrails green; `//spec:all` and `//pct:all` build; DuckDB
   corpus (host judge) unchanged, every roster exact. Pin `BodyDriver` 517 -> 512.
+
+## 2026-11-07 — P1: the plan/run split's rules R1, R2 and R4 in report mode
+
+- `ArchitectureTest.thePlanRunSplitInReportMode` measures, before any package moves, every crossing of the three
+  rules and pins the exact pairs (shrink-only: a new pair fails, a vanished one must leave the pin, dated).
+  - **R1** (run code reaches no planning): the body's sink `BodyRouter$Moved` holds the judges' planned asserts and
+    judges through them -- `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `HostSides`, `JudgePlans`,
+    `testplan.TestDoor` and one compiler type (`Multiplicity`). The run's reader and the held appeals cross nothing.
+  - **R2** (planning holds no session): only `TestDataGenerator.generate` (kept for its one test, S143).
+  - **R4** (the judge package holds no session): only the referee's SPI, `SqlReplayReferee` (the edge's, P2).
+  - R3 (only the router sees both halves) is the package split's own.
