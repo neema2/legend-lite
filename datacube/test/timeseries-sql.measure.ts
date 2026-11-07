@@ -23,6 +23,7 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, statsQuery, type TsInputs, type TsQuery } from '../src/timeseries-query.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 const RUNS = 5;
 const DAYS = 1560;
@@ -137,7 +138,7 @@ for (const q of QUERIES) {
       series: [],
       ...q.more,
     };
-    const series: TsSeries = { id: 'A', expr: parseExpr(q.expr) };
+    const series: TsSeries = { id: 'A', text: writtenText(parseExpr(q.expr), []) };
     const query: TsQuery = q.stats ? statsQuery(inputs, { ...ts, series: [series] }, series)
       : seriesQuery(inputs, { ...ts, series: [series] }, series);
     const p0 = performance.now();

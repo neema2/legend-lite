@@ -11,9 +11,9 @@ import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readPageTexts } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
-import { type TimeseriesSpec, type TsProjection, type TsSeries } from '../src/timeseries-spec.ts';
+import { type TimeseriesSpec, type TsExpr, type TsProjection, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
   boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
@@ -29,6 +29,7 @@ import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { asc, col as column, collection, colSpec, fn as call, from, lambda, lit, minus, Relation, toJson, walk, type Lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
+import { treeOf, writtenText } from '../src/timeseries-text.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -181,7 +182,7 @@ function spec(exprs: Record<string, string>, more: Partial<TimeseriesSpec> = {},
   return {
     ...TS,
     ...more,
-    series: Object.entries(exprs).map(([id, text]): TsSeries => ({ id, expr: parseExpr(text), ...(split ? { split } : {}) })),
+    series: Object.entries(exprs).map(([id, text]): TsSeries => ({ id, text: writtenText(parseExpr(text), []), ...(split ? { split } : {}) })),
   };
 }
 
@@ -2307,7 +2308,7 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     const gap = await packLine('basket(lag(close[P], 1), 0.5, close[Q], 0.5)');
     assert.ok(gap.values.length > 0 && gap.values.every((v) => v === null), 'none from its first price of none on');
     const ts = spec({ A: 'basket(close[P], 0.5, close[Q], 0.5)' });
-    const yearly: TimeseriesSpec = { ...ts, series: [{ ...ts.series[0]!, expr: { ...ts.series[0]!.expr, params: { rebalance: 'yearly' } } as TsSeries['expr'] }] };
+    const yearly: TimeseriesSpec = { ...ts, series: [{ ...ts.series[0]!, text: writtenText({ ...(treeOf(ts.series[0]!, ts.series) as Extract<TsExpr, { kind: 'call' }>), params: { rebalance: 'yearly' } }, []) }] };
     assert.throws(() => seriesQuery(pack, yearly, yearly.series[0]!), /a basket rebalances daily, weekly or monthly, not "yearly"/);
   });
 
@@ -2956,7 +2957,7 @@ describe('a series combining two grids, planned over one model of their tables (
   };
   const combined = (exprs: Record<string, string>, split?: string): TimeseriesSpec => ({
     ...COMBINED,
-    series: Object.entries(exprs).map(([id, text]): TsSeries => ({ id, expr: parseExpr(text), ...(split ? { split } : {}) })),
+    series: Object.entries(exprs).map(([id, text]): TsSeries => ({ id, text: writtenText(parseExpr(text), []), ...(split ? { split } : {}) })),
   });
   const joinedLine = async (ts: TimeseriesSpec, id = 'A'): Promise<{ dates: string[]; values: Line; split?: unknown[] }> => {
     const series = ts.series.find((x) => x.id === id)!;
@@ -3060,7 +3061,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
     try {
-      const page = await build();
+      const page = await readPageTexts(await build());
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
       // each grid the page holds, its sample read in
       const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS]] as const)

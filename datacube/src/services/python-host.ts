@@ -769,7 +769,7 @@ export function pythonServices(o: PythonServicesOptions): Services {
         rows: (model, runtime) => pythonRunner(link, model, runtime),
       },
       // Python's native library reads a saved query and its project's model (C5)
-      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text) },
+      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text), tsItem: (text) => compiler.tsItem(text) },
     },
     pages: Promise.resolve(pythonPages(link, o.offers)),
     queries: pythonQueries(link, o.offers),

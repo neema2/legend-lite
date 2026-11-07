@@ -25,6 +25,8 @@ import { prepFlowPage } from '../src/examples/prep-flow.ts';
 import { boxSays } from '../src/flow-boxes.ts';
 import { framedBy } from '../src/layout/flow.ts';
 import { liveGrids } from '../src/live-inputs.ts';
+import { readPageTexts } from './catalog-builder.ts';
+import { treeOf } from '../src/timeseries-text.ts';
 
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
@@ -177,7 +179,7 @@ describe('the example pages', () => {
   // the timeseries tile's example (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9): every tile drawable over its grids'
   // columns (test/timeseries-queries.test.ts runs each of its series on the samples)
   it('the markets example: two samples, four sheets of timeseries, each tile drawable over its grids\' columns', async () => {
-    const page = readPage(pageToJson(await marketsPage()));
+    const page = await readPageTexts(readPage(pageToJson(await marketsPage())));
     assert.deepEqual(page.sheets.map((s) => s.name), ['Performance', 'Risk', 'Technicals', 'Rates']);
     const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
     assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
@@ -200,7 +202,7 @@ describe('the example pages', () => {
   // the user, 2026-10-25: "a real saved page with multiple tabs showing all of these" -- every function of the catalog,
   // each on its family's sheet, every tile drawable over its grids' columns (test/timeseries-queries.test.ts runs them)
   it('the timeseries gallery: a sheet per family, each using every function of its family, the ways to view, the data', async () => {
-    const page = readPage(pageToJson(await timeseriesGalleryPage()));
+    const page = await readPageTexts(readPage(pageToJson(await timeseriesGalleryPage())));
     const families = [...new Set(TS_FUNCTIONS.map((f) => f.family))];
     assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'Other views', 'On the chart', 'The data']);
     const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
@@ -211,7 +213,7 @@ describe('the example pages', () => {
       .flatMap((id) => { const v = view(id); return v?.kind === 'timeseries' ? [v.spec] : []; });
     const called = (e: TsExpr): string[] => e.kind === 'call' ? [e.fn, ...e.args.flatMap(called)]
       : e.kind === 'binary' ? [...called(e.left), ...called(e.right)] : [];
-    const calledOn = (sheet: string): Set<string> => new Set(specsOn(sheet).flatMap((ts) => ts.series.flatMap((x) => called(x.expr))));
+    const calledOn = (sheet: string): Set<string> => new Set(specsOn(sheet).flatMap((ts) => ts.series.flatMap((x) => called(treeOf(x, ts.series)))));
     for (const family of families) {
       const missing = TS_FUNCTIONS.filter((f) => f.family === family && !calledOn(family).has(f.name)).map((f) => f.name);
       assert.deepEqual(missing, [], `${family}: every function of it on its sheet`);
@@ -272,8 +274,8 @@ describe('the example pages', () => {
 
   // the user, 2026-10-27: the charts from the trading model's classes (test/stress-markets.test.ts opens each grid the
   // page's way and runs every series of it)
-  it('the markets example over the classes: each grid a saved query of the markets project, each tile drawable over them', () => {
-    const page = readPage(pageToJson(marketsClassesPage()));
+  it('the markets example over the classes: each grid a saved query of the markets project, each tile drawable over them', async () => {
+    const page = await readPageTexts(readPage(pageToJson(marketsClassesPage())));
     assert.deepEqual(EXAMPLE_PAGES.find((e) => e.id === 'markets-classes')?.project, MARKETS_PROJECT, 'offered where the project is');
     assert.deepEqual(EXAMPLE_PAGES.filter((e) => e.project !== undefined).map((e) => e.id),
       ['markets-classes', 'markets-on-classes', 'gallery-on-classes'], 'every other example over the samples');

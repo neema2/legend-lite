@@ -21,6 +21,7 @@ import {
 import { TS_MARK_LIMIT, TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 const DAYS = ['2024-01-04', '2024-01-03', '2024-01-02'];
 
@@ -36,7 +37,7 @@ function answered(series: string, unit: TsUnit, columns: Record<string, readonly
   return { query, table };
 }
 
-const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
+const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'text'> = {}): TsSeries => ({ id, text: writtenText(parseExpr(expr), []), ...rest });
 
 function spec(series: TsSeries[], more: Partial<TimeseriesSpec> = {}): TimeseriesSpec {
   return { sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }], series, ...more };

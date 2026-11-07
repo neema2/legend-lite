@@ -6,6 +6,7 @@
 // already used, built here once rather than at each use; the tab's entry hands in what only it knows (its plane, its
 // planner, its DuckDB, its configuration).
 
+import type { TsItemAnswer } from '../lite-planner.ts';
 import type { AsyncDuckDB } from '../../../engine-client/src/duckdb-wasm.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
@@ -46,6 +47,8 @@ export interface TabPlanner {
   readonly tables: TableModels;
   /** legend-lite's planner for a project's own database (C5, engine-client's project-data.ts). */
   readonly projects: ProjectDataSource;
+  /** A timeseries series' #TS text, read by legend-lite's module (A3 step 3): the same module as `tables`. */
+  tsItem(text: string): Promise<TsItemAnswer>;
   readonly models: {
     another(model: string, runtime: string, how?: ModelOptions): Planner;
     elements(text: string): Promise<unknown[]>;
@@ -93,7 +96,11 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       plane: o.plane,
       label: o.planner.label,
       // the page's own planner reads a saved query and its project's model
-      reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text) },
+      reading: {
+        parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text),
+        // a series' #TS text: legend-lite's module, beside whichever planner the page chose (the one reader, A3)
+        tsItem: (text) => o.planner.tsItem(text),
+      },
       // planned here and run here: a planner over the source's own model, on this tab's DuckDB
       rows: (model, runtime, how) => ({ planner: o.planner.models.another(model, runtime, how), engine: o.duckdb.engine }),
       database: tabDatabase(o.duckdb, o.planner.tables),

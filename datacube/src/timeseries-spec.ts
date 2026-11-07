@@ -6,9 +6,9 @@
 // plots SERIES along one time axis. Each series is an EXPRESSION in the vocabulary of gs-quant's
 // timeseries package -- the functions Goldman Sachs' PlotTool Pro exports to its expression language
 // (`gs_quant.timeseries`, each marked `@plot_function`): returns, volatility, z-scores, rolling statistics, drawdowns,
-// correlation and beta, Bollinger bands. A person types one (`volatility(px:close[AAPL], 63)`) or builds it from the
-// menus; either way the spec keeps the tree, and its text is printed from the tree (timeseries-expr.ts `exprText`), so
-// the words a person typed and the words saved never drift.
+// correlation and beta, Bollinger bands. A person types one (`volatility(close['AAPL'], w => 63)`) or builds it from the
+// menus; either way the spec keeps its TEXT, in #TS (A3 step 3, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md), and core's
+// reader alone reads it (timeseries-text.ts readSeriesTexts): the words a person typed are the words saved.
 //
 // NOTHING HERE COMPUTES A VALUE. An expression is words; timeseries-query.ts writes each node as a column of the
 // series' query -- a window over the dates, an expression over the row -- which the planner plans and the database
@@ -76,9 +76,11 @@ export interface TsStyle {
 export type TsStyleKind = 'line' | 'area' | 'bars' | 'step' | 'dots';
 
 export interface TsSeries {
-  /** Its id -- a capital letter, as `$A` refers to it -- unique in the tile. */
+  /** Its id -- a capital letter, as another series reads it by name (`A`) -- unique in the tile. */
   readonly id: string;
-  readonly expr: TsExpr;
+  /** What it plots: one #TS item's expression, the series' own (another series it reads named, never inlined) -- read
+   *  by core (timeseries-text.ts readSeriesTexts), never by DataCube. */
+  readonly text: string;
   /** Its name in the legend; else its expression's text. */
   readonly name?: string;
   /**
@@ -589,7 +591,7 @@ const TS_KEYS: Readonly<Record<keyof TimeseriesSpec, true>> = {
 const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true, kept: true };
 const KEPT_KEYS: Readonly<Record<keyof TsKept, true>> = { filter: true };
 const SERIES_KEYS: Readonly<Record<keyof TsSeries, true>> = {
-  id: true, expr: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
+  id: true, text: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
 };
 const STYLE_KEYS: Readonly<Record<keyof TsStyle, true>> = { kind: true, color: true, width: true, dash: true };
 const PANE_KEYS: Readonly<Record<keyof TsPane, true>> = { height: true, log: true, invert: true, min: true, max: true };
@@ -621,6 +623,21 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function unknownKey(o: Readonly<Record<string, unknown>>, keys: Readonly<Record<string, true>>, what: string): string | null {
   const extra = Object.keys(o).find((k) => !Object.hasOwn(keys, k));
   return extra === undefined ? null : `there is no ${JSON.stringify(extra)} in ${what} (it says ${Object.keys(keys).join(', ')})`;
+}
+
+/** The longest text a series is written in. */
+export const MAX_TS_TEXT = 4000;
+
+/**
+ * WHAT STOPS A SERIES' TREE FROM BEING DRAWN, in words, or null: core's reading of its text, mapped to the tile's tree
+ * (timeseries-text.ts), judged by the tile's signatures -- its words' arity, their parameters' words and ranges -- and
+ * against `aliases`, the tile's sources (a column of none of them).
+ */
+export function treeProblem(e: TsExpr, what: string, aliases: readonly string[] | undefined): string | null {
+  const p = exprProblem(e, what);
+  if (p !== null || aliases === undefined) return p;
+  const named = columnSourcesOf(e).find((a) => !aliases.includes(a));
+  return named === undefined ? null : `${what} reads ${named}.<column>, and ${named} is none of its sources (${aliases.join(', ')})`;
 }
 
 function exprProblem(e: unknown, what: string, depth = 0): string | null {
@@ -768,10 +785,10 @@ export function tsProblem(ts: unknown): string | null {
     if (typeof s['id'] !== 'string' || !/^[A-Z][A-Z0-9]*$/.test(s['id'])) return `${what}'s id ${JSON.stringify(s['id'] ?? null)} is not a capital letter (A, B, ...)`;
     if (ids.has(s['id'])) return `two series are ${s['id']}`;
     ids.add(s['id']);
-    const p = exprProblem(s['expr'], `series ${s['id']}`);
-    if (p) return p;
-    const named = columnSourcesOf(s['expr'] as TsExpr).find((a) => !aliases.has(a));
-    if (named !== undefined) return `series ${s['id']} reads ${named}:..., which is none of its sources (${[...aliases].join(', ')})`;
+    // its text: what it means is core's to read (timeseries-text.ts readSeriesTexts) and its tree's to judge
+    // (treeProblem), where the tile is drawn
+    if (typeof s['text'] !== 'string' || s['text'].trim() === '') return `series ${s['id']} has no text (its #TS expression)`;
+    if (s['text'].length > MAX_TS_TEXT) return `series ${s['id']}'s text is past ${MAX_TS_TEXT} characters`;
     if (s['name'] !== undefined && typeof s['name'] !== 'string') return `series ${s['id']}'s name is not text`;
     if (s['split'] !== undefined && typeof s['split'] !== 'string') return `series ${s['id']}'s split is not a column`;
     if (s['pane'] !== undefined && !(Number.isInteger(s['pane']) && (s['pane'] as number) >= 0 && (s['pane'] as number) < MAX_PANES)) {

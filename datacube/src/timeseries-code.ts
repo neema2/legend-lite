@@ -6,10 +6,10 @@
 // (python/legend_lite/page.py), which asks DataCube's own reader (headless timeseriesMade) and applies the page command
 // the screen's Create ▸ Timeseries sends; in TypeScript, that command itself (page-commands.ts addTimeseries) over the
 // person's own cubes and sheet, applied by the one function every change to a page goes through (applyPageCommands).
-// Each written from the tile's spec, its expressions written to read back as themselves (timeseries-expr.ts
-// exprSource), so the program builds the tile it was written of -- the tests run both and read back the spec they made.
-// Each formula is DataCube's gs-quant shorthand for the Pure its tile writes (askQuery): the Python prints each one's,
-// the screen's Code shows them under the program (the user's "A", 2026-10-28).
+// Each written from the tile's spec, each series its #TS text as the tile keeps it, so the program builds the tile it
+// was written of -- the tests run both and read back the spec they made. Each formula is #TS, for the Pure its tile
+// writes (askQuery): the Python prints each one's, the screen's Code shows them under the program (the user's "A",
+// 2026-10-28).
 //
 // One rule for the viewer's Code window and Python's Timeseries.code (headless timeseriesCode).
 //
@@ -19,7 +19,7 @@ import type { CubeSource } from './cube-document.ts';
 import { layoutTiles, type PageDocument } from './page-document.ts';
 import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
-import { columnsOf, exprSource, nextSeriesId } from './timeseries-expr.ts';
+import { columnsOf, nextSeriesId } from './timeseries-expr.ts';
 import { treeOf } from './timeseries-text.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
@@ -136,9 +136,8 @@ function pySeries(series: readonly TsSeries[]): string[] {
   return series.map((s, i) => {
     const natural = nextSeriesId(series.slice(0, i)) === s.id;
     const rest = SERIES_KEYS.filter((k) => s[k] !== undefined);
-    const expr = exprSource(s.expr);
-    if (natural && rest.length === 0) return py(expr);
-    const told: Record<string, unknown> = { ...(natural ? {} : { id: s.id }), expr };
+    if (natural && rest.length === 0) return py(s.text);
+    const told: Record<string, unknown> = { ...(natural ? {} : { id: s.id }), text: s.text };
     for (const k of rest) told[k] = s[k];
     return py(told);
   });
@@ -252,10 +251,10 @@ function ts(v: unknown): string {
   throw new Error(`a ${typeof v} is no value a page holds`);
 }
 
-/** A series as its spec holds it, its expression read by the catalog's parser. */
+/** A series as its spec holds it: its text, which core reads. */
 function tsSeries(s: TsSeries): string {
   const rest = SERIES_KEYS.filter((k) => s[k] !== undefined).map((k) => `, ${k}: ${ts(s[k])}`).join('');
-  return `{ id: ${ts(s.id)}, expr: parseExpr(${ts(exprSource(s.expr))})${rest} }`;
+  return `{ id: ${ts(s.id)}, text: ${ts(s.text)}${rest} }`;
 }
 
 function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
@@ -274,11 +273,10 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   return [
     `// ${oneLine(of.title ?? 'A timeseries tile')}, built in TypeScript on a page of your own: its spec over your grids, and the page`,
     '// command the screen\'s Create ▸ Timeseries sends (Python\'s timeseries too) -- every change to a page is a command, applied by',
-    '// one function (page-commands.ts). Each series is a formula, DataCube\'s gs-quant shorthand for the Pure query the tile',
-    '// writes for it (timeseries-query.ts askQuery, the one function every round writes by); the paths are from the repository\'s root.',
+    '// one function (page-commands.ts). Each series is a #TS formula, which the page reads by legend-lite\'s own reader, for the',
+    '// Pure query the tile writes for it (timeseries-query.ts askQuery); the paths are from the repository\'s root.',
     'import { applyPageCommands, idsOf, type PageCommand } from \'./datacube/src/page-commands.ts\';',
     'import type { PageDocument } from \'./datacube/src/page-document.ts\';',
-    'import { parseExpr } from \'./datacube/src/timeseries-expr.ts\';',
     'import { tileAsks } from \'./datacube/src/timeseries-query.ts\';',
     'import type { TimeseriesSpec } from \'./datacube/src/timeseries-spec.ts\';',
     '',

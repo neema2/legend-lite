@@ -20,6 +20,7 @@ import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_LOWER, TS_UPPER, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 // -- the prices of timeseries-queries.test.ts: two instruments over 40 weekdays from 2024-01-01, and a third on fewer --
 
@@ -197,7 +198,7 @@ function spike::leaks<T,L,A,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], dat
 `;
 
 const TS: TimeseriesSpec = { sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }], series: [] };
-const spec = (expr: string): TimeseriesSpec => ({ ...TS, series: [{ id: 'A', expr: parseExpr(expr) } as TsSeries] });
+const spec = (expr: string): TimeseriesSpec => ({ ...TS, series: [{ id: 'A', text: writtenText(parseExpr(expr), []) } as TsSeries] });
 
 const writer = plannerFor('', 'local::RT');
 let engine: DuckDbEngine;

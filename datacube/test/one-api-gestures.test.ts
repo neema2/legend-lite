@@ -1507,7 +1507,7 @@ describe('P9: a saved page opened keeps what it cannot open', () => {
     await settle();
     assert.match(tile(a).querySelector('.dc-tile-unavailable')?.textContent ?? '', /could not be opened/);
     await shown(host, `[data-tile="${series}"] .dc-ts-bar`);
-    const python = JSON.parse(timeseriesEdit(pageToJson(saved), series, JSON.stringify({ kind: 'state', state: 'frozen' }))) as { spec?: TimeseriesSpec; problems?: string[] };
+    const python = JSON.parse(await timeseriesEdit(pageToJson(saved), series, JSON.stringify({ kind: 'state', state: 'frozen' }))) as { spec?: TimeseriesSpec; problems?: string[] };
     assert.equal(python.problems, undefined, "Python freezes it");
     tile(series).querySelector<HTMLButtonElement>('.dc-tile-state')!.click();
     const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]

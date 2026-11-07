@@ -50,6 +50,7 @@ async function inTab(model: string): Promise<Engine> {
     source: SOURCE,
     tables: planner,
     projects: planner,
+    tsItem: (text) => planner.tsItem(text),
     label: 'local',
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),
@@ -80,6 +81,7 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
     source: SOURCE,
     tables: writer,
     projects: writer,
+    tsItem: (text) => writer.tsItem(text),
     label: which,
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),

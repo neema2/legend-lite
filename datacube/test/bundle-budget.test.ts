@@ -510,8 +510,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  431,100 -> 431,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, a', the user: "copies of the charts that start
  *  with classes"; "Budget is fine"): the catalog's two copies over classes (their entries' labels and words) and the app
  *  reading a series of a project's grids together over its model (datacube-app.ts, projectTogether a lazy chunk's); no
- *  startup file added. Measured 431,285. */
-const BUDGET = 431_400;
+ *  startup file added. Measured 431,285.
+ *  431,400 -> 431,700 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
+ *  don't stop"): a timeseries tile's series stored as #TS text, read by core -- the page's reader passed to its tiles
+ *  (cube-page.ts readText, page-app.ts, the hosts' QueryReading.tsItem), a tile drawn once its texts are read; no
+ *  startup file added. Measured 431,505. */
+const BUDGET = 431_700;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -723,8 +727,10 @@ const BUDGET = 431_400;
  *  planner resolving the library) takes the text out.
  *  419,000 -> 419,100 (2026-11-07, item 8b -- the grid-only page's note of the same date). Measured 419,032.
  *  419,100 -> 419,400 (2026-11-07, the copies over classes -- the grid-only page's note of the same date). Measured
- *  419,259. */
-const ENGINE_BUDGET = 419_400;
+ *  419,259.
+ *  419,400 -> 419,700 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
+ *  date). Measured 419,439. */
+const ENGINE_BUDGET = 419_700;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -886,8 +892,12 @@ const CHART_BUDGET = 303_500;
  *  130,500 -> 132,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 5, the user: "keep going, don't stop"): latest
  *  as a value in a word's date argument (rebase(close, latest - 3y)) -- timeseries::lines::lastDate, later and day, the
  *  translator's map, max and adjust moved into the library (TsTranslatorGuardrailTest), with what the library has
- *  grown by since the raise above. Measured 130,640; the headroom ~1% for B3's window and logarithmic forms. */
-const TIMESERIES_BUDGET = 132_000;
+ *  grown by since the raise above. Measured 130,640; the headroom ~1% for B3's window and logarithmic forms.
+ *  132,000 -> 135,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
+ *  don't stop"): a series stored as its #TS text and read by core -- timeseries-text.ts, its own text's writer, core's
+ *  tree read back as the tile's, the readings held -- beside the tile's own grammar, which A3 step 5 deletes
+ *  (timeseries-expr.ts's parser and timeseries-ts.ts: this budget falls then). Measured 134,055. */
+const TIMESERIES_BUDGET = 135_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1140,8 +1150,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  neither measured alone). Measured 446,637.
  *  447,000 -> 447,600 (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A3 step 1 and A9: the timeseries library's text,
  *  src/pure-library-text.ts, carries each word's facts as tags, and the word rank with its enumeration Order; A5 takes
- *  the library's text off the wire). Measured 447,016. */
-const WIDGET_BUDGET = 447_600;
+ *  the library's text off the wire). Measured 447,016.
+ *  447,600 -> 447,900 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
+ *  date). Measured 447,678. */
+const WIDGET_BUDGET = 447_900;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

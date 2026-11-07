@@ -16,13 +16,13 @@ import { describe, it } from 'node:test';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
 import { layoutTiles, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { codeOfPage, tileCode } from '../src/timeseries-code.ts';
-import { exprSource } from '../src/timeseries-expr.ts';
 import { tileAsks } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
+import { readPageTexts } from './catalog-builder.ts';
 
 describe('a timeseries tile as the code that builds it', () => {
   it('the timeseries gallery as code: each tile\'s TypeScript, run, builds the tile it was written of', async () => {
-    const page = readPage(pageToJson(await timeseriesGalleryPage()));
+    const page = await readPageTexts(readPage(pageToJson(await timeseriesGalleryPage())));
     const src = new URL('../src/', import.meta.url).href;
     const dir = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'ts-code-'));
     const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
@@ -53,13 +53,13 @@ describe('a timeseries tile as the code that builds it', () => {
       assert.ok(python.includes('page = ll.Page()') && python.includes('ll.show(page)'), v.id);
       assert.ok(python.includes("print(s, tile.query(s)['pure'])"), v.id);
       for (const lookup of ['Page.load', 'page.sheets', 'page.grids', '.id ==']) assert.ok(!python.includes(lookup), `${v.id}: finds nothing of this page (${lookup})`);
-      for (const s of spec.series) assert.ok(python.includes(`'${exprSource(s.expr).replace(/'/g, "\\'")}'`), `${v.id} ${s.id}: ${exprSource(s.expr)}`);
+      for (const s of spec.series) assert.ok(python.includes(`'${s.text.replace(/'/g, "\\'")}'`), `${v.id} ${s.id}: ${s.text}`);
     }
   });
 
   it('a title or a grid\'s title with a line end in it ends no comment: the program is the tile\'s still', async () => {
     // the review of the generated code, 2026-10-28: a title's line end wrote the rest of it as a line of code
-    const page = readPage(pageToJson(await timeseriesGalleryPage()));
+    const page = await readPageTexts(readPage(pageToJson(await timeseriesGalleryPage())));
     const v = page.views.find((x) => x.kind === 'timeseries')!;
     const { spec, of } = codeOfPage(page, v.id);
     const title = 'Two\nlines\r\nexport const x = 1; export const y = 2;';

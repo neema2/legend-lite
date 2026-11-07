@@ -35,6 +35,7 @@ import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
 import { bandsOf } from './bands-of.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
 function inertCanvas(window: JSDOM['window']): void {
@@ -967,7 +968,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const grid = doc.views.find((v) => v.id === a)!;
     assert.ok(grid.kind === 'grid');
     const spec: TimeseriesSpec = {
-      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }],
     };
     reopen({
       ...doc,
@@ -1016,7 +1017,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const grid = doc.views.find((v) => v.id === a)!;
     assert.ok(grid.kind === 'grid');
     const spec: TimeseriesSpec = {
-      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }],
     };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
       sheets: doc.sheets.map((sh, i) => (i === 0 ? { ...sh, layout: { kind: 'bands', fit: true, bands: [
@@ -1046,7 +1047,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const doc = pg().document('Q3')!;
     const gridB = doc.views.find((v) => v.id === b)!;
     assert.ok(gridB.kind === 'grid');
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
       sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...bandsOf(s.layout), bands: [...bandsOf(s.layout).bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
     await shown(host, '[data-tile="ts"] .dc-ts-bar');
@@ -1098,7 +1099,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const doc = pg().document('Q3')!;
     const gridB = doc.views.find((v) => v.id === b)!;
     assert.ok(gridB.kind === 'grid');
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
       sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...bandsOf(s.layout), bands: [...bandsOf(s.layout).bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
     await shown(host, '[data-tile="ts"] .dc-ts-bar');

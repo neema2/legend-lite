@@ -392,6 +392,9 @@ _EXTRA_DATA = {
 _WASM_TESTS = [
     "timeseries-queries",
     "timeseries-ts-parity",
+    # the example pages' series are #TS text, which core alone reads (A3 step 3, 2026-11-07)
+    "examples",
+    "timeseries-code",
     "stress-markets",
     "pure-library-spike",
     "timeseries-view-dom",

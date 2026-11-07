@@ -21,6 +21,7 @@ import { rebaseEdits, renamedCommand as rebaseCommand, withCube } from '../src/p
 import { corpus } from './fixtures/pages/make.ts';
 import { bandsOf } from './bands-of.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
 // grid-2) on sheet-1 beside grid; grid-2 alone on sheet-2
@@ -250,7 +251,7 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
       { alias: 'trades', cube: 'grid', date: 'tradeDate', key: 'desk' },
       { alias: 'other', cube: 'grid-2', date: 'tradeDate' },
     ],
-    series: [{ id: 'A', expr: { kind: 'column' as const, column: 'notional' }, split: 'desk' }],
+    series: [{ id: 'A', text: writtenText({ kind: 'column' as const, column: 'notional' }, []), split: 'desk' }],
   };
   const add = (more: Partial<Extract<PageCommand, { kind: 'addTimeseries' }>> = {}): Extract<PageCommand, { kind: 'addTimeseries' }> => ({
     kind: 'addTimeseries', sheet: 'sheet-1', near: null, spec: SPEC, title: null, columns: null, ...more,
@@ -328,7 +329,7 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
   it('refused in words: a source no grid shows, a spec of a word it does not know, a chart set as a timeseries', () => {
     refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which is no cube of the page/);
     refused(() => apply(add({ spec: { ...SPEC, grain: 'hour' } as never })), /frequency "hour"/);
-    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'smooth_outliers', args: [] } }] } as never })), /calls "smooth_outliers", which this DataCube does not compute/);
+    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', text: '' }] } as never })), /series A has no text/);
     refused(() => apply(add({ sheet: 'sheet-9' })), /'sheet-9' is not a sheet of the page/);
     refused(() => apply(add({ near: 'grid-2' })), /'grid-2' is not on sheet-1/);
     refused(() => apply({ kind: 'setTimeseries', tile: 'chart', spec: SPEC }), /'chart' is a chart, not a timeseries tile/);
@@ -421,7 +422,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
     {
       kind: 'addTimeseries', id: 'timeseries-1', sheet: 'sheet-1', near: 'grid', title: null, columns: null,
-      spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] },
+      spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] },
     },
     { kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [] } },
     {

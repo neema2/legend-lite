@@ -152,7 +152,7 @@ export { nameGiven };
  *  Join window shows them -- the tab's Join…, with no screen, and its answers for a tab on the host's page (B11). */
 export { joinCube, joinQuestions, joinSides, joinTogether };
 
-/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its expressions by DataCube's parser, a
+/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its series' #TS texts read by core, a
  *  source's columns by its defaults -- and read by the tile's one reader (timeseriesMade: Python's page.timeseries and
  *  Timeseries's setters; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7). */
 export { timeseriesMade };

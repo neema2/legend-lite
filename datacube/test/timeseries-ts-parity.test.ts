@@ -20,14 +20,14 @@ import {
 import type { TimeseriesSpec, TsExpr, TsSeries, TsView } from '../src/timeseries-spec.ts';
 import { readsBase, TS_ITEM, tsIsland, tsItemText, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
-import { exprText, inlined, parseExpr } from '../src/timeseries-expr.ts';
-import { seriesExpr, seriesText, told } from '../src/timeseries-text.ts';
+import { exprText, parseExpr, wholeOf } from '../src/timeseries-expr.ts';
+import { seriesExpr, seriesText, told, treeOf } from '../src/timeseries-text.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { join } from 'node:path';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readPageTexts } from './catalog-builder.ts';
 
 const writer = plannerFor('', 'local::RT');
 
@@ -119,7 +119,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   let ran = 0;
   try {
     for (const [what, build] of pages) {
-      const page = await build();
+      // its series' texts read by core first: the pages hold #TS text, which core alone reads (A3 step 3)
+      const page = await readPageTexts(await build());
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
       const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS]] as const)
         .filter(([cube]) => page.cubes.some((c) => c.id === cube));
@@ -142,7 +143,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
         // the series as the tile computes it, before its view's compare (the view's, around the answer: P6)
         const ts: TimeseriesSpec = view.spec.view === undefined ? view.spec : { ...view.spec, view: uncompared(view.spec.view) };
         const cubeOf = (alias: string): string => ts.sources.find((x) => x.alias === alias)!.cube;
-        for (const series of ts.series) for (const anchor of readsBase(inlined(series.expr, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
+        for (const series of ts.series) for (const anchor of readsBase(wholeOf(series, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
           const id = `${view.id} ${series.id}${anchor === undefined ? '' : ` from ${anchor}`}`;
           const aliases = seriesSources(ts, series);
           const [inputsOf, plannerOf]: [TsInputs, LitePlanner] = aliases.length > 1
@@ -177,7 +178,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               shownOf = shown.statement;
             }
             oracle[id] = {
-              formula: exprText(inlined(series.expr, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
+              formula: exprText(wholeOf(series, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
               align: ts.align ?? null, anchor: anchor ?? null,
               sources: ts.sources.map((x) => ({ alias: x.alias, cube: x.cube, date: x.date, key: x.key ?? null })),
               columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => ((v as unknown) instanceof Date
@@ -211,7 +212,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
           }
           if (anchor === undefined) {
             owned += 1;
-            const wrong = await ownTextWrong(series.expr, ts.series.map((x) => x.id));
+            const wrong = await ownTextWrong(treeOf(series, ts.series), ts.series.map((x) => x.id));
             if (wrong !== undefined) ownWrong.push(`${id}: ${wrong}`);
           }
           const expected = DIFFERS[id];

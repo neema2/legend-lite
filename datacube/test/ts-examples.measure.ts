@@ -20,6 +20,7 @@ import { seriesQuery, TS_DATE, TS_SPLIT, TS_VALUE, type TsInputs } from '../src/
 import type { TimeGrain } from '../src/chart-spec.ts';
 import type { TimeseriesSpec, TsSource } from '../src/timeseries-spec.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
   projects: { groupId: string; artifactId: string; versionId: string; models: string[] }[];
@@ -131,7 +132,7 @@ it('the examples, each planned and answered over the markets project', async () 
     const out: string[] = [`\n=== ${ex.title}`, '--- #TS (the design)', ex.ts, '--- the tile today: the same chart'];
     const spec: TimeseriesSpec = {
       sources: [...ex.sources],
-      series: ex.series.map((s, i) => ({ id: String.fromCharCode(65 + i), expr: parseExpr(s.expr), ...(s.split ? { split: s.split } : {}) })),
+      series: ex.series.map((s, i) => ({ id: String.fromCharCode(65 + i), text: writtenText(parseExpr(s.expr), []), ...(s.split ? { split: s.split } : {}) })),
       grain: ex.grain ?? 'day',
     };
     for (const [i, s] of ex.series.entries()) {

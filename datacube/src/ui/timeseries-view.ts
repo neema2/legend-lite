@@ -29,10 +29,12 @@ import {
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, exprSource, exprText, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseExpr, parseMatches, seriesName,
-  sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
+  candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseMatches, seriesName,
+  sourcesOf, timeseriesProblems, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
-import { treeOf } from '../timeseries-text.ts';
+import { readSeriesTexts, readTyped, seriesText, treeOf, writtenText, type TsReader } from '../timeseries-text.ts';
+
+export { readSeriesTexts };
 import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
@@ -149,6 +151,9 @@ export interface TimeseriesHost {
   together(cubes: readonly string[]): Promise<TsTogether>;
   /** The tile's spec as the person changed it: the page's (setTimeseries). */
   setSpec(spec: TimeseriesSpec): void;
+  /** Core's reader of a series' text (the tab's legend-lite module: timeseries-text.ts TsReader) -- what the series
+   *  editor's box asks as it is typed. */
+  readonly readText: TsReader;
   /** Where its editors' windows go, among the page's windows (a chart's options' host: CubePageOptions.windowHost). */
   readonly windowHost: HTMLElement;
   /** Its name, as its tile says it: its editors' windows are titled by it. */
@@ -191,7 +196,7 @@ export interface MountOn {
 function queryKey(ts: TimeseriesSpec): string {
   return JSON.stringify({
     sources: ts.sources, grain: ts.grain ?? null, align: ts.align ?? null, compare: ts.view?.compare ?? null,
-    series: ts.series.map((s) => ({ id: s.id, expr: treeOf(s, ts.series), split: s.split ?? null })),
+    series: ts.series.map((s) => ({ id: s.id, text: s.text, split: s.split ?? null })),
     // marks from grids' rows are asked too (the Phase 6 review's 1: marks added once drawn were never asked)
     marks: (ts.annotations ?? []).filter((a) => a.kind === 'marks').map(marksKey),
     // and each trend projected (Phase 5)
@@ -526,8 +531,17 @@ export class TimeseriesView {
     const tried = this.#tried !== undefined;
     this.#tried = undefined;
     if (!tried && JSON.stringify(spec) === JSON.stringify(this.#spec)) return;
-    this.#apply(spec);
+    // its texts read by core first (another editor's, Python's: none the tile wrote), the latest spec the one drawn
+    const mine = ++this.#reading;
+    void readSeriesTexts(spec.series, this.#host.readText).then(() => {
+      if (mine === this.#reading && !this.#disposed) this.#apply(spec);
+    }, (e: unknown) => {
+      if (mine === this.#reading && !this.#disposed) this.#say([`Its series could not be read: ${e instanceof Error ? e.message : String(e)}`], true);
+    });
   }
+
+  /** The spec reads begun (update): a later one's answer is the one drawn. */
+  #reading = 0;
 
   /**
    * A grid it reads landed a new view: asked again, as every chart of a grid is (after `delay`, so a burst of views asks
@@ -1801,7 +1815,7 @@ export class TimeseriesView {
       const jobs = asks.map(async (ask) => {
         const s = spec.series.find((x) => x.id === ask.series);
         const pure = el(doc, 'pre', 'dc-ts-code', 'Writing…');
-        panel.append(el(doc, 'div', 'dc-ts-field-label', `${ask.series}  ${s === undefined ? '' : exprSource(s.expr)}`), pure);
+        panel.append(el(doc, 'div', 'dc-ts-field-label', `${ask.series}  ${s === undefined ? '' : s.text}`), pure);
         try {
           const grid = this.#printer(spec, ask);
           if (grid === undefined) throw new Error('its grid is not on the page');
@@ -2613,29 +2627,54 @@ export class TimeseriesView {
     const many = spec.sources.length > 1;
     // the expression, read as it is typed, its error said where it is
     const expr = el(doc, 'input', 'dc-input dc-ts-expr', undefined, {
-      'aria-label': 'Expression', spellcheck: 'false', placeholder: many ? `${spec.sources[0]?.alias}:close[AAPL]` : 'close[AAPL]',
+      'aria-label': 'Expression', spellcheck: 'false', placeholder: many ? `${spec.sources[0]?.alias}.close['AAPL']` : 'close[\'AAPL\']',
     });
-    expr.value = was ? exprText(was.expr) : '';
+    expr.value = was ? was.text : '';
     const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
     const reads = el(doc, 'div', 'dc-ts-hint');
-    let parsed: TsExpr | undefined;
+    // the box's text as core read it (A3 step 3: core's reader the one, asked as it is typed) -- its canonical text, and
+    // its tree as the tile reads it; none while it is read, or where it is no series
+    let parsed: { readonly text: string; readonly tree: TsExpr } | undefined;
+    let asked = 0;
     // its outermost function's parameters as sliders, painted as the expression is read (`paint` false: a slider moving,
     // which stays the one dragged)
     const sliders = el(doc, 'div', 'dc-ts-sliders');
-    const check = (paint = true): void => {
-      error.textContent = '';
+    const check = async (paint = true): Promise<void> => {
+      const mine = ++asked;
+      const typed = expr.value;
       parsed = undefined;
-      if (expr.value.trim() !== '') {
+      if (typed.trim() === '') {
+        error.textContent = '';
+        reads.textContent = '';
+        if (paint) paintSliders();
+        return;
+      }
+      const read = await readTyped(typed, this.#host.readText);
+      // a later keystroke's reading is the one shown
+      if (mine !== asked) return;
+      error.textContent = '';
+      if ('refused' in read) {
+        error.textContent = read.refused.message;
+        reads.textContent = '';
+      } else {
         try {
-          parsed = parseExpr(expr.value);
-          const read = sourcesOf(spec, inlined(parsed, spec.series.filter((s) => s.id !== sid)));
-          reads.textContent = `Reads ${read.join(', ') || 'no grid'}${read.length > 1 ? ': one query, the grids joined on the date' : ''}.`;
+          const own: TsSeries = { id: sid, text: read.text };
+          const series = [...spec.series.filter((s) => s.id !== sid), own];
+          const tree = treeOf(own, series);
+          const read2 = sourcesOf(spec, inlined(tree, series));
+          parsed = { text: read.text, tree };
+          reads.textContent = `Reads ${read2.join(', ') || 'no grid'}${read2.length > 1 ? ': one query, the grids joined on the date' : ''}.`;
         } catch (e) {
-          error.textContent = e instanceof TsSyntaxError ? `${e.message} (at ${e.at + 1})` : e instanceof Error ? e.message : String(e);
+          error.textContent = e instanceof Error ? e.message : String(e);
           reads.textContent = '';
         }
       }
       if (paint) paintSliders();
+    };
+    /** The box set to the text of a tree the tile made (a slider's, a picker's), and read. */
+    const write = (tree: TsExpr, paint = true): Promise<void> => {
+      expr.value = writtenText(tree, spec.series);
+      return check(paint);
     };
     /**
      * A PARAMETER TRIED BY DRAGGING (the next phases' 2: TradingView's inputs): each number of the outermost function
@@ -2646,7 +2685,7 @@ export class TimeseriesView {
      */
     let live: ReturnType<typeof setTimeout> | undefined;
     const paintSliders = (): void => {
-      const call = parsed?.kind === 'call' ? parsed : undefined;
+      const call = parsed?.tree.kind === 'call' ? parsed.tree : undefined;
       const f = call ? functionNamed(call.fn) : undefined;
       const tunable = call && f ? f.params.filter((p) => p.kind !== 'word' && typeof (call.params?.[p.name] ?? p.default) === 'number') : [];
       sliders.replaceChildren(...tunable.map((p) => {
@@ -2661,19 +2700,19 @@ export class TimeseriesView {
           const v = Number(Number(range.value).toPrecision(6));
           shown.textContent = String(v);
           // the expression as it is now: another slider moved too
-          const now = parsed?.kind === 'call' && parsed.fn === call!.fn ? parsed : call!;
-          expr.value = exprText({ ...now, params: { ...now.params, [p.name]: v } });
-          check(false);
-          if (was === undefined) return;
-          clearTimeout(live);
-          live = setTimeout(() => apply(false), 400);
+          const now = parsed?.tree.kind === 'call' && parsed.tree.fn === call!.fn ? parsed.tree : call!;
+          void write({ ...now, params: { ...now.params, [p.name]: v } }, false).then(() => {
+            if (was === undefined) return;
+            clearTimeout(live);
+            live = setTimeout(() => void apply(false), 400);
+          });
         });
         const row = el(doc, 'label', 'dc-ts-field dc-ts-slider-row');
         row.append(el(doc, 'span', 'dc-ts-field-label', p.name), range, shown);
         return row;
       }));
     };
-    expr.addEventListener('input', () => check());
+    expr.addEventListener('input', () => void check());
     // building one: a source, a column, an instrument, a line per instrument
     const sourceSel = select(doc, spec.sources.map((s) => [s.alias, `${s.alias} (${this.#host.grid(s.cube)?.title ?? 'its grid is gone'})`] as const),
       spec.sources[0]?.alias ?? '', () => paintPickers(), 'Source');
@@ -2708,8 +2747,7 @@ export class TimeseriesView {
       const src = spec.sources.find((s) => s.alias === sourceSel.value);
       if (!src || columnSel.value === '') return;
       const own = many || src.alias !== spec.sources[0]?.alias ? src.alias : undefined;
-      expr.value = exprText(columnRef(columnSel.value, own, keySel.value !== '' ? keySel.value : undefined));
-      check();
+      void write(columnRef(columnSel.value, own, keySel.value !== '' ? keySel.value : undefined));
     });
     // a function around it: gs-quant's, by family
     const fnSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'Function' });
@@ -2720,13 +2758,13 @@ export class TimeseriesView {
       fnSel.append(group);
     }
     const about = el(doc, 'div', 'dc-ts-hint');
-    fnSel.addEventListener('change', () => {
+    fnSel.addEventListener('change', () => void (async () => {
       const f = functionNamed(fnSel.value);
       if (!f) return;
       // a blank box: the function of the picked source's first value (DataCube's first plot's rule, firstValue), else
-      // refused in words -- never a column guessed by name
-      let inner = expr.value.trim();
-      if (inner === '') {
+      // refused in words -- never a column guessed by name; else the box's series, as core reads it
+      let inner: TsExpr;
+      if (expr.value.trim() === '') {
         const picked = spec.sources.find((s) => s.alias === sourceSel.value);
         const first = picked ? firstValue(columns.get(picked.alias) ?? [], picked) : undefined;
         if (picked === undefined || first === undefined) {
@@ -2734,43 +2772,45 @@ export class TimeseriesView {
           error.textContent = 'Write the series it applies to first, or build one from a column.';
           return;
         }
-        inner = exprText(columnRef(first, many ? picked.alias : undefined));
+        inner = columnRef(first, many ? picked.alias : undefined);
+      } else {
+        await check();
+        if (parsed === undefined) {
+          fnSel.value = '';
+          return;
+        }
+        inner = parsed.tree;
       }
       if (f.candles) {
         // a candle of the column written: its source's open, high, low and close (timeseries-expr.ts candleOf)
         fnSel.value = '';
-        let column: TsExpr | undefined;
-        try {
-          column = parseExpr(inner);
-        } catch {
-          column = undefined;
-        }
-        const src = column?.kind === 'column' ? spec.sources.find((s) => s.alias === (column.source ?? spec.sources[0]?.alias)) : undefined;
+        const column = inner;
+        const src = column.kind === 'column' ? spec.sources.find((s) => s.alias === (column.source ?? spec.sources[0]?.alias)) : undefined;
         const own = src ? columns.get(src.alias) : undefined;
         if (src && own === undefined) {
           error.textContent = `Candles read their grid's open, high and low: ${src.alias}'s grid is not on the page.`;
           return;
         }
-        const made = column && own ? candleOf(column, own) : undefined;
+        const made = own ? candleOf(column, own) : undefined;
         if (made === undefined) {
-          error.textContent = 'Candles are of a column whose grid has its open, high and low beside it: write a close (close[AAPL]), or ohlc(open, high, low, close).';
+          error.textContent = 'Candles are of a column whose grid has its open, high and low beside it: write a close (close[\'AAPL\']), or ohlc(open, high, low, close).';
           return;
         }
-        expr.value = exprText(made);
         about.textContent = `${f.label}: ${f.about}`;
-        check();
+        await write(made);
         return;
       }
       const other = spec.series.find((s) => s.id !== sid);
-      const second = other ? `$${other.id}` : inner;
-      // the expression first, then what the function reads beside it: another series, an if's branches, weights
-      const args = f.series === 2 ? [inner, second] : f.series === 3 ? [inner, second, '0'] : f.series === 'many' ? [inner, '1', second, '1'] : [inner];
-      const params = f.params.filter((p) => p.name === 'w').map((p) => String(p.default));
-      expr.value = `${f.name}(${[...args, ...params].join(', ')})`;
+      const second: TsExpr = other ? { kind: 'ref', series: other.id } : inner;
+      const zero: TsExpr = { kind: 'number', value: 0 };
+      const one: TsExpr = { kind: 'number', value: 1 };
+      // the expression first, then what the function reads beside it: another series, an if's branches, weights -- each
+      // parameter its default, written (a window is always written: the language's §7)
+      const args = f.series === 2 ? [inner, second] : f.series === 3 ? [inner, second, zero] : f.series === 'many' ? [inner, one, second, one] : [inner];
       about.textContent = `${f.label}: ${f.about}${f.params.length ? ` Parameters: ${f.params.map((p) => `${p.name} (${p.about}; default ${p.default})`).join('; ')}.` : ''}${f.differs ? ` Differs from gs-quant's ${f.gsQuant}: ${f.differs}.` : ` gs-quant: ${f.gsQuant}.`}`;
       fnSel.value = '';
-      check();
-    });
+      await write({ kind: 'call', fn: f.name, args });
+    })());
     // how it is drawn
     const name = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Name', placeholder: 'Its expression' });
     name.value = was?.name ?? '';
@@ -2797,8 +2837,8 @@ export class TimeseriesView {
     };
     paintSwatches();
     /** The series as the editor has it, plotted -- the window put away when `close`; tried (a slider's) when not. */
-    const apply = (close: boolean): void => {
-      check(close);
+    const apply = async (close: boolean): Promise<void> => {
+      await check(close);
       if (!parsed) {
         if (expr.value.trim() === '') error.textContent = 'Write an expression, or build one from a column.';
         return;
@@ -2808,7 +2848,7 @@ export class TimeseriesView {
         ...(width.value !== '2' ? { width: Number(width.value) } : {}), ...(dash.value !== '' ? { dash: dash.value } : {}),
       };
       const made: TsSeriesTold = {
-        id: sid, expr: parsed,
+        id: sid, text: parsed.text,
         ...(name.value.trim() !== '' ? { name: name.value.trim() } : {}),
         ...(splitSel.value !== '' ? { split: splitSel.value } : {}),
         ...(Object.keys(style).length > 0 ? { style } : {}),
@@ -2835,7 +2875,7 @@ export class TimeseriesView {
       clearTimeout(live);
       if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) })) this.#close();
     };
-    const ok = button(doc, 'OK', 'Plot it (Enter)', () => apply(true), 'dc-button dc-primary');
+    const ok = button(doc, 'OK', 'Plot it (Enter)', () => void apply(true), 'dc-button dc-primary');
     expr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') ok.click();
     });
@@ -2845,15 +2885,15 @@ export class TimeseriesView {
     });
     remove.hidden = was === undefined;
     const reference = el(doc, 'details', 'dc-ts-reference');
-    reference.append(el(doc, 'summary', undefined, 'Functions (gs-quant\'s names)'));
+    reference.append(el(doc, 'summary', undefined, 'Functions (gs-quant\'s names, #TS\'s calls)'));
     const list = el(doc, 'dl', 'dc-ts-functions');
     for (const f of TS_FUNCTIONS) {
-      const reads = f.reads !== undefined ? [...f.reads] : f.series === 'many' ? ['x', 'wx', 'y', 'wy', '...'] : f.series === 3 ? ['flags', 'x', 'y']
+      const reads = f.reads !== undefined ? [...f.reads] : f.series === 'many' ? ['x', 'wx', 'y', 'wy'] : f.series === 3 ? ['flags', 'x', 'y']
         : Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y'));
-      const sig = `${f.name}(${[...reads, ...f.params.map((p) => `${p.name}=${p.default}`)].join(', ')})`;
+      const sig = seriesText({ kind: 'call', fn: f.name, args: reads.map((r) => ({ kind: 'column', column: r })) }, []);
       list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));
     }
-    reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px:close, close[AAPL], close[venue=NYSE, AAPL], volume[AAPL].sum. Series: $A. Arithmetic: + - * /.'));
+    reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px.close, close[\'AAPL\'], close[venue = \'NYSE\', \'AAPL\'], sum(volume[\'AAPL\']). Series: A. Arithmetic: + - * /.'));
     const builder = el(doc, 'div', 'dc-ts-row');
     builder.append(sourceSel, columnSel, keySel, use);
     const style = el(doc, 'div', 'dc-ts-row');

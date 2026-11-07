@@ -17,7 +17,7 @@ import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
   marksCut, marksName, MAX_PANES, projectionName, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsMarks, type TsPoint, type TsProjection, type TsSeries,
 } from './timeseries-spec.ts';
-import { boundsOf, exprText, seriesName, wholeOf, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
+import { boundsOf, seriesName, wholeOf, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
   TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, readsAnchor, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
@@ -327,7 +327,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
-        name: splitName(s, g.split),
+        name: splitName(s, g.split, ts.series),
         ...(g.split !== undefined ? { split: g.split } : {}),
         unit: r.query.unit,
         level: r.query.level,
@@ -1002,9 +1002,9 @@ export function describeTimeseries(ts: TimeseriesSpec, lines: readonly TsLine[])
   return `A timeseries of ${shown.length} line${shown.length === 1 ? '' : 's'} from ${grids}${ts.grain ? `, by ${ts.grain}` : ''}: ${names.join(', ')}${shown.length > 6 ? ', ...' : ''}.`;
 }
 
-/** A series' expression, as the editor shows it. */
+/** A series' expression, as the editor shows it: its text. */
 export function seriesText(s: TsSeries): string {
-  return exprText(s.expr);
+  return s.text;
 }
 
 /** A figure of a line in the wide table: its value, a band's edges, a candle's prices (its close its value). */

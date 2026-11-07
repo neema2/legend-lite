@@ -5,12 +5,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
+import { treeProblem, tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
 import {
   aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
 } from '../src/timeseries-expr.ts';
 import { TS_WORDS } from '../src/generated/ts-words.ts';
+import { treeOf, writtenText } from '../src/timeseries-text.ts';
 
 const ROUND_TRIPS = [
   'close',
@@ -216,10 +217,10 @@ describe('a weighted sum\'s weights, and the catalog\'s words', () => {
     assert.throws(() => parseExpr('weighted_sum(close[A], 1, close[B], -1)'), /its weights sum to 0/);
     assert.throws(() => parseExpr('weighted_sum(close[A], 0.1, close[A], 0.2, close[A], -0.3)'), /its weights sum to 0/);
     assert.throws(() => parseExpr('weighted_sum(close[A], 0.5, close[B])'), /reads series and their weights, in pairs/);
-    const saved = { sources: [{ alias: 'px', cube: 'g', date: 'd' }], series: [{ id: 'A', expr: { kind: 'call', fn: 'weighted_sum',
+    const saved: TsExpr = { kind: 'call', fn: 'weighted_sum',
       args: [{ kind: 'column', column: 'c' }, { kind: 'number', value: 0.1 }, { kind: 'column', column: 'c' }, { kind: 'number', value: 0.2 },
-        { kind: 'column', column: 'c' }, { kind: 'number', value: -0.3 }] } }] };
-    assert.match(tsProblem(saved) ?? '', /its weights sum to 0/);
+        { kind: 'column', column: 'c' }, { kind: 'number', value: -0.3 }] };
+    assert.match(treeProblem(saved, 'series A', ['px']) ?? '', /its weights sum to 0/);
   });
 
   it('vol_swap_volatility\'s first value is gs-quant\'s: no ramp said to differ', () => {
@@ -232,24 +233,24 @@ describe('what an expression reads, and is', () => {
   const TS: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'g1', date: 'day', key: 'symbol' }, { alias: 'rates', cube: 'g2', date: 'd', key: 'tenor' }],
     series: [
-      { id: 'A', expr: parseExpr('px:close[SPX]') },
-      { id: 'B', expr: parseExpr('rates:yield[10Y]') },
-      { id: 'C', expr: parseExpr('correlation($A, $B, 63)') },
+      { id: 'A', text: writtenText(parseExpr('px:close[SPX]'), []) },
+      { id: 'B', text: writtenText(parseExpr('rates:yield[10Y]'), []) },
+      { id: 'C', text: writtenText(parseExpr('correlation($A, $B, 63)'), []) },
     ],
   };
 
   it('its refs, inlined; its sources in the order it reads them; their columns', () => {
     const c = TS.series[2]!;
-    assert.deepEqual(refsOf(c.expr), ['A', 'B']);
-    const whole = inlined(c.expr, TS.series);
+    assert.deepEqual(refsOf(treeOf(c, TS.series)), ['A', 'B']);
+    const whole = inlined(treeOf(c, TS.series), TS.series);
     assert.deepEqual(sourcesOf(TS, whole), ['px', 'rates']);
     assert.deepEqual([...columnsOf(TS, whole)], [['px', ['close', 'symbol']], ['rates', ['yield', 'tenor']]]);
     assert.deepEqual(sourcesOf(TS, parseExpr('close')), ['px'], 'a column of no source reads the first');
   });
 
   it('a ref round in a circle is said', () => {
-    const series = [{ id: 'A', expr: parseExpr('$B') }, { id: 'B', expr: parseExpr('$A + 1') }];
-    assert.throws(() => inlined(series[0]!.expr, series), /series B reads itself: \$B reads \$A reads \$B/);
+    const series = [{ id: 'A', text: writtenText(parseExpr('$B'), []) }, { id: 'B', text: writtenText(parseExpr('$A + 1'), []) }];
+    assert.throws(() => inlined(treeOf(series[0]!, series), series), /series B reads itself: B reads A reads B/);
   });
 
   it('its unit: a level, a ratio, a percent, a number, an index', () => {
@@ -296,8 +297,8 @@ describe('what an expression reads, and is', () => {
 
   it('series ids run A to Z, then A2', () => {
     assert.equal(nextSeriesId([]), 'A');
-    assert.equal(nextSeriesId([{ id: 'A', expr: parseExpr('close') }, { id: 'C', expr: parseExpr('close') }]), 'B');
-    const all = Array.from({ length: 26 }, (_, i) => ({ id: String.fromCharCode(65 + i), expr: parseExpr('close') as TsExpr }));
+    assert.equal(nextSeriesId([{ id: 'A', text: writtenText(parseExpr('close'), []) }, { id: 'C', text: writtenText(parseExpr('close'), []) }]), 'B');
+    const all = Array.from({ length: 26 }, (_, i) => ({ id: String.fromCharCode(65 + i), text: writtenText(parseExpr('close') as TsExpr, []) }));
     assert.equal(nextSeriesId(all), 'A2');
   });
 
@@ -314,7 +315,7 @@ describe('the saved spec\'s reader', () => {
   const OK: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'grid-1', date: 'day', key: 'symbol' }],
     grain: 'day',
-    series: [{ id: 'A', expr: parseExpr('rebase(close[AAPL])'), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
+    series: [{ id: 'A', text: writtenText(parseExpr('rebase(close[AAPL])'), []), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
     panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
     annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' },
@@ -332,9 +333,24 @@ describe('the saved spec\'s reader', () => {
   it('reads a spec of every slot', () => {
     assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
     // a window of a calendar period, and a lag of one
-    assert.equal(tsProblem(with_({ series: [{ id: 'A', expr: parseExpr('returns(mean(close, 3m), 1y)') }] })), null);
+    assert.equal(tsProblem(with_({ series: [{ id: 'A', text: writtenText(parseExpr('returns(mean(close, 3m), 1y)'), []) }] })), null);
     // the next phases' 3: a view of its series, and each view's settings
     assert.equal(tsProblem(with_({ view: { mode: 'curve', of: ['A'], dates: ['latest', '1m', '2024-03-29'], years: 10, bins: 40 } })), null);
+  });
+
+  it('a series\' tree as core reads its text, judged by the tile\'s words: each refusal by name (treeProblem)', () => {
+    const cases: [TsExpr, RegExp][] = [
+      [{ kind: 'call', fn: 'smooth_outliers', args: [] } as unknown as TsExpr, /calls "smooth_outliers", which this DataCube does not compute/],
+      [{ kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } }, /n 120 is above 100/],
+      [{ kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } }, /beta 1 is not below 1/],
+      [{ kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } }, /obs 0 is below 1/],
+      [{ kind: 'call', fn: 'exponential_std', args: [{ kind: 'column', column: 'c' }], params: { beta: 0 } }, /beta 0 is not above 0/],
+      [{ kind: 'column', source: 'fx', column: 'c' }, /reads fx.<column>, and fx is none of its sources \(px\)/],
+      [{ kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: '3q' } }, /w "3q" is neither a whole number nor a calendar period/],
+      [{ kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: 2.5 } }, /w 2.5 is not a whole number/],
+    ];
+    for (const [tree, said] of cases) assert.match(treeProblem(tree, 'series A', ['px']) ?? '', said, JSON.stringify(tree));
+    assert.equal(treeProblem({ kind: 'column', source: 'px', column: 'c' }, 'series A', ['px']), null);
   });
 
   it('refuses a word, a key or a number it has no place for, by name', () => {
@@ -344,17 +360,11 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'p x', cube: 'g', date: 'd' }] }), /alias "p x" is not a word/],
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
-      [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'smooth_outliers', args: [] } }] }), /calls "smooth_outliers", which this DataCube does not compute/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } } }] }), /n 120 is above 100/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_std', args: [{ kind: 'column', column: 'c' }], params: { beta: 0 } } }] }), /beta 0 is not above 0/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, style: { kind: 'candles' } }] }), /style "candles"/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: '3q' } } }] }), /w "3q" is neither a whole number nor a calendar period/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: 2.5 } } }] }), /w 2.5 is not a whole number/],
+      [with_({ series: [{ id: 'a', text: '1' }] }), /not a capital letter/],
+      [with_({ series: [{ id: 'A', text: '  ' }] }), /series A has no text/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' } }] }), /no "expr" in series 1/],
+      [with_({ series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'c' }, []), pane: 4 }] }), /pane 4 is not one of 0 to 3/],
+      [with_({ series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'c' }, []), style: { kind: 'candles' } }] }), /style "candles"/],
       [with_({ range: { last: '7y' } }), /range "7y"/],
       [with_({ range: { from: '2024-02-01', to: '2024-01-01' } }), /ends before it starts/],
       [with_({ range: { last: '1y', from: '2024-01-01' } }), /not both/],
@@ -418,7 +428,7 @@ describe('a timeseries against its sources\' columns', () => {
   const RATES: TsColumn[] = [{ name: 'tenor', type: 'String' }, { name: 'obs', type: 'StrictDate' }, { name: 'yield', type: 'Float' }];
   const TS = (series: Record<string, string>, more: Partial<TimeseriesSpec> = {}): TimeseriesSpec => ({
     sources: [{ alias: 'px', cube: 'g1', date: 'day', key: 'symbol' }, { alias: 'rates', cube: 'g2', date: 'obs', key: 'tenor' }],
-    series: Object.entries(series).map(([id, text]) => ({ id, expr: parseExpr(text) })),
+    series: Object.entries(series).map(([id, text]) => ({ id, text: writtenText(parseExpr(text), []) })),
     ...more,
   });
   const cols = new Map([['px', PX], ['rates', RATES]]);
@@ -435,17 +445,17 @@ describe('a timeseries against its sources\' columns', () => {
     };
     has(TS({ A: 'px:price' }), /reads 'price', which source px has not/);
     has(TS({ A: 'px:sector' }), /plots 'sector', which is not a number/);
-    has(TS({ A: '$Z' }), /reads \$Z, which there is not/);
+    has(TS({ A: '$Z' }), /reads 'Z', which source px has not/);
     has(TS({}), /Add a series/);
     has(TS({ A: 'px:close' }), /Source rates's grid is not on the page/, new Map([['px', PX], ['rates', undefined]]));
     has({ ...TS({ A: 'close' }), sources: [{ alias: 'px', cube: 'g1', date: 'close' }] }, /is not a date/);
     has({ ...TS({ A: 'close[AAPL]' }), sources: [{ alias: 'px', cube: 'g1', date: 'day' }] }, /choose source px's instrument column/);
     has({ ...TS({ A: 'bollinger_bands(px:close, 20)', B: 'returns($A)' }) }, /a band is drawn, never read/);
-    has({ ...TS({ A: 'ohlc(px:close, px:close, px:close, px:close)', B: 'returns($A)' }) }, /reads \$A, candles: candles are drawn, never read/);
+    has({ ...TS({ A: 'ohlc(px:close, px:close, px:close, px:close)', B: 'returns($A)' }) }, /reads series A, candles: candles are drawn, never read/);
     has(TS({ A: 'mean(ohlc(px:close, px:close, px:close, px:close), 5)' }), /reads candles: candles are drawn, never read/);
-    const split: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('px:close'), split: 'symbol' }, { id: 'B', expr: parseExpr('returns($A)') }] };
+    const split: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: writtenText(parseExpr('px:close'), []), split: 'symbol' }, { id: 'B', text: writtenText(parseExpr('returns($A)'), []) }] };
     has(split, /split by 'symbol': a series reads only series split as it is/);
-    const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('rates:yield'), split: 'symbol' }] };
+    const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: writtenText(parseExpr('rates:yield'), []), split: 'symbol' }] };
     has(wrongSplit, /which source rates -- the one it reads first -- has not/);
   });
 
@@ -469,7 +479,7 @@ describe('candles', () => {
     assert.equal(unitOf(e), 'same');
     assert.equal(exprText(parseExpr('candles(o, h, l, c)')), 'ohlc(o, h, l, c)', 'by its other names');
     assert.throws(() => parseExpr('ohlc(open, high, low)'), /ohlc reads four series \(its open, high, low and close\)/);
-    assert.match(tsProblem({ sources: [{ alias: 'px', cube: 'g', date: 'd' }], series: [{ id: 'A', expr: { kind: 'call', fn: 'ohlc', args: [{ kind: 'column', column: 'c' }] } }] }) ?? '',
+    assert.match(treeProblem({ kind: 'call', fn: 'ohlc', args: [{ kind: 'column', column: 'c' }] }, 'series A', ['px']) ?? '',
       /ohlc reads four series/);
   });
 
@@ -491,7 +501,7 @@ describe('a first timeseries of a grid', () => {
     ], [], 'grid-1', 'prices');
     assert.deepEqual(ts, {
       sources: [{ alias: 'prices', cube: 'grid-1', date: 'trade_date', key: 'ticker' }],
-      series: [{ id: 'A', expr: { kind: 'column', column: 'close_px' }, split: 'ticker' }],
+      series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'close_px' }, []), split: 'ticker' }],
       view: { compare: 'rebase' },
     });
   });

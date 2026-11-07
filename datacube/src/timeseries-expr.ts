@@ -8,9 +8,9 @@
 // (test/bundle-budget.test.ts). Nothing here computes a value either: it reads and writes words.
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
-import { treeOf } from './timeseries-text.ts';
+import { NOT_BUILT, textProblem, treeOf, writtenText } from './timeseries-text.ts';
 import {
-  AGGREGATES, ALIAS, isConditionOp, manyProblem, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, isConditionOp, manyProblem, seriesWords, tenorOf, treeProblem, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -534,18 +534,7 @@ export const TS_FUNCTION: ReadonlyMap<TsFunctionName, TsFunction> = new Map(TS_F
  * gs-quant's functions DataCube does not compute, each with why: typed, they are refused in these words rather than
  * read as a column of the grid.
  */
-export const NOT_BUILT: Readonly<Record<string, string>> = {
-  smooth_outliers: 'an iterative procedure (rounds of a centred rolling median until no new outlier), which no query states: smooth_spikes takes out a value beyond both its neighbours',
-  repeat: 'it makes dates the data does not have: give the tile a frequency, or combine two series with its align',
-  date_range: 'the tile\'s dates are its range: set it',
-  filter_dates: 'the tile\'s dates are its range: set it',
-  bucketize: 'a value per period is the tile\'s frequency: set it',
-  align_calendar: 'a holiday calendar is none of the tile\'s sources',
-  day_countdown: 'it makes dates the data does not have',
-  generate_series: 'random data: read a grid of your own',
-  corr_swap_correlation: 'it needs an index\'s constituents and their weights',
-  mode: 'the most frequent value of a window: no aggregate every database shares',
-};
+export { NOT_BUILT };
 
 
 /** Every name a person may type, an alias to its function. */
@@ -662,7 +651,7 @@ export class TsInlineError extends Error {}
 export function inlined(e: TsExpr, series: readonly TsSeries[], seen: readonly string[] = []): TsExpr {
   switch (e.kind) {
     case 'ref': {
-      if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].map((id) => `$${id}`).join(' reads ')}`);
+      if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].join(' reads ')}`);
       const s = series.find((x) => x.id === e.series);
       if (!s) throw new TsInlineError(`there is no series ${e.series}`);
       return inlined(treeOf(s, series), series, [...seen, e.series]);
@@ -1230,19 +1219,20 @@ function written(e: TsExpr, outer: number, exact: boolean): string {
   }
 }
 
-/** A series' name as the legend says it: its own, else its expression's text. */
+/** A series' name as the legend says it: its own, else its text. */
 export function seriesName(s: TsSeries): string {
-  return s.name ?? exprText(s.expr);
+  return s.name ?? s.text;
 }
 
 /**
  * A line's name: its series' -- and, one of a split series' lines, its value with it: a named series' after its name
  * ("Yield 10Y"), a plain column's alone ("AAPL"), else before its expression ("AAPL volatility(close, 63)").
  */
-export function splitName(s: TsSeries, split: unknown): string {
+export function splitName(s: TsSeries, split: unknown, series: readonly TsSeries[]): string {
   if (split === undefined) return seriesName(s);
   if (s.name !== undefined) return `${s.name} ${String(split)}`;
-  const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
+  const tree = textProblem(s) === null ? treeOf(s, series) : undefined;
+  const plain = tree?.kind === 'column' && (tree.where ?? []).length === 0;
   return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
 }
 
@@ -1295,15 +1285,25 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
   if (ts.series.length === 0) out.push(NO_SERIES);
   for (const s of ts.series) {
     const name = `Series ${s.id}`;
-    for (const ref of refsOf(treeOf(s, ts.series))) {
-      const other = ts.series.find((x) => x.id === ref);
-      if (!other) {
-        out.push(`${name} reads $${ref}, which there is not.`);
-        continue;
-      }
-      if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads $${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
+    // its text as core reads it, judged by the tile's words (timeseries-text.ts): one that is no series, said
+    const unread = textProblem(s);
+    if (unread !== null) {
+      out.push(`${unread}.`);
+      continue;
+    }
+    const tree = treeOf(s, ts.series);
+    const wrong = treeProblem(tree, name, ts.sources.map((x) => x.alias));
+    if (wrong !== null) {
+      out.push(`${wrong}.`);
+      continue;
+    }
+    for (const ref of refsOf(tree)) {
+      // every ref is a series of the tile (a name of none reads a column: treeOf), one whose text is no series said
+      const other = ts.series.find((x) => x.id === ref)!;
+      if (textProblem(other) !== null) continue;
+      if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads series ${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
       const drawn = drawnOnly(treeOf(other, ts.series));
-      if (drawn !== undefined) out.push(`${name} reads $${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
+      if (drawn !== undefined) out.push(`${name} reads series ${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
     }
     let whole: TsExpr;
     try {
@@ -1424,7 +1424,7 @@ export function firstPlot(columns: readonly TsColumn[], source: TsSource): Pick<
   if (value === undefined) return undefined;
   const rebased = source.key !== undefined && !RATE_WORDS.some((w) => value.toLowerCase().includes(w));
   return {
-    series: [{ id: 'A', expr: columnRef(value), ...(source.key ? { split: source.key } : {}) }],
+    series: [{ id: 'A', text: writtenText(columnRef(value), []), ...(source.key ? { split: source.key } : {}) }],
     ...(rebased ? { view: { compare: 'rebase' } } : {}),
   };
 }

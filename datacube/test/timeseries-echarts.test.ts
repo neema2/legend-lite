@@ -20,6 +20,7 @@ import { timeseriesOption, tsLines, tsPictureHeight, type TsResult } from '../sr
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import { mountTimeseries } from '../src/timeseries-render.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 echarts.use([SVGRenderer]);
 
@@ -37,7 +38,7 @@ function answered(series: string, unit: TsUnit, columns: Record<string, readonly
   return { query, table };
 }
 
-const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
+const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'text'> = {}): TsSeries => ({ id, text: writtenText(parseExpr(expr), []), ...rest });
 const spec = (series: TsSeries[], more: Partial<TimeseriesSpec> = {}): TimeseriesSpec =>
   ({ sources: [{ alias: 'px', cube: 'prices', date: 'day' }], series, ...more });
 

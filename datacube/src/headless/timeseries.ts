@@ -1,7 +1,9 @@
 // A TIMESERIES TILE, HEADLESS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7): the spec of what Python tells it,
-// made by DataCube's own rules -- its expressions read by DataCube's parser, a source's columns by DataCube's defaults,
-// the whole read by the tile's one reader -- so Python's page.timeseries keeps no rule of its own (the charts' rule:
-// headless gridChart). The page command that adds or sets it is Python's generated builder's, applied by pageApply.
+// made by DataCube's own rules -- its series' #TS texts read by core's reader (the host's legend-lite library:
+// timeseries-text.ts readSeriesTexts, A3 step 3), a source's columns by DataCube's defaults, the whole read by the tile's
+// one reader -- so Python's page.timeseries keeps no rule of its own (the charts' rule: headless gridChart). The page
+// command that adds or sets it is Python's generated builder's, applied by pageApply. Every function that walks a
+// series' tree reads the page's texts first (pageRead).
 
 import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { callsLibrary } from '../pure-library.ts';
@@ -24,10 +26,11 @@ import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
 import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
-import { marksCut, marksName, projectionName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
-import {
-  aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, splitName, TsSyntaxError, type TsColumn
-} from '../timeseries-expr.ts';
+import { marksCut, marksName, projectionName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
+import { aliasFor, nextSeriesId, seriesName, sourceOf, splitName, type TsColumn } from '../timeseries-expr.ts';
+import { readSeriesTexts, readTyped, type TsReader } from '../timeseries-text.ts';
+import { LitePlanner } from '../lite-planner.ts';
+import { hostCalls, hostWorker } from './host.ts';
 import { codeOfPage, tileCode, TS_CODE_LANGUAGES, type TsCodeLanguage } from '../timeseries-code.ts';
 import { editTimeseries, firstPlotOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns } from '../timeseries-edit.ts';
 
@@ -45,6 +48,18 @@ function gridOf(page: PageDocument, grid: string): TsGridColumns {
 }
 
 export class Problem extends Error {}
+
+/** Core's reader of a series' text: the host's legend-lite library, one planner of no model made the first time asked. */
+let grammar: LitePlanner | undefined;
+const reader: TsReader = (text) => (grammar ??= new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(hostCalls()) })).tsItem(text);
+
+/** A page as Python holds it (JSON's value), read, every timeseries tile's texts read by core: what a walk of a series'
+ *  tree needs first. */
+async function pageRead(raw: unknown, options: { readonly empty?: boolean } = {}): Promise<PageDocument> {
+  const doc = readPage(raw, options);
+  await Promise.all(doc.views.flatMap((v) => (v.kind === 'timeseries' ? [readSeriesTexts(v.spec.series, reader)] : [])));
+  return doc;
+}
 
 /** A first plot of a source told by its grid, by the screen's Create ▸ Timeseries' rule (timeseries-edit.ts firstPlotOf:
  *  its price-like value, a line per instrument, a price's rebased) -- refused in its words where the screen refuses
@@ -82,28 +97,27 @@ function judged(doc: PageDocument, before: TimeseriesSpec | null, made: unknown)
   }
 }
 
-/** An expression as Python gives it: its text, read by DataCube's parser (refused where it is, in DataCube's words), or a tree. */
-function exprOf(e: unknown, what: string): TsExpr {
-  if (typeof e !== 'string') return e as TsExpr;
-  try {
-    return parseExpr(e);
-  } catch (err) {
-    if (err instanceof TsSyntaxError) throw new Problem(`${what}: ${err.message} (at ${err.at + 1}: ${JSON.stringify(e)})`);
-    throw err;
-  }
+/** A series' text as Python gives it, read by core: its canonical text (refused where it is no series, in core's words). */
+async function textOf(s: Readonly<Record<string, unknown>>, what: string): Promise<string> {
+  if (s['expr'] !== undefined) throw new Problem(`${what}: a series' formula is its #TS text now (text=...), not expr`);
+  const e = s['text'];
+  if (typeof e !== 'string') throw new Problem(`${what}'s text is ${JSON.stringify(e ?? null)}, not a #TS expression`);
+  const read = await readTyped(e, reader);
+  if ('refused' in read) throw new Problem(`${what}: ${read.refused.message}: ${JSON.stringify(e)}`);
+  return read.text;
 }
 
 /**
  * A TIMESERIES' SPEC AS PYTHON TELLS IT: `given` (JSON) is a spec's own slots, but that each source may name its grid by
  * its tile (`grid`, its cube then the grid's) and leave out its alias, its date and its instrument column (DataCube's
  * rule takes them from the grid's columns: timeseries-spec.ts sourceOf, aliasFor), and each series may give its
- * expression as text (`volatility(px:close[SPX], 63)`, read by DataCube's parser) and leave out its id (the next letter).
+ * #TS text (`volatility(px.close['SPX'], w => 63)`, read by core) and leave out its id (the next letter).
  * `page`: the page as Python holds it. JSON: `{spec}` -- read by the tile's one reader -- or `{problems}`, in DataCube's
  * words.
  */
-export function timeseriesMade(page: string, given: string): string {
+export async function timeseriesMade(page: string, given: string): Promise<string> {
   try {
-    const doc = readPage(JSON.parse(page));
+    const doc = await pageRead(JSON.parse(page));
     const told: unknown = JSON.parse(given);
     if (!isRecord(told)) throw new Problem('a timeseries is an object of its sources and its series');
     const rawSources = told['sources'];
@@ -132,10 +146,10 @@ export function timeseriesMade(page: string, given: string): string {
     if (!Array.isArray(rawSeries)) throw new Problem("a timeseries' series are a list");
     const series: TsSeries[] = [];
     for (const [i, raw] of rawSeries.entries()) {
-      const s = typeof raw === 'string' ? { expr: raw } : raw;
+      const s = typeof raw === 'string' ? { text: raw } : raw;
       if (!isRecord(s)) throw new Problem(`series ${i + 1} is not an expression or an object`);
       const id = wordOf(s['id'], `series ${i + 1}'s id`) ?? nextSeriesId(series);
-      series.push({ ...s, id, expr: exprOf(s['expr'], `series ${id}`) } as unknown as TsSeries);
+      series.push({ ...s, id, text: await textOf(s, `series ${id}`) } as unknown as TsSeries);
     }
     const spec = judged(doc, null, { ...told, sources, series, ...(told['view'] === undefined && first?.view ? { view: first.view } : {}) });
     return JSON.stringify({ spec: spec satisfies TimeseriesSpec });
@@ -147,14 +161,14 @@ export function timeseriesMade(page: string, given: string): string {
 
 /**
  * A TIMESERIES TILE CHANGED, HEADLESS: tile `tile` of `page` (JSON, as Python holds it) changed by `given` (JSON, a
- * timeseries-edit.ts TsChange as Python tells it: a series' expression may be its text, read by DataCube's parser; a grid
+ * timeseries-edit.ts TsChange as Python tells it: a series plotted is its #TS text, read by core; a grid
  * read is named by its tile, `{kind: 'read', grid: 'grid-2'}`) by the tile's one rule, editTimeseries -- the rule its
  * viewer's editors ask -- and judged as timeseriesMade judges a tile. JSON: `{spec}`, for Python's setTimeseries, or
  * `{problems}`, in DataCube's words.
  */
-export function timeseriesEdit(page: string, tile: string, given: string): string {
+export async function timeseriesEdit(page: string, tile: string, given: string): Promise<string> {
   try {
-    const doc = readPage(JSON.parse(page));
+    const doc = await pageRead(JSON.parse(page));
     const view = doc.views.find((v) => v.id === tile);
     if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
     const told: unknown = JSON.parse(given);
@@ -166,7 +180,7 @@ export function timeseriesEdit(page: string, tile: string, given: string): strin
       const id = wordOf(s['id'], "the series' id");
       if (told['replace'] !== undefined && typeof told['replace'] !== 'boolean') throw new Problem("a plot's replace is true or false");
       change = {
-        kind: 'plot', series: { ...s, expr: exprOf(s['expr'], `series ${id ?? nextSeriesId(view.spec.series)}`) } as never,
+        kind: 'plot', series: { ...s, text: await textOf(s, `series ${id ?? nextSeriesId(view.spec.series)}`) } as never,
         ...(told['replace'] === true ? { replace: true } : {}),
       };
     } else if (told['kind'] === 'read') {
@@ -378,9 +392,9 @@ function tileOf(page: PageDocument, tile: string): TimeseriesSpec {
  * `table: "bounds"`); else each such source's bounds as the host read them (by alias, each column's first value), JSON
  * `{window}`. Or `{problems}`.
  */
-export function timeseriesWindow(page: string, tile: string, bounds: string): string {
+export async function timeseriesWindow(page: string, tile: string, bounds: string): Promise<string> {
   try {
-    const ts = tileOf(readPage(JSON.parse(page), { empty: true }), tile);
+    const ts = tileOf(await pageRead(JSON.parse(page), { empty: true }), tile);
     const told = JSON.parse(bounds) as unknown;
     if (told === null) {
       // the range's dates its own, or every one: no bounds to read
@@ -433,9 +447,9 @@ export function askedSources(asked: Pick<SeriesAsked, 'table' | 'with'>, ts: Tim
  * (viewSeries). JSON: `{statistics, drawdowns, correlations, views: {scatter, one, curve, calendar}}` (ids; correlations
  * each a pair, a scatter its x and y), or `{problems}`.
  */
-export function timeseriesTables(page: string, tile: string): string {
+export async function timeseriesTables(page: string, tile: string): Promise<string> {
   try {
-    const ts = tileOf(readPage(JSON.parse(page), { empty: true }), tile);
+    const ts = tileOf(await pageRead(JSON.parse(page), { empty: true }), tile);
     // and the series each view draws, by the rule the screen's views read (timeseries-query.ts viewSeries)
     return JSON.stringify({ ...tableSeries(ts), views: viewSeries(ts) });
   } catch (e) {
@@ -450,9 +464,9 @@ export function timeseriesTables(page: string, tile: string): string {
  * for Python's Timeseries.queries, each asked of timeseriesQuery as the screen asks it. JSON: `{asks}` (each its kind,
  * its series, pair or source, its words and what it serves), or `{problems}`.
  */
-export function timeseriesAsks(page: string, tile: string): string {
+export async function timeseriesAsks(page: string, tile: string): Promise<string> {
   try {
-    return JSON.stringify({ asks: tileAsks(tileOf(readPage(JSON.parse(page), { empty: true }), tile)) });
+    return JSON.stringify({ asks: tileAsks(tileOf(await pageRead(JSON.parse(page), { empty: true }), tile)) });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
     throw e;
@@ -464,12 +478,12 @@ export function timeseriesAsks(page: string, tile: string): string {
  * its screen's Code shows it by (timeseries-code.ts tileCode) -- for Python's Timeseries.code. JSON: `{code}`, or
  * `{problems}`.
  */
-export function timeseriesCode(page: string, tile: string, language: string): string {
+export async function timeseriesCode(page: string, tile: string, language: string): Promise<string> {
   try {
     if (!(TS_CODE_LANGUAGES as readonly string[]).includes(language)) {
       throw new Problem(`a tile's code is written in ${TS_CODE_LANGUAGES.join(' or ')}, not ${JSON.stringify(language)}`);
     }
-    const doc = readPage(JSON.parse(page), { empty: true });
+    const doc = await pageRead(JSON.parse(page), { empty: true });
     const { spec, of } = codeOfPage(doc, tile);
     return JSON.stringify({ code: tileCode(spec, of, language as TsCodeLanguage) });
   } catch (e) {
@@ -505,12 +519,12 @@ export function answerOf(q: TsQuery, series: TsSeries): string {
  * split's values as its answer has them, or null for a series of one line. For Python's Timeseries.table, named as the
  * screen's Data tab names its columns (the Phase 2 review's 3). JSON: `{names}`, or `{problems}`.
  */
-export function timeseriesLineNames(page: string, tile: string, series: string, splits: string): string {
+export async function timeseriesLineNames(page: string, tile: string, series: string, splits: string): Promise<string> {
   try {
-    const { series: s } = seriesOf(readPage(JSON.parse(page), { empty: true }), tile, series);
+    const { ts, series: s } = seriesOf(await pageRead(JSON.parse(page), { empty: true }), tile, series);
     const told: unknown = JSON.parse(splits);
     if (told !== null && !Array.isArray(told)) throw new Problem('a series\' lines are named by its split\'s values, or null for one line');
-    return JSON.stringify({ names: told === null ? [splitName(s, undefined)] : told.map((v) => splitName(s, v)) });
+    return JSON.stringify({ names: told === null ? [splitName(s, undefined, ts.series)] : told.map((v) => splitName(s, v, ts.series)) });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
     throw e;
@@ -523,10 +537,10 @@ export function timeseriesLineNames(page: string, tile: string, series: string, 
  * viewer's drawing says them by (timeseries-query.ts seriesNotes; the second audit's P-3: Python's frame dropped them).
  * JSON: `{notes}`, or `{problems}`.
  */
-export function timeseriesNotes(asked: string): string {
+export async function timeseriesNotes(asked: string): Promise<string> {
   try {
     const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly columns: Readonly<Record<string, unknown>> };
-    const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
+    const { ts, series } = seriesOf(await pageRead(a.page, { empty: true }), a.tile, a.series);
     const columns = [[TS_SPLIT, a.columns['split']], [TS_ROWS, a.columns['rows']], [TS_PER_YEAR, a.columns['perYear']]] as const;
     const told = columns.flatMap(([name, values]) => {
       if (values === undefined) return [];
@@ -583,7 +597,7 @@ export function seriesOf(page: PageDocument, tile: string, id: string | undefine
 export async function timeseriesQuery(spec: string): Promise<string> {
   try {
     const asked = fromJson(spec) as unknown as SeriesAsked | BoundsAsked | MarksAsked;
-    const page = readPage(asked.page, { empty: true });
+    const page = await pageRead(asked.page, { empty: true });
     // marks from a grid's rows: of their one grid, read as that grid is, as a source's bounds are
     if (asked.table === 'marks') {
       const marks = marksOf(tileOf(page, asked.tile), asked.marks);

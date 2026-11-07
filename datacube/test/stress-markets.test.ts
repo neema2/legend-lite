@@ -25,13 +25,14 @@ import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
-import { inlined, parseExpr } from '../src/timeseries-expr.ts';
+import { parseExpr, wholeOf } from '../src/timeseries-expr.ts';
 import { marksQuery, seriesQuery, seriesSources, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { readsBase, tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import type { TimeseriesSpec, TsAnnotation, TsView } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readPageTexts } from './catalog-builder.ts';
 import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
+import { treeOf, writtenText } from '../src/timeseries-text.ts';
 
 /** The markets project as config.json lists it: its model files, each as the site serves it. */
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
@@ -140,7 +141,7 @@ const spec = (text: string, over: Over, split?: string): TimeseriesSpec => ({
   sources: [over === 'rows'
     ? { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }
     : { alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
-  series: [{ id: 'A', expr: parseExpr(over === 'rows' ? text : text.replaceAll('close[', 'closePrice[')), ...(split !== undefined ? { split } : {}) }],
+  series: [{ id: 'A', text: writtenText(parseExpr(over === 'rows' ? text : text.replaceAll('close[', 'closePrice[')), []), ...(split !== undefined ? { split } : {}) }],
   grain: 'day',
 });
 
@@ -301,6 +302,9 @@ describe('the example page over the classes, opened the page\'s way', () => {
     }
   });
 
+  // the class page's series' texts read by core before its tiles are walked (A3 step 3)
+  before(async () => { await readPageTexts(marketsClassesPage()); });
+
   for (const v of marketsClassesPage().views) {
     if (v.kind !== 'timeseries') continue;
     it(`${v.title}: every series answers from the project's rows`, async () => {
@@ -319,7 +323,7 @@ describe('the example page over the classes, opened the page\'s way', () => {
         const dates = t.columns.find((c) => c.name === TS_DATE)!.values as unknown[];
         const split = t.columns.find((c) => c.name === TS_SPLIT)?.values as unknown[] | undefined;
         const at = dates.map((d, i) => `${String(d).slice(0, 10)}|${split ? String(split[i]) : ''}`);
-        if (JSON.stringify(series.expr).includes('"fn":"') || v.spec.grain !== undefined) {
+        if (JSON.stringify(treeOf(series, v.spec.series)).includes('"fn":"') || v.spec.grain !== undefined) {
           assert.equal(new Set(at).size, at.length, `${series.id} (${series.name}): one value a date and line`);
         }
         assert.ok(values.filter((x) => x !== null).length >= 20 * lines, `${series.id} (${series.name}): ${values.length} rows, ${lines} lines`);
@@ -374,8 +378,8 @@ describe('the example page over the classes, opened the page\'s way', () => {
     const ts: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
       series: [
-        { id: 'A', expr: parseExpr('mean(turnover.sum, 21)'), split: 'listing' },
-        { id: 'B', expr: parseExpr('tone[sector="Energy"].sum') },
+        { id: 'A', text: writtenText(parseExpr('mean(turnover.sum, 21)'), []), split: 'listing' },
+        { id: 'B', text: writtenText(parseExpr('tone[sector="Energy"].sum'), []) },
       ],
       grain: 'day',
     };
@@ -447,7 +451,7 @@ describe('the markets page and the gallery over classes answer as over the sampl
     const { CLASS_GRIDS, classQueryTree, galleryOnClassesPage, marketsOnClassesPage } = await import('../src/examples/on-classes.ts');
     const over = plannerFor(PROJECT, 'markets::RT');
     const got = new Map<string, Frozen>();
-    for (const page of [await marketsOnClassesPage(), await galleryOnClassesPage()]) {
+    for (const page of [await readPageTexts(await marketsOnClassesPage()), await readPageTexts(await galleryOnClassesPage())]) {
       // each grid's saved query read as the page reads it: its class's query, the cube's columns and grouping
       const grids: TsInputs = new Map(page.cubes.map((c) => [c.id, { snapshot: { ...c.cube.query,
         source: { query: classQueryTree(CLASS_GRIDS.find((g) => g.id === c.id)!) }, epoch: 1 }, filter: undefined }]));
@@ -456,7 +460,7 @@ describe('the markets page and the gallery over classes answer as over the sampl
         // the series as the tile computes it, before its view's compare (timeseries-ts-parity's)
         const ts: TimeseriesSpec = view.spec.view === undefined ? view.spec : { ...view.spec, view: uncompared(view.spec.view) };
         for (const series of ts.series) {
-          for (const anchor of readsBase(inlined(series.expr, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
+          for (const anchor of readsBase(wholeOf(series, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
             const id = `${view.id} ${series.id}${anchor === undefined ? '' : ` from ${anchor}`}`;
             const inputs: TsInputs = new Map(seriesSources(ts, series)
               .map((a) => [a, grids.get(ts.sources.find((x) => x.alias === a)!.cube)!] as const));

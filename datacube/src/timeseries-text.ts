@@ -12,8 +12,11 @@
 //
 // NOTHING HERE PARSES. Text goes to core; core's tree comes back and is mapped, refusing what no tile tree is.
 
-import type { TsNode } from './lite-planner.ts';
-import { TS_SIGNATURES, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries } from './timeseries-spec.ts';
+import type { TsItemAnswer, TsNode } from './lite-planner.ts';
+import { CubeRefusal } from './snapshot.ts';
+import {
+  treeProblem, TS_SIGNATURES, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries,
+} from './timeseries-spec.ts';
 
 /** The words whose parameters the language takes by place (the platform's builder's own: TsToPure's), the rest by
  *  name (`w => 21`). */
@@ -31,17 +34,129 @@ const SPELLED_BACK: ReadonlyMap<string, TsFunctionName> = new Map(Object.entries
  *  `count(x, all)`. */
 const WHOLE: Readonly<Partial<Record<TsFunctionName, 'all' | 'whole'>>> = { first: 'all', last: 'whole', count: 'all' };
 
+/** gs-quant's functions this DataCube does not compute, each with why (gs-quant 2.2.3's timeseries package): refused by
+ *  name where a series' text calls one. */
+export const NOT_BUILT: Readonly<Record<string, string>> = {
+  smooth_outliers: 'an iterative procedure (rounds of a centred rolling median until no new outlier), which no query states: smooth_spikes takes out a value beyond both its neighbours',
+  repeat: 'it makes dates the data does not have: give the tile a frequency, or combine two series with its align',
+  date_range: 'the tile\'s dates are its range: set it',
+  filter_dates: 'the tile\'s dates are its range: set it',
+  bucketize: 'a value per period is the tile\'s frequency: set it',
+  align_calendar: 'a holiday calendar is none of the tile\'s sources',
+  day_countdown: 'it makes dates the data does not have',
+  generate_series: 'random data: read a grid of your own',
+  corr_swap_correlation: 'it needs an index\'s constituents and their weights',
+  mode: 'the most frequent value of a window: no aggregate every database shares',
+};
+
+/** A failure to read a series' text: core refused it, or its reading is no series a tile draws -- said where it is drawn. */
+export class TsTextRefusal extends CubeRefusal {}
+
+// ------------------------------------------------------------------ the readings
+
+/** What reads a series' text: core's one reader (LitePlanner.tsItem: the tab's legend-lite module, Python's native
+ *  library), never DataCube. */
+export type TsReader = (text: string) => Promise<TsItemAnswer>;
+
 /**
- * A SERIES' TREE, the one way every walker reads it: `series` the tile's series, whose ids name the series it reads.
- * (Today the tree the tile holds; once the tile stores text, core's reading of that text.)
+ * CORE'S READINGS OF SERIES' TEXTS, each a function of its text alone: its tree with every bare name left a column (which
+ * one is another series is the tile's to say, treeOf's), or why it is no series. A text the tile writes of a tree it holds
+ * (writtenText) is read back as that tree -- the round trip, proved over every example series and every form the tile
+ * writes (timeseries-ts-parity.test.ts) -- so it is held as read without asking.
  */
-export function treeOf(s: TsSeries, series: readonly TsSeries[]): TsExpr {
-  void series;
-  return s.expr;
+const READINGS = new Map<string, TsExpr | TsTextRefusal>();
+
+/** Every text of `series` read by core, each once (held for the tab: a reading is its text's). */
+export async function readSeriesTexts(series: readonly TsSeries[], reader: TsReader): Promise<void> {
+  const unread = [...new Set(series.map((s) => s.text))].filter((t) => !READINGS.has(t));
+  await Promise.all(unread.map(async (text) => {
+    READINGS.set(text, readingOf(await reader(text)));
+  }));
 }
 
-/** A failure to read core's tree as a tile's: the text is the language's, but no series a tile draws. */
-export class TsTextRefusal extends Error {}
+/** Core's answer for a text, as the tile holds its reading. */
+function readingOf(read: TsItemAnswer): TsExpr | TsTextRefusal {
+  if (read.text === undefined) {
+    return new TsTextRefusal(`${read.error.message} (line ${read.error.line}, column ${read.error.column})`);
+  }
+  if (read.item.alias !== null) {
+    return new TsTextRefusal(`a series' text is its expression: its name is its id, not AS ${read.item.alias}`);
+  }
+  try {
+    const tree = told(seriesExpr(read.item.expr!, []));
+    const problem = treeProblem(tree, 'it', undefined);
+    return problem === null ? tree : new TsTextRefusal(problem);
+  } catch (e) {
+    if (e instanceof TsTextRefusal) return e;
+    throw e;
+  }
+}
+
+/** Core's canonical text of what a person typed, or why it is no series: what the tile keeps of it (each series' text
+ *  as core prints it, so two texts of one meaning are one text). */
+export async function readTyped(text: string, reader: TsReader): Promise<{ readonly text: string } | { readonly refused: TsTextRefusal }> {
+  const read = await reader(text);
+  const reading = readingOf(read);
+  if (reading instanceof TsTextRefusal) return { refused: reading };
+  READINGS.set(read.text!, reading);
+  return { text: read.text! };
+}
+
+/** The text of a tree the tile holds, `series` the tile's (whose ids name the series it reads): its reading held. */
+export function writtenText(tree: TsExpr, series: readonly TsSeries[]): string {
+  const text = seriesText(tree, series.map((s) => s.id));
+  if (!READINGS.has(text)) READINGS.set(text, told(unref(tree)));
+  return text;
+}
+
+/** Why `s`'s text is no series, in words; null where it reads (it must have been read: readSeriesTexts). */
+export function textProblem(s: TsSeries): string | null {
+  const r = READINGS.get(s.text);
+  if (r === undefined) throw new Error(`series ${s.id}'s text was never read (readSeriesTexts first): ${s.text}`);
+  return r instanceof TsTextRefusal ? `Series ${s.id}: ${r.message}` : null;
+}
+
+/**
+ * A SERIES' TREE, the one way every walker reads it: core's reading of its text, `series` the tile's, whose ids name the
+ * series it reads (`A`). A text never read is a fault of the caller's (readSeriesTexts first); one core refused, its
+ * refusal.
+ */
+export function treeOf(s: TsSeries, series: readonly TsSeries[]): TsExpr {
+  const r = READINGS.get(s.text);
+  if (r === undefined) throw new Error(`series ${s.id}'s text was never read (readSeriesTexts first): ${s.text}`);
+  if (r instanceof TsTextRefusal) throw new TsTextRefusal(`series ${s.id}: ${r.message}`);
+  const ids = series.map((x) => x.id);
+  return ids.length === 0 ? r : reffed(r, ids);
+}
+
+/** `e`'s bare names of `ids` read as those series: a column of no source, subscript or aggregate named as one. */
+function reffed(e: TsExpr, ids: readonly string[]): TsExpr {
+  switch (e.kind) {
+    case 'column':
+      return e.source === undefined && e.fn === undefined && (e.where ?? []).length === 0 && ids.includes(e.column)
+        ? { kind: 'ref', series: e.column } : e;
+    case 'binary':
+      return { ...e, left: reffed(e.left, ids), right: reffed(e.right, ids) };
+    case 'call':
+      return { ...e, args: e.args.map((a) => reffed(a, ids)) };
+    default:
+      return e;
+  }
+}
+
+/** `e` with each series it reads a bare name: as its reading holds it, of its text alone. */
+function unref(e: TsExpr): TsExpr {
+  switch (e.kind) {
+    case 'ref':
+      return { kind: 'column', column: e.series };
+    case 'binary':
+      return { ...e, left: unref(e.left), right: unref(e.right) };
+    case 'call':
+      return { ...e, args: e.args.map(unref) };
+    default:
+      return e;
+  }
+}
 
 // ------------------------------------------------------------------ the writer
 
@@ -157,7 +272,7 @@ function matchText(m: TsMatch): string {
  */
 export function seriesExpr(node: TsNode, ids: readonly string[]): TsExpr {
   const no = (what: string, n: TsNode = node): never => {
-    throw new TsTextRefusal(`${what} at line ${n.at[0]}, column ${n.at[1]} is no series a tile draws`);
+    throw new TsTextRefusal(`${what} (line ${n.at[0]}, column ${n.at[1]})`);
   };
   const part = (name: string): TsNode => node[name] as TsNode;
   switch (node.k) {
@@ -167,29 +282,29 @@ export function seriesExpr(node: TsNode, ids: readonly string[]): TsExpr {
       const operand = part('operand');
       if (node['op'] === 'NOT') return { kind: 'call', fn: 'not', args: [seriesExpr(operand, ids)] };
       if (node['op'] === 'MINUS' && operand.k === 'number') return { kind: 'number', value: -Number(operand['text']) };
-      return no(`a sign before ${operand.k}`);
+      return no(`a sign before a ${operand.k} is no series a tile draws`);
     }
     case 'column':
     case 'pick':
       return columnOf(node, ids, undefined, no);
     case 'binary': {
       const op = OPERATOR_BACK[String(node['op'])];
-      if (op === undefined) return no(`the operator ${String(node['op'])}`);
+      if (op === undefined) return no(`the operator ${String(node['op'])} is none a tile draws`);
       return { kind: 'binary', op, left: seriesExpr(part('left'), ids), right: seriesExpr(part('right'), ids) };
     }
     case 'call':
       return callOf(node, ids, no);
     default:
-      return no(`a ${node.k}`);
+      return no(`a ${node.k} is no series a tile draws`);
   }
 }
 
 /** A column (`close`, `rates.yield`), picked (`close['SPX']`), taken by a period's aggregate where `fn` is given. */
 function columnOf(node: TsNode, ids: readonly string[], fn: TsAggregate | undefined, no: (what: string, n?: TsNode) => never): TsExpr {
   const picked = node.k === 'pick' ? node['of'] as TsNode : node;
-  if (picked.k !== 'column') return no(`a subscript of a ${picked.k}`, picked);
+  if (picked.k !== 'column') return no(`a subscript of a ${picked.k} is no series a tile draws`, picked);
   const parts = picked['parts'] as readonly string[];
-  if (parts.length > 2) return no(`the name ${parts.join('.')}`, picked);
+  if (parts.length > 2) return no(`the name ${parts.join('.')} is no column of a source (source.column)`, picked);
   if (node.k === 'column' && parts.length === 1 && fn === undefined && ids.includes(parts[0]!)) {
     return { kind: 'ref', series: parts[0]! };
   }
@@ -204,7 +319,7 @@ function columnOf(node: TsNode, ids: readonly string[], fn: TsAggregate | undefi
 function matchOf(key: TsNode, no: (what: string, n?: TsNode) => never): TsMatch {
   if (key.k === 'binary' && key['op'] === 'EQ' && (key['left'] as TsNode).k === 'column') {
     const parts = (key['left'] as TsNode)['parts'] as readonly string[];
-    if (parts.length !== 1) return no(`a match on ${parts.join('.')}`, key);
+    if (parts.length !== 1) return no(`a match on ${parts.join('.')} is on no column of the source`, key);
     return { column: parts[0]!, value: valueOf(key['right'] as TsNode, no) };
   }
   return { value: valueOf(key, no) };
@@ -214,7 +329,7 @@ function valueOf(v: TsNode, no: (what: string, n?: TsNode) => never): string | n
   if (v.k === 'string' || v.k === 'boolean') return v['value'] as string | boolean;
   if (v.k === 'number') return Number(v['text']);
   if (v.k === 'unary' && v['op'] === 'MINUS' && (v['operand'] as TsNode).k === 'number') return -Number((v['operand'] as TsNode)['text']);
-  return no(`a ${v.k} to match`, v);
+  return no(`a ${v.k} is no value to match`, v);
 }
 
 function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsNode) => never): TsExpr {
@@ -224,15 +339,15 @@ function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsN
   const taken = TAKEN_BACK.get(name);
   if (taken !== undefined && all.length === 1) {
     if (all[0]!.k === 'column' || all[0]!.k === 'pick') return columnOf(all[0]!, ids, taken, no);
-    return no(`${name}(...) of a computed series, a period's (a tile takes a column's: ${name}(close))`);
+    return no(`${name}(...) of a computed series is a period's: a tile takes a column's, ${name}(close)`);
   }
   // the tile's word, as the language spells it (ln, greatest, least); gs-quant's log, floor and ceil core refuses
   const fn = SPELLED_BACK.get(name) ?? (Object.hasOwn(TS_SIGNATURES, name) && !Object.hasOwn(SPELLED, name) ? name as TsFunctionName : undefined);
-  if (fn === undefined) return no(`${name}(...), no word of the tile's,`);
+  if (fn === undefined) return no(NOT_BUILT[name.toLowerCase()] !== undefined ? `${name}: ${NOT_BUILT[name.toLowerCase()]}` : `there is no function ${name}`);
   const sig = TS_SIGNATURES[fn];
   const options = all.filter((a) => a.k === 'option');
   const placed = all.filter((a) => a.k !== 'option');
-  if (options.length > 0 && all.indexOf(options[0]!) < placed.length) return no(`${name}'s argument after one by name`);
+  if (options.length > 0 && all.indexOf(options[0]!) < placed.length) return no(`${name} takes no argument by place after one by name`);
   const whole = WHOLE[fn];
   // the series it reads: as its signature counts them (a weighted sum's, all it is given by place)
   const byPlace = BY_PLACE.has(fn) || fn === 'power' || fn === 'floor' || fn === 'ceil';
@@ -240,18 +355,18 @@ function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsN
   const series = placed.slice(0, count);
   let rest = placed.slice(count);
   if (whole !== undefined) {
-    if (rest[0]?.k !== whole) return no(`${name} without its window of the whole line (${name}(x, ${whole}))`);
+    if (rest[0]?.k !== whole) return no(`${name} is of the whole line: ${name}(x, ${whole})`);
     rest = rest.slice(1);
   }
   const params: Record<string, number | string> = {};
   if (byPlace) {
-    if (rest.length > sig.params.length) return no(`${name}'s ${rest.length} parameters (it takes ${sig.params.length})`);
+    if (rest.length > sig.params.length) return no(`${name} takes ${sig.params.length} parameters, not ${rest.length}`);
     rest.forEach((r, i) => { params[sig.params[i]!.name] = paramOf(fn, sig.params[i]!.name, r, no); });
   } else {
-    if (rest.length > 0) return no(`${name}'s parameter by place (by name: ${sig.params.map((p) => `${p.name} =>`).join(', ')})`, rest[0]);
+    if (rest.length > 0) return no(`${name} takes its parameters by name: ${sig.params.map((p) => `${p.name} =>`).join(', ')}`, rest[0]);
     for (const o of options) {
       const pname = String(o['name']);
-      if (!sig.params.some((p) => p.name === pname)) return no(`${name}'s ${pname}, no parameter of it,`, o);
+      if (!sig.params.some((p) => p.name === pname)) return no(`${name} has no parameter ${pname}`, o);
       params[pname] = paramOf(fn, pname, o['value'] as TsNode, no);
     }
   }
@@ -268,16 +383,16 @@ function paramOf(fn: TsFunctionName, name: string, v: TsNode, no: (what: string,
   if (kind === 'span' && v.k === 'span') {
     const unit = String(v['unit']);
     const tile = unit === 'mo' ? 'm' : unit;
-    if (!['d', 'w', 'm', 'y'].includes(tile)) return no(`a span of ${unit} (a tile's is days, weeks, months or years)`, v);
+    if (!['d', 'w', 'm', 'y'].includes(tile)) return no(`a span of ${unit} is none a tile reads: days, weeks, months or years`, v);
     return `${String(v['n'])}${tile}`;
   }
   if (kind === 'word') {
-    if (v.k !== 'string') return no(`${fn}'s ${name}, which is a word ('...'),`, v);
+    if (v.k !== 'string') return no(`${fn}'s ${name} is a word, written as one: '...'`, v);
     return String(v['value']);
   }
   if (v.k === 'number') return Number(v['text']);
   if (v.k === 'unary' && v['op'] === 'MINUS' && (v['operand'] as TsNode).k === 'number') return -Number((v['operand'] as TsNode)['text']);
-  return no(`${fn}'s ${name}, which is a number,`, v);
+  return no(`${fn}'s ${name} is a number`, v);
 }
 
 /** `e` with every parameter told (its default where it was not): what reads back from its own text, compared. */

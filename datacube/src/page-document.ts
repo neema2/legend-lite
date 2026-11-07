@@ -42,12 +42,14 @@ import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
- * 6: the page's model keeps each grid's tables, a list -- a join's leaves' each (2026-10-20,
+ * 7: a timeseries tile's series each its #TS text, read by core, where 6 kept the tile's own tree (2026-11-07, A3 step 3:
+ * docs/TS_A3_ONE_READER_PLAN_2026_11_03.md, decision 1 (a): a page of 6 is refused, as every older version). 6: the
+ * page's model keeps each grid's tables, a list -- a join's leaves' each (2026-10-20,
  * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). 5: the page's filters, by a class's property (2026-10-19, §16.2). 4:
  * the page's model, where its classes are (2026-10-10, §15.3). 3: sheets, each its own bands (2026-10-09,
- * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 6 is read.
+ * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 7 is read.
  */
-export const PAGE_VERSION = 6;
+export const PAGE_VERSION = 7;
 /** The sheet a page of one sheet has: a new page's, and a cube alone's. */
 export const FIRST_SHEET = 'sheet-1';
 

@@ -1536,7 +1536,7 @@ export function seriesNotes(ts: TimeseriesSpec, s: TsSeries, table: ResultTable,
       if (n !== null) line.annualized = true;
       lines.set(k, line);
     });
-    const none = [...lines.values()].filter((l) => !l.annualized).map((l) => splitName(s, l.split))
+    const none = [...lines.values()].filter((l) => !l.annualized).map((l) => splitName(s, l.split, ts.series))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     if (none.length > 0) {
       notes.push(`${none.join(', ')}: ${none.length === 1 ? 'its' : 'their'} dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);

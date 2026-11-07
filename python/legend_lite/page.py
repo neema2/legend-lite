@@ -1465,8 +1465,8 @@ class Grid(Tile):
 
     def timeseries(self, *series: Any, title: str | None = None, **slots: Any) -> Timeseries:
         """A timeseries tile of this grid alone, under it (``Page.timeseries`` with this grid its one source): its date
-        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each an expression
-        (``'close[AAPL]'``, ``'volatility(close[AAPL], 63)'``); none: DataCube's first series of it."""
+        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each a #TS expression
+        (``"close['AAPL']"``, ``"volatility(close['AAPL'], w => 63)"``); none: DataCube's first series of it."""
         told = {k: slots.pop(k) for k in ('date', 'key', 'alias') if k in slots}
         return self._page.timeseries({'grid': self, **told}, series, title=title, **slots)
 
@@ -1947,8 +1947,9 @@ class Text(Tile):
 
 def _series_told(expr: str, name: str | None, split: str | None, pane: int | None, axis: str | None,
                  style: Mapping[str, Any] | None) -> dict[str, Any]:
-    """A series as Python's plot and edit tell it: its expression's text (read by DataCube's parser) and the slots given."""
-    told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
+    """A series as Python's plot and edit tell it: its #TS text (read by core, the one reader: A3 step 3) and the slots
+    given."""
+    told = {'text': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
     return {k: v for k, v in told.items() if v is not None}
 
 
@@ -1980,9 +1981,9 @@ def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
 @_operations
 class Timeseries(Tile):
     """A timeseries tile -- DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any
-    number of the page's grids along one time axis, each an expression in gs-quant's vocabulary, PlotTool Pro's --
-    ``returns(px:close[SPX], 1, log)``, ``volatility($A, 63)``, ``correlation($A, $B, 126)``, ``$A / $B`` -- read by
-    DataCube's own parser; every figure the database's. Its spec is DataCube's page document's (``spec``); each change
+    number of the page's grids along one time axis, each a #TS expression in gs-quant's vocabulary, PlotTool Pro's --
+    ``returns(px.close['SPX'], 1, 'log')``, ``volatility(A, w => 63)``, ``correlation(A, B, w => 126)``, ``A / B`` --
+    read by core, the one reader (A3 step 3); every figure the database's. Its spec is DataCube's page document's (``spec``); each change
     is the command its viewer sends (page-commands.ts setTimeseries), judged by DataCube in its words."""
 
     _kind = 'timeseries'
@@ -2842,7 +2843,7 @@ class Sheet:
         """A timeseries tile on this sheet -- under ``near`` (a tile of this sheet), else a band of its own at its bottom
         -- reading ``sources`` (a grid, grids, or grids by alias: ``{'px': prices, 'rates': rates}``; each grid's date
         and instrument columns DataCube's to choose unless told: ``{'grid': rates, 'date': 'asof', 'key': 'tenor'}``),
-        plotting ``series`` (each an expression, ``'volatility(px:close[SPX], 63)'``, or a mapping of one and how it is
+        plotting ``series`` (each a #TS expression, ``"volatility(px.close['SPX'], w => 63)"``, or a mapping of its ``text`` and how it is
         drawn), with its other ``slots`` (``grain``, ``range``, ``view``, ``panes``, ``annotations``) -- as Create ▸
         Timeseries adds one (page-commands.ts addTimeseries), every word judged by DataCube."""
         _ = self._doc

@@ -73,6 +73,7 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
 import type { TimeseriesView, TsGrid, TsTogether } from '../ui/timeseries-view.ts';
+import type { TsReader } from '../timeseries-text.ts';
 import { sha256 } from '../cube-document.ts';
 import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
 import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, pickedRefusal, textFileFormat, type TextFile } from '../text-files.ts';
@@ -388,6 +389,9 @@ export interface CubePageOptions {
    * database. Absent, such a series is refused in words.
    */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
+  /** Core's reader of a timeseries series' #TS text (timeseries-text.ts TsReader; the host's legend-lite module): what a
+   *  timeseries tile reads its series by, before it is drawn. Absent, a timeseries tile says it cannot be read. */
+  readonly readText?: TsReader;
   /** A cube the page holds as it saved it, its source not opened (page-app.ts: P9), by its id: what a timeseries tile
    *  freezing keeps of it (its filter), as Python's freeze reads the page's cube. Absent: none such. */
   readonly unopenedCube?: (cube: string) => CubeDocument | undefined;
@@ -3475,10 +3479,19 @@ export class CubePage {
    */
   #drawTimeseries(id: string): void {
     if (this.#sheetOf(id) !== this.#shown) return;
-    void lazily(() => import('../ui/timeseries-view.ts')).then(({ TimeseriesView }) => {
+    const readText = this.#options.readText;
+    void lazily(() => import('../ui/timeseries-view.ts')).then(async ({ TimeseriesView, readSeriesTexts }) => {
       const tile = this.#series.get(id);
       if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
+      if (readText === undefined) {
+        tile.body.textContent = 'This page reads no timeseries: its host has no #TS reader (legend-lite\'s module).';
+        return;
+      }
+      // its series' texts read by core before it is drawn (A3 step 3): the tile's every walk reads core's trees
+      await readSeriesTexts(tile.spec.series, readText);
+      if (tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
+        readText,
         grid: (cube) => this.#tsGrid(cube),
         // each source's filter as the page holds its cube: its grid's (on the board or kept off it), else as the page
         // saved it, its source not opened -- the rule Python's freeze reads the page's cubes by (headless timeseriesEdit)

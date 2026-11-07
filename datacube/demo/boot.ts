@@ -11,6 +11,7 @@ import type { HeldCopy } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
+import type { TsItemAnswer } from '../src/lite-planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
@@ -192,6 +193,8 @@ export interface Engine {
    * that make, fill and drop it (engine-client's project-data.ts) -- the same module as `tables`.
    */
   readonly projects: ProjectDataSource;
+  /** A timeseries series' #TS text, read by core (A3 step 3): the same module as `tables`. */
+  tsItem(text: string): Promise<TsItemAnswer>;
   /**
    * A file opened in this tab: the planner repointed at the model written for it from DuckDB's
    * catalog (`tables`, infer.ts). Every planner takes one (planners.ts).
