@@ -81,10 +81,10 @@ class CodeShapeGuardrailTest {
             // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
             // batch planned and left for the walk
             "VerdictBatch.counted",
-            // 2026-11-05, the split rung's tripwire (the user's ruling: after a verdict the harness may only explain a
-            // failure): the planned batch's first rejected fused statement, latched when the runner reports it and read
-            // once the root loop is through -- a rejection no assert reproduces alone fails as a lite error
-            "VerdictBatch.rejected",
+            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
+            // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
+            // reports straight to the caller's listener
+            "Appeals.deciding",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

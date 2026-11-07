@@ -311,7 +311,9 @@ final class AgreementAsserts implements TestDoor.Asserts {
                     if (database == null) {
                         return null;   // the database judge declines: not this shape -- strict, a failure
                     }
-                    database.planned().judge(null, reader);
+                    // the verdict alone: a failure both judges agree on is told in the host's words, its message the
+                    // host's side on the assert's verdict (AgreementArm)
+                    database.planned().judge(null, reader, false);
                     return AssertVerdicts.ok();
                 }));
     }

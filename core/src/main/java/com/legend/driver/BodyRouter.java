@@ -48,9 +48,13 @@ public final class BodyRouter {
 
     /** {@code typed} run on {@code session}: moved or walked ({@link BodyDriver#execute}'s contract either way). */
     public static void execute(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
-            Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
+            Sessions.Session session, @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
+        // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
+        // judges tell the caller's listener through it, its reports kept back while an appeal is held
+        Appeals appeals = new Appeals(callers);
+        AssertListener listener = appeals.listener();
         TypedQuery typed;
         BodyClass bodyClass;
         boolean systemRouted;
@@ -147,13 +151,32 @@ public final class BodyRouter {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
                 listener.beforeRun();
             }
-            PlanRunner.program(plan, Map.of(),
-                    PlanSessions.of(session, null, systemSessions),
-                    database != null ? PlanRunner.Judging.DATABASE
-                            : agreement != null ? PlanRunner.Judging.BOTH : PlanRunner.Judging.HOST, moved);
-            if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
-                // a body whose last statement is an assert answers its verdict as host rows, as the walk does
-                JudgePlans.host(moved.lastVerdict(), answer);
+            boolean decided = false;
+            try {
+                try (var open = appeals.open()) {
+                    PlanRunner.program(plan, Map.of(),
+                            PlanSessions.of(session, null, systemSessions),
+                            database != null ? PlanRunner.Judging.DATABASE
+                                    : agreement != null ? PlanRunner.Judging.BOTH : PlanRunner.Judging.HOST, moved);
+                }
+                // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
+                // the body's failure, before the body answers
+                decided = true;
+                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions));
+                if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
+                    // a body whose last statement is an assert answers its verdict as host rows, as the walk does
+                    JudgePlans.host(moved.lastVerdict(), answer);
+                }
+            } catch (Error e) {
+                // a wall's refusal or the JVM's: nothing is decided after it
+                decided = true;
+                throw e;
+            } finally {
+                if (!decided) {
+                    // the run failed after an appeal was held: the appeal precedes the failure, so a failed appeal is
+                    // the body's failure (raised here, in the run's failure's place); else the run's failure stands
+                    appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions));
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

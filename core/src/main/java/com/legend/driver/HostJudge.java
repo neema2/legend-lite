@@ -943,7 +943,7 @@ final class HostJudge {
     private static @com.legend.base.Nullable TypedSide messagedOf(HostJudgment.Messaged m, List<TypedSide> sides,
             com.legend.executionplan.ExecutionPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        try {
+        try (var messaged = com.legend.judge.CallerMessage.judging()) {
             return judge(m.inner(), sides.subList(0, m.innerSides()), rules);
         } catch (com.legend.error.AssertFailed e) {
             if (e.unjudgedReason() != null) {

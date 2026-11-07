@@ -16,8 +16,6 @@ package com.legend.exec;
 public enum StatementOrigin {
     /** The body's fused verdict statement (one per test body). */
     BODY,
-    /** A body that fell back to per-assert statements. */
-    FALLBACK,
     /** A let's frame RUN at the let (the host judge's path). */
     LET,
     /** A value-position execute: its result IS the value asked for. */

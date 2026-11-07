@@ -1135,7 +1135,7 @@ public class MinimalCorpusTest {
     private static final java.util.Set<com.legend.exec.StatementOrigin> PRODUCT_OWNED = java.util.EnumSet.of(
             com.legend.exec.StatementOrigin.RAW, com.legend.exec.StatementOrigin.SIDE,
             com.legend.exec.StatementOrigin.STATEMENT, com.legend.exec.StatementOrigin.TDG,
-            com.legend.exec.StatementOrigin.PROBE, com.legend.exec.StatementOrigin.FALLBACK,
+            com.legend.exec.StatementOrigin.PROBE,
             com.legend.exec.StatementOrigin.LET, com.legend.exec.StatementOrigin.VALUE,
             com.legend.exec.StatementOrigin.OTHER);
 

@@ -386,7 +386,7 @@ final class SqlTextVerdicts {
                 return fail(c.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }
-            return appealed(c.appeal(), g, ours, false);
+            return appealed(c.name(), c.appeal(), g, ours, false);
         }
         boolean textEqual = c.textEqual();
         if (c.ours() == null) {
@@ -443,24 +443,26 @@ final class SqlTextVerdicts {
                             return read == null
                                     ? fail(name + " (sql-text): our text side, a String to one, read no string at"
                                             + " the verdict step")
-                                    : appealed(appeal, golden, read, golden.equals(read));
+                                    : appealed(name, appeal, golden, read, golden.equals(read));
                         });
                 return ok();
             }
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
-                    row -> appealed(appeal, golden, ours, textEqual));
+                    row -> appealed(name, appeal, golden, ours, textEqual));
             return ok();
         }
-        return textEqual ? ok() : appeals ? appealed(appeal, golden, ours, textEqual) : textsDiffer(name, golden, ours, decline);
+        return textEqual ? ok() : appeals ? appealed(name, appeal, golden, ours, textEqual) : textsDiffer(name, golden, ours, decline);
     }
 
     /** The appeal heard: compatibility mode's rows after a text mismatch (the owner's ruling, 2026-11-05: "the row
      *  fallbacks for text mismatches in the HARNESS only for compatibility"), reached under the compatibility rules
-     *  alone ({@link #appeals}). It plans nothing while the program runs (zero exemptions, the owner, 2026-11-05): our
-     *  rows and the runner's provision of the stores they read were planned with the assert ({@link RowsAhead}), and
-     *  the golden's replay is the referee's text. */
-    private static TypedSide appealed(TextAppeal appeal, String golden, String ours, boolean textEqual) {
-        return appeal.appeal(golden, ours, textEqual);
+     *  alone ({@link #appeals}). HELD for after the body's run ({@link Appeals}, P1.2, 2026-11-07: the appeal is the
+     *  edge's, and plans and runs its own statements after the run, never through the body's reader) -- the assert
+     *  holds until then. It plans nothing then either (zero exemptions, the owner, 2026-11-05): our rows and the
+     *  runner's provision of the stores they read were planned with the assert ({@link RowsAhead}), and the golden's
+     *  replay is the referee's text. */
+    private static TypedSide appealed(String name, TextAppeal appeal, String golden, String ours, boolean textEqual) {
+        return Appeals.hold(name, () -> appeal.appeal(golden, ours, textEqual));
     }
 
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
@@ -1733,9 +1735,8 @@ final class SqlTextVerdicts {
         // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
         RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
-        // inside a body's run the appeal starts no run (THE WALL's rule 4, its named residue deleted 2026-11-06): its
-        // stores are provided before the body's run (AssertListener.beforeRun) and its rows read by the program's
-        // reader (RunReader)
+        // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its stores are provided before the
+        // body's run (AssertListener.beforeRun) and its rows read as plans of their own on the body's sessions
         // the referee's in-list temp table, planned: its rows read off the typed query in the frame's own zone (the
         // envelope spliced where a let-bound Result stood); its name, the one the golden reads, at the appeal
         InListSeed seed = ahead != null && temps.isEmpty()
@@ -1810,14 +1811,14 @@ final class SqlTextVerdicts {
             if (side.kind() == JudgePlans.Kind.CONSTANT) {
                 return side.answered();
             }
-            // inside a moved body's run: the side the runner reads on the program's sessions (RunReader, the walk
-            // deletion's step 3) -- never a run of its own; the walk (no run) runs it in place
+            // after the body's run: the edge's reader, the side a plan of its own on the body's sessions (Appeals,
+            // P1.2, 2026-11-07) -- never the body's reader
             com.legend.exec.PlanRunner.SideReader reader = RunReader.current();
             com.legend.exec.PlanRunner.Rows rows;
             try {
                 if (reader == null) {
-                    // no fallback (2026-11-06, the plan ahead): an appeal's side is read by the running program alone
-                    throw new IllegalStateException("an appeal's planned side read outside the body's run: no reader");
+                    // no fallback (2026-11-06, the plan ahead): an appeal's side is read by its decision alone
+                    throw new IllegalStateException("an appeal's planned side read outside its decision: no reader");
                 }
                 rows = reader.read(side.side());
             } catch (java.io.IOException e) {

@@ -1393,6 +1393,10 @@ class JavaEvalLedgerTest {
                     "PrimitiveCensus.java",
                     "AssertListener.java",
                     "SqlReplayReferee.java",
+                    // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run):
+                    // whether the assert being judged carries a caller's message, so an appeal held under it is refused
+                    // by name if it fails (the message is unread after the run) -- a flag, no value judged
+                    "CallerMessage.java",
                     "package-info.java");
 
 
@@ -1491,6 +1495,12 @@ class JavaEvalLedgerTest {
                     // planned with its assert inside the body's run and never starts a run of its own. A scoped slot;
                     // sends nothing itself, plans nothing, evaluates nothing
                     "RunReader.java",
+                    // 2026-11-07, P1.2 (the goals of record, G4/G5: a compatibility appeal plans and runs its own
+                    // statements after the body's run, never through the body's reader): a body's held appeals --
+                    // held at their asserts while the run goes on, the listener's reports kept back, then decided in
+                    // order, each planned side read as a plan of its own on the body's sessions. Plans nothing, sends
+                    // through the runner, judges nothing itself (the appeal's judgment is SqlTextVerdicts')
+                    "Appeals.java",
                     // the host judge's sides as a verdict step's base (the seam program's S2f, 2026-10-30): plans the
                     // arm's sides, hands them to the runner as one verdict's base and carries the rows back by
                     // position; judges nothing (D7: the host judge is the receiver's exception, never in the plan)

@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A PROGRAM run by the runner (the planner-driver seam program's S1b, 2026-10-30,
  * docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.2 to §3.4): a verdict group as a step, its rows to the program's
- * sink as the judging mode asks -- the DATABASE judge's rows from the fused statement, each verdict's own wrapper
- * where the database rejects the fused one (the split rung, counted), the HOST judge's sides as typed rows (a
+ * sink as the judging mode asks -- the DATABASE judge's rows from the fused statement (a rejected one failing the
+ * program by name, nothing retried: P1.2, 2026-11-07), the HOST judge's sides as typed rows (a
  * constant side as its text cells) -- and the program's answer after the steps; a verdict group refused on the
  * answer path; the plan read back from its JSON. No caller makes a verdict step yet: these plans are built by hand
  * on the platform's database.
@@ -228,16 +228,19 @@ final class ProgramRunnerTest {
     }
 
     @Test
-    @DisplayName("the split rung: the database rejects the fused statement, the sink told, each verdict's own wrapper runs")
-    void aRejectedFusedStatementFallsToEachWrapper() throws IOException {
+    @DisplayName("the database rejects the fused statement: the sink told, the program fails by the verdicts' names,"
+            + " no wrapper run in its place (P1.2: exec runs only the plan's statements)")
+    void aRejectedFusedStatementFailsTheProgram() {
         Recording sink = new Recording();
-        PlanRunner.program(new ExecutionPlan(List.of(), group(fused("SELECT * FROM no_such_table_s1b"))), Map.of(),
-                sessions(), PlanRunner.Judging.DATABASE, sink);
-        assertEquals(3, sink.events.size(), sink.events.toString());
+        com.legend.error.DataError e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.DataError.class, () -> PlanRunner.program(new ExecutionPlan(List.of(),
+                        group(fused("SELECT * FROM no_such_table_s1b"))), Map.of(), sessions(),
+                        PlanRunner.Judging.DATABASE, sink));
+        assertEquals(1, sink.events.size(), sink.events.toString());
         assertTrue(sink.events.get(0).startsWith("fused rejected: "), sink.events.get(0));
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events.subList(1, 3));
-        assertEquals(java.util.Arrays.asList(true, "x", "x", null, false), cells(sink.verdictRows.get(0)));
-        assertEquals(java.util.Arrays.asList(false, "a", "b", null, false), cells(sink.verdictRows.get(1)));
+        assertTrue(e.getMessage().startsWith("the database rejected the verdict statement of [assertEquals@2,"
+                + " assertEquals@3]: "), e.getMessage());
+        assertTrue(sink.verdictRows.isEmpty(), "no wrapper ran in the fused statement's place");
     }
 
     @Test
@@ -515,10 +518,10 @@ final class ProgramRunnerTest {
     }
 
     @Test
-    @DisplayName("F11: a fused statement inside a transaction is guarded by the group's savepoint, outside it is not")
-    void aFusedStatementInATransactionIsGuardedByItsSavepoint() throws Exception {
-        // the savepoint's three texts are stand-ins that log their step (DuckDB has no savepoint; a catalog error
-        // does not abort its transaction, so the rejected fused statement leaves the rung observable)
+    @DisplayName("F11: a fused statement inside a transaction is sent bare -- no savepoint around it (its rejection"
+            + " fails the program, whose transaction rolls back whole: P1.2)")
+    void aFusedStatementInATransactionIsSentBare() throws Exception {
+        // the savepoint's three texts are stand-ins that log their step (DuckDB has no savepoint)
         exec("CREATE OR REPLACE TABLE m3b_sp (step VARCHAR)");
         exec("CREATE OR REPLACE TABLE m3b_w (a INTEGER)");
         ExecutionPlan.Verdicts.Savepoint sp = new ExecutionPlan.Verdicts.Savepoint(
@@ -528,16 +531,14 @@ final class ProgramRunnerTest {
                 target), null);
         ExecutionPlan.Verdicts held = group(fused(FUSED));
         ExecutionPlan.Verdicts guarded = new ExecutionPlan.Verdicts(held.verdicts(), held.fused(), sp, held.rules());
-        run(new ExecutionPlan.Sequence(List.of(write, guarded)), PlanRunner.Judging.DATABASE);
-        assertEquals(List.of("set", "release"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
+        Recording ran = run(new ExecutionPlan.Sequence(List.of(write, guarded)), PlanRunner.Judging.DATABASE);
+        assertEquals(2, ran.verdictRows.size());
+        assertEquals(0, count("m3b_sp"), "no savepoint statement around the fused statement");
         ExecutionPlan.Verdicts rejected = group(fused("SELECT * FROM no_such_table_m3b"));
-        Recording split = run(new ExecutionPlan.Sequence(List.of(write, new ExecutionPlan.Verdicts(
-                rejected.verdicts(), rejected.fused(), sp, rejected.rules()))), PlanRunner.Judging.DATABASE);
-        assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
-        assertEquals(2, split.verdictRows.size(), "the wrappers ran after the rollback to the savepoint");
-        // outside any transaction (no write, the session's own commits): no savepoint statement is sent
-        run(guarded, PlanRunner.Judging.DATABASE);
-        assertEquals(4, count("m3b_sp"));
+        org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class, () -> run(
+                new ExecutionPlan.Sequence(List.of(write, new ExecutionPlan.Verdicts(rejected.verdicts(),
+                        rejected.fused(), sp, rejected.rules()))), PlanRunner.Judging.DATABASE));
+        assertEquals(0, count("m3b_sp"), "the rejection sent no savepoint statement and ran no wrapper");
     }
 
     // ---- the M3 audit's findings (2026-11-01) ----

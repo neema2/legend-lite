@@ -1445,6 +1445,10 @@ final class ArchitectureTest {
             // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01): the same root loop, moved into
             // the inner class the program road judges through; the census calls it makes are the batch's own
             .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch$Planned")
+            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
+            // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
+            // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.Appeals")
             // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
             // layer out of exec); the rule's exemptions name them there too
             .should().dependOnClassesThat().haveNameMatching(

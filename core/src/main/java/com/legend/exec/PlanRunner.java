@@ -162,9 +162,9 @@ public final class PlanRunner {
         void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) throws IOException;
 
         /** The group's fused statement ran ({@code rejected} null: every verdict's row came from it) or the database
-         *  rejected it ({@code rejected} the error: the split rung, each verdict's own wrapper runs instead, in the
-         *  group's order). Once per group that has a fused statement, before its verdicts; the sink's accounting (the
-         *  runner counts nothing). */
+         *  rejected it ({@code rejected} the error, which the runner then raises: the program fails by name, nothing
+         *  retried -- P1.2, 2026-11-07, G7). Once per group that has a fused statement, before its verdicts; the sink's
+         *  accounting (the runner counts nothing). */
         void fused(ExecutionPlan.Verdicts group, com.legend.error.@Nullable DataError rejected)
                 throws IOException;
 
@@ -238,6 +238,35 @@ public final class PlanRunner {
         }
     }
 
+    /** Every side {@code node} carries: its verdicts' bases and messages, through its sequences and branches. */
+    private static void sidesOf(ExecutionPlan.Node node, java.util.Set<ExecutionPlan.Side> into) {
+        if (node instanceof ExecutionPlan.Sequence q) {
+            q.steps().forEach(step -> sidesOf(step, into));
+        } else if (node instanceof ExecutionPlan.Branch b) {
+            into.add(b.condition());
+            b.then().forEach(step -> sidesOf(step, into));
+            b.otherwise().forEach(step -> sidesOf(step, into));
+        } else if (node instanceof ExecutionPlan.Verdicts g) {
+            for (ExecutionPlan.Verdict v : g.verdicts()) {
+                into.addAll(v.base());
+                if (v.message() != null) {
+                    into.add(v.message());
+                }
+            }
+        }
+    }
+
+    /** {@code reader} reading the sides in {@code carried} alone: a side the plan does not carry is refused by name. */
+    private static SideReader carriedOnly(java.util.Set<ExecutionPlan.Side> carried, SideReader reader) {
+        return side -> {
+            if (!carried.contains(side)) {
+                throw new IllegalStateException("the run's reader: a side the plan does not carry (exec runs only the"
+                        + " plan's statements): " + side.getClass().getSimpleName());
+            }
+            return reader.read(side);
+        };
+    }
+
     private static void programRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             Judging judging, ProgramSink sink) throws IOException {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
@@ -246,13 +275,16 @@ public final class PlanRunner {
         ProgramShape shape = shapeOf(sequence, checked);
         Held held = new Held();
         ExecutionPlan.Target on = shape.target();
+        // the sides the plan carries: the one thing the run's reader reads (P1.2, 2026-11-07, G4: exec runs only the
+        // plan's statements -- a side the plan does not carry is refused, never read)
+        java.util.Set<ExecutionPlan.Side> carried = new java.util.HashSet<>();
+        sidesOf(sequence, carried);
         if (on == null) {
-            // a program of constants sends nothing of its own; a side read on demand (a compatibility appeal's rows:
-            // the walk deletion's step 3, 2026-11-06) runs on its target's session, opened at the first such read and
-            // closed with the program
+            // a program of constants sends nothing of its own; a side read on demand (a verdict's message) runs on its
+            // target's session, opened at the first such read and closed with the program
             UserBeside onDemand = new UserBeside(sessions);
-            sink.reader(side -> side instanceof ExecutionPlan.Side.Constant c ? constantRows(c)
-                    : onDemandRows(side, checked, onDemand));
+            sink.reader(carriedOnly(carried, side -> side instanceof ExecutionPlan.Side.Constant c ? constantRows(c)
+                    : onDemandRows(side, checked, onDemand)));
             try {
                 constantsAlone(sequence, judging, held, sink);
             } finally {
@@ -271,7 +303,7 @@ public final class PlanRunner {
                     UserBeside user = homeIsSystem ? new UserBeside(sessions) : null;
                     try {
                         Routes rt = new Routes(st, homeIsSystem, null, null, user);
-                        sink.reader(side -> sideRows(side, checked, rt));
+                        sink.reader(carriedOnly(carried, side -> sideRows(side, checked, rt)));
                         try {
                             bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
                         } finally {
@@ -288,7 +320,7 @@ public final class PlanRunner {
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
                         Routes rt = new Routes(st, false, opened(systemSession, system), systemSession, null);
-                        sink.reader(side -> sideRows(side, checked, rt));
+                        sink.reader(carriedOnly(carried, side -> sideRows(side, checked, rt)));
                         try {
                             bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
                         } finally {
@@ -665,9 +697,9 @@ public final class PlanRunner {
         } else {
             // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
             // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
-            // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
-            // the transaction on any error (Postgres); a program that changes the database is S4's to settle
-            // (the plan's F11)
+            // carry an abort the program survives (an assertError's side) into the steps that follow it on a
+            // database that aborts the transaction on any error (Postgres); a program that changes the database is
+            // S4's to settle (the plan's F11)
             work.run();
         }
     }
@@ -771,8 +803,8 @@ public final class PlanRunner {
     }
 
     /** A verdict group as {@code judging} asks: the DATABASE judge's rows from the fused statement (each verdict's
-     *  own wrapper where the fused statement is none or the database rejects it: the split rung, counted) and the
-     *  HOST judge's sides, each verdict's rows to {@code sink} in the group's order. */
+     *  own wrapper where the plan fused none; a rejected fused statement fails the program) and the HOST judge's
+     *  sides, each verdict's rows to {@code sink} in the group's order. */
     private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
             Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
             throws IOException {
@@ -820,7 +852,7 @@ public final class PlanRunner {
             }
         }
         if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-            databaseVerdicts(group, values, st, sink, inTransaction);
+            databaseVerdicts(group, values, st, sink);
         }
     }
 
@@ -939,23 +971,19 @@ public final class PlanRunner {
         };
     }
 
-    /** The DATABASE judge's rows for {@code group}: its fused statement (the split rung on a rejection), else each
-     *  verdict's own wrapper, each row handed to the sink in the group's order. */
+    /** The DATABASE judge's rows for {@code group}: its fused statement, else each verdict's own wrapper (as the plan
+     *  holds them), each row handed to the sink in the group's order. A fused statement the database rejects fails
+     *  the program with the database's error, named: exec runs only the plan's statements, so nothing is retried
+     *  another way (P1.2, 2026-11-07, G4 and G7: the split rung's run-time retry is deleted). */
     private static void databaseVerdicts(ExecutionPlan.Verdicts group, Map<String, PlanParameters.Checked> values,
-            Routes rt, ProgramSink sink, boolean inTransaction) throws IOException {
+            Routes rt, ProgramSink sink) throws IOException {
         // the fused statement's session (its members read one store: the database judge groups them by session)
         Statements st = group.fused() != null ? rt.on(group.fused().sql()) : rt.home();
         Map<Integer, List<Object>> rows = new HashMap<>();
-        boolean rejected = false;
         if (group.fused() != null) {
             Held h = new Held();
-            // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
-            // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction -- the
-            // program's own session's: the graph's system database beside it holds no transaction of the program's
-            ExecutionPlan.Verdicts.Savepoint guard = inTransaction && st == rt.home() ? group.savepoint() : null;
-            if (guard != null) {
-                sendStatement(guard.set(), st);
-            }
+            // no savepoint guards it (F11's guard went with the retry it kept the transaction live for: a rejection
+            // fails the program, whose transaction is rolled back whole)
             try {
                 result(group.fused(), values, st, h);
                 for (List<Object> row : collected(h).rows()) {
@@ -970,19 +998,13 @@ public final class PlanRunner {
                             + " rows for " + group.verdicts().size() + " verdicts");
                 }
                 sink.fused(group, null);
-                if (guard != null) {
-                    sendStatement(guard.release(), st);
-                }
             } catch (DataError e) {
-                if (guard != null) {
-                    sendStatement(guard.rollbackTo(), st);
-                }
-                // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
-                // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
-                // change
-                rows.clear();
-                rejected = true;
+                // the database rejected the fused statement: the program fails, the error named by the verdicts the
+                // statement judged (no run-time retry: P1.2, 2026-11-07)
                 sink.fused(group, e);
+                throw new DataError("the database rejected the verdict statement of "
+                        + group.verdicts().stream().map(ExecutionPlan.Verdict::name).toList() + ": "
+                        + e.getMessage(), e);
             }
         }
         for (int i = 0; i < group.verdicts().size(); i++) {
@@ -990,18 +1012,12 @@ public final class PlanRunner {
             List<Object> row = rows.get(i);
             if (row == null && each.wrapper() != null) {
                 Held h = new Held();
-                // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
-                // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
-                // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
-                // planner-driver seam program's S3c, 2026-10-31)
-                try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
-                        : StatementOrigin.current())) {
-                    switch (each.wrapper()) {
-                        case ExecutionPlan.TdsResult t -> result(t, values, rt.on(t.sql()), h);
-                        case ExecutionPlan.Keyed k -> keyedOn(k, values, rt.on(k.keys()), heldSink(h));
-                        default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
-                                + " result");
-                    }
+                // a group planned with no fused statement runs its wrappers under its caller's origin (the batch's
+                // keyed verdicts as the body's: the planner-driver seam program's S3c, 2026-10-31)
+                switch (each.wrapper()) {
+                    case ExecutionPlan.TdsResult t -> result(t, values, rt.on(t.sql()), h);
+                    case ExecutionPlan.Keyed k -> keyedOn(k, values, rt.on(k.keys()), heldSink(h));
+                    default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed result");
                 }
                 Rows single = collected(h);
                 if (single.rows().size() != 1) {
