@@ -58,6 +58,11 @@ export class ProjectDatabases {
   readonly #open = new Map<string, Promise<Held>>();
   /** A drop still running, by name: a database made again under that name waits for it. */
   readonly #closing = new Map<string, Promise<void>>();
+  /** The database each model's statements named (none: no Data rows), so a model asked again is not asked of the
+   *  planner again while its database is open -- its statements are its Data rows, 1.9 MB for the markets project, 0.4
+   *  to 0.7 s to make in the tab (docs/TS_SCALE_2026_11_07.md, item 8, 2026-11-07: a page of two saved queries of one
+   *  project asked twice). */
+  readonly #named = new Map<string, string | undefined>();
 
   constructor(host: ProjectHost, source: ProjectDataSource) {
     this.#host = host;
@@ -77,7 +82,14 @@ export class ProjectDatabases {
    */
   async engineFor(model: string, hostEngine: QueryEngine,
     made?: (engine: QueryEngine, name: string) => Promise<void>, options: { readonly own?: boolean } = {}): Promise<ProjectEngine> {
+    if (!options.own && this.#named.has(model)) {
+      const name = this.#named.get(model);
+      if (name === undefined) return { engine: hostEngine, name: undefined };
+      const open = this.#open.get(name);
+      if (open) return { engine: (await open).users, name };
+    }
     const statements = await this.#source.projectData(model, this.#host.databaseType);
+    this.#named.set(model, statements.fill.length === 0 ? undefined : statements.name);
     if (statements.fill.length === 0 && !options.own) return { engine: hostEngine, name: undefined };
     let opening = this.#open.get(statements.name);
     if (!opening) {
