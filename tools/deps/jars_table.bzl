@@ -70,7 +70,9 @@ JARS = {
     "snowflake_jdbc": struct(
         coordinate = "net.snowflake:snowflake-jdbc:4.4.0",
         sha256 = "eeabc114d2fd429365f8bdde0cb5dd00f0cf529b22aab754751bab1b09fc65c0",
-        users = ["pct"],
+        # core: the manual //core:ts_island_snowflake_test, the #TS island on a real account
+        # (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07)
+        users = ["core", "pct"],
     ),
     # group:artifact:version:classifier -- the shaded jar; the plain one declares 109 runtime dependencies
     "bigquery_jdbc": struct(
