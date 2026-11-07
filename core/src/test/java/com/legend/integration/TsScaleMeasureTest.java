@@ -70,6 +70,32 @@ class TsScaleMeasureTest {
      *  DialectLeakRatchetTest). */
     static final boolean HAND_FORMS = Boolean.getBoolean("ts.scale.handForms");
 
+    /**
+     * P5, ruled (docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-07, the user: "Pin sql size and plan is fine"): on DuckDB at
+     * the default sizes, each benchmark's plan time (the best of three) and its SQL's size are pinned -- the size its
+     * measure of 2026-11-07 plus 5% (it is deterministic), the plan time the ceiling proposed in
+     * docs/TS_SCALE_2026_11_07.md §3 (a CI machine is not this one); run times reported, not pinned. A pin moves with a
+     * dated reason, as every ceiling does.
+     */
+    static final Map<String, long[]> PINNED = Map.ofEntries(
+            Map.entry("daily, one line", new long[] {250, 11_174}),
+            Map.entry("daily, every line", new long[] {100, 1_884}),
+            Map.entry("wide, 20 items", new long[] {500, 47_105}),
+            Map.entry("wide, 100 lines", new long[] {2_000, 447_306}),
+            Map.entry("sampled, 1w", new long[] {100, 3_684}),
+            Map.entry("sampled, 1mo", new long[] {100, 3_688}),
+            Map.entry("a basket of 500", new long[] {2_000, 350_773}),
+            Map.entry("intraday, one line", new long[] {100, 1_802}),
+            Map.entry("intraday, one line by day", new long[] {100, 647}),
+            Map.entry("as-of lag, one line", new long[] {100, 1_713}),
+            Map.entry("as-of lag, every line", new long[] {100, 1_768}));
+
+    /** Whether the pins hold here: DuckDB, the default sizes. */
+    static boolean pinned() {
+        return System.getProperty("ts.backend") == null && INSTRUMENTS == 2_000 && DATES == 5_040
+                && BAR_INSTRUMENTS == 100 && MINUTES == 98_280 && WIDE_LINES == 100 && BASKET == 500;
+    }
+
     private static final String STORE = """
             ###Relational
             Database ts::DB
@@ -208,6 +234,11 @@ class TsScaleMeasureTest {
         }
         TABLE.add(String.join("\t", name, String.valueOf(plan / 1_000_000), String.valueOf(sql.length()),
                 run == Long.MAX_VALUE ? ">" + TIMEOUT + "s" : String.valueOf(run / 1_000_000), rows));
+        long[] pin = PINNED.get(name);
+        if (pinned() && pin != null) {
+            assertTrue(plan / 1_000_000 <= pin[0], name + ": planned in " + plan / 1_000_000 + " ms, over its " + pin[0]);
+            assertTrue(sql.length() <= pin[1], name + ": " + sql.length() + " bytes of SQL, over its " + pin[1]);
+        }
         return planned;
     }
 
