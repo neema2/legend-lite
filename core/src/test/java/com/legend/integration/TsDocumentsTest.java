@@ -315,8 +315,6 @@ class TsDocumentsTest {
 
     @Test
     void everyExampleOfTheSpecAndTheGuideRuns() throws Exception {
-        org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("ts.backend") == null,
-                "a lane of another database holds each example to DuckDB's answer instead");
         TestBackend backend = TestBackends.platform();
         ModelContext model = Compiler.compileModel(model(backend));
         Map<String, String> examples = examples(Runfile.property("ts.examples"));
@@ -369,7 +367,10 @@ class TsDocumentsTest {
     @Test
     void everyExampleAnswersAsOnThePlatform() throws Exception {
         String named = System.getProperty("ts.backend");
-        org.junit.jupiter.api.Assumptions.assumeTrue(named != null, "the lane names its database");
+        if (named == null) {
+            throw new IllegalStateException("the documents' lane names its database (-Dts.backend): its targets select"
+                    + " this method alone");
+        }
         TestBackend backend = TestBackends.named(named);
         TestBackend platform = TestBackends.platform();
         Map<String, String> examples = examples(Runfile.property("ts.examples"));

@@ -137,13 +137,14 @@ public final class PlanMaker {
         // driver takes none, "setAutoCommit(false) is not supported", measured 2026-11-07)
         List<ExecutionPlan.Node> steps = new ArrayList<>();
         for (String table : staged.tables()) {
+            // a table a failed run left in the session (its drop never ran) is dropped before it is made again
+            steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
             steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
         }
         steps.add(answer);
         if (!dialect.dropsStagedTablesWithTheirTransaction()) {
             for (String table : staged.tables()) {
-                steps.add(new ExecutionPlan.Effect(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null,
-                        table, NameQuoting.BARE)), List.of(), target, null, List.of())));
+                steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
             }
         }
         return new ExecutionPlan(declarations(declared, l.ctx()), new ExecutionPlan.Sequence(steps));
@@ -523,6 +524,7 @@ public final class PlanMaker {
         Prepared.Planned p = ProductStatements.planned(st);
         Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
         for (String table : staged.tables()) {
+            state.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
             state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
             state.stage(table);
         }
@@ -568,6 +570,12 @@ public final class PlanMaker {
     /** A statement with its shared relations staged: the statement reading the tables, the tables in the order they
      *  are made, and each one's query. */
     record Staged(SqlQuery statement, List<String> tables, Map<String, SqlQuery> queries) {
+    }
+
+    /** The statement that drops {@code table} where it is ({@code DROP TABLE IF EXISTS}). */
+    static ExecutionPlan.Sql dropping(SqlDialect dialect, String table, ExecutionPlan.Target target) {
+        return new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(),
+                target, null, List.of());
     }
 
     /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */

@@ -1833,16 +1833,21 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return infix(writer, c, parentPrec);
     }
 
-    /** The {@code ERROR} arm of {@link #call}. */
+    /** The {@code ERROR} arm of {@link #call}: a parse of the enveloped message as an Int64, which fails with the
+     *  message quoted. It ends in an empty text of {@code rand()}'s, so the server can never fold it as a constant:
+     *  26.3 evaluated a constant raise in a WHERE whatever its CASE's guard said (the earlier
+     *  {@code toInt64(materialize(...))}, measured 2026-11-07 on the documents' examples' {@code latest - 2y}), and
+     *  the guard holds again with it (a SELECT's raise was guarded on both versions). */
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        writer.append("toInt64(materialize(concat(char(31), ");
+        writer.append("toInt64(concat(char(31), ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(", char(30), ");
         }
         // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
-        return writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
+        return writer.append("replaceAll(toString(").expr(a.get(0), 0)
+                .append("), '\\'', char(29)), char(31), substring(toString(rand()), 1, 0)))");
     }
 
     /** The message a date past ClickHouse's years raises. */

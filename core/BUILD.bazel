@@ -1437,7 +1437,8 @@ junit_test(
     srcs = _TS_DOCUMENTS_SRCS,
     data = _TS_DOCUMENTS_DATA,
     jvm_flags = _TS_DOCUMENTS_FLAGS,
-    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    # the platform's own check; each lane target below selects the lane's
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleOfTheSpecAndTheGuideRuns"],
     runtime_deps = [":drivers"],
     deps = _TS_DOCUMENTS_DEPS,
     visibility = ["//gates:__pkg__"],
@@ -1460,7 +1461,7 @@ junit_test(
         "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
         "'-Dts.documents.session=SET max_execution_time = 120'",
     ],
-    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
     runtime_deps = [
         ":drivers",
         "@clickhouse_jdbc//jar",
@@ -1484,7 +1485,7 @@ junit_test(
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
         "'-Dts.documents.session=SET statement_timeout = 120000'",
     ],
-    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = _TS_DOCUMENTS_DEPS,
@@ -1503,7 +1504,7 @@ junit_test(
         # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
     ],
-    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
     runtime_deps = [
         ":drivers",
         "@snowflake_jdbc//jar",
