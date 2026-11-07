@@ -109,8 +109,11 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  it, so the platform picks that dialect (an H2 session refuses a
      *  runtime whose connections declare anything else). */
     private final ConnectionDefinition.DatabaseType sessionType;
-    /** test runtime name → the shared session (SHARED policy). */
-    private final Map<String, com.legend.exec.Sessions.Session> shared = new LinkedHashMap<>();
+    /** The data a session is seeded with → the shared session (SHARED policy). One database per distinct data set,
+     *  whichever runtimes read it (2026-11-07: keyed by runtime, the stress lane held 46 seeded databases, 26 of them
+     *  the same stress::TestData, ~340 MB each; the program's seed step is keyed by its content and skipped on a
+     *  session that holds it, so a second runtime over the same data seeds nothing). */
+    private final Map<List<ProvisionKey>, com.legend.exec.Sessions.Session> shared = new LinkedHashMap<>();
     /** the runtime and its provisioning, BY VALUE → the test runtime (an
      *  overlay context + its runtime name). Value records, never a hash of
      *  the data: two suites whose CSVs differ but hash alike ("Aa"/"BB")
@@ -132,8 +135,9 @@ public final class ServiceTestRunner implements AutoCloseable {
     private record RuntimeKey(String runtimeFqn, List<ProvisionKey> provisions) {
     }
 
-    /** A suite's test runtime: the overlay context that resolves it, by name. */
-    private record TestRuntime(PureModelContext ctx, String runtimeFqn) {
+    /** A suite's test runtime: the overlay context that resolves it, by name, and the data it is seeded with (the
+     *  shared session's key). */
+    private record TestRuntime(PureModelContext ctx, String runtimeFqn, List<ProvisionKey> data) {
     }
 
     /** One test's computed answer, as its serialization format spells it,
@@ -233,7 +237,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         }
         boolean privateSession = policy == Sessions.FRESH_PER_TEST
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
-        com.legend.exec.Sessions.Session conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
+        com.legend.exec.Sessions.Session conn = privateSession ? opener.open() : shared(rt.data());
         try {
             java.io.StringWriter out = new java.io.StringWriter();
             try {
@@ -389,7 +393,7 @@ public final class ServiceTestRunner implements AutoCloseable {
             return cached;
         }
         if (provisions.isEmpty()) {
-            TestRuntime plain = new TestRuntime(ctx, runtime.qualifiedName());
+            TestRuntime plain = new TestRuntime(ctx, runtime.qualifiedName(), List.of());
             runtimes.put(key, plain);
             return plain;
         }
@@ -426,16 +430,16 @@ public final class ServiceTestRunner implements AutoCloseable {
         runtime.connectionIds().forEach((id, s) -> ids.put(id, s));
         RuntimeDefinition rt = new RuntimeDefinition(rtName, runtime.mappings(),
                 Map.of(store, List.of(connName)), List.of(), List.of(), ids);
-        TestRuntime built = new TestRuntime(ctx.withExecutionOverlay(rt, conn), rtName);
+        TestRuntime built = new TestRuntime(ctx.withExecutionOverlay(rt, conn), rtName, key.provisions());
         runtimes.put(key, built);
         return built;
     }
 
-    private com.legend.exec.Sessions.Session shared(String testRuntimeFqn) {
-        com.legend.exec.Sessions.Session conn = shared.get(testRuntimeFqn);
+    private com.legend.exec.Sessions.Session shared(List<ProvisionKey> data) {
+        com.legend.exec.Sessions.Session conn = shared.get(data);
         if (conn == null) {
             conn = opener.open();
-            shared.put(testRuntimeFqn, conn);
+            shared.put(data, conn);
         }
         return conn;
     }
@@ -488,9 +492,9 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- SESSIONS -------------------------------------------------------------
 
-    /** The shared sessions opened so far, by test runtime. */
-    public Map<String, com.legend.exec.Sessions.Session> sessions() {
-        return Collections.unmodifiableMap(shared);
+    /** The shared sessions opened so far: one per distinct data set. */
+    public java.util.Collection<com.legend.exec.Sessions.Session> sessions() {
+        return Collections.unmodifiableCollection(shared.values());
     }
 
     @Override
