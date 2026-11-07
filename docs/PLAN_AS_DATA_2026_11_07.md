@@ -210,7 +210,113 @@ cost first (one write and one read per body).
 9. The move: all assert planning into `testplan`; `judge` and the sink run-only; the deps pinned; R1-R4 hard.
 10. All lanes and an audit (the P1 milestone).
 
-## 7. An example: `projection::limit::testSimpleLimit`
+## 7. An example: `projection::limit::testSimpleLimit`, as it is planned today and as proposed
 
-(Filled in from the real plan, printed by `-Dlegend.diagnostics=plan-json`, once the lanes free the build: today's
-plan and sidecar, and the same body's plan as proposed.)
+The test (legend-engine's, the DuckDB corpus, compatibility rules):
+
+```pure
+let result = execute(|Person.all()->project([#/Person/firstName!name#])->limit(0), simpleRelationalMapping, ...);
+assertEquals('select top 0 "root".FIRSTNAME as "name" from personTable as "root"', $result->sqlRemoveFormatting());
+assertSize($result.values.rows, 0);
+let result2 = ... ->limit(1) ...;
+assertEquals('select top 1 ...', $result2->sqlRemoveFormatting());
+assertSize($result2.values->at(0).rows, 1);
+```
+
+Printed with `-Dlegend.diagnostics=plan-json` (2026-11-07). The run plans three programs for it: the test's two setup
+programs (80 KB and 100 KB of JSON: their DDL and inserts, each statement as a tree and as script text) and the body
+(10 KB). Below, the body; each `Sql`'s `target` (connection and session) and `tree` (its typed SQL) are elided.
+
+### 7.1 The host judge, today: the plan
+
+```json
+{"_type": "sequence", "steps": [
+ {"_type": "check", "sql": {"statement": "SELECT t0.FIRSTNAME AS name\nFROM personTable AS t0\nLIMIT 0"}},
+ {"_type": "verdicts", "rules": "compiledPureCompat", "fused": null, "verdicts": [
+   {"name": "meta::pure::functions::asserts::assertEquals", "arm": "assertEquals", "wrapper": null, "base": [
+     {"_type": "constant", "columns": [{"name": "value", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}],
+      "cells": [["select top 0 \"root\".FIRSTNAME as \"name\" from personTable as \"root\""]]},
+     {"_type": "constant", "columns": [{"name": "value", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}],
+      "cells": [["select top 0 \"root\".FIRSTNAME as \"name\" from personTable as \"root\""]]}]}]},
+ {"_type": "verdicts", "rules": "compiledPureCompat", "fused": null, "verdicts": [
+   {"name": "meta::pure::functions::asserts::assertSize", "arm": "assertSize", "wrapper": null, "base": [
+     {"_type": "constant", "columns": [{"name": "value", "type": "Integer", "multiplicity": {"lower": 1, "upper": 1}}],
+      "cells": [["0"]]},
+     {"_type": "rows", "result": {"_type": "tdsResult", "shape": "RELATION",
+      "columns": [{"name": "name", "type": "String", "multiplicity": {"lower": 1, "upper": 1},
+                   "slot": "VARCHAR", "store": "VARCHAR(200)"}],
+      "sql": {"statement": "SELECT t0.FIRSTNAME AS name\nFROM personTable AS t0\nLIMIT 0"}}}]}]},
+ ... the same three steps for result2 (LIMIT 1) ...
+]}
+```
+
+The plan says *which* rows each assert reads. It does not say what to compare or how.
+
+### 7.2 The host judge, today: the sidecar the driver keeps beside it
+
+Printed by a probe (typed trees, environments and closures shown as markers):
+
+```
+assertSize   -> HostAssert(listenerName=...assertSize, family=assertSize, wantEqual=true,
+                  check=Check(asks=[Ask(arg=<TypedSpec TypedCInteger>, hook=<closure>, ...),
+                                    Ask(arg=<TypedSpec TypedPropertyAccess>, hook=<closure>, ...)],
+                              judgment=Size(envelopeValuesRead=false)), beforeTheArm=null)
+   side 0       PlannedSide(kind=CONSTANT, answered=Scalar(value=0, returnType=INTEGER))           -- a compiler Type
+   side 1       PlannedSide(kind=TABULAR, wrapped=WrappedSide(plan=SqlSelect(...),
+                  shapeInfo=ExprType(GenericType(Relation, [RelationType(columns=[...])]), [1..1]), ...), schema=...)
+assertEquals -> HostAssert(..., judgment=EngineText(collected=Collected(name=assertEquals,
+                  golden="select top 0 ...", ours="select top 0 ...", textEqual=true, decline=null,
+                  appeal=<closure>, env=<ExecEnv>, oursOrigin=null), routed=true))
+```
+
+### 7.3 The host judge, proposed: one plan, nothing beside it
+
+```json
+{"_type": "verdicts", "judge": "host", "rules": "compiledPureCompat", "fused": null, "verdicts": [
+  {"name": "meta::pure::functions::asserts::assertSize", "arm": "assertSize", "root": 1,
+   "assertion": {"listener": "meta::pure::functions::asserts::assertSize", "family": "assertSize", "wantEqual": true},
+   "judgment": {"_type": "size", "envelopeValuesRead": false},
+   "base": [ ...the same two sides as today... ],
+   "shapes": [
+     {"kind": "CONSTANT", "type": {"name": "Integer", "multiplicity": [1, 1]}},
+     {"kind": "TABULAR", "type": {"name": "meta::pure::metamodel::relation::Relation", "multiplicity": [1, 1]},
+      "schema": [{"name": "name", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}]}]}]}
+```
+
+```json
+{"_type": "verdicts", "judge": "host", "rules": "compiledPureCompat", "fused": null, "verdicts": [
+  {"name": "meta::pure::functions::asserts::assertEquals", "arm": "assertEquals", "root": 0,
+   "assertion": {"listener": "meta::pure::functions::asserts::assertEquals", "family": "assertEquals",
+                 "wantEqual": true},
+   "judgment": {"_type": "engineText", "decline": null, "routed": true},
+   "base": [ ...the golden and our text, the same two constants as today... ],
+   "shapes": [{"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}},
+              {"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}}],
+   "appeal": null}]}
+```
+
+`appeal` is null here because both texts are constants of the plan and equal, so no rows leg can be needed. Where
+our text is read at run, or differs, the verdict carries the appeal as data (4.5): the golden, our rows and the page
+population as sides, the stores whose fixtures it needs, the replay facts. The `Ask`s' typed trees, the splice
+closure and the environment are planning's alone and are not in the plan.
+
+### 7.4 The database judge, today and proposed
+
+Today the database judge's plan for this body is already almost all data: ONE step, a fused statement that computes
+all four verdicts and their messages in the database (`WITH frame_result AS MATERIALIZED (... LIMIT 0), frame_result2
+AS MATERIALIZED (... LIMIT 1), __p_0 AS (... the two texts ...), __p_1 AS (... COUNT ...) ... SELECT 0 AS __ix,
+<verdict>, <expected>, <actual>, <unjudged>, <lenient>, <holds>, <message> FROM __p_0 UNION ALL ...`), and four
+verdicts named only `assertEquals`, `assertSize`, `assertEquals`, `assertSize`. Beside it, `VerdictBatch.Planned`
+holds the roots (which assert each verdict belongs to, in body order), identity maps from verdicts to pending rows,
+and, under the compatibility rules, an appeal closure per engine-text row.
+
+Proposed: each of the four verdicts carries its `assertion` and `root`; an engine-text row whose text may differ
+carries its `appeal` as data; a member the dialect could not spell carries its `failure`. The statement is unchanged.
+
+### 7.5 Things the example shows that are not about data (noted, not in this step)
+
+- The host judge's plan runs `SELECT ... LIMIT 0` twice: once as the let's `check` step and again as `assertSize`'s
+  side. The database judge's reads it once (the frame). A G3 item.
+- Every `Sql` repeats its whole `target` (the connection and the session statements): the body's 10 KB is mostly
+  that and the typed trees. A plan-size item (G3), easy once the plan is the one artifact: targets by reference.
+- The setup programs carry each statement twice (its tree and its script text).

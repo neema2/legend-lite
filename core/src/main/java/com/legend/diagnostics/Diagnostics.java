@@ -49,7 +49,9 @@ public final class Diagnostics {
             "judge-declines",
             // the walk deletion's measurement (2026-11-06): the assert program's class rule that refused a body
             // (testplan/BodyClass, which reads the switch by name: the test-planning library depends on no switchboard)
-            "body-class");
+            "body-class",
+            // the plan-as-data design (2026-11-07): each test body's plan printed as its JSON (BodyRouter)
+            "plan-json");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 

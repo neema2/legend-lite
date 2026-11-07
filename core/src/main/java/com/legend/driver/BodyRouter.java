@@ -133,6 +133,10 @@ public final class BodyRouter {
         ExecutionPlan plan = planned.plan();
         // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
         com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+        if (com.legend.diagnostics.Diagnostics.on("plan-json")) {
+            // the plan as data, printed whole (the plan-as-data design, 2026-11-07: what the run reads)
+            System.out.println("[plan-json] " + com.legend.executionplan.PlanJson.write(plan));
+        }
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
         try {
