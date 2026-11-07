@@ -190,8 +190,7 @@ public final class BodyDriver {
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()).withOptions(o.options()), session, assertListener,
-                    replayReferee, o, trace,
-                    verdictBatch, effectSink, engineText, failureMessage);
+                    replayReferee, o, trace, verdictBatch, effectSink, engineText, failureMessage);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */

@@ -93,7 +93,8 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     /** This environment lowering under lite's own planning options ({@link com.legend.platform.PlanOption}). */
     public PlanEnv withOptions(Set<com.legend.platform.PlanOption> o) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
-                frame, features, Set.copyOf(o), generatorPlanText, stamps);
+                frame, features, o.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)),
+                generatorPlanText, stamps);
     }
 
     public PlanEnv withFeatures(Set<Feature> f) {

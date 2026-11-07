@@ -287,6 +287,9 @@ class CodeShapeGuardrailTest {
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering
             "Lowerer.features", "Lowerer.legacyNullUnsafeEquals",
+            // lite's own planning options (PlanOption, 2026-11-07: the deterministic as-of join): builder-style, set
+            // once before lower() beside the features, same lifecycle
+            "Lowerer.deterministicAsOf",
             // Phase 2b (batch 137): the execution-trace stamp is state of the
             // execution ENVIRONMENT (one ExecutionTrace per ExecEnv), a
             // thread-local before

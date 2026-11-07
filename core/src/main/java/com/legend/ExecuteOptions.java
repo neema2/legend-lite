@@ -26,7 +26,9 @@ public record ExecuteOptions(
         java.util.Set<com.legend.platform.PlanOption> options) {
 
     public ExecuteOptions {
-        options = java.util.Set.copyOf(options);
+        // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
+        options = options.isEmpty() ? java.util.Set.of()
+                : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
         systemConnections = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
     }
 
