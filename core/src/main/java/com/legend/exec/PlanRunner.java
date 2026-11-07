@@ -206,6 +206,12 @@ public final class PlanRunner {
         /** The program's effect step {@code step} ran: its script applied. */
         default void effectRan(int step) {
         }
+
+        /** A step of the program that writes (an effect or an update) is about to run: what the database holds may
+         *  change from here (the held appeals' check, P1, 2026-11-07: an appeal decided after the run reads the rows
+         *  as the run left them). */
+        default void writing(int step) {
+        }
     }
 
     /** A side of the program read on demand ({@link ProgramSink#reader}): its typed rows, on the session its
@@ -719,6 +725,7 @@ public final class PlanRunner {
             case ExecutionPlan.Update u -> {
                 // a store write may change a seeded table: every seed establishes again after it, as after an effect
                 // (the design audit's H1, 2026-11-02: an update left the seeds marked in place)
+                sink.writing(i);
                 session.state().markWriting();
                 update(u, live, st);
             }
@@ -733,6 +740,7 @@ public final class PlanRunner {
             case ExecutionPlan.Effect e -> {
                 // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
                 // the session's seeds to establish again (the M3 audit's B5)
+                sink.writing(i);
                 session.state().markWriting();
                 // a failure is the database's own error, raised as it is (upstream's executeInDb), its script's abort
                 // sent first; nothing reads which statement failed (P1, 2026-11-07)

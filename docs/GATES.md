@@ -20826,3 +20826,66 @@ two packages is the first step's input).
   - **R2** (planning holds no session): only `TestDataGenerator.generate` (kept for its one test, S143).
   - **R4** (the judge package holds no session): only the referee's SPI, `SqlReplayReferee` (the edge's, P2).
   - R3 (only the router sees both halves) is the package split's own.
+  - **Narrower than it reads** (the milestone audit, below): R1 and R2 classify the driver's classes by name, and the
+    mixed ones (`AssertVerdicts`, `HostJudge`, `DatabaseJudge`, `SqlTextVerdicts`: a plan half and a run half in one
+    class) are neither, so their crossings are not measured until the split extracts the halves by method.
+
+## 2026-11-07 — P1.2 recorded, and the P1 milestone audit's findings fixed
+
+**P1.2** (`d67cd85c`, exec runs only the plan's statements; it had no entry here):
+- A fused verdict statement the database rejects fails the body by name; the split rung's run-time retry, its
+  savepoint guard and the `FALLBACK` statement origin are deleted. A member the dialect cannot spell is refused at
+  planning, at its place, nothing sent.
+- A root's caller's message is a side of the plan, carried on a verdict of its root and read only where the root fails.
+- The compatibility appeal is the edge's (`driver/Appeals`): held at its assert while the run goes on, the listener's
+  reports kept back, decided after the run, each planned side read as a plan of its own on the body's sessions; the
+  first failed appeal is the body's failure. Measured (DuckDB corpus, both judges): 1,010 bodies appeal, 48 after a
+  write of their own and none before a later write.
+- The run's reader refuses a side the plan does not carry.
+
+**The milestone audit** (an independent reviewer over P1.1 to P1.3, 2026-11-07): no blocker; seven should-fix items
+and four notes, each fixed here.
+1. **The split rung at planning dropped spellable members.** Where the dialect could not spell a fused statement, the
+   members it could spell alone were left out of every group and the root loop found no row for them. Now each
+   member is planned its own statement (`VerdictBatch.ownStatements`, a group with no fused statement), and only a
+   member the dialect cannot spell alone is refused at its place. The corpus never reaches this rung (no fused
+   statement fails to spell: `batch-fallbacks=0` on both judges), so `VerdictBatchSplitRungTest` pins it with stub
+   planner pieces.
+2. **A held appeal's rows were not checked to be the rows at its assert.** Now the runner's sink tells the appeals
+   each writing step (`ProgramSink.writing`); an appeal held before a later write of the body's is refused by name.
+   A body whose run FAILED with appeals held decides them before raising (the first held appeal's failure precedes
+   the run's, the run's suppressed in it), and refuses them by name where the failed run wrote (its rollback undid
+   what they read). Deciding runs inside `RunScope.judging()`: it plans nothing and plans no body, but runs the
+   plans planned ahead for it (`RunScopeTest.aJudgmentAfterARunPlansNothingButRunsItsPlans`). The corpus measured
+   none of these cases.
+3. **The caller's message's carrier.** The message side rides the root's first grouped verdict, rebuilt with it after
+   grouping (`VerdictBatch.carried`); where no verdict of the root is in the plan (decided or refused at planning),
+   reading the message raises a named refusal instead of an unplanned read.
+4. **The byte channel's leftovers, deleted**: the host judgments' static byte gate (`HostJudgment.ByteGate`,
+   `HostJudge.byteGate`, `AssertVerdicts.keylessCtorUnderLambda`), the SQL channel's dead counters
+   (`CanonicalDivergence.sqlDeclined`, `sqlTdsNullPolicy`, the disagreement witness buffer and its counts; the
+   census keys `SQL_AGREE`, `SQL_DISAGREE`, `SQL_DECLINED`, `SQL_TDSNULL_POLICY`), the corpus prints of them and the
+   six Channel B assertions on a count that is always zero. The byte probe census (`probeEqual` and its siblings)
+   stays: it is still fed.
+5. **The test-data generator's leftovers, deleted**: `TestDataGenerator.necessaryColumns` and `censusCols`, the census
+   checker's folded-form builders (`literal`, `literalStrings`, `literalTestData`, called only by the deleted fold),
+   two unused constants, and `SqlTextVerdicts`' check for the folded result, which nothing mints.
+6. **Stale docs** fixed: `RunReader`, `RunScope` (a judgment's rule added), `ExecutionPlan.Verdicts.Savepoint`,
+   `Census.FALLBACK_REASONS`, `VerdictBatch` (the appeal, the keyed group, an absent row), `DatabaseAsserts`,
+   `HostJudge` (the byte channel), an orphaned `AssertVerdicts` javadoc, `CanonicalForm`, `H2`, `ProductStatements`
+   and `RelationPredicates` (a relation's `toOne()` is checked by `ToOneGuard`), `BodyClass` and `CsvCensusChecker`
+   (the census carrier refused by name), `SqlTextVerdicts.decide`.
+7. **This entry** (P1.2 had none), and the report-mode rule's honest limits (above).
+- **Notes**: `StoreResolver.anchoredIf` decides a runtime `if()` in the database for values of at most one (a
+  collection is no `CASE` operand); `ToOneGuard`'s count column takes a name none of the relation's columns has;
+  `JudgeJson`'s compatibility grammar matches the 1.1.1 jar on three more points, probed: a form feed (and a backspace
+  or vertical tab) is no whitespace, a `\u` escape takes ASCII hex digits only (another digit keeps the backslash), and
+  an integer past a Long is refused (json-simple raises `NumberFormatException`) -- `JudgeJsonTest` pins each.
+- **Guards, dated in place**: ledger pins `HostJudge` 840 -> 825, `HostJudgment` 197 -> 194, `AssertVerdicts`
+  1815 -> 1782, `SqlTextVerdicts` 1495 -> 1488; broad catches `BodyRouter` 0 -> 1 (the failed run's catch, which always
+  rethrows); the mutable-field allowlist gains `Appeals.wrote` and `Appeals.wroteAfterHold`; `CanonicalFormTest`'s
+  summary loses the deleted counters.
+- **Checks**: DuckDB corpus, both judges, unchanged (host 2436 pass, database 2429; failure lines identical to the
+  previous run, every roster and register exact, no wall crossing); core architecture, guardrails, census, driver
+  (three judges), judge (three), exec, integration, lowering, resolver and root green; `//spec:all` and `//pct:all`
+  build. The milestone's lanes (H2 corpus, PCT, stress, Postgres) run next, on this commit.

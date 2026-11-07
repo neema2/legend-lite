@@ -10,11 +10,11 @@ import java.util.List;
 /**
  * R0's SCALAR-channel canonical render over wire values
  * (docs/CANONICAL_FORM_SPEC.md §2) — the HOST reference implementation.
- * Charter (R1): this is the referee's half of the byte channel — the
- * divergence instrument computes {@code render(e) == render(a)} NEXT TO
- * {@code PureAsserts.equal(e, a)} across the full corpus; R2's cutovers
- * move the render of record into SQL (Render), per family, against this
- * spec. It is NOT a verdict path: production verdicts never call it.
+ * Charter (R1): the divergence instrument computes
+ * {@code render(e) == render(a)} NEXT TO {@code PureAsserts.equal(e, a)}
+ * across the full corpus (the byte verdict it measured against is
+ * deleted, P1, 2026-11-07). It is NOT a verdict path: production
+ * verdicts never call it.
  *
  * <p>Every rule here cites an H-table row of
  * docs/CANONICAL_RENDER_HOMEWORK.md; a value outside the claimed domain

@@ -158,11 +158,6 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
         }
     }
 
-    /** The byte verdict's static gates (F13): whether the pair's declared classes share keys, and whether a keyless
-     *  constructor stands under a lambda in the sides' scope (one site id for many instances: declined). */
-    record ByteGate(boolean hasInstanceKeys, boolean keylessCtorUnderLambda) {
-    }
-
     /** The flat-cells verdict's typed-shape facts: each side a bare {@code TDSRow.values} read, each a wrapped
      *  relation stamp. */
     record FlatFacts(boolean bareRowStampE, boolean bareRowStampA, boolean wrappedRelationStampE,
@@ -250,7 +245,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     }
 
     /** {@code assertEq}: the identity rule over primitives (a class pair is the loud wall, at judging). */
-    record Eq(SideFacts e, SideFacts a, Keys keys, ByteGate gate) implements HostJudgment {
+    record Eq(SideFacts e, SideFacts a, Keys keys) implements HostJudgment {
     }
 
     /** {@code assertInstanceOf(v, type)}: the type's name and the classes it accepts -- itself and its subtree,
@@ -270,12 +265,11 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     record Decided(boolean held, @Nullable String message) implements HostJudgment {
     }
 
-    record SameElements(SideFacts e, SideFacts a, boolean gridPair, Keys keys, ByteGate gate)
-            implements HostJudgment {
+    record SameElements(SideFacts e, SideFacts a, boolean gridPair, Keys keys) implements HostJudgment {
     }
 
     record Equals(String name, boolean wantEqual, boolean incidental, boolean gridPair, SideFacts e, SideFacts a,
-            Keys keys, ByteGate gate, FlatFacts flat) implements HostJudgment {
+            Keys keys, FlatFacts flat) implements HostJudgment {
     }
 
     /** {@code assertJsonStringsEqual(golden, actual)}: whether the actual root's order is incidental. */

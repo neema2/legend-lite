@@ -32,8 +32,6 @@ import java.util.function.Supplier;
  */
 final class ToOneGuard {
 
-    private static final String ROWS = "__rows";
-
     private ToOneGuard() {
     }
 
@@ -43,14 +41,19 @@ final class ToOneGuard {
         String qa = aliases.get();
         String ra = aliases.get();
         String da = aliases.get();
-        OutputCol rows = new OutputCol(ROWS, SqlType.Scalar.BIGINT, false);
+        // the count's column beside the relation's own: a name none of them has (the milestone audit, 2026-11-07)
+        String countName = "__rows";
+        while (named(cols, countName)) {
+            countName = "_" + countName;
+        }
+        OutputCol rows = new OutputCol(countName, SqlType.Scalar.BIGINT, false);
         List<SqlSelect.Projection> counted = new ArrayList<>(cols.size() + 1);
         for (OutputCol c : cols) {
             counted.add(new SqlSelect.Projection(SqlExpr.Column.of(qa, c), c.name(), c));
         }
         counted.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), List.of(), List.of(), null),
-                ROWS, rows));
+                rows.name(), rows));
         List<OutputCol> countedOut = new ArrayList<>(cols);
         countedOut.add(rows);
         SqlSelect withCount = new SqlSelect(counted, false, new SqlSource.Subselect(q, qa, null), null, List.of(),
@@ -72,5 +75,14 @@ final class ToOneGuard {
             out.add(new SqlSelect.Projection(SqlExpr.Column.of(ra, c), c.name(), c));
         }
         return new SqlSelect(out, false, joined, check, List.of(), null, null, List.of(), null, null, cols);
+    }
+
+    private static boolean named(List<OutputCol> cols, String name) {
+        for (OutputCol c : cols) {
+            if (c.name().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

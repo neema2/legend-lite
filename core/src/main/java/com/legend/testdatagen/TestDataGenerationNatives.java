@@ -25,11 +25,6 @@ import java.util.List;
  */
 public final class TestDataGenerationNatives {
 
-    private static final String DATA_FQN =
-            "meta::relational::metamodel::data::RelationalCSVData";
-    private static final String TABLE_FQN =
-            "meta::relational::metamodel::data::RelationalCSVTable";
-
     private TestDataGenerationNatives() {
     }
 

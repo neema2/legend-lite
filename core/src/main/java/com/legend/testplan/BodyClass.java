@@ -1031,15 +1031,13 @@ public enum BodyClass {
         /** The one inline shape the splice runs at planning ({@link #eagerInlineExecute}). */
         EAGER_INLINE_EXECUTE("eager-inline-execute"),
         /** The test-data-generation lane's census carrier ({@code getRelationalCSVDataFromQuery}, the checker's
-         *  {@link TypedCsvCensus}): the walk folds it to instance literals in Java from the model
-         *  ({@code TestDataGenerationNatives.foldCensus}) before the statement is planned; the program road has no
-         *  such fold (M10a's third cut, caught by the corpus: its three census tests moved on the strength of their
-         *  system reads alone and walled at lowering). */
+         *  {@link TypedCsvCensus}): the program road has no fold for it, so a body holding it is refused by name (its
+         *  Java fold went with the walk, 2026-11-06; the tests skipped by a ruled register row). */
         CSV_CENSUS("csv-census"),
         /** The test-data generator's carrier ({@code generateTestData}, {@code generateSeedDataString}: the checker's
-         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the walk folds it by
-         *  running the generator's fetches through the database ({@code TestDataGenerationNatives.foldCensus}); the
-         *  program road has no such step yet (T8, the plan's M10c/M10d). The {@code plan} flavour is a value the
+         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the program road has no
+         *  step for the generator's fetches, so a body holding it is refused by name (the walk's run of them deleted,
+         *  2026-11-06/07; the tests skipped by a ruled register row). The {@code plan} flavour is a value the
          *  planner renders ({@code generatorPlanText}) and no kind (M10b). */
         TDG_GENERATOR("tdg-generator");
 
@@ -1061,7 +1059,7 @@ public enum BodyClass {
      *  ({@code systemClasses}), a table of it, one of its functions, an element used as a value (a mapping, a store:
      *  its instance is the store's row: {@link #systemElementReference}); an object built, a graph answered, a
      *  temporal class read (their ids, layouts and the exists-join form converge on the product's with MV6); the
-     *  test-data-generation lane's census carrier, folded in Java on the walk ({@link Kind#CSV_CENSUS}). */
+     *  test-data-generation lane's census carrier ({@link Kind#CSV_CENSUS}). */
     static @Nullable Kind anotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         if (n instanceof TypedCsvCensus) {
             return Kind.CSV_CENSUS;
@@ -1124,7 +1122,7 @@ public enum BodyClass {
     /** The kind {@code n} is that keeps an assert statement or a value let of a HOST-judged program off the program
      *  road, named, or null: a read of the system metamodel store (its session is the system database's, which a
      *  moved body's program does not open until M10a), a store write (run where its side is planned), the census
-     *  carrier the walk folds in Java ({@link Kind#CSV_CENSUS}), or the eager inline execute (a run at planning).
+     *  carrier ({@link Kind#CSV_CENSUS}), or the eager inline execute (a run at planning).
      *  Every other
      *  kind in such a statement is admitted since M9c: the asserts' sides are the walk's own plans on both roads
      *  ({@code HostAsserts} plans them with the walk's planner, let prefix and frames) and a value let sends nothing

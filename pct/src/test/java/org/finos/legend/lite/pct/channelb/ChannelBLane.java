@@ -64,8 +64,6 @@ final class ChannelBLane {
         // let a failure change kind, or a body the closed walk refused, pass unseen): every failure a row of the lane's
         // ledger with its text, every row's test failing (ChannelBLedger, ledger.tsv)
         ChannelBLedger.judge(lane + " " + suite, out, ChannelBLedger.of(lane, suite));
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
-                "DUAL-VERDICT DISAGREEMENT: " + com.legend.judge.CanonicalDivergence.summary());
         assertEquals(0, com.legend.judge.SqlTypeCensus.mismatchCount(),
                 "a label lie escaped reconciliation: " + com.legend.judge.SqlTypeCensus.summary());
     }

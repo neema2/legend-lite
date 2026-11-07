@@ -406,9 +406,10 @@ final class SqlTextVerdicts {
      *  text (the rows leg -- block-compiler rung 2a; a decline's own failure), {@code decline} the reason decided
      *  before the texts were compared (a foreign dialect, unbindable plan parameters), reported first. Three roads:
      *  under a COLLECTOR (an assert planned for the program road, {@link #plan}) the comparison is handed over and
-     *  judged at its verdict step ({@link #judge}); under an active verdict BATCH (the database judge) the text
-     *  equality is a row of the body's fused statement and the appeal runs at the flush where the row failed; else
-     *  (the walk under the host judge) decided now. */
+     *  judged at its verdict step ({@link #judge}, which reaches here again with the planning over); under an active
+     *  verdict BATCH (the database judge) the text equality is a row of the body's fused statement, a failed row's
+     *  appeal heard at the batch's root loop; else decided now. An appeal heard is held for after the body's run
+     *  ({@link #appealed}, P1.2, 2026-11-07). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, TextAppeal appeal) {
         Collector collector = env.engineText();
@@ -1527,12 +1528,6 @@ final class SqlTextVerdicts {
         throw new IllegalStateException(name + ": the test-data generator's rows leg is not offered (S143)");
     }
 
-    /** The folded (S2) form of the generator carrier — what a let holds
-     * once the orchestrator ran the extraction
-     * ({@code CsvCensusChecker.literalTestData}). */
-    private static final String TDG_RESULT_FQN =
-            "meta::relational::testDataGeneration::TestDataGenResult";
-
     private static final java.util.regex.Pattern NUMBERED_IN_TEMP =
             java.util.regex.Pattern.compile("tempTableForIn_(\\d+)");
 
@@ -1642,11 +1637,6 @@ final class SqlTextVerdicts {
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedTestDataGen tg && !"plan".equals(tg.flavor())) {
                 // a TDG PLAN is plan text, not a fetch-text producer
-                return true;
-            }
-            if (cur instanceof com.legend.compiler.spec.typed
-                    .TypedNewInstance ni
-                    && TDG_RESULT_FQN.equals(ni.classFqn())) {
                 return true;
             }
             if (cur instanceof TypedNativeCall nc

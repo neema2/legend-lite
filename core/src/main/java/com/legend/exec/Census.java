@@ -42,13 +42,9 @@ public final class Census {
         DIVERGENCE_AGREE("divergence.agree"),
         DIVERGENCE_DISAGREE("divergence.disagree"),
         DIVERGENCE_RESIDUE("divergence.residue"),
-        SQL_AGREE("sql-verdict.agree"),
-        SQL_DISAGREE("sql-verdict.disagree"),
-        SQL_DECLINED("sql-verdict.declined"),
         SQL_ULP_POLICY("sql-verdict.ulp-policy"),
         ROW_ORDER_CANON("sql-verdict.row-order-canon"),
-        DECIMAL_SCALE_ONLY("sql-verdict.decimal-scale-only"),
-        SQL_TDSNULL_POLICY("sql-verdict.tdsnull-policy");
+        DECIMAL_SCALE_ONLY("sql-verdict.decimal-scale-only");
 
         private final String label;
 
@@ -70,8 +66,9 @@ public final class Census {
         }
     }
 
-    /** The fused statement's fallback reasons, appended by the batch's split rung —
-     * a named list beside the counts (the lanes attribute them per test). */
+    /** The fused statement's fallback reasons, appended by the batch's split rung AT PLANNING (a fused statement the
+     * dialect cannot spell, each member planned its own statement; P1.2, 2026-11-07) -- a named list beside the
+     * counts (the lanes attribute them per test). */
     public static final List<String> FALLBACK_REASONS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 

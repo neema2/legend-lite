@@ -217,13 +217,6 @@ class ChannelBEssentialTest {
         assertTrue(agreePass >= 324, "AGREE-PASS fell: " + agreePass);
         assertTrue(bFixesA >= 12, "B-FIXES-A fell (a test channel A's ledger lists regressed in B): " + bFixesA);
         assertTrue(wireBug <= 0, "WIRE-BUG census grew: " + wireBug);
-        // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
-        // verdict of record and the host-lattice referee may never
-        // disagree silently; a disagreement fails the suite with the
-        // census line (CANONICAL_FORM_SPEC §0, ratified design).
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
-                "DUAL-VERDICT DISAGREEMENT: "
-                        + com.legend.judge.CanonicalDivergence.summary());
 
         // V6b (OPEN_REGISTER): the decline CEILING — the surviving
         // declines are DECLARED residue (class instances + wire-tree

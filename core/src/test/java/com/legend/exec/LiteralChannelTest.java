@@ -109,16 +109,12 @@ class LiteralChannelTest {
     }
 
     @Test
-    @DisplayName("the tree marker never compares: equal trees DECLINE,"
-            + " never fabricate")
+    @DisplayName("equal trees inside Any cells: the host referee judges them equal, never fabricated")
     void treesDecline() throws Exception {
-        long before = CanonicalDivergence.sqlDeclinedCount();
-        // a JSON tree inside an Any cell (list of lists via map) —
-        // host referee judges; the byte channel counts its decline
+        // a JSON tree inside an Any cell (list of lists via map) -- the host referee judges (the byte channel's decline
+        // this test also counted went with the channel, 2026-11-07)
         assertEquals(Boolean.TRUE, run(
                 "{|assertEquals([pair(1,'a')]->map(p|$p), "
                         + "[pair(1,'a')]->map(p|$p))}").one());
-        assertTrue(CanonicalDivergence.sqlDeclinedCount() >= before,
-                CanonicalDivergence.summary());
     }
 }

@@ -261,17 +261,6 @@ public final class CanonicalDivergence {
         }
     }
 
-    /** RESERVED witness buffer for the DUAL-VERDICT ALARM: a
-     * disagreement is the gated-to-zero signal and must never lose its
-     * witness to shared-buffer crowding (a 200-cap buffer full of
-     * decline rows swallowed the one alarm row, 2026-08-28). */
-    private static final ConcurrentLinkedQueue<Row> SQL_DISAGREE_SAMPLES =
-            new ConcurrentLinkedQueue<>();
-
-    public static List<Row> sqlDisagreeSamples() {
-        return List.copyOf(SQL_DISAGREE_SAMPLES);
-    }
-
     /** The BYTE channel's disagree rows get the same reserved buffer:
      * the pinned-census witnesses must never lose attribution to
      * decline-row crowding of the shared 200-cap (the 2026-08-28
@@ -282,38 +271,6 @@ public final class CanonicalDivergence {
 
     public static List<Row> disagreeSamples() {
         return List.copyOf(DISAGREE_SAMPLES);
-    }
-
-    /** R2a: a side the SQL channel declined (non-scalar kind, unclaimed
-     * render, lowering refusal) — the host lattice judged instead. The
-     * REASON rides the sample buffer so the V6 burn targets families,
-     * not a bare count. */
-    public static void sqlDeclined() {
-        if (MUTED.get()) {
-            return;
-        }
-        sqlDeclined("unclassified");
-    }
-
-    public static void sqlDeclined(String reason) {
-        com.legend.diagnostics.Diagnostics.judgeDecline("declined", "", reason);
-        if (MUTED.get()) {
-            return;
-        }
-        Census.inc(Census.Key.SQL_DECLINED);
-        sample(new Row("sqlDecline", false, reason));
-        // leg 3.0 census: the decline attributed to the assert family
-        // being adjudicated (the reason's head, before its first ':') —
-        // one row per decline EVENT (a grid pair may record one per side)
-        int c = reason.indexOf(':');
-        String head = c < 0 ? reason : reason.substring(0, c);
-        SQL_CENSUS.merge("declined " + CURRENT_FAMILY.get() + " " + head,
-                1L, Long::sum);
-        if (!CHANNEL_SEEN.get()) {
-            // one row per declined ASSERT — what the family's rows sum to
-            SQL_CENSUS.merge("declined-asserts " + CURRENT_FAMILY.get(), 1L, Long::sum);
-        }
-        CHANNEL_SEEN.set(true);
     }
 
     // ── leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the
@@ -433,10 +390,6 @@ public final class CanonicalDivergence {
         return new java.util.TreeMap<>(SQL_CENSUS);
     }
 
-    public static long sqlDisagreeCount() {
-        return Census.count(Census.Key.SQL_DISAGREE);
-    }
-
     /** The asserts the database judge decided (its verdict row read; {@link #sqlJudgedInDatabase}). The agreement
      *  gate's pins read it beside {@link #sqlUnjudgedCount} (the plan path program's step 6, 2026-10-18). */
     public static long sqlJudgedInDatabaseCount() {
@@ -458,10 +411,6 @@ public final class CanonicalDivergence {
         return n;
     }
 
-    public static long sqlDeclinedCount() {
-        return Census.count(Census.Key.SQL_DECLINED);
-    }
-
     /** OPEN_REGISTER §5 / X6: a byte-differing Double pair the DECLARED
      * 2-ULP dialect-arithmetic policy adjudicated equal (cross-dialect
      * libm last-ULP drift — H2-derived corpus goldens vs DuckDB
@@ -477,24 +426,6 @@ public final class CanonicalDivergence {
 
     public static long sqlUlpPolicyCount() {
         return Census.count(Census.Key.SQL_ULP_POLICY);
-    }
-
-    /** V7 batch 2: a byte-differing pair the DECLARED TDSNull-sentinel
-     * policy adjudicated equal (PureAsserts equalScalar: an EXPECTED
-     * 'TDSNull' equals an actual NULL cell — the engine golden's null
-     * spelling). Counted like the 2-ULP policy: rides ON TOP of the
-     * byte channel, never a disagreement rescue. */
-
-    public static void sqlTdsNullPolicy(String detail) {
-        if (MUTED.get()) {
-            return;
-        }
-        Census.inc(Census.Key.SQL_TDSNULL_POLICY);
-        sample(new Row("sqlTdsNullPolicy", true, detail));
-    }
-
-    public static long sqlTdsNullPolicyCount() {
-        return Census.count(Census.Key.SQL_TDSNULL_POLICY);
     }
 
     // ── V7 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1): the corpus DUAL
@@ -792,10 +723,7 @@ public final class CanonicalDivergence {
     public static String summary() {
         return "agree=" + Census.count(Census.Key.DIVERGENCE_AGREE) + " disagree=" + Census.count(Census.Key.DIVERGENCE_DISAGREE)
                 + " residue=" + Census.count(Census.Key.DIVERGENCE_RESIDUE)
-                + " | sql-verdict agree=" + Census.count(Census.Key.SQL_AGREE)
-                + " disagree=" + Census.count(Census.Key.SQL_DISAGREE)
-                + " declined=" + Census.count(Census.Key.SQL_DECLINED)
-                + " ulp-policy=" + Census.count(Census.Key.SQL_ULP_POLICY)
+                + " | sql-verdict ulp-policy=" + Census.count(Census.Key.SQL_ULP_POLICY)
                 + " row-order-canon=" + Census.count(Census.Key.ROW_ORDER_CANON)
 ;
     }
@@ -814,10 +742,8 @@ public final class CanonicalDivergence {
 
     public static void reset() {
         Census.reset(Census.Key.DIVERGENCE_AGREE, Census.Key.DIVERGENCE_DISAGREE, Census.Key.DIVERGENCE_RESIDUE,
-                Census.Key.SQL_AGREE, Census.Key.SQL_DISAGREE, Census.Key.SQL_DECLINED, Census.Key.SQL_ULP_POLICY,
-                Census.Key.SQL_TDSNULL_POLICY, Census.Key.ROW_ORDER_CANON);
+                Census.Key.SQL_ULP_POLICY, Census.Key.ROW_ORDER_CANON);
         SAMPLES.clear();
-        SQL_DISAGREE_SAMPLES.clear();
         DISAGREE_SAMPLES.clear();
         V7_FORMS.clear();
         V7_DECLINES.clear();

@@ -14,10 +14,11 @@ package com.legend.base;
  *   <li><b>Every statement is a run's.</b> A session's statements -- a send, a load, a metadata read, a session's
  *   check -- are taken inside a plan's run alone ({@link #statement}: the session's one door to them).</li>
  *   <li><b>A run starts no run.</b> A run started inside a run is refused ({@link #enter}): every statement a run
- *   sends is a step of its plan, read by the runner (a caller's message, a split rung's row: the program's reader).
- *   No exception: the one named residue the wall carried, the engine-text appeal's runs inside a body's run, was
- *   deleted with its door on 2026-11-06 (its rows read by the program's reader, its fixtures provided before the
- *   body's run).</li>
+ *   sends is a step of its plan (a caller's message and a split rung's statement are planned sides and verdicts of
+ *   the program, P1.2, 2026-11-07). No exception: the engine-text appeal's runs inside a body's run were deleted on
+ *   2026-11-06, and a held appeal is decided after the body's run, its rows read as plans of their own.</li>
+ *   <li><b>A judgment plans nothing.</b> While a held appeal is decided after the body's run ({@link #judging}), the
+ *   planning seams refuse as they do inside a run, and no body is planned ({@link #plans}).</li>
  * </ol>
  *
  * <p>Nothing turns the wall off: there is no report mode (the measurement of 2026-11-06 listed every crossing over
@@ -83,18 +84,41 @@ public final class RunScope implements AutoCloseable {
         return DEPTH.get()[0] > 0;
     }
 
-    /** Rule 1: a planning seam is about to do {@code what}, refused while a plan runs. */
+    /** Rule 1: a planning seam is about to do {@code what}, refused while a plan runs, and while a judgment made after
+     *  a run is decided ({@link #judging}). */
     public static void planning(String what) {
-        if (DEPTH.get()[0] > 0) {
-            throw new Refused("the runtime wall: " + what + " while a plan runs (" + what + " <- " + callers(24) + ")");
+        if (DEPTH.get()[0] > 0 || JUDGING.get()[0] > 0) {
+            throw new Refused("the runtime wall: " + what + " while " + busy() + " (" + what + " <- " + callers(24)
+                    + ")");
         }
+    }
+
+    private static final ThreadLocal<int[]> JUDGING = ThreadLocal.withInitial(() -> new int[1]);
+
+    /** What refuses planning on this thread: a run, or a judgment decided after one. */
+    private static String busy() {
+        return DEPTH.get()[0] > 0 ? "a plan runs" : "a judgment is decided after its run";
+    }
+
+    /** A judgment decided AFTER a run (a held compatibility appeal, P1, 2026-11-07): it plans nothing -- the planning
+     *  seams refuse as inside a run -- and reads only plans planned ahead, each a run of its own. Close it when the
+     *  judgment ends. */
+    public static Judging judging() {
+        JUDGING.get()[0]++;
+        return () -> JUDGING.get()[0]--;
+    }
+
+    /** A judgment's scope ({@link #judging}). */
+    public interface Judging extends AutoCloseable {
+        @Override
+        void close();
     }
 
     /** Rule 2: this thread plans {@code what} until the scope closes (an inner scope keeps the outer's name). Refused
      *  inside a run: a run plans nothing (rule 1). */
     public static Planning plans(String what) {
-        if (DEPTH.get()[0] > 0) {
-            throw new Refused("the runtime wall: planning " + what + " while a plan runs <- " + callers(24));
+        if (DEPTH.get()[0] > 0 || JUDGING.get()[0] > 0) {
+            throw new Refused("the runtime wall: planning " + what + " while " + busy() + " <- " + callers(24));
         }
         Slot slot = PLANNING.get();
         String previous = slot.name;

@@ -790,17 +790,13 @@ public class MinimalCorpusTest {
         }
         lenTests.forEach((t, n) -> System.out.println("[corpus2] leniency-tests " + t + "=" + n));
         // leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the SQL
-        // canon's CLAIM / DECLINE census per assert family and reason, the
-        // host-vs-byte disagreements (database mode's bug list now that
-        // host is the verdict of record), the policy counts. Printed only.
+        // canon's census per assert family and route, the policy counts.
+        // Printed only.
         com.legend.judge.CanonicalDivergence.sqlCensus().forEach(
                 (k, v) -> System.out.println("[corpus2] sql-census " + k + "=" + v));
         System.out.println("[corpus2] sql-census policy ulp="
                 + com.legend.judge.CanonicalDivergence.sqlUlpPolicyCount()
-                + " tdsnull=" + com.legend.judge.CanonicalDivergence.sqlTdsNullPolicyCount()
                 + " decimal-scale-only=" + com.legend.judge.CanonicalDivergence.decimalScaleOnlyCount()
-                + " disagree=" + com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
-                + " declined=" + com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
                 + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
                 + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.judge.VerdictBatch.frameCensus() + "]");
@@ -811,8 +807,6 @@ public class MinimalCorpusTest {
                 + " detaches=" + com.legend.testbackend.WorkspaceCensus.DETACHES.get()
                 + " detach-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_NANOS.get() / 1_000_000L
                 + " detach-max-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_MAX_NANOS.get() / 1_000_000L);
-        com.legend.judge.CanonicalDivergence.sqlDisagreeSamples().forEach(
-                r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {
             return;
         }

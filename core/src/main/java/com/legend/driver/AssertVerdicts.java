@@ -1772,17 +1772,6 @@ final class AssertVerdicts {
         return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
     }
 
-    /** D1 (V7_ARCH_AUDIT 2026-08-28) — THE ONE dual-verdict finisher:
-     * the census probe, the verdict of record, and the failure
-     * narrative all derive from a single judgment. {@code byteHeld}
-     * null = the byte channel declined (already counted); the host
-     * lattice judges. {@code hostMessage} is consulted ONLY when the
-     * host lattice failed, and must speak then — a silent host failure
-     * is a verdict/message divergence and THROWS (the reverted
-     * flat-cells attempt's 28-row phantom, made structurally
-     * impossible: no arm can print the byte-divergence text for a
-     * judgment the byte channel never made, because the probe and the
-     * message read the same two booleans). */
     /** The run's judge mode rides its options (ExecuteOptions.JudgeMode):
      * one mode per run, read from the execution environment — never a JVM
      * global. HOST is the verdict of record; DATABASE plans both sides and
@@ -2329,46 +2318,6 @@ final class AssertVerdicts {
         out.addAll(a);
         out.addAll(b);
         return out;
-    }
-
-    /** F13 v1 exclusion scan: any KEYLESS model-class constructor (or
-     * copy) under a lambda anywhere in the verdict's scope — the site
-     * id cannot distinguish per-element evaluations. A plain
-     * containment walk over {@code children()} (no shadow concerns —
-     * this detects presence, it never resolves variables). */
-    static boolean keylessCtorUnderLambda(List<TypedSpec> roots,
-            BodyDriver.ExecEnv env) {
-        for (TypedSpec r : roots) {
-            if (scanKeylessCtor(r, false, env)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean scanKeylessCtor(TypedSpec n, boolean inLambda,
-            BodyDriver.ExecEnv env) {
-        if (inLambda) {
-            String fqn = n instanceof
-                    com.legend.compiler.spec.typed.TypedNewInstance ni
-                    ? ni.classFqn()
-                    : n instanceof
-                            com.legend.compiler.spec.typed.TypedCopyInstance cp
-                            ? cp.classFqn() : null;
-            if (fqn != null && env.ctx().findClass(fqn).isPresent()
-                    && com.legend.compiler.element.EqualityKeys
-                            .resolve(env.ctx(), fqn) == null) {
-                return true;
-            }
-        }
-        boolean in = inLambda
-                || n instanceof com.legend.compiler.spec.typed.TypedLambda;
-        for (TypedSpec k : n.children()) {
-            if (scanKeylessCtor(k, in, env)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static String typeName(TypedSpec spec) {

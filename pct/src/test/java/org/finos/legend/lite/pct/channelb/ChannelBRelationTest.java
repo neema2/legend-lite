@@ -122,13 +122,6 @@ class ChannelBRelationTest {
                 "relation WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
                 "relation TRUE wire-bug census grew: " + c.trueWireBug());
-        // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
-        // verdict of record and the host-lattice referee may never
-        // disagree silently; a disagreement fails the suite with the
-        // census line (CANONICAL_FORM_SPEC §0, ratified design).
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
-                "DUAL-VERDICT DISAGREEMENT: "
-                        + com.legend.judge.CanonicalDivergence.summary());
 
         // V6b (OPEN_REGISTER): the decline CEILING — the surviving
         // declines are DECLARED residue (class instances + wire-tree

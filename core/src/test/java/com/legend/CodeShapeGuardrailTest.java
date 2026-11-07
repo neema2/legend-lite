@@ -85,6 +85,10 @@ class CodeShapeGuardrailTest {
             // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
             // reports straight to the caller's listener
             "Appeals.deciding",
+            // 2026-11-07, the P1 milestone audit's 2: whether a write of the body's ran (wrote) and ran after the first
+            // held appeal (wroteAfterHold) -- told by the runner's sink at each writing step, read when the appeals are
+            // decided: an appeal whose rows a write moved, or a failed run's rollback undid, is refused by name
+            "Appeals.wrote", "Appeals.wroteAfterHold",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

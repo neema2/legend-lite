@@ -48,6 +48,22 @@ class RunScopeTest {
         RunScope.planning("lower a spec");
     }
 
+    /** A held appeal decided after its body's run (P1.2, 2026-11-07): it plans nothing and plans no body, but it may
+     *  run the plans planned ahead for it, each a run of its own. */
+    @Test
+    void aJudgmentAfterARunPlansNothingButRunsItsPlans() {
+        try (var judging = RunScope.judging()) {
+            RunScope.Refused refused = assertThrows(RunScope.Refused.class, () -> RunScope.planning("lower a spec"));
+            assertTrue(refused.getMessage().startsWith(
+                    "the runtime wall: lower a spec while a judgment is decided after its run ("), refused.getMessage());
+            assertThrows(RunScope.Refused.class, () -> RunScope.plans("a test body"));
+            try (var run = RunScope.enter()) {
+                assertTrue(RunScope.running());
+            }
+        }
+        RunScope.planning("lower a spec");
+    }
+
     @Test
     void rule2PlanningOpensNoSessionStartsNoRunAndSendsNothing() {
         try (var planning = RunScope.plans("a test body")) {

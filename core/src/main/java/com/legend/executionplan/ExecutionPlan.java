@@ -196,10 +196,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          * F11 (the test-is-the-product plan's B12): on a database that ABORTS a transaction on a failing statement,
          * each statement of the group whose failure the program survives, sent inside a transaction, is guarded by a
          * savepoint -- {@code set} before it, {@code rollbackTo} when the database rejects it, {@code release}
-         * otherwise: the fused statement (so the verdicts' own wrappers, the split rung, can run) and each verdict's
-         * host side read (an {@code assertError}'s side, whose error is its verdict's answer; the walker-deletion
-         * program, 2026-11-03). The texts are the dialect's ({@code SqlDialect.verdictSavepoint}); the runner sends
-         * them only inside a transaction.
+         * otherwise: each verdict's host side read (an {@code assertError}'s side, whose error is its verdict's
+         * answer; the walker-deletion program, 2026-11-03). The fused statement has none: the split rung that retried
+         * it is planning's alone, and a fused statement the database rejects fails the program (P1.2, 2026-11-07).
+         * The texts are the dialect's ({@code SqlDialect.verdictSavepoint}); the runner sends them only inside a
+         * transaction.
          */
         public record Savepoint(String set, String rollbackTo, String release) {
             public Savepoint {

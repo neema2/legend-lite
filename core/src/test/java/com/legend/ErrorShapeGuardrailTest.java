@@ -134,9 +134,9 @@ class ErrorShapeGuardrailTest {
             // V2/V6 (OPEN_REGISTER, adjudicated 2026-08-22): the byte
             // verdict's DECLINE TUNNELS — prepCanon (lowering refusal)
             // and runCanon (render/execution refusal) each fall back to
-            // the host lattice with the decline COUNTED
-            // (CanonicalDivergence.sqlDeclined), so neither broad catch
-            // can become a silent rescue.
+            // the host lattice with the decline COUNTED (the decline
+            // counter went with the byte channel, 2026-11-07), so neither
+            // broad catch can become a silent rescue.
             // 2 -> 3 (2026-08-23 F10 v1): the canon-exec tunnel's
             // MIDDLE RUNG (drop the literal candidate, keep the bare
             // byte channel) catches the same designed-sentinel class as
@@ -155,6 +155,11 @@ class ErrorShapeGuardrailTest {
             // environment's failure raised before the arm at its turn (the walk's), and its side's planning failure:
             // the error the arm takes is the judgment's answer, any other a wall raised at its turn, loud
             Map.entry("HostAsserts.java", 6),
+            // 0 -> 1 (2026-11-07, the P1 milestone audit's 2): a body whose run FAILED with its compatibility appeals
+            // held -- the catch always rethrows: the run's own failure, the first held appeal's failure (which
+            // precedes it, the run's suppressed in it), or a named refusal where the failed run wrote (its rollback
+            // undid what the appeals read). An Error (the wall's refusal) is not caught. Nothing swallowed
+            Map.entry("BodyRouter.java", 1),
             // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
             // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
             // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts

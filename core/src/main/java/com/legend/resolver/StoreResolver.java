@@ -317,13 +317,14 @@ public final class StoreResolver {
     // The context walk
     // =====================================================================
 
-    /** An ANCHORED if(): a RUNTIME condition choosing between two VALUES (a primitive or an enum -- never a class or a
-     *  relation, which no CASE can choose between) resolves part by part and the database decides it, CASE WHEN
+    /** An ANCHORED if(): a RUNTIME condition choosing between two VALUES (a primitive or an enum of at most one --
+     *  never a class, a relation or a collection, which no CASE can choose between) resolves part by part and the
+     *  database decides it, CASE WHEN
      *  (2026-11-07, the DuckDB judges' parity: upstream's getQualifiedTableName, {@code if($t.schema.name ==
      *  'default', ...)} over a metamodel table, in a test helper's assert message the host judge plans); any other
      *  needs a condition decidable at planning ({@link #resolveStaticIf}). */
     private TypedSpec anchoredIf(TypedIf i, Context context) {
-        if (LiteralFolds.staticBool(i.condition()) == null
+        if (LiteralFolds.staticBool(i.condition()) == null && !i.info().multiplicity().isMany()
                 && (i.info().type() instanceof Type.Primitive || i.info().type() instanceof Type.EnumType)) {
             return structural(i, context);
         }

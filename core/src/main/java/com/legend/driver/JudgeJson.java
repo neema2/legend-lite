@@ -22,8 +22,9 @@ import java.util.Map;
  * (GATES 2026-11-07): commas and colons are skipped wherever they stand, so a missing or extra one reads; an
  * unterminated string at the very end reads as the end; any other token after the root value is refused; an escape
  * json-simple does not know keeps its backslash; {@code true}, {@code false} and {@code null} are lowercase; a number
- * is {@code -?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?}. Values are lite's (a Long, a BigInteger past a Long, a BigDecimal
- * for a fraction or an exponent), as {@code com.legend.sql.Json} reads them: the comparison is the judges' own.
+ * is {@code -?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?}, an integer past a Long refused; whitespace is space, tab, CR
+ * and LF alone; a {@code \\u} escape takes four ASCII hex digits. Values are lite's (a Long, a BigDecimal for a
+ * fraction or an exponent), as {@code com.legend.sql.Json} reads them: the comparison is the judges' own.
  * Measured on the corpus (2026-11-07, both databases): two goldens read only under the compatibility grammar, the
  * graph-fetch milestoning goldens ending {@code ]"}. Compatibility code: the edge's when the edge package exists (P2).
  */
@@ -191,7 +192,7 @@ final class JudgeJson {
 
         /** The next token: whitespace skipped; an unterminated string at the end is the end. */
         private void next() {
-            while (at < s.length() && " \t\n\r\f".indexOf(s.charAt(at)) >= 0) {
+            while (at < s.length() && " \t\n\r".indexOf(s.charAt(at)) >= 0) {
                 at++;
             }
             value = null;
@@ -271,7 +272,12 @@ final class JudgeJson {
                 value = new BigDecimal(t);
             } else {
                 BigInteger big = new BigInteger(t);
-                value = big.bitLength() < 64 ? (Object) big.longValue() : big;
+                if (big.bitLength() >= 64) {
+                    // json-simple reads an integer as a Long, and one past it raises (NumberFormatException)
+                    throw new IllegalStateException("For input string: \"" + t + "\" (an integer past a Long, refused"
+                            + " by json-simple 1.1.1's grammar)");
+                }
+                value = big.longValue();
             }
         }
 
@@ -285,6 +291,12 @@ final class JudgeJson {
 
         private static boolean isDigit(char c) {
             return c >= '0' && c <= '9';
+        }
+
+        /** An ASCII hex digit: json-simple's {@code \\u} takes no other (a fullwidth or Arabic-Indic digit keeps the
+         *  escape's backslash, probed 2026-11-07). */
+        private static boolean isHexDigit(int c) {
+            return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
         }
 
         /** A string's escapes as json-simple reads them; one unterminated at the end is the end (no token). */
@@ -316,7 +328,7 @@ final class JudgeJson {
                     case 't' -> b.append('\t');
                     case 'u' -> {
                         if (at + 6 <= s.length() && s.substring(at + 2, at + 6).chars()
-                                .allMatch(h -> Character.digit(h, 16) >= 0)) {
+                                .allMatch(JsonSimple::isHexDigit)) {
                             b.append((char) Integer.parseInt(s.substring(at + 2, at + 6), 16));
                             at += 6;
                         } else {

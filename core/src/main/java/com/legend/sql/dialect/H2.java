@@ -1128,7 +1128,7 @@ public class H2 extends AnsiSqlRenderer {
                     .append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
-        // the two rows host mode lost when the byte channel judged): a
+        // two rows the since-deleted byte channel lost): a
         // value whose TYPE FACT is BOOLEAN takes the reference spelling
         // too, not only a boolean-SHAPED expression
         boolean booleanFact = c.value().type() instanceof com.legend.sql.TypeFact.Typed tf

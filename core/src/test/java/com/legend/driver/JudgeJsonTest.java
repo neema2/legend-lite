@@ -57,6 +57,10 @@ class JudgeJsonTest {
         assertEquals(Arrays.asList((Object) null), compat("[null]"));
         // the milestoned graph-fetch golden's shape: a complete array, then a stray quote
         assertEquals(List.of(Map.of("id", 3L)), compat("[{\"id\":3}]\""));
+        // a \\u escape with digits that are not ASCII hex keeps its backslash (the milestone audit, 2026-11-07)
+        assertEquals(List.of("\\u\u0660\u0660\u0664\u0661"), compat("[\"\\u\u0660\u0660\u0664\u0661\"]"));
+        assertEquals(List.of("\\u\uFF10\uFF10\uFF14\uFF11"), compat("[\"\\u\uFF10\uFF10\uFF14\uFF11\"]"));
+        assertEquals(List.of(Long.MAX_VALUE), compat("[9223372036854775807]"));
     }
 
     @Test
@@ -64,7 +68,11 @@ class JudgeJsonTest {
             + " unknown character, an unterminated string inside a container, nothing at all")
     void compatibilityRefusesWhatJsonSimpleRefuses() {
         for (String refused : List.of("[1] 2", "[1]]", "[1],", "[1] x", "{\"a\":1}}", "[1]\"abc\"", "[1][2]",
-                "[1]\"\"", "{1:2}", "[1.]", "[.5]", "[TRUE]", "[\"abc", "", "   ")) {
+                "[1]\"\"", "{1:2}", "[1.]", "[.5]", "[TRUE]", "[\"abc", "", "   ",
+                // the milestone audit's three (2026-11-07): a form feed, a backspace or a vertical tab is no
+                // whitespace; an integer past a Long raises
+                "[1,\f2]", "\f[1]", "[1,\b2]", "[1,\u000b2]", "[9223372036854775808]", "[-9223372036854775809]",
+                "[1e]", "[1.5e]")) {
             assertThrows(IllegalStateException.class, () -> compat(refused), refused);
         }
     }

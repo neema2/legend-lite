@@ -153,9 +153,10 @@ public final class VerdictBatch {
             implements Step {
     }
 
-    /** A verdict row's APPEAL (block-compiler rung 2a): run at the flush when the
-     * row FAILED — returns on a pass by another judgment (the SQL-text referee's
-     * rows), raises its own failure otherwise. Never consulted on a held row. */
+    /** A verdict row's APPEAL (block-compiler rung 2a): consulted by the root loop when the row FAILED -- returns on a
+     * pass by another judgment (the SQL-text referee's rows; under the compatibility rules held, its assert holding
+     * until the appeal is decided after the body's run, P1.2, 2026-11-07), raises its own failure otherwise. Never
+     * consulted on a held row. */
     public interface Appeal {
         /** The failed {@code row} ({@code VerdictSql.schema}'s columns) decided: a pass returns, a failure raises. */
         TypedSide appeal(List<Object> row);
@@ -178,9 +179,6 @@ public final class VerdictBatch {
             this.listenerName = listenerName;
         }
     }
-
-    /** CENSUS (printed by the corpus lanes): fused statements sent, and the
-     * batches that fell to the split rung. */
 
     /** CENSUS: frames built under a batch, by how the asserts read them —
      * {@code cte} (a relation-rooted frame of static schema, planned once),
@@ -420,14 +418,14 @@ public final class VerdictBatch {
     }
 
     /** One verdict group of a planned batch: its step, the session it runs on, whether it is the keyed members' group
-     *  (each verdict its keyed wrapper, no fused statement; a rejection leaves its rows absent). */
+     *  (each verdict its keyed wrapper, no fused statement; a rejection fails the program, P1.2, 2026-11-07). */
     public record Group(ExecutionPlan.Verdicts step, ExecutionPlan.Target on, boolean keyed) {
     }
 
     /**
      * THE BATCH PLANNED (the test-is-the-product plan's M7): the deferred verdicts as verdict groups -- one fused
-     * statement per session over the batch's frames (the dialect's split rung at planning, member by member:
-     * {@link #spelled}), the keyed members a group of their own -- and the judgment over the rows the groups answer
+     * statement per session over the batch's frames (where the dialect cannot spell it, each member its own statement:
+     * the split rung at planning), the keyed members a group of their own -- and the judgment over the rows the groups answer
      * ({@link #judge}: the root loop, in body order, the first failure raising). The walk's flush (deleted 2026-11-07) ran the
      * groups through the plan runner between the two; the program road places the groups as steps of the body's plan
      * and judges at the last of them. Null where nothing was deferred (no root).
@@ -501,11 +499,11 @@ public final class VerdictBatch {
             }
         }
         // a caller's message that READS, planned now as a side of the plan (P1.2, the goals of record, 2026-11-07: exec
-        // runs only the plan's statements): on its root's first verdict (Verdict.message), read through the run's
-        // reader only where the root fails; a message the dialect cannot spell keeps its refusal, raised there
+        // runs only the plan's statements): on its root's first verdict in the plan (Verdict.message, attached once
+        // the groups are made: carried), read through the run's reader only where the root fails; a message the
+        // dialect cannot spell keeps its refusal, raised there
         Map<Root, ExecutionPlan.Side> messages = new java.util.IdentityHashMap<>();
         Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals = new java.util.IdentityHashMap<>();
-        Map<Pending, ExecutionPlan.Side> messageOf = new java.util.IdentityHashMap<>();
         for (Root r : batch) {
             if (r.message == null) {
                 continue;
@@ -515,10 +513,7 @@ public final class VerdictBatch {
                 messageRefusals.put(r, a.refused());
                 continue;
             }
-            ExecutionPlan.Side side = sideOf(java.util.Objects.requireNonNull(a.plan()));
-            messages.put(r, side);
-            r.steps.stream().filter(x -> x instanceof Pending).map(x -> (Pending) x).findFirst()
-                    .ifPresent(first -> messageOf.put(first, side));
+            messages.put(r, sideOf(java.util.Objects.requireNonNull(a.plan())));
         }
         List<Group> out = new ArrayList<>();
         Map<ExecutionPlan.Verdict, Pending> members = new java.util.IdentityHashMap<>();
@@ -533,13 +528,12 @@ public final class VerdictBatch {
                 }
             }
             // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
-            // no wrapper of its own here -- a single wrapper is planned and run lazily in the root loop below, at the
-            // place the split rung reaches it, so nothing is sent past the first failure
+            // no wrapper of its own here
             // a member whose statement reads a raw grid's report is keyed: its wrapper's keys are its grid's columns,
             // which no fused statement shares, so the keyed members are a group of their own, each its wrapper
             // (a member is keyed by its statement with the batch's frames, as it is planned: a frame may read a report)
-            Group keyedGroup = keyedGroup(all.stream().filter(this::keyed).toList(), g.getKey(), members, messageOf,
-                    unspelled);
+            Group keyedGroup = ownStatements(all.stream().filter(this::keyed).toList(), g.getKey(), members,
+                    unspelled, true);
             if (keyedGroup != null) {
                 out.add(keyedGroup);
             }
@@ -552,38 +546,22 @@ public final class VerdictBatch {
                 fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true,
                         g.getKey()));
             } catch (com.legend.sql.dialect.DialectCapability e) {
-                // the split rung at planning, member by member (the planner-driver seam program's S3b, 2026-10-30): a
-                // verdict whose canon the dialect cannot spell leaves the group and is refused at its own place in the
-                // root loop (executeOne: UNJUDGED, its own words, nothing sent); the members the dialect spells stay
-                // fused. Until S3b the wire probe's prepare rendered a wire-decided side at its planning, which refused
-                // such a side before it joined the group -- by accident, and only for those sides
-                List<Pending> unfused = ps;
-                ps = spelled(unfused);
-                for (Pending u : unfused) {
-                    if (!ps.contains(u)) {
-                        unspelled.add(u);
-                    }
+                // the split rung at planning (P1, 2026-11-07, the milestone audit's 1): the fused statement the dialect
+                // cannot spell -- each member its own statement, a group with no fused statement as the keyed members'
+                // (the runner runs each verdict's wrapper); a member whose own statement the dialect cannot spell is
+                // refused at its place in the root loop, nothing sent. Until the audit the members the dialect spelled
+                // alone were dropped from every group, and the root loop found no row for them
+                fallback(e);
+                Group own = ownStatements(ps, g.getKey(), members, unspelled, false);
+                if (own != null) {
+                    out.add(own);
                 }
-                fusedPlan = null;
-                if (!ps.isEmpty() && ps.size() < unfused.size()) {
-                    try {
-                        fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames),
-                                true, g.getKey()));
-                    } catch (com.legend.sql.dialect.DialectCapability again) {
-                        fusedPlan = null;
-                    }
-                }
-                if (fusedPlan == null) {
-                    // the split rung at planning: a canon the dialect cannot spell; counted as the run-time one is
-                    fallback(e);
-                    continue;
-                }
+                continue;
             }
             for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
                 List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                 for (Pending p : part.getKey()) {
-                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null,
-                            messageOf.get(p));
+                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null);
                     verdicts.add(v);
                     members.put(v, p);
                 }
@@ -603,7 +581,53 @@ public final class VerdictBatch {
             }
             refusals.put(u, refused);
         }
-        return new Planned(batch, out, members, unspelled, refusals, messages, messageRefusals);
+        return new Planned(batch, carried(batch, out, members, messages), members, unspelled, refusals, messages,
+                messageRefusals);
+    }
+
+    /** {@code groups} with each root's caller's message on the root's first verdict in them (the milestone audit's 3,
+     *  2026-11-07: until then the message rode the root's first pending member, which a refused member or a root
+     *  decided at planning left in no group); {@code members} keyed by the verdicts as rebuilt. */
+    private static List<Group> carried(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
+            Map<Root, ExecutionPlan.Side> messages) {
+        Map<Pending, ExecutionPlan.Side> carry = new java.util.IdentityHashMap<>();
+        java.util.Set<Pending> grouped = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        grouped.addAll(members.values());
+        for (Root r : batch) {
+            ExecutionPlan.Side side = messages.get(r);
+            if (side == null) {
+                continue;
+            }
+            for (Step step : r.steps) {
+                if (step instanceof Pending p && grouped.contains(p)) {
+                    carry.put(p, side);
+                    break;
+                }
+            }
+        }
+        if (carry.isEmpty()) {
+            return groups;
+        }
+        List<Group> out = new ArrayList<>(groups.size());
+        for (Group g : groups) {
+            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(g.step().verdicts().size());
+            for (ExecutionPlan.Verdict v : g.step().verdicts()) {
+                Pending p = members.get(v);
+                ExecutionPlan.Side side = p == null ? null : carry.get(p);
+                if (side == null) {
+                    verdicts.add(v);
+                    continue;
+                }
+                ExecutionPlan.Verdict withMessage = new ExecutionPlan.Verdict(v.name(), v.arm(), v.base(), v.wrapper(),
+                        side);
+                members.remove(v);
+                members.put(withMessage, p);
+                verdicts.add(withMessage);
+            }
+            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(),
+                    g.step().rules()), g.on(), g.keyed()));
+        }
+        return out;
     }
 
     /** A statement planned at planning: its plan, or the dialect's refusal of it. */
@@ -691,8 +715,9 @@ public final class VerdictBatch {
             }
         }
 
-        /** The row the runner read for {@code verdict} (null where none: the fused statement rejected, a keyed
-         *  wrapper unplanned or rejected); the root loop reaches an absent row at its place. */
+        /** The row the runner read for {@code verdict} (null where none: a member the dialect could not spell, planned
+         *  with no statement -- a rejected statement fails the program); the root loop reaches an absent row at its
+         *  place. */
         public void received(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
             counted();
             Pending p = members.get(verdict);
@@ -832,17 +857,13 @@ public final class VerdictBatch {
         if (refusal != null) {
             return planned.refused(r.listenerName, refusal);
         }
-        ExecutionPlan.Side side = planned.messages.get(r);
-        if (side != null && planned.members.keySet().stream().noneMatch(v -> side.equals(v.message()))) {
-            // the root's first member left its group unspelled: the message rides no verdict of the plan
-            return new IllegalStateException(r.listenerName + ": a caller's message on an assert whose first verdict"
-                    + " the dialect refused rides no verdict of the plan");
-        }
-        if (side == null) {
-            // a message that reads, on an assert decided at planning (no verdict of its own to carry it): not planned
-            // (measured 2026-11-07: no such assert on core's or PCT's database-judge lanes)
-            return new IllegalStateException(r.listenerName + ": a caller's message that reads, on an assert decided at"
-                    + " planning, has no verdict in the plan to carry it");
+        ExecutionPlan.Side side = java.util.Objects.requireNonNull(planned.messages.get(r));
+        if (planned.members.keySet().stream().noneMatch(v -> side.equals(v.message()))) {
+            // a root with no verdict in the plan (every member refused, or decided at planning): its message rides no
+            // statement of the plan, so it is not read -- refused by name (the milestone audit's 3)
+            return new com.legend.error.NotImplementedException(r.listenerName + ": the assert's caller's message reads"
+                    + " the database, and the assert has no statement in the plan to carry it (decided or refused at"
+                    + " planning)");
         }
         if (reader == null) {
             return new IllegalStateException(r.listenerName + ": a caller's message is read inside the body's run, by"
@@ -876,18 +897,18 @@ public final class VerdictBatch {
         return runner.keyed(com.legend.sql.FrameCtes.attach(p.query(), frames));
     }
 
-    /** The keyed members of a session's group as a verdict group of their own, each verdict its keyed wrapper (the
-     *  planner-driver seam program's S3c, 2026-10-31): the body's statements, run with the fused group's. A wrapper
-     *  the dialect cannot spell leaves its member out, unspelled: the root loop raises its refusal at its place, nothing
-     *  sent. Null where no member is keyed (or none is spelled). */
-    private @com.legend.base.Nullable Group keyedGroup(List<Pending> keyed, ExecutionPlan.Target on,
-            Map<ExecutionPlan.Verdict, Pending> members, Map<Pending, ExecutionPlan.Side> messageOf,
-            java.util.Set<Pending> unspelled) {
+    /** Members as a verdict group of their own, each verdict its own wrapper, no fused statement: the keyed members
+     *  (the planner-driver seam program's S3c, 2026-10-31: a raw grid's report, which no fused statement shares), and
+     *  the members of a fused statement the dialect cannot spell (the split rung at planning, P1, 2026-11-07). A
+     *  wrapper the dialect cannot spell leaves its member out, unspelled: the root loop raises its refusal at its place,
+     *  nothing sent. Null where no member is spelled. */
+    private @com.legend.base.Nullable Group ownStatements(List<Pending> keyed, ExecutionPlan.Target on,
+            Map<ExecutionPlan.Verdict, Pending> members, java.util.Set<Pending> unspelled, boolean isKeyed) {
         List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
             try {
                 ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on), messageOf.get(p));
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
                 verdicts.add(v);
                 members.put(v, p);
             } catch (com.legend.sql.dialect.DialectCapability e) {
@@ -895,7 +916,7 @@ public final class VerdictBatch {
             }
         }
         return verdicts.isEmpty() ? null : new Group(new ExecutionPlan.Verdicts(verdicts, null, runner.rules()), on,
-                true);
+                isKeyed);
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
@@ -923,21 +944,6 @@ public final class VerdictBatch {
         }
         throw new IllegalStateException("a fused verdict statement planned as " + plan.getClass().getSimpleName()
                 + ": a keyed member is judged at its place");
-    }
-
-    /** The members of a group whose own canon the dialect spells, each fused alone over the batch's frames (planning
-     *  only: a render, nothing sent). */
-    private List<Pending> spelled(List<Pending> group) {
-        List<Pending> out = new ArrayList<>(group.size());
-        for (Pending p : group) {
-            try {
-                runner.plan(fusion.fuse(List.of(p.query()), frames), true, p.on());
-                out.add(p);
-            } catch (com.legend.sql.dialect.DialectCapability e) {
-                // refused at its own place in the root loop
-            }
-        }
-        return out;
     }
 
     /** A rejected fused statement's accounting (the planning rung's unspelled canon, or the database's rejection,

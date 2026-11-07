@@ -1113,6 +1113,11 @@ final class ArchitectureTest {
      * of the driver. R2: planning (the planner, the test door, the lowering, the compiler, the resolver, the driver's
      * planning classes) holds no session and runs no plan. R4: the judge package holds no session. R3 (only the router
      * sees both halves) is the split's own, measured once the halves are packages.
+     *
+     * <p>NARROWER THAN IT READS (the P1 milestone audit, 2026-11-07): R1 and R2 classify the driver's classes by name,
+     * and the MIXED ones -- {@code AssertVerdicts}, {@code HostJudge}, {@code DatabaseJudge}, {@code SqlTextVerdicts},
+     * each a plan half and a run half in one class -- are neither planning nor run here, so their crossings are not
+     * measured. The split extracts their halves by method; until then these pins say nothing about them.
      */
     @Test
     void thePlanRunSplitInReportMode() {
@@ -1630,15 +1635,13 @@ final class ArchitectureTest {
                 // bounded classified declines, bounded disagreement
                 // witnesses; measurement only — the CanonicalDivergence
                 // pattern
-                // reserved dual-verdict ALARM witness buffer (bounded
-                // 50) — the alarm row must never lose its witness to
-                // shared-sample crowding; measurement only
-                "com.legend.judge.CanonicalDivergence.SQL_DISAGREE_SAMPLES",
+                // (the SQL channel's reserved disagreement witness buffer
+                // went with the byte channel, 2026-11-07, the P1 audit's 4)
                 // §8.3b wobble burn: the BYTE channel's pinned-census
                 // witnesses get the same reserved buffer — a ±1 count
                 // wobble was unattributable because its rows sat past
                 // the shared 200-cap (decline-row crowding, the
-                // SQL_DISAGREE_SAMPLES lesson re-learned); bounded by
+                // dual-verdict buffer's lesson re-learned); bounded by
                 // the exact-pinned disagree count (23); measurement only
                 "com.legend.judge.CanonicalDivergence.DISAGREE_SAMPLES",
                 "com.legend.judge.CanonicalDivergence.V7_FORMS",

@@ -259,9 +259,9 @@ public final class ProductStatements {
                 new ExecutionPlan.Multiplicity(0, 1), c.slot(), c.store(), c.precision())), List.of());
     }
 
-    /** Whether {@code root} is a TO-ONE READER: {@code toOne()} over a relation, which the walk answers holding the
-     *  exactly-one contract (the test road's reader semantics; the product plan carries no such fact yet, the
-     *  test-is-the-product plan's §9, D30). One rule for the walk, the test door's body classes and its router. */
+    /** Whether {@code root} is a TO-ONE READER: {@code toOne()} over a relation, its exactly-one contract checked by
+     *  the database at the statement's root ({@code lowering.ToOneGuard}, decision D2, 2026-11-07). One rule for the
+     *  test door's body classes and its router. */
     public static boolean toOneReader(TypedSpec root) {
         return root instanceof TypedNativeCall call
                 && com.legend.builtin.Pure.isToOneCall(call.callee().qualifiedName())

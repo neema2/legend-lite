@@ -11,15 +11,16 @@ import com.legend.executionplan.ExecutionPlan;
 import java.util.function.Function;
 
 /**
- * THE RUN'S READER while a moved body's sink judges (the walk deletion's step 3, 2026-11-06): the program's own
- * {@link PlanRunner.SideReader}, published for the judgment the sink runs, so a compatibility appeal reads the rows
- * planned with its assert INSIDE the body's run -- a side the runner reads on the program's sessions -- and never
- * starts a run of its own (THE WALL's rule 4; the named residue {@code engine-text-appeal} existed for those runs).
- * Set by the sink around one judgment, cleared after it; outside a judgment there is none.
+ * THE READER AND SESSIONS OF A JUDGMENT in progress: published by the moved body's sink around each judgment it runs,
+ * and by {@link Appeals} around each held appeal it decides after the body's run (P1.2, 2026-11-07); cleared after it,
+ * so outside a judgment there is none.
  *
- * <p>With it, the run's SESSIONS by target (I3, 2026-11-07): planning names a target and never holds a session, so a
- * judgment that needs the body's session itself -- the compatibility referee replays the golden beside the body's
- * database -- asks the run for the session its target opened ({@link #session}).
+ * <p>The READER is the one a judgment reads a planned side through: inside the body's run, the program's own
+ * {@link PlanRunner.SideReader}; for a held appeal, the edge's, each side a plan of its own run on the body's sessions
+ * after the body's run (the body's run sends its plan's statements and nothing else). The SESSIONS by target (I3,
+ * 2026-11-07): planning names a target and never holds a session, so a judgment that needs a session itself -- the
+ * compatibility referee replays the golden beside the body's database -- asks for the one its target opened
+ * ({@link #session}).
  */
 final class RunReader {
 
@@ -46,7 +47,7 @@ final class RunReader {
         };
     }
 
-    /** The session the run opened for {@code target}: a judgment inside the body's run alone asks. */
+    /** The session the body's run opened for {@code target}: a published judgment alone asks. */
     static Sessions.Session session(ExecutionPlan.Target target) {
         Published p = CURRENT.get();
         if (p == null || p.sessions() == null) {

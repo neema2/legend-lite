@@ -15,7 +15,7 @@ import java.util.List;
  * THE HOST JUDGE (task #27, 2026-09-21 — split out of AssertVerdicts): both sides of an
  * assert EXECUTE in the database and Java compares the rows ({@link com.legend.judge.Equality},
  * {@link com.legend.judge.PureAsserts}, {@link com.legend.judge.TdsCompare}) — the verdict of
- * record in host mode, the parallel referee of the byte channel. The router
+ * record in host mode; in agreement mode the database judge's peer. The router
  * ({@link AssertVerdicts}) classifies the assert and hands the sides over; the database
  * judge ({@link DatabaseJudge}) is the other arm of the same router.
  */
@@ -53,17 +53,10 @@ final class HostJudge {
         return AssertVerdicts.fail(d);
     }
 
-    // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified
-    // 2026-08-28): a TABULAR side's byte channel is its per-ROW canon
-    // (per-cell pure-literal spellings, TDS_CELL_SEP-joined, NULL
-    // cells spelling bare TDSNull — disjoint from a quoted string);
-    // the value peer's row canons FRAME from its literal-channel
-    // element canons (chunked by the grid's width — framing writes
-    // only separators, never renders). The host cell lattice stays
-    // the PARALLEL REFEREE, and the failure message derives from the
-    // SAME judgment that failed (the reverted attempt's 28-row
-    // phantom: message and judgment from different lattices with the
-    // probe unfired — structurally impossible here).
+    // ── §8 LEG 1 (grid canon, user-ratified 2026-08-28): a TABULAR side is judged by the host cell lattice, and the
+    // failure message derives from the SAME judgment that failed (the reverted attempt's 28-row phantom: message and
+    // judgment from different lattices -- structurally impossible here). The byte channel that rode beside it is
+    // deleted (P1, 2026-11-07).
 
     /** A grid side's declared column kinds, in order; none for a side that is no grid (its cells keep their own). */
     private static List<com.legend.compiler.element.type.Type> columnKinds(TypedSide.@com.legend.base.Nullable Tabular grid) {
@@ -131,8 +124,7 @@ final class HostJudge {
 
     /** The MULTISET flat-cells verdict: loose CELL pool host lattice
      * (direction-aware sentinel — pool matching, never a sorted zip:
-     * sorting separates an expected 'TDSNull' from its NULL cell),
-     * cell-level canon multiset as the byte channel. */
+     * sorting separates an expected 'TDSNull' from its NULL cell). */
     static TypedSide tdsRowValuesSameElements(String family,
             SideFetch ef, SideFetch af, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> e = ef.values();
@@ -381,24 +373,6 @@ final class HostJudge {
     /** The static facts of one side, read once at planning. */
     private static HostJudgment.SideFacts facts(TypedSpec s) {
         return HostJudgment.SideFacts.of(s);
-    }
-
-    /** The byte verdict's static gates (F13) for the pair {@code args}, read at planning: whether the two declared
-     *  classes share keys (the walk's static instance-key test, no wire in hand), and -- exactly where the byte verdict
-     *  would ask it -- whether a keyless constructor stands under a lambda in the verdict's scope. */
-    private static HostJudgment.ByteGate byteGate(HostJudgment.SideFacts e, HostJudgment.SideFacts a,
-            HostJudgment.Keys keys, List<TypedSpec> args, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env) {
-        boolean hasKeys = keys.resolve(e, a, List.of(), List.of()) != null;
-        boolean anyNil = e.nil() || a.nil();
-        boolean anyAny = e.anyStamped() || a.anyStamped();
-        boolean keylessCtor = false;
-        if (!anyNil && !anyAny && e.kind() instanceof KindClass.Instance && !e.mapCarrier() && !hasKeys) {
-            List<TypedSpec> scope = new ArrayList<>(letPrefix);
-            scope.add(args.get(0));
-            scope.add(args.get(1));
-            keylessCtor = AssertVerdicts.keylessCtorUnderLambda(scope, env);
-        }
-        return new HostJudgment.ByteGate(hasKeys, keylessCtor);
     }
 
     /** {@link #tdsEquivalent} planned: the two grids and the tolerances, one verdict's base (M6: the walk read the
@@ -650,7 +624,7 @@ final class HostJudge {
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = HostJudgment.Keys.of(args.get(0), args.get(1), env.ctx());
         return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
-                new HostJudgment.Eq(e, a, keys, byteGate(e, a, keys, args, letPrefix, env)));
+                new HostJudgment.Eq(e, a, keys));
     }
 
     private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
@@ -658,8 +632,7 @@ final class HostJudge {
         SideFetch af = sideCanonOf(pair.get(1));
         Object ee = AssertVerdicts.one(ef.values(), "assertEq expected");
         Object aa = AssertVerdicts.one(af.values(), "assertEq actual");
-        // host judgment FIRST: eq's non-primitive identity rule
-        // throws LOUD here (P2-5) before any byte verdict
+        // eq's non-primitive identity rule throws LOUD here (P2-5)
         String d = com.legend.judge.PureAsserts.assertEq(ee, aa, rules);
         com.legend.judge.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
@@ -731,7 +704,7 @@ final class HostJudge {
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = HostJudgment.Keys.of(args.get(0), args.get(1), env.ctx());
         return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
-                new HostJudgment.SameElements(e, a, gridPair, keys, byteGate(e, a, keys, args, letPrefix, env)));
+                new HostJudgment.SameElements(e, a, gridPair, keys));
     }
 
     private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
@@ -740,7 +713,7 @@ final class HostJudge {
         // §8 leg 1 — TABULAR sides under the MULTISET form:
         // loose CELL pool (the corpus writes flat expected sets
         // column-grouped — loose multiset IS this assert's
-        // reference semantics, audit 9), cell-level byte canon
+        // reference semantics, audit 9)
         if (ef.grid() != null || af.grid() != null) {
             return tdsRowValuesSameElements("assertSameElements", ef, af, rules);
         }
@@ -999,8 +972,7 @@ final class HostJudge {
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(1), letPrefix));
         return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
-                new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys,
-                        byteGate(e, a, keys, args, letPrefix, env), flat));
+                new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
     }
 
     private static TypedSide equalsOf(HostJudgment.Equals j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
@@ -1009,14 +981,13 @@ final class HostJudge {
         boolean incidental = j.incidental();
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
-        // the FLAT-CELLS verdict (grid canon byte channel +
-        // host cell lattice referee)
+        // the FLAT-CELLS verdict (the host cell lattice)
         if (ef.grid() != null || af.grid() != null) {
             return tdsRowValuesVerdict(name, wantEqual, j.flat(), ef, af, incidental, rules);
         }
         // X5: a same-class KEYED pair restricts both sides to
         // the key tree — the engine's own equality relation for
-        // keyed classes, applied before EITHER channel judges
+        // keyed classes, applied before the lattice judges
         // a CLASS-kind side that rode a JSON carrier (a polymorphic
         // Node[1] program value) arrives as object text: decode it
         // to the structure the key restriction reads (the executor's
@@ -1033,18 +1004,10 @@ final class HostJudge {
         boolean equal = incidental
                 ? com.legend.judge.Equality.sameElements(te, ta, rules) == null
                 : com.legend.judge.Equality.ordered(te, ta, rules) == null;
-        // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
-        // host lattice vs host byte channel, measurement only
+        // R1a divergence instrument (CANONICAL_FORM_SPEC §0): the host lattice vs a canonical render of the same
+        // values, measurement only (the byte verdict it once shadowed is deleted, P1, 2026-11-07)
         com.legend.judge.CanonicalDivergence.probeEqual(
                 name, e, a, equal, incidental);
-        // R2a/V11 — THE BYTE VERDICT OF RECORD for scalar-kind
-        // sides: the canon rode the SIDE QUERY ITSELF (one
-        // execution, wrapWithCanon); Java compares two
-        // DB-computed byte strings. The host lattice above is
-        // the PERMANENT PARALLEL REFEREE (ratified dual-verdict
-        // design): disagreement is a pinned census row, never a
-        // rescue. A decline (unclaimed kind, non-SQL arm,
-        // non-scalar shape) is counted and the host judges.
         return finish(name, wantEqual, equal,
                 () -> incidental
                         ? com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules)

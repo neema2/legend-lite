@@ -39,10 +39,11 @@ import java.util.Map;
  * batch -- not run, its CTE defined when a reader splices it -- its activity comment the fused statement's stamp, a
  * parameter the fused step binds (the walk's {@code ExecutionTrace.reserve}). The router's sink hands each group's
  * rows back ({@link Segment}) and judges at the segment's last group with the batch's own root loop
- * ({@link VerdictBatch.Planned#judge}: the walk's census and listener protocol, the split rung's wrapper run lazily at
- * its place). Null where the walk keeps the body: an assert of a shape the database arms answer null for, a group on
- * another session than the body's (the system database's: M10a), a keyed member (a raw grid's report), a frame whose
- * activity comment a later segment reads.
+ * ({@link VerdictBatch.Planned#judge}: the census and listener protocol; a member the fused statement could not spell
+ * has its own statement in the plan, the split rung at planning, P1.2, 2026-11-07). Null where the body is not
+ * planned here: an assert of a shape the database arms answer null for, a group on another session than the body's
+ * (the system database's: M10a), a keyed member (a raw grid's report), a frame whose activity comment a later
+ * segment reads.
  */
 final class DatabaseAsserts implements TestDoor.Asserts {
 

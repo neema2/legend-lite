@@ -60,6 +60,10 @@ final class Appeals {
     private final List<Report> kept = new ArrayList<>();
     /** Deciding: the appeals' own reports go straight to the caller's listener. */
     private boolean deciding;
+    /** A write of the body's ran after the first appeal was held: the rows after the run are not the rows at it. */
+    private boolean wroteAfterHold;
+    /** A write of the body's ran at all: a failed run's rollback undoes it before the appeals are decided. */
+    private boolean wrote;
 
     Appeals(@Nullable AssertListener listener) {
         this.listener = listener;
@@ -91,16 +95,75 @@ final class Appeals {
         return AssertVerdicts.ok();
     }
 
+    /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
+     *  appeals; none where no body's run is open (a program planned ahead). */
+    static void writing() {
+        Appeals open = OPEN.get();
+        if (open == null) {
+            return;
+        }
+        open.wrote = true;
+        if (!open.held.isEmpty()) {
+            open.wroteAfterHold = true;
+        }
+    }
+
+    /** The held appeals of a run that FAILED with {@code runFailed}, decided as {@link #decide} decides them: the error
+     *  the body raises -- the first held appeal's failure, which precedes the run's (raised here, the run's failure
+     *  suppressed in it), else the run's own, returned for the caller to raise. Where the failed run wrote, its rollback has undone what the appeals would read: they
+     *  are refused by name (the milestone audit's 2, 2026-11-07). */
+    RuntimeException afterFailure(RuntimeException runFailed, Sessions.Session session,
+            Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
+            Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+        if (held.isEmpty()) {
+            deciding = true;
+            return runFailed;
+        }
+        if (wrote) {
+            deciding = true;
+            RuntimeException refused = new IllegalStateException(held.get(0).name() + " (sql-text): an appeal held in"
+                    + " a body whose run failed after writing: the rollback undid what its rows read, so it is not"
+                    + " decided -- the run's failure: " + runFailed.getMessage(), runFailed);
+            failed(held.get(0), told(held.get(0)), refused);
+            return refused;
+        }
+        try {
+            decide(session, systemSessions, sessions);
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError appealFailed) {
+            // the first held appeal's failure precedes the run's: raised here, the run's suppressed in it
+            appealFailed.addSuppressed(runFailed);
+            throw appealFailed;
+        }
+        return runFailed;
+    }
+
+    /** The kept reports before {@code h}'s place, told. */
+    private int told(Held h) {
+        for (int i = 0; i < h.at(); i++) {
+            tell(kept.get(i));
+        }
+        return h.at();
+    }
+
     /** The held appeals decided after the body's run (completed, or failed after them), each reading its rows as plans
      *  of their own on the body's {@code session} and the graph's {@code systemSessions}, the referee the body's
-     *  {@code sessions} by target: the first that fails raises its failure; else the kept reports are told and the
-     *  run's own outcome stands. */
+     *  {@code sessions} by target, inside a judging scope that plans nothing ({@code RunScope.judging}): the first that
+     *  fails raises its failure; else the kept reports are told and the run's own outcome stands. An appeal held
+     *  before a later write of the body's is refused by name: the rows after the run are not the rows at its assert
+     *  (the milestone audit's 2, 2026-11-07; the corpus measured none). */
     void decide(Sessions.Session session,
             Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
             Function<ExecutionPlan.Target, Sessions.Session> sessions) {
         deciding = true;
         if (held.isEmpty()) {
             return;
+        }
+        if (wroteAfterHold) {
+            RuntimeException refused = new IllegalStateException(held.get(0).name() + " (sql-text): an appeal held"
+                    + " before a later write of the body's: the rows after the run are not the rows at its assert, so"
+                    + " it is not decided");
+            failed(held.get(0), told(held.get(0)), refused);
+            throw refused;
         }
         PlanSessions.Source source = PlanSessions.of(session, null, systemSessions);
         // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
@@ -117,7 +180,7 @@ final class Appeals {
             for (; told < h.at(); told++) {
                 tell(kept.get(told));
             }
-            try (var judging = RunReader.judging(own, sessions)) {
+            try (var judging = RunReader.judging(own, sessions); var noPlanning = com.legend.base.RunScope.judging()) {
                 h.decide().get();
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
                 failed(h, told, e);
