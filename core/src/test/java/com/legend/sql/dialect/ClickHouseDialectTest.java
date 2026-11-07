@@ -131,4 +131,29 @@ class ClickHouseDialectTest {
         assertTrue(sql.contains("WHERE NOT ((SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\")"
                 + " = (SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\"))\n"), sql);
     }
+
+    /**
+     * A table of the database's own is legend-engine's ClickHouse table, {@code ENGINE = MergeTree ORDER BY tuple()}; a
+     * keyed one sorts by its key (register S157, 2026-11-07: ClickHouse refuses the engine's text for a keyed table); a
+     * session's TEMPORARY table names no engine.
+     */
+    @Test
+    void aTableIsAMergeTreeOneSortedByItsKey() {
+        com.legend.sql.SqlDdl.ColumnType text = new com.legend.sql.SqlDdl.ColumnType.Plain(
+                com.legend.sql.SqlDdl.ColumnType.Kind.DATE);
+        List<com.legend.sql.SqlDdl.Column> keyed = List.of(new com.legend.sql.SqlDdl.Column("d", false, text, false,
+                true), new com.legend.sql.SqlDdl.Column("e", false, text, false, true),
+                new com.legend.sql.SqlDdl.Column("v", false, text, false, false));
+        List<com.legend.sql.SqlDdl.Column> loose = List.of(new com.legend.sql.SqlDdl.Column("v", false, text, false,
+                false));
+        ClickHouse ch = new ClickHouse();
+        String k = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, keyed));
+        assertTrue(k.endsWith(") ENGINE = MergeTree ORDER BY (d, e);"), k);
+        assertTrue(k.contains("PRIMARY KEY("), k);
+        String l = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose));
+        assertTrue(l.endsWith(") ENGINE = MergeTree ORDER BY tuple();"), l);
+        String temp = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose,
+                true));
+        assertFalse(temp.contains("ENGINE"), temp);
+    }
 }

@@ -2952,10 +2952,16 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
      *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
      *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
-     *  docs/TS_DECISIONS_2026_11_07.md item 9). */
+     *  docs/TS_DECISIONS_2026_11_07.md item 9). A keyed table sorts by its key: the engine's text is refused for one
+     *  ("Primary key must be a prefix of the sorting key", measured that day; register S157, ruled "Sort by its key"). */
     @Override
     protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
-        return ct.temporary() ? "" : " ENGINE = MergeTree ORDER BY tuple()";
+        if (ct.temporary()) {
+            return "";
+        }
+        List<String> keys = ct.columns().stream().filter(com.legend.sql.SqlDdl.Column::primaryKey)
+                .map(c -> ddlKeyIdentifier(c.name(), c.declaredQuoted())).toList();
+        return " ENGINE = MergeTree ORDER BY " + (keys.isEmpty() ? "tuple()" : "(" + String.join(", ", keys) + ")");
     }
 
     /** ClickHouse DDL: {@code BIT} is a UInt64 there (measured), so a Pure Boolean column is a {@code Bool}. */
