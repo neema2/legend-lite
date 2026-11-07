@@ -1020,6 +1020,15 @@ final class DatabaseJudge {
         if (goldenText == null) {
             return unjudged(name, "json golden is not a literal");
         }
+        // the golden read as the rules read JSON (JudgeJson, register S144): strict in lite's own runs, upstream's
+        // json-simple grammar under the compatibility rules
+        Object goldenRead;
+        try {
+            goldenRead = JudgeJson.read(goldenText, env.options().judgingRules());
+        } catch (IllegalStateException malformed) {
+            // the host judge's words for the same golden (HostJudge.jsonOf): a golden the rules refuse fails the test
+            throw new IllegalStateException("golden JSON does not parse: " + malformed.getMessage(), malformed);
+        }
         TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
                 .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
@@ -1030,7 +1039,7 @@ final class DatabaseJudge {
         // falls to the byte compare below, which equal sequences pass and others fail
         if (ja.why() == null && com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
                 == com.legend.compiler.spec.OrderView.INCIDENTAL) {
-            TypedSpec elements = com.legend.compiler.spec.VerdictQueries.jsonRootElements(goldenText);
+            TypedSpec elements = com.legend.compiler.spec.VerdictQueries.jsonRootElements(goldenRead);
             if (elements != null) {
                 SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
                 if (jr.why() == null) {
@@ -1052,10 +1061,7 @@ final class DatabaseJudge {
         }
         // the golden as written otherwise (the user's ruling, 2026-11-03: no [x] for x -- a document serialized
         // otherwise than the engine serializes it is the serializer's to fix)
-        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenText);
-        if (golden == null) {
-            return unjudged(name, "json golden does not parse");
-        }
+        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenRead);
         SideRows je = planSide(golden, true, false, false, letPrefix, specs, env, hook);
         if (je.why() != null || ja.why() != null) {
             return unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));

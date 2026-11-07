@@ -1,7 +1,5 @@
 meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| engine-golden-defect:adjust-strictdate-render ||| 2014-12-01T00:00:00.000000000+0000
 meta::pure::tds::tests::extensions::testExtendDigest_Relational ||| engine-golden-defect:digest-joinStrings ||| 9e103ea06a6999b4c5a86cf25d68b083
-meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
-meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints ||| engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix) ||| FIRST DIFF at $ (root array as a multiset) expected 4 element(s), got 4; missing
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns ||| not-offered:test-data-generator(S143) ||| no class admits the body

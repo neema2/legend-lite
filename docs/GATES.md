@@ -20744,3 +20744,11 @@ two packages is the first step's input).
   ten rows registered only for FALLBACK statements are stale and leave `duckdb-database-outside-body-register.txt`
   (1) and `h2-database-outside-body-register.txt` (9); no row cites the origin now. Every one keeps its pass or fail (the fail rosters are exact).
   P1.2's own check compared the pass and fail sets and missed the register; a lane's whole gate output is read from now.
+- **Ruled (the user, 2026-11-07, option 2), register S144**: `assertJsonStringsEqual`'s two texts are read strictly in
+  lite's own runs and with json-simple 1.1.1's grammar under the compatibility rules, on both judges (`driver/JudgeJson`,
+  pinned case by case to the jar's answers in `JudgeJsonTest`). Measured first with a strict-JSON probe at the judges'
+  reads, the whole corpus on both databases: two goldens are not strict JSON, the two graph-fetch milestoning goldens; no
+  other test leans on any leniency (the database judge's implicit comma between objects was never used). Their
+  `engine-golden-defect:json-stray-quote` rows leave both host rosters: upstream passes them, and now so do both judges.
+  `Json.parseOne` keeps two product readers (`Substitution`'s primary-key JSON, `AsorReaders`), which should read
+  strictly: a separate change, measured first.

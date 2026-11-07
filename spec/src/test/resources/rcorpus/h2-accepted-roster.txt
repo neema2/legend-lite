@@ -1,5 +1,3 @@
-meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
-meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns ||| not-offered:test-data-generator(S143) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver ||| not-offered:test-data-generator(S143) ||| no class admits the body
