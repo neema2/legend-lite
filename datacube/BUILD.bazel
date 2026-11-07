@@ -223,6 +223,8 @@ _EXTRA_ENV = {
         # the copies over classes answer every series as the pages over the samples froze it (2026-11-07, a')
         "GALLERY_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
     },
+    # gs-quant's own signatures, which the builder's words are held to (the order's step 2)
+    "timeseries-builder": {"GS_QUANT_SIGNATURES": "$(rlocationpath :gs_quant_signatures)"},
     # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
     "timeseries-ts-parity": {
         "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
@@ -316,6 +318,7 @@ _EXTRA_DATA = {
         "test/fixtures/timeseries/markets-classes-answers.json",
         "test/timeseries-frozen.ts",
     ],
+    "timeseries-builder": [":gs_quant_signatures"],
     "timeseries-ts-parity": [
         "test/fixtures/timeseries/gallery-answers.json",
         "test/fixtures/timeseries/show-ts.txt",
@@ -394,6 +397,8 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    # the builder's every word's call read back by core (docs/TS_DECISIONS_2026_11_07.md §4, the order's step 2)
+    "timeseries-builder",
     "timeseries-ts-parity",
     # the example pages' series are #TS text, which core alone reads (A3 step 3, 2026-11-07); a page's timeseries tile
     # reads its series' texts by core before it is drawn, and its editor what is typed
@@ -1072,6 +1077,44 @@ java_run(
     deps = [":ts_examples_doc_main"],
 )
 
+# THE #TS BUILDER'S WORDS (docs/TS_DECISIONS_2026_11_07.md §4, the builders; the order's step 2): each word a tile draws
+# as a typed function of gs-quant 2.2.3's name, parameters, order and defaults, generated from core's catalog (the
+# signatures and words above) and gs-quant's own signatures (tools/ts-oracle/signatures.py); the tile's words its own
+# (src/timeseries-words.ts). src/generated/ts-builder-words.ts is its committed copy, diff-tested by update_generated.
+js_binary(
+    name = "ts_builder_tool",
+    data = ["src/timeseries-words.ts"],
+    entry_point = "tools/ts-builder/make.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+# gs-quant's signatures copied into this package (js_run_binary takes no input from another package)
+copy_file(
+    name = "gs_quant_signatures",
+    src = "//projects:timeseries/gs-quant-signatures.json",
+    out = "gs-quant-signatures.json",
+)
+
+js_run_binary(
+    name = "ts_builder",
+    srcs = [
+        "generated/ts-signatures.gen.ts",
+        "generated/ts-words.gen.ts",
+        ":gs_quant_signatures",
+    ],
+    outs = ["generated/ts-builder-words.gen.ts"],
+    args = [
+        package_name() + "/generated/ts-builder-words.gen.ts",
+        "$(rootpath generated/ts-signatures.gen.ts)",
+        "$(rootpath generated/ts-words.gen.ts)",
+        "$(rootpath :gs_quant_signatures)",
+    ],
+    tool = ":ts_builder_tool",
+)
+
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",
@@ -1154,6 +1197,7 @@ write_source_files(
         "src/generated/ts-words.ts": "generated/ts-words.gen.ts",
         "src/generated/ts-signatures.ts": "generated/ts-signatures.gen.ts",
         "src/generated/ts-facts.ts": "generated/ts-facts.gen.ts",
+        "src/generated/ts-builder-words.ts": "generated/ts-builder-words.gen.ts",
         "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",

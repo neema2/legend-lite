@@ -86,7 +86,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['basket(members: TimedMembers)', 'basket(members: TimedMembers, rebalance: Rebalance)'],
     doc: 'A basket of the members in their weights from 100, rebalanced daily unless told weekly or monthly (gs-quant\'s basket_series, its costs none): units fixed between rebalances.',
     aliases: [],
-    facts: { label: ['Basket, rebalanced'], family: ['Math'], unit: ['index'], level: ['makes'], gsQuant: ['backtesting.basket_series'], about: ['Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series\' weight of the basket then.'], differs: ['no costs; each series followed by its weight (gs-quant: a list of series and a list of weights)'], param: ['rebalance: daily: its weights every date; weekly, monthly: every week or month from its first date (the first date on or after)'], given: ['rebalance: daily'] },
+    facts: { label: ['Basket, rebalanced'], family: ['Math'], unit: ['index'], level: ['makes'], gsQuant: ['backtesting.basket_series'], about: ['Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series\' weight of the basket then.'], differs: ['no costs; each series followed by its weight (gs-quant: a list of series and a list of weights)'], param: ['rebalance: daily: its weights every date; weekly, monthly: every week or month from its first date (the first date on or after)'], given: ['rebalance: daily'], gsParam: ['rebalance: rebal_freq'] },
     marks: [],
   },
   beta: {
@@ -434,7 +434,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['lag(x: Line)', 'lag(x: Line, obs: Integer)', 'lag(x: Line, obs: Integer, unit: DurationUnit)'],
     doc: 'The value obs observations back (1 unless given), or as of a calendar period back.',
     aliases: [],
-    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before.'], given: ['obs: 1'], limit: ['obs: >= 1'] },
+    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before.'], given: ['obs: 1'], limit: ['obs: >= 1'], gsAlso: ['mode: truncate'] },
     marks: [],
   },
   last: {
@@ -617,7 +617,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['prices(x: Line, initial: Float (optional), type: Returns (optional))'],
     doc: 'The prices x\'s returns of a type (simple unless given) make, from initial (1 unless given).',
     aliases: [],
-    facts: { label: ['Prices from returns'], family: ['Returns'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.prices'], about: ['A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.'], param: ['initial: the level it starts from'], given: ['initial: 1', 'type: simple'] },
+    facts: { label: ['Prices from returns'], family: ['Returns'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.prices'], about: ['A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.'], param: ['initial: the level it starts from'], given: ['initial: 1', 'type: simple'], gsValue: ['type: logarithmic log'] },
     marks: [],
   },
   product: {
@@ -708,7 +708,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['returns(x: Line, type: Returns (optional))', 'returns(x: Line, obs: Integer, type: Returns (optional))', 'returns(x: Line, obs: Integer, unit: DurationUnit, type: Returns (optional))'],
     doc: 'The returns of a type (simple unless given) over obs observations (1 unless given), or as of a calendar period back.',
     aliases: [],
-    facts: { label: ['Returns'], family: ['Returns'], unit: ['input'], gsQuant: ['econometrics.returns'], about: ['The return over obs observations.'], given: ['obs: 1', 'type: simple'], limit: ['obs: >= 1'] },
+    facts: { label: ['Returns'], family: ['Returns'], unit: ['input'], gsQuant: ['econometrics.returns'], about: ['The return over obs observations.'], given: ['obs: 1', 'type: simple'], limit: ['obs: >= 1'], gsValue: ['type: logarithmic log'] },
     marks: [],
   },
   round_down: {
@@ -775,7 +775,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['smooth_spikes(x: Line, threshold: Float (optional), type: ThresholdType (optional))'],
     doc: 'x with each spike -- a value apart from both neighbours by more than threshold (0.5 unless given), as a percentage unless absolute -- the mean of its neighbours.',
     aliases: [],
-    facts: { label: ['Spikes smoothed'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.smooth_spikes'], about: ['A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.'], differs: ['threshold defaults to 0.5 (gs-quant: no default)'], param: ['threshold: how far above or below both neighbours a spike is', 'type: percentage: 1 + threshold times both; absolute: threshold beyond both'], given: ['threshold: 0.5', 'type: percentage'], limit: ['threshold: >= 0'] },
+    facts: { label: ['Spikes smoothed'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.smooth_spikes'], about: ['A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.'], differs: ['threshold defaults to 0.5 (gs-quant: no default)'], param: ['threshold: how far above or below both neighbours a spike is', 'type: percentage: 1 + threshold times both; absolute: threshold beyond both'], given: ['threshold: 0.5', 'type: percentage'], limit: ['threshold: >= 0'], gsParam: ['type: threshold_type'] },
     marks: [],
   },
   smoothed_moving_average: {
@@ -913,7 +913,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['vol_swap_volatility(x: Line)', 'vol_swap_volatility(x: Line, w: Integer)', 'vol_swap_volatility(x: Line, w: Scope)', 'vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'] },
+    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'], gsParam: ['w: n_days'] },
     marks: [],
   },
   volatility: {
@@ -926,7 +926,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))'],
     doc: 'The annualized volatility of x\'s returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
     aliases: [],
-    facts: { label: ['Realized volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.volatility'], about: ['The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).'], differs: ['w defaults to 22 observations (gs-quant: the whole series)'], search: ['vol'], given: ['w: 22', 'type: simple'], limit: ['w: >= 0'] },
+    facts: { label: ['Realized volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.volatility'], about: ['The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).'], differs: ['w defaults to 22 observations (gs-quant: the whole series)'], search: ['vol'], given: ['w: 22', 'type: simple'], limit: ['w: >= 0'], gsParam: ['type: returns_type'], gsValue: ['type: logarithmic log'] },
     marks: [],
   },
   vwap: {
