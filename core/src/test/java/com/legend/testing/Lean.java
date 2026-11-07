@@ -40,12 +40,21 @@ public final class Lean {
 
     /** {@code query} over {@code model} on {@code runtime} (null: the query names its own), on the caller's connection
      *  {@code c} as the caller set it up (its tables, its data): lite's JSON rows, read back. */
+    /** The planning options every test runs under: lite's own, each off by default (PlanOption). */
+    public static final java.util.Set<com.legend.platform.PlanOption> TEST_OPTIONS =
+            java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
+
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
         StringWriter out = new StringWriter();
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+            // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by
+            // default; the user, 2026-11-07: "our tests should use the option")
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query)
+                            .withOptions(TEST_OPTIONS), runtime,
+                    com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.Execution.Establish.AS_GIVEN,
                     p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

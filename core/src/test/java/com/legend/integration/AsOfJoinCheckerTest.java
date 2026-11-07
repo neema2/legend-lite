@@ -845,6 +845,44 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
         }
     }
 
+    // ==================== Ties: one row, the same everywhere ====================
+
+    @Nested
+    @DisplayName("as-of where right rows tie on the match")
+    class Ties {
+
+        /** The user, 2026-11-07: "Can we make as of deterministic?" -- two right rows at the matched time (and key):
+         *  one row a left row, as every as-of join answers, and the same one on every database (the greatest by its
+         *  columns in order: here the later quote id), where DuckDB's own ASOF answers any one and the emulation of a
+         *  database without one answered both. */
+        @Test
+        @DisplayName("keys and >=, two quotes at the matched time: one row, the greatest, on every database")
+        void tiedRightRowsAnswerOneTheGreatest() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                        2, b, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, quote_id, value
+                            a, 10, 1, 100
+                            a, 15, 2, 150
+                            a, 15, 3, 151
+                            b, 18, 4, 180
+                            b, 18, 5, 181
+                            b, 18, 6, 179
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""");
+            assertEquals(2, result.rowCount(), "one row a left row: " + result.rows());
+            var byId = CheckerResults.collect(result, "id", "quote_id");
+            assertEquals(3L, ((Number) byId.get(1L)).longValue(), "a at 20: of quotes 2 and 3 at 15, the greatest");
+            assertEquals(6L, ((Number) byId.get(2L)).longValue(), "b at 20: of quotes 4, 5 and 6 at 18, the greatest");
+        }
+    }
+
     // ==================== Utilities ====================
 
     /** Collects results into a map keyed by the group column value. */

@@ -22,9 +22,11 @@ public record ExecuteOptions(
         JudgeMode judgeMode,
         java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType, com.legend.exec.Sessions.Opener>
                 systemConnections,
-        boolean engineCompat) {
+        boolean engineCompat,
+        java.util.Set<com.legend.platform.PlanOption> options) {
 
     public ExecuteOptions {
+        options = java.util.Set.copyOf(options);
         systemConnections = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
     }
 
@@ -42,27 +44,33 @@ public record ExecuteOptions(
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
             java.util.function.@com.legend.base.Nullable Function<String, String> resources,
             java.util.Set<com.legend.platform.Feature> features) {
-        this(recorder, resources, features, JudgeMode.HOST, java.util.Map.of(), false);
+        this(recorder, resources, features, JudgeMode.HOST, java.util.Map.of(), false, java.util.Set.of());
     }
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, null, java.util.Set.of());
 
     public ExecuteOptions withJudgeMode(JudgeMode mode) {
-        return new ExecuteOptions(recorder, resources, features, mode, systemConnections, engineCompat);
+        return new ExecuteOptions(recorder, resources, features, mode, systemConnections, engineCompat, options);
     }
 
     /** The runner's DEFAULT feature flags — merged into every execute
      *  call's own ({@code ExecutionContext.features}); the one ambient
      *  source (the engine's testable runner has the same knob). */
     public ExecuteOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new ExecuteOptions(recorder, resources, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(f)), judgeMode, systemConnections, engineCompat);
+        return new ExecuteOptions(recorder, resources, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(f)), judgeMode, systemConnections, engineCompat, options);
+    }
+
+    /** Lite's own planning options for every query of the run ({@link com.legend.platform.PlanOption}): the tests turn
+     *  on {@code DETERMINISTIC_AS_OF}. */
+    public ExecuteOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        return new ExecuteOptions(recorder, resources, features, judgeMode, systemConnections, engineCompat, o);
     }
 
     /** The host's system connections, by engine: where a server engine's system database lives, configured apart from
      *  every runtime's connection (the platform holds no server credential; SystemDatabase). */
     public ExecuteOptions withSystemConnections(java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
             com.legend.exec.Sessions.Opener> connections) {
-        return new ExecuteOptions(recorder, resources, features, judgeMode, connections, engineCompat);
+        return new ExecuteOptions(recorder, resources, features, judgeMode, connections, engineCompat, options);
     }
 
     /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass
@@ -73,7 +81,7 @@ public record ExecuteOptions(
      *  both judges read. Today: S132's float tokens within 2 ULP inside a String, S127's Integer equal to a Decimal by
      *  text (judge.Equality, driver.DatabaseJudge). */
     public ExecuteOptions withEngineCompat(boolean on) {
-        return new ExecuteOptions(recorder, resources, features, judgeMode, systemConnections, on);
+        return new ExecuteOptions(recorder, resources, features, judgeMode, systemConnections, on, options);
     }
 
     /** The rules this run's asserts are judged by, which its planners stamp on every verdict step (the user,

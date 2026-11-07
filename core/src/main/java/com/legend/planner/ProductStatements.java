@@ -113,8 +113,9 @@ public final class ProductStatements {
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows)
-                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames);
+        // the query's own planning options (TypedQuery.withOptions), its lowering's
+        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows).withOptions(query.options())
+                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
@@ -370,7 +371,7 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         return query.lowerer(temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone());
+                .withDbTimeZone(env.timeZone()).withOptions(env.options());
     }
 
     /** A store write prepared on the product's road, lowered: its statement, the seedable let prefix before it. A

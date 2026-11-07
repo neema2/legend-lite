@@ -42,6 +42,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         List<ValueSpecification> protocolBody,
         com.legend.compiler.spec.typed.@Nullable ExecutionContext frame,
         Set<Feature> features,
+        Set<com.legend.platform.PlanOption> options,
         Function<TypedTestDataGen, String> generatorPlanText,
         List<String> stamps) {
 
@@ -62,7 +63,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 // the body is one program: one minter for its objects (B9); the test road's ids keep their own
                 // spelling until its layouts converge on the product's (the plan's M5)
                 new ObjectSites("i"), new LinkedHashMap<>(), List.of(), null,
-                features,
+                features, Set.of(),
                 generatorPlanText, new java.util.ArrayList<>());
     }
 
@@ -70,14 +71,14 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  the test-is-the-product plan's M3f). */
     public PlanEnv withPlanRows(Map<String, Map<String, List<List<String>>>> rows) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
-                features, generatorPlanText, stamps);
+                features, options, generatorPlanText, stamps);
     }
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
     public PlanEnv withDialect(SqlDialect d) {
         return new PlanEnv(ctx, runtimeFqn, d, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
-                features, generatorPlanText, stamps);
+                features, options, generatorPlanText, stamps);
     }
 
     /** The run's feature flags (the caller's execute options'). */
@@ -89,9 +90,15 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         }
     }
 
+    /** This environment lowering under lite's own planning options ({@link com.legend.platform.PlanOption}). */
+    public PlanEnv withOptions(Set<com.legend.platform.PlanOption> o) {
+        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
+                frame, features, Set.copyOf(o), generatorPlanText, stamps);
+    }
+
     public PlanEnv withFeatures(Set<Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
-                frame, f, generatorPlanText, stamps);
+                frame, f, options, generatorPlanText, stamps);
     }
 
     /** The dialect this environment's statements are written in: a test body's environment always names one; the
@@ -106,19 +113,19 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  entered. */
     public PlanEnv withFrame(ExecutionContext f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody, f,
-                features, generatorPlanText, stamps);
+                features, options, generatorPlanText, stamps);
     }
 
     public PlanEnv withTableReplace(Map<String, String> tr) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tr, instanceIds, planRows, protocolBody, frame,
-                features, generatorPlanText, stamps);
+                features, options, generatorPlanText, stamps);
     }
 
     /** The query's PROTOCOL statements (the source-shaped lets a handle's rows are built from -- the lineage scan
      *  walks the raw query lambda). */
     public PlanEnv withProtocolBody(List<ValueSpecification> body) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, body, frame,
-                features, generatorPlanText, stamps);
+                features, options, generatorPlanText, stamps);
     }
 
     public ExecutionContext.PostProcessors postProcessors() {

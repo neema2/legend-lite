@@ -25,6 +25,8 @@ public final class TypedQuery {
     private final com.legend.protocol.spec.ValueSpecification resolved;
     private final SpecCompiler specs;
     private @com.legend.base.Nullable List<TypedSpec> body;
+    /** Lite's own planning options this query is planned under (none unless asked for: {@link #withOptions}). */
+    private java.util.Set<com.legend.platform.PlanOption> options = java.util.Set.of();
 
     TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
         this.ctx = ctx;
@@ -38,7 +40,22 @@ public final class TypedQuery {
     public TypedQuery withBody(List<TypedSpec> body) {
         TypedQuery q = new TypedQuery(ctx, resolved, specs);
         q.body = List.copyOf(body);
+        q.options = options;
         return q;
+    }
+
+    /** This query planned under lite's own planning options ({@link com.legend.platform.PlanOption}: each off unless
+     *  asked for -- the tests ask for {@code DETERMINISTIC_AS_OF}). */
+    public TypedQuery withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        TypedQuery q = new TypedQuery(ctx, resolved, specs);
+        q.body = body;
+        q.options = java.util.Set.copyOf(o);
+        return q;
+    }
+
+    /** The planning options this query is planned under. */
+    public java.util.Set<com.legend.platform.PlanOption> options() {
+        return options;
     }
 
     private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs) {

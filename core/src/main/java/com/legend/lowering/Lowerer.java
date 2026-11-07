@@ -219,6 +219,14 @@ public final class Lowerer {
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
 
+    /** Lite's own planning options (PlanOption): DETERMINISTIC_AS_OF keeps one right row per as-of match. */
+    private boolean deterministicAsOf;
+
+    public Lowerer withOptions(java.util.Set<com.legend.platform.PlanOption> options) {
+        this.deterministicAsOf = options.contains(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
+        return this;
+    }
+
     public Lowerer withFeatures(java.util.Set<com.legend.platform.Feature> features) {
         FeatureRules.requireConsumed(features);
         this.features = features.isEmpty() ? java.util.Set.of() : java.util.EnumSet.copyOf(features);
@@ -2835,10 +2843,120 @@ public final class Lowerer {
         if (aj.condition().isPresent()) {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
+        if (deterministicAsOf) {
+            right = oneRowPerMatch(right, on);
+        }
         Set<String> leftNames = new HashSet<>();
         Type.requireRelationSchema(aj.left().info().type()).columns().forEach(c -> leftNames.add(c.name()));
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
                 aj.prefix(), aj.right(), aj.info(), null, leftNames::contains);
+    }
+
+    /**
+     * AS-OF, DETERMINISTIC, AN OPTION (PlanOption.DETERMINISTIC_AS_OF; the user, 2026-11-07: "Can we make as of
+     * deterministic?" -- "I would have option to not take this cost penalty by default but then our tests should use the
+     * option"; docs/SEMANTICS_REGISTER.md): an
+     * as-of join matches each left row with ONE right row, as every as-of join does (DuckDB's, Snowflake's, kdb+'s aj,
+     * pandas' merge_asof) -- but where right rows tie on the match (the same keys, the same as-of value), DuckDB and
+     * Snowflake answer any one of them and the emulation of a database without one answered every one. Here the right
+     * side keeps one row per match before the join -- by ROW_NUMBER over its own operands of the ON's equalities and
+     * inequality, the greatest row by its columns in order, descending, an absent value last ("the last", as kdb+ and
+     * pandas keep it) -- so every database answers the same row. The side keeps its alias, the ON reads it as before;
+     * an ON with no inequality between the sides, or a side that is no single source, is left as it is.
+     */
+    private SqlSource oneRowPerMatch(SqlSource right, SqlExpr on) {
+        if (right instanceof SqlSource.Join) {
+            return right;
+        }
+        String ra = right.alias();
+        List<SqlExpr> conjuncts = new ArrayList<>();
+        conjunctsOf(on, conjuncts);
+        List<SqlExpr> keys = new ArrayList<>();
+        boolean inequality = false;
+        for (SqlExpr c : conjuncts) {
+            if (!(c instanceof SqlExpr.Call call) || call.args().size() != 2) {
+                continue;
+            }
+            boolean equality = call.fn() == SqlFn.EQUAL || call.fn() == SqlFn.NULL_SAFE_EQUAL;
+            boolean ordering = call.fn() == SqlFn.GREATER || call.fn() == SqlFn.GREATER_EQUAL
+                    || call.fn() == SqlFn.LESS || call.fn() == SqlFn.LESS_EQUAL;
+            if (!equality && !ordering) {
+                continue;
+            }
+            SqlExpr a = call.args().get(0);
+            SqlExpr b = call.args().get(1);
+            SqlExpr own = readsOnly(a, ra) && !reads(b, ra) ? a : readsOnly(b, ra) && !reads(a, ra) ? b : null;
+            if (own != null) {
+                keys.add(own);
+                inequality |= ordering;
+            }
+        }
+        if (!inequality) {
+            return right;
+        }
+        List<SqlSelect.Projection> columns = new ArrayList<>();
+        List<SqlSelect.SortKey> greatest = new ArrayList<>();
+        for (OutputCol oc : right.outputs()) {
+            SqlExpr.Column col = SqlExpr.Column.of(ra, oc);
+            columns.add(new SqlSelect.Projection(col, oc.name(), oc));
+            if (oc.type() instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON) {
+                greatest.add(new SqlSelect.SortKey(col, false, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+            }
+        }
+        OutputCol rankOut = new OutputCol("__asof_rank", SqlType.Scalar.BIGINT, false);
+        List<SqlSelect.Projection> ranked = new ArrayList<>(columns);
+        ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), keys, greatest, null), rankOut.name(), rankOut));
+        String inner = nextAlias();
+        SqlSource rankedSource = new SqlSource.Subselect(SqlSelect.starOf(right).withProjections(ranked), inner, null);
+        List<SqlSelect.Projection> kept = new ArrayList<>();
+        for (OutputCol oc : right.outputs()) {
+            kept.add(new SqlSelect.Projection(SqlExpr.Column.of(inner, oc), oc.name(), oc));
+        }
+        SqlSelect one = SqlSelect.starOf(rankedSource).withProjections(kept).withWhere(
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of(inner, rankOut), new SqlExpr.IntLit(1)));
+        return new SqlSource.Subselect(one, ra, null);
+    }
+
+    /** {@code e}'s conjuncts: an AND's, a parenthesized one's, else itself. */
+    private static void conjunctsOf(SqlExpr e, List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Group g) {
+            conjunctsOf(g.inner(), out);
+        } else if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+            c.args().forEach(a -> conjunctsOf(a, out));
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** Whether {@code e} reads a column of {@code alias}. */
+    private static boolean reads(SqlExpr e, String alias) {
+        if (e instanceof SqlExpr.Column c && alias.equals(c.table())) {
+            return true;
+        }
+        for (SqlExpr k : e.children()) {
+            if (reads(k, alias)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code e} reads columns of {@code alias} and of no other source. */
+    private static boolean readsOnly(SqlExpr e, String alias) {
+        Set<String> tables = new HashSet<>();
+        tablesRead(e, tables);
+        return tables.equals(Set.of(alias));
+    }
+
+    /** The sources {@code e}'s columns are of ({@code "null"} for an unqualified one). */
+    private static void tablesRead(SqlExpr e, Set<String> out) {
+        if (e instanceof SqlExpr.Column c) {
+            out.add(String.valueOf(c.table()));
+        }
+        for (SqlExpr k : e.children()) {
+            tablesRead(k, out);
+        }
     }
 
     /**

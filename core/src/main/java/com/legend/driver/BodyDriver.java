@@ -134,7 +134,7 @@ public final class BodyDriver {
                     // runtime argument is not read)
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
-                                    + "\")")), session,
+                                    + "\")")).withOptions(options.options()), session,
                     null, null, options, new com.legend.exec.ExecutionTrace(), null, null, null, null);
         }
 
@@ -189,7 +189,8 @@ public final class BodyDriver {
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
-            return new ExecEnv(plan.withFeatures(o.features()), session, assertListener, replayReferee, o, trace,
+            return new ExecEnv(plan.withFeatures(o.features()).withOptions(o.options()), session, assertListener,
+                    replayReferee, o, trace,
                     verdictBatch, effectSink, engineText, failureMessage);
         }
         /** The executing frame's bound context (post-processors, time zone,

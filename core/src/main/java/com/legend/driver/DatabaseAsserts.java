@@ -452,7 +452,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             boolean systemRouted, List<TypedSpec> lets) {
         SpecCompiler specs = typed.specs();
         BodyDriver.ExecEnv pre = env.withPlan(com.legend.planner.PlanEnv.of(env.ctx(), env.runtimeFqn(),
-                env.dialect(), env.plan().features(), env.plan().generatorPlanText()));
+                env.dialect(), env.plan().features(), env.plan().generatorPlanText()).withOptions(env.plan().options()));
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>(lets);
