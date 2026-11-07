@@ -24,8 +24,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -178,9 +176,6 @@ class TsReplayTest {
         }
     }
 
-    /** An answer: its columns and types, and its rows' cells as text (null where none). */
-    private record Answer(List<ExecutionPlan.Column> columns, List<List<String>> rows) {
-    }
 
     /** Each statement's answer on {@code backend}, or the message it was refused with. */
     private static Map<String, Object> replay(TestBackend backend, List<Statement> statements, Json.Obj samples)
@@ -202,81 +197,13 @@ class TsReplayTest {
                 try {
                     ExecutionPlan plan = Compiler.query(model, "|#TS{" + s.text() + "}#").executionPlan("local::RT");
                     String text = PlanCases.write(plan, c, Map.of(), PlanCases.Written.CSV::writer);
-                    out.put(s.id(), new Answer(java.util.Objects.requireNonNull(plan.answerColumns(),
-                            "a #TS query's columns"), rows(text)));
+                    out.put(s.id(), TsAnswers.of(plan, text));
                 } catch (Exception | AssertionError e) {
                     out.put(s.id(), String.valueOf(e.getMessage()).split("\n")[0]);
                 }
                 System.err.println(backend.name() + " " + s.id() + ": " + (System.nanoTime() - started) / 1_000_000
                         + " ms");
             }
-        }
-        return out;
-    }
-
-    private static List<List<String>> rows(String csv) {
-        List<String> lines = new ArrayList<>(Arrays.asList(csv.split("\r\n")));
-        lines.remove(0);
-        List<List<String>> out = new ArrayList<>();
-        for (String line : lines) {
-            if (line.isEmpty()) {
-                continue;
-            }
-            out.add(Arrays.stream(line.split(",", -1)).map(x -> x.isEmpty() ? null : x).toList());
-        }
-        return out;
-    }
-
-    private static final Set<String> FIGURES = Set.of("Float", "Number", "Decimal");
-
-    /** Where {@code got} differs from {@code want} (DuckDB's): null where it does not. */
-    private static String difference(Answer want, Answer got) {
-        List<String> names = want.columns().stream().map(ExecutionPlan.Column::name).toList();
-        if (!names.equals(got.columns().stream().map(ExecutionPlan.Column::name).toList())) {
-            return "the columns " + got.columns().stream().map(ExecutionPlan.Column::name).toList() + ", DuckDB's "
-                    + names;
-        }
-        List<Integer> keys = new ArrayList<>();
-        List<Integer> figures = new ArrayList<>();
-        for (int i = 0; i < want.columns().size(); i++) {
-            (FIGURES.contains(want.columns().get(i).type()) ? figures : keys).add(i);
-        }
-        Map<List<String>, List<String>> a = keyed(want, keys, figures);
-        Map<List<String>, List<String>> b = keyed(got, keys, figures);
-        if (!a.keySet().equals(b.keySet())) {
-            List<List<String>> only = a.keySet().stream().filter(k -> !b.containsKey(k)).limit(3).toList();
-            List<List<String>> extra = b.keySet().stream().filter(k -> !a.containsKey(k)).limit(3).toList();
-            return "the rows' dates and lines: " + a.size() + " on DuckDB, " + b.size() + " here; DuckDB's alone "
-                    + only + ", these alone " + extra;
-        }
-        for (int f = 0; f < figures.size(); f++) {
-            double scale = 0;
-            for (List<String> v : a.values()) {
-                if (v.get(f) != null) {
-                    scale = Math.max(scale, Math.abs(Double.parseDouble(v.get(f))));
-                }
-            }
-            for (Map.Entry<List<String>, List<String>> e : a.entrySet()) {
-                String x = e.getValue().get(f);
-                String y = b.get(e.getKey()).get(f);
-                boolean same = x == null ? y == null
-                        : y != null && Math.abs(Double.parseDouble(x) - Double.parseDouble(y)) <= 1e-9 * scale;
-                if (!same) {
-                    return names.get(figures.get(f)) + " at " + e.getKey() + ": " + y + ", DuckDB's " + x
-                            + " (scale " + scale + ")";
-                }
-            }
-        }
-        return null;
-    }
-
-    /** {@code answer}'s figures by its keys' cells (a date and a line), in their order. */
-    private static Map<List<String>, List<String>> keyed(Answer answer, List<Integer> keys, List<Integer> figures) {
-        Map<List<String>, List<String>> out = new TreeMap<>(java.util.Comparator.comparing(Object::toString));
-        for (List<String> row : answer.rows()) {
-            List<String> key = keys.stream().map(row::get).toList();
-            List<String> previous = out.put(key, figures.stream().map(row::get).toList());
-            assertTrue(previous == null, "two rows of one date and line: " + key);
         }
         return out;
     }
@@ -301,7 +228,7 @@ class TsReplayTest {
             for (Statement s : statements) {
                 Object answer = got.get(s.id());
                 String said = answer instanceof String refused ? "refused: " + refused
-                        : difference((Answer) reference.get(s.id()), (Answer) answer);
+                        : TsAnswers.difference((TsAnswers.Answer) reference.get(s.id()), (TsAnswers.Answer) answer);
                 String id = backend.name() + " " + s.id();
                 if (said == null) {
                     same++;

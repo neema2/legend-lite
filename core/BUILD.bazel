@@ -514,6 +514,8 @@ legend_java_library(
             # the gallery's replay is the ts_replay targets' alone: it reads the gallery's statements and samples
             # (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9)
             "src/test/java/com/legend/integration/TsReplayTest.java",
+            # their shared comparison with DuckDB's answer, the replay's and the documents' lanes' (item 9b)
+            "src/test/java/com/legend/integration/TsAnswers.java",
             # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
             "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
@@ -1243,6 +1245,11 @@ junit_test(
 # v1 database besides DuckDB (P4 as widened 2026-11-07: DuckDB, Postgres, ClickHouse and Snowflake): the embedded
 # Postgres (as root, through tools/postgres/as_unprivileged.sh, docs/CLOUD_SESSIONS.md), the embedded ClickHouse, and a
 # Snowflake account (manual: it needs the account).
+_TS_REPLAY_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsReplayTest.java",
+]
+
 _TS_REPLAY_DATA = [
     "//projects:timeseries/model.pure",
     "//datacube:test/fixtures/timeseries/show-ts.txt",
@@ -1268,7 +1275,7 @@ junit_test(
     name = "ts_replay_postgres_test",
     memory_mb = 1024,
     size = "large",
-    srcs = ["src/test/java/com/legend/integration/TsReplayTest.java"],
+    srcs = _TS_REPLAY_SRCS,
     data = _TS_REPLAY_DATA + [
         "@embedded_postgres//:pg/PG_ROOT",
         "@embedded_postgres//:postgres",
@@ -1290,7 +1297,7 @@ junit_test(
     name = "ts_replay_clickhouse_test",
     memory_mb = 1024,
     size = "large",
-    srcs = ["src/test/java/com/legend/integration/TsReplayTest.java"],
+    srcs = _TS_REPLAY_SRCS,
     data = _TS_REPLAY_DATA + [
         "@embedded_clickhouse//:clickhouse",
         "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
@@ -1315,7 +1322,7 @@ junit_test(
     name = "ts_replay_snowflake_test",
     memory_mb = 1024,
     size = "large",
-    srcs = ["src/test/java/com/legend/integration/TsReplayTest.java"],
+    srcs = _TS_REPLAY_SRCS,
     data = _TS_REPLAY_DATA,
     env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
     jvm_flags = _TS_REPLAY_FLAGS + [
@@ -1400,28 +1407,113 @@ junit_test(
 # THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
 # (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
 # documents name them, or is listed with why (only allowed to shrink)
+_TS_DOCUMENTS_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsDocumentsTest.java",
+]
+
+_TS_DOCUMENTS_DATA = [
+    "//docs:timeseries/examples.sql",
+    "//projects:timeseries/model.pure",
+]
+
+_TS_DOCUMENTS_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+]
+
+_TS_DOCUMENTS_DEPS = [
+    ":core",
+    ":test_backends",
+    ":test_cases",
+    "//testing",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+]
+
 junit_test(
     name = "ts_documents_test",
     memory_mb = 1024,
     size = "medium",
-    srcs = ["src/test/java/com/legend/integration/TsDocumentsTest.java"],
-    data = [
-        "//docs:timeseries/examples.sql",
-        "//projects:timeseries/model.pure",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    jvm_flags = _TS_DOCUMENTS_FLAGS,
+    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    runtime_deps = [":drivers"],
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES ON EVERY V1 DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9b, 2026-11-07: "All four"): each
+# example on DuckDB and on the lane's database, each answer held to DuckDB's (TsAnswers), a statement bounded at two
+# minutes where the database takes a bound. Postgres as root through tools/postgres/as_unprivileged.sh; Snowflake manual.
+junit_test(
+    name = "ts_documents_clickhouse_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
     ],
-    jvm_flags = [
-        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
-        "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=clickhouse",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "'-Dts.documents.session=SET max_execution_time = 120'",
+    ],
+    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_postgres_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "'-Dts.documents.session=SET statement_timeout = 120000'",
     ],
     select = ["--select-class=com.legend.integration.TsDocumentsTest"],
     runtime_deps = [":drivers"],
-    deps = [
-        ":core",
-        ":test_backends",
-        ":test_cases",
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
     ],
+    select = ["--select-class=com.legend.integration.TsDocumentsTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = _TS_DOCUMENTS_DEPS,
     visibility = ["//gates:__pkg__"],
 )
 

@@ -70,8 +70,9 @@ JARS = {
     "snowflake_jdbc": struct(
         coordinate = "net.snowflake:snowflake-jdbc:4.4.0",
         sha256 = "eeabc114d2fd429365f8bdde0cb5dd00f0cf529b22aab754751bab1b09fc65c0",
-        # core: the manual //core:ts_island_snowflake_test and //core:ts_replay_snowflake_test, the #TS island and the
-        # gallery's replay on a real account (docs/TS_DECISIONS_2026_11_07.md items 9 and 10, 2026-11-07)
+        # core: the manual //core:ts_island_snowflake_test, ts_replay_snowflake_test and ts_documents_snowflake_test,
+        # the #TS island, the gallery's replay and the documents' examples on a real account
+        # (docs/TS_DECISIONS_2026_11_07.md items 9, 9b and 10, 2026-11-07)
         users = ["core", "pct"],
     ),
     # group:artifact:version:classifier -- the shaded jar; the plain one declares 109 runtime dependencies
@@ -103,8 +104,9 @@ JARS = {
     "clickhouse_jdbc": struct(
         coordinate = "com.clickhouse:clickhouse-jdbc:0.10.0:all-dependencies",
         sha256 = "ba4325c59a8ff5ec6cb7cf85b206e4317e6be5d056512aadc7a6e6a4abbd3e81",
-        # core: //core:ts_replay_clickhouse_test, the gallery's #TS replayed on the embedded ClickHouse (ClickHouse a
-        # v1 database, the user 2026-11-07: "All four"; docs/TS_DECISIONS_2026_11_07.md item 9)
+        # core: //core:ts_replay_clickhouse_test and ts_documents_clickhouse_test, the gallery's #TS and the documents'
+        # examples on the embedded ClickHouse (ClickHouse a v1 database, the user 2026-11-07: "All four";
+        # docs/TS_DECISIONS_2026_11_07.md items 9 and 9b)
         users = ["core", "pct"],
     ),
     "sqlite_jdbc": struct(

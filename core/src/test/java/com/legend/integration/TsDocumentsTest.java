@@ -230,6 +230,7 @@ class TsDocumentsTest {
                 .stream().filter(e -> e instanceof com.legend.model.DatabaseDefinition)
                 .flatMap(e -> ((com.legend.model.DatabaseDefinition) e).tables().stream()).toList();
         Map<String, List<Object[]>> rows = rowsOf();
+        boolean javaTime = com.legend.exec.Connectors.of(backend.type()).decoding().bindsJavaTime();
         try (java.sql.Statement s = c.createStatement()) {
             for (com.legend.model.DatabaseDefinition.TableDefinition t : tables) {
                 s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(t, null)));
@@ -247,7 +248,9 @@ class TsDocumentsTest {
                     int at = 1;
                     for (Object[] r : chunk) {
                         for (Object v : r) {
-                            ps.setObject(at++, v);
+                            // a driver that binds no java.time value (its connector's fact) takes a java.sql one
+                            ps.setObject(at++, v instanceof java.time.LocalDate d && !javaTime ? java.sql.Date.valueOf(d)
+                                    : v);
                         }
                     }
                     ps.execute();
@@ -312,6 +315,8 @@ class TsDocumentsTest {
 
     @Test
     void everyExampleOfTheSpecAndTheGuideRuns() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("ts.backend") == null,
+                "a lane of another database holds each example to DuckDB's answer instead");
         TestBackend backend = TestBackends.platform();
         ModelContext model = Compiler.compileModel(model(backend));
         Map<String, String> examples = examples(Runfile.property("ts.examples"));
@@ -341,6 +346,95 @@ class TsDocumentsTest {
         }
         assertEquals(List.of(), wrong, "every example of the documents runs and answers, or is listed in NOT_YET with"
                 + " why (only allowed to shrink)");
+    }
+
+    /** The examples that answer otherwise on a lane's database, by {@code <database> <id>}, and why: each a register
+     *  row or a named open item, listed only while it differs (one that comes to agree fails here). */
+    private static final Map<String, String> DIFFERS = Map.of();
+
+    /**
+     * THE DOCUMENTS' EXAMPLES ON A V1 DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9b, 2026-11-07: ClickHouse a v1
+     * database, the user's "All four"): every example on DuckDB and on the lane's database ({@code -Dts.backend}),
+     * each answer held to DuckDB's ({@link TsAnswers}: the same dates and lines, each figure within 1e-9 of its scale).
+     * A statement past the lane's bound ({@code ts.documents.session}, a session statement) is named, not waited on.
+     */
+    @Test
+    void everyExampleAnswersAsOnDuckDb() throws Exception {
+        String named = System.getProperty("ts.backend");
+        org.junit.jupiter.api.Assumptions.assumeTrue(named != null, "the lane names its database");
+        TestBackend backend = TestBackends.named(named);
+        TestBackend duckDb = TestBackends.platform();
+        Map<String, String> examples = examples(Runfile.property("ts.examples"));
+        Map<String, Object> want = answers(duckDb, examples, null);
+        List<String> refusedOnDuckDb = want.entrySet().stream().filter(e -> e.getValue() instanceof String)
+                .map(e -> e.getKey() + ": " + e.getValue()).toList();
+        assertEquals(List.of(), refusedOnDuckDb, "every example answers on DuckDB");
+        Map<String, Object> got = answers(backend, examples, System.getProperty("ts.documents.session"));
+        List<String> unexpected = new ArrayList<>();
+        List<String> agreed = new ArrayList<>();
+        StringBuilder report = new StringBuilder();
+        int same = 0;
+        for (String id : examples.keySet()) {
+            Object answer = got.get(id);
+            String said = answer instanceof String refused ? "refused: " + refused
+                    : TsAnswers.difference((TsAnswers.Answer) want.get(id), (TsAnswers.Answer) answer);
+            String key = backend.name() + " " + id;
+            if (said == null) {
+                same++;
+                if (DIFFERS.containsKey(key)) {
+                    agreed.add(key);
+                }
+            } else {
+                report.append(key).append(": ").append(said).append('\n');
+                if (!DIFFERS.containsKey(key)) {
+                    unexpected.add(key);
+                }
+            }
+        }
+        report.append(backend.name()).append(": ").append(same).append(" of ").append(examples.size())
+                .append(" examples as on DuckDB\n");
+        System.out.println(report);
+        assertEquals(List.of(), unexpected, "every example answers as on DuckDB, or is listed in DIFFERS with why\n"
+                + report);
+        assertEquals(List.of(), agreed, "an example listed in DIFFERS that now answers as on DuckDB: delete its row");
+    }
+
+    /** Each example's answer on {@code backend}, or the message it was refused with; {@code bound} a session
+     *  statement run first where given. */
+    private static Map<String, Object> answers(TestBackend backend, Map<String, String> examples,
+            @com.legend.base.Nullable String bound) throws Exception {
+        ModelContext model = Compiler.compileModel(model(backend));
+        Map<String, Object> out = new LinkedHashMap<>();
+        // a server's database outlives a connection: the run's own workspace there (dropped as it closes)
+        try (Connection c = backend.inProcess() ? backend.open() : backend.openWorkspace()) {
+            seed(backend, c);
+            if (bound != null) {
+                try (java.sql.Statement st = c.createStatement()) {
+                    st.execute(bound);
+                }
+            }
+            for (Map.Entry<String, String> e : examples.entrySet()) {
+                long started = System.nanoTime();
+                String query = "|#TS{" + e.getValue() + "}#";
+                try {
+                    ExecutionPlan plan = Compiler.query(model, query).executionPlan("docs::RT");
+                    int size = Compiler.query(model, query).plan("docs::RT").sql().length();
+                    if (size > SQL_CAP) {
+                        throw new IllegalStateException(String.format(java.util.Locale.ROOT, "its SQL is %,d"
+                                + " characters, past the %,d a database prepares in reasonable time", size, SQL_CAP));
+                    }
+                    out.put(e.getKey(), TsAnswers.of(plan, PlanCases.write(plan, c, Map.of(),
+                            PlanCases.Written.CSV::writer)));
+                } catch (Exception | AssertionError x) {
+                    String message = String.valueOf(x.getMessage());
+                    String first = message.lines().findFirst().orElse(message);
+                    out.put(e.getKey(), first.length() > 240 ? first.substring(0, 240) + "..." : first);
+                }
+                System.err.println(backend.name() + " " + e.getKey() + ": " + (System.nanoTime() - started) / 1_000_000
+                        + " ms");
+            }
+        }
+        return out;
     }
 
     /** Why {@code example} does not run and answer -- refused, no rows, a column of no value, SQL past the cap -- or
