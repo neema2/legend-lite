@@ -5,7 +5,7 @@
 write it down so we can run the program". Ruled the same day:
 
 - **P3.** The pull request is stacked on #81 ("stack").
-- **P4.** The databases are DuckDB, Postgres and Snowflake ("Duckdb, postgres and snowflake is enough for now").
+- **P4.** The databases are DuckDB, Postgres and Snowflake ("Duckdb, postgres and snowflake is enough for now"); widened 2026-11-07 to ClickHouse as well ("All four", docs/TS_DECISIONS_2026_11_07.md §4).
 - **P6.** The holiday calendar is built in the platform, in v1.1 ("We should build holiday calendar in platform that
   can be part of v1.1").
 
@@ -637,7 +637,7 @@ Split in two:
 | P1b | Intraday (B6b) in v1, or in v1.1 with the platform's calendar | **ruled 2026-11-01**: v1.1 ("agreed intraday can also move to 1.1") | -- |
 | P2 | The page period: options A to E, and whether the brushed tile zooms too | D, every tile zooms (below); read as agreed from "Yes do it" (2026-11-01), to be confirmed | B7 |
 | P3 | A pull request for this branch, so CI runs on every OS, and its base | **ruled 2026-11-01**: stacked on #81 ("stack") | -- |
-| P4 | The databases | **ruled 2026-11-01**: DuckDB, Postgres and Snowflake ("enough for now") | -- |
+| P4 | The databases | **ruled 2026-11-01**: DuckDB, Postgres and Snowflake ("enough for now"); **widened 2026-11-07**: and ClickHouse ("All four") | -- |
 | P5 | The scale budgets | proposed from the first measurement | B2 |
 | P6 | Where holidays come from | **ruled 2026-11-01**: built in the platform, v1.1 | -- |
 | P7 | The 12-column cap: lift it or keep it | **ruled 2026-11-02** ("Yes array read"): lifted by `read` over a `ColSpecArray`. Built | -- |
