@@ -369,8 +369,11 @@ class TsScaleMeasureTest {
                 / 1_000_000), ""));
         measure("as-of lag, one line, indexed", AS_OF_ONE);
         measure("as-of lag, every line, indexed", AS_OF_EVERY);
-        measure("daily, one line, indexed", "SELECT avg(CLOSE['S7'], 20) AS m, volatility(CLOSE['S7'], 63) AS v"
-                + " FROM PRICES ON DAY BY SYMBOL");
+        ExecutionPlan daily = measure("daily, one line, indexed", "SELECT avg(CLOSE['S7'], 20) AS m,"
+                + " volatility(CLOSE['S7'], 63) AS v FROM PRICES ON DAY BY SYMBOL");
+        if (daily.answerSql().slots().isEmpty()) {
+            explain("lite's daily one line, indexed", daily.answerSql().statement());
+        }
         asOfForms("indexed");
     }
 }
