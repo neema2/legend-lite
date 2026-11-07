@@ -20801,3 +20801,17 @@ two packages is the first step's input).
   Equality 461 -> 444. `InstanceIdentityTest.lambdaCtorDeclines` loses its count of the channel's decline.
 - Checks: DuckDB corpus, both judges, unchanged and every roster exact (identical failure lines); core driver (three
   judges), judge (two), exec, integration, census and guardrails green; `//pct:all` builds.
+
+## 2026-11-07 — P1: the test-data generator's dead run paths, deleted
+
+- The goals' P1 item "delete the dead test-data generator transcript path". `TestDataGenerationNatives.foldCensus`
+  called only itself, so the generator's in-body run was dead: deleted with `transcript`, `needsBodyRoute`,
+  `postFold`, `seedStringOrDataError`, `deref`, `containsSetUpDataSqls` and `literal`. Also dead and deleted:
+  `TestDataGenerator.seedDataString` and `BodyDriver.viewSqlRenderer` (no callers), and the referee's generator
+  fetch-chain SPI (`SqlReplayReferee.verifyFetchTexts`/`verifyFetchChain`/`FetchTranscript`/`FetchHop`, called by
+  nothing in core) with its implementations in the spec harness and the parity test's stub. About 430 lines.
+- Kept, for the generator's product redesign under S143: `TestDataGenerator.generate`, whose one caller is
+  `ReservedNamesGenerationTest` (PARK-16: the generator's statements quote reserved names), and the plan-text path
+  (`planText`, `planTextResult`) the engine-text arms read.
+- Checks: core driver, judge, testdatagen, census and guardrails green; `//spec:all` and `//pct:all` build; DuckDB
+  corpus (host judge) unchanged, every roster exact. Pin `BodyDriver` 517 -> 512.

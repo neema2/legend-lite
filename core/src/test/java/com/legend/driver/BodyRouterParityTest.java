@@ -1827,17 +1827,6 @@ class BodyRouterParityTest {
         }
 
         @Override
-        public RowVerdict verifyFetchTexts(Sessions.Session session, String goldenSql, String ourSql) {
-            throw new UnsupportedOperationException("the engine-text witnesses hold no generator fetch");
-        }
-
-        @Override
-        public RowVerdict verifyFetchChain(Sessions.Session session, int hopIndex, String goldenSql, String ourSql,
-                java.util.function.Supplier<FetchTranscript> transcript) {
-            throw new UnsupportedOperationException("the engine-text witnesses hold no generator fetch");
-        }
-
-        @Override
         public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.judge.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
                 ReplayFacts facts, ModelContext ctx) {

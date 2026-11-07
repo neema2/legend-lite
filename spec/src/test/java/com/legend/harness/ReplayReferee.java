@@ -31,7 +31,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
     public static final java.util.concurrent.ConcurrentHashMap<String,
             java.util.concurrent.atomic.LongAdder> OUTCOMES = new java.util.concurrent.ConcurrentHashMap<>();
 
-
     /** The raw-SQL ledger of the execution this referee serves (Phase 2b):
      * the harness creates it per test, hands it to the executor through
      * {@code ExecuteOptions}, and to this referee — the seeds the goldens
@@ -119,86 +118,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
      * materialize from these. Cleared per attempt. */
     private static final java.util.Map<Integer, String> ATTEMPT_GOLDENS =
             new java.util.HashMap<>();
-
-    @Override
-    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchChain(
-            com.legend.exec.Sessions.Session session, int hopIndex, String goldenSql,
-            String ourSql,
-            java.util.function.Supplier<com.legend.judge.SqlReplayReferee
-                    .FetchTranscript> transcript) {
-        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyFetchChain0(session, hopIndex, goldenSql, ourSql, transcript);
-        OUTCOMES.computeIfAbsent("verifyFetchChain " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
-        return v;
-    }
-
-    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchChain0(
-            com.legend.exec.Sessions.Session session, int hopIndex, String goldenSql,
-            String ourSql,
-            java.util.function.Supplier<com.legend.judge.SqlReplayReferee
-                    .FetchTranscript> transcript) {
-        if (hopIndex >= 0) {
-            ATTEMPT_GOLDENS.put(hopIndex, goldenSql);
-        }
-        if (!ourSql.contains("tdg_")) {
-            return verifyFetchTexts(session, goldenSql, ourSql);
-        }
-        try {
-            com.legend.judge.SqlReplayReferee.FetchTranscript r =
-                    transcript.get();
-            List<com.legend.judge.SqlReplayReferee.FetchHop> fetches =
-                    r.hops();
-            if (hopIndex < 0 || hopIndex >= fetches.size()) {
-                throw new RefereeVerify.Unverifiable(
-                        "chained fetch — transcript index out of range", null);
-            }
-            // the receipt compares under the corpus's own flattening
-            // (sqlRemoveFormatting strips newlines and tabs): the
-            // H2Compatible spelling hands the arm the flattened hop text
-            if (!flat(r.sqls().get(hopIndex)).equals(flat(ourSql))) {
-                throw new RefereeVerify.Unverifiable("chained fetch — transcript"
-                        + " text mismatch (determinism receipt failed)", null);
-            }
-            com.legend.judge.SqlReplayReferee.FetchHop f =
-                    fetches.get(hopIndex);
-            if (f.parentIndex() < 0) {
-                throw new RefereeVerify.Unverifiable("chained fetch — view fetch"
-                        + " over temps (no single-parent chain)", null);
-            }
-            List<Integer> chain = new java.util.ArrayList<>();
-            for (int j = f.parentIndex(); j >= 0;
-                    j = fetches.get(j).parentIndex()) {
-                chain.add(0, j);
-            }
-            List<String[]> ancestors = new java.util.ArrayList<>();
-            for (int j : chain) {
-                String gj = ATTEMPT_GOLDENS.get(j);
-                if (gj == null) {
-                    throw new RefereeVerify.Unverifiable("chained fetch — ancestor"
-                            + " golden (index " + j + ") not asserted before"
-                            + " this hop", null);
-                }
-                ancestors.add(new String[]{
-                        "testDataGen_Temp_" + fetches.get(j).table(), gj});
-            }
-            String parentTemp = "testDataGen_Temp_"
-                    + fetches.get(f.parentIndex()).table();
-            if (!goldenSql.toLowerCase(java.util.Locale.ROOT).contains(parentTemp.toLowerCase(java.util.Locale.ROOT))) {
-                throw new RefereeVerify.Unverifiable("chained fetch — golden does"
-                        + " not reference derived parent temp " + parentTemp,
-                        null);
-            }
-            String d = tdgChainedReplay(
-                    recorder.seeds(),
-                    ancestors, goldenSql,
-                    RefereeVerify.transcriptRows(f.columns(), f.rows()));
-            return d == null
-                    ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
-                    : com.legend.judge.SqlReplayReferee.RowVerdict
-                            .diverged(d);
-        } catch (RefereeVerify.Unverifiable u) {
-            return outcome("verdict-arm-tdg: ", u);
-        }
-    }
 
     /** Commit the attempt: the world advances (ledger entries stand,
      * mirror cursor position stays honest — it applied real state). */
@@ -843,35 +762,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             String m = "verdict-arm: " + String.valueOf(e.getMessage()).replace('\n', ' ');
             RefereeVerify.fault(m);
             return com.legend.judge.SqlReplayReferee.RowVerdict.fault(m);
-        }
-    }
-
-    /** The TDG fetch-text verdict (SPI): the walk's tdgSqlReplay
-     * semantics behind the referee interface — ours on the session's
-     * DuckDB, golden on the mirror, multiset compare; the walk's
-     * compile-time declines (ordered fetch, chained temp tables)
-     * surface as DECLINED with their own names. Seeds = the recorded
-     * raw-SQL history (testing-side policy, exactly the walk's). */
-    @Override
-    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchTexts(
-            com.legend.exec.Sessions.Session session, String goldenSql, String ourSql) {
-        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyFetchTexts0(session, goldenSql, ourSql);
-        OUTCOMES.computeIfAbsent("verifyFetchTexts " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
-        return v;
-    }
-
-    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchTexts0(
-            com.legend.exec.Sessions.Session session, String goldenSql, String ourSql) {
-        try {
-            String d = tdgSqlReplay(
-                    recorder.seeds(),
-                    goldenSql, connectionOf(session), ourSql);
-            return d == null
-                    ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
-                    : com.legend.judge.SqlReplayReferee.RowVerdict
-                            .diverged(d);
-        } catch (RefereeVerify.Unverifiable u) {
-            return outcome("verdict-arm-tdg: ", u);
         }
     }
 

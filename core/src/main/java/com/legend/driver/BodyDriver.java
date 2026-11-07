@@ -735,21 +735,6 @@ public final class BodyDriver {
                 b.storeFree()), null, b.root(), false);
     }
 
-    /** The test-data generator's VIEW fetch renderer (TestDataGenerator.ViewSql):
-     *  the view's lifted function (E.5, reached through the include closure
-     *  like a table) as the compiler's relation — the same node a user's
-     *  accessor inlines to — planned like any query (the resolver
-     *  materializes its joins), the fetched base tables renamed to their
-     *  temps (the replaceTables pass — the engine's {@code fixTables}),
-     *  rendered in the lane's own dialect (the text is executed on this
-     *  connection). The generator's package never reaches the lowering: the
-     *  driver hands it this. */
-    static com.legend.testdatagen.TestDataGenerator.ViewSql viewSqlRenderer(
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return (db, view, tableToTemp) -> com.legend.planner.BodyPlanner.viewSql(db, view, tableToTemp, specs,
-                env.plan());
-    }
-
     /** A value's plan before the canon wrap: the plan, its root, the
      * collection declaration (when a primitive collection is declared over a
      * relation root), the planned env (on its route's session), and whether it reads no store; or the side

@@ -189,7 +189,6 @@ public final class TestDataGenerator {
         }
     }
 
-
     /** The VIEW's fetch SQL, rendered by the driver's COMPILER (the engine's
      *  own shape, testDataGeneration.pure 377–412: the view planned by the SQL
      *  generator, the fetched base tables substituted by their temps
@@ -1113,73 +1112,6 @@ public final class TestDataGenerator {
         // the doors, 2026-10-29; until then this generator read its own result set and converted the driver's
         // temporals here), so the one repr owner spells them as it spells every judged value
         return com.legend.judge.PureAsserts.repr(v);
-    }
-
-    /** The engine's generateSeedDataString: execute the demanded
-     * columns (pks first) of each tree table and format every row as
-     * createRowIdentifier SOURCE CODE — column names spelled by their
-     * QUOTE-BEARING identity. */
-    public static String seedDataString(ModelContext ctx,
-            LambdaFunction resolvedQuery, String mappingFqn,
-            PlanSessions.Source sessions, ExecutionPlan.Target target, SqlDialect dialect) {
-        List<ScanRelations.Rel> roots =
-                ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
-        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
-                .toList();
-        StringBuilder out = new StringBuilder();
-        Session st = new Session(sessions, target, dialect);
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.TDG)) {
-            for (ScanRelations.Rel r : roots) {
-                Located loc = locate(ctx, r.db(), r.table());
-                List<String> cols = new ArrayList<>();
-                for (DatabaseDefinition.ColumnDefinition c
-                        : loc.def().columns()) {
-                    if (c.primaryKey()) {
-                        cols.add(c.name());
-                    }
-                }
-                for (String c : r.cols()) {
-                    String bare = c.length() > 1 && c.startsWith("\"")
-                            && c.endsWith("\"")
-                            ? c.substring(1, c.length() - 1) : c;
-                    if (!cols.contains(bare)) {
-                        cols.add(bare);
-                    }
-                }
-                List<String> spelled = cols.stream()
-                        .map(c -> column(loc.def(), c).quoted()
-                                ? "\"" + c + "\"" : c)
-                        .toList();
-                List<SqlSelect.Projection> ps = new ArrayList<>();
-                for (String c : cols) {
-                    ps.add(new SqlSelect.Projection(stored(ROOT, loc.def(), c), null, null));
-                }
-                String sql = st.render(new SqlSelect(ps, false, storeTable(loc,
-                        java.util.Objects.requireNonNull(r.table(), "r.table()"), ROOT), null, List.of(), null, null,
-                        List.of(), null, null, List.of()));
-                out.append('\n')
-                        .append("meta::relational::testDataGeneration::"
-                                + "createTableRowIdentifiers(")
-                        .append(r.db()).append(", '").append(loc.schema())
-                        .append("', '").append(r.table()).append("', [\n");
-                List<String> rows = new ArrayList<>();
-                for (List<Object> raw : captureRows(st, sql, null)) {
-                    List<String> vals = new ArrayList<>();
-                    for (Object v : raw) {
-                        vals.add(pureRepr(v));
-                    }
-                    rows.add("       meta::relational::"
-                            + "testDataGeneration::createRowIdentifier(["
-                            + spelled.stream().map(c2 -> "'" + c2 + "'")
-                                    .collect(java.util.stream.Collectors
-                                            .joining(","))
-                            + "], ["
-                            + String.join(",", vals) + "])");
-                }
-                out.append(String.join(",\n", rows)).append("\n  ])\n");
-            }
-        }
-        return out.toString();
     }
 
     // ===== the tdg PLAN PRINTER (planTestDataGeneration text) =====
