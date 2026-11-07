@@ -1236,6 +1236,7 @@ junit_test(
         # the first run's 100 lines grew one backend to 11 GB, killed by the session's memory limit (2026-11-07)
         "-Dts.scale.wideLines=0",
         "-Dts.scale.basket=100",
+        "-Dts.scale.handForms=true",
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
     ],
     select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],

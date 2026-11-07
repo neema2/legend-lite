@@ -65,6 +65,10 @@ class TsScaleMeasureTest {
      *  limit killed it -- a finding of its own, not repeated on a desk). */
     static final int WIDE_LINES = Integer.getInteger("ts.scale.wideLines", 100);
     static final int BASKET = Integer.getInteger("ts.scale.basket", 500);
+    /** The server's lane (Postgres's, whose SQL these are): its tables UNLOGGED, every statement bounded, the as-of
+     *  forms written by hand, their plans explained, an index -- a property, so no database is named here (the census,
+     *  DialectLeakRatchetTest). */
+    static final boolean HAND_FORMS = Boolean.getBoolean("ts.scale.handForms");
 
     private static final String STORE = """
             ###Relational
@@ -81,7 +85,6 @@ class TsScaleMeasureTest {
             + " SELECT count(*) AS n FROM s";
 
     private static TestBackend backend;
-    private static boolean postgres;
     private static Connection session;
     private static ModelContext model;
     private static String prices;
@@ -95,7 +98,6 @@ class TsScaleMeasureTest {
     static void seed() throws Exception {
         String named = System.getProperty("ts.backend");
         backend = TestBackends.named(named == null ? "duckdb" : named);
-        postgres = "postgres".equals(backend.name());
         String library = Files.readString(Runfile.property("timeseries.library"), StandardCharsets.UTF_8);
         long t0 = System.nanoTime();
         model = Compiler.compileModel(STORE + """
@@ -124,28 +126,21 @@ class TsScaleMeasureTest {
             for (com.legend.model.DatabaseDefinition.TableDefinition t : tables) {
                 s.execute(dialect.render(com.legend.setup.Ddl.createTable(t, null)));
             }
-            if (postgres) {
+            if (HAND_FORMS) {
                 // the session's disk is small: no WAL for the rows (a measurement's tables, never a store's)
                 s.execute("ALTER TABLE " + prices + " SET UNLOGGED");
                 s.execute("ALTER TABLE " + ticks + " SET UNLOGGED");
             }
             long t1 = System.nanoTime();
-            // a price a day: a slow wave per instrument and a drift, so windows have something to measure
-            s.execute(postgres
-                    ? "INSERT INTO " + prices + " SELECT 'S' || i, DATE '2005-01-03' + d, 100 * (1 + 0.1 * sin(i + d"
-                            + " / 50.0)) + d * 0.01 FROM generate_series(0, " + (INSTRUMENTS - 1) + ") i,"
-                            + " generate_series(0, " + (DATES - 1) + ") d"
-                    : "INSERT INTO " + prices + " SELECT 'S' || i, DATE '2005-01-03' + CAST(d AS INTEGER), 100 * (1 +"
-                            + " 0.1 * sin(i + d / 50.0)) + d * 0.01 FROM range(" + INSTRUMENTS + ") r1(i), range("
-                            + DATES + ") r2(d)");
-            s.execute(postgres
-                    ? "INSERT INTO " + ticks + " SELECT 'T' || i, TIMESTAMP '2024-01-02 09:30:00' + m * INTERVAL '1"
-                            + " minute', 50 * (1 + 0.05 * sin(i + m / 300.0)) FROM generate_series(0, "
-                            + (BAR_INSTRUMENTS - 1) + ") i, generate_series(0, " + (MINUTES - 1) + ") m"
-                    : "INSERT INTO " + ticks + " SELECT 'T' || i, TIMESTAMP '2024-01-02 09:30:00' + to_minutes(m),"
-                            + " 50 * (1 + 0.05 * sin(i + m / 300.0)) FROM range(" + BAR_INSTRUMENTS + ") r1(i), range("
-                            + MINUTES + ") r2(m)");
-            if (postgres) {
+            // a price a day: a slow wave per instrument and a drift, so windows have something to measure (one
+            // statement both databases read: generate_series, its column named)
+            s.execute("INSERT INTO " + prices + " SELECT 'S' || i, DATE '2005-01-03' + CAST(d AS INTEGER), 100 * (1 +"
+                    + " 0.1 * sin(i + d / 50.0)) + d * 0.01 FROM generate_series(0, " + (INSTRUMENTS - 1) + ") AS g1(i),"
+                    + " generate_series(0, " + (DATES - 1) + ") AS g2(d)");
+            s.execute("INSERT INTO " + ticks + " SELECT 'T' || i, TIMESTAMP '2024-01-02 09:30:00' + CAST(m AS INTEGER)"
+                    + " * INTERVAL '1 minute', 50 * (1 + 0.05 * sin(i + m / 300.0)) FROM generate_series(0, "
+                    + (BAR_INSTRUMENTS - 1) + ") AS g1(i), generate_series(0, " + (MINUTES - 1) + ") AS g2(m)");
+            if (HAND_FORMS) {
                 s.execute("ANALYZE " + prices);
                 s.execute("ANALYZE " + ticks);
                 s.execute("SET statement_timeout = '" + TIMEOUT + "s'");
@@ -263,7 +258,7 @@ class TsScaleMeasureTest {
     /** The as-of forms on Postgres over the daily table, one line's and every line's: lite's own query explained,
      *  and the two forms by hand -- the correlated MAX lite writes, the LATERAL the experts write. */
     private static void asOfForms(String when) throws Exception {
-        if (!postgres) {
+        if (!HAND_FORMS) {
             return;
         }
         ExecutionPlan one = Compiler.query(model, "|#TS{" + AS_OF_ONE + "}#").executionPlan("ts::RT");
@@ -351,15 +346,15 @@ class TsScaleMeasureTest {
     void asOf() throws Exception {
         String sql = measure("as-of lag, one line", AS_OF_ONE).answerSql().statement().toUpperCase(Locale.ROOT);
         measure("as-of lag, every line", AS_OF_EVERY);
-        // the form lite writes: a native as-of join where the database has one, the correlated MAX where it has not
-        assertTrue(postgres ? sql.contains("MAX(") : sql.contains("ASOF"), sql);
+        // the form lite writes: a native as-of join where the database has one, one window pass where it has not
+        assertTrue(HAND_FORMS ? sql.contains("_ASU") : sql.contains("ASOF"), sql);
         asOfForms("no index");
     }
 
     @Test
     @Order(7)
     void asOfIndexed() throws Exception {
-        if (!postgres) {
+        if (!HAND_FORMS) {
             return;
         }
         // the index the experts' form reads: (key, date)
