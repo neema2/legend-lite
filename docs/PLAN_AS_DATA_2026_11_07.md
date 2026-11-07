@@ -188,6 +188,15 @@ Each appeal input today, and where the renderer finds it:
 | ordered, and the sort keys | a neutral ORDER fact on the read (the planner's order view: sorted, keys) |
 | the mapping, the class, the stores the read touches (the fixtures to provide) | a neutral PROVENANCE fact on the read (mapping, class, stores) |
 | the page population (our read without its tail page) | a neutral PAGE fact on a paged read: its unpaged form, planned with it (deriving it from the SQL tree instead risks differing from re-planning; measured before choosing) |
+| whether the read is a subset of the class extent (`extentSubset`) | a fact on the read, as the compiler reads it today |
+
+**Said plainly (2026-11-07, on the user's "do you think it's actually a good idea or just went with it bc I asked?"):**
+the texts are renderings outright, but three of these facts are the REFEREE'S needs and nothing else reads them -- a
+paged read's unpaged form, `extentSubset`, and the stores a read touches (for the fixtures). They are true of the
+query, and they ride the test plan under their own names, not as compatibility records; the alternative (an edge
+attachment keyed by ids, with an edge planning hook in `testplan`) costs more and can drift. They are kept to the
+minimum the appeal needs; making the referee need fewer of them (the page population derived from the SQL tree, no
+extent check) could change appeal outcomes, so it is measured against upstream before it is chosen.
 
 The facts are true of a query whatever the rules (legend-engine's own plans carry provenance), so the test plan is the
 same under both rules but for the values a rule renders: what `sqlRemoveFormatting()` returns is rendered at planning
