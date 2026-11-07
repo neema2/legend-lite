@@ -163,10 +163,10 @@ Each phase ends green; the status column is updated in the commit that does the 
 | 9 | The frozen answers on Postgres (the replayer); ClickHouse's spec-15 listed | 12, 16 | done 2026-11-07 (the replayer; ClickHouse a v1 database since that day, §4): `TsReplayTest` replays every gallery and markets series' Show #TS statement (210, held to `datacube/test/fixtures/timeseries/show-ts.txt` by the parity test) over the pages' samples (`//datacube:ts_replay_samples`) on DuckDB and on the lane's database, each answer held to DuckDB's within 1e-9 of its series' scale: Postgres 210 of 210 (27.7 s), ClickHouse 210 of 210 (18.3 s) once its dialect widened an integer beside a Float64 and stopped counting from a null map, and lead_lag's shift is one LAG of a signed lag (ClickHouse's dialect choosing lagInFrame or leadInFrame by its sign); Snowflake's `//core:ts_replay_snowflake_test` (manual) is the Snowflake session's to run. H2 and SQLite are no lanes (P4); measured before the ruling, SQLite matched all 210 and H2 ran three statements past a 60 s bound. ClickHouse's spec-15 is no longer listed: item 9b |
 | 9b | The documents' examples on ClickHouse, spec-15 included (it never finishes there; decision 16 (b), a staged relation read many times, or another fix), ClickHouse now a v1 database | 16 | done 2026-11-07: the documents' examples run on each v1 database beside DuckDB, held to its answers (TsDocumentsTest's lanes, `ts_documents_<db>_test`): ClickHouse 29 of 29, Postgres 28 of 29 (spec-16 past 120 s there, listed UNRUN: item 18). spec-15 never finished on ClickHouse because it inlines a WITH at each read (111 KB of SQL, 2.8 MB inlined): a relation the statement reads more than once is now staged once as a session's temporary table where the database writes each read again (`SqlDialect.writesEachReadOfAWithAgain`, PlanMaker.stagedShared; 3.6 s); the steps run unbracketed where the driver takes no transaction (a sixth driver fact). ClickHouse's tables are legend-engine's MergeTree, a keyed one sorted by its key (S157, ruled). The lanes moved to ClickHouse 26.3 LTS (ruled, §4), where two identical raises in a WHERE were made one eagerly computed expression: each raise is now its own (rand(n)). ClickHouse's PCT, the replay (210) and the documents (29) green on 26.3 |
 | 10 | Snowflake: its workspace, then the island and the replayer there, by the Snowflake session | 11 | the island 2026-11-07: 43 of 57, then 55 of 57 at c77bb9948 (the as-of's parenthesized condition; java.time binds by a connector fact; PERCENTILE_CONT of a level that is no literal interpolated; CORR and the covariances under an ordered frame from its sums; a ROWS frame past 1000 rows as RANGE over the rows' numbers), the last two since fixed: lead_lag's LAG of ABS(k) (one LAG of a signed k now), and a frame offset from a Pure variable, which Snowflake takes only as a literal or a session variable (measured: a bind and an expression are syntax errors), refused by name -- open: a bound value through SET var = ? before the query, a plan step the runner does not take yet. Done 2026-11-07 by the Snowflake session's runs: the island 57 of 57, the gallery's replay 210 of 210 (`ts_replay_snowflake_test`), and the documents' examples 29 of 29 as on DuckDB (`ts_documents_snowflake_test` at a7dab2c05, 529 s; the lane sets no statement bound): spec-13 130.5 s, spec-15 79.7 s, guide-03 70.2 s, guide-13 43.0 s, guide-07 39.6 s, spec-02 22.2 s, spec-16 13.1 s, the other 22 under 4.3 s each (DuckDB about 6 s for all 29) -- almost all compile time, item 18b |
-| 11 | A3 step 3, then steps 4 and 5: the tile stores `#TS` text; one reader | 2, 9 | |
+| 11 | A3 step 3, then steps 4 and 5: the tile stores `#TS` text; one reader | 2, 9 | step 3's store done 2026-11-07 (c23e4dee5 .. 5c66ec1ac): a series' own `#TS` text (another series named, `A`; every parameter told; gs-quant's spellings the language's) written by `timeseries-text.ts` and read back from core's tree, proved over every example series and 18 forms; the page document version 7 (6 refused, 9a); core reads every text -- a page's on opening (the host's legend-lite module, `QueryReading.tsItem`), the editor's as it is typed, Python's (headless `timeseriesMade`/`Edit`); the examples in `#TS`; core's `tsItem` answers a text with its tree or an error, never one alone. Open in step 3: the box's completions (9b) and its error's range; then steps 4 and 5, step 5 keeping the thin builder (§4, the builders) |
 | 12 | B5: a second oracle for the words gs-quant lacks | -- | |
-| 13 | B3: the Python DSL | -- | |
-| 14 | B4: Show Python | -- | |
+| 13 | B3: the builders -- Python's DSL and TypeScript's, `#TS` and the chart together, from one catalog (§4, ruled 2026-11-07) | -- | |
+| 14 | B4: Show Python and Show TypeScript, each the builder's code | -- | |
 | 15 | B7: the page as a dashboard (option D) | 15 | |
 | 16 | B8: the tile kinds | -- | |
 | 17 | v1's gate: every check, then CI on #81 when the user asks | 17 | |
@@ -208,4 +208,28 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
   a shared relation once natively; the planner's staging stays until it is not experimental.
 - **A keyed ClickHouse table** (legend-engine's `ORDER BY tuple()` refused beside a PRIMARY KEY): "Sort by its key"
   (register S157).
+- **The builders: one thin typed builder, `#TS` and the chart together, Python and TypeScript from one catalog**
+  (asked: "Should we keep/evolve the typescript to be a typed builder for TS like we want for python or not worth it",
+  then "what would be really cool I think would be to have an integrated #TS and charting api together in typescript --
+  the #TS typed part can still be thin I think? But feels like you can do gs-quant / #TS and build the chart in nice
+  way"; on the recommendation below, "Yes record it, then keep going in order"):
+  - *The `#TS` part, thin and write-only*: each word a typed function generated from core's catalog
+    (`datacube/src/generated/ts-words.ts`, the Pure library's words: their parameters, kinds, options, whether given),
+    a window `number | 'all' | span`, an option its words' union; a term prints itself (`timeseries-text.ts`
+    `seriesText`) and core reads it back -- core stays the one reader, the builder never parses (step 5's guard: no
+    tokenizer, no word table by hand in `datacube/src`). TypeScript writes arithmetic as methods (`.div()`, `.minus()`,
+    `.gt()`: no operator overloading); Python's DSL has the operators.
+  - *The chart part*: a typed face over the tile's spec -- sources by grid, `plot(term, {pane, style, ...})` returning a
+    handle another series reads by name (`A`), grain, range, view, panes, annotations -- each call one of the tile's
+    changes (`timeseries-edit.ts` TsChange) through `editTimeseries`, told as the page's commands (`addTimeseries`,
+    `setTimeseries`): a third front of the one rule, beside the screen and Python, never a path of its own.
+  - *What it moves*: the series editor's function picker, candles and sliders -- a gesture's meaning decided in screen
+    code today (`ui/timeseries-view.ts`; the one-API plan's S8) -- move into the builder, exported headless.
+  - *Guards*: the change-parity ledger (`one-api-ledger.test.ts`, the timeseries review's A8) holds the builder to every
+    change kind too; the builder is no part of the page's startup bundle.
+  - *Where*: B3 becomes the builders (Python's DSL and TypeScript's, generated from the one catalog); B4 prints each
+    tile as the builder's code (Show Python, Show TypeScript; the generated program run and its spec read back, as
+    `timeseries-code.test.ts` does now); A3 step 5 deletes the tile's parser (`parseExpr`), its translator
+    (`timeseries-ts.ts`) and the hand-kept `TS_SIGNATURES` (the generated signatures in their place), and keeps the
+    tree and `seriesText` as the builder's core. Cost: M beside B3.
 
