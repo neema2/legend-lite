@@ -982,6 +982,12 @@ class TsIslandTest {
             assertEquals(rows(backend, "|#TS{SELECT rebase(CLOSE['AAA'], '" + last + "') AS r FROM PRICES ON DAY BY"
                     + " SYMBOL}#"), rows(backend, "|#TS{SELECT rebase(CLOSE['AAA'], latest - 3d) AS r FROM PRICES ON DAY"
                     + " BY SYMBOL}#"), backend + ": rebase(x, latest - 3d)");
+            // two sources: the later of their last dates (timeseries::lines::later), here the same day
+            List<Map<String, String>> two = rows(backend, "|#TS{WITH b AS (SELECT SYMBOL AS S2, DAY AS D2, CLOSE AS C2"
+                    + " FROM PRICES WHERE SYMBOL = 'BBB') SELECT rebase(CLOSE['AAA'], latest - 3d) AS r, C2['BBB']"
+                    + " AS z FROM PRICES ON DAY BY SYMBOL, b ON D2 BY S2}#");
+            org.junit.jupiter.api.Assertions.assertArrayEquals(column(rows(backend, "|#TS{SELECT rebase(CLOSE['AAA'], '" + last + "') AS r FROM PRICES ON"
+                    + " DAY BY SYMBOL}#"), null, null, "r"), column(two, null, null, "r"), backend + ": two sources' latest");
         }
     }
 

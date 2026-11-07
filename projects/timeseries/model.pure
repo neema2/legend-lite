@@ -2085,6 +2085,27 @@ function timeseries::lines::laterOf<T,U,M,D,O>(t: Relation<T>[1], latest: ColSpe
     ->without(~[lo])->rename(~lx, $out)
 }
 
+// latest as a value (R9, decision 8): a source's last date, the later of two, a day moved by a span (latest - 3y).
+function timeseries::lines::lastDate<U,D>(source: Relation<U>[1], date: ColSpec<D⊆U>[1]): Date[0..1]
+{
+  $source->map(r|$r->read($date))->max()
+}
+
+function timeseries::lines::later(a: Date[0..1], b: Date[0..1]): Date[1]
+{
+  max($a->toOne(), $b->toOne())
+}
+
+function timeseries::lines::day(d: Date[0..1]): StrictDate[1]
+{
+  $d->toOne()->cast(@StrictDate)
+}
+
+function timeseries::lines::day(d: Date[0..1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): StrictDate[1]
+{
+  $d->toOne()->adjust($n, $unit)->cast(@StrictDate)
+}
+
 // THE ANSWER'S ORDER: by its date, then by its instrument (a line per instrument's answer).
 function timeseries::lines::ordered<T,D>(t: Relation<T>[1], date: ColSpec<D⊆T>[1]): Relation<T>[1]
 {
@@ -3467,8 +3488,6 @@ function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each v
   $x->timeseries::index(~key, ~date, ~value, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
-// the spec's order (docs/TIMESERIES_LANGUAGE_2026_10_29.md §6: rebase(x, date, base = 100); gs-quant has no rebase), so
-// rebase(close, '2024-01-01') and rebase(close, latest - 3y) read the date second (decision 8, 2026-11-07)
 function timeseries::line::rebase<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1], base: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()

@@ -1104,20 +1104,18 @@ public final class TsToPure {
 
             @Override
             public ValueSpecification latest(int n, @com.legend.base.Nullable String unit) {
-                // each source's last date after its WHERE, upstream's relation map reduced (one aggregate a source,
-                // Scalars.reducedOverRelation), the latest of them (R9; decision 8, 2026-11-07)
-                List<ValueSpecification> each = new ArrayList<>();
+                // each source's last date after its WHERE (upstream's relation map reduced: one aggregate a source,
+                // Scalars.reducedOverRelation), the latest of them (R9), a day moved by the span -- the library's
+                // (timeseries::lines::lastDate, later, day; decision 8, 2026-11-07)
+                ValueSpecification last = null;
                 for (TsLines.Source s : opened.values()) {
-                    each.add(call("max", call("map", s.relation(), lambda("r",
-                            new AppliedProperty(new Variable("r"), s.date())))));
+                    ValueSpecification d = call(TsLines.LINES + "lastDate", s.relation(), new ColSpec(s.date()));
+                    last = last == null ? d : call(TsLines.LINES + "later", last, d);
                 }
-                ValueSpecification last = call("toOne", each.size() == 1 ? each.get(0)
-                        : call("max", new PureCollection(each, null)));
-                if (unit != null && n != 0) {
-                    last = call("adjust", last, new com.legend.protocol.spec.CInteger((long) n),
-                            new EnumValue(TsWords.DURATION, unit));
-                }
-                return call("cast", last, SqlToPure.typeArg("StrictDate"));
+                java.util.Objects.requireNonNull(last, "latest in a query of no source");
+                return unit == null || n == 0 ? call(TsLines.LINES + "day", last)
+                        : call(TsLines.LINES + "day", last, new com.legend.protocol.spec.CInteger((long) n),
+                                new EnumValue(TsWords.DURATION, unit));
             }
 
             @Override

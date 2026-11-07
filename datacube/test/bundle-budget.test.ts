@@ -871,8 +871,12 @@ const CHART_BUDGET = 303_500;
  *  128,000 -> 130,500 (2026-11-06, the roadmap's W3, the user: "keep going don't stop until we do the whole roadmap"):
  *  timeseries::lines::within, the answer's spine on the line whose rows hold every other's (spec-13: 5 joins 4), 0.2 KB
  *  of the library's text gzipped. Measured 128,096; the headroom ~2% again, as before the raise above, for the rows
- *  forms the roadmap's W2 and W5 add until A5. */
-const TIMESERIES_BUDGET = 130_500;
+ *  forms the roadmap's W2 and W5 add until A5.
+ *  130,500 -> 132,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 5, the user: "keep going, don't stop"): latest
+ *  as a value in a word's date argument (rebase(close, latest - 3y)) -- timeseries::lines::lastDate, later and day, the
+ *  translator's map, max and adjust moved into the library (TsTranslatorGuardrailTest), with what the library has
+ *  grown by since the raise above. Measured 130,640; the headroom ~1% for B3's window and logarithmic forms. */
+const TIMESERIES_BUDGET = 132_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
