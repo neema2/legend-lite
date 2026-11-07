@@ -144,8 +144,7 @@ public final class BodyRouter {
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     target -> SystemDatabase.of(typed.context()).sessionFor(target.type(), options.systemConnections());
-            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
-                    toOneReader(typed), host,
+            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early, host,
                     database, agreement, listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
@@ -218,12 +217,11 @@ public final class BodyRouter {
                     options.resources());
         }
         com.legend.executionplan.PlanJson.requireRoundTrip(planned.plan());
-        boolean toOne = toOneReader(typed);
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     system -> SystemDatabase.of(typed.context()).sessionFor(system.type(), options.systemConnections());
-            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null, toOne,
+            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null,
                     null, null, null, null, sessionsByTarget(target, systemSessions));
             try {
                 PlanRunner.program(planned.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
@@ -232,13 +230,6 @@ public final class BodyRouter {
                 throw new UncheckedIOException(e);
             }
         };
-    }
-
-    /** Whether {@code typed}'s last statement is a to-one reader ({@code toOne()} over a relation): the walk's
-     *  exactly-one contract on its answer (a moved class admits one only as the answer's own root). */
-    private static boolean toOneReader(TypedQuery typed) {
-        List<TypedSpec> body = typed.body();
-        return !body.isEmpty() && ProductStatements.toOneReader(Lets.bare(body.get(body.size() - 1)));
     }
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
@@ -263,7 +254,6 @@ public final class BodyRouter {
         private final Execution.@Nullable Answer answer;
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
-        private final boolean toOneReader;
         /** The body's asserts as the host judge planned them (an assert program's under the host judge), or null. */
         private final @Nullable HostAsserts asserts;
         /** The body's asserts as the database judge planned them (under the database judge), or null. */
@@ -316,7 +306,7 @@ public final class BodyRouter {
 
         Moved(TestDoor.Planned planned, com.legend.executionplan.ExecutionPlan.JudgingRules runRules, SqlDialect dialect,
                 RawSqlBoundary.@Nullable Recorder recorder,
-                Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader,
+                Execution.@Nullable Answer answer, @Nullable ResultSink early,
                 @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
                 @Nullable AgreementAsserts agreement, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
@@ -326,7 +316,6 @@ public final class BodyRouter {
             this.recorder = recorder;
             this.answer = answer;
             this.early = early;
-            this.toOneReader = toOneReader;
             this.asserts = asserts;
             this.database = database;
             this.agreement = agreement;
@@ -549,9 +538,10 @@ public final class BodyRouter {
                     ExecutionPlan.Multiplicity m = columns.get(0).multiplicity();
                     Integer upper = m.upper();
                     yield JudgePlans.holding(sink, upper != null && upper <= 1, m.lower(),
-                            new Multiplicity.Bounded(m.lower(), upper).text(), false);
+                            new Multiplicity.Bounded(m.lower(), upper).text());
                 }
-                case RELATION -> JudgePlans.holding(sink, toOneReader, 0, "", toOneReader);
+                // a relation's toOne() is the database's to check (D2, 2026-11-07: ToOneGuard in the plan's SQL)
+                case RELATION -> sink;
                 // a graph fetch's objects, one per row (the query program's answer since 2026-11-06, the stress
                 // lanes' service queries): the product's streaming graph root, no cardinality the walk held on it
                 case OBJECTS -> sink;

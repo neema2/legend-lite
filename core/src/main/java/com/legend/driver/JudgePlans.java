@@ -182,41 +182,28 @@ final class JudgePlans {
         return row;
     }
 
-    /** {@code node}'s typed rows to {@code sink} through the plan runner, the root's cardinality held on the way. */
-    private static void stream(ExecutionPlan.Node node, PlanSessions.Source on, com.legend.result.ResultSink sink,
-            boolean atMostOne, long atLeast, String multiplicity, boolean toOneReader) {
-        try {
-            PlanRunner.stream(new ExecutionPlan(List.of(), node), Map.of(), on,
-                    new Cardinality(sink, atMostOne, atLeast, multiplicity, toOneReader));
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-    }
-
     /** {@code sink} holding the walk's answer contract ({@link Cardinality}): for the body router, whose moved body's
      *  answer holds the walk's cardinality until the plan carries it (the test-is-the-product plan's §9, D30). */
     static com.legend.result.ResultSink holding(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
-            String multiplicity, boolean toOneReader) {
-        return new Cardinality(sink, atMostOne, atLeast, multiplicity, toOneReader);
+            String multiplicity) {
+        return new Cardinality(sink, atMostOne, atLeast, multiplicity);
     }
 
     /** A sink that counts the rows on their way to {@code sink} and refuses, by the collected side's own words, a
-     *  scalar of more than one row, a required root of none, a to-one reader of other than one. */
+     *  scalar of more than one row and a required root of none. (A relation's toOne() is the database's to check
+     *  since D2, 2026-11-07: ToOneGuard.) */
     private static final class Cardinality implements com.legend.result.ResultSink {
         private final com.legend.result.ResultSink sink;
         private final boolean atMostOne;
         private final long atLeast;
         private final String multiplicity;
-        private final boolean toOneReader;
         private long rows;
 
-        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast, String multiplicity,
-                boolean toOneReader) {
+        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast, String multiplicity) {
             this.sink = sink;
             this.atMostOne = atMostOne;
             this.atLeast = atLeast;
             this.multiplicity = multiplicity;
-            this.toOneReader = toOneReader;
         }
 
         @Override
@@ -228,21 +215,14 @@ final class JudgePlans {
         public void batch(com.legend.result.Batch batch) throws java.io.IOException {
             rows += batch.size();
             if (atMostOne && rows > 1) {
-                throw new IllegalStateException(toOneReader
-                        ? "toOne() over a relation returned " + rows + " row(s) — the exactly-one contract"
-                                + " (engine reader semantics)"
-                        : "scalar-shaped result returned more than one row — the to-one contract was not enforced"
-                                + " upstream");
+                throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
+                        + " contract was not enforced upstream");
             }
             sink.batch(batch);
         }
 
         @Override
         public void end() throws java.io.IOException {
-            if (toOneReader && rows != 1) {
-                throw new IllegalStateException("toOne() over a relation returned " + rows
-                        + " row(s) — the exactly-one contract (engine reader semantics)");
-            }
             if (rows == 0 && atLeast >= 1) {
                 throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + multiplicity);
             }
@@ -345,17 +325,6 @@ final class JudgePlans {
                     + " verdict step reads; this one needs a plan of its own: " + value.getClass().getSimpleName());
         }
         return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
-    }
-
-    /** The engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check). */
-    static void toOneReader(@com.legend.base.Nullable TypedSpec root, TypedSide result) {
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
-                && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
-                && !tw.args().isEmpty() && Type.isRelation(tw.args().get(0).info().type())
-                && result instanceof TypedSide.Tabular tab && tab.rows().size() != 1) {
-            throw new IllegalStateException("toOne() over a relation returned " + tab.rows().size()
-                    + " row(s) — the exactly-one contract (engine reader semantics)");
-        }
     }
 
     // ---- a side as a plan value, and its shaping once read (the seam program's S2f, 2026-10-30) ------------------

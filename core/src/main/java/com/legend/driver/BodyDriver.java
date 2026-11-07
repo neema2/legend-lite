@@ -789,12 +789,6 @@ public final class BodyDriver {
         };
     }
 
-    /** Whether {@code root} is {@code toOne()} over a relation: its answer is exactly one row (engine reader
-     *  semantics), held on the answer the runner streams. */
-    static boolean toOneReader(TypedSpec root) {
-        return com.legend.planner.ProductStatements.toOneReader(root);
-    }
-
     /**
      * The K-native {@code executeInDb} (PlatformTypes.EXECUTE_IN_DB): the
      * engine's JDBC boundary. The SQL argument is an ordinary Pure

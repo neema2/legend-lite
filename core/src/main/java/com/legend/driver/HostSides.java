@@ -144,11 +144,8 @@ final class HostSides {
         List<TypedSide> out = new ArrayList<>(rows.size());
         for (int i = 0; i < rows.size(); i++) {
             JudgePlans.PlannedSide p = planned.sides().get(i);
-            TypedSide shaped = JudgePlans.shape(p, rows.get(i));
-            if (planned.on() != null) {
-                JudgePlans.toOneReader(p.root(), shaped);
-            }
-            out.add(shaped);
+            // a relation's toOne() is the database's to check (D2, 2026-11-07: ToOneGuard in the side's SQL)
+            out.add(JudgePlans.shape(p, rows.get(i)));
         }
         return out;
     }
@@ -168,13 +165,7 @@ final class HostSides {
     static java.util.function.Supplier<TypedSide> message(Planned planned,
             java.util.function.Supplier<PlanRunner.Rows> read) {
         JudgePlans.PlannedSide asked = planned.sides().get(planned.sides().size() - 1);
-        return () -> {
-            TypedSide shaped = JudgePlans.shape(asked, read.get());
-            if (planned.on() != null) {
-                JudgePlans.toOneReader(asked.root(), shaped);
-            }
-            return shaped;
-        };
+        return () -> JudgePlans.shape(asked, read.get());
     }
 
     /** The receiver of one verdict's sides; a verdict group of host sides answers no rows and is judged by no

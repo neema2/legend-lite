@@ -1825,7 +1825,6 @@ final class SqlTextVerdicts {
                 throw new java.io.UncheckedIOException(e);
             }
             TypedSide read = JudgePlans.shape(side, rows);
-            JudgePlans.toOneReader(side.root(), read);
             return read;
         }
     }

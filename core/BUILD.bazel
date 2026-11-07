@@ -512,6 +512,8 @@ legend_java_library(
             "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
             # and the write plans on Postgres (leg 7)
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
+            # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
+            "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's, and so is the LEAN twin's reader (track T, 2026-10-29): every
             # per-lane target reads its lane's answers through it
@@ -1404,6 +1406,34 @@ junit_test(
     deps = [
         ":core",
         # the LEAN twin's reader (track T, 2026-10-29): the writes' answers are read through it
+        ":test_cases",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A RELATION'S toOne() CHECKED BY THE DATABASE (D2 of docs/GOALS_OF_RECORD_2026_11_07.md, 2026-11-07): the lowering's
+# guard on the embedded Postgres 16 -- two rows and none raise Pure's size error, one row is answered; the same checks
+# run on DuckDB, H2 and SQLite in the integration lanes (RelationToOneGuardTest)
+junit_test(
+    name = "relation_to_one_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+        "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.RelationToOneGuardPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
         ":test_cases",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

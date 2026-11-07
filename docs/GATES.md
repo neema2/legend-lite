@@ -20752,3 +20752,22 @@ two packages is the first step's input).
   `engine-golden-defect:json-stray-quote` rows leave both host rosters: upstream passes them, and now so do both judges.
   `Json.parseOne` keeps two product readers (`Substitution`'s primary-key JSON, `AsorReaders`), which should read
   strictly: a separate change, measured first.
+
+## 2026-11-07 — P1.3 (D2): a relation's toOne() is the database's to check
+
+- **Built**: `lowering/ToOneGuard`. A USER `toOne()` over a relation at a statement's ROOT (never the conformance
+  `trustOne`, never a `toOne` nested in a pipeline, which keeps upstream's look-through) lowers to the relation's rows,
+  each counted by a window over the whole relation, left-joined onto a one-row source -- so an empty relation still
+  yields the row the check reads -- under `WHERE CASE WHEN COALESCE(rows, 0) = 1 THEN TRUE ELSE error(...) END`,
+  raising Pure's own `Cannot cast a collection of size N to multiplicity [1]`. One read of the relation. Prototyped on
+  DuckDB and H2 for zero, one and three rows (and the aggregate-joined-back shape alongside) before it landed.
+- **Deleted**: the Java row count (`JudgePlans.Cardinality`'s to-one reader, the router's `toOneReader` flag and its
+  helpers in `BodyRouter` and `BodyDriver`) and the run-time read of the typed tree (`JudgePlans.toOneReader`, called by
+  `HostSides` twice and by the appeal's side read); the dead `JudgePlans.stream` with it. The old Java message ("toOne()
+  over a relation returned N row(s)") was pinned by no test.
+- **Proven on each database**: `RelationToOneGuardTest` (two rows and none raise Pure's error, one row answered) on the
+  DuckDB, H2 and SQLite integration lanes, and on the embedded Postgres 16 (`//core:relation_to_one_postgres_test`,
+  added to `//gates:core`).
+- **Checks**: DuckDB corpus, both judges, unchanged and every roster exact (host 2436, database 2429; the host's failure
+  lines identical); core lowering, driver (three judges), integration (DuckDB, H2, SQLite), census and guardrails green.
+  Pins: `BodyDriver` 520 -> 517, `SqlTextVerdicts` 1496 -> 1495.

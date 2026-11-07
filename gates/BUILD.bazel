@@ -62,6 +62,7 @@ test_suite(
         "//core:cypher_parity_native_test",
         # the store writes on the embedded Postgres 16 (the writes design's leg 2)
         "//core:store_writes_postgres_test",
+        "//core:relation_to_one_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",
