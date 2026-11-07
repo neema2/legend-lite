@@ -134,15 +134,16 @@ class TsIslandTest {
                 s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(t, null)));
             }
         }
-        // Snowflake's driver binds no java.time value (LocalDate, LocalDateTime): there, a java.sql one; elsewhere the
-        // java.time one, as SQLite's driver writes a java.sql.Date as its epoch milliseconds (2026-11-07, item 10)
-        boolean snowflake = backend.type() == com.legend.model.ConnectionDefinition.DatabaseType.Snowflake;
+        // a driver that binds no java.time value (LocalDate, LocalDateTime; its connector's fact, as the plan runner
+        // reads it) takes a java.sql one; every other the java.time one, as SQLite's driver writes a java.sql.Date as
+        // its epoch milliseconds (2026-11-07, item 10)
+        boolean javaTime = com.legend.exec.Connectors.of(backend.type()).decoding().bindsJavaTime();
         String prices = backend.dialect().storedName(tables.get(0).name(), tables.get(0).quoted());
         try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + prices + " VALUES (?, ?, ?)")) {
             for (Map.Entry<String, double[]> line : Map.of("AAA", AAA, "BBB", BBB).entrySet()) {
                 for (int i = 0; i < line.getValue().length; i++) {
                     ps.setString(1, line.getKey());
-                    if (snowflake) {
+                    if (!javaTime) {
                         ps.setDate(2, java.sql.Date.valueOf(FIRST.plusDays(i)));
                     } else {
                         ps.setObject(2, FIRST.plusDays(i));
@@ -168,7 +169,7 @@ class TsIslandTest {
             for (int i = 0; i < AAA.length; i++) {
                 for (int hour : new int[] {10, 15}) {
                     ps.setString(1, "AAA");
-                    if (snowflake) {
+                    if (!javaTime) {
                         ps.setTimestamp(2, java.sql.Timestamp.valueOf(FIRST.plusDays(i).atTime(hour, 0)));
                     } else {
                         ps.setObject(2, FIRST.plusDays(i).atTime(hour, 0));

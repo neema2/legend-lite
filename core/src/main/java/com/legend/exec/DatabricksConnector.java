@@ -49,6 +49,6 @@ final class DatabricksConnector implements DatabaseConnector {
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(false, false, false, false);
+        return new DatabaseConnector.Decoding(false, false, false, false, true);
     }
 }

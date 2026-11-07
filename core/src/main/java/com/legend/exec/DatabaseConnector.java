@@ -68,15 +68,20 @@ public interface DatabaseConnector {
      *  statement that fails before its columns are known with none (its error on the first read: a result with no
      *  columns is then no claim to check), and whether the database's JSON writes a double that is not finite as a
      *  bare token ({@code NaN}, {@code Infinity}, {@code -Infinity}: read as that double, written back as read,
-     *  {@link NonFiniteJson}). Default: re-fetches, keeps the zeros, reports its columns, writes JSON alone. */
+     *  {@link NonFiniteJson}); and, the one fact of sending a value rather than reading one, whether the driver binds
+     *  a {@code java.time} date and date-time as a statement's parameter (JDBC 4.2's {@code setObject}; Snowflake's
+     *  does not, measured 2026-11-07 in its cloud lane, docs/TS_DECISIONS_2026_11_07.md item 10: those are bound as
+     *  {@code java.sql.Date} and {@code java.sql.Timestamp}). Default: re-fetches, keeps the zeros, reports its
+     *  columns, writes JSON alone, binds java.time. */
     default Decoding decoding() {
-        return new Decoding(true, false, false, false);
+        return new Decoding(true, false, false, false, true);
     }
 
-    /** {@link #decoding}'s four facts, in the order the reader reads them (the connector's own record since the D72
-     *  audit: the decoder's package-private class had held it, a type no caller outside exec could name). */
+    /** {@link #decoding}'s five facts, the reader's four in the order it reads them, then the binder's (the
+     *  connector's own record since the D72 audit: the decoder's package-private class had held it, a type no caller
+     *  outside exec could name). */
     record Decoding(boolean javaTime, boolean dropsDecimalZeros, boolean failedWithoutColumns,
-            boolean nonFiniteJson) {
+            boolean nonFiniteJson, boolean bindsJavaTime) {
     }
 
     /** Whether its sessions are its own and not JDBC's (MongoDB's, docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17):

@@ -406,7 +406,7 @@ final class JdbcStatements implements Statements {
                             st.setString(index, PlanRunner.dateTimeText(t,
                                     PlanRunner.spelling(hole, PlanRunner.kindOf(t, slot), slot).fraction()));
                         } else {
-                            st.setObject(index, v.value());
+                            st.setObject(index, bindable(v.value()));
                         }
                     }
                     case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
@@ -417,6 +417,25 @@ final class JdbcStatements implements Statements {
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
         }
+    }
+
+    /** A value as this session's driver binds it: a date and a date-time as {@code java.sql.Date} and
+     *  {@code java.sql.Timestamp} where the driver binds no {@code java.time} value (its connector's fact,
+     *  {@link DatabaseConnector.Decoding#bindsJavaTime}), every other value as it is. */
+    private Object bindable(Object v) {
+        if (!(v instanceof java.time.LocalDate || v instanceof LocalDateTime)) {
+            return v;
+        }
+        DatabaseConnector.Decoding driver = this.driver;
+        if (driver == null) {
+            throw new IllegalStateException("a date bound on a session no plan target was checked against: how its"
+                    + " driver binds one is its database's fact");
+        }
+        if (driver.bindsJavaTime()) {
+            return v;
+        }
+        return v instanceof LocalDateTime t ? java.sql.Timestamp.valueOf(t)
+                : java.sql.Date.valueOf((java.time.LocalDate) v);
     }
 
     /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,

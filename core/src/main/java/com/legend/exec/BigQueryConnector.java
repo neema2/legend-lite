@@ -50,6 +50,6 @@ final class BigQueryConnector implements DatabaseConnector {
      *  declared scale is the value's own, so the reader pads the digits back, never rounding. */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(true, true, false, false);
+        return new DatabaseConnector.Decoding(true, true, false, false, true);
     }
 }
