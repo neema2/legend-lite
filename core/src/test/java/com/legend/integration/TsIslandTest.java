@@ -959,6 +959,33 @@ class TsIslandTest {
     }
 
     /**
+     * THE DATA'S LAST DATE AS A VALUE (decision 8 of docs/TS_DECISIONS_2026_11_07.md, the user 2026-11-07: "Why cant
+     * we pass scalar?"): upstream's relation map, {@code $px->map(r|$r.DAY)->max()}, a scalar the database computes,
+     * read in another expression of the same query.
+     */
+    @Test
+    void theDatasLastDateIsAScalar() throws Exception {
+        String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), "|let px ="
+                + " #>{ts::DB.PRICES}#; let l = $px->map(r|$r.DAY)->max()->toOne(); $px->filter(r|$r.DAY >="
+                + " $l->adjust(-3, meta::pure::functions::date::DurationUnit.DAYS))->select(~[SYMBOL, DAY]);")
+                .plan("ts::RT").sql();
+        assertTrue(sql.contains("MAX(") && !sql.toLowerCase(java.util.Locale.ROOT).contains("list_max"),
+                "the values aggregated where they are, no list: " + sql);
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|let px = #>{ts::DB.PRICES}#; let l = $px->map(r|$r.DAY)"
+                    + "->max()->toOne(); $px->filter(r|$r.DAY >= $l->adjust(-3, meta::pure::functions::date::DurationUnit"
+                    + ".DAYS))->select(~[SYMBOL, DAY]);");
+            assertEquals(8, got.size(), backend + ": the last four days of each instrument: " + got);
+            // in a word's date argument (guide-06): rebase from the data's last date less three days, as the same
+            // word from that date written out
+            String last = FIRST.plusDays(AAA.length - 1).minusDays(3).toString();
+            assertEquals(rows(backend, "|#TS{SELECT rebase(CLOSE['AAA'], '" + last + "') AS r FROM PRICES ON DAY BY"
+                    + " SYMBOL}#"), rows(backend, "|#TS{SELECT rebase(CLOSE['AAA'], latest - 3d) AS r FROM PRICES ON DAY"
+                    + " BY SYMBOL}#"), backend + ": rebase(x, latest - 3d)");
+        }
+    }
+
+    /**
      * A VARIABLE OF THE ENCLOSING PURE AS A VALUE (decision 7 of docs/TS_DECISIONS_2026_11_07.md): {@code $from} in a
      * FILTER -- a page's period, every figure computed with the dates before it -- a string in a WHERE (a slicer), a
      * number in an expression, a word's window; each the plan's parameter, bound when it runs, on every in-process

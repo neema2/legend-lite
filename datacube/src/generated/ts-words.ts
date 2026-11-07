@@ -678,10 +678,10 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   rebase: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'base', kind: 'number', takes: [], words: [], required: false },
       { name: 'from', kind: 'since', takes: [], words: [], required: false },
+      { name: 'base', kind: 'number', takes: [], words: [], required: false },
     ],
-    forms: ['rebase(x: Line, base: Float (optional))', 'rebase(x: Line, base: Float (optional), from: StrictDate)'],
+    forms: ['rebase(x: Line, base: Float (optional))', 'rebase(x: Line, from: StrictDate, base: Float (optional))'],
     doc: 'Each value over the line\'s first (or its value as of from), times base (100 unless given).',
     aliases: [],
     facts: { label: ['Rebase to 100'], family: ['Level'], unit: ['index'], level: ['makes'], gsQuant: ['DataCube (econometrics.index)'], about: ['Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).'], param: ['base: its value as of the first date shown'] },

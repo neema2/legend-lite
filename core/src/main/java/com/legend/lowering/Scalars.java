@@ -1267,6 +1267,10 @@ final class Scalars {
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
                 }
+                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MIN);
+                if (fused != null) {
+                    return fused;
+                }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
                         : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
@@ -1289,6 +1293,10 @@ final class Scalars {
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
+                }
+                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MAX);
+                if (fused != null) {
+                    return fused;
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
@@ -3683,6 +3691,30 @@ final class Scalars {
      *  database's print of a Number or a Date refuses (BigQuery: []->cast(@Number)->max() compared a STRING with a
      *  FLOAT64, []->cast(@Date)->max() was a FORMAT_DATETIME of a STRING; on the lane 2026-10-21). A typed list passes
      *  untouched. */
+    /**
+     * A REDUCTION OF A RELATION'S MAP, {@code $px->map(r|$r.date)->max()}: the relation's values aggregated where they
+     * are, {@code (SELECT MAX(value) FROM ...)}, never collected into a list first -- the list a database without
+     * lists cannot hold (decision 8 of docs/TS_DECISIONS_2026_11_07.md, 2026-11-07: the data's last date as a
+     * scalar). {@code arg} is {@link ValueCollections#collectAsList}'s subquery, its nulls dropped (CompactList) or
+     * not; MAX and MIN skip NULLs and answer NULL over no rows, as the list's reduction does.
+     * Null where {@code arg} is no such list.
+     */
+    private static @com.legend.base.Nullable SqlExpr reducedOverRelation(SqlExpr arg, SqlAgg.Fn fn) {
+        SqlExpr list = arg instanceof SqlExpr.CompactList c ? c.list() : arg;
+        if (!(list instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof com.legend.sql.SqlSelect s)
+                || s.projections().size() != 1 || !(s.projections().get(0).expr() instanceof SqlAgg.Reducer r)
+                || r.fn() != SqlAgg.Fn.LIST || r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
+                || r.args().get(0) instanceof SqlExpr.ArrayLit || !s.groupBy().isEmpty()) {
+            return null;
+        }
+        SqlAgg.Reducer reduced = new SqlAgg.Reducer(fn, r.args(), false, List.of());
+        if (!(reduced.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            return null;
+        }
+        return new SqlExpr.ScalarSubquery(s.withProjections(List.of(new com.legend.sql.SqlSelect.Projection(reduced,
+                null, new com.legend.sql.OutputCol("value", t.type(), true)))));
+    }
+
     private static SqlExpr emptyConformed(SqlExpr list, TypedSpec arg) {
         return list.type() instanceof com.legend.sql.TypeFact.Bottom
                 ? PureSql.typedList(list, arg.info().type())

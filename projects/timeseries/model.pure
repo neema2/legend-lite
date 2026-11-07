@@ -3467,7 +3467,9 @@ function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each v
   $x->timeseries::index(~key, ~date, ~value, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
-function timeseries::line::rebase<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], base: Float[0..1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
+// the spec's order (docs/TIMESERIES_LANGUAGE_2026_10_29.md §6: rebase(x, date, base = 100); gs-quant has no rebase), so
+// rebase(close, '2024-01-01') and rebase(close, latest - 3y) read the date second (decision 8, 2026-11-07)
+function timeseries::line::rebase<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1], base: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::indexFrom(~key, ~date, ~value, $from, if($base->isEmpty(), |100.0, |$base->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }

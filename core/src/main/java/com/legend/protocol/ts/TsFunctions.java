@@ -51,6 +51,11 @@ final class TsFunctions {
     interface Ctx extends TsLines.Writer {
         TsLines.Node node(SqlAst.Expr e);
 
+        /** The data's last date (R9: every source's after its WHERE, the latest of them) as a value, moved by
+         *  {@code n} of {@code unit} (none: itself), a StrictDate -- a word's date argument (decision 8 of
+         *  docs/TS_DECISIONS_2026_11_07.md, 2026-11-07). */
+        com.legend.protocol.spec.ValueSpecification latest(int n, @com.legend.base.Nullable String unit);
+
         TsAst.Query query();
 
         /** The model the query is of: the library's words ({@link TsWords}) among its functions. */
@@ -128,6 +133,9 @@ final class TsFunctions {
             Object v = value(c, fn, p, e);
             out.put(p.name(), switch (p.kind()) {
                 case SPAN -> {
+                    if (v instanceof Latest l) {
+                        yield new TsWords.Computed(c.latest(l.n(), l.unit()));
+                    }
                     if (v instanceof On on) {
                         yield new TsWords.Day(on.iso());
                     }
@@ -142,7 +150,8 @@ final class TsFunctions {
                 case WHOLE -> new TsWords.Whole(((Number) v).longValue());
                 case NUMBER -> new TsWords.Num(((Number) v).doubleValue());
                 case WORD -> new TsWords.Word((String) v);
-                case DATE, SINCE -> new TsWords.Day((String) v);
+                case DATE, SINCE -> v instanceof Latest l ? new TsWords.Computed(c.latest(l.n(), l.unit()))
+                        : new TsWords.Day((String) v);
             });
         }
         for (String n : named.keySet()) {
@@ -155,7 +164,36 @@ final class TsFunctions {
     }
 
     /** A parameter's value as written. */
+    /** {@code latest} in a date argument, moved by a span or not: {@code rebase(close, latest - 3y)} (R9). */
+    record Latest(int n, @com.legend.base.Nullable String unit) {
+    }
+
+    /** {@code e} as the data's last date, itself or less or more a span; null where it is neither. */
+    private static @com.legend.base.Nullable Latest latest(Ctx c, SqlAst.Expr e) {
+        if (isLatest(c, e)) {
+            return new Latest(0, null);
+        }
+        if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.MINUS || b.op() == SqlAst.BinaryOp.PLUS)
+                && isLatest(c, b.left()) && b.right() instanceof SqlAst.ColumnRef r
+                && c.query().spans().get(r.pos()) instanceof TsAst.Span span) {
+            Period q = period(span);
+            return new Latest(b.op() == SqlAst.BinaryOp.MINUS ? -q.n() : q.n(), q.unit());
+        }
+        return null;
+    }
+
+    private static boolean isLatest(Ctx c, SqlAst.Expr e) {
+        return e instanceof SqlAst.ColumnRef r && r.parts().size() == 1 && !r.parts().get(0).quoted()
+                && "latest".equalsIgnoreCase(r.parts().get(0).text()) && !c.query().alls().contains(r.pos());
+    }
+
     private static Object value(Ctx c, String fn, Param p, SqlAst.Expr e) {
+        if (p.kind() == Kind.SPAN || p.kind() == Kind.DATE || p.kind() == Kind.SINCE) {
+            Latest l = latest(c, e);
+            if (l != null) {
+                return l;
+            }
+        }
         switch (p.kind()) {
             case SPAN -> {
                 if (e instanceof SqlAst.ColumnRef r && c.query().alls().contains(r.pos())) {

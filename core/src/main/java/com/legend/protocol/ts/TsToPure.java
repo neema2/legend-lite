@@ -694,6 +694,11 @@ public final class TsToPure {
                 if (query.alls().contains(c.pos()) || query.spans().containsKey(c.pos())) {
                     return c;
                 }
+                if (c.parts().size() == 1 && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(text(c))
+                        && !names.subList(0, i).contains(text(c)) && opening.stream().noneMatch(x -> has(x, c))) {
+                    // the data's last date (R9), a word's date argument's (decision 8): read by the word's binder
+                    return c;
+                }
                 if (c.parts().size() == 1 && names.subList(0, i).contains(text(c))) {
                     return c;
                 }
@@ -1095,6 +1100,24 @@ public final class TsToPure {
             @Override
             public String fresh(String what) {
                 return "__ts_" + what + "_" + fresh++;
+            }
+
+            @Override
+            public ValueSpecification latest(int n, @com.legend.base.Nullable String unit) {
+                // each source's last date after its WHERE, upstream's relation map reduced (one aggregate a source,
+                // Scalars.reducedOverRelation), the latest of them (R9; decision 8, 2026-11-07)
+                List<ValueSpecification> each = new ArrayList<>();
+                for (TsLines.Source s : opened.values()) {
+                    each.add(call("max", call("map", s.relation(), lambda("r",
+                            new AppliedProperty(new Variable("r"), s.date())))));
+                }
+                ValueSpecification last = call("toOne", each.size() == 1 ? each.get(0)
+                        : call("max", new PureCollection(each, null)));
+                if (unit != null && n != 0) {
+                    last = call("adjust", last, new com.legend.protocol.spec.CInteger((long) n),
+                            new EnumValue(TsWords.DURATION, unit));
+                }
+                return call("cast", last, SqlToPure.typeArg("StrictDate"));
             }
 
             @Override

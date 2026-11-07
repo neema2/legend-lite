@@ -50,7 +50,7 @@ final class TsWords {
     static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** What a call gives a parameter: a window (observations, all, a calendar span, a date on), or a value. */
-    sealed interface Given permits Observations, All, Calendar, Day, Num, Whole, Word, Var {
+    sealed interface Given permits Observations, All, Calendar, Day, Num, Whole, Word, Var, Computed {
     }
 
     /** {@code n} observations to date. */
@@ -84,6 +84,11 @@ final class TsWords {
     /** A variable of the enclosing Pure, {@code $w} (decision 7 of docs/TS_DECISIONS_2026_11_07.md): its value, of the
      *  type the variable is, for a parameter of that type. */
     record Var(String name, com.legend.protocol.sql.SqlAst.Pos pos) implements Given {
+    }
+
+    /** A date the query computes, the data's last date moved by a span ({@code latest - 3y}; decision 8): a StrictDate
+     *  value, for a date parameter. */
+    record Computed(ValueSpecification value) implements Given {
     }
 
     /** What a call gives a word in a line's place: a line, a number (a word some overload of which takes one there:
@@ -489,6 +494,7 @@ final class TsWords {
             case Word w -> enumerationHas(c, t, w.word()) ? new EnumValue(t, w.word())
                     : "String".equals(t) ? new CString(w.word()) : null;
             case Var v -> fits(variable(c, v), t) ? new com.legend.protocol.spec.Variable(v.name()) : null;
+            case Computed d -> "StrictDate".equals(t) ? d.value() : null;
         };
     }
 

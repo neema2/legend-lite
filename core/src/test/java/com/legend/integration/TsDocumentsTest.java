@@ -285,9 +285,7 @@ class TsDocumentsTest {
 
     /** The examples that do not run yet, by id, each why. Only allowed to shrink: an example listed here that runs
      *  fails the test until its row is deleted. */
-    private static final Map<String, String> NOT_YET = Map.ofEntries(
-            // spec §6's rebase(x, date): rebase's base by a date, and latest's arithmetic as a word's argument
-            Map.entry("guide-06", "rebase(close, latest - 3y): a base by a date, and latest in an argument, unbuilt"));
+    private static final Map<String, String> NOT_YET = Map.of();
 
     /** {@code query}'s rows, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(ModelContext model, Connection c, String query) throws Exception {

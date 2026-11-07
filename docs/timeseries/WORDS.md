@@ -663,10 +663,10 @@ Each value over the line's first (or its value as of from), times base (100 unle
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `base` | number |  | no |
 | `from` | since |  | no |
+| `base` | number |  | no |
 
-Forms: `rebase(x: Line, base: Float (optional))`, `rebase(x: Line, base: Float (optional), from: StrictDate)`.
+Forms: `rebase(x: Line, base: Float (optional))`, `rebase(x: Line, from: StrictDate, base: Float (optional))`.
 
 ## `residual`
 
