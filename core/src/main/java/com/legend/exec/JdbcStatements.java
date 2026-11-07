@@ -203,7 +203,18 @@ final class JdbcStatements implements Statements {
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
+        if (!takesTransactions()) {
+            return work.get();   // a database that takes none (ClickHouse): each statement as sent
+        }
         return Sessions.inTransaction(c, state, work);
+    }
+
+    /** Whether this session's database takes a transaction: its driver's fact ({@link
+     *  DatabaseConnector.Decoding#transactions}), read from the target checked; a session no target was checked
+     *  against yet is JDBC's own, which takes one. */
+    private boolean takesTransactions() {
+        DatabaseConnector.Decoding d = this.driver;
+        return d == null || d.transactions();
     }
 
     @Override
@@ -318,7 +329,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE) {
+        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE || !takesTransactions()) {
             work.run();
             return;
         }

@@ -114,12 +114,20 @@ class TempTableAsTest {
     @Test
     void everyOtherDialectRefusesIt() {
         for (SqlDialect d : List.<SqlDialect>of(new MariaDb(), new MySql(), new Trino(),
-                new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
+                new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
                 new EngineStyleDB2(), new EngineStyleComposite())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,
                     () -> d.render(new SqlDml.CreateTempTableAs("tdg_t", values("a"))), d.getClass().getSimpleName());
             assertTrue(refusal.getMessage().contains(d.getClass().getSimpleName()), refusal.getMessage());
         }
+    }
+
+    /** ClickHouse's own (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9b: a statement's shared relations staged,
+     *  measured on the documents' examples): a Memory table of the HTTP session. */
+    @Test
+    void clickHousesIsAMemoryTableOfTheSession() {
+        String sql = new ClickHouse().render(new SqlDml.CreateTempTableAs("tdg_t", values("a")));
+        assertTrue(sql.startsWith("CREATE TEMPORARY TABLE \"tdg_t\" ENGINE = Memory AS "), sql);
     }
 
     /** One line, a literal's own newline kept: only the layout's newlines go. */

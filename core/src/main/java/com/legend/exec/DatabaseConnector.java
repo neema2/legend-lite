@@ -71,17 +71,19 @@ public interface DatabaseConnector {
      *  {@link NonFiniteJson}); and, the one fact of sending a value rather than reading one, whether the driver binds
      *  a {@code java.time} date and date-time as a statement's parameter (JDBC 4.2's {@code setObject}; Snowflake's
      *  does not, measured 2026-11-07 in its cloud lane, docs/TS_DECISIONS_2026_11_07.md item 10: those are bound as
-     *  {@code java.sql.Date} and {@code java.sql.Timestamp}). Default: re-fetches, keeps the zeros, reports its
-     *  columns, writes JSON alone, binds java.time. */
+     *  {@code java.sql.Date} and {@code java.sql.Timestamp}); and whether it takes a transaction at all (JDBC's
+     *  {@code setAutoCommit(false)}; ClickHouse's does not, "setAutoCommit(false) is not supported", measured 2026-11-07:
+     *  a plan's steps run there each as sent, no bracket). Default: re-fetches, keeps the zeros, reports its columns,
+     *  writes JSON alone, binds java.time, takes transactions. */
     default Decoding decoding() {
-        return new Decoding(true, false, false, false, true);
+        return new Decoding(true, false, false, false, true, true);
     }
 
-    /** {@link #decoding}'s five facts, the reader's four in the order it reads them, then the binder's (the
-     *  connector's own record since the D72 audit: the decoder's package-private class had held it, a type no caller
-     *  outside exec could name). */
+    /** {@link #decoding}'s six facts, the reader's four in the order it reads them, then the binder's and the
+     *  bracket's (the connector's own record since the D72 audit: the decoder's package-private class had held it, a
+     *  type no caller outside exec could name). */
     record Decoding(boolean javaTime, boolean dropsDecimalZeros, boolean failedWithoutColumns,
-            boolean nonFiniteJson, boolean bindsJavaTime) {
+            boolean nonFiniteJson, boolean bindsJavaTime, boolean transactions) {
     }
 
     /** Whether its sessions are its own and not JDBC's (MongoDB's, docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17):

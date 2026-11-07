@@ -132,16 +132,18 @@ public final class PlanMaker {
         if (staged.tables().isEmpty()) {
             return new ExecutionPlan(declarations(declared, l.ctx()), answer);
         }
-        // the shared relations' tables made ahead of the answer and dropped after it (stagedShared)
+        // the shared relations' tables made ahead of the answer and dropped after it (stagedShared): effects, a
+        // session's own tables, never a change of the database's (no transaction is opened for them: ClickHouse's
+        // driver takes none, "setAutoCommit(false) is not supported", measured 2026-11-07)
         List<ExecutionPlan.Node> steps = new ArrayList<>();
         for (String table : staged.tables()) {
-            steps.add(new ExecutionPlan.Update(staging(dialect, staged, table, target), null));
+            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
         }
         steps.add(answer);
         if (!dialect.dropsStagedTablesWithTheirTransaction()) {
             for (String table : staged.tables()) {
-                steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null,
-                        table, NameQuoting.BARE)), List.of(), target, null, List.of()), null));
+                steps.add(new ExecutionPlan.Effect(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null,
+                        table, NameQuoting.BARE)), List.of(), target, null, List.of())));
             }
         }
         return new ExecutionPlan(declarations(declared, l.ctx()), new ExecutionPlan.Sequence(steps));
@@ -521,7 +523,7 @@ public final class PlanMaker {
         Prepared.Planned p = ProductStatements.planned(st);
         Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
         for (String table : staged.tables()) {
-            state.add(new ExecutionPlan.Update(staging(dialect, staged, table, target), null));
+            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
             state.stage(table);
         }
         SqlQuery q = staged.statement();
