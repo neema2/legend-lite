@@ -121,7 +121,7 @@ its period is written as its aggregate (`sum(volume['AAPL'])`, the tile's `.sum`
 | 1. The facts in the library | Built 2026-11-03: the `timeseries::Words` profile's tags and stereotypes on each word; core's catalog reads them; a test requires the tile's table to say the same |
 | 2. Core reads one item | Built 2026-11-03: `TsParser.item`, `TsTree`, the route `/api/lite/v1/grammar/tsItem`, `LitePlanner.tsItem`; the round trip over every example series |
 | 3. The tile stores text | The store built 2026-11-07 (c23e4dee5 .. 5c66ec1ac; docs/TS_DECISIONS_2026_11_07.md item 11): §6's two facts met -- a series' own text (`timeseries-text.ts` `seriesText`, another series named) proved by the round trip over every example; the opening reads each text through core (`readSeriesTexts`, the host's `QueryReading.tsItem`; a reading a function of its text, a text the tile writes of a tree held as read), the tile drawn once read; version 7. The walkers read core's trees through `treeOf`/`wholeOf`. Open: the box's completions (decision 3 (b)) and its error's range |
-| 4. The problems from the compiler | After 3 |
+| 4. The problems from the compiler | Parked 2026-11-07 (the user: "Skip for now"): measured, core's messages for two of the tile's checks are Pure overload dumps (a word over a text column; a date that is no date) -- legend-pure's own form for the first (`PureUnmatchedFunctionException`) and a #TS check for the second when it is taken up |
 | 5. Delete and guard | After 4 -- as ruled 2026-11-07 (the builders, docs/TS_DECISIONS_2026_11_07.md §4): the parser, the translator and `TS_SIGNATURES` go; the tree and its writer stay as the thin builder's core, its signatures generated from core's catalog |
 
 ## 6. Step 3's two open facts (measured 2026-11-06)
