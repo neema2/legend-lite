@@ -301,6 +301,101 @@ class TsIslandTest {
         return e.getMessage();
     }
 
+    /**
+     * A WORD'S DEFAULTS ARE THE LIBRARY'S OWN (docs/TS_DECISIONS_2026_11_07.md §4, the order's step 1, 2026-11-07): each
+     * {@code timeseries::Words.given} a word states -- the language's default of a parameter some overload goes without,
+     * what the tile's signatures are generated from -- answers on DuckDB as the word's call without the parameter does
+     * (the parameters before it told as stated). A required parameter states none (a window is always written: the
+     * spec's §7). A default the tile believed and the library did not would draw one thing and say another.
+     */
+    @Test
+    void everyWordsStatedDefaultIsItsCallWithoutIt() throws Exception {
+        TestBackend duck = TestBackends.platform();
+        com.legend.compiler.element.ModelContext compiled = Compiler.compileModel(model(duck, true));
+        // the words whose parameters #TS takes by place (the platform's builder's own: TsToPure's along)
+        java.util.Set<String> byPlace = java.util.Set.of("mean", "sum", "min", "max", "std", "var", "returns", "diff", "lag");
+        List<String> wrong = new ArrayList<>();
+        int checked = 0;
+        for (com.legend.protocol.ts.TsCatalog.Word w : com.legend.compiler.spec.TsIslands.catalog(compiled)) {
+            List<String> given = w.facts().getOrDefault("given", List.of());
+            if (given.isEmpty()) {
+                continue;
+            }
+            java.util.Map<String, String> stated = new java.util.LinkedHashMap<>();
+            for (String g : given) {
+                String name = g.substring(0, g.indexOf(": "));
+                com.legend.protocol.ts.TsCatalog.Param p = w.params().stream().filter(q -> q.name().equals(name))
+                        .findFirst().orElse(null);
+                if (p == null || p.required()) {
+                    wrong.add(w.name() + "'s " + name + ": a default stated of " + (p == null ? "no parameter of it"
+                            : "a parameter every call gives"));
+                    continue;
+                }
+                String value = g.substring(g.indexOf(": ") + 2);
+                stated.put(name, p.kind().equals("word") ? "'" + value + "'" : value);
+            }
+            // the parameters in the catalog's order, each stated one told as stated before the one checked
+            List<String> told = new ArrayList<>();
+            for (com.legend.protocol.ts.TsCatalog.Param p : w.params()) {
+                String value = stated.get(p.name());
+                if (value == null) {
+                    if (!p.kind().startsWith("line") && !p.kind().equals("members")) {
+                        break;
+                    }
+                    continue;
+                }
+                String with = byPlace.contains(w.name()) ? value : p.name() + " => " + value;
+                checked++;
+                String failed = null;
+                for (boolean sampled : new boolean[] {false, true}) {
+                    try {
+                        List<Map<String, String>> a = rows(duck, compiled, query(w, told, null, sampled));
+                        List<Map<String, String>> b = rows(duck, compiled, query(w, told, with, sampled));
+                        failed = a.equals(b) ? null : w.name() + "'s " + p.name() + ": " + value
+                                + " answers otherwise than its call without it";
+                        break;
+                    } catch (RuntimeException x) {
+                        failed = w.name() + "'s " + p.name() + ": " + String.valueOf(x.getMessage()).lines()
+                                .findFirst().orElse("");
+                        // a word of the query's periods: asked again under SAMPLE BY
+                        if (!failed.contains("counts in the query's periods")) {
+                            break;
+                        }
+                    }
+                }
+                if (failed != null) {
+                    wrong.add(failed);
+                }
+                told.add(with);
+            }
+        }
+        System.out.println("stated defaults checked: " + checked);
+        assertEquals(List.of(), wrong, "every stated default is the library's own");
+    }
+
+    /** A query of {@code w} over the AAA line (two lines' words: AAA and BBB; a basket's members both), the
+     *  parameters {@code told}, then {@code more} where given; {@code sampled}, monthly, each line its month's last. */
+    private static String query(com.legend.protocol.ts.TsCatalog.Word w, List<String> told,
+            @com.legend.base.Nullable String more, boolean sampled) {
+        String line = sampled ? "last(CLOSE['AAA'])" : "CLOSE['AAA']";
+        String other = sampled ? "last(CLOSE['BBB'])" : "CLOSE['BBB']";
+        List<String> args = new ArrayList<>();
+        int lines = 0;
+        for (com.legend.protocol.ts.TsCatalog.Param p : w.params()) {
+            switch (p.kind()) {
+                case "line", "line_or_number" -> args.add(lines++ == 0 ? line : other);
+                case "members" -> args.addAll(List.of(line, "0.5", other, "0.5"));
+                default -> { }
+            }
+        }
+        args.addAll(told);
+        if (more != null) {
+            args.add(more);
+        }
+        return "|#TS{SELECT " + w.name() + "(" + String.join(", ", args) + ") AS v FROM PRICES ON DAY BY SYMBOL"
+                + (sampled ? " SAMPLE BY 1mo" : "") + "}#";
+    }
+
     private static final String TS_ONE = """
             SELECT close AS px, avg(close, 3) AS ma3, returns(close) AS r, sum(close, all) AS running
             FROM   Quote ON day BY instrument.ticker""";

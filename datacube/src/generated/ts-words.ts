@@ -40,7 +40,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['alpha(x: Line, y: Line, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized alpha of x\'s simple returns over y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Rolling alpha'], family: ['Relationships'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.beta\'s regression)'], about: ['The first\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\'s, annualized (Jensen\'s, a risk-free rate of zero), over the last w observations.'], pairs: ['returns'] },
+    facts: { label: ['Rolling alpha'], family: ['Relationships'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.beta\'s regression)'], about: ['The first\'s return above what its beta to the second explains: the mean of its simple returns less beta times the second\'s, annualized (Jensen\'s, a risk-free rate of zero), over the last w observations.'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   annualize: {
@@ -75,7 +75,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['atr(high: Line, low: Line, close: Line)', 'atr(high: Line, low: Line, close: Line, w: Integer)'],
     doc: 'The average true range over w observations (14 unless given), Wilder\'s: of a high, a low and a close line, met.',
     aliases: [],
-    facts: { label: ['Average true range'], family: ['Technicals'], unit: ['same'], gsQuant: ['DataCube (Wilder\'s average true range)'], about: ['Wilder\'s smoothed average of true ranges, each the most of the high less the low, the high less the close before and the close before less the low: from the w-th, the mean of the w after the first, then ((w − 1)·atr + tr) / w (TA-Lib\'s). At a frequency, each period\'s highest high, lowest low and last close.'], param: ['w: the true ranges smoothed over'], search: ['average_true_range'] },
+    facts: { label: ['Average true range'], family: ['Technicals'], unit: ['same'], gsQuant: ['DataCube (Wilder\'s average true range)'], about: ['Wilder\'s smoothed average of true ranges, each the most of the high less the low, the high less the close before and the close before less the low: from the w-th, the mean of the w after the first, then ((w − 1)·atr + tr) / w (TA-Lib\'s). At a frequency, each period\'s highest high, lowest low and last close.'], param: ['w: the true ranges smoothed over'], search: ['average_true_range'], given: ['w: 14'], limit: ['w: >= 1'] },
     marks: [],
   },
   basket: {
@@ -86,7 +86,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['basket(members: TimedMembers)', 'basket(members: TimedMembers, rebalance: Rebalance)'],
     doc: 'A basket of the members in their weights from 100, rebalanced daily unless told weekly or monthly (gs-quant\'s basket_series, its costs none): units fixed between rebalances.',
     aliases: [],
-    facts: { label: ['Basket, rebalanced'], family: ['Math'], unit: ['index'], level: ['makes'], gsQuant: ['backtesting.basket_series'], about: ['Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series\' weight of the basket then.'], differs: ['no costs; each series followed by its weight (gs-quant: a list of series and a list of weights)'], param: ['rebalance: daily: its weights every date; weekly, monthly: every week or month from its first date (the first date on or after)'] },
+    facts: { label: ['Basket, rebalanced'], family: ['Math'], unit: ['index'], level: ['makes'], gsQuant: ['backtesting.basket_series'], about: ['Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series\' weight of the basket then.'], differs: ['no costs; each series followed by its weight (gs-quant: a list of series and a list of weights)'], param: ['rebalance: daily: its weights every date; weekly, monthly: every week or month from its first date (the first date on or after)'], given: ['rebalance: daily'] },
     marks: [],
   },
   beta: {
@@ -98,7 +98,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['beta(x: Line, y: Line)', 'beta(x: Line, y: Line, w: Integer)', 'beta(x: Line, y: Line, w: Scope)', 'beta(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The beta of x\'s simple returns on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling beta'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.beta'], about: ['The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], pairs: ['returns'] },
+    facts: { label: ['Rolling beta'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.beta'], about: ['The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   bollinger_bands: {
@@ -110,7 +110,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['bollinger_bands(x: Line, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, k: Float (optional))', 'bollinger_bands(x: Line, w: Scope, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))'],
     doc: 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
     aliases: [],
-    facts: { label: ['Bollinger bands'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.bollinger_bands'], about: ['A band k standard deviations either side of the moving average over the last w observations.'], differs: ['w defaults to 20 observations (gs-quant: every observation)'], param: ['k: standard deviations either side'], search: ['bollinger'] },
+    facts: { label: ['Bollinger bands'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.bollinger_bands'], about: ['A band k standard deviations either side of the moving average over the last w observations.'], differs: ['w defaults to 20 observations (gs-quant: every observation)'], param: ['k: standard deviations either side'], search: ['bollinger'], given: ['w: 20', 'k: 2'], limit: ['w: >= 0', 'k: >= 0'] },
     marks: ['band'],
   },
   change: {
@@ -144,7 +144,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['consecutive(x: Line, direction: Direction (optional))'],
     doc: 'The number of values in a row to date that rose (positive, unless given) or fell.',
     aliases: [],
-    facts: { label: ['Consecutive'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['analysis.consecutive'], about: ['How many values in a row to each date have been above 0 (or below); 0 where it breaks.'], param: ['direction: positive: values above 0; negative: below'] },
+    facts: { label: ['Consecutive'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['analysis.consecutive'], about: ['How many values in a row to each date have been above 0 (or below); 0 where it breaks.'], param: ['direction: positive: values above 0; negative: below'], given: ['direction: positive'] },
     marks: [],
   },
   correlation: {
@@ -156,7 +156,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['correlation(x: Line, y: Line)', 'correlation(x: Line, y: Line, w: Integer)', 'correlation(x: Line, y: Line, w: Scope)', 'correlation(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The correlation of x\'s and y\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling correlation'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.correlation'], about: ['The correlation of the two series\' simple returns over the last w observations, on the dates both have.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], search: ['corr'], pairs: ['returns'] },
+    facts: { label: ['Rolling correlation'], family: ['Relationships'], unit: ['number'], gsQuant: ['econometrics.correlation'], about: ['The correlation of the two series\' simple returns over the last w observations, on the dates both have.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], search: ['corr'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   count: {
@@ -179,7 +179,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['cov(x: Line, y: Line)', 'cov(x: Line, y: Line, w: Integer)', 'cov(x: Line, y: Line, w: Scope)', 'cov(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The sample covariance of x\'s and y\'s values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling covariance'], family: ['Relationships'], unit: ['number'], gsQuant: ['statistics.cov'], about: ['The sample covariance of the two series as they are, over the last w observations.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'] },
+    facts: { label: ['Rolling covariance'], family: ['Relationships'], unit: ['number'], gsQuant: ['statistics.cov'], about: ['The sample covariance of the two series as they are, over the last w observations.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   day: {
@@ -200,7 +200,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['dickey_fuller(x: Line)', 'dickey_fuller(x: Line, w: Integer)', 'dickey_fuller(x: Line, w: Scope)', 'dickey_fuller(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The Dickey-Fuller statistic of x\'s values over a window -- w observations to date (a value once it holds three at least, and w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Dickey-Fuller statistic'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (statsmodels\' adfuller of no lags, a constant)'], about: ['The t-statistic of b in Δx = a + b·x[-1], by least squares over the last w differences (w + 1 values; 0: every one to date): far below 0 it reverts -- at 5%, under about −2.9 (MacKinnon\'s: −2.86 as w grows, −2.97 at 30). Of a spread written with its ratio, dickey_fuller(close[A] - 1.2 * close[B]), its stationarity; a running residual(y, x, 0) is each date\'s own fit, not Engle and Granger\'s one fit of the whole.'], search: ['adf'] },
+    facts: { label: ['Dickey-Fuller statistic'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (statsmodels\' adfuller of no lags, a constant)'], about: ['The t-statistic of b in Δx = a + b·x[-1], by least squares over the last w differences (w + 1 values; 0: every one to date): far below 0 it reverts -- at 5%, under about −2.9 (MacKinnon\'s: −2.86 as w grows, −2.97 at 30). Of a spread written with its ratio, dickey_fuller(close[A] - 1.2 * close[B]), its stationarity; a running residual(y, x, 0) is each date\'s own fit, not Engle and Granger\'s one fit of the whole.'], search: ['adf'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   diff: {
@@ -211,7 +211,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['diff(x: Line)', 'diff(x: Line, obs: Integer)', 'diff(x: Line, obs: Integer, unit: DurationUnit)'],
     doc: 'Each value less the one obs observations back (1 unless given), or a calendar period back.',
     aliases: [],
-    facts: { label: ['Difference'], family: ['Returns'], unit: ['same'], gsQuant: ['analysis.diff'], about: ['The change over obs observations: x - x[-obs].'] },
+    facts: { label: ['Difference'], family: ['Returns'], unit: ['same'], gsQuant: ['analysis.diff'], about: ['The change over obs observations: x - x[-obs].'], given: ['obs: 1'], limit: ['obs: >= 1'] },
     marks: [],
   },
   donchian_channels: {
@@ -223,7 +223,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['donchian_channels(high: Line, low: Line)', 'donchian_channels(high: Line, low: Line, w: Integer)', 'donchian_channels(high: Line, low: Line, w: Scope)', 'donchian_channels(high: Line, low: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Donchian channels: the window\'s lowest low and highest high, and their width -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
     aliases: [],
-    facts: { label: ['Donchian channels'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (Donchian\'s channels)'], about: ['A band from the lowest low to the highest high of the last w observations.'], search: ['donchian'] },
+    facts: { label: ['Donchian channels'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (Donchian\'s channels)'], about: ['A band from the lowest low to the highest high of the last w observations.'], search: ['donchian'], given: ['w: 20'], limit: ['w: >= 0'] },
     marks: ['band'],
   },
   down_capture: {
@@ -235,7 +235,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['down_capture(x: Line, y: Line)', 'down_capture(x: Line, y: Line, w: Integer)', 'down_capture(x: Line, y: Line, w: Scope)', 'down_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The down-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Down capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (a down-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).'], pairs: ['returns'] },
+    facts: { label: ['Down capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (a down-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   drawdown: {
@@ -246,7 +246,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['drawdown(x: Line)', 'drawdown(x: Line, w: Integer)', 'drawdown(x: Line, w: Scope)', 'drawdown(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Each value\'s drawdown from the greatest of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Drawdown'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.max_drawdown\'s first step)'], about: ['Below its running peak, as a share of it: x / max(x) - 1.'], param: ['w: observations its peak is taken over; 0 from the start'] },
+    facts: { label: ['Drawdown'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (econometrics.max_drawdown\'s first step)'], about: ['Below its running peak, as a share of it: x / max(x) - 1.'], param: ['w: observations its peak is taken over; 0 from the start'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   excess_returns: {
@@ -268,7 +268,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['exponential_moving_average(x: Line)', 'exponential_moving_average(x: Line, beta: Float)'],
     doc: 'The exponentially weighted moving average, each value\'s weight beta (0.75 unless given) of the one after it; beta 0, the line itself.',
     aliases: [],
-    facts: { label: ['Exponential moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.exponential_moving_average'], about: ['Each value the average before weighed beta and the series 1 - beta: y0 = x0, y = beta·y[-1] + (1 - beta)·x.'], differs: ['a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the average before, 0 to under 1'], search: ['ema', 'ewma'] },
+    facts: { label: ['Exponential moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.exponential_moving_average'], about: ['Each value the average before weighed beta and the series 1 - beta: y0 = x0, y = beta·y[-1] + (1 - beta)·x.'], differs: ['a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the average before, 0 to under 1'], search: ['ema', 'ewma'], given: ['beta: 0.75'], limit: ['beta: >= 0, < 1'] },
     marks: [],
   },
   exponential_spread_volatility: {
@@ -280,7 +280,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['exponential_spread_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))'],
     doc: 'The exponentially weighted volatility of x\'s differences (a spread\'s; beta 0.75 unless given), annualized.',
     aliases: [],
-    facts: { label: ['Exponential spread volatility'], family: ['Risk'], unit: ['same'], gsQuant: ['technicals.exponential_spread_volatility'], about: ['The annualized exponentially weighted standard deviation of its changes, in its own units (a spread\'s, a yield\'s).'], differs: ['a change of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the changes before, 0 to under 1'] },
+    facts: { label: ['Exponential spread volatility'], family: ['Risk'], unit: ['same'], gsQuant: ['technicals.exponential_spread_volatility'], about: ['The annualized exponentially weighted standard deviation of its changes, in its own units (a spread\'s, a yield\'s).'], differs: ['a change of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the changes before, 0 to under 1'], given: ['beta: 0.75'], limit: ['beta: > 0, < 1'] },
     marks: [],
   },
   exponential_std: {
@@ -291,7 +291,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['exponential_std(x: Line, beta: Float (optional))'],
     doc: 'The exponentially weighted standard deviation (beta 0.75 unless given).',
     aliases: [],
-    facts: { label: ['Exponential standard deviation'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.exponential_std'], about: ['The exponentially weighted standard deviation, bias-corrected (pandas\' ewm(alpha = 1 - beta, adjust=False).std()).'], differs: ['a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the observations before, 0 to under 1'], search: ['ewm_std', 'ewstd'] },
+    facts: { label: ['Exponential standard deviation'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.exponential_std'], about: ['The exponentially weighted standard deviation, bias-corrected (pandas\' ewm(alpha = 1 - beta, adjust=False).std()).'], differs: ['a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the observations before, 0 to under 1'], search: ['ewm_std', 'ewstd'], given: ['beta: 0.75'], limit: ['beta: > 0, < 1'] },
     marks: [],
   },
   exponential_volatility: {
@@ -303,7 +303,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['exponential_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))'],
     doc: 'The exponentially weighted volatility of x\'s returns (beta 0.75 unless given), annualized by the periods a year given, SAMPLE BY\'s, or the line\'s dates infer.',
     aliases: [],
-    facts: { label: ['Exponential volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['technicals.exponential_volatility'], about: ['The annualized exponentially weighted standard deviation of its returns, in percent (20% is 20).'], differs: ['a return of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the returns before, 0 to under 1'], search: ['ewvol', 'ewma_volatility'] },
+    facts: { label: ['Exponential volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['technicals.exponential_volatility'], about: ['The annualized exponentially weighted standard deviation of its returns, in percent (20% is 20).'], differs: ['a return of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)'], param: ['beta: the weight of the returns before, 0 to under 1'], search: ['ewvol', 'ewma_volatility'], given: ['beta: 0.75'], limit: ['beta: > 0, < 1'] },
     marks: [],
   },
   filter: {
@@ -315,7 +315,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['filter(x: Line, operator: FilterOperator (optional), value: Float (optional))'],
     doc: 'x\'s values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).',
     aliases: [],
-    facts: { label: ['Drop values'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['algebra.filter_'], about: ['x without the values the operator matches (gs-quant\'s filter_ removes them; by not_equals, the dates of none too): every figure after it reads the dates left.'], param: ['operator: empty: the dates of none; else the values where x is less_than, greater_than, l_equals, g_equals, equals or not_equals value', 'value: what x is compared with'], search: ['filter_'] },
+    facts: { label: ['Drop values'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['algebra.filter_'], about: ['x without the values the operator matches (gs-quant\'s filter_ removes them; by not_equals, the dates of none too): every figure after it reads the dates left.'], param: ['operator: empty: the dates of none; else the values where x is less_than, greater_than, l_equals, g_equals, equals or not_equals value', 'value: what x is compared with'], search: ['filter_'], given: ['operator: empty', 'value: 0'] },
     marks: [],
   },
   first: {
@@ -347,7 +347,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['half_life(x: Line)', 'half_life(x: Line, w: Integer)', 'half_life(x: Line, w: Scope)', 'half_life(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The half-life of mean reversion of x\'s values over a window -- w observations to date (a value once it holds three at least, and w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Half-life of mean reversion'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (an Ornstein-Uhlenbeck half-life)'], about: ['−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1).'] },
+    facts: { label: ['Half-life of mean reversion'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (an Ornstein-Uhlenbeck half-life)'], about: ['−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1).'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   hedge_ratio: {
@@ -359,7 +359,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['hedge_ratio(x: Line, y: Line)', 'hedge_ratio(x: Line, y: Line, w: Integer)', 'hedge_ratio(x: Line, y: Line, w: Scope)', 'hedge_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The hedge ratio of x\'s values on y\'s (the beta of their levels) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Hedge ratio'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (statistics.cov over statistics.var)'], about: ['How many of the second hedge one of the first: the slope of the first\'s levels on the second\'s (least squares: their covariance over the second\'s variance), over the last w observations.'] },
+    facts: { label: ['Hedge ratio'], family: ['Relationships'], unit: ['number'], gsQuant: ['DataCube (statistics.cov over statistics.var)'], about: ['How many of the second hedge one of the first: the slope of the first\'s levels on the second\'s (least squares: their covariance over the second\'s variance), over the last w observations.'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   if: {
@@ -383,7 +383,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['index(x: Line, initial: Float (optional))', 'index(x: Line, initial: Float (optional), from: StrictDate)'],
     doc: 'Each value over the line\'s first (or its value as of from), times initial (1 unless given).',
     aliases: [],
-    facts: { label: ['Index'], family: ['Level'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.index'], about: ['Divided by its value as of the first date shown (its last at or before it), times initial.'], param: ['initial: its value as of the first date shown'] },
+    facts: { label: ['Index'], family: ['Level'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.index'], about: ['Divided by its value as of the first date shown (its last at or before it), times initial.'], param: ['initial: its value as of the first date shown'], given: ['initial: 1'] },
     marks: ['anchored'],
   },
   information_ratio: {
@@ -396,7 +396,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Information ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['DataCube (an active return\'s Sharpe ratio)'], about: ['The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.'], pairs: ['returns'] },
+    facts: { label: ['Information ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['DataCube (an active return\'s Sharpe ratio)'], about: ['The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   interpolate: {
@@ -408,7 +408,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['interpolate(x: Line, y: Line)', 'interpolate(x: Line, y: Line, method: Interpolation)'],
     doc: 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (none before x starts: gs-quant\'s its first, a later value, R12), at each later its own, else the one before among them.',
     aliases: [],
-    facts: { label: ['Onto the dates of another'], family: ['Dates'], unit: ['same'], level: ['keeps'], gsQuant: ['datetime.interpolate'], about: ['x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method (gs-quant\'s, its default intersect).'], param: ['method: intersect: the dates both have; nan: none where x has none; zero: 0 there; step: from x\'s value as of y\'s first date (its first, before it starts), each of y\'s dates x\'s own value, else the one before among them'] },
+    facts: { label: ['Onto the dates of another'], family: ['Dates'], unit: ['same'], level: ['keeps'], gsQuant: ['datetime.interpolate'], about: ['x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method (gs-quant\'s, its default intersect).'], param: ['method: intersect: the dates both have; nan: none where x has none; zero: 0 there; step: from x\'s value as of y\'s first date (its first, before it starts), each of y\'s dates x\'s own value, else the one before among them'], given: ['method: intersect'] },
     marks: [],
   },
   keltner_channels: {
@@ -423,7 +423,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['keltner_channels(high: Line, low: Line, close: Line, k: Float (optional))', 'keltner_channels(high: Line, low: Line, close: Line, w: Integer, k: Float (optional))', 'keltner_channels(high: Line, low: Line, close: Line, w: Integer, a: Integer, k: Float (optional))'],
     doc: 'Keltner channels: the close\'s exponential mean of span w (20 unless given) less and plus k (2 unless given) average true ranges over a (10 unless given). A struct (R10): its lower, upper and width.',
     aliases: [],
-    facts: { label: ['Keltner channels'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (Keltner\'s channels, as Raschke\'s)'], about: ['A band k average true ranges (over a) either side of the exponential moving average of the close (of span w, from the first close), drawn once it holds w closes.'], param: ['w: the close\'s exponential average\'s span (its weight of the one before (w − 1) / (w + 1))', 'a: the true ranges averaged', 'k: average true ranges either side'], search: ['keltner'] },
+    facts: { label: ['Keltner channels'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (Keltner\'s channels, as Raschke\'s)'], about: ['A band k average true ranges (over a) either side of the exponential moving average of the close (of span w, from the first close), drawn once it holds w closes.'], param: ['w: the close\'s exponential average\'s span (its weight of the one before (w − 1) / (w + 1))', 'a: the true ranges averaged', 'k: average true ranges either side'], search: ['keltner'], given: ['w: 20', 'a: 10', 'k: 2'], limit: ['w: >= 1', 'a: >= 1', 'k: >= 0'] },
     marks: ['band'],
   },
   lag: {
@@ -434,7 +434,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['lag(x: Line)', 'lag(x: Line, obs: Integer)', 'lag(x: Line, obs: Integer, unit: DurationUnit)'],
     doc: 'The value obs observations back (1 unless given), or as of a calendar period back.',
     aliases: [],
-    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before.'] },
+    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before.'], given: ['obs: 1'], limit: ['obs: >= 1'] },
     marks: [],
   },
   last: {
@@ -458,7 +458,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['lead_lag(x: Line, y: Line)', 'lead_lag(x: Line, y: Line, lag: Integer)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Integer)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Scope)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Integer, unit: DurationUnit)'],
     doc: 'The correlation of x\'s simple returns with y\'s lag observations before (a lead where lag is negative; 1 unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Lead-lag correlation'], family: ['Relationships'], unit: ['number'], bounds: ['-1, 1'], gsQuant: ['DataCube (econometrics.correlation of a lag)'], about: ['The rolling correlation of the first\'s simple returns with the second\'s lag observations before, each on its own dates, over the last w.'], param: ['lag: the second\'s returns this many observations before (negative: after) -- above 0, does the second lead?'] },
+    facts: { label: ['Lead-lag correlation'], family: ['Relationships'], unit: ['number'], bounds: ['-1, 1'], gsQuant: ['DataCube (econometrics.correlation of a lag)'], about: ['The rolling correlation of the first\'s simple returns with the second\'s lag observations before, each on its own dates, over the last w.'], param: ['lag: the second\'s returns this many observations before (negative: after) -- above 0, does the second lead?'], given: ['lag: 1', 'w: 63'], limit: ['lag: >= -252, <= 252', 'w: >= 0'] },
     marks: [],
   },
   macd: {
@@ -471,7 +471,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['macd(x: Line, m: Integer (optional), n: Integer (optional), s: Integer (optional))'],
     doc: 'The moving average convergence divergence: the exponential averages over m and n observations (12 and 26 unless given) apart, smoothed over s (1 unless given).',
     aliases: [],
-    facts: { label: ['MACD'], family: ['Technicals'], unit: ['same'], gsQuant: ['technicals.macd'], about: ['The short exponential average less the long one, itself averaged over s -- a span k weighs each new value 2 / (k + 1).'], param: ['m: the short average\'s span', 'n: the long average\'s span', 's: the span its difference is averaged over (1: as it is)'] },
+    facts: { label: ['MACD'], family: ['Technicals'], unit: ['same'], gsQuant: ['technicals.macd'], about: ['The short exponential average less the long one, itself averaged over s -- a span k weighs each new value 2 / (k + 1).'], param: ['m: the short average\'s span', 'n: the long average\'s span', 's: the span its difference is averaged over (1: as it is)'], given: ['m: 12', 'n: 26', 's: 1'], limit: ['m: >= 1', 'n: >= 1', 's: >= 1'] },
     marks: [],
   },
   max: {
@@ -482,7 +482,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['max(x: Line, w: Integer)', 'max(x: Line, w: Integer, unit: DurationUnit)', 'max(x: Line, w: Scope)', 'max(x: Line, w: StrictDate)'],
     doc: 'The greatest of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: [],
-    facts: { label: ['Rolling maximum'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.max_'], about: ['The most over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['max_'] },
+    facts: { label: ['Rolling maximum'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.max_'], about: ['The most over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['max_'], limit: ['w: >= 0'] },
     marks: [],
   },
   max_drawdown: {
@@ -493,7 +493,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['max_drawdown(x: Line)', 'max_drawdown(x: Line, w: Integer)', 'max_drawdown(x: Line, w: Scope)', 'max_drawdown(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The deepest drawdown of x\'s values within a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Maximum drawdown'], family: ['Risk'], unit: ['ratio'], gsQuant: ['econometrics.max_drawdown'], about: ['The deepest drawdown over the last w observations (-0.2 for 20%).'] },
+    facts: { label: ['Maximum drawdown'], family: ['Risk'], unit: ['ratio'], gsQuant: ['econometrics.max_drawdown'], about: ['The deepest drawdown over the last w observations (-0.2 for 20%).'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   mean: {
@@ -504,7 +504,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['mean(x: Line, w: Integer)', 'mean(x: Line, w: Integer, unit: DurationUnit)', 'mean(x: Line, w: Scope)', 'mean(x: Line, w: StrictDate)'],
     doc: 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: ['avg'],
-    facts: { label: ['Moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.mean, technicals.moving_average'], about: ['The average over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['moving_average', 'sma', 'ma', 'average'] },
+    facts: { label: ['Moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.mean, technicals.moving_average'], about: ['The average over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['moving_average', 'sma', 'ma', 'average'], limit: ['w: >= 0'] },
     marks: [],
   },
   median: {
@@ -515,7 +515,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['median(x: Line)', 'median(x: Line, w: Integer)', 'median(x: Line, w: Scope)', 'median(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The median of x\'s values over a window -- w observations to date, a calendar period back, the line\'s start to date; 22 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling median'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.median'], about: ['The middle value over the last w observations (of an even count, the mean of the two middle ones).'], differs: ['w defaults to 22 observations (gs-quant: every observation)'] },
+    facts: { label: ['Rolling median'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.median'], about: ['The middle value over the last w observations (of an even count, the mean of the two middle ones).'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], given: ['w: 22'], limit: ['w: >= 0'] },
     marks: [],
   },
   min: {
@@ -526,7 +526,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['min(x: Line, w: Integer)', 'min(x: Line, w: Integer, unit: DurationUnit)', 'min(x: Line, w: Scope)', 'min(x: Line, w: StrictDate)'],
     doc: 'The least of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: [],
-    facts: { label: ['Rolling minimum'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.min_'], about: ['The least over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['min_'] },
+    facts: { label: ['Rolling minimum'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.min_'], about: ['The least over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['min_'], limit: ['w: >= 0'] },
     marks: [],
   },
   month: {
@@ -583,7 +583,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['percentile(x: Line, n: Float (optional))', 'percentile(x: Line, n: Float (optional), w: Integer)', 'percentile(x: Line, n: Float (optional), w: Scope)', 'percentile(x: Line, n: Float (optional), w: Integer, unit: DurationUnit)'],
     doc: 'The n-th percentile (50 unless given) of x\'s values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).',
     aliases: [],
-    facts: { label: ['Rolling percentile'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.percentile'], about: ['The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 the whole series\'.'], param: ['n: the percentile, 0 to 100', 'w: observations in the window, or a calendar period (3m, 1y); 0 every observation'], search: ['quantile'] },
+    facts: { label: ['Rolling percentile'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.percentile'], about: ['The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 the whole series\'.'], param: ['n: the percentile, 0 to 100', 'w: observations in the window, or a calendar period (3m, 1y); 0 every observation'], search: ['quantile'], given: ['n: 50', 'w: all'], limit: ['n: >= 0, <= 100', 'w: >= 0'] },
     marks: [],
   },
   percentiles: {
@@ -594,7 +594,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['percentiles(x: Line)', 'percentiles(x: Line, w: Integer)', 'percentiles(x: Line, w: Scope)', 'percentiles(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Each of x\'s values\' percentile among its window\'s -- w observations to date, a calendar period back, the line\'s start to date (its default).',
     aliases: [],
-    facts: { label: ['Rolling percentile rank'], family: ['Rolling statistics'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['statistics.percentiles'], about: ['Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy\'s percentileofscore, kind=mean).'], differs: ['a series ranked in its own window (gs-quant also ranks a second series\' values in the first\'s)'], param: ['w: observations in the window, or a calendar period (3m, 1y); 0 every one to it'], search: ['percentile_rank', 'pctrank'] },
+    facts: { label: ['Rolling percentile rank'], family: ['Rolling statistics'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['statistics.percentiles'], about: ['Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy\'s percentileofscore, kind=mean).'], differs: ['a series ranked in its own window (gs-quant also ranks a second series\' values in the first\'s)'], param: ['w: observations in the window, or a calendar period (3m, 1y); 0 every one to it'], search: ['percentile_rank', 'pctrank'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   prepend: {
@@ -617,7 +617,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['prices(x: Line, initial: Float (optional), type: Returns (optional))'],
     doc: 'The prices x\'s returns of a type (simple unless given) make, from initial (1 unless given).',
     aliases: [],
-    facts: { label: ['Prices from returns'], family: ['Returns'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.prices'], about: ['A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.'], param: ['initial: the level it starts from'] },
+    facts: { label: ['Prices from returns'], family: ['Returns'], unit: ['index'], level: ['makes'], gsQuant: ['econometrics.prices'], about: ['A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.'], param: ['initial: the level it starts from'], given: ['initial: 1', 'type: simple'] },
     marks: [],
   },
   product: {
@@ -628,7 +628,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['product(x: Line)', 'product(x: Line, w: Integer)', 'product(x: Line, w: Scope)', 'product(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The product of x\'s values over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Rolling product'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.product'], about: ['The product of the last w values (0: every one to date).'] },
+    facts: { label: ['Rolling product'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.product'], about: ['The product of the last w values (0: every one to date).'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   quarter: {
@@ -650,7 +650,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['r_squared(x: Line, y: Line)', 'r_squared(x: Line, y: Line, w: Integer)', 'r_squared(x: Line, y: Line, w: Scope)', 'r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The R squared of x\'s simple returns regressed on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling R²'], family: ['Relationships'], unit: ['number'], bounds: ['0, 1'], gsQuant: ['DataCube (econometrics.correlation squared)'], about: ['How much of the first\'s returns the second\'s explain: their correlation squared, over the last w observations.'], search: ['rsquared', 'r2'], pairs: ['returns'] },
+    facts: { label: ['Rolling R²'], family: ['Relationships'], unit: ['number'], bounds: ['0, 1'], gsQuant: ['DataCube (econometrics.correlation squared)'], about: ['How much of the first\'s returns the second\'s explain: their correlation squared, over the last w observations.'], search: ['rsquared', 'r2'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   range: {
@@ -661,7 +661,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['range(x: Line)', 'range(x: Line, w: Integer)', 'range(x: Line, w: Scope)', 'range(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.',
     aliases: [],
-    facts: { label: ['Rolling range'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.range_'], about: ['The most less the least over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['range_'] },
+    facts: { label: ['Rolling range'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.range_'], about: ['The most less the least over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['range_'], given: ['w: 22'], limit: ['w: >= 0'] },
     marks: [],
   },
   rank: {
@@ -684,7 +684,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['rebase(x: Line, base: Float (optional))', 'rebase(x: Line, from: StrictDate, base: Float (optional))'],
     doc: 'Each value over the line\'s first (or its value as of from), times base (100 unless given).',
     aliases: [],
-    facts: { label: ['Rebase to 100'], family: ['Level'], unit: ['index'], level: ['makes'], gsQuant: ['DataCube (econometrics.index)'], about: ['Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).'], param: ['base: its value as of the first date shown'] },
+    facts: { label: ['Rebase to 100'], family: ['Level'], unit: ['index'], level: ['makes'], gsQuant: ['DataCube (econometrics.index)'], about: ['Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).'], param: ['base: its value as of the first date shown'], given: ['base: 100'] },
     marks: ['anchored'],
   },
   residual: {
@@ -696,7 +696,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['residual(x: Line, y: Line)', 'residual(x: Line, y: Line, w: Integer)', 'residual(x: Line, y: Line, w: Scope)', 'residual(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The residual of x\'s value from its regression on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Regression residual'], family: ['Relationships'], unit: ['same'], gsQuant: ['DataCube (a pairs trade\'s spread)'], about: ['The first less what its rolling regression on the second gives for it: the spread of a pairs trade, x - (a + b·y) with a and b fitted over the last w observations of the levels.'], search: ['spread'] },
+    facts: { label: ['Regression residual'], family: ['Relationships'], unit: ['same'], gsQuant: ['DataCube (a pairs trade\'s spread)'], about: ['The first less what its rolling regression on the second gives for it: the spread of a pairs trade, x - (a + b·y) with a and b fitted over the last w observations of the levels.'], search: ['spread'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   returns: {
@@ -708,7 +708,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['returns(x: Line, type: Returns (optional))', 'returns(x: Line, obs: Integer, type: Returns (optional))', 'returns(x: Line, obs: Integer, unit: DurationUnit, type: Returns (optional))'],
     doc: 'The returns of a type (simple unless given) over obs observations (1 unless given), or as of a calendar period back.',
     aliases: [],
-    facts: { label: ['Returns'], family: ['Returns'], unit: ['input'], gsQuant: ['econometrics.returns'], about: ['The return over obs observations.'] },
+    facts: { label: ['Returns'], family: ['Returns'], unit: ['input'], gsQuant: ['econometrics.returns'], about: ['The return over obs observations.'], given: ['obs: 1', 'type: simple'], limit: ['obs: >= 1'] },
     marks: [],
   },
   round_down: {
@@ -739,7 +739,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['rsi(x: Line, w: Integer (optional))'],
     doc: 'The relative strength index over w observations (14 unless given), Wilder\'s.',
     aliases: [],
-    facts: { label: ['Relative strength index'], family: ['Technicals'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['technicals.relative_strength_index'], about: ['100 - 100 / (1 + average gain / average loss), each Wilder\'s smoothed average of the last w changes: 0 to 100.'], differs: ['w a whole number of changes (gs-quant also takes a calendar period, its smoothing then over each date\'s count)'], param: ['w: the changes its gains and losses are smoothed over'], search: ['relative_strength_index'] },
+    facts: { label: ['Relative strength index'], family: ['Technicals'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['technicals.relative_strength_index'], about: ['100 - 100 / (1 + average gain / average loss), each Wilder\'s smoothed average of the last w changes: 0 to 100.'], differs: ['w a whole number of changes (gs-quant also takes a calendar period, its smoothing then over each date\'s count)'], param: ['w: the changes its gains and losses are smoothed over'], search: ['relative_strength_index'], given: ['w: 14'], limit: ['w: >= 1'] },
     marks: [],
   },
   seasonally_adjusted: {
@@ -751,7 +751,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['seasonally_adjusted(x: Line)', 'seasonally_adjusted(x: Line, method: SeasonalModel)', 'seasonally_adjusted(x: Line, freq: Cycle)', 'seasonally_adjusted(x: Line, method: SeasonalModel, freq: Cycle)'],
     doc: 'x seasonally adjusted (gs-quant\'s seasonally_adjusted): less (additive, unless given) or over (multiplicative) each place in the cycle\'s mean of the detrended values -- a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).',
     aliases: [],
-    facts: { label: ['Seasonally adjusted'], family: ['Level'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.seasonally_adjusted'], about: ['x with its season taken out, a classical decomposition\'s: each place in the cycle\'s mean detrended value, centred, removed.'], differs: ['the tile needs a frequency; a daily cycle counts business days (5 a week, 21 a month, 63 a quarter, 252 a year) whatever the rows\' days, where gs-quant fills a daily series to every calendar day (7, 30, 91, 365); a month, a quarter or a week missing is not filled -- each place in the cycle is still the calendar\'s, the moving average reading the observations either side; under two whole cycles, none (gs-quant refuses)'], param: ['method: additive: x less its season; multiplicative: x over its season', 'freq: the cycle: a year, a quarter, a month or a week'] },
+    facts: { label: ['Seasonally adjusted'], family: ['Level'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.seasonally_adjusted'], about: ['x with its season taken out, a classical decomposition\'s: each place in the cycle\'s mean detrended value, centred, removed.'], differs: ['the tile needs a frequency; a daily cycle counts business days (5 a week, 21 a month, 63 a quarter, 252 a year) whatever the rows\' days, where gs-quant fills a daily series to every calendar day (7, 30, 91, 365); a month, a quarter or a week missing is not filled -- each place in the cycle is still the calendar\'s, the moving average reading the observations either side; under two whole cycles, none (gs-quant refuses)'], param: ['method: additive: x less its season; multiplicative: x over its season', 'freq: the cycle: a year, a quarter, a month or a week'], given: ['method: additive', 'freq: year'] },
     marks: [],
   },
   sharpe_ratio: {
@@ -763,7 +763,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['sharpe_ratio(x: Line, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized Sharpe ratio of x\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 252 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
     aliases: [],
-    facts: { label: ['Sharpe ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['econometrics.sharpe_ratio'], about: ['Its annualized mean return over its annualized volatility, over the last w observations.'], differs: ['w defaults to 252 observations (gs-quant: every observation); a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\'s rate and compounds'] },
+    facts: { label: ['Sharpe ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['econometrics.sharpe_ratio'], about: ['Its annualized mean return over its annualized volatility, over the last w observations.'], differs: ['w defaults to 252 observations (gs-quant: every observation); a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\'s rate and compounds'], given: ['w: 252'], limit: ['w: >= 0'] },
     marks: [],
   },
   smooth_spikes: {
@@ -775,7 +775,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['smooth_spikes(x: Line, threshold: Float (optional), type: ThresholdType (optional))'],
     doc: 'x with each spike -- a value apart from both neighbours by more than threshold (0.5 unless given), as a percentage unless absolute -- the mean of its neighbours.',
     aliases: [],
-    facts: { label: ['Spikes smoothed'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.smooth_spikes'], about: ['A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.'], differs: ['threshold defaults to 0.5 (gs-quant: no default)'], param: ['threshold: how far above or below both neighbours a spike is', 'type: percentage: 1 + threshold times both; absolute: threshold beyond both'] },
+    facts: { label: ['Spikes smoothed'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.smooth_spikes'], about: ['A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.'], differs: ['threshold defaults to 0.5 (gs-quant: no default)'], param: ['threshold: how far above or below both neighbours a spike is', 'type: percentage: 1 + threshold times both; absolute: threshold beyond both'], given: ['threshold: 0.5', 'type: percentage'], limit: ['threshold: >= 0'] },
     marks: [],
   },
   smoothed_moving_average: {
@@ -786,7 +786,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['smoothed_moving_average(x: Line)', 'smoothed_moving_average(x: Line, w: Integer)'],
     doc: 'The smoothed (Wilder\'s) moving average over w observations (14 unless given). w reaches the library as written: its smoothedMean folds its own case of one observation.',
     aliases: [],
-    facts: { label: ['Smoothed moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.smoothed_moving_average'], about: ['Wilder\'s: from the mean of w observations, each value (w - 1) parts the one before and one part the series.'], differs: ['w defaults to 14 observations (gs-quant: every observation); a whole number of them (gs-quant also takes a calendar period)'], param: ['w: the observations it is smoothed over'], search: ['smma', 'wilder'] },
+    facts: { label: ['Smoothed moving average'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.smoothed_moving_average'], about: ['Wilder\'s: from the mean of w observations, each value (w - 1) parts the one before and one part the series.'], differs: ['w defaults to 14 observations (gs-quant: every observation); a whole number of them (gs-quant also takes a calendar period)'], param: ['w: the observations it is smoothed over'], search: ['smma', 'wilder'], given: ['w: 14'], limit: ['w: >= 1'] },
     marks: [],
   },
   std: {
@@ -797,7 +797,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['std(x: Line, w: Integer)', 'std(x: Line, w: Integer, unit: DurationUnit)', 'std(x: Line, w: Scope)', 'std(x: Line, w: StrictDate)'],
     doc: 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: ['stddev'],
-    facts: { label: ['Rolling standard deviation'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.std'], about: ['The sample standard deviation over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['stdev'] },
+    facts: { label: ['Rolling standard deviation'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.std'], about: ['The sample standard deviation over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['stdev'], limit: ['w: >= 0'] },
     marks: [],
   },
   stochastic: {
@@ -810,7 +810,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['stochastic(high: Line, low: Line, close: Line)', 'stochastic(high: Line, low: Line, close: Line, w: Integer)'],
     doc: 'The stochastic oscillator %K over w observations (14 unless given): where the close stands between the window\'s lowest low and highest high, in percent.',
     aliases: [],
-    facts: { label: ['Stochastic oscillator (%K)'], family: ['Technicals'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['DataCube (Lane\'s stochastic oscillator)'], about: ['100 × (close − the lowest low) / (the highest high − the lowest low) over the last w observations: 0 to 100; none where the high and the low are one.'], param: ['w: observations its highest high and lowest low are of'], search: ['stoch', 'stochastic_oscillator'] },
+    facts: { label: ['Stochastic oscillator (%K)'], family: ['Technicals'], unit: ['number'], bounds: ['0, 100'], gsQuant: ['DataCube (Lane\'s stochastic oscillator)'], about: ['100 × (close − the lowest low) / (the highest high − the lowest low) over the last w observations: 0 to 100; none where the high and the low are one.'], param: ['w: observations its highest high and lowest low are of'], search: ['stoch', 'stochastic_oscillator'], given: ['w: 14'], limit: ['w: >= 1'] },
     marks: [],
   },
   sum: {
@@ -821,7 +821,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['sum(x: Line, w: Integer)', 'sum(x: Line, w: Integer, unit: DurationUnit)', 'sum(x: Line, w: Scope)', 'sum(x: Line, w: StrictDate)'],
     doc: 'The sum of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: [],
-    facts: { label: ['Rolling sum'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.sum_'], about: ['The sum over the last w observations; from the start, a running total.'], search: ['sum_', 'cumsum'] },
+    facts: { label: ['Rolling sum'], family: ['Rolling statistics'], unit: ['same'], gsQuant: ['statistics.sum_'], about: ['The sum over the last w observations; from the start, a running total.'], search: ['sum_', 'cumsum'], limit: ['w: >= 0'] },
     marks: [],
   },
   total_return: {
@@ -845,7 +845,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
-    facts: { label: ['Tracking error'], family: ['Risk'], unit: ['percent'], gsQuant: ['DataCube (an active return\'s volatility)'], about: ['The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.'], pairs: ['returns'] },
+    facts: { label: ['Tracking error'], family: ['Risk'], unit: ['percent'], gsQuant: ['DataCube (an active return\'s volatility)'], about: ['The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   trend: {
@@ -857,7 +857,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['trend(x: Line)', 'trend(x: Line, method: SeasonalModel)', 'trend(x: Line, freq: Cycle)', 'trend(x: Line, method: SeasonalModel, freq: Cycle)'],
     doc: 'The trend of a seasonal series (gs-quant\'s trend, statsmodels\' classical decomposition): a centred moving average over a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).',
     aliases: [],
-    facts: { label: ['Trend'], family: ['Level'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.trend'], about: ['Its trend in a classical decomposition: a moving average centred over one cycle of the tile\'s frequency (a year of months, 12).'], differs: ['the tile needs a frequency; a daily cycle counts business days (5 a week, 21 a month, 63 a quarter, 252 a year) whatever the rows\' days, where gs-quant fills a daily series to every calendar day (7, 30, 91, 365); a month, a quarter or a week missing is not filled -- each place in the cycle is still the calendar\'s, the moving average reading the observations either side; under two whole cycles, none (gs-quant refuses)'], param: ['method: additive: a season of its own size; multiplicative: of its share', 'freq: the cycle: a year, a quarter, a month or a week'] },
+    facts: { label: ['Trend'], family: ['Level'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.trend'], about: ['Its trend in a classical decomposition: a moving average centred over one cycle of the tile\'s frequency (a year of months, 12).'], differs: ['the tile needs a frequency; a daily cycle counts business days (5 a week, 21 a month, 63 a quarter, 252 a year) whatever the rows\' days, where gs-quant fills a daily series to every calendar day (7, 30, 91, 365); a month, a quarter or a week missing is not filled -- each place in the cycle is still the calendar\'s, the moving average reading the observations either side; under two whole cycles, none (gs-quant refuses)'], param: ['method: additive: a season of its own size; multiplicative: of its share', 'freq: the cycle: a year, a quarter, a month or a week'], given: ['method: additive', 'freq: year'] },
     marks: [],
   },
   union: {
@@ -880,7 +880,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['up_capture(x: Line, y: Line)', 'up_capture(x: Line, y: Line, w: Integer)', 'up_capture(x: Line, y: Line, w: Scope)', 'up_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The up-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
-    facts: { label: ['Up capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (an up-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).'], pairs: ['returns'] },
+    facts: { label: ['Up capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (an up-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
   },
   value_at: {
@@ -902,7 +902,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['var(x: Line, w: Integer)', 'var(x: Line, w: Integer, unit: DurationUnit)', 'var(x: Line, w: Scope)', 'var(x: Line, w: StrictDate)'],
     doc: 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
     aliases: ['variance'],
-    facts: { label: ['Rolling variance'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.var'], about: ['The sample variance over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['variance'] },
+    facts: { label: ['Rolling variance'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.var'], about: ['The sample variance over the last w observations.'], differs: ['w defaults to 22 observations (gs-quant: every observation)'], search: ['variance'], limit: ['w: >= 0'] },
     marks: [],
   },
   vol_swap_volatility: {
@@ -913,7 +913,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['vol_swap_volatility(x: Line)', 'vol_swap_volatility(x: Line, w: Integer)', 'vol_swap_volatility(x: Line, w: Scope)', 'vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'] },
+    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
   volatility: {
@@ -926,7 +926,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))'],
     doc: 'The annualized volatility of x\'s returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
     aliases: [],
-    facts: { label: ['Realized volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.volatility'], about: ['The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).'], differs: ['w defaults to 22 observations (gs-quant: the whole series)'], search: ['vol'] },
+    facts: { label: ['Realized volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.volatility'], about: ['The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).'], differs: ['w defaults to 22 observations (gs-quant: the whole series)'], search: ['vol'], given: ['w: 22', 'type: simple'], limit: ['w: >= 0'] },
     marks: [],
   },
   vwap: {
@@ -938,7 +938,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['vwap(price: Line, volume: Line)', 'vwap(price: Line, volume: Line, w: Integer)', 'vwap(price: Line, volume: Line, w: Scope)', 'vwap(price: Line, volume: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The volume-weighted average price over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given.',
     aliases: [],
-    facts: { label: ['Volume-weighted average price'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (a volume-weighted average price)'], about: ['Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none.'] },
+    facts: { label: ['Volume-weighted average price'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (a volume-weighted average price)'], about: ['Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none.'], given: ['w: 20'], limit: ['w: >= 0'] },
     marks: [],
   },
   weekday: {
@@ -970,7 +970,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['winsorize(x: Line, limit: Float (optional))', 'winsorize(x: Line, limit: Float (optional), w: Whole)'],
     doc: 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line\'s (whole).',
     aliases: [],
-    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean to date.'], differs: ['to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['limit: standard deviations from the mean it is held within'] },
+    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean to date.'], differs: ['to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['limit: standard deviations from the mean it is held within'], given: ['limit: 2.5'], limit: ['limit: >= 0'] },
     marks: [],
   },
   year: {
@@ -991,7 +991,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['zscores(x: Line)', 'zscores(x: Line, w: Whole)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole).',
     aliases: [],
-    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, or whole'], search: ['zscore', 'z'] },
+    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, or whole'], search: ['zscore', 'z'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],
   },
 };
