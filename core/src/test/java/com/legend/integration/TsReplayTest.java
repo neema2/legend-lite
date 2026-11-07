@@ -82,7 +82,7 @@ class TsReplayTest {
     /** The databases each series is replayed on beside DuckDB: every other in-process one, or the one the lane names
      *  ({@code -Dts.backend}). */
     private static List<TestBackend> others() {
-        String named = System.getProperty("ts.backend");
+        String named = System.getProperty("ts.backend", System.getenv("TS_BACKEND"));
         return named == null
                 ? TestBackends.inProcess().stream().filter(b -> !b.name().equals(duckDb().name())).toList()
                 : List.of(TestBackends.named(named));
@@ -189,7 +189,15 @@ class TsReplayTest {
         // a server's database outlives a connection: the replay's own workspace there (dropped as it closes)
         try (Connection c = backend.inProcess() ? backend.open() : backend.openWorkspace()) {
             seed(backend, c, samples);
+            // the lane's bound on a statement's run, where it sets one (a server's: Postgres's statement_timeout)
+            String bound = System.getProperty("ts.replay.session", System.getenv("TS_REPLAY_SESSION"));
+            if (bound != null && !backend.name().equals(duckDb().name())) {
+                try (java.sql.Statement st = c.createStatement()) {
+                    st.execute(bound);
+                }
+            }
             for (Statement s : statements) {
+                long started = System.nanoTime();
                 try {
                     ExecutionPlan plan = Compiler.query(model, "|#TS{" + s.text() + "}#").executionPlan("local::RT");
                     String text = PlanCases.write(plan, c, Map.of(), PlanCases.Written.CSV::writer);
@@ -198,6 +206,8 @@ class TsReplayTest {
                 } catch (Exception | AssertionError e) {
                     out.put(s.id(), String.valueOf(e.getMessage()).split("\n")[0]);
                 }
+                System.err.println(backend.name() + " " + s.id() + ": " + (System.nanoTime() - started) / 1_000_000
+                        + " ms");
             }
         }
         return out;
