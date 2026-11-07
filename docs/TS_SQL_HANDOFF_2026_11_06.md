@@ -13,6 +13,8 @@ rulings constrain everything here, is `docs/TS_TIME_MODEL_2026_11_02.md`.
 
 ## 0. Start here
 
+**Since 2026-11-07 the work's order and every open decision are in `docs/TS_DECISIONS_2026_11_07.md`**: read it first.
+
 1. `git fetch origin claude/timeseries-language && git checkout claude/timeseries-language`. The code in this
    document ends at `8b948df5d`; the commits after it add this document and its homework.
 2. Read §2, the user's rules. They have been broken before, and each break cost the user something.

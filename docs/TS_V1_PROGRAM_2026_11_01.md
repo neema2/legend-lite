@@ -673,6 +673,10 @@ https://grafana.com/docs/grafana/latest/dashboards/shortcuts/).
 
 ## 6a. The order (ruled 2026-11-06)
 
+**Superseded for what remains by `docs/TS_DECISIONS_2026_11_07.md`** (the user, 2026-11-07: "Write this down so we
+remember all of this and let's do it all in order"): every open decision with its options, costs and recommendation,
+and the order the rest of v1 runs in. The list below is the order as it ran to 2026-11-06.
+
 The whole roadmap, the SQL track's items (`docs/TS_SQL_HANDOFF_2026_11_06.md` §8, W-numbers) beside this program's,
 in the order the user ruled on 2026-11-06 (proposed by the session; ClickHouse moved by the user to after every fix):
 
