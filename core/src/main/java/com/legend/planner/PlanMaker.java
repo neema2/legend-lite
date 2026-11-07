@@ -46,6 +46,7 @@ import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
+import com.legend.sql.SqlWith;
 import com.legend.sql.ValueKind;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
@@ -501,10 +502,59 @@ public final class PlanMaker {
             unplannedOnTheTestDoor(st);
         }
         Prepared.Planned p = ProductStatements.planned(st);
-        SqlQuery q = state.lowered(st, last);
+        SqlQuery q = stagedShared(state, state.lowered(st, last), target);
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
                 : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
+    }
+
+    /**
+     * SHARED RELATIONS STAGED (docs/TS_DECISIONS_2026_11_07.md item 9b, decision 16 (b), 2026-11-07): where the
+     * database writes each read of a common table expression again ({@link SqlDialect#writesEachReadOfAWithAgain}:
+     * ClickHouse), each relation {@code q} reads more than once -- the lowering's shared ones, {@code __let<n>} at its
+     * head ({@code lowering.SharedRelations}) -- is computed once, in the WITH's order, into a temporary table of the
+     * session (a staged table, dropped with the program's others), and the statement and the relations after read it
+     * by name. Elsewhere {@code q} as it is.
+     */
+    private static SqlQuery stagedShared(ProgramState state, SqlQuery q, ExecutionPlan.Target target) {
+        if (!state.dialect().writesEachReadOfAWithAgain() || !(q instanceof SqlWith w)
+                || w.ctes().stream().noneMatch(c -> c.name().startsWith(SqlWith.SHARED_PREFIX))) {
+            return q;
+        }
+        Map<String, String> tables = new HashMap<>();
+        List<SqlWith.Cte> kept = new ArrayList<>();
+        for (SqlWith.Cte c : w.ctes()) {
+            SqlQuery body = readingTables(c.query(), tables);
+            if (!c.name().startsWith(SqlWith.SHARED_PREFIX)) {
+                kept.add(new SqlWith.Cte(c.name(), body, c.materialized()));
+                continue;
+            }
+            // a name of the program's own: two statements' __let0 are two tables
+            String table = "__stage" + state.staged().size() + c.name();
+            state.add(new ExecutionPlan.Update(sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table,
+                    body)), target, null), null));
+            state.stage(table);
+            tables.put(c.name(), table);
+        }
+        SqlQuery body = readingTables(w.body(), tables);
+        return kept.isEmpty() ? body : w.with(kept, body);
+    }
+
+    /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
+    private static SqlQuery readingTables(SqlQuery q, Map<String, String> tables) {
+        if (tables.isEmpty()) {
+            return q;
+        }
+        return new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c && tables.containsKey(c.name())) {
+                    return new SqlSource.Table(tables.get(c.name()), c.alias(), c.outputs(), false, Map.of(),
+                            NameQuoting.BARE);
+                }
+                return s;
+            }
+        }.rewrite(q);
     }
 
     /** The graph's SYSTEM database beside {@code home} (a program's own target): a statement reading the system

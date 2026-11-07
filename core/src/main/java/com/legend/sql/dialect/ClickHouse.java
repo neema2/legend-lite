@@ -2948,6 +2948,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return rows == null ? List.of(render(table)) : List.of(render(table), render(rows));
     }
 
+    /** {@inheritDoc} Yes: ClickHouse writes a WITH's relation in place at each read, and 25.8 has no materialized CTE
+     *  ({@code AS MATERIALIZED} a syntax error, no setting; measured 2026-11-07) -- the documents' spec-15, 111 KB of SQL,
+     *  was 2.8 MB written so, a relation's windows computed hundreds of times, and never finished. */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
     /** A table of the database's own (not a session's TEMPORARY one, a Memory one without saying so) is legend-engine's
      *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
      *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
