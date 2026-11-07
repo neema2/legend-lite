@@ -2,7 +2,7 @@
 
 > **Status: DRAFT for the user's ratification.** Goals G1-G6 are the user's own, in their words (2026-11-07). G7-G11
 > were proposed and the user accepted them (2026-11-07: "I really love it! Including the missing ones you added!"). Section 3 records rulings the user made on 2026-11-06/07.
-> Section 5 lists decisions still open. Once ratified, this file is the first thing to read before reopening any
+> Section 5 records the decisions, all ruled on 2026-11-07. Once ratified, this file is the first thing to read before reopening any
 > "where should this live / may this run here" debate: it exists to stop the loop.
 >
 > It sits above the older tenet documents and does not replace them: `docs/TENETS.md` (eager knowledge, lazy work),
@@ -239,23 +239,37 @@ registers.
 **Then:** the corpus and stress burn-down (parked), and the stress lane's memory, which keeps one seeded DuckDB per test
 runtime open at ~11 GB.
 
-## 5. Open decisions (for the user)
+## 5. Decisions (all ruled by the user, 2026-11-07)
 
-- **D1. The type hole.** The runner writes a SQL type name into `CAST(? AS ___)`, chosen from the bound value's kind and
-  digits. This breaks charter C2.2, C5.1 and C5.2. User parameters never reach it on the product path: the server folds
-  parameter values into the query at compile time. Only library callers and tests reach it.
-  - Proposal: a fixed cast chosen at planning from the declared Pure type, measured across the lanes first. What changes
-    becomes register rows.
+- **D1. The type hole: RULED (the user, 2026-11-07: "I love everything").**
+  - **Ruling:** delete it. The runner writes a SQL type into `CAST(? AS ___)`, chosen by the bound value's kind and
+    digits (it breaks charter C2.2, C5.1 and C5.2). No product caller needs it.
+  - **Services keep their parameters; they bind them at compile time.** The server turns each `{name, value}` of a call
+    into `let name = value;` ahead of the query's body (`PureV1Api.boundParameters`, used by `execute`, `executeArrow`
+    and the hosted runs). The compiler then types each value against the parameter's declared type, and the plan is
+    made with the value known, so its SQL types are exact. A value may be an expression (`today()`), which the database
+    computes.
+  - **Run-time parameters:** Integer, String, Boolean, StrictDate and DateTime keep the fixed SQL types they already
+    have. One typed Float, Decimal, Number or Date is refused at planning, by name: bind it at compile time.
+  - **Plan-once, run-many:** if service traffic ever needs it, a fixed cast per declared Pure type would serve it, decided
+    when measured.
 - **D2. Relation `toOne()`: RULED (the user, 2026-11-07: "sql guard is good").** An aggregate guard in SQL
   (`CASE WHEN COUNT(*) = 1 … ELSE error(...)` joined back), proven on each database. A window column alone would miss
   the zero-row case. The Java row count is deleted.
-- **D3. The SQL comment stamp.** Every statement gets a per-execution comment line prepended when it is sent, for
-  upstream's activity-comment parity. Either it is compatibility (the edge, P2), or it becomes a planned, bound
-  parameter.
-- **D4. MariaDB/MySQL raise read-back.** After a failure, two connector statements are sent that are not in the plan.
-  Either they become plan steps, or they are named as the connector's error protocol.
-- **D5. Charter amendments.**
-  - C2.5 (rendering ruled representations in the database) is superseded for edge formatting by the user's 2026-11-07
-    ruling.
-  - C6.2 and Clause 4 do not yet admit the constant-string fold the user ruled on 2026-10-30.
-  - The ledger text names deleted classes.
+- **D3. The SQL comment stamp: RULED (2026-11-07).**
+  - **Product:** traceability without editing SQL at run time. At planning, the dialect writes a fixed comment naming the
+    plan and the statement. Exec records the per-execution id beside the plan id in lite's own trace. Where a database
+    supports a session tag, a planned setup statement may carry the execution id.
+  - **Edge:** legend-engine's exact per-statement stamp, `-- "executionTraceID" : "<uuid>"`, moves to compatibility
+    mode only.
+- **D4. MariaDB/MySQL raise read-back: RULED (2026-11-07). It is product, not compatibility.**
+  - MariaDB and MySQL cannot raise a custom message from a SELECT. So the SQL keeps Pure's message in `@legend_raise`
+    and forces a generic error, and exec reads the message back after the failure. Without it, every Pure error on
+    those databases would read "Subquery returns more than 1 row".
+  - The plan's target declares the two read-back statements as data, and exec sends them only after a failure
+    (charter Clause 7, A3(c)).
+- **D5. Charter amendments: RULED (2026-11-07).** Written into `docs/TENET_CHARTER.md` as Clause 7:
+  - A1: C2.5 split into product (typed, no print rules) and edge (print rules in Java at the edge);
+  - A2: the compile-time constant-string fold;
+  - A3: C1.4's three named exec cases (keyed regions, planned branches, declared error read-back);
+  - A4: the guards' text corrected as the code changes.
