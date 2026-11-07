@@ -63,6 +63,10 @@ appear in product SQL. Exec streams typed rows and does nothing else.
   - A product-SQL size baseline and an exec speed baseline, both shrink-only.
 - **State:** open. See section 4, P3 and P4.
 
+**The tie-breaker between G3 and G6 (agreed 2026-11-07):** product MEANING goes to the database even when the SQL
+grows a little (relation `toOne()`'s guard, D2). Anything that exists only to match upstream's PRESENTATION goes to Java
+at the edge (G5). Lean SQL never means moving product meaning into Java.
+
 ### G4. Provable separation: plan only plans, exec only execs, judge and driver included
 
 Planning never touches a database. A run never plans: no typing, lowering, resolving or rendering while a plan runs.
@@ -76,6 +80,9 @@ This holds for the judges and the test driver too, not only the product.
   - at run time, by the wall (`RunScope`), which refuses a crossing by name;
   - at compile time, by package structure and ArchUnit rules, so run code cannot reference planning code and planning
     code cannot hold a session.
+
+  Together these are strong, but not a formal proof. The rules prove structure; the wall proves behaviour on the paths
+  the lanes exercise. Guards catch drift, not adversaries.
 - **Guard:**
   - `RunScope` on every planning seam (done: I1).
   - `RunScopeTest`.
@@ -192,6 +199,14 @@ branch, never on main without the user's word.
 and AGENTS.md points here.
 
 **P1. Finish the separation (G4, G1).**
+- **First, the enabling steps (agreed 2026-11-07):**
+  - **Make the lanes trustworthy.** Find what drives the DuckDB stress lane's memory to ~11 GB, by measurement, before
+    choosing a fix. Per-test seeding is NOT the answer: it took the lane from minutes to ~50. Run the heavy lanes one
+    at a time, with the disk kept clear.
+  - **Baselines for G3:** product SQL size per corpus test, and time per lane.
+  - **The plan JSON round-trip** over every lane's plans (G11).
+- **The ArchUnit rules are written first in report mode.** They list every violation; then the list is pinned and
+  ratcheted to zero, the way the runtime wall was built.
 - Exec runs only the plan's statements, and the runner's reader refuses a side that is not in the plan:
   - the verdict batch's split rung is decided at planning, and a rejected statement fails by name (no runtime retry);
   - caller-message rows use the plan's own per-verdict message side;
