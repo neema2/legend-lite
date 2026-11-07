@@ -73,6 +73,41 @@ And the run's **value model** uses the compiler's type vocabulary: `TypedSide.Sc
 
 ## 4. The proposal: the plan holds all of it
 
+### 4.0 Two plan types: the product's, and a test plan around it
+
+The user's question (2026-11-07): "Should we have a test plan type so the product plan is not polluted?" Yes. Today the
+product is polluted in four places, used by nothing in the product (every user is the driver, the judges, `testplan`
+or these four): the plan type (`ExecutionPlan` carries `Verdicts`, `Verdict`, `Side`, `Branch`, `Check`,
+`JudgingRules` and the verdict `Savepoint`), the runtime (`exec`'s `PlanRunner.program` runs verdict groups and
+branches; its `ProgramSink` has `verdict`, `sides` and `fused` hooks), the product planner (`PlanMaker.testProgram`)
+and the product's options (`ExecuteOptions`' judge mode and judging rules).
+
+By composition, as the libraries are layered:
+
+```
+ExecutionPlan (execution_plan: the product's)       TestPlan (test_plan: new, on top of execution_plan)
+  parameters                                          parameters
+  root: Sequence | TdsResult | Keyed | Update |       steps: [TestStep]
+        Effect | Setup | Constant                       TestStep = Run(ExecutionPlan.Node)    -- a product step, as is
+                                                                 | Verdicts(verdicts, fused, judge, rules, savepoint)
+                                                                 | Branch(condition, then, otherwise)
+                                                                 | FrameRun(Check)
+                                                      compat: the edge's part (goldens, appeals, ledger texts), read
+                                                              by the edge alone
+```
+
+- `planner` makes product plans only; `testplan` makes test plans (`PlanMaker.testProgram` moves there), composing the
+  planner's product nodes.
+- `exec` runs product plans, and offers one way to run a product step inside an open program (the program's
+  sessions and transaction stay `exec`'s); `testexec` walks a test plan, hands each product step to `exec`, runs the
+  verdict statements through `exec` and judges. The test half of `PlanRunner.program` (verdict groups, the host
+  sides' reads, the verdict savepoints, branches) moves to `testexec`; `ProgramSink`'s verdict hooks are deleted.
+- The judge mode and the judging rules leave `ExecuteOptions` for the test road's own options.
+- `TestPlanJson` writes the test steps and reuses `PlanJson` for every product node.
+- A test body with no assert IS a product plan, run by `exec` directly.
+
+Everything below that says "added to the plan" means the TEST plan; the product plan gains nothing.
+
 ### 4.1 What is added to the plan
 
 ```
@@ -177,7 +212,7 @@ takes the same shape, beside it:
 | `planner` | `testplan` (exists) | planning: for tests, the body's program (today), and ALL assert planning (moved in): the three judges' planners, the arms, `DatabaseJudge`, `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, the planning environment (`BodyDriver.ExecEnv`) |
 | `exec` | `testexec` (new; today's `judge` becomes it) | running: for tests, the body's sink, the judges' comparisons (`HostJudge`'s run half, `Equality`, `PureAsserts`, `TdsCompare`, the agreement rule, `assertError`'s judging), the database judge's root loop over the verdict rows. It depends on `exec`, never the reverse: the product runtime carries no test judging (D71) |
 | `Execution.run` | `Execution.runProgram` | the front door: plans with `testplan`, runs with `exec` + `testexec`; what `BodyRouter` does today, in the front door as the product's is |
-| `execution_plan` | `execution_plan` | the plan's records, the judgments and the rest of 4.1 to 4.6 included: one plan type for both |
+| `execution_plan` | `test_plan` (new, on `execution_plan`) | the plan types (4.0): the product's; the test's, with the judgments and the rest of 4.1 to 4.6 and the edge's part |
 
 Where each piece of today's `driver` goes:
 
@@ -185,7 +220,7 @@ Where each piece of today's `driver` goes:
 |---|---|
 | `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `AssertVerdicts`' arms, `DatabaseJudge`, `HostSides`, `JudgePlans`, `AssertBranch`, `LiteralFold`, `SeedSqlForms`, `VerdictArm`, `BodyDriver` (its environment), `SqlTextVerdicts`' planning half, `BodyRouter`'s classify-and-plan | `testplan` |
 | `BodyRouter$Moved` (the sink), `HostJudge`'s run half, `AgreementArm`, `AssertErrorNative`'s judging, `RunReader` (likely deleted: the runner reads every side off the plan) | `testexec` |
-| `HostJudgment`, `KindClass` (as data) | `execution_plan` |
+| `HostJudgment`, `KindClass` (as data) | `test_plan` |
 | `SystemDatabase` (the system store's session) | `exec` |
 | `Appeals`, `SqlTextVerdicts`' appeal and rows leg, `JudgeJson`'s compatibility grammar, the referee | the edge (P2) |
 | `BodyRouter`'s sequencing | `Execution.runProgram` |
@@ -204,31 +239,35 @@ cost first (one write and one read per body).
 
 ## 5. Decisions for the user
 
-1. **Compatibility data inside the plan** (the engine-text goldens, the appeals, the ledger texts), present only under
-   the compatibility rules and read only by the edge, rather than a separate attachment beside the plan. Recommended:
-   inside -- one artifact, one JSON, one round trip; the product run ignores it.
+1. **Compatibility data in the TEST plan's edge part** (4.0: the engine-text goldens, the appeals, the ledger texts),
+   present only under the compatibility rules and read only by the edge: one artifact, one JSON, and the product
+   plan never sees it.
 2. **A failure known at planning is data** (type and message); its planning-time stack trace is not kept.
 3. **The judges take exec's way with types** (4.6): the plan's type names and planning-time facts replace the
    compiler's `Type` at run. This touches every comparison, so it lands first, alone, held to identical verdicts on
    every lane.
 4. **Every lane runs the decoded plan** (4.8), permanently.
+5. **Two plan types** (4.0): the product's `ExecutionPlan` loses every test node; a `TestPlan` composes product steps
+   with the test's; `testexec` runs it through `exec`.
 
 ## 6. Order of work (each step compiles and keeps the fast loop green)
 
 1. The judges' types the exec way (4.6): `TypedSide`, `Equality`, `PureAsserts`, `TdsCompare` off the compiler's
    `Type`, onto the plan's type names and planning-time facts.
 2. Failures as data (4.4).
-3. Judgments and side shapes in the plan (4.2, 4.3); `HostJudgment`, `HostSides.Planned`, `JudgePlans.PlannedSide`
-   deleted from the run's view.
-4. The database judge's root loop from the plan (roots, `orElse`, refusals, messages); `VerdictBatch.Planned`'s
+3. The two plan types (4.0): `TestPlan` around `ExecutionPlan`; the test nodes leave the product's plan, runtime,
+   planner and options; `testexec` drives a test plan through `exec`.
+4. Judgments and side shapes in the test plan (4.2, 4.3); `HostJudgment`, `HostSides.Planned`,
+   `JudgePlans.PlannedSide` deleted from the run's view.
+5. The database judge's root loop from the test plan (roots, `orElse`, refusals, messages); `VerdictBatch.Planned`'s
    identity maps deleted; the batch's judge a plain function.
-5. The agreement pairing in the plan.
-6. The sidecar into the plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the plan.
-7. Appeals as data (4.5); the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures' `BooleanSupplier`s).
-8. Every lane runs the decoded plan (4.8).
-9. The move (4.7): all assert planning into `testplan`; the sink and the judging into `testexec` (today's `judge`);
-   the sequencing into `Execution.runProgram`; `driver` deleted; the deps pinned; R1-R4 hard.
-10. All lanes and an audit (the P1 milestone).
+6. The agreement pairing in the test plan.
+7. The sidecar into the test plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the test plan.
+8. Appeals as data in the edge part (4.5); the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures'
+   `BooleanSupplier`s).
+9. Every lane runs the decoded plan (4.8); the move (4.7): all assert planning into `testplan`, the sink and the
+   judging into `testexec`, the sequencing into `Execution.runProgram`, `driver` deleted, the deps pinned, R1-R4 hard.
+10. All lanes and an audit (the P1 milestone), held to the baseline of 2026-11-07 (GATES).
 
 ## 7. An example: `projection::limit::testSimpleLimit`, as it is planned today and as proposed
 
