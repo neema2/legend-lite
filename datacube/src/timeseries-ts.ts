@@ -11,7 +11,7 @@ import { filterNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal } from './snapshot.ts';
 import { isBand, isCandles, sourceAlias, sourcesOf, wholeOf } from './timeseries-expr.ts';
 import type { TsInputs } from './timeseries-query.ts';
-import { filterRead, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsSeries } from './timeseries-spec.ts';
+import { filterRead, paramValue, TS_SIGNATURES, writtenParams, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsSeries } from './timeseries-spec.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The answer's column of a series' value; a struct's fields are `ts_value_<field>` (R10). */
@@ -81,7 +81,7 @@ function refused(ts: TimeseriesSpec, e: Extract<TsExpr, { kind: 'call' }>): void
     if (isBand(a)) throw new CubeRefusal('a band is drawn, never read');
     if (isCandles(a)) throw new CubeRefusal('candles are drawn, never read');
   });
-  const param = (name: string): number | string | undefined => e.params?.[name] ?? sig.params.find((p) => p.name === name)?.default;
+  const param = (name: string): number | string | undefined => paramValue(e.fn, e.params, name);
   if (e.fn === 'basket') {
     const rebalance = String(param('rebalance'));
     if (!['daily', 'weekly', 'monthly'].includes(rebalance)) throw new CubeRefusal(`a basket rebalances daily, weekly or monthly, not ${JSON.stringify(rebalance)}`);
@@ -199,16 +199,17 @@ const DAILY = 'ts_daily';
 
 /** A parameter of a call, as written or its default. */
 function paramOf(e: Extract<TsExpr, { kind: 'call' }>, name: string): number | string {
-  return e.params?.[name] ?? TS_SIGNATURES[e.fn].params.find((p) => p.name === name)!.default;
+  const v = paramValue(e.fn, e.params, name);
+  if (v === undefined) throw new Error(`${e.fn}'s ${name} is neither told nor defaulted`);
+  return v;
 }
 
 /** A call's parameters, as the language takes them: the builder's own by place, the catalog's by name (R10), a base's
  *  `from` the tile's anchor. */
 function named(e: Extract<TsExpr, { kind: 'call' }>, anchor: string | undefined): string[] {
-  const written = TS_SIGNATURES[e.fn].params.map((p) => {
-    const v = e.params?.[p.name] ?? p.default;
-    return [p.name, p.kind === 'span' ? span(v as number | string) : p.kind === 'word' ? literal(String(v)) : String(v)] as const;
-  });
+  // each told, else its default; one of neither left out (the language's own: an annualization factor the frequency's)
+  const written = writtenParams(e.fn, e.params).map(([p, v]) =>
+    [p.name, p.kind === 'span' ? span(v) : p.kind === 'word' ? literal(String(v)) : String(v)] as const);
   const params = OWN.has(e.fn) ? written.map(([, v]) => v) : written.map(([n, v]) => `${n} => ${v}`);
   if (anchor !== undefined && BASED.has(e.fn)) params.push(`from => ${literal(anchor)}`);
   return params;
@@ -282,10 +283,7 @@ function writer(ts: TimeseriesSpec, expr: TsExpr, split: string | undefined, gra
         const sig = TS_SIGNATURES[e.fn];
         const roles: readonly (string | undefined)[] = e.fn === 'ohlc' ? CANDLE : (sig.reads ?? []);
         const args = e.args.map((a, i) => text(a, roles[i] === undefined ? undefined : ROLE[roles[i]!]));
-        const param = (name: string): number | string => {
-          const p = sig.params.find((x) => x.name === name)!;
-          return e.params?.[name] ?? p.default;
-        };
+        const param = (name: string): number | string => paramOf(e, name);
         switch (e.fn) {
           // the tile's row maths, SQL's (R3: per point)
           case 'log': return `ln(${args[0]})`;

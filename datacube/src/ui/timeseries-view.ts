@@ -24,12 +24,12 @@ import type { RunOutcome } from '../runner.ts';
 import { tsSeriesQuery } from '../timeseries-ts.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  marksName, MAX_HIST_BINS, projectionName, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, MIN_PROJECTION_WINDOW, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
+  begunParams, marksName, MAX_HIST_BINS, projectionName, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, MIN_PROJECTION_WINDOW, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
   type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsPoint, type TsProjection, type TsRangeWord, type TsSeries, type TsSource,
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, parseMatches, seriesName,
+  candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, paramOf, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
 import {
@@ -267,6 +267,14 @@ function select(doc: Document, options: readonly (readonly [string, string])[], 
   return s;
 }
 
+/** A parameter's default in words: the language's, else that every call gives it (gs-quant's beside it), else that
+ *  the language's call without it is its own. */
+function defaultWords(p: TsParam): string {
+  if (p.default !== undefined) return `default ${p.default}`;
+  if (p.required) return p.gsQuant === undefined ? 'always given' : `always given; gs-quant's ${p.gsQuant}`;
+  return 'optional';
+}
+
 function labelled(doc: Document, label: string, control: HTMLElement): HTMLLabelElement {
   const l = el(doc, 'label', 'dc-ts-field');
   l.append(el(doc, 'span', 'dc-ts-field-label', label), control);
@@ -278,7 +286,7 @@ function labelled(doc: Document, label: string, control: HTMLElement): HTMLLabel
  *  the span for a number; a bound it must be above or below kept out of reach. */
 function sliderRange(p: TsParam, at: number): readonly [number, number, number] {
   const count = p.kind !== 'number';
-  const most = p.max ?? p.below ?? Math.max(count ? 10 : 1, 4 * Math.max(Math.abs(Number(p.default)), Math.abs(at)));
+  const most = p.max ?? p.below ?? Math.max(count ? 10 : 1, 4 * Math.max(Math.abs(Number(p.default ?? at)), Math.abs(at)));
   // a number of neither end told (a filter's value, a power): either side of 0, as far down as up (the Phase 2 review's
   // 9: from 0, a filter's -0.02 went no lower)
   const open = !count && p.min === undefined && p.above === undefined && p.max === undefined && p.below === undefined;
@@ -2773,9 +2781,9 @@ export class TimeseriesView {
     const paintSliders = (): void => {
       const call = parsed?.tree.kind === 'call' ? parsed.tree : undefined;
       const f = call ? functionNamed(call.fn) : undefined;
-      const tunable = call && f ? f.params.filter((p) => p.kind !== 'word' && typeof (call.params?.[p.name] ?? p.default) === 'number') : [];
+      const tunable = call && f ? f.params.filter((p) => p.kind !== 'word' && typeof paramOf(call, p.name) === 'number') : [];
       sliders.replaceChildren(...tunable.map((p) => {
-        const at = Number(call!.params?.[p.name] ?? p.default);
+        const at = Number(paramOf(call!, p.name));
         const [lo, hi, step] = sliderRange(p, at);
         const range = el(doc, 'input', 'dc-ts-slider', undefined, {
           type: 'range', min: String(lo), max: String(hi), step: String(step), 'aria-label': `${f!.label}'s ${p.name}`, title: p.about,
@@ -2909,9 +2917,10 @@ export class TimeseriesView {
       // the expression first, then what the function reads beside it: another series, an if's branches, weights -- each
       // parameter its default, written (a window is always written: the language's §7)
       const args = f.series === 2 ? [inner, second] : f.series === 3 ? [inner, second, zero] : f.series === 'many' ? [inner, one, second, one] : [inner];
-      about.textContent = `${f.label}: ${f.about}${f.params.length ? ` Parameters: ${f.params.map((p) => `${p.name} (${p.about}; default ${p.default})`).join('; ')}.` : ''}${f.differs ? ` Differs from gs-quant's ${f.gsQuant}: ${f.differs}.` : ` gs-quant: ${f.gsQuant}.`}`;
+      about.textContent = `${f.label}: ${f.about}${f.params.length ? ` Parameters: ${f.params.map((p) => `${p.name} (${p.about}; ${defaultWords(p)})`).join('; ')}.` : ''}${f.differs ? ` Differs from gs-quant's ${f.gsQuant}: ${f.differs}.` : ` gs-quant: ${f.gsQuant}.`}`;
       fnSel.value = '';
-      await write({ kind: 'call', fn: f.name, args });
+      const begun = begunParams(f.name);
+      await write({ kind: 'call', fn: f.name, args, ...(begun === undefined ? {} : { params: begun }) });
     })());
     // how it is drawn
     const name = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Name', placeholder: 'Its expression' });
@@ -2992,7 +3001,8 @@ export class TimeseriesView {
     for (const f of TS_FUNCTIONS) {
       const reads = f.reads !== undefined ? [...f.reads] : f.series === 'many' ? ['x', 'wx', 'y', 'wy'] : f.series === 3 ? ['flags', 'x', 'y']
         : Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y'));
-      const sig = seriesText({ kind: 'call', fn: f.name, args: reads.map((r) => columnRef(r)) }, []);
+      const begun = begunParams(f.name);
+      const sig = seriesText({ kind: 'call', fn: f.name, args: reads.map((r) => columnRef(r)), ...(begun === undefined ? {} : { params: begun }) }, []);
       list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));
     }
     reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px.close, close[\'AAPL\'], close[venue = \'NYSE\', \'AAPL\'], sum(volume[\'AAPL\']). Series: A. Arithmetic: + - * /.'));

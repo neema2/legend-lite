@@ -1009,22 +1009,32 @@ legend_java_library(
         "//core:compiler",
         "//core:planner",
         "//core:protocol",
+        "//json",
     ],
 )
 
 java_run(
     name = "ts_catalog",
-    srcs = [":timeseries_model"],
+    srcs = [
+        ":timeseries_model",
+        # gs-quant's signatures as gs-quant reads them (tools/ts-oracle/signatures.py): its defaults beside the library's
+        "//projects:timeseries/gs-quant-signatures.json",
+    ],
     outs = [
         "generated/library-enums.gen.ts",
         "generated/ts-words.gen.ts",
         "generated/ts-words.gen.md",
+        "generated/ts-signatures.gen.ts",
+        "generated/ts-facts.gen.ts",
     ],
     arguments = [
         "$(execpath :timeseries_model)",
         "$(execpath generated/library-enums.gen.ts)",
         "$(execpath generated/ts-words.gen.ts)",
         "$(execpath generated/ts-words.gen.md)",
+        "$(execpath //projects:timeseries/gs-quant-signatures.json)",
+        "$(execpath generated/ts-signatures.gen.ts)",
+        "$(execpath generated/ts-facts.gen.ts)",
     ],
     main_class = "tscatalog.TsCatalogExport",
     visibility = ["//docs:__pkg__"],
@@ -1142,6 +1152,8 @@ write_source_files(
     files = {
         "src/generated/library-enums.ts": "generated/library-enums.gen.ts",
         "src/generated/ts-words.ts": "generated/ts-words.gen.ts",
+        "src/generated/ts-signatures.ts": "generated/ts-signatures.gen.ts",
+        "src/generated/ts-facts.ts": "generated/ts-facts.gen.ts",
         "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",

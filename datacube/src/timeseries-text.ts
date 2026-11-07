@@ -15,7 +15,7 @@
 import type { TsItemAnswer, TsNode } from './lite-planner.ts';
 import { CubeRefusal } from './snapshot.ts';
 import {
-  treeProblem, TS_SIGNATURES, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries,
+  treeProblem, TS_SIGNATURES, writtenParams, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries,
 } from './timeseries-spec.ts';
 
 /** The words whose parameters the language takes by place (the platform's builder's own: TsToPure's), the rest by
@@ -370,10 +370,16 @@ function written(e: TsExpr, min: number, ids: readonly string[]): string {
       const sig = TS_SIGNATURES[e.fn];
       const args = e.args.map((a) => written(a, 0, ids));
       const whole = WHOLE[e.fn];
-      const value = (name: string): number | string => e.params?.[name] ?? sig.params.find((p) => p.name === name)!.default;
-      const params = sig.params.map((p) => [p.name, paramText(e.fn, p.name, value(p.name))] as const);
-      const by = BY_PLACE.has(e.fn) || e.fn === 'power' || e.fn === 'floor' || e.fn === 'ceil'
-        ? params.map(([, v]) => v) : params.map(([n, v]) => `${n} => ${v}`);
+      // each told, else its default; one of neither left out -- by place only after the last one written
+      const given = writtenParams(e.fn, e.params);
+      const missing = sig.params.find((p) => p.required && !given.some(([q]) => q === p));
+      if (missing !== undefined) throw new TsTextRefusal(`${e.fn} is given its ${missing.name} in every call`);
+      const params = given.map(([p, v]) => [p.name, paramText(e.fn, p.name, v)] as const);
+      const placed = BY_PLACE.has(e.fn) || e.fn === 'power' || e.fn === 'floor' || e.fn === 'ceil';
+      if (placed && given.some(([p]) => sig.params.indexOf(p) >= given.length)) {
+        throw new TsTextRefusal(`${e.fn} takes its parameters by place: ${sig.params.map((p) => p.name).join(', ')}`);
+      }
+      const by = placed ? params.map(([, v]) => v) : params.map(([n, v]) => `${n} => ${v}`);
       return `${SPELLED[e.fn] ?? e.fn}(${[...args, ...(whole === undefined ? [] : [whole]), ...by].join(', ')})`;
     }
   }
@@ -521,11 +527,10 @@ export function told(e: TsExpr): TsExpr {
     case 'binary':
       return { ...e, left: told(e.left), right: told(e.right) };
     case 'call': {
-      const sig = TS_SIGNATURES[e.fn];
-      const params = Object.fromEntries(sig.params.map((p) => [p.name, e.params?.[p.name] ?? p.default]));
+      const params = Object.fromEntries(writtenParams(e.fn, e.params).map(([p, v]) => [p.name, v]));
       const { params: _, ...rest } = e;
       void _;
-      return { ...rest, args: e.args.map(told), ...(sig.params.length === 0 ? {} : { params }) };
+      return { ...rest, args: e.args.map(told), ...(Object.keys(params).length === 0 ? {} : { params }) };
     }
     case 'column': {
       const { where, ...rest } = e;

@@ -11,6 +11,7 @@ import {
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
 } from '../src/timeseries-expr.ts';
 import { TS_WORDS } from '../src/generated/ts-words.ts';
+import { WORD_FACTS } from '../src/generated/ts-facts.ts';
 import { completionsAt, offeredWords, treeOf, writtenText, type TsOffer } from '../src/timeseries-text.ts';
 
 const ROUND_TRIPS = [
@@ -177,16 +178,18 @@ describe('the expression language', () => {
     }
   });
 
-  it('every word\'s facts are the library\'s: the catalog says what the tile\'s own table says (A3 step 1)', () => {
+  it('every word\'s facts are the library\'s: the tile tells the catalog\'s own (A3 step 1; generated, the order\'s step 1)', () => {
     // the scalars become words in A4; not is the language's own form (if is the library's if_, read as if)
     const notWords = new Set(['abs', 'ceil', 'exp', 'floor', 'log', 'not', 'power', 'sqrt']);
     for (const [name, tile] of Object.entries(WORDS)) {
       const lib = TS_WORDS[name];
       if (notWords.has(name)) {
         assert.equal(lib, undefined, `${name} is no word of the library yet`);
+        assert.equal(WORD_FACTS[name], undefined, `${name} has no facts of the library's`);
         continue;
       }
       assert.ok(lib !== undefined, `${name} is the library's`);
+      assert.equal(tile, WORD_FACTS[name], `${name}'s facts are the generated ones themselves`);
       const facts = lib.facts;
       const one = (tag: string): string | undefined => {
         const values = facts[tag];
@@ -478,7 +481,7 @@ describe('candles', () => {
     assert.equal(exprText(e), 'ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])');
     assert.equal(unitOf(e), 'same');
     assert.equal(exprText(parseExpr('candles(o, h, l, c)')), 'ohlc(o, h, l, c)', 'by its other names');
-    assert.throws(() => parseExpr('ohlc(open, high, low)'), /ohlc reads four series \(its open, high, low and close\)/);
+    assert.throws(() => parseExpr('ohlc(open, high, low)'), /ohlc reads four series \(open, high, low and close\)/);
     assert.match(treeProblem({ kind: 'call', fn: 'ohlc', args: [{ kind: 'column', column: 'c' }] }, 'series A', ['px']) ?? '',
       /ohlc reads four series/);
   });

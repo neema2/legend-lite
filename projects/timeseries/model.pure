@@ -3864,95 +3864,95 @@ function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Numbe
     ->timeseries::residualPeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.', timeseries::Words.label = 'Tracking error', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'DataCube (an active return\'s volatility)', timeseries::Words.about = 'The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The annualized tracking error of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.', timeseries::Words.label = 'Tracking error', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'DataCube (an active return\'s volatility)', timeseries::Words.about = 'The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::tracking_error($x, $y, 63, $annualization_factor, $sample)
+  timeseries::line::tracking_error($x, $benchmark, 63, $annualization_factor, $sample)
 }
 
-function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::trackingError(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~pa, ~pb, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::trackingError(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~pa, ~pb, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::trackingErrorPeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.', timeseries::Words.label = 'Information ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (an active return\'s Sharpe ratio)', timeseries::Words.about = 'The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The annualized information ratio of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.', timeseries::Words.label = 'Information ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (an active return\'s Sharpe ratio)', timeseries::Words.about = 'The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::information_ratio($x, $y, 63, $annualization_factor, $sample)
+  timeseries::line::information_ratio($x, $benchmark, 63, $annualization_factor, $sample)
 }
 
-function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::informationRatio(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~pa, ~pb, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::informationRatio(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~pa, ~pb, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::line::helpers::annualizedPair($annualization_factor, $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::informationRatioPeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The up-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Up capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (an up-market capture ratio)', timeseries::Words.about = 'The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The up-market capture of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Up capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (an up-market capture ratio)', timeseries::Words.about = 'The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::up_capture($x, $y, 63, $sample)
+  timeseries::line::up_capture($x, $benchmark, 63, $sample)
 }
 
-function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::upCapture(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~pa, ~pb, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::upCapture(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~pa, ~pb, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::upCapturePeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The down-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Down capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (a down-market capture ratio)', timeseries::Words.about = 'The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The down-market capture of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Down capture', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (a down-market capture ratio)', timeseries::Words.about = 'The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).', timeseries::Words.pairs = 'returns', timeseries::Words.given = 'w: 63', timeseries::Words.limit = 'w: >= 0'} timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::down_capture($x, $y, 63, $sample)
+  timeseries::line::down_capture($x, $benchmark, 63, $sample)
 }
 
-function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::downCapture(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~pa, ~pb, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::downCapture(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~pa, ~pb, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
+  timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $benchmark->timeseries::line::returns(1, []), $sample)->timeseries::pairs(~x, ~y, ~pa, ~pb)
     ->timeseries::downCapturePeriod(~key, ~date, ~pa, ~pb, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
@@ -4205,7 +4205,7 @@ function {meta::pure::profiles::doc.doc = 'Each of x\'s values rounded up (SQL\'
   $x->extend(~line_v:r|if($r.value->isEmpty(), |[], |$r.value->toOne()->ceiling()->toFloat()))->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.', timeseries::Words.label = 'Which is greater', timeseries::Words.family = 'Math', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'analysis.compare', timeseries::Words.about = '1 where x is above y, -1 where below, 0 where equal.', timeseries::Words.differs = 'their dates combined as the tile\'s align says (gs-quant\'s method, default step)'} timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.', timeseries::Words.label = 'Which is greater', timeseries::Words.family = 'Math', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'analysis.compare', timeseries::Words.about = '1 where x is above y, -1 where below, 0 where equal.', timeseries::Words.differs = 'their dates combined as the tile\'s align says where no method is told (gs-quant\'s method, default step)', timeseries::Words.param = 'method: how x and y are aligned where told (gs-quant\'s Interpolate): step, each one\'s last value at or before every date either has; intersect, the dates both have; nan, none where one has none; zero, 0 there -- else as the tile\'s align says'} timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   if($fill->isEmpty(), |timeseries::line::compare($x, $y, timeseries::Interpolation.step, $sample),
     |timeseries::line::helpers::filled($x, $y, $sample, $fill)->timeseries::compare(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
@@ -4272,16 +4272,16 @@ function {meta::pure::profiles::doc.doc = 'x\'s rows before y\'s first, then y\'
   timeseries::line::helpers::spread($x, $y, $sample)->timeseries::prepend(~key, ~date, ~x, ~y, ~xo, ~yo, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\'s total_return).', timeseries::Words.label = 'Total return', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a total return index)', timeseries::Words.about = 'The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.', timeseries::Words.search = 'tr'} timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (gs-quant\'s total_return).', timeseries::Words.label = 'Total return', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a total return index)', timeseries::Words.about = 'The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.', timeseries::Words.search = 'tr'} timeseries::line::total_return<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], dividends: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+  timeseries::line::helpers::spread($price, $dividends, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
-// y a rate, accrued on each value's time: its number in time, in seconds since 1970 (#TS gives a line's own: its
+// dividends a yield, a rate accrued on each value's time: its number in time, in seconds since 1970 (#TS gives a line's own: its
 // date's, under SAMPLE BY its period's last tick's).
-function timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::total_return<K,D>(price: Relation<(key:K, date:D, time:Integer, value:Number)>[1], dividends: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::totalReturn(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+  $price->timeseries::totalReturn(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $dividends, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function {meta::pure::profiles::doc.doc = 'The excess returns of x over a cash index y (on the dates both have), or over a rate accrued actual/360 (gs-quant\'s excess_returns).', timeseries::Words.label = 'Excess returns', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'econometrics.excess_returns', timeseries::Words.about = 'x over a benchmark: over a cash index y, x\'s first value times the product of (1 + x\'s return - y\'s); over a rate (a number, 0.05 for 5%), x less the rate accrued on it day by day (actual/360).'} timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]

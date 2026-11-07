@@ -420,7 +420,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('from the start (w=0): a running total, a running mean', async () => {
     let acc = 0;
-    close((await line(spec({ A: 'sum(close[AAA])' }))).values, AAA.map((v) => (acc += v)), 'cumsum', 1e-7);
+    close((await line(spec({ A: 'sum(close[AAA], 0)' }))).values, AAA.map((v) => (acc += v)), 'cumsum', 1e-7);
     close((await line(spec({ A: 'mean(close[AAA], 0)' }))).values, AAA.map((_, i) => avg(AAA.slice(0, i + 1))), 'expanding mean', 1e-7);
   });
 

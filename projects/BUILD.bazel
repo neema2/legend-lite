@@ -11,7 +11,11 @@ load("//tools/legend:defs.bzl", "legend_graph_test", "legend_library")
 # the timeseries project's one file, read as it is by DataCube (its page's library text and option table) and by
 # core's //core:timeseries_library_test (docs/TS_LANGUAGE_BUILD_2026_10_30.md P1)
 exports_files(
-    ["timeseries/model.pure"],
+    [
+        "timeseries/model.pure",
+        # gs-quant 2.2.3's signatures, read from gs-quant itself (tools/ts-oracle/signatures.py): the builders' spelling
+        "timeseries/gs-quant-signatures.json",
+    ],
     visibility = ["//visibility:public"],
 )
 

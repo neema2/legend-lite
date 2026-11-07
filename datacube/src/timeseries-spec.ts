@@ -17,7 +17,7 @@
 // catalog and its reader alone -- the expression language and the rules against a grid's columns are the viewer's
 // (timeseries-expr.ts), fetched with the first timeseries tile.
 
-import { LIBRARY_ENUMS } from './generated/library-enums.ts';
+import { WORD_SIGNATURES } from './generated/ts-signatures.ts';
 import type { TimeGrain } from './chart-spec.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -373,28 +373,36 @@ export const PERIODS_PER_YEAR: Readonly<Record<TimeGrain, number>> = {
 
 // ------------------------------------------------------------------ the catalog's signatures
 
-export type TsFunctionName =
-  | 'returns' | 'prices' | 'diff' | 'lag' | 'index' | 'rebase' | 'change' | 'percent_change' | 'annualize'
-  | 'mean' | 'sum' | 'min' | 'max' | 'range' | 'std' | 'var' | 'zscores' | 'winsorize'
-  | 'volatility' | 'drawdown' | 'max_drawdown' | 'sharpe_ratio'
-  | 'correlation' | 'beta' | 'cov' | 'alpha' | 'r_squared' | 'hedge_ratio' | 'residual'
-  | 'bollinger_bands' | 'rsi' | 'ohlc'
-  | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
-  | 'smoothed_moving_average' | 'percentiles' | 'median' | 'percentile'
-  | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil'
-  | 'if' | 'not' | 'compare' | 'filter' | 'product' | 'geometrically_aggregate' | 'weighted_sum' | 'smooth_spikes'
-  | 'excess_returns' | 'vol_swap_volatility' | 'consecutive' | 'trend' | 'seasonally_adjusted'
-  | 'interpolate' | 'union' | 'append' | 'prepend' | 'first' | 'last' | 'count' | 'day' | 'month' | 'year' | 'quarter' | 'weekday'
-  | 'atr' | 'stochastic' | 'keltner_channels' | 'donchian_channels' | 'obv' | 'vwap'
-  | 'tracking_error' | 'information_ratio' | 'up_capture' | 'down_capture' | 'total_return' | 'basket'
-  | 'lead_lag' | 'dickey_fuller' | 'half_life';
+/** The words a tile draws, in the catalog's order: core's catalog's (generated/ts-signatures.ts) and SQL's per point
+ *  (log, power, floor, ...: {@link SCALARS}). */
+export const TS_FUNCTION_NAMES = [
+  'returns', 'prices', 'diff', 'lag', 'index', 'rebase', 'change', 'percent_change', 'annualize',
+  'mean', 'sum', 'min', 'max', 'range', 'std', 'var', 'zscores', 'winsorize',
+  'volatility', 'drawdown', 'max_drawdown', 'sharpe_ratio',
+  'correlation', 'beta', 'cov', 'alpha', 'r_squared', 'hedge_ratio', 'residual',
+  'bollinger_bands', 'rsi', 'ohlc',
+  'exponential_moving_average', 'exponential_std', 'exponential_volatility', 'exponential_spread_volatility', 'macd',
+  'smoothed_moving_average', 'percentiles', 'median', 'percentile',
+  'log', 'exp', 'sqrt', 'abs', 'power', 'floor', 'ceil',
+  'if', 'not', 'compare', 'filter', 'product', 'geometrically_aggregate', 'weighted_sum', 'smooth_spikes',
+  'excess_returns', 'vol_swap_volatility', 'consecutive', 'trend', 'seasonally_adjusted',
+  'interpolate', 'union', 'append', 'prepend', 'first', 'last', 'count', 'day', 'month', 'year', 'quarter', 'weekday',
+  'atr', 'stochastic', 'keltner_channels', 'donchian_channels', 'obv', 'vwap',
+  'tracking_error', 'information_ratio', 'up_capture', 'down_capture', 'total_return', 'basket',
+  'lead_lag', 'dickey_fuller', 'half_life',
+] as const;
+
+export type TsFunctionName = typeof TS_FUNCTION_NAMES[number];
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
- *  or a calendar period, `3m`), a number, or a word (a kind of return). */
+ *  or a calendar period, `3m`), a number, or a word (a kind of return) -- core's catalog's (generated/ts-signatures.ts). */
 export interface TsParamShape {
   readonly name: string;
   readonly kind: 'whole' | 'span' | 'number' | 'word';
-  readonly default: number | string;
+  /** The language's default, where a call leaves it out (the library's `timeseries::Words.given`, each proved its call
+   *  without it: TsIslandTest.everyWordsStatedDefaultIsItsCallWithoutIt); none where every call gives it (a mean's
+   *  window: the spec's §7) or the library's call without it is its own (an annualization factor: the frequency's). */
+  readonly default?: number | string;
   readonly words?: readonly string[];
   /** The least a number may be. */
   readonly min?: number;
@@ -404,6 +412,11 @@ export interface TsParamShape {
   readonly below?: number;
   /** The most a number may be (a percentile's: 100). */
   readonly max?: number;
+  /** Every call gives it (each of the word's overloads takes it). */
+  readonly required: boolean;
+  /** gs-quant's default of the parameter it names alike (gs-quant 2.2.3's, read from gs-quant itself): what a word is
+   *  begun with where the language has none (the builders' rule, docs/TS_DECISIONS_2026_11_07.md §4). */
+  readonly gsQuant?: number | string;
 }
 
 /**
@@ -413,8 +426,8 @@ export interface TsParamShape {
  * of them to.
  */
 export interface TsSignature {
-  /** One, two (a correlation's), three (an if's flags and its two branches), four (a candle's: its open, high, low and
-   *  close), or `many`: series and their weights in pairs (a weighted sum's). */
+  /** One, two (a correlation's), three (an if's condition and its two branches), four (a candle's: its open, high, low
+   *  and close), or `many`: series and their weights in pairs (a weighted sum's). */
   readonly series: 1 | 2 | 3 | 4 | 'many';
   /** What each series is, in order, where they are not x and y (a true range's high, low and close): said by its
    *  refusals and its reference. */
@@ -422,71 +435,55 @@ export interface TsSignature {
   readonly params: readonly TsParamShape[];
 }
 
-const W = (fallback: number): TsParamShape => ({ name: 'w', kind: 'span', default: fallback, min: 0 });
-const OBS: TsParamShape = { name: 'obs', kind: 'span', default: 1, min: 1 };
-// an option the library takes, its words the library's enumeration's (generated/library-enums.ts: one source)
-const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: LIBRARY_ENUMS.Returns };
-const num = (name: string, fallback: number, min?: number): TsParamShape =>
-  ({ name, kind: 'number', default: fallback, ...(min !== undefined ? { min } : {}) });
-/** A whole number of observations alone (a recursion's: Wilder's smoothing counts them). */
-const whole = (name: string, fallback: number, min = 1): TsParamShape => ({ name, kind: 'whole', default: fallback, min });
-/** An exponential average's weight of the one before, 0 to under 1 (gs-quant's beta: 0.75). */
-const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0, below: 1 };
-/** A deviation's beta, over 0: at 0 each value weighs alone, which has no deviation (pandas: none at every date; the E9
- *  review's 2, refused in words rather than drawn as nothing). */
-const SPREAD_BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, above: 0, below: 1 };
-const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
-/** A seasonal decomposition's model and its cycle (gs-quant's SeasonalModel and Frequency). */
-const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: LIBRARY_ENUMS.SeasonalModel };
-const CYCLE: TsParamShape = { name: 'freq', kind: 'word', default: 'year', words: ['year', 'quarter', 'month', 'week'] };
-
-/** A true range's series: a candle's high, low and close. */
-const HLC = ['high', 'low', 'close'] as const;
-/** A series against a benchmark, over a window: each one's simple returns, on the dates both have. */
-const AGAINST: TsSignature = { series: 2, reads: ['x', 'benchmark'], params: [W(63)] };
-
-/** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
-export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
-  returns: one(OBS, RETURN_TYPE), prices: one(num('initial', 1), RETURN_TYPE), diff: one(OBS), lag: one(OBS), annualize: one(),
-  index: one(num('initial', 1)), rebase: one(num('base', 100)), change: one(), percent_change: one(),
-  mean: one(W(22)), sum: one(W(0)), min: one(W(22)), max: one(W(22)), range: one(W(22)), std: one(W(22)), var: one(W(22)),
-  zscores: one(W(0)), winsorize: one(num('limit', 2.5, 0)),
-  volatility: one(W(22), RETURN_TYPE), drawdown: one(W(0)), max_drawdown: one(W(0)), sharpe_ratio: one(W(252)),
-  correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
-  alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
-  residual: { series: 2, params: [W(63)] },
-  // gs-quant's default, intersect (the Phase 1 review's 5)
-  interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'intersect', words: ['intersect', 'nan', 'zero', 'step'] }] },
-  // gs-quant's remaining functions (the next phases' 1, 2026-10-26)
-  if: { series: 3, params: [] }, not: one(), compare: { series: 2, params: [] },
-  filter: one({ name: 'operator', kind: 'word', default: 'empty', words: LIBRARY_ENUMS.FilterOperator }, num('value', 0)),
-  product: one(W(0)), geometrically_aggregate: one(), weighted_sum: { series: 'many', params: [] },
-  smooth_spikes: one(num('threshold', 0.5, 0), { name: 'type', kind: 'word', default: 'percentage', words: LIBRARY_ENUMS.ThresholdType }),
-  excess_returns: { series: 2, params: [] }, vol_swap_volatility: one(W(0)),
-  consecutive: one({ name: 'direction', kind: 'word', default: 'positive', words: LIBRARY_ENUMS.Direction }),
-  trend: one(SEASONAL_MODEL, CYCLE), seasonally_adjusted: one(SEASONAL_MODEL, CYCLE),
-  union: { series: 2, params: [] }, append: { series: 2, params: [] }, prepend: { series: 2, params: [] },
-  first: one(), last: one(), count: one(), day: one(), month: one(), year: one(), quarter: one(), weekday: one(),
-  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
-  exponential_moving_average: one(BETA), exponential_std: one(SPREAD_BETA), exponential_volatility: one(SPREAD_BETA),
-  exponential_spread_volatility: one(SPREAD_BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
-  smoothed_moving_average: one(whole('w', 14)),
-  percentiles: one(W(0)), median: one(W(22)), percentile: one({ name: 'n', kind: 'number', default: 50, min: 0, max: 100 }, W(0)),
-  log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
-  // the analysts' packs (the next phases' 4, 2026-10-26): technicals of a candle's columns, a benchmark's, a basket's, a
-  // pair's
-  atr: { series: 3, reads: HLC, params: [whole('w', 14)] },
-  stochastic: { series: 3, reads: HLC, params: [whole('w', 14)] },
-  keltner_channels: { series: 3, reads: HLC, params: [whole('w', 20), whole('a', 10), num('k', 2, 0)] },
-  donchian_channels: { series: 2, reads: ['high', 'low'], params: [W(20)] },
-  obv: { series: 2, reads: ['close', 'volume'], params: [] },
-  vwap: { series: 2, reads: ['price', 'volume'], params: [W(20)] },
-  tracking_error: AGAINST, information_ratio: AGAINST, up_capture: AGAINST, down_capture: AGAINST,
-  total_return: { series: 2, reads: ['price', 'dividends'], params: [] },
-  basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: LIBRARY_ENUMS.Rebalance }] },
-  lead_lag: { series: 2, params: [{ name: 'lag', kind: 'whole', default: 1, min: -252, max: 252 }, W(63)] },
-  dickey_fuller: one(W(0)), half_life: one(W(0)),
+/** SQL'S WORDS PER POINT, which no word of the library is yet (A4 makes them library words): their parameters gs-quant's
+ *  (gs-quant 2.2.3's timeseries.algebra, as inspect.signature reads it: power's y 1, floor's and ceil's value 0), each
+ *  given in every call -- the language writes them as SQL's (ln, power, greatest, least). */
+const SCALARS: Readonly<Partial<Record<TsFunctionName, TsSignature>>> = {
+  not: { series: 1, params: [] }, log: { series: 1, params: [] }, exp: { series: 1, params: [] },
+  sqrt: { series: 1, params: [] }, abs: { series: 1, params: [] },
+  power: { series: 1, params: [{ name: 'y', kind: 'number', required: true, gsQuant: 1 }] },
+  floor: { series: 1, params: [{ name: 'value', kind: 'number', required: true, gsQuant: 0 }] },
+  ceil: { series: 1, params: [{ name: 'value', kind: 'number', required: true, gsQuant: 0 }] },
 };
+
+/** The words whose window is the whole line, written after the series (`first(x, all)`, `last(x, whole)`): a tile's
+ *  holds no window (timeseries-text.ts WHOLE). */
+const WHOLE_LINE: ReadonlySet<TsFunctionName> = new Set(['first', 'last', 'count']);
+
+/** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order: core's catalog's,
+ *  generated (the order's step 1, 2026-11-07: the hand-kept table it replaced), SQL's per point the tile's own. */
+export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = Object.fromEntries(TS_FUNCTION_NAMES.map((name) => {
+  const own = SCALARS[name];
+  if (own !== undefined) return [name, own];
+  const sig = WORD_SIGNATURES[name];
+  if (sig === undefined) throw new Error(`the tile draws ${name}, which is no word of core's catalog`);
+  return [name, WHOLE_LINE.has(name) ? { ...sig, params: sig.params.filter((p) => p.name !== 'w') } : sig];
+})) as Record<TsFunctionName, TsSignature>;
+
+/** A call's parameter as written: told, else the language's default -- undefined where it is neither (an optional the
+ *  library has no default for: an annualization factor, the frequency's where not told). */
+export function paramValue(fn: TsFunctionName, params: Readonly<Record<string, number | string>> | undefined, name: string): number | string | undefined {
+  const p = TS_SIGNATURES[fn].params.find((q) => q.name === name);
+  if (p === undefined) throw new Error(`${fn} has no parameter ${name}`);
+  return params?.[name] ?? p.default;
+}
+
+/** A call's parameters as written, in their order: each told, else its default; one of neither left out. */
+export function writtenParams(fn: TsFunctionName, params: Readonly<Record<string, number | string>> | undefined): (readonly [TsParamShape, number | string])[] {
+  return TS_SIGNATURES[fn].params.flatMap((p) => {
+    const v = params?.[p.name] ?? p.default;
+    return v === undefined ? [] : [[p, v] as const];
+  });
+}
+
+/** What a word is begun with (a picked function's): each parameter every call gives and the language has no default for,
+ *  gs-quant's (a mean's window: gs-quant's Window(None, 0), every observation to date -- written, the spec's §7). An
+ *  optional one of no default is left to the language, whose call without it is the tile's own: a compare's alignment
+ *  its FILL, an annualization its frequency's. */
+export function begunParams(fn: TsFunctionName): Readonly<Record<string, number | string>> | undefined {
+  const begun = TS_SIGNATURES[fn].params.filter((p) => p.required && p.default === undefined && p.gsQuant !== undefined);
+  return begun.length === 0 ? undefined : Object.fromEntries(begun.map((p) => [p.name, p.gsQuant!]));
+}
 
 /**
  * A CALENDAR PERIOD as a window or a lag takes it (gs-quant's tenor, `helper._to_offset`): a whole number of days, weeks,
@@ -700,6 +697,9 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           }
         }
       }
+      // a parameter every call gives, given (a mean's window: the spec's §7)
+      const missing = f.params.find((q) => q.required && (!isRecord(params) || params[q.name] === undefined));
+      if (missing !== undefined) return `${what}: ${fn} is given its ${missing.name} in every call`;
       return null;
     }
   }

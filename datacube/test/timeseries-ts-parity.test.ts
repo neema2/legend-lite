@@ -283,7 +283,7 @@ const OWN_CASES: readonly (readonly [string, readonly string[]])[] = [
   ['px:close[symbol=SPX] / rates:yield[10Y]', []],
   ['close[venue="NY SE", 12, true]', []],
   ['volume[AAPL].sum + close.average + high.max + low.min + open.first + close.last', []],
-  ['percentile(close, 50, 3m) + mean(close, 0) + sum(close) + volatility(close, 1y, log)', []],
+  ['percentile(close, 50, 3m) + mean(close, 0) + sum(close, 0) + volatility(close, 1y, log)', []],
   ['first(close) + last(close) + count(close)', []],
   ['$A - $B2', ['A', 'B2']],
   ['correlation($A, close[SPX], 63)', ['A']],

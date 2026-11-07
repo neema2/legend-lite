@@ -133,7 +133,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['compare(x: Line, y: Line)', 'compare(x: Line, y: Line, method: Interpolation)', 'compare(x: Line, y: Float)', 'compare(x: Float, y: Line)'],
     doc: 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.',
     aliases: [],
-    facts: { label: ['Which is greater'], family: ['Math'], unit: ['number'], gsQuant: ['analysis.compare'], about: ['1 where x is above y, -1 where below, 0 where equal.'], differs: ['their dates combined as the tile\'s align says (gs-quant\'s method, default step)'] },
+    facts: { label: ['Which is greater'], family: ['Math'], unit: ['number'], gsQuant: ['analysis.compare'], about: ['1 where x is above y, -1 where below, 0 where equal.'], differs: ['their dates combined as the tile\'s align says where no method is told (gs-quant\'s method, default step)'], param: ['method: how x and y are aligned where told (gs-quant\'s Interpolate): step, each one\'s last value at or before every date either has; intersect, the dates both have; nan, none where one has none; zero, 0 there -- else as the tile\'s align says'] },
     marks: [],
   },
   consecutive: {
@@ -229,11 +229,11 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   down_capture: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'y', kind: 'line', takes: [], words: [], required: true },
+      { name: 'benchmark', kind: 'line', takes: [], words: [], required: true },
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
-    forms: ['down_capture(x: Line, y: Line)', 'down_capture(x: Line, y: Line, w: Integer)', 'down_capture(x: Line, y: Line, w: Scope)', 'down_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The down-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    forms: ['down_capture(x: Line, benchmark: Line)', 'down_capture(x: Line, benchmark: Line, w: Integer)', 'down_capture(x: Line, benchmark: Line, w: Scope)', 'down_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)'],
+    doc: 'The down-market capture of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
     facts: { label: ['Down capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (a down-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
@@ -389,12 +389,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   information_ratio: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'y', kind: 'line', takes: [], words: [], required: true },
+      { name: 'benchmark', kind: 'line', takes: [], words: [], required: true },
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
-    forms: ['information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
+    forms: ['information_ratio(x: Line, benchmark: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
+    doc: 'The annualized information ratio of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
     facts: { label: ['Information ratio'], family: ['Risk'], unit: ['number'], gsQuant: ['DataCube (an active return\'s Sharpe ratio)'], about: ['The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
@@ -826,11 +826,11 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   },
   total_return: {
     params: [
-      { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'y', kind: 'line_or_number', takes: [], words: [], required: true },
+      { name: 'price', kind: 'line', takes: [], words: [], required: true },
+      { name: 'dividends', kind: 'line_or_number', takes: [], words: [], required: true },
     ],
-    forms: ['total_return(x: Line, y: Line)', 'total_return(x: TimedLine, y: Float)'],
-    doc: 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\'s total_return).',
+    forms: ['total_return(price: Line, dividends: Line)', 'total_return(price: TimedLine, dividends: Float)'],
+    doc: 'The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (gs-quant\'s total_return).',
     aliases: [],
     facts: { label: ['Total return'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['DataCube (a total return index)'], about: ['The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.'], search: ['tr'] },
     marks: [],
@@ -838,12 +838,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   tracking_error: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'y', kind: 'line', takes: [], words: [], required: true },
+      { name: 'benchmark', kind: 'line', takes: [], words: [], required: true },
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
-    forms: ['tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
+    forms: ['tracking_error(x: Line, benchmark: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
+    doc: 'The annualized tracking error of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
     aliases: [],
     facts: { label: ['Tracking error'], family: ['Risk'], unit: ['percent'], gsQuant: ['DataCube (an active return\'s volatility)'], about: ['The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
@@ -874,11 +874,11 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
   up_capture: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
-      { name: 'y', kind: 'line', takes: [], words: [], required: true },
+      { name: 'benchmark', kind: 'line', takes: [], words: [], required: true },
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
-    forms: ['up_capture(x: Line, y: Line)', 'up_capture(x: Line, y: Line, w: Integer)', 'up_capture(x: Line, y: Line, w: Scope)', 'up_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The up-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    forms: ['up_capture(x: Line, benchmark: Line)', 'up_capture(x: Line, benchmark: Line, w: Integer)', 'up_capture(x: Line, benchmark: Line, w: Scope)', 'up_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)'],
+    doc: 'The up-market capture of x\'s simple returns against the benchmark\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
     aliases: [],
     facts: { label: ['Up capture'], family: ['Risk'], unit: ['ratio'], gsQuant: ['DataCube (an up-market capture ratio)'], about: ['The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).'], pairs: ['returns'], given: ['w: 63'], limit: ['w: >= 0'] },
     marks: [],
