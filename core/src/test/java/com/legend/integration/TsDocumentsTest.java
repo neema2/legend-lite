@@ -355,10 +355,10 @@ class TsDocumentsTest {
     /** The examples not run on a lane's database, by {@code <database> <id>}, each why: an example that never finishes
      *  there, until its named open item lands (none may be a wrong answer: those are DIFFERS rows). */
     private static final Map<String, String> UNRUN = Map.of(
-            "clickhouse spec-15", "never finishes: ClickHouse inlines a WITH relation at each read (spec-15's 111 KB"
-                    + " statement is 2.8 MB inlined, __let5's windows computed hundreds of times) and 25.8 has no"
-                    + " materialized CTE; a relation read many times staged once as a session's temporary table,"
-                    + " docs/TS_DECISIONS_2026_11_07.md item 9b (decision 16 (b))");
+            "postgres spec-16", "past the lane's 120 s on Postgres (DuckDB: under a second): its calendar-period pair"
+                    + " words (beta over 1y, r_squared over 3mo, every equity) are self-joins over each line's period,"
+                    + " which Postgres runs as a nested comparison per line; docs/TS_DECISIONS_2026_11_07.md item 18"
+                    + " (Postgres's performance, with F3 and F4)");
 
     /**
      * THE DOCUMENTS' EXAMPLES ON A V1 DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9b, 2026-11-07: ClickHouse a v1
