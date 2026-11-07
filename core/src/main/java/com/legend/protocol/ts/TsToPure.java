@@ -1696,8 +1696,8 @@ public final class TsToPure {
                     }
                     if (!p.one()) {
                         throw invalid(key(c) + " goes through " + step.text() + ", which holds many: a path follows"
-                                + " an association to one object (a row per element is a later FLATTEN, R1)",
-                                step.pos());
+                                + " an association to one object -- read the many side as a source of its own,"
+                                + " navigating to one (register S153)", step.pos());
                     }
                     names.add(p.name());
                     boolean last = i == c.parts().size() - 1;

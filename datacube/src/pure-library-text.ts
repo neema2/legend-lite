@@ -2813,7 +2813,7 @@ function timeseries::rows::beta<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K�
 
 function timeseries::rows::beta<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 2, ~rows_v)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::beta(over($key, [$date->ascending()], rows(unbounded(), 0)), $x, $y, 3, ~rows_v)
     ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
     ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
 }
@@ -3730,7 +3730,7 @@ function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)
-    ->timeseries::beta(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::beta(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~x, ~y, 3, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]

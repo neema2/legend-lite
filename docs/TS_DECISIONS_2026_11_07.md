@@ -144,8 +144,8 @@ Each phase ends green; the status column is updated in the commit that does the 
 
 | # | Item | Decision | State |
 |---|---|---|---|
-| 1 | Record the rulings: S151's row, R9's row (FILL(PREV) the way to step), to-many's row | 1, 3, 6 | |
-| 2 | R1's rows: `Window(w, r)`; `returns`' `logarithmic` and `absolute`; `beta`'s first three blanked; `sharpe_ratio`'s departure row | 4 | |
+| 1 | Record the rulings: S151's row, R9's row (FILL(PREV) the way to step), to-many's row | 1, 3, 6 | done 2026-11-07: S151 ruled, S152 (R9: the dates both have; `FILL(PREV)` gs-quant's step but its backfill, read in gs-quant's `datetime.py` `align`), S153 (to-many refused; its message names the fix, no longer "a later FLATTEN"); the spec says a WITH body is one source and a join a navigation |
+| 2 | R1's rows: `Window(w, r)`; `returns`' `logarithmic` and `absolute`; `beta`'s first three blanked; `sharpe_ratio`'s departure row | 4 | done 2026-11-07 but two parts moved: `beta` to date from its third return as gs-quant's (S154, `w = 2` one point earlier, named), `sharpe_ratio`'s row (S155); `absolute` was there already. **Moved to item 13 (B3)**: `Window(w, r)` -- re-costed M-L, not S: a ramp apart from the window touches both forms of some 30 words, and gs-quant's `rolling(w, 0)` computes partial windows after the ramp -- and `logarithmic` as gs-quant's spelling, both of which the Python DSL brings (`Window`, `Returns.LOGARITHMIC`) |
 | 3 | A10: an independent review of `1e8d02b63` and after; its findings fixed | -- | |
 | 4 | Scalar parameters in `#TS` | 7 | |
 | 5 | Values as a word's arguments; guide-06 runs | 8 | |

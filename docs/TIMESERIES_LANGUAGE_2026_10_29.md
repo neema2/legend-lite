@@ -64,7 +64,10 @@ A source is any of four things (the user, 2026-10-30, for Class models):
 1. **A class, read as objects** (object mode): `FROM MarketQuote ON quoteTime BY instrument.ticker`. Its properties
    are its columns, and a dotted path follows an association to one object (`instrument.sector.name`), wherever a
    column may be named: `ON`, `BY`, a line, a subscript, a condition. Only the paths a query reads are read. A path
-   through a to-many association is refused (one row per element is a later `FLATTEN`, Snowflake's word for it).
+   through a to-many association is refused, naming the fix: the many side read as a source of its own, navigating to
+   one (`FROM (SELECT instrument.ticker AS ticker, tradeDate, quantity FROM Trade) t ON tradeDate BY ticker`; the user,
+   2026-11-06, register S153 -- upstream's `project()` explodes a row per element, which would repeat the one side's
+   values and multiply a period's sums).
    The result names a path's column by its last step (`ticker`); two paths ending alike are refused, asking for a
    flat source instead.
 2. **A subquery, flat** (flat mode): `FROM (SELECT instrument.ticker AS ticker, quoteTime, closePrice AS close FROM
@@ -96,9 +99,12 @@ WITH daily AS TS (SELECT close['SPX'] / close['QQQ'] AS r FROM prices ON date BY
 ```
 
    The mark sits in Postgres's own place between `AS` and the parenthesis (`AS MATERIALIZED (...)`; the user,
-   2026-10-31). A subquery without it is SQL's (3), Postgres's meaning, joins and all (`JOIN instruments i ON ...` is a
-   join's `ON`); one without it that reads a source `ON` its date, or says `SAMPLE BY`, `FILL` or `FILTER`, is refused
-   with the fix: "this subquery is a query of the language's own: write WITH daily AS TS (SELECT ...)".
+   2026-10-31). A subquery without it is SQL's (3), Postgres's meaning, over one source: `SELECT items FROM source
+   [WHERE condition]`. A join is a model navigation (`instrument.sector.name`, a class's association to one; the user,
+   2026-11-06: "joins should be model navigations"), never a `JOIN` in the subquery, which is refused naming its
+   clause; one without the mark that reads a source `ON` its date, or says `SAMPLE BY`, `FILL` or `FILTER`, is refused
+   with the fix: "this subquery is a query of the language's own: write WITH daily AS TS (SELECT ...)". Plain SQL over
+   series queries (§8) is SQL's whole, its joins included.
 
 - `ON` names the date column; `BY` the column naming each row's instrument (a symbol, a tenor, a series). `BY` is left
   out where the source has one instrument: its columns are then lines with no subscript (`total_volume`), a

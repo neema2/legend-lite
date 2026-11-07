@@ -906,6 +906,40 @@ class TsIslandTest {
     }
 
     /**
+     * R1's beta row (docs/TS_DECISIONS_2026_11_07.md decision 4): gs-quant 2.2.3's beta blanks its first three values
+     * (econometrics.py:1053, result[0:3] = nan, over a returns series whose first is none) -- to date, its first value
+     * the third returns point's, which the library's to-date form now gives; each value the sample covariance of the
+     * returns over the benchmark's sample variance, worked here as arithmetic.
+     */
+    @Test
+    void betaToDateStartsAtItsThirdReturnAsGsQuants() throws Exception {
+        int n = AAA.length;
+        double[] a = new double[n - 1];
+        double[] b = new double[n - 1];
+        for (int i = 1; i < n; i++) {
+            a[i - 1] = AAA[i] / AAA[i - 1] - 1;
+            b[i - 1] = BBB[i] / BBB[i - 1] - 1;
+        }
+        Double[] want = each(n - 3, j -> {
+            int k = j + 3;
+            double ma = meanOf(a, 0, k - 1);
+            double mb = meanOf(b, 0, k - 1);
+            double cov = 0;
+            double var = 0;
+            for (int i = 0; i < k; i++) {
+                cov += (a[i] - ma) * (b[i] - mb);
+                var += (b[i] - mb) * (b[i] - mb);
+            }
+            return cov / var;
+        });
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT beta(CLOSE['AAA'], CLOSE['BBB'], all) AS bt"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(want, column(got, null, null, "bt"), backend + ": beta to date, from its third return");
+        }
+    }
+
+    /**
      * PLAIN SQL OVER A SERIES QUERY (the spec's §8, example spec-05): after its WITHs, a SELECT that reads only the names
      * of WITH ... AS TS queries, none dated by ON, is SQL's own -- its aggregates Postgres's -- over each query's answer,
      * read as a table; on every in-process database.
