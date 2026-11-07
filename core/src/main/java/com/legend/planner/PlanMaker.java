@@ -435,8 +435,11 @@ public final class PlanMaker {
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), rows), state.runtime(), i,
                 state.features(), state.frames());
         Prepared.Planned sp = ProductStatements.planned(st);
+        // a relation read more than once written once, but where the engine's CTE extraction names the statement's
+        // subqueries itself (as ProductStatements.lower: the third review's finding 6, 2026-11-07)
         Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
-                withStamps(state.slots(), state.frames()), state.sites());
+                withStamps(state.slots(), state.frames()), state.sites())
+                .sharingRelations(!sp.env().postProcessors().extractCtes());
         SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
                 ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
                         sp.env()))), st.reads().definitions());

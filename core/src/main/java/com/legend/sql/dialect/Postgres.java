@@ -1832,7 +1832,8 @@ public final class Postgres extends AnsiSqlRenderer {
         SqlType slot = c.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
+            writer.append(" WHEN ");
+            condition(writer, w.condition()).append(" THEN ").piece(branch(w.then(), slot));
         }
         if (c.otherwise() != null) {
             writer.append(" ELSE ").piece(branch(c.otherwise(), slot));

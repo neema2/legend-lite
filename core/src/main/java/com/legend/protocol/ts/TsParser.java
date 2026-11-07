@@ -157,9 +157,10 @@ public final class TsParser {
                 Token before = i > 0 ? lexed.get(i - 1) : null;
                 boolean call = before != null && (before.kind() == Kind.QUOTED_IDENT
                         || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
-                // a quoted name too ("log"(x)): the reader calls the same function (the second review's finding 3)
-                String refused = before != null && call
-                        ? REFUSED_CALLS.get(before.text().toLowerCase(java.util.Locale.ROOT)) : null;
+                // a quoted name too ("log"(x)): the reader calls the same function (the second review's finding 3) --
+                // only that exact name, as Postgres reads a quoted one ("LOG"(x) names no function: the third review)
+                String refused = before == null || !call ? null : REFUSED_CALLS.get(before.kind() == Kind.QUOTED_IDENT
+                        ? before.text() : before.text().toLowerCase(java.util.Locale.ROOT));
                 if (before != null && refused != null) {
                     throw invalid(refused, before.pos());
                 }

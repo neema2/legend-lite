@@ -965,7 +965,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (3 < parentPrec) {
             writer.append("(");
         }
-        writer.append("NOT ").expr(a.get(0), 3);
+        writer.append("NOT ");
+        booleanOperand(writer, a.get(0), 3);
         if (3 < parentPrec) {
             writer.append(")");
         }
@@ -1235,7 +1236,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(w.then(), 0);
+            writer.append(" WHEN ");
+            condition(writer, w.condition()).append(" THEN ").expr(w.then(), 0);
         }
         if (c.otherwise() != null) {
             writer.append(" ELSE ").expr(c.otherwise(), 0);
@@ -1996,7 +1998,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .expr(read.projections().get(i).expr(), 0);
         }
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }
@@ -2007,7 +2009,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlWriter writer = newWriter().append("DELETE FROM ").append(ddlQualified(dw.schema(), dw.table(), dw.quoting()))
                 .append(" AS ").append(aliasIdent(dw.alias()));
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }

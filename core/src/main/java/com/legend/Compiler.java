@@ -87,7 +87,9 @@ public final class Compiler {
      * alone (docs/TS_V1_PROGRAM_2026_11_01.md A5, the user's option (c), 2026-11-06: "on the wire but compiled once
      * and held") -- and for one thing more exact: a place in the library (a refusal it raises names where) is its line
      * in the library's own text, where the one text counts the model's lines before it. An element of {@code model} that the library defines too is refused, as the one text refuses it:
-     * "Duplicated element", or a signature repeated (the integrity check over a held layer, ModelIntegrity.check).
+     * "Duplicated element", or a signature repeated (the integrity check over a held layer, ModelIntegrity.check), or
+     * a platform function both declare. What the layer cannot answer as the one text would is refused by name: an
+     * association of a library class (the one text adds its properties to that class).
      */
     public static ModelContext compileModel(String model, String library) {
         Objects.requireNonNull(model, "model");
@@ -99,6 +101,15 @@ public final class Compiler {
             ParsedModel resolved = NameResolver.resolveAlongside(parsed, known, null);
             refuseAssociationsOfTheLibrary(resolved, lib);
             Layer layer = normalizeWithSystem(resolved, null, lib);
+            for (com.legend.model.FunctionId id : layer.adopted()) {
+                if (lib.adopted().contains(id)) {
+                    // the one text holds both declarations of the platform's function: refused as it refuses them
+                    // (the third review's finding 3, 2026-11-07)
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                            "function '" + id.qualified() + "' is defined more than once: in the model and in the"
+                                    + " library it is compiled over", id.qualified());
+                }
+            }
             return PureModelContext.from(layer.model(), layer.index(), null, lib.checked().without(layer.adopted()),
                     com.legend.lowering.PlatformRegistrations.current());
         } catch (com.legend.error.ModelException e) {
@@ -771,6 +782,18 @@ public final class Compiler {
             } else {
                 throw new com.legend.error.MappingResolutionException(
                         "connection '" + connFqn + "' of runtime '" + runtimeFqn + "' is not defined", runtimeFqn);
+            }
+        }
+        for (var c : connections.entrySet()) {
+            if (!c.getValue().rowMappers().isEmpty()) {
+                // upstream maps the tables a query on it reads (postprocessor.pure: tableMapperPostProcessor,
+                // relationalMapperPostProcessor); lite applies a connection element's mappers not yet, and reading
+                // the tables as written would answer other rows -- refused, never ignored (AGENTS.md invariant 4;
+                // the third review, 2026-11-07; docs/TS_DECISIONS_2026_11_07.md)
+                throw new com.legend.error.NotImplementedException("connection '" + c.getKey() + "' of runtime '"
+                        + runtimeFqn + "' declares post-processors that map its tables (" + String.join(", ",
+                        c.getValue().rowMappers()) + "), which lite does not apply yet: a query on it would read the"
+                        + " tables as written, not as they map them");
             }
         }
         var types = new java.util.TreeMap<String, com.legend.model.ConnectionDefinition.DatabaseType>();

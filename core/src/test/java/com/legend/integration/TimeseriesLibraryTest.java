@@ -295,6 +295,26 @@ class TimeseriesLibraryTest {
     }
 
     /**
+     * A library that declares one of the platform's own functions (extractDBs(Mapping): it keeps its declaration and
+     * takes the platform's body, PlatformPureTest) holds it once for every model over it; a model that declares it too
+     * is refused, as the one text refuses the two (the third review's findings 3 and 4, 2026-11-07).
+     */
+    @Test
+    void aLibrarysPlatformFunctionIsOneFunctionAndTheModelsSecondIsRefused() {
+        String twin = "function meta::relational::runtime::extractDBs(m: meta::pure::mapping::Mapping[1]):"
+                + " meta::relational::metamodel::Database[*] { [] }\n";
+        String library = "###Pure\nClass lib::Thing\n{\n  name: String[1];\n}\n" + twin;
+        String model = "###Pure\nClass my::Mine\n{\n  a: Integer[1];\n}\n";
+        assertEquals(1, Compiler.compileModel(model, library).findFunction("meta::relational::runtime::extractDBs")
+                .size(), "one function at the platform's id over the library, as in the one text");
+        com.legend.error.LegendCompileException layered = assertThrows(com.legend.error.LegendCompileException.class,
+                () -> Compiler.compileModel("###Pure\n" + twin, library));
+        assertTrue(layered.getMessage().contains("defined more than once"), layered.getMessage());
+        assertThrows(com.legend.error.LegendCompileException.class, () -> Compiler.compileModel("###Pure\n" + twin
+                + "\n" + library), "the one text refuses the two too");
+    }
+
+    /**
      * What a model over a library cannot do as the one text does is refused by name, never answered otherwise (the
      * second review's finding 6, 2026-11-06): an association with a library class at an end -- the one text adds its
      * properties to that class, the layer's class is every model's. A library that does not compile is placed in its

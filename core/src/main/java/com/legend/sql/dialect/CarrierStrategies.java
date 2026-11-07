@@ -504,6 +504,12 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     private static void flattenAnd(SqlExpr e, List<SqlExpr> out) {
+        // a parenthesized conjunction is one (the library's as-of match, (bd IS NOT NULL AND at >= bd): the third
+        // review's Postgres lane, 2026-11-07)
+        if (e instanceof SqlExpr.Group g) {
+            flattenAnd(g.inner(), out);
+            return;
+        }
         if (e instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.AND) {
             for (SqlExpr a : c.args()) {

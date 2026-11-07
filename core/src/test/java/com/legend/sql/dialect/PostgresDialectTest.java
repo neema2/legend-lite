@@ -58,6 +58,11 @@ class PostgresDialectTest {
         // and an operand of AND, which Postgres requires to be boolean as well ("argument of AND must be type boolean")
         String and = plan("->filter(r|($r.qty > 1) && fail('no'))");
         assertTrue(and.contains("AS VARCHAR) AS BOOLEAN)"), and);
+        // NOT's operand and a CASE's condition too (the third review's finding 7, 2026-11-07)
+        String not = plan("->filter(r|!fail('no'))");
+        assertTrue(not.contains("NOT CAST(") && not.contains("AS VARCHAR) AS BOOLEAN)"), not);
+        String when = plan("->extend(~k: r|if(fail('no'), |1, |2))");
+        assertTrue(when.contains("WHEN CAST(") && when.contains("AS VARCHAR) AS BOOLEAN)"), when);
     }
 
     @Test

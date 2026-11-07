@@ -103,7 +103,6 @@ class TsIslandTest {
         return Files.readString(Runfile.property("timeseries.library"), StandardCharsets.UTF_8);
     }
 
-    /** The store, the classes, a runtime on {@code backend}'s session, and (with {@code library}) the library. */
     /** The databases each test runs on: every in-process one, or the one the lane names ({@code -Dts.backend}: the
      *  Postgres lane, docs/TS_V1_PROGRAM_2026_11_01.md B1, its embedded server). */
     private static List<TestBackend> backends() {
@@ -111,6 +110,7 @@ class TsIslandTest {
         return named == null ? TestBackends.inProcess() : List.of(TestBackends.named(named));
     }
 
+    /** The store, the classes, a runtime on {@code backend}'s session, and (with {@code library}) the library. */
     private static String model(TestBackend backend, boolean library) throws java.io.IOException {
         return STORE + CLASSES + """
                 ###Connection
@@ -256,7 +256,15 @@ class TsIslandTest {
     /** The database a query of many lines is held to here: the platform's (one in-process planner re-renders every
      *  nested derived table at each level, and runs out of memory on a FILL's or a SAMPLE BY's, 2026-10-30). */
     private static List<TestBackend> deep() {
-        return List.of(TestBackends.platform());
+        return List.of(one());
+    }
+
+    /** The one database a case of one database runs on: the lane's (-Dts.backend, the Postgres lane), else the
+     *  platform's (the third review, 2026-11-07: the Postgres lane ran these on DuckDB). A case that pins the
+     *  platform's SQL text keeps the platform's dialect. */
+    private static TestBackend one() {
+        String named = System.getProperty("ts.backend");
+        return named == null ? TestBackends.platform() : TestBackends.named(named);
     }
 
     /** The mean of three observations as gs-quant's mean(x, 3): its first three points dropped (helper.apply_ramp,
@@ -586,7 +594,7 @@ class TsIslandTest {
         // database has it (DuckDB's)
         List<List<Integer>> weeks = weeks();
         String source = "(PRICES WHERE SYMBOL = 'AAA' OR DAY <> '2024-01-28')";
-        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT last(CLOSE['AAA']) AS a,"
+        List<Map<String, String>> got = rows(one(), "|#TS{SELECT last(CLOSE['AAA']) AS a,"
                 + " last(CLOSE['BBB']) AS b, first(CLOSE['AAA']) AS f FROM " + source + " ON DAY BY SYMBOL SAMPLE BY 1w}#");
         assertClose(weeks.stream().map(w -> AAA[w.get(w.size() - 1)]).toArray(Double[]::new),
                 column(got, null, null, "a"), "each week's last");
@@ -652,7 +660,7 @@ class TsIslandTest {
                 days.add(i);
             }
         }
-        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT avg(CLOSE['AAA'], 3d) AS cal,"
+        List<Map<String, String>> got = rows(one(), "|#TS{SELECT avg(CLOSE['AAA'], 3d) AS cal,"
                 + " avg(CLOSE['AAA'], 3) AS obs FROM (PRICES WHERE SYMBOL = 'AAA' AND DAY <> '2024-01-25') ON DAY"
                 + " BY SYMBOL}#");
         // R6: no row on the 20th, the 21st and the 22nd, where neither has a value (a span's from three days on,
@@ -679,7 +687,7 @@ class TsIslandTest {
     @Test
     void aSpanBackIsAsOfThatDateAndADateWindowRunsFromIt() throws Exception {
         // R9: returns(x, 1w) against the value as of a week back; R4: sum(x, '2024-01-25') the total since the 25th
-        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT returns(CLOSE['AAA'], 1w) AS wk,"
+        List<Map<String, String>> got = rows(one(), "|#TS{SELECT returns(CLOSE['AAA'], 1w) AS wk,"
                 + " sum(CLOSE['AAA'], '2024-01-25') AS since, lag(CLOSE['AAA'], 2d) AS two FROM PRICES ON DAY"
                 + " BY SYMBOL}#");
         // R6: no row on the 20th and the 21st, where no item has a value
@@ -1029,7 +1037,7 @@ class TsIslandTest {
                     + " SYMBOL) SELECT count(*) AS n FROM s JOIN t ON s.DAY = t.DAY}#");
             assertEquals(String.valueOf(n - 1), joined.get(0).get("n"), backend + ": the dates both have");
             List<Map<String, String>> offset = rows(backend, "|#TS{WITH s AS TS (SELECT returns(CLOSE['AAA']) AS a"
-                    + " FROM PRICES ON DAY BY SYMBOL) SELECT a FROM s ORDER BY DAY OFFSET 2}#");
+                    + " FROM PRICES ON DAY BY SYMBOL) SELECT a FROM s OFFSET 2}#");
             assertEquals(n - 3, offset.size(), backend + ": OFFSET 2");
         }
     }
@@ -1080,9 +1088,6 @@ class TsIslandTest {
                 if (q.contains("['AAA']")) {
                     query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"
                             + " PRICES q ON DAY BY SYMBOL}#";
-                }
-                if (q.contains("2d) AS l") && !deep().contains(backend)) {
-                    continue; // a lag as of a date is an as-of join, which H2's and SQLite's dialects have none of
                 }
                 String run = query;
                 Exception e = assertThrows(Exception.class, () -> rows(backend, run), backend + ": " + q);
@@ -1180,7 +1185,7 @@ class TsIslandTest {
     void aWindowCountsAnyWholeNumberOfObservations() throws Exception {
         // as gs-quant's Window(w) (the user, 2026-11-02): no cap of 100,000; a window longer than the line never fills,
         // so no row has a value
-        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT avg(CLOSE['AAA'], 250000) AS ma"
+        List<Map<String, String>> got = rows(one(), "|#TS{SELECT avg(CLOSE['AAA'], 250000) AS ma"
                 + " FROM PRICES ON DAY BY SYMBOL}#");
         assertEquals(List.of(), got, "a window of 250,000 observations over 12 never fills");
     }
@@ -1367,7 +1372,7 @@ class TsIslandTest {
                         + " SAMPLE BY 1d",
                 "ohlc(first(" + x + "), max(" + x + "), min(" + x + "), " + last + ") AS v FROM PRICES ON DAY BY SYMBOL"
                         + " SAMPLE BY 1w"));
-        TestBackend backend = TestBackends.platform();
+        TestBackend backend = one();
         com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
         List<String> failed = new ArrayList<>();
         for (String call : calls) {
@@ -1962,7 +1967,7 @@ class TsIslandTest {
 
     @Test
     void aQueryPrintedAnswersTheSameRows() throws Exception {
-        TestBackend backend = TestBackends.platform();
+        TestBackend backend = one();
         com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
         for (String text : PRINTED) {
             if (text.contains("3mo AS z")) {
@@ -1984,7 +1989,7 @@ class TsIslandTest {
     @Test
     void aQueryOverGridsIsOneStatementThatAnswersTheSameRows() throws Exception {
         // D12: each grid bound by let, the island reading it -- as one statement, each grid a flat source by WITH
-        TestBackend backend = TestBackends.platform();
+        TestBackend backend = one();
         com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
         Map<String, String> queries = new LinkedHashMap<>();
         queries.put("a table", "|let px = #>{ts::DB.PRICES}#; #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $px ON DAY BY"
