@@ -3707,12 +3707,14 @@ function timeseries::line::helpers::annualizedPair<K,D>(m: Relation<(key:K, date
     ->select(~[key, date, x, y, py])
 }
 
-// A line's value k observations before (a lag), or -k after where k is negative (a lead), on its own rows: none before
-// its first, or after its last. Both read, the database choosing by k's sign.
+// A line shifted k observations: each date's the value k observations before it (k < 0: after it), none where there
+// is none -- one LAG of k, signed: a LAG of -1 is a LEAD of 1 (DuckDB's, Postgres's and Snowflake's own; ClickHouse's
+// dialect picks lagInFrame or leadInFrame by the sign), never of ABS(k), whose computed offset Snowflake refuses
+// ("argument 1 to function LAG needs to be constant, found 'ABS(1)'"; each measured 2026-11-07,
+// docs/TS_DECISIONS_2026_11_07.md item 10).
 function timeseries::line::helpers::shifted<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], k: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->extend(over(~[key], [~date->ascending()]), ~[lg:{p,w,r|$p->lag($r, abs($k)).value}, ld:{p,w,r|$p->lead($r, abs($k)).value}])
-    ->extend(~line_v:r|if($k >= 0, |$r.lg, |$r.ld))->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->extend(over(~[key], [~date->ascending()]), ~line_v:{p,w,r|$p->lag($r, $k).value})->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 function {meta::pure::profiles::doc.doc = 'The correlation of x\\'s and y\\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; 63 observations unless given.', timeseries::Words.label = 'Rolling correlation', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.correlation', timeseries::Words.about = 'The correlation of the two series\\' simple returns over the last w observations, on the dates both have.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.search = 'corr', timeseries::Words.pairs = 'returns'} timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]

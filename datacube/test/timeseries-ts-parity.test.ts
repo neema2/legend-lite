@@ -17,10 +17,11 @@ import {
   seriesQuery, seriesSources, TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH,
   type TsInput, type TsInputs,
 } from '../src/timeseries-query.ts';
-import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
+import type { TimeseriesSpec, TsExpr, TsSeries, TsView } from '../src/timeseries-spec.ts';
 import { readsBase, TS_ITEM, tsIsland, tsItemText, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
-import { exprText, inlined } from '../src/timeseries-expr.ts';
+import { exprText, inlined, parseExpr } from '../src/timeseries-expr.ts';
+import { seriesExpr, seriesText, told } from '../src/timeseries-text.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { join } from 'node:path';
@@ -109,6 +110,10 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   let items = 0;
   // the keystroke's cost (the plan's riskiest unknown, measured in step 2): each read's time, in-thread as a tab's
   const itemTimes: number[] = [];
+  // A SERIES' OWN TEXT (A3 step 3, the plan's §6): what the tile will store -- another series named, never inlined --
+  // read by core, prints back as itself and maps back to the tile's tree
+  const ownWrong: string[] = [];
+  let owned = 0;
   // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
   const oracle: Record<string, unknown> = {};
   let ran = 0;
@@ -204,6 +209,11 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               itemsWrong.push(`${id}: ${itemText}\n    ${(e as Error).message.split('\n')[0]}`);
             }
           }
+          if (anchor === undefined) {
+            owned += 1;
+            const wrong = await ownTextWrong(series.expr, ts.series.map((x) => x.id));
+            if (wrong !== undefined) ownWrong.push(`${id}: ${wrong}`);
+          }
           const expected = DIFFERS[id];
           if (said === 'same' && expected !== undefined) agreed.push(id);
           if (said !== 'same' && expected === undefined) unexpected.push(id);
@@ -230,6 +240,12 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const at = (q: number): string => (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0).toFixed(2);
   console.log(`One reader: ${items} series' items read by core; a read takes ${at(0.5)} ms (median), ${at(0.9)} ms`
     + ` (90th), ${at(1)} ms (slowest), the first ${(itemTimes[0] ?? 0).toFixed(2)} ms`);
+  for (const [formula, ids] of OWN_CASES) {
+    const wrong = await ownTextWrong(parseExpr(formula), ids);
+    if (wrong !== undefined) ownWrong.push(`${formula}: ${wrong}`);
+  }
+  console.log(`A series' own text: ${owned} series and ${OWN_CASES.length} cases read back as themselves`);
+  assert.deepEqual(ownWrong, [], 'each series\' own text, read by core, prints as itself and maps back to its tree (A3 step 3)');
   assert.deepEqual(statementsWrong, [], 'each series\' one statement reads back as itself and answers its rows');
   assert.deepEqual(itemsWrong, [], 'each series\' item, read by core alone, reads back as itself and as Show #TS prints it (A3 step 2)');
   assert.deepEqual(Object.fromEntries(unshown), UNSHOWN, 'the series not shown as one statement, by reason: only allowed to shrink');
@@ -252,6 +268,56 @@ function holdStatements(text: string): void {
   }
   assert.equal(readFileSync(runfileFromEnv('TS_STATEMENTS'), 'utf8'), text,
     'every series\' Show #TS statement as held (a change on purpose rewrites the fixture: holdStatements says how)');
+}
+
+/** The forms the examples write few or none of, each its own text read back (the tile's formula, the tile's ids). */
+const OWN_CASES: readonly (readonly [string, readonly string[]])[] = [
+  ['-1.5 * close - -2', []],
+  ['close - (open - low) / (high * 2)', []],
+  ['(close + 1) * 2 / 3 - 4', []],
+  ['close > mean(close, 50) and close < 100 or not(close == 3)', []],
+  ['close != 0.000001', []],
+  ['floor(returns(close), -0.5) + ceil(close, 2)', []],
+  ['log(close) - exp(1) + sqrt(abs(power(close, 3)))', []],
+  ['px:close[symbol=SPX] / rates:yield[10Y]', []],
+  ['close[venue="NY SE", 12, true]', []],
+  ['volume[AAPL].sum + close.average + high.max + low.min + open.first + close.last', []],
+  ['percentile(close, 50, 3m) + mean(close, 0) + sum(close) + volatility(close, 1y, log)', []],
+  ['first(close) + last(close) + count(close)', []],
+  ['$A - $B2', ['A', 'B2']],
+  ['correlation($A, close[SPX], 63)', ['A']],
+  ['weighted_sum(close[AAPL], 0.5, close[MSFT], 0.5)', []],
+  ['if(close > 1, close, 0)', []],
+  ['macd(close, 12, 26, 9) + rsi(close) + bollinger_bands(close, 20, 2.5)', []],
+  ['basket(close[AAPL], 0.6, close[MSFT], 0.4, rebalance=weekly)', []],
+];
+
+/** Where `expr`'s own text, read by core, is not itself again: its text printed otherwise, or its tree mapped back
+ *  otherwise; none where it reads back. */
+async function ownTextWrong(expr: TsExpr, ids: readonly string[]): Promise<string | undefined> {
+  let own: string;
+  try {
+    own = seriesText(expr, ids);
+  } catch (e) {
+    return `not written: ${(e as Error).message}`;
+  }
+  const read = await writer.tsItem(own);
+  if (read.text === undefined) return `${own}\n    refused: ${read.error.message}`;
+  if (read.text !== own) return `${own}\n    printed by core as ${read.text}`;
+  try {
+    const back = canonical(told(seriesExpr(read.item.expr!, ids)));
+    const tile = canonical(told(expr));
+    if (back !== tile) return `${own}\n    read back as ${back}\n    the tile's   ${tile}`;
+  } catch (e) {
+    return `${own}\n    not mapped: ${(e as Error).message}`;
+  }
+  return undefined;
+}
+
+/** A tree as text, its keys in order and none undefined: two trees the same are the same text. */
+function canonical(x: unknown): string {
+  return JSON.stringify(x, (_, v: unknown) => (v !== null && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v));
 }
 
 /** A tile's view without its compare: the series as computed. */

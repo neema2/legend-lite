@@ -9553,6 +9553,7 @@ TEST_IMPORTS = {
         "src/timeseries-expr.ts",
         "src/timeseries-query.ts",
         "src/timeseries-spec.ts",
+        "src/timeseries-text.ts",
         "src/timeseries-ts.ts",
         "src/tree.ts",
         "src/treeview.ts",
