@@ -60,6 +60,11 @@ class TsScaleMeasureTest {
     static final int BAR_INSTRUMENTS = Integer.getInteger("ts.scale.barInstruments", 100);
     static final int MINUTES = Integer.getInteger("ts.scale.minutes", 98_280);
     static final int TIMEOUT = Integer.getInteger("ts.scale.timeoutSeconds", 90);
+    /** The lines of the wide table (0: not run) and a basket's members: the Postgres lane runs fewer (2026-11-07, the
+     *  first Postgres run: the 100 lines' query, 428 KB of SQL, grew one backend to 11 GB and the session's memory
+     *  limit killed it -- a finding of its own, not repeated on a desk). */
+    static final int WIDE_LINES = Integer.getInteger("ts.scale.wideLines", 100);
+    static final int BASKET = Integer.getInteger("ts.scale.basket", 500);
 
     private static final String STORE = """
             ###Relational
@@ -303,12 +308,16 @@ class TsScaleMeasureTest {
         }
         measure("wide, 20 items", "SELECT " + String.join(", ", items) + " FROM PRICES ON DAY BY SYMBOL");
         // a table of 100 lines, each its own: the spread puts each line onto the answer's dates in turn
-        String hundred = IntStream.range(0, 100).mapToObj(i -> "CLOSE['S" + i + "'] AS c" + i)
+        if (WIDE_LINES == 0) {
+            TABLE.add(String.join("\t", "wide, 100 lines", "not run here", "", "", ""));
+            return;
+        }
+        String lines = IntStream.range(0, WIDE_LINES).mapToObj(i -> "CLOSE['S" + i + "'] AS c" + i)
                 .collect(Collectors.joining(", "));
         try {
-            measure("wide, 100 lines", "SELECT " + hundred + " FROM PRICES ON DAY BY SYMBOL");
+            measure("wide, " + WIDE_LINES + " lines", "SELECT " + lines + " FROM PRICES ON DAY BY SYMBOL");
         } catch (StackOverflowError e) {
-            TABLE.add(String.join("\t", "wide, 100 lines", "stack overflow", "", "", ""));
+            TABLE.add(String.join("\t", "wide, " + WIDE_LINES + " lines", "stack overflow", "", "", ""));
         }
     }
 
@@ -325,9 +334,9 @@ class TsScaleMeasureTest {
     @Test
     @Order(4)
     void basket() throws Exception {
-        String members = IntStream.range(0, 500).mapToObj(i -> "CLOSE['S" + i + "'], 0.002")
+        String members = IntStream.range(0, BASKET).mapToObj(i -> "CLOSE['S" + i + "'], " + (1.0 / BASKET))
                 .collect(Collectors.joining(", "));
-        measure("a basket of 500", "SELECT basket(" + members + ") AS b FROM PRICES ON DAY BY SYMBOL");
+        measure("a basket of " + BASKET, "SELECT basket(" + members + ") AS b FROM PRICES ON DAY BY SYMBOL");
     }
 
     @Test
