@@ -2,6 +2,21 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
+> **The goals of record (the user, 2026-11-07; DRAFT until ratified): `docs/GOALS_OF_RECORD_2026_11_07.md`.
+> Read it before reopening any "where does this live / may this run here" debate.**
+> - **G1 One road:** one compiler, one planner, one exec. No walk, no second evaluator.
+> - **G2 Judge parity:** the host and database judges reach the same verdict everywhere.
+> - **G3 A lean product path:** typed values matched by type and value, lean SQL, fast exec.
+> - **G4 Provable separation:** plan only plans, exec only execs, judge and driver included.
+>   - The plan is SQL and data only, never Java and never stuffed to dodge the rule.
+>   - Exec runs only the plan's statements.
+>   - It is proven at run time (`RunScope`) and at compile time (ArchUnit).
+> - **G5 Compatibility at the edge:** contained, one direction (the edge depends on the product, never the reverse).
+> - **G6 The database does the work.** Small Java formatting, the appeals and the referee are allowed only at the edge.
+>
+> G7-G11 (no fallbacks, ledgered fidelity, guards for every goal, determinism, the plan as portable data) are proposed,
+> not ratified.
+>
 > **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
 > total about Knowledge (parse/index/manifest), lazy about Work (type-check
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
