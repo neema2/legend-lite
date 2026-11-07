@@ -10,6 +10,5 @@ meta::relational::tests::milestoning::distinct::testDistinctUsageAtRootOfMilesto
 meta::relational::tests::projection::functionvariables::testVariableReferenceWithNestedFilterMultiple ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
-meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector ||| fallback=1
 meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect ||| statement=1
 meta::relational::validation::tests::milestoning::testValidateQueryWithUnion ||| statement=1

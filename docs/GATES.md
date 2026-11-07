@@ -20712,3 +20712,35 @@ two packages is the first step's input).
   `AssertVerdicts.tryAdjudicate` (the walk's statement-root entry) with `batched` and `flush`, `BodyDriver.evalValue`;
   pins `AssertVerdicts` 1884, `BodyDriver` 800. Branches only the walk took inside live methods (the eager frame run,
   the effect arms, the host sides' own fetches) go with the plan/run split.
+
+## 2026-11-07 — The DuckDB judges' disagreement: a runtime if over a table's name (22 off the rosters)
+
+- **Found**: the DuckDB judges' fail sets matched, but 17 tests the host judge filed as accepted non-passes the database
+  judge passed (`database-mode accepted diff vs host roster: gained=17`). 15 are Alloy test-data-generator tests whose
+  generator call is `mayExecuteAlloyTest(server, {| true})`: with no Alloy server the fallback runs, as in upstream's own
+  CI, and the body's one live check is `createTableRowIdentifiers`' assert that each named column exists. Its message
+  spells the table through `getQualifiedTableName`, `if($t.schema.name == 'default', | '', | $t.schema.name + '.')`,
+  a condition only the database decides; upstream reads the message only where the assert fails. The host judge plans
+  the message as a side, and the store resolver refused any anchored `if()` whose condition is not decidable at
+  planning ("class query under if() with a runtime condition is not resolvable yet"). Their S143 rows were wrong: they
+  never reached the generator. The other 2 are the graph-fetch milestoning goldens with a trailing `"` (below).
+- **Fixed in the compiler**: `StoreResolver.anchoredIf` -- an anchored `if()` choosing between two VALUES (a primitive
+  or an enum) under a runtime condition resolves part by part and the database decides it (`CASE WHEN`); a class- or
+  relation-valued one still needs a condition decidable at planning. Pinned by
+  `MetamodelQueryFunctionsTest.aRuntimeIfOverATableChoosesAValue` (the value, and the assert held and failed with its
+  message under every judge; it fails with the old refusal without the fix).
+- **Rosters**: 22 rows off `duckdb-accepted-roster.txt` and `h2-accepted-roster.txt` (the 15, and 7 more Alloy tests
+  the host judge now passes on both databases). The 7 stay non-passes under the database judge, whose static pass
+  refuses an assert in their setup (`TypedMap` of a one-identifier `createTableRowIdentifiers`; `assertEqualsH2Compatible`
+  in the milestoning setups): their rows in both `*-database-accepted-register.txt` are relabelled from S143 to
+  `judge-parity-gap:database-planner-refuses(P5)` -- a judge disagreement in the other direction, P5's to close.
+- **Open, the user's to rule**: the 2 graph-fetch goldens end `]"`. Upstream's `equalJsonStrings` reads both sides with
+  json-simple 1.1.1 (legend-pure's pin), which ignores an unterminated string at the end, ignores missing or extra commas
+  and colons, and keeps an unknown escape's backslash (probed against the 1.1.1 jar, 2026-11-07); the host judge's
+  reader refuses the golden, the database judge's (`Json.parseOne`) ignores any trailing text. Their rows stay on the
+  host rosters (`engine-golden-defect:json-stray-quote`) until the user rules strict vs upstream's grammar at the edge.
+- **Outside-body registers shrink (P1.2's, found here)**: the split rung's run-time retry and the root loop's run-ahead
+  were deleted by P1.2 (`d67cd85c`, exec runs only the plan's statements), and with them the FALLBACK statement origin;
+  ten rows registered only for FALLBACK statements are stale and leave `duckdb-database-outside-body-register.txt`
+  (1) and `h2-database-outside-body-register.txt` (9); no row cites the origin now. Every one keeps its pass or fail (the fail rosters are exact).
+  P1.2's own check compared the pass and fail sets and missed the register; a lane's whole gate output is read from now.
