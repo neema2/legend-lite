@@ -70,8 +70,6 @@ final class TestKinds implements ProgramKinds {
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<EffectPlanner.Statement> script = new ArrayList<>();
-    /** The places (0-based) in the body of the statements the open script holds. */
-    private final List<Integer> scriptStatements = new ArrayList<>();
     /** Each effect step this program planned, its segment and ledger texts beside it (M5): beside the plan, never in
      *  it. */
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
@@ -446,7 +444,6 @@ final class TestKinds implements ProgramKinds {
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));
         }
-        scriptStatements.add(index);
         if (last) {
             close(program);
             // the walk's arms' value: the DDL that drops and creates answers true, the others no value (a mapped seed
@@ -486,11 +483,8 @@ final class TestKinds implements ProgramKinds {
                 + ";", List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(executed,
                 dialect.script(executed), dialect.scriptAbort()));
         program.add(effect);
-        String where = EffectSegment.where(scriptStatements.get(0) + 1,
-                scriptStatements.get(scriptStatements.size() - 1) + 1);
-        effects.put(effect, new TestDoor.Effect(where, script.stream()
+        effects.put(effect, new TestDoor.Effect(script.stream()
                 .map(s -> new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed()))).toList()));
         script.clear();
-        scriptStatements.clear();
     }
 }

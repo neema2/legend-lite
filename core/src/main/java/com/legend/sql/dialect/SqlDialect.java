@@ -222,13 +222,6 @@ public interface SqlDialect {
     record VerdictSavepoint(String set, String rollbackTo, String release) {
     }
 
-    /** Which statement of a failed script the engine's message names (0-based), or
-     *  empty when the engine does not say — H2 quotes the failing statement
-     *  ({@code SQL statement: …}); DuckDB names values and columns only. */
-    default java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
-        return java.util.OptionalInt.empty();
-    }
-
     /** DDL rendered like a query (2026-09-16): the dialect spells the
      *  store's declared shape — its identifier rule, its type names.
      *  Retires the {@code Ddl.Flavor} enum and the {@code rawH2IsNative()}

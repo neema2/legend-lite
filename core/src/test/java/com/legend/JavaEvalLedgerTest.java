@@ -1653,9 +1653,9 @@ class JavaEvalLedgerTest {
                             // the classes of bodies that run whole on the program road (M5, R16, 2026-11-01): a named
                             // rule over a body's typed shape, reading it, never running it; nothing evaluated
                             "BodyClass.java",
-                            // an effect segment's name and its failure's message, one spelling for the walk and the
-                            // test door's program road (M5's audit B3, 2026-11-01): text joined, nothing evaluated
-                            "EffectSegment.java",
+                            // (EffectSegment.java, an effect segment's name and its failure's message, deleted
+                            // 2026-11-07, P1: a failed script raises the database's own error, as upstream's executeInDb
+                            // does; nothing read which statement failed -- no corpus body fails in a script)
                             // the kind census of a body the router leaves on the walk (M9, 2026-11-01): the kinds it
                             // holds, named in the body-class rule's own vocabulary and joined for the lanes'
                             // histogram; a measurement carrier like ProgramFacts.shape, deciding nothing

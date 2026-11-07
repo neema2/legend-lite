@@ -39,9 +39,9 @@ public final class TestDoor {
     public record Recorded(String text, boolean query) {
     }
 
-    /** An effect step beside the plan: the walk's name for its segment ({@link EffectSegment#where}), which a
-     *  failure is named by, and its statements' ledger texts in order. */
-    public record Effect(String where, List<Recorded> statements) {
+    /** An effect step beside the plan: its statements' ledger texts in order, recorded once the step ran (a step
+     *  that fails records nothing: its failure is the database's own error, P1, 2026-11-07). */
+    public record Effect(List<Recorded> statements) {
         public Effect {
             statements = List.copyOf(statements);
         }

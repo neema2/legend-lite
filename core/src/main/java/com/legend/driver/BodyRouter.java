@@ -26,14 +26,12 @@ import com.legend.sql.dialect.RawSqlBoundary;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testplan.BodyClass;
 import com.legend.testplan.BodyKinds;
-import com.legend.testplan.EffectSegment;
 import com.legend.testplan.TestDoor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
 
 /**
  * THE BODY ROUTER at the test door (the test-is-the-product plan's R16, brief B1, M5): a body of a class that moves
@@ -585,31 +583,6 @@ public final class BodyRouter {
                 Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
                 record(r.text(), r.query());
             }
-        }
-
-        @Override
-        public DataError effectFailed(int step, DataError failure) {
-            // what the database applied before the failing statement (H2 names it), or nothing when the script rolled
-            // back as a unit (DuckDB): the walk's ledger rule and message (BodyDriver.sendScript)
-            TestDoor.Effect effect = effect(step);
-            List<TestDoor.Recorded> texts = effect.statements();
-            texts.forEach(r -> Census.inc(Census.Key.EFFECTS_IN_SCRIPT));
-            OptionalInt failing = dialect.failingStatement(String.valueOf(failure.getMessage()), executed(step));
-            for (int i = 0; i < failing.orElse(0); i++) {
-                record(texts.get(i).text(), texts.get(i).query());
-            }
-            return EffectSegment.failed(failure, effect.where(), failing, texts.size());
-        }
-
-        /** The statements effect step {@code step} sent, as executed (the dialect names a failing one by them). */
-        private List<String> executed(int step) {
-            ExecutionPlan.Node node = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps().get(step)
-                    : planned.plan().root();
-            if (!(node instanceof ExecutionPlan.Effect e) || e.script() == null) {
-                throw new IllegalStateException("step " + step + " of a moved body failed as an effect, and is a "
-                        + node.getClass().getSimpleName());
-            }
-            return e.script().statements();
         }
 
         private TestDoor.Effect effect(int step) {

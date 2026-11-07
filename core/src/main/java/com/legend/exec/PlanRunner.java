@@ -206,14 +206,6 @@ public final class PlanRunner {
         /** The program's effect step {@code step} ran: its script applied. */
         default void effectRan(int step) {
         }
-
-        /** The program's effect step {@code step} failed with {@code failure} (its script's abort sent): the ledger
-         *  records what the database applied before it, as the walk's ({@code SqlDialect.failingStatement}); the
-         *  error the program raises is the one returned (the failure itself, or the failure named where it
-         *  happened). */
-        default DataError effectFailed(int step, DataError failure) {
-            return failure;
-        }
     }
 
     /** A side of the program read on demand ({@link ProgramSink#reader}): its typed rows, on the session its
@@ -742,11 +734,9 @@ public final class PlanRunner {
                 // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
                 // the session's seeds to establish again (the M3 audit's B5)
                 session.state().markWriting();
-                try {
-                    script(e, live, st, insideATransaction(st));
-                } catch (DataError failed) {
-                    throw sink.effectFailed(i, failed);
-                }
+                // a failure is the database's own error, raised as it is (upstream's executeInDb), its script's abort
+                // sent first; nothing reads which statement failed (P1, 2026-11-07)
+                script(e, live, st, insideATransaction(st));
                 sink.effectRan(i);
             }
             case ExecutionPlan.Setup u -> {

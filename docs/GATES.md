@@ -20771,3 +20771,16 @@ two packages is the first step's input).
 - **Checks**: DuckDB corpus, both judges, unchanged and every roster exact (host 2436, database 2429; the host's failure
   lines identical); core lowering, driver (three judges), integration (DuckDB, H2, SQLite), census and guardrails green.
   Pins: `BodyDriver` 520 -> 517, `SqlTextVerdicts` 1496 -> 1495.
+
+## 2026-11-07 — P1: which statement of a failed script, deleted
+
+- The goals' P1 item "the runner reports which statement failed (no dialect parsing of error text)" is closed by
+  deletion (the user, 2026-11-07, after the measurement: "Yes if you're sure it's not used anywhere"). Nothing read it:
+  no corpus body, on either database or judge, fails inside an effect script, and no test pins the text since the walk
+  was deleted (`BodyRouterParityTest.aScriptFailingAtItsSecondStatement` checks the body is planned and run).
+- **Deleted**: H2's parse of its own error message (`SqlDialect.failingStatement`), the runner's `effectFailed` hook,
+  the router's handler that recorded the statements applied before the failure and appended "(statement N of M)",
+  `testplan/EffectSegment`, and the segment name beside each effect step (`TestDoor.Effect.where`). A failed script now
+  raises the database's own error, as upstream's `executeInDb` does, its bracket's abort sent first; the ledger records
+  nothing from a failed script.
+- Checks: core driver (two judges), exec, testplan, census and guardrails green.
