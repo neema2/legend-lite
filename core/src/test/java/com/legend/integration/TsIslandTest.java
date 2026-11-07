@@ -178,12 +178,23 @@ class TsIslandTest {
     /** {@code query}'s rows on {@code backend} over {@code model}, compiled once. */
     private static List<Map<String, String>> rows(TestBackend backend, com.legend.compiler.element.ModelContext model,
             String query) throws Exception {
+        return rows(backend, model, query, Map.of());
+    }
+
+    /** {@code query}'s rows on {@code backend}, its parameters bound to {@code values}. */
+    private static List<Map<String, String>> rows(TestBackend backend, String query, Map<String, ?> values)
+            throws Exception {
+        return rows(backend, Compiler.compileModel(model(backend, true)), query, values);
+    }
+
+    private static List<Map<String, String>> rows(TestBackend backend, com.legend.compiler.element.ModelContext model,
+            String query, Map<String, ?> values) throws Exception {
         ExecutionPlan plan = Compiler.query(model, query).executionPlan("ts::RT");
         String text;
         // a server's database outlives a connection: each query its own workspace there (dropped as it closes)
         try (Connection c = backend.inProcess() ? backend.open() : backend.openWorkspace()) {
             seed(backend, c);
-            text = PlanCases.write(plan, c, Map.of(), PlanCases.Written.CSV::writer);
+            text = PlanCases.write(plan, c, values, PlanCases.Written.CSV::writer);
         }
         List<String> lines = new ArrayList<>(Arrays.asList(text.split("\r\n")));
         List<String> header = Arrays.asList(lines.remove(0).split(",", -1));
@@ -937,6 +948,45 @@ class TsIslandTest {
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertClose(want, column(got, null, null, "bt"), backend + ": beta to date, from its third return");
         }
+    }
+
+    /**
+     * A VARIABLE OF THE ENCLOSING PURE AS A VALUE (decision 7 of docs/TS_DECISIONS_2026_11_07.md): {@code $from} in a
+     * FILTER -- a page's period, every figure computed with the dates before it -- a string in a WHERE (a slicer), a
+     * number in an expression, a word's window; each the plan's parameter, bound when it runs, on every in-process
+     * database. A positional {@code $1}, a list and a name not in scope are refused by name.
+     */
+    @Test
+    void aVariableOfTheEnclosingPureIsAValue() throws Exception {
+        LocalDate from = FIRST.plusDays(6);
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> whole = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS m FROM PRICES ON DAY"
+                    + " BY SYMBOL}#");
+            List<Map<String, String>> shown = rows(backend, "{from: StrictDate[1] | #TS{SELECT avg(CLOSE['AAA'], 3) AS m"
+                    + " FROM PRICES ON DAY BY SYMBOL FILTER DAY >= $from}#}", Map.of("from", from));
+            assertEquals(whole.stream().filter(r -> !LocalDate.parse(r.get("DAY")).isBefore(from)).toList(), shown,
+                    backend + ": FILTER DAY >= $from keeps the dates from it, each computed with every date before");
+            List<Map<String, String>> sliced = rows(backend, "{sym: String[1] | #TS{SELECT CLOSE AS c FROM (PRICES WHERE"
+                    + " SYMBOL = $sym) ON DAY}#}", Map.of("sym", "BBB"));
+            assertClose(each(BBB.length, i -> BBB[i]), column(sliced, null, null, "c"), backend + ": WHERE SYMBOL = $sym");
+            List<Map<String, String>> scaled = rows(backend, "{k: Float[1] | #TS{SELECT CLOSE['AAA'] * $k AS c FROM PRICES"
+                    + " ON DAY BY SYMBOL}#}", Map.of("k", 2.5));
+            assertClose(each(AAA.length, i -> AAA[i] * 2.5), column(scaled, null, null, "c"), backend + ": CLOSE * $k");
+            List<Map<String, String>> windowed = rows(backend, "{w: Integer[1] | #TS{SELECT avg(CLOSE['AAA'], $w) AS m"
+                    + " FROM PRICES ON DAY BY SYMBOL}#}", Map.of("w", 3L));
+            assertEquals(whole, windowed, backend + ": avg(x, $w) is avg(x, 3) with $w bound to 3");
+        }
+        TestBackend one = backends().get(0);
+        Exception positional = assertThrows(Exception.class, () -> rows(one, "|#TS{SELECT CLOSE['AAA'] * $1 AS c FROM"
+                + " PRICES ON DAY BY SYMBOL}#"));
+        assertTrue(String.valueOf(positional.getMessage()).contains("positional"), positional.getMessage());
+        Exception missing = assertThrows(Exception.class, () -> rows(one, "|#TS{SELECT CLOSE['AAA'] * $k AS c FROM"
+                + " PRICES ON DAY BY SYMBOL}#"));
+        assertTrue(String.valueOf(missing.getMessage()).contains("$k is no variable of the enclosing Pure in scope"),
+                missing.getMessage());
+        Exception many = assertThrows(Exception.class, () -> rows(one, "{k: Float[*] | #TS{SELECT CLOSE['AAA'] * $k AS c"
+                + " FROM PRICES ON DAY BY SYMBOL}#}", Map.of("k", List.of(1.0, 2.0))));
+        assertTrue(String.valueOf(many.getMessage()).contains("$k may hold more than one value"), many.getMessage());
     }
 
     /**
@@ -1998,6 +2048,12 @@ class TsIslandTest {
                 + " #>{ts::DB.PRICES}#; #TS{WITH s AS TS (SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL)"
                 + " SELECT count(*) AS n FROM s}#;"), types);
         assertNull(plain.statement(), String.valueOf(plain.statement()));
+        // a variable of the enclosing Pure prints as itself (decision 7)
+        com.legend.protocol.ts.TsShow.Shown param = com.legend.protocol.ts.TsShow.of(lambdaOf("{from: StrictDate[1] |"
+                + " let px = #>{ts::DB.PRICES}#; #TS{SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL FILTER DAY >="
+                + " $from}#;}"), types);
+        assertTrue(java.util.Objects.requireNonNull(param.statement(), param.refused()).endsWith("FILTER DAY >= $from"),
+                param.statement());
         assertTrue(java.util.Objects.requireNonNull(plain.refused()).contains("no plain SQL over a series query"),
                 plain.refused());
     }

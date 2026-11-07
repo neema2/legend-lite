@@ -120,6 +120,11 @@ final class TsFunctions {
             if (e == null) {
                 continue;
             }
+            if (e instanceof SqlAst.Param var && var.name() != null) {
+                // a variable of the enclosing Pure: its value, for the overload of its type (decision 7)
+                out.put(p.name(), new TsWords.Var(var.name(), var.pos()));
+                continue;
+            }
             Object v = value(c, fn, p, e);
             out.put(p.name(), switch (p.kind()) {
                 case SPAN -> {

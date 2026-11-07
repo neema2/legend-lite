@@ -113,8 +113,7 @@ public final class TsParser {
     public static TsAst.Query parse(String text) {
         TsParser p = prepared(text);
         TsAst.Query q = p.query();
-        p.noVariableRead();
-        return q;
+        return p.scalars(q);
     }
 
     /**
@@ -129,8 +128,10 @@ public final class TsParser {
         if (items.size() != 1) {
             throw invalid("a series is one item: avg(close, 20) AS ma20, not " + items.size(), items.get(1).pos());
         }
-        p.noVariableRead();
-        return new TsAst.Line(items.get(0), p.alls, p.spans);
+        TsAst.Item one = items.get(0);
+        java.util.function.UnaryOperator<SqlAst.Expr> values = p.values();
+        return new TsAst.Line(new TsAst.Item(one.expr() == null ? null : values.apply(one.expr()), one.alias(),
+                one.pos()), p.alls, p.spans);
     }
 
     /** A parser over {@code text}'s tokens, its marks made: a variable's, a span's, a window of everything's, and
@@ -200,14 +201,54 @@ public final class TsParser {
         return new TsParser(tokens, variables, alls, spans);
     }
 
-    /** Every variable of the enclosing Pure read as a source (R1.4); one in an expression refused, v1's. */
-    private void noVariableRead() {
-        for (SqlAst.Pos v : variables) {
-            if (!read.contains(v)) {
-                throw unsupported("a variable of the enclosing Pure is read as a source, FROM $quotes ON date"
-                        + " BY symbol; in an expression it is v1's", v);
-            }
+    /**
+     * {@code q} with each variable of the enclosing Pure that no FROM reads as a source (R1.4) read as a VALUE: a named
+     * parameter, {@code FILTER date >= $from}, which the statement's dialect reads as the Pure variable in scope, typed
+     * by it ({@code TsSql.parameter}; decision 7 of docs/TS_DECISIONS_2026_11_07.md, 2026-11-07). Plain SQL over series
+     * queries reads none yet: there it is refused by name.
+     */
+    private TsAst.Query scalars(TsAst.Query q) {
+        Set<SqlAst.Pos> values = new java.util.LinkedHashSet<>(variables);
+        values.removeAll(read);
+        if (values.isEmpty()) {
+            return q;
         }
+        if (q.plain() != null) {
+            throw unsupported("a variable of the enclosing Pure is read in a series query, not yet in plain SQL over"
+                    + " one: read it in the series query the WITH names", values.iterator().next());
+        }
+        return valued(q, values());
+    }
+
+    /** Each variable no FROM reads, a named parameter ({@code $from} marked {@code _from}: its name after the mark). */
+    private java.util.function.UnaryOperator<SqlAst.Expr> values() {
+        Set<SqlAst.Pos> values = new java.util.LinkedHashSet<>(variables);
+        values.removeAll(read);
+        return e -> values.isEmpty() ? e : TsToPure.map(e, x -> x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
+                && values.contains(c.pos()) ? new SqlAst.Param(0, c.parts().get(0).text().substring(1), c.pos()) : x);
+    }
+
+    private static TsAst.Query valued(TsAst.Query q, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return new TsAst.Query(q.withs().stream().map(w -> new TsAst.With(w.name(), valued(w.body(), f))).toList(),
+                valued(q.items(), f), q.sources().stream().map(s -> new TsAst.From(valued(s.source(), f), s.alias(),
+                        s.on(), s.by(), s.pos())).toList(), q.sample(), q.dated(), q.fill(),
+                q.filter() == null ? null : f.apply(q.filter()), q.alls(), q.spans(), q.plain());
+    }
+
+    private static List<TsAst.Item> valued(List<TsAst.Item> items, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return items.stream().map(i -> new TsAst.Item(i.expr() == null ? null : f.apply(i.expr()), i.alias(), i.pos()))
+                .toList();
+    }
+
+    private static TsAst.Source valued(TsAst.Source s, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return switch (s) {
+            case TsAst.Named n -> n;
+            case TsAst.Variable v -> v;
+            case TsAst.Filtered x -> new TsAst.Filtered(valued(x.of(), f), f.apply(x.where()), x.pos());
+            case TsAst.Flat x -> new TsAst.Flat(valued(x.items(), f), valued(x.from(), f),
+                    x.where() == null ? null : f.apply(x.where()), x.pos());
+            case TsAst.Nested x -> new TsAst.Nested(valued(x.query(), f), x.pos());
+        };
     }
 
     // ------------------------------------------------------------------ the marks, in place

@@ -1562,7 +1562,8 @@ public final class TsToPure {
                             + " values, x IN ('a', 'b')", s.pos());
                     case SqlAst.Quantified s -> throw invalid("a subquery in an expression is not #TS's: a source"
                             + " is FROM's", s.pos());
-                    case SqlAst.Param p -> throw invalid("#TS has no parameters", p.pos());
+                    case SqlAst.Param p when p.name() == null -> throw invalid("#TS has no positional parameters:"
+                            + " name the enclosing Pure's variable, $from", p.pos());
                     case SqlAst.FunctionCall fc when fc.filter() != null -> throw invalid("#TS picks a line's rows"
                             + " by its subscript (R8): write sum(qty['AAPL', side = 'buy'])", fc.pos());
                     default -> {

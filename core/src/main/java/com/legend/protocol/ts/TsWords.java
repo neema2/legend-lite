@@ -50,7 +50,7 @@ final class TsWords {
     static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** What a call gives a parameter: a window (observations, all, a calendar span, a date on), or a value. */
-    sealed interface Given permits Observations, All, Calendar, Day, Num, Whole, Word {
+    sealed interface Given permits Observations, All, Calendar, Day, Num, Whole, Word, Var {
     }
 
     /** {@code n} observations to date. */
@@ -79,6 +79,11 @@ final class TsWords {
 
     /** A word ({@code 'log'}). */
     record Word(String word) implements Given {
+    }
+
+    /** A variable of the enclosing Pure, {@code $w} (decision 7 of docs/TS_DECISIONS_2026_11_07.md): its value, of the
+     *  type the variable is, for a parameter of that type. */
+    record Var(String name, com.legend.protocol.sql.SqlAst.Pos pos) implements Given {
     }
 
     /** What a call gives a word in a line's place: a line, a number (a word some overload of which takes one there:
@@ -483,7 +488,30 @@ final class TsWords {
                     : "Integer".equals(t) && n.value() == Math.rint(n.value()) ? new CInteger((long) n.value()) : null;
             case Word w -> enumerationHas(c, t, w.word()) ? new EnumValue(t, w.word())
                     : "String".equals(t) ? new CString(w.word()) : null;
+            case Var v -> fits(variable(c, v), t) ? new com.legend.protocol.spec.Variable(v.name()) : null;
         };
+    }
+
+    /** The type of the variable {@code v} names: in scope, of one value; else refused by name. */
+    private static String variable(TsFunctions.Ctx c, Var v) {
+        com.legend.protocol.sql.SqlToPure.VariableType type = com.legend.protocol.sql.SqlToPure.variable(c.model(),
+                v.name());
+        if (type == null) {
+            throw com.legend.protocol.sql.SqlTranslationException.invalid("$" + v.name() + " is no variable of the"
+                    + " enclosing Pure in scope", v.pos());
+        }
+        if (type.many() || type.nullable()) {
+            throw com.legend.protocol.sql.SqlTranslationException.unsupported("$" + v.name() + " may hold "
+                    + (type.many() ? "more than one value" : "no value") + ": #TS reads a variable of one value",
+                    v.pos());
+        }
+        return type.type();
+    }
+
+    /** Whether a value of the type {@code given} is one of the parameter type {@code t}'s: the same, or a number for
+     *  a Number. */
+    private static boolean fits(String given, String t) {
+        return given.equals(t) || "Number".equals(t) && ("Integer".equals(given) || "Float".equals(given));
     }
 
     private static boolean enumerationHas(TsFunctions.Ctx c, String type, String value) {

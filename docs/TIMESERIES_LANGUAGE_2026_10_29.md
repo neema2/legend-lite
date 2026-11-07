@@ -342,6 +342,25 @@ conventional 0 to 100 (§12, decision 5).
   trading::Side: BUY, SELL". (Upstream compares an enumeration column with a string by its stored code, so
   `side = 'BUY'` there matches no row; the language says the value's name, and writes the value.)
 
+### R14. Variables of the enclosing Pure
+
+A `#TS` query sits in a Pure lambda, and reads its variables (decision 7 of `docs/TS_DECISIONS_2026_11_07.md`,
+2026-11-07):
+
+- **As a source**, in `FROM` (`FROM $quotes ON date BY symbol`): a relation (R1.4).
+- **As a value**, anywhere else: `FILTER date >= $from` (a page's period: each figure still computed with every date
+  before it), `(prices WHERE symbol = $sym)` (a slicer), `close['AAPL'] * $k`, a word's argument (`avg(close, $w)`).
+  The variable is the plan's parameter, bound when the query runs; its type is the variable's, so a word's overload
+  is chosen by it as by a literal of that type. It holds one value of a number, a string, a boolean or a date; a list,
+  an optional value or a name not in scope is refused by name, and so is Postgres's positional `$1`. Show #TS prints
+  it as written. Plain SQL over series queries (§8's `SELECT ... FROM s`) does not read one yet: read it in the series
+  query.
+
+```sql
+{from: StrictDate[1], sym: String[1] |
+  #TS{SELECT avg(close, 20) AS ma20 FROM (prices WHERE sector = $sym) ON date BY symbol FILTER date >= $from}#}
+```
+
 ## 5. Spans
 
 | Written | Means |
@@ -711,6 +730,11 @@ right, one called "not covered" (the same question). Request 27 was again report
 with a plain-SQL source. Their findings are version 3's changes (§14). The next run waits for the quants' review.
 
 ## 14. What changed
+
+### Version 3.3 (2026-11-07, the decisions written down that day)
+
+- Variables of the enclosing Pure as values (R14): a page's period, a slicer, a word's argument.
+- A join is a model navigation; a plain WITH body is one source (R1); a to-many path is refused, naming the fix.
 
 ### Version 3.2 (2026-10-30, the user's rulings for building it)
 

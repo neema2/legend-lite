@@ -206,7 +206,8 @@ public final class TsPrinter {
             case SqlAst.Case c -> kase(c);
             case SqlAst.FunctionCall f -> applied(f);
             case SqlAst.Cast c -> "CAST(" + expr(c.operand(), 0) + " AS " + type(c.type()) + ")";
-            case SqlAst.Param p -> throw refused("a parameter", p.pos());
+            case SqlAst.Param p when p.name() != null -> "$" + p.name();
+            case SqlAst.Param p -> throw refused("a positional parameter", p.pos());
             case SqlAst.Subscript s -> throw refused("an array's subscript", s.pos());
             case SqlAst.ScalarSubquery s -> throw refused("a subquery as a value", s.pos());
             case SqlAst.Exists x -> throw refused("EXISTS", x.pos());

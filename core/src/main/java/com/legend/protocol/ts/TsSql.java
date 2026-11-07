@@ -50,6 +50,41 @@ public final class TsSql extends PostgresDialect {
         return super.binary(new SqlAst.Binary(b.op(), b.left(), divisor, b.pos()), at);
     }
 
+    /**
+     * A VARIABLE OF THE ENCLOSING PURE read as a value, {@code $from} (decision 7 of docs/TS_DECISIONS_2026_11_07.md,
+     * 2026-11-07): the variable in scope, typed by it -- one value, of a type the language reads; anything else
+     * refused by name. Postgres's positional {@code $1} stays refused.
+     */
+    @Override
+    public SqlToPure.Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
+        String name = p.name();
+        if (name == null) {
+            return super.parameter(p, at, sources);
+        }
+        SqlToPure.VariableType type = SqlToPure.variable(sources, name);
+        if (type == null) {
+            throw com.legend.protocol.sql.SqlTranslationException.invalid("$" + name + " is no variable of the"
+                    + " enclosing Pure in scope", p.pos());
+        }
+        if (type.many() || type.nullable()) {
+            throw com.legend.protocol.sql.SqlTranslationException.unsupported("$" + name + " may hold "
+                    + (type.many() ? "more than one value" : "no value") + ": #TS reads a variable of one value, "
+                    + name + ": " + type.type() + "[1]", p.pos());
+        }
+        SqlToPure.Kind kind = switch (type.type()) {
+            case "Integer" -> SqlToPure.Kind.INTEGER;
+            case "Float" -> SqlToPure.Kind.FLOAT;
+            case "Number" -> SqlToPure.Kind.NUMBER;
+            case "String" -> SqlToPure.Kind.STRING;
+            case "Boolean" -> SqlToPure.Kind.BOOLEAN;
+            case "StrictDate" -> SqlToPure.Kind.DATE;
+            case "DateTime" -> SqlToPure.Kind.DATETIME;
+            default -> throw com.legend.protocol.sql.SqlTranslationException.unsupported("$" + name + " is a "
+                    + type.type() + ": #TS reads a variable of a number, a string, a boolean or a date", p.pos());
+        };
+        return SqlToPure.Tx.value(new com.legend.protocol.spec.Variable(name), kind, false);
+    }
+
     private static boolean nonzero(SqlAst.Expr e) {
         return e instanceof SqlAst.IntegerLit i && i.value().signum() != 0
                 || e instanceof SqlAst.NumericLit n && n.value().signum() != 0;
