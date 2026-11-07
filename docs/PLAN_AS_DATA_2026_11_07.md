@@ -164,18 +164,37 @@ into a plain Java value. Only a few named rules read the label itself (`result/R
 At run a judge reads facts and values; it classifies nothing (the user's question, 2026-11-07: "How does exec run
 without its own Type vocabulary?").
 
-### 4.7 Where the code lives afterwards (compile safety)
+### 4.7 Where the code lives afterwards: the product's shape, twice; no driver
 
-| Library | Holds | May not depend on |
+The user's question (2026-11-07): "if planner pieces of driver move to planner should exec part move to exec under
+testexec or something? Why is there anything in driver that would cross over between the two to have a third
+package?" There is no reason, once the plan is data. The product already has the shape: `planner` plans, `exec`
+runs, and the front door (`com.legend.Execution`) sequences the two and is the one place that sees both. A test body
+takes the same shape, beside it:
+
+| Product | Test body | Holds |
 |---|---|---|
-| `execution_plan` | the plan's records (4.1 to 4.6), `PlanJson` | anything but base, json, sql records |
-| `testplan` (the planner's test part) | ALL assert planning: the three judges' planners, the arms, `DatabaseJudge`, `SqlTextVerdicts`' planning, `VerdictBatch`'s planning | `exec`, `judge` |
-| `judge` (the run) | the comparisons, the host judging (`HostJudge`'s run half), the database judge's root loop, the agreement rule | compiler, lowering, resolver, planner, testplan |
-| `driver` | the router only: plans through `testplan`, runs through `exec` and `judge` (R3: the one place both halves meet) | -- |
-| the edge (P2) | the referee, the appeals' decision, the engine-text printers | the product never depends on it |
+| `planner` | `testplan` (exists) | planning: for tests, the body's program (today), and ALL assert planning (moved in): the three judges' planners, the arms, `DatabaseJudge`, `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, the planning environment (`BodyDriver.ExecEnv`) |
+| `exec` | `testexec` (new; today's `judge` becomes it) | running: for tests, the body's sink, the judges' comparisons (`HostJudge`'s run half, `Equality`, `PureAsserts`, `TdsCompare`, the agreement rule, `assertError`'s judging), the database judge's root loop over the verdict rows. It depends on `exec`, never the reverse: the product runtime carries no test judging (D71) |
+| `Execution.run` | `Execution.runProgram` | the front door: plans with `testplan`, runs with `exec` + `testexec`; what `BodyRouter` does today, in the front door as the product's is |
+| `execution_plan` | `execution_plan` | the plan's records, the judgments and the rest of 4.1 to 4.6 included: one plan type for both |
 
-`tools/deps/core-layers.txt` pins each, so a run class that names a planning type does not compile. ArchUnit R1-R4
-become hard rules on top.
+Where each piece of today's `driver` goes:
+
+| Today in `driver` | Goes to |
+|---|---|
+| `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `AssertVerdicts`' arms, `DatabaseJudge`, `HostSides`, `JudgePlans`, `AssertBranch`, `LiteralFold`, `SeedSqlForms`, `VerdictArm`, `BodyDriver` (its environment), `SqlTextVerdicts`' planning half, `BodyRouter`'s classify-and-plan | `testplan` |
+| `BodyRouter$Moved` (the sink), `HostJudge`'s run half, `AgreementArm`, `AssertErrorNative`'s judging, `RunReader` (likely deleted: the runner reads every side off the plan) | `testexec` |
+| `HostJudgment`, `KindClass` (as data) | `execution_plan` |
+| `SystemDatabase` (the system store's session) | `exec` |
+| `Appeals`, `SqlTextVerdicts`' appeal and rows leg, `JudgeJson`'s compatibility grammar, the referee | the edge (P2) |
+| `BodyRouter`'s sequencing | `Execution.runProgram` |
+
+What both halves use is not a middle package; it is a LOWER library each depends on: the census counters
+(`diagnostics`), the asserts' message texts, the strict JSON reader (`json`). Each layer is pinned in
+`tools/deps/core-layers.txt`: `testplan` may not depend on `exec` or `testexec`; `testexec` may not depend on
+`planner`, `testplan`, the compiler, lowering or the resolver. A run class that names a planning type does not
+compile. ArchUnit R1-R4 become hard rules on top, with R3 read as "only the front door sees both".
 
 ### 4.8 The guard
 
@@ -207,7 +226,8 @@ cost first (one write and one read per body).
 6. The sidecar into the plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the plan.
 7. Appeals as data (4.5); the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures' `BooleanSupplier`s).
 8. Every lane runs the decoded plan (4.8).
-9. The move: all assert planning into `testplan`; `judge` and the sink run-only; the deps pinned; R1-R4 hard.
+9. The move (4.7): all assert planning into `testplan`; the sink and the judging into `testexec` (today's `judge`);
+   the sequencing into `Execution.runProgram`; `driver` deleted; the deps pinned; R1-R4 hard.
 10. All lanes and an audit (the P1 milestone).
 
 ## 7. An example: `projection::limit::testSimpleLimit`, as it is planned today and as proposed
