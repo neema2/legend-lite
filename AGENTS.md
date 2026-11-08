@@ -437,6 +437,7 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
 | `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |

@@ -299,6 +299,23 @@ withdrawn after the review). 6. The plan's own connection description, the URL r
 is the one walker and calls back for test steps (2.8). 8. No `driver` package: `testplan`/`testexec` beside
 `planner`/`exec` (2.9).
 
+## 3a. Proposed, awaiting the user's ruling (2026-11-08)
+
+1. **The program walker in its own target, `//core:exec_program`** (the toolkit check, 2026-11-08: option 3). The
+   callback design as ruled, but the program walker -- the shape, routing, bracket, seeds, scripts, savepoints, the
+   raising read, the step events, about 970 of `PlanRunner`'s 1,971 lines -- in a separate Bazel target in the same
+   Java package (`com.legend.exec`, as `mongodb_connector` already is), its files kept under
+   `src/main/java/com/legend/exec/` (the source-scanning guards hard-code that root), depending on `:exec`, depended on
+   by `testexec` alone; `tools/deps/core-layers.txt` pins that no product target reaches it and an ArchUnit rule that
+   no `:exec` class references a program class. The product's `//core:exec` then carries no test-only code. Its risk:
+   package-private across the split is enforced by the layer pin and ArchUnit, not by Java. The rejected alternative,
+   the walker in `testexec` on a public exec toolkit, would reverse ruling 7 and G1's wording, rewrite ~970 lines
+   against a new API, and still leave the statement-sending primitives in exec (only exec may send statements).
+2. **Landing in three slices**, each with its lanes and an audit, each merged only on the user's word: PR 1 after
+   step 3, PR 2 after step 8, PR 3 after step 10. **A stop rule**: a verdict change at step 1 that is not explained
+   quickly stops the work and goes to the user.
+3. **A recorder implies the compatibility rules** (2.7), written as designed; the user's explicit word asked.
+
 ## 4. The order of work
 
 Each step lands as one or more commits on the branch, held to the baseline of 2026-11-07 (GATES: every lane green at
@@ -325,6 +342,49 @@ Each step lands as one or more commits on the branch, held to the baseline of 20
 10. **The move** (2.9): `testplan`, `testexec`, the edge's libraries; `driver` deleted; the front doors' targets split;
     deps pinned; R1-R4 hard.
 11. **All lanes and an audit** (the P1 milestone).
+
+### Step 0's starting list for step 1 (the bytecode call graph, 2026-11-08)
+
+Every method the run reaches that names a compiler type (calls, fields, casts, instanceof), from the driver's and the
+judges' compiled classes; step 0 completes it with the referee's interface, the spec harness and the decisions the
+review named (dynamic-pivot types, list carriers, numeric kinds per column, `Any` slots' keys, Float literals).
+
+```
+AssertErrorNative
+    AssertErrorNative.judged  [Type$Primitive]
+AssertVerdicts
+    AssertVerdicts.ok  [Type$Primitive]
+BodyRouter$Moved
+    BodyRouter$Moved.holdingTheWalksContract  [Multiplicity$Bounded]
+Equality
+    Equality.carrierKind  [Type$Primitive]
+    Equality.effectiveKind  [Type$PrecisionDecimal, Type$Primitive]
+    Equality.grid  [Type]
+    Equality.integerAndDecimal  [Type$Primitive]
+    Equality.isNumericKind  [Type$Primitive]
+    Equality.same  [Type$Primitive]
+HostJudge
+    HostJudge.lambda$restrictOne$0  [EqualityKeys$Key]
+    HostJudge.messagedOf  [AssertMessages]
+    HostJudge.restrictOne  [EqualityKeys, EqualityKeys$Key]
+    HostJudge.rowsOf  [ExprType]
+HostJudgment$Keys
+    HostJudgment$Keys.of  [EqualityKeys]
+HostJudgment$SideFacts
+    HostJudgment$SideFacts.type  [ExprType]
+JudgePlans
+    JudgePlans.keyedShape  [ExprType, Type$Column, Type$RelationType]
+    JudgePlans.lambda$keyedShape$0  [Type$Column]
+    JudgePlans.reportedType  [Type$ClassType, Type$Primitive]
+    JudgePlans.shape  [ExprType, Type$RelationType]
+    JudgePlans.tabularShape  [ExprType, Multiplicity$Bounded, Type$Column, Type$RelationType]
+    JudgePlans.valuesShape  [ExprType, Multiplicity, Multiplicity$Bounded, PlatformTypes, Type, Type$ClassType]
+PureAsserts
+    PureAsserts.classFqnOf  [Type$ClassType, Type$GenericType]
+SqlTextVerdicts
+    SqlTextVerdicts.actualText  [Type$Column, Type$RelationType]
+    SqlTextVerdicts.ok  [Type$Primitive]
+```
 
 ## 5. Verification
 

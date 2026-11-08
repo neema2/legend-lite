@@ -199,6 +199,11 @@ branch, never on main without the user's word.
 and AGENTS.md points here.
 
 **P1. Finish the separation (G4, G1).**
+- **Status (2026-11-08):** P1.0-P1.3, the report-mode rules and the milestone audit are done (branch
+  `claude/corpus-walk-deletion`; GATES 2026-11-07). The rest of P1 -- the package split, R1-R4 hard and the plan as
+  data -- is ONE program, designed and ruled in `docs/PLAN_AS_DATA_2026_11_07.md` (two plan types, the test plan's
+  judgments as data, the edge's typed extension point, exec as the one walker with a callback, no `driver` package,
+  the no-code-in-the-plan guards). Its order of work (section 4) is P1's order from here.
 - **First, the enabling steps (agreed 2026-11-07):**
   - **Make the lanes trustworthy.** Find what drives the DuckDB stress lane's memory to ~11 GB, by measurement, before
     choosing a fix. Per-test seeding is NOT the answer: it took the lane from minutes to ~50. Run the heavy lanes one
