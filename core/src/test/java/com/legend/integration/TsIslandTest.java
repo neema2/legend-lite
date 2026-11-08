@@ -991,9 +991,11 @@ class TsIslandTest {
         String quoted = refused("SELECT \"floor\"(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
         assertTrue(quoted.contains("floor(x) is refused"), quoted);
         String floor = refused("SELECT floor(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
-        assertTrue(floor.contains("greatest(x, 0) for gs-quant's floor, or round_down(x) to round (D2)"), floor);
+        assertTrue(floor.contains("floor(x, 0) for gs-quant's floor (its bound told), or round_down(x) to round (D2,"
+                + " S161)"), floor);
         String ceil = refused("SELECT ceil(CLOSE) AS f FROM PRICES ON DAY BY SYMBOL", true);
-        assertTrue(ceil.contains("least(x, 0) for gs-quant's ceil, or round_up(x) to round (D2)"), ceil);
+        assertTrue(ceil.contains("ceil(x, 0) for gs-quant's ceil (its bound told), or round_up(x) to round (D2,"
+                + " S161)"), ceil);
         for (TestBackend backend : backends()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT round_down(CLOSE) AS d, round_up(CLOSE) AS u,"
                     + " round_down(-CLOSE) AS nd FROM PRICES ON DAY BY SYMBOL}#");
@@ -1080,6 +1082,60 @@ class TsIslandTest {
                     backend + ": a WITH body's division by 0 is nothing");
             assertClose(each(AAA.length, i -> 3.0), column(within, "SYMBOL", "AAA", "ii"),
                     backend + ": 7 / 2 is an integer's quotient, 3");
+        }
+    }
+
+    /**
+     * GS-QUANT'S BOUND (register S161; the user, 2026-11-08: "Two-arg = gs-quant's"): floor(x, value) and ceil(x, value)
+     * hold each value at the bound, nothing where x has none (SQL's greatest and least would take the bound there); of
+     * one argument they are SQL's rounding and refused still (above).
+     */
+    @Test
+    void floorAndCeilOfTwoArgumentsAreGsQuantsBound() throws Exception {
+        int n = AAA.length;
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT floor(CLOSE, 102) AS f, ceil(CLOSE, 102.5) AS c,"
+                    + " floor(diff(CLOSE, 1), 0) AS d FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(n, i -> Math.max(AAA[i], 102)), column(got, "SYMBOL", "AAA", "f"), backend + ": floor");
+            assertClose(each(n, i -> Math.min(AAA[i], 102.5)), column(got, "SYMBOL", "AAA", "c"), backend + ": ceil");
+            assertClose(each(n, i -> i == 0 ? null : Math.max(AAA[i] - AAA[i - 1], 0)),
+                    column(got, "SYMBOL", "AAA", "d"), backend + ": nothing where x has none");
+        }
+    }
+
+    /**
+     * A CONDITION AS A SERIES' VALUE (register S160; the user, 2026-11-08: "1 or 0, as gs-quant"): an item, an operand of
+     * arithmetic and a word's argument that is a condition is 1 where it holds and 0 where it does not -- and, or and
+     * not of such conditions likewise -- nothing where a side is nothing (the first date's difference); a WHERE's
+     * condition is SQL's still.
+     */
+    @Test
+    void aConditionIsOneOrZeroWhereItIsASeriesValue() throws Exception {
+        int n = AAA.length;
+        Double[] up = each(n, i -> AAA[i] > 102 ? 1.0 : 0.0);
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE > 102 AS up, (CLOSE > 102) * 2 AS twice,"
+                    + " CLOSE > 101 AND CLOSE < 104 AS band, NOT CLOSE > 102 AS down, diff(CLOSE, 1) > 0 AS rose,"
+                    + " sum(CLOSE > 102, all) AS days FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(up, column(got, "SYMBOL", "AAA", "up"), backend + ": an item");
+            assertClose(each(n, i -> up[i] * 2), column(got, "SYMBOL", "AAA", "twice"), backend + ": arithmetic's");
+            assertClose(each(n, i -> AAA[i] > 101 && AAA[i] < 104 ? 1.0 : 0.0), column(got, "SYMBOL", "AAA", "band"),
+                    backend + ": and");
+            assertClose(each(n, i -> 1 - up[i]), column(got, "SYMBOL", "AAA", "down"), backend + ": not");
+            assertClose(each(n, i -> i == 0 ? null : AAA[i] > AAA[i - 1] ? 1.0 : 0.0),
+                    column(got, "SYMBOL", "AAA", "rose"), backend + ": nothing where a side is nothing");
+            assertClose(each(n, i -> {
+                double c = 0;
+                for (int j = 0; j <= i; j++) {
+                    c += up[j];
+                }
+                return c;
+            }), column(got, "SYMBOL", "AAA", "days"), backend + ": a word's argument (the days above to date)");
+            assertClose(each(BBB.length, i -> 0.0), column(got, "SYMBOL", "BBB", "up"), backend + ": 0 where it fails");
+            List<Map<String, String>> kept = rows(backend, "|#TS{SELECT CLOSE AS c FROM (PRICES WHERE CLOSE > 102)"
+                    + " ON DAY BY SYMBOL}#");
+            assertEquals(java.util.Arrays.stream(AAA).filter(v -> v > 102).count(), kept.size(),
+                    backend + ": a WHERE's condition is SQL's");
         }
     }
 
@@ -2051,8 +2107,9 @@ class TsIslandTest {
         Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
         words.forEach(w -> byName.put(w.name(), w));
         // 81 -> 82 (2026-11-03, A9): rank, each date's place among its instruments (the spec's §6); 82 -> 84
-        // (2026-11-06, A4): round_down and round_up, SQL's rounding, which D2's refusal of floor and ceil names
-        assertEquals(84, words.size(), "the words: " + byName.keySet());
+        // (2026-11-06, A4): round_down and round_up, SQL's rounding, which D2's refusal of floor and ceil names;
+        // 84 -> 86 (2026-11-08, S161): floor and ceil of two arguments, gs-quant's bound
+        assertEquals(86, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         // a word's other spellings are the library's (timeseries::Words.alias, R15): mean's avg, Postgres's stddev and
         // variance; no word is named by one

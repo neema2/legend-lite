@@ -7,15 +7,17 @@
 // one moves the other; a column of a source other than the tile's first is read through its alias (`rates.yield`); a
 // subscript picks an instrument (`close['SPX']`) or matches a column (`close[venue = 'NYSE']`); a period's aggregate of
 // a column is written (`sum(volume['AAPL'])`, the tile's `.sum`); every parameter is written, defaults too (a window is
-// always written: §7). What the text means is the language's; the tile's own per-point rules (a comparison 1 or 0, a
-// bound held at none) are its query writer's until A3 step 5 (timeseries-ts.ts).
+// always written: §7). What the text means is the language's: a comparison 1 or 0 (register S160), a bound held at
+// none (S161), as the tile always meant. The same writer writes a tile's statement (statementItem, the order's step 4):
+// each column as the statement reads it, and a word's parameters the tile adds -- nothing else.
 //
 // NOTHING HERE PARSES. Text goes to core; core's tree comes back and is mapped, refusing what no tile tree is.
 
 import type { TsItemAnswer, TsNode } from './lite-planner.ts';
 import { CubeRefusal } from './snapshot.ts';
 import {
-  treeProblem, TS_SIGNATURES, writtenParams, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator, type TsSeries,
+  isConditionOp, treeProblem, TS_SIGNATURES, writtenParams, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch, type TsOperator,
+  type TsSeries,
 } from './timeseries-spec.ts';
 
 /** The words whose parameters the language takes by place (the platform's builder's own: TsToPure's), the rest by
@@ -26,9 +28,9 @@ const BY_PLACE: ReadonlySet<string> = new Set(['mean', 'sum', 'min', 'max', 'std
 const TAKEN: Readonly<Record<TsAggregate, string>> = { last: 'last', first: 'first', average: 'avg', sum: 'sum', min: 'min', max: 'max' };
 const TAKEN_BACK: ReadonlyMap<string, TsAggregate> = new Map(Object.entries(TAKEN).map(([k, v]) => [v, k as TsAggregate]));
 
-/** The tile's words the language spells otherwise (§7): gs-quant's natural log, its bounds, its whole line's first and
- *  last, its count to date. */
-const SPELLED: Readonly<Partial<Record<TsFunctionName, string>>> = { log: 'ln', floor: 'greatest', ceil: 'least' };
+/** The tile's words the language spells otherwise (§7): gs-quant's natural log (its floor and ceil of two arguments are
+ *  the language's own since 2026-11-08, register S161). */
+const SPELLED: Readonly<Partial<Record<TsFunctionName, string>>> = { log: 'ln' };
 const SPELLED_BACK: ReadonlyMap<string, TsFunctionName> = new Map(Object.entries(SPELLED).map(([k, v]) => [v, k as TsFunctionName]));
 /** The words whose window of the whole line is written after the series: `first(x, all)`, `last(x, whole)`,
  *  `count(x, all)`. */
@@ -207,13 +209,13 @@ export interface TsCompleting {
 }
 
 /** Whether the tile reads `word` (a word of core's catalog): its own spelling's, or the language's of one of its own
- *  (ln, greatest, least) -- what the box offers. */
+ *  (ln) -- what the box offers. */
 export function tileReads(word: string): boolean {
   return SPELLED_BACK.has(word) || (Object.hasOwn(TS_SIGNATURES, word) && !Object.hasOwn(SPELLED, word));
 }
 
 /** The words the box offers: core's catalog's the tile reads (its label, else its description), and the tile's words
- *  that are SQL's per point (the spec's R3: ln, greatest, sqrt, ...), which no library word is. */
+ *  that are SQL's per point (the spec's R3: ln, sqrt, ...), which no library word is. */
 export function offeredWords(catalog: Readonly<Record<string, { readonly doc: string | null; readonly facts: Readonly<Record<string, readonly string[]>> }>>):
   { readonly name: string; readonly detail: string }[] {
   const out = Object.entries(catalog).filter(([name]) => tileReads(name))
@@ -340,11 +342,36 @@ function paramText(fn: TsFunctionName, name: string, v: number | string): string
  * read back as that series. A column of no source named reads the tile's first, as the tile's tree says.
  */
 export function seriesText(e: TsExpr, ids: readonly string[]): string {
-  return written(e, 0, ids);
+  return written(e, 0, ids, undefined, undefined);
 }
 
-function written(e: TsExpr, min: number, ids: readonly string[]): string {
+/**
+ * WHAT A TILE'S STATEMENT WRITES THAT A SERIES' OWN TEXT LEAVES TO THE TILE (the order's step 4, the statement writer):
+ * each column as the statement reads it -- its source's name where it reads several, its instrument's subscript as the
+ * series' split asks, its period's aggregate under the tile's frequency (`role`, the one a word reads it by: a candle's
+ * open, a true range's high) -- and the parameters the tile adds to a call (a base's `from`, its first date shown).
+ */
+export interface TsStatementParts {
+  readonly column: (e: Extract<TsExpr, { kind: 'column' }>, role: string | undefined) => string;
+  readonly added: (e: Extract<TsExpr, { kind: 'call' }>) => readonly string[];
+}
+
+/** A series' (inlined) expression as its tile's statement's item: its own text but for what `parts` says. */
+export function statementItem(e: TsExpr, parts: TsStatementParts): string {
+  return written(e, 0, [], parts, undefined);
+}
+
+/** Whether `e` is a condition: a comparison, and, or, not -- 1 or 0 as a value (register S160). */
+function isCondition(e: TsExpr): boolean {
+  return (e.kind === 'binary' && isConditionOp(e.op)) || (e.kind === 'call' && e.fn === 'not');
+}
+
+function written(e: TsExpr, min: number, ids: readonly string[], parts: TsStatementParts | undefined, role: string | undefined): string {
   const wrap = (p: number, text: string): string => (p < min ? `(${text})` : text);
+  // and, or and not of a value that is no condition: held where it is not 0, as the tile means (the statement's; a
+  // series' own text says what was typed)
+  const tested = (x: TsExpr, at: number): string => (parts !== undefined && !isCondition(x)
+    ? `(${written(x, COMPARE + 1, ids, parts, undefined)} <> 0)` : written(x, at, ids, parts, undefined));
   switch (e.kind) {
     case 'number':
       return wrap(e.value < 0 ? SIGN : ATOM, numberText(e.value));
@@ -352,6 +379,7 @@ function written(e: TsExpr, min: number, ids: readonly string[]): string {
       if (!/^[A-Z][A-Z0-9]*$/.test(e.series)) throw new TsTextRefusal(`a series' id is a capital letter: ${e.series}`);
       return e.series;
     case 'column': {
+      if (parts !== undefined) return parts.column(e, role);
       if (e.source === undefined && ids.includes(e.column)) {
         throw new TsTextRefusal(`a column named ${e.column}, as a series is, is read through its source (px.${e.column})`);
       }
@@ -364,12 +392,15 @@ function written(e: TsExpr, min: number, ids: readonly string[]): string {
       const p = PRECEDENCE[e.op];
       // left-associative, a comparison none: its left as its precedence allows, its right one above (core's printer)
       const chains = p !== COMPARE;
-      return wrap(p, `${written(e.left, chains ? p : p + 1, ids)} ${OPERATOR[e.op]} ${written(e.right, p + 1, ids)}`);
+      if (e.op === 'and' || e.op === 'or') return wrap(p, `${tested(e.left, p)} ${OPERATOR[e.op]} ${tested(e.right, p + 1)}`);
+      return wrap(p, `${written(e.left, chains ? p : p + 1, ids, parts, undefined)} ${OPERATOR[e.op]} ${written(e.right, p + 1, ids, parts, undefined)}`);
     }
     case 'call': {
-      if (e.fn === 'not') return wrap(NOT, `NOT ${written(e.args[0]!, NOT, ids)}`);
+      if (e.fn === 'not') return wrap(NOT, `NOT ${tested(e.args[0]!, NOT)}`);
       const sig = TS_SIGNATURES[e.fn];
-      const args = e.args.map((a) => written(a, 0, ids));
+      // each line by the role the word reads it by (a candle's open, a true range's high): a column's period's aggregate
+      const roles: readonly (string | undefined)[] = e.fn === 'ohlc' ? ['open', 'high', 'low', 'close'] : (sig.reads ?? []);
+      const args = e.args.map((a, i) => written(a, 0, ids, parts, roles[i]));
       const whole = WHOLE[e.fn];
       // each told, else its default; one of neither left out -- by place only after the last one written
       const given = writtenParams(e.fn, e.params);
@@ -381,7 +412,8 @@ function written(e: TsExpr, min: number, ids: readonly string[]): string {
         throw new TsTextRefusal(`${e.fn} takes its parameters by place: ${sig.params.map((p) => p.name).join(', ')}`);
       }
       const by = placed ? params.map(([, v]) => v) : params.map(([n, v]) => `${n} => ${v}`);
-      return `${SPELLED[e.fn] ?? e.fn}(${[...args, ...(whole === undefined ? [] : [whole]), ...by].join(', ')})`;
+      const added = parts?.added(e) ?? [];
+      return `${SPELLED[e.fn] ?? e.fn}(${[...args, ...(whole === undefined ? [] : [whole]), ...by, ...added].join(', ')})`;
     }
   }
 }
@@ -485,7 +517,7 @@ function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsN
     if (all[0]!.k === 'column' || all[0]!.k === 'pick') return columnOf(all[0]!, ids, taken, no);
     return no(`${name}(...) of a computed series is a period's: a tile takes a column's, ${name}(close)`);
   }
-  // the tile's word, as the language spells it (ln, greatest, least); gs-quant's log, floor and ceil core refuses
+  // the tile's word, as the language spells it (ln); gs-quant's log, and floor and ceil of one argument, core refuses
   const fn = SPELLED_BACK.get(name) ?? (Object.hasOwn(TS_SIGNATURES, name) && !Object.hasOwn(SPELLED, name) ? name as TsFunctionName : undefined);
   if (fn === undefined) return no(NOT_BUILT[name.toLowerCase()] !== undefined ? `${name}: ${NOT_BUILT[name.toLowerCase()]}` : `there is no function ${name}`);
   const sig = TS_SIGNATURES[fn];

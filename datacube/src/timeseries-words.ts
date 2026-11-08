@@ -72,14 +72,12 @@ export interface TsSignature {
 }
 
 /** SQL'S WORDS PER POINT, which no word of the library is yet (A4 makes them library words): their parameters gs-quant's
- *  (gs-quant 2.2.3's timeseries.algebra, as inspect.signature reads it: power's y 1, floor's and ceil's value 0), each
- *  given in every call -- the language writes them as SQL's (ln, power, greatest, least). */
+ *  (gs-quant 2.2.3's timeseries.algebra, as inspect.signature reads it: power's y 1), each given in every call -- the
+ *  language writes them as SQL's (ln, power). floor and ceil are the library's since 2026-11-08 (register S161). */
 export const SCALARS: Readonly<Partial<Record<TsFunctionName, TsSignature>>> = {
   not: { series: 1, params: [] }, log: { series: 1, params: [] }, exp: { series: 1, params: [] },
   sqrt: { series: 1, params: [] }, abs: { series: 1, params: [] },
   power: { series: 1, params: [{ name: 'y', kind: 'number', required: true, gsQuant: 1 }] },
-  floor: { series: 1, params: [{ name: 'value', kind: 'number', required: true, gsQuant: 0 }] },
-  ceil: { series: 1, params: [{ name: 'value', kind: 'number', required: true, gsQuant: 0 }] },
 };
 
 /** The words whose window is the whole line, written after the series (`first(x, all)`, `last(x, whole)`): a tile's

@@ -10,7 +10,7 @@ import { told as filled } from './timeseries-text.ts';
 
 /** SQL's words per point, the builder's own (timeseries-builder-core.ts), by the tile's word. */
 const SCALAR_SOURCE: Readonly<Record<string, string>> = {
-  log: 'log', exp: 'exp', sqrt: 'sqrt', abs: 'abs_', power: 'power', floor: 'floor', ceil: 'ceil', not: 'not_',
+  log: 'log', exp: 'exp', sqrt: 'sqrt', abs: 'abs_', power: 'power', not: 'not_',
 };
 
 /** Each operator's method (pandas'), and the one that reads the other way round (`5 + x` is `x.radd(5)`). */

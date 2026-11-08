@@ -1,10 +1,11 @@
 // A TILE'S SERIES AS THE TIMESERIES LANGUAGE (docs/TS_LANGUAGE_BUILD_2026_10_30.md P5; the language,
 // docs/TIMESERIES_LANGUAGE_2026_10_29.md): the #TS{...}# query that answers what the tile's own writer
 // (timeseries-query.ts seriesQuery) answers -- each grid a source of the query, bound by `let` and read as `$alias`;
-// the tile's frequency its SAMPLE BY, its alignment its FILL; each function the language's of the same name and
-// parameters (the platform's TsFunctions, the tile's catalog), the tile's per-point rules spelled in SQL (a division
-// none where its divisor is 0, a comparison 1 or 0). The tile's vocabulary -- gs-quant's, its Python DSL's -- stays the
-// surface (ruling 7); this is what it means underneath. It writes words: the platform's #TS builder writes the Pure.
+// the tile's frequency its SAMPLE BY, its alignment its FILL; its items the series' own text, written by the one writer
+// (timeseries-text.ts statementItem, the order's step 4) -- each column as the statement reads it (its source's name, its
+// split's subscript, its period's aggregate under the frequency, ruled 2026-11-08) and a base's first date told; what a
+// condition, a bound and a division mean is the language's (registers S160, S161, S151). It writes words: the
+// platform's #TS builder writes the Pure.
 
 import { fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { filterNode, sourceWithDerived } from './query.ts';
@@ -12,15 +13,11 @@ import { columnType, CubeRefusal } from './snapshot.ts';
 import { isBand, isCandles, sourceAlias, sourcesOf, wholeOf } from './timeseries-expr.ts';
 import type { TsInputs } from './timeseries-query.ts';
 import { filterRead, paramValue, TS_SIGNATURES, writtenParams, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsSeries } from './timeseries-spec.ts';
+import { statementItem, type TsStatementParts } from './timeseries-text.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The answer's column of a series' value; a struct's fields are `ts_value_<field>` (R10). */
 export const TS_ITEM = 'ts_value';
-
-/** The language's form of each of the tile's functions where it differs: gs-quant's first and last, the whole line's
- *  (the language's first(x) and last(x) are a period's, D3); every other word is the language's own (gs-quant's names:
- *  docs/TS_ONE_TREE_PLAN_2026_10_31.md D2, R3). */
-const WHOLE_LINE: Readonly<Record<string, string>> = { first: 'all', last: 'whole' };
 
 /** The functions of a base -- the line's first value, or its value as of the first date shown (`from`, the tile's
  *  anchor). */
@@ -251,58 +248,32 @@ function writer(ts: TimeseriesSpec, expr: TsExpr, split: string | undefined, gra
     const col = `${many ? `${ident(named)}.` : ''}${ident(e.column)}${matches.length === 0 ? '' : `[${matches.join(', ')}]`}`;
     return grain === undefined ? col : `${TAKEN[e.fn ?? role ?? 'last']}(${col})`;
   };
-  const text = (e: TsExpr, role?: TsAggregate): string => {
-    switch (e.kind) {
-      case 'number':
-        return String(e.value);
-      case 'ref':
-        throw new Error('a series is read inlined');
-      case 'column':
-        return column(e, role);
-      case 'binary': {
-        for (const side of [e.left, e.right]) {
-          if (isBand(side)) throw new CubeRefusal('a band is drawn, never read');
-          if (isCandles(side)) throw new CubeRefusal('candles are drawn, never read');
-        }
-        const l = text(e.left);
-        const r = text(e.right);
-        switch (e.op) {
-          case '+': case '-': case '*':
-            return `(${l} ${e.op} ${r})`;
-          case '/':
-            // nothing where the divisor is 0: #TS's own / (core's TsSql, S151)
-            return `(${l} / ${r})`;
-          case 'and': case 'or':
-            return `(CASE WHEN ${l} IS NULL OR ${r} IS NULL THEN NULL WHEN (${l} <> 0) ${e.op.toUpperCase()} (${r} <> 0) THEN 1 ELSE 0 END)`;
-          default: {
-            const op = e.op === '==' ? '=' : e.op === '!=' ? '<>' : e.op;
-            return `(CASE WHEN ${l} IS NULL OR ${r} IS NULL THEN NULL WHEN ${l} ${op} ${r} THEN 1 ELSE 0 END)`;
-          }
-        }
+  // what the tile refuses in its own words, before a word of the statement is written
+  const check = (e: TsExpr): void => {
+    if (e.kind === 'call') {
+      refused(ts, e);
+      e.args.forEach(check);
+    } else if (e.kind === 'binary') {
+      for (const side of [e.left, e.right]) {
+        if (isBand(side)) throw new CubeRefusal('a band is drawn, never read');
+        if (isCandles(side)) throw new CubeRefusal('candles are drawn, never read');
       }
-      case 'call': {
-        refused(ts, e);
-        const sig = TS_SIGNATURES[e.fn];
-        const roles: readonly (string | undefined)[] = e.fn === 'ohlc' ? CANDLE : (sig.reads ?? []);
-        const args = e.args.map((a, i) => text(a, roles[i] === undefined ? undefined : ROLE[roles[i]!]));
-        const param = (name: string): number | string => paramOf(e, name);
-        switch (e.fn) {
-          // the tile's row maths, SQL's (R3: per point)
-          case 'log': return `ln(${args[0]})`;
-          case 'exp': case 'sqrt': case 'abs': return `${e.fn}(${args[0]})`;
-          case 'power': return `power(${args[0]}, ${param('y')})`;
-          // held at a value, none where the line has none (SQL's greatest and least take the value there)
-          case 'floor': return `(CASE WHEN ${args[0]} < ${param('value')} THEN ${param('value')} ELSE ${args[0]} END)`;
-          case 'ceil': return `(CASE WHEN ${args[0]} > ${param('value')} THEN ${param('value')} ELSE ${args[0]} END)`;
-          case 'not': return `(CASE WHEN ${args[0]} IS NULL THEN NULL WHEN ${args[0]} = 0 THEN 1 ELSE 0 END)`;
-          // a running count from the line's first (the tile's count)
-          case 'count': return `count(${args[0]}, all)`;
-          default: break;
-        }
-        const whole = WHOLE_LINE[e.fn];
-        return `${e.fn}(${[...args, ...(whole === undefined ? [] : [whole]), ...named(e, anchor)].join(', ')})`;
-      }
+      check(e.left);
+      check(e.right);
+    } else if (e.kind === 'ref') {
+      throw new Error('a series is read inlined');
     }
+  };
+  // THE ONE WRITER (the order's step 4): the series' own text (timeseries-text.ts), each column as this statement reads
+  // it and a base's first date told
+  const parts: TsStatementParts = {
+    column: (e, role) => column(e, role === undefined ? undefined : ROLE[role]),
+    added: (e) => (anchor !== undefined && BASED.has(e.fn) ? [`from => ${literal(anchor)}`] : []),
+  };
+  const text = (e: TsExpr, role?: TsAggregate): string => {
+    if (e.kind === 'column') return column(e, role);
+    check(e);
+    return statementItem(e, parts);
   };
   const sources = read.map((alias) => {
     const src = ts.sources.find((s) => s.alias === alias)!;

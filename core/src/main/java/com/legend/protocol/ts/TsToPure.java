@@ -1258,8 +1258,10 @@ public final class TsToPure {
                 return out;
             }
 
-            /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
-            TsLines.Node item(SqlAst.Expr e) {
+            /** An item's node: a struct allowed where the item is a function's whole answer (R10); its conditions
+             *  numbers where they are its values (S160). */
+            TsLines.Node item(SqlAst.Expr given) {
+                SqlAst.Expr e = valued(given);
                 // a period's aggregate (R5: last(x), sum(x) under SAMPLE BY) before a word of the same name
                 if (e instanceof SqlAst.FunctionCall fc && !periodOf(fc) && alongTime(fc)
                         && function(java.util.Objects.requireNonNull(fn(fc)))) {
@@ -1513,6 +1515,122 @@ public final class TsToPure {
             private boolean function(String name) {
                 return TsFunctions.has(this, name);
             }
+
+            /**
+             * A CONDITION AS A SERIES' VALUE (register S160, gs-quant's 1 and 0): {@code e}, a value -- an item, a
+             * word's argument, an operand of arithmetic -- with each condition in such a place 1 where it holds, 0
+             * where it does not, nothing where a side of it is nothing ({@code CASE WHEN ... THEN NULL WHEN c THEN 1
+             * ELSE 0 END}); a condition a clause tests (WHERE, FILTER, CASE WHEN) is never here and stays SQL's.
+             */
+            private SqlAst.Expr valued(SqlAst.Expr e) {
+                if (condition(e)) {
+                    SqlAst.Expr tested = tested(e);
+                    SqlAst.Expr none = nothingOf(tested);
+                    List<SqlAst.When> whens = new ArrayList<>();
+                    if (none != null) {
+                        whens.add(new SqlAst.When(none, new SqlAst.NullLit(e.pos())));
+                    }
+                    whens.add(new SqlAst.When(tested, new SqlAst.IntegerLit(java.math.BigInteger.ONE, e.pos())));
+                    return new SqlAst.Case(null, whens, new SqlAst.IntegerLit(java.math.BigInteger.ZERO, e.pos()),
+                            e.pos());
+                }
+                SqlAst.Expr out = switch (e) {
+                    case SqlAst.Binary b when !logical(b.op()) -> children(e, this::valued);
+                    case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> children(e, this::valued);
+                    // a word's arguments (a period's aggregate's too), its options by name as they are
+                    case SqlAst.FunctionCall fc when !TsParser.PICK.equals(fn(fc)) && (alongTime(fc)
+                            || fn(fc) != null && fc.args().size() == 1 && taken(java.util.Objects.requireNonNull(
+                                    fn(fc))) != null) -> children(e, x -> x instanceof SqlAst.FunctionCall o
+                                    && TsParser.OPTION.equals(fn(o)) ? x : valued(x));
+                    default -> e;
+                };
+                // the expression as it was where nothing in it was a condition
+                return out.equals(e) ? e : out;
+            }
+
+            /** {@code c}, a condition, its comparisons' sides values ({@link #valued}) and its and, or and not
+             *  conditions still. */
+            private SqlAst.Expr tested(SqlAst.Expr c) {
+                return switch (c) {
+                    case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR ->
+                            new SqlAst.Binary(b.op(), tested(b.left()), tested(b.right()), b.pos());
+                    case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> new SqlAst.Unary(u.op(),
+                            tested(u.operand()), u.pos());
+                    default -> condition(c) ? children(c, this::valued) : c;
+                };
+            }
+        }
+
+        /** Whether {@code e} is a condition: a comparison, and, or, not, IS NULL, IN, BETWEEN, LIKE. */
+        private static boolean condition(SqlAst.Expr e) {
+            return switch (e) {
+                case SqlAst.Binary b -> logical(b.op());
+                case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.NOT;
+                case SqlAst.IsNull x -> true;
+                case SqlAst.IsTruth x -> true;
+                case SqlAst.IsDistinct x -> true;
+                case SqlAst.InList x -> true;
+                case SqlAst.Between x -> true;
+                case SqlAst.Like x -> true;
+                default -> false;
+            };
+        }
+
+        /** Whether {@code op} makes a condition: a comparison, and, or. */
+        private static boolean logical(SqlAst.BinaryOp op) {
+            return switch (op) {
+                case OR, AND, EQ, NE, LT, LE, GT, GE -> true;
+                case PLUS, MINUS, TIMES, DIVIDE, MODULO, POWER, CONCAT -> false;
+            };
+        }
+
+        /** Where the condition {@code c} has a side that is nothing -- a value it compares, and, or and not of
+         *  conditions any of theirs (the tile's rule, S160: nothing where a side is nothing) -- or null where it never
+         *  does (IS NULL, IS DISTINCT FROM, a comparison of literals). */
+        private static SqlAst.@com.legend.base.Nullable Expr nothingOf(SqlAst.Expr c) {
+            List<SqlAst.Expr> sides = switch (c) {
+                case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR -> {
+                    List<SqlAst.Expr> out = new ArrayList<>();
+                    for (SqlAst.Expr x : List.of(b.left(), b.right())) {
+                        SqlAst.Expr n = nothingOf(x);
+                        if (n != null) {
+                            out.add(n);
+                        }
+                    }
+                    yield out.isEmpty() ? List.of() : List.of(any(out));
+                }
+                case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> {
+                    SqlAst.Expr n = nothingOf(u.operand());
+                    yield n == null ? List.of() : List.of(n);
+                }
+                case SqlAst.Binary b -> missing(b.left(), b.right());
+                case SqlAst.InList x -> missing(x.operand());
+                case SqlAst.Between x -> missing(x.operand(), x.low(), x.high());
+                case SqlAst.Like x -> missing(x.operand(), x.pattern());
+                default -> List.of();
+            };
+            return sides.isEmpty() ? null : any(sides);
+        }
+
+        /** {@code x IS NULL} for each of {@code values} that is no literal. */
+        private static List<SqlAst.Expr> missing(SqlAst.Expr... values) {
+            List<SqlAst.Expr> out = new ArrayList<>();
+            for (SqlAst.Expr v : values) {
+                if (!(v instanceof SqlAst.IntegerLit || v instanceof SqlAst.NumericLit || v instanceof SqlAst.StringLit
+                        || v instanceof SqlAst.BooleanLit || v instanceof SqlAst.TypedLit)) {
+                    out.add(new SqlAst.IsNull(v, false, v.pos()));
+                }
+            }
+            return out;
+        }
+
+        /** {@code a OR b OR ...}. */
+        private static SqlAst.Expr any(List<SqlAst.Expr> conditions) {
+            SqlAst.Expr out = conditions.get(0);
+            for (SqlAst.Expr c : conditions.subList(1, conditions.size())) {
+                out = new SqlAst.Binary(SqlAst.BinaryOp.OR, out, c, c.pos());
+            }
+            return out;
         }
 
         /** A call's arguments (R10): those by place, then those by name. */

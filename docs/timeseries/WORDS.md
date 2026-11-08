@@ -92,6 +92,17 @@ Bollinger bands of x: its mean over a window less and plus k (2 unless given) sa
 
 Forms: `bollinger_bands(x: Line, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional))`, `bollinger_bands(x: Line, w: Scope, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))`.
 
+## `ceil`
+
+Each of x's values held at value or below (gs-quant's ceil): value where x is above it, nothing where x has none.
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `x` | line |  | yes |
+| `value` | number |  | yes |
+
+Forms: `ceil(x: Line, value: Float)`.
+
 ## `change`
 
 Each value less the line's first (or its value as of from).
@@ -307,6 +318,17 @@ x's first value, on every date (gs-quant's first): first(x, all), the line's sta
 | `w` | span | all | yes |
 
 Forms: `first(x: Line, w: Scope)`.
+
+## `floor`
+
+Each of x's values held at value or above (gs-quant's floor): value where x is below it, nothing where x has none.
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `x` | line |  | yes |
+| `value` | number |  | yes |
+
+Forms: `floor(x: Line, value: Float)`.
 
 ## `geometrically_aggregate`
 
@@ -695,7 +717,7 @@ Forms: `returns(x: Line, type: Returns (optional))`, `returns(x: Line, obs: Inte
 
 ## `round_down`
 
-Each of x's values rounded down (SQL's floor; #TS refuses floor, D2).
+Each of x's values rounded down (SQL's floor; #TS refuses floor of one argument, D2).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -705,7 +727,7 @@ Forms: `round_down(x: Line)`.
 
 ## `round_up`
 
-Each of x's values rounded up (SQL's ceil; #TS refuses ceil, D2).
+Each of x's values rounded up (SQL's ceil; #TS refuses ceil of one argument, D2).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

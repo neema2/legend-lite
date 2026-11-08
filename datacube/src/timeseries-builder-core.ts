@@ -408,16 +408,6 @@ export function power(x: Term, y = 1): Term {
   return scalar('power', x, { y });
 }
 
-/** gs-quant's algebra.floor: never below value (gs-quant's 0; the language's greatest). */
-export function floor(x: Term, value = 0): Term {
-  return scalar('floor', x, { value });
-}
-
-/** gs-quant's algebra.ceil: never above value (gs-quant's 0; the language's least). */
-export function ceil(x: Term, value = 0): Term {
-  return scalar('ceil', x, { value });
-}
-
 /** gs-quant's algebra.not_: a condition turned over (the language's NOT). */
 export function not_(series: Term): Term {
   return scalar('not', series);

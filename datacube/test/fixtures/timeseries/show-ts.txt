@@ -155,10 +155,10 @@ sqrt-power C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT power(s
 abs A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT abs(returns(close[symbol = 'SPX'], 1, 'simple')) AS ts_value FROM px ON date
 abs B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(abs(returns(close[symbol = 'SPX'], 1, 'simple')), 21) AS ts_value FROM px ON date
 floor-ceil A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'EURUSD'], w => 63) AS ts_value FROM px ON date
-floor-ceil B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT CASE WHEN CASE WHEN zscores(close[symbol = 'EURUSD'], w => 63) < -2 THEN -2 ELSE zscores(close[symbol = 'EURUSD'], w => 63) END > 2 THEN 2 ELSE CASE WHEN zscores(close[symbol = 'EURUSD'], w => 63) < -2 THEN -2 ELSE zscores(close[symbol = 'EURUSD'], w => 63) END END AS ts_value FROM px ON date
-if-compare A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT if(CASE WHEN close[symbol = 'SPX'] IS NULL OR mean(close[symbol = 'SPX'], 200) IS NULL THEN NULL WHEN close[symbol = 'SPX'] < mean(close[symbol = 'SPX'], 200) THEN 1 ELSE 0 END, close[symbol = 'SPX'], mean(close[symbol = 'SPX'], 200)) AS ts_value FROM px ON date
+floor-ceil B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT ceil(floor(zscores(close[symbol = 'EURUSD'], w => 63), -2), 2) AS ts_value FROM px ON date
+if-compare A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT if(close[symbol = 'SPX'] < mean(close[symbol = 'SPX'], 200), close[symbol = 'SPX'], mean(close[symbol = 'SPX'], 200)) AS ts_value FROM px ON date
 if-compare B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT compare(close[symbol = 'SPX'], mean(close[symbol = 'SPX'], 200)) AS ts_value FROM px ON date
-if-compare C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT CASE WHEN CASE WHEN close[symbol = 'SPX'] IS NULL OR mean(close[symbol = 'SPX'], 200) IS NULL THEN NULL WHEN close[symbol = 'SPX'] > mean(close[symbol = 'SPX'], 200) THEN 1 ELSE 0 END IS NULL THEN NULL WHEN CASE WHEN close[symbol = 'SPX'] IS NULL OR mean(close[symbol = 'SPX'], 200) IS NULL THEN NULL WHEN close[symbol = 'SPX'] > mean(close[symbol = 'SPX'], 200) THEN 1 ELSE 0 END = 0 THEN 1 ELSE 0 END AS ts_value FROM px ON date
+if-compare C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT NOT close[symbol = 'SPX'] > mean(close[symbol = 'SPX'], 200) AS ts_value FROM px ON date
 filter-smooth A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT filter(close[symbol = 'GLD'], operator => 'greater_than', value => 200) AS ts_value FROM px ON date
 filter-smooth B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT smooth_spikes(close[symbol = 'GLD'], threshold => 0.02, type => 'percentage') AS ts_value FROM px ON date
 filter-smooth C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT weighted_sum(rebase(close[symbol = 'SPX'], base => 100), 0.6, rebase(close[symbol = 'TLT'], base => 100), 0.4) AS ts_value FROM px ON date
@@ -169,8 +169,8 @@ align A: WITH px AS (SELECT * FROM local::DB.gallery_prices), macro AS (SELECT *
 align B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date FILL(STEP)
 interpolate A: WITH macro AS (SELECT * FROM local::DB.gallery_macro), px AS (SELECT * FROM local::DB.gallery_prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'step') AS ts_value FROM macro ON date, px ON date
 interpolate B: WITH macro AS (SELECT * FROM local::DB.gallery_macro) SELECT value[series = 'CPI'] AS ts_value FROM macro ON date
-splice A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT append(filter(if(CASE WHEN year(close[symbol = 'GLD']) IS NULL OR 2023 IS NULL THEN NULL WHEN year(close[symbol = 'GLD']) < 2023 THEN 1 ELSE 0 END, close[symbol = 'GLD'], 0), operator => 'equals', value => 0), close[symbol = 'TLT']) AS ts_value FROM px ON date
-splice B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT prepend(close[symbol = 'GLD'], filter(if(CASE WHEN year(close[symbol = 'TLT']) IS NULL OR 2023 IS NULL THEN NULL WHEN year(close[symbol = 'TLT']) >= 2023 THEN 1 ELSE 0 END, close[symbol = 'TLT'], 0), operator => 'equals', value => 0)) AS ts_value FROM px ON date
+splice A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT append(filter(if(year(close[symbol = 'GLD']) < 2023, close[symbol = 'GLD'], 0), operator => 'equals', value => 0), close[symbol = 'TLT']) AS ts_value FROM px ON date
+splice B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT prepend(close[symbol = 'GLD'], filter(if(year(close[symbol = 'TLT']) >= 2023, close[symbol = 'TLT'], 0), operator => 'equals', value => 0)) AS ts_value FROM px ON date
 splice C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT union(filter(close[symbol = 'GLD'], operator => 'greater_than', value => 190), close[symbol = 'TLT']) AS ts_value FROM px ON date
 calendar A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT weekday(close[symbol = 'SPX']) AS ts_value FROM px ON date
 calendar B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT month(close[symbol = 'SPX']) AS ts_value FROM px ON date
@@ -196,7 +196,7 @@ styles C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(close[
 styles D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'JPM'], 1, 'simple') AS ts_value FROM px ON date
 styles E: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volume[symbol = 'JPM'] AS ts_value FROM px ON date
 condition A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
-condition B: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT CASE WHEN yield[tenor = '10Y'] - yield[tenor = '2Y'] IS NULL OR 0 IS NULL THEN NULL WHEN yield[tenor = '10Y'] - yield[tenor = '2Y'] < 0 THEN 1 ELSE 0 END AS ts_value FROM rates ON date
+condition B: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '10Y'] - yield[tenor = '2Y'] < 0 AS ts_value FROM rates ON date
 condition C: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '10Y'] - yield[tenor = '2Y'] AS ts_value FROM rates ON date
 two-grids A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
 two-grids B: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '2Y'] AS ts_value FROM rates ON date

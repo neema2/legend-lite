@@ -499,7 +499,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ["vwap(close['AAA'], volume['AAA'], w => 2w)", 'vwapPeriod'], ["volatility(close['AAA'], w => 1mo, type => 'simple')", 'volatilityPeriod'],
       ["max_drawdown(close['AAA'], w => 2w)", 'maxDrawdownPeriod'], ["sharpe_ratio(close['AAA'], w => 1mo)", 'sharpeRatioPeriod'],
       ["ln(close['AAA'])", 'log'], ["exp(close['AAA'] / 100)", 'exp'], ["sqrt(close['AAA'])", 'sqrt'], ["abs(close['AAA'] - 105)", 'abs'],
-      ["power(close['AAA'], 2)", 'power'], ["greatest(close['AAA'], 104)", 'floor'], ["least(close['AAA'], 104)", 'ceil'], ["NOT close['AAA'] > 101", 'not'],
+      ["power(close['AAA'], 2)", 'power'], ["floor(close['AAA'], 104)", 'floor'], ["ceil(close['AAA'], 104)", 'ceil'], ["NOT close['AAA'] > 101", 'not'],
       ["filter(close['AAA'], operator => 'greater_than', value => 102)", 'filterValues'], ["product(close['AAA'] / 100, w => 5)", 'product'],
       ["geometrically_aggregate(returns(close['AAA'], 1, 'simple'))", 'geometricallyAggregate'], ["smooth_spikes(returns(close['AAA'], 1, 'simple'), threshold => 0.1, type => 'percentage')", 'smoothSpikes'],
       ["vol_swap_volatility(close['AAA'], w => 10)", 'volSwapVolatility'], ["consecutive(returns(close['AAA'], 1, 'simple'), direction => 'positive')", 'consecutive'], ["count(close['AAA'], all)", 'count'],
@@ -745,8 +745,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(await spec({ A: "sqrt(close['AAA'])" }))).values, AAA.map(Math.sqrt), 'sqrt', 1e-9);
     close((await line(await spec({ A: "abs(close['AAA'] - 105)" }))).values, AAA.map((v) => Math.abs(v - 105)), 'abs', 1e-9);
     close((await line(await spec({ A: "power(close['AAA'], 2)" }))).values, AAA.map((v) => v * v), 'power', 1e-9);
-    close((await line(await spec({ A: "greatest(close['AAA'], 104)" }))).values, AAA.map((v) => Math.max(v, 104)), 'floor', 1e-9);
-    close((await line(await spec({ A: "least(close['AAA'], 104)" }))).values, AAA.map((v) => Math.min(v, 104)), 'ceil', 1e-9);
+    close((await line(await spec({ A: "floor(close['AAA'], 104)" }))).values, AAA.map((v) => Math.max(v, 104)), 'floor', 1e-9);
+    close((await line(await spec({ A: "ceil(close['AAA'], 104)" }))).values, AAA.map((v) => Math.min(v, 104)), 'ceil', 1e-9);
   });
 });
 

@@ -113,6 +113,17 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     facts: { label: ['Bollinger bands'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.bollinger_bands'], about: ['A band k standard deviations either side of the moving average over the last w observations.'], differs: ['w defaults to 20 observations (gs-quant: every observation)'], param: ['k: standard deviations either side'], search: ['bollinger'], given: ['w: all', 'k: 2'], limit: ['w: >= 0', 'k: >= 0'] },
     marks: ['band'],
   },
+  ceil: {
+    params: [
+      { name: 'x', kind: 'line', takes: [], words: [], required: true },
+      { name: 'value', kind: 'number', takes: [], words: [], required: true },
+    ],
+    forms: ['ceil(x: Line, value: Float)'],
+    doc: 'Each of x\'s values held at value or below (gs-quant\'s ceil): value where x is above it, nothing where x has none.',
+    aliases: [],
+    facts: { label: ['Capped at'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['algebra.ceil'], about: ['Held at value or below: above it, value.'], param: ['value: the most a value is'] },
+    marks: [],
+  },
   change: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
@@ -327,6 +338,17 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     doc: 'x\'s first value, on every date (gs-quant\'s first): first(x, all), the line\'s start to date. Under SAMPLE BY, first(x) is each period\'s first (D3).',
     aliases: [],
     facts: { label: ['Its first value'], family: ['Dates'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.first'], about: ['Its first value, on every date it has.'], differs: ['its first value, where gs-quant\'s is its first date\'s even when that is none'] },
+    marks: [],
+  },
+  floor: {
+    params: [
+      { name: 'x', kind: 'line', takes: [], words: [], required: true },
+      { name: 'value', kind: 'number', takes: [], words: [], required: true },
+    ],
+    forms: ['floor(x: Line, value: Float)'],
+    doc: 'Each of x\'s values held at value or above (gs-quant\'s floor): value where x is below it, nothing where x has none.',
+    aliases: [],
+    facts: { label: ['Floored at'], family: ['Math'], unit: ['same'], level: ['keeps'], gsQuant: ['algebra.floor'], about: ['Held at value or above: below it, value.'], param: ['value: the least a value is'] },
     marks: [],
   },
   geometrically_aggregate: {
@@ -717,7 +739,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
     ],
     forms: ['round_down(x: Line)'],
-    doc: 'Each of x\'s values rounded down (SQL\'s floor; #TS refuses floor, D2).',
+    doc: 'Each of x\'s values rounded down (SQL\'s floor; #TS refuses floor of one argument, D2).',
     aliases: [],
     facts: { label: ['Rounded down'], family: ['Math'], unit: ['same'], level: ['keeps'], about: ['Rounded down: -1.5 is -2.'] },
     marks: [],
@@ -727,7 +749,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
     ],
     forms: ['round_up(x: Line)'],
-    doc: 'Each of x\'s values rounded up (SQL\'s ceil; #TS refuses ceil, D2).',
+    doc: 'Each of x\'s values rounded up (SQL\'s ceil; #TS refuses ceil of one argument, D2).',
     aliases: [],
     facts: { label: ['Rounded up'], family: ['Math'], unit: ['same'], level: ['keeps'], about: ['Rounded up: -1.5 is -1.'] },
     marks: [],

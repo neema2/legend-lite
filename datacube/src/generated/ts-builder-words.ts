@@ -310,6 +310,18 @@ export function percentile(x: Line, n: number, ...args: Args<[w: WindowLike | nu
   return word(PERCENTILE_SHAPE, [x], [n, ...args]);
 }
 
+const FLOOR_SHAPE: WordShape = { word: 'floor', gsFunction: 'algebra.floor', lines: ['x'], gs: [{ name: 'value', default: 0 }], extra: [] };
+/** Floored at: Held at value or above: below it, value. (gs-quant's algebra.floor.) */
+export function floor(x: Line, ...args: Args<[value: number], { value?: number }>): Term {
+  return word(FLOOR_SHAPE, [x], args);
+}
+
+const CEIL_SHAPE: WordShape = { word: 'ceil', gsFunction: 'algebra.ceil', lines: ['x'], gs: [{ name: 'value', default: 0 }], extra: [] };
+/** Capped at: Held at value or below: above it, value. (gs-quant's algebra.ceil.) */
+export function ceil(x: Line, ...args: Args<[value: number], { value?: number }>): Term {
+  return word(CEIL_SHAPE, [x], args);
+}
+
 const IF_SHAPE: WordShape = { word: 'if', gsFunction: 'algebra.if_', lines: ['flags', 'x', 'y'], gs: [], extra: [] };
 /** One or the other, by a condition: On the dates of its flags: where they hold (not 0), x; where not, y -- each a series or a number, none where the one taken has none: if(close > mean(close, 50), close, 0). (gs-quant's algebra.if_.) */
 export function if_(flags: Line, x: Line | number, y: Line | number): Term {
@@ -587,6 +599,8 @@ export const BUILDER_WORDS: Readonly<Record<string, WordShape>> = {
   percentiles: PERCENTILES_SHAPE,
   median: MEDIAN_SHAPE,
   percentile: PERCENTILE_SHAPE,
+  floor: FLOOR_SHAPE,
+  ceil: CEIL_SHAPE,
   if_: IF_SHAPE,
   compare: COMPARE_SHAPE,
   filter_: FILTER_SHAPE,

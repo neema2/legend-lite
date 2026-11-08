@@ -567,6 +567,27 @@
     ]
    }
   ],
+  "ceil": [
+   {
+    "function": "algebra.ceil",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "value"
+     }
+    ]
+   }
+  ],
   "change": [
    {
     "function": "econometrics.change",
@@ -913,6 +934,27 @@
       "default": null,
       "kind": "POSITIONAL_OR_KEYWORD",
       "name": "x"
+     }
+    ]
+   }
+  ],
+  "floor": [
+   {
+    "function": "algebra.floor",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "value"
      }
     ]
    }

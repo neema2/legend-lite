@@ -29,8 +29,9 @@ describe('the catalog\'s words', () => {
   });
 
   it('every word\'s facts are the library\'s: the tile tells the catalog\'s own (A3 step 1; generated, the order\'s step 1)', () => {
-    // the scalars become words in A4; not is the language's own form (if is the library's if_, read as if)
-    const notWords = new Set(['abs', 'ceil', 'exp', 'floor', 'log', 'not', 'power', 'sqrt']);
+    // the scalars become words in A4 (floor and ceil did on 2026-11-08, register S161); not is the language's own form
+    // (if is the library's if_, read as if)
+    const notWords = new Set(['abs', 'exp', 'log', 'not', 'power', 'sqrt']);
     for (const [name, tile] of Object.entries(WORDS)) {
       const lib = TS_WORDS[name];
       if (notWords.has(name)) {

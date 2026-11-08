@@ -259,6 +259,13 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      adapting -- a frequency's aggregate, the compare's date, a split's subscripts, the tile's per-point rules -- merged
      with `seriesText`), the tile's and the builders'; its semantic questions (a condition drawn as 1 or 0, the tile's
      bounds where a line has none, a frequency's aggregate inferred or written) put to the user before it is built;
+     **done 2026-11-08** on the rulings below: core reads a condition in a series' value as 1 or 0 (`TsToPure` `valued`,
+     S160) and two-argument `floor`/`ceil` as gs-quant's bound (library words, the parser's D2 refusal narrowed to one
+     argument, S161); the tile's statement's items are written by the series' own writer (`timeseries-text.ts`
+     `statementItem`: `seriesText` but each column as the statement reads it -- its source, its split's subscript, its
+     period's aggregate under the frequency, the role a word reads it by -- and a base's `from`), the translator's
+     per-point `CASE`s, its `greatest`/`least` and its own word spelling gone; six Show #TS statements changed (the
+     conditions and the bounds), every frozen answer the same, replayed on Postgres and ClickHouse;
   5. B3's chart face and Python's twin, then B4.
 - **ClickHouse: 26.3 LTS** (asked against the pin, 25.8.2.29, the 2025 LTS; 26.3 the current LTS, 26.6 the newest):
   "Upgrade to 26.3 LTS". Pinned 26.3.60.2. Its `WITH ... AS MATERIALIZED` (experimental, off by default) would compute

@@ -62,10 +62,31 @@ public final class TsParser {
     private static final Map<String, String> REFUSED_CALLS = Map.of(
             "log", "log(x) is refused: SQL's log is base 10, gs-quant's is natural -- write ln(x) (natural, gs-quant's"
                     + " log) or log10(x) (D2)",
-            "floor", "floor(x) is refused: SQL's floor rounds, gs-quant's is a bound -- write greatest(x, 0) for"
-                    + " gs-quant's floor, or round_down(x) to round (D2)",
-            "ceil", "ceil(x) is refused: SQL's ceil rounds, gs-quant's is a bound -- write least(x, 0) for gs-quant's"
-                    + " ceil, or round_up(x) to round (D2)");
+            "floor", "floor(x) is refused: SQL's floor rounds, gs-quant's is a bound -- write floor(x, 0) for"
+                    + " gs-quant's floor (its bound told), or round_down(x) to round (D2, S161)",
+            "ceil", "ceil(x) is refused: SQL's ceil rounds, gs-quant's is a bound -- write ceil(x, 0) for gs-quant's"
+                    + " ceil (its bound told), or round_up(x) to round (D2, S161)");
+
+    /** The refused calls a second argument makes gs-quant's, a word of no SQL meaning (register S161: floor(x, value),
+     *  ceil(x, value), the library's bound). */
+    private static final Set<String> BOUNDS = Set.of("floor", "ceil");
+
+    /** Whether the call whose open parenthesis is {@code lexed[open]} has a second argument: a comma of its own before
+     *  its close. */
+    private static boolean secondArgument(List<Token> lexed, int open) {
+        int depth = 0;
+        for (int j = open; j < lexed.size(); j++) {
+            Token t = lexed.get(j);
+            if (t.kind() == Kind.LPAREN) {
+                depth++;
+            } else if (t.kind() == Kind.RPAREN && --depth == 0) {
+                return false;
+            } else if (t.kind() == Kind.COMMA && depth == 1) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /** The clauses that end the FROM clause: the language's own, and SQL's that it refuses with their fix. */
     private static final Set<String> AFTER_FROM = Set.of("where", "filter", "sample", "fill", "group", "order",
@@ -159,9 +180,10 @@ public final class TsParser {
                         || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
                 // a quoted name too ("log"(x)): the reader calls the same function (the second review's finding 3) --
                 // only that exact name, as Postgres reads a quoted one ("LOG"(x) names no function: the third review)
-                String refused = before == null || !call ? null : REFUSED_CALLS.get(before.kind() == Kind.QUOTED_IDENT
-                        ? before.text() : before.text().toLowerCase(java.util.Locale.ROOT));
-                if (before != null && refused != null) {
+                String name = before == null || !call ? null : before.kind() == Kind.QUOTED_IDENT ? before.text()
+                        : before.text().toLowerCase(java.util.Locale.ROOT);
+                String refused = name == null ? null : REFUSED_CALLS.get(name);
+                if (before != null && refused != null && !(BOUNDS.contains(name) && secondArgument(lexed, i))) {
                     throw invalid(refused, before.pos());
                 }
                 parens.push(new boolean[] {call, false});

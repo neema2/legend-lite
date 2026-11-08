@@ -487,7 +487,7 @@ const MATH: GallerySheet = {
       sources: ON_PRICES,
       series: [
         s('A', "zscores(close['EURUSD'], w => 63)", { name: 'Z-score', style: { width: 1 } }),
-        s('B', "least(greatest(A, -2), 2)", { name: 'Held within ±2', style: { kind: 'area' } }),
+        s('B', "ceil(floor(A, -2), 2)", { name: 'Held within ±2', style: { kind: 'area' } }),
       ],
       range: { last: '2y' },
     }),
