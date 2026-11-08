@@ -366,20 +366,22 @@ function timeseries::volatility<T,V,Y,O>(t: Relation<T>[1], win: _Window<T>[1], 
 }
 
 // The z-score of each value against its window's mean and sample deviation, none until the window holds ramp of them
-// or where the deviation is 0 (gs-quant's zscores).
+// or where the deviation is 0 (gs-quant's zscores); 0 where the window holds the value alone (gs-quant's _zscore of one
+// point: a line's first under a window to date, zscores(x, Window(w, 0)); the review of 2026-11-08).
 function timeseries::zscores<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend($win, ~[m:{p,f,r|$r->read($value)}:y|$y->average(), s:{p,f,r|$r->read($value)}:y|$y->stdDevSample(), n:{p,f,r|$r->read($value)}:y|$y->count()])
-    ->extend(~z:x|if(($x.n->toOne() < $ramp) || ($x.s->toOne() == 0), |[], |($x->read($value)->toOne() - $x.m->toOne()) / $x.s->toOne()))
+    ->extend(~z:x|if($x.n->toOne() < $ramp, |[], |if(($x.n->toOne() == 1) && $x->read($value)->isNotEmpty(), |0.0, |if($x.s->toOne() == 0, |[], |($x->read($value)->toOne() - $x.m->toOne()) / $x.s->toOne()))))
     ->without(~[m, s, n])->rename(~z, $out)
 }
 
 // The z-score against a calendar period back of each date (overPeriod's mean and deviation), none where the deviation
-// is 0, or before the line's first value's date that period on.
+// is 0, or before the line's first value's date that period on; 0 where the period holds the value alone (its deviation
+// none: gs-quant's _zscore of one point).
 function timeseries::zscoresPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->timeseries::overPeriod($line, $date, $value, $n, $unit, timeseries::Statistic.mean, ~m)->timeseries::overPeriod($line, $date, $value, $n, $unit, timeseries::Statistic.std, ~s)
-    ->extend(~z:x|if($x.s->toOne() == 0, |[], |($x->read($value)->toOne() - $x.m->toOne()) / $x.s->toOne()))
+    ->extend(~z:x|if($x.s->isEmpty() && $x->read($value)->isNotEmpty() && $x.m->isNotEmpty(), |0.0, |if($x.s->toOne() == 0, |[], |($x->read($value)->toOne() - $x.m->toOne()) / $x.s->toOne())))
     ->without(~[m, s])->rename(~z, $out)
 }
 
@@ -2335,12 +2337,13 @@ function timeseries::line::helpers::annualizedReturn<K,D>(x: Relation<(key:K, da
     ->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-// ... of the whole series to date: each level over the line's first (gs-quant's window of the series' length)
+// ... of the whole series to date: each level over the line's first, over the days since that first level's date
+// (gs-quant's window of the series' length; the first valued row's, both of them: the review of 2026-11-08)
 function timeseries::line::helpers::annualizedReturnToDate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
     ->timeseries::first(~key, ~date, ~value, ~line_e0)
-    ->extend(over(~[key]), ~line_d0:{p,f,row|$row.line_dn}:y|$y->min())
+    ->extend(over(~[key]), ~line_d0:{p,f,row|if($row.value->isNotEmpty(), |$row.line_dn, |[])}:y|$y->min())
     ->filter(row|$row.value->isNotEmpty() && $row.line_e0->isNotEmpty() && ($row.line_dn->toOne() > $row.line_d0->toOne()))
     ->extend(~line_v:row|pow($row.value->toOne() / $row.line_e0->toOne(), 365.25 / ($row.line_dn->toOne() - $row.line_d0->toOne())) - 1)
     ->select(~[key, date, line_v])->rename(~line_v, ~value)
@@ -2364,14 +2367,23 @@ function timeseries::line::helpers::annualizedReturnPeriod<K,D>(x: Relation<(key
 // holds every point to date: the word's to-date form (\`toDate\`); from it on, the word's window of w (\`windowed\`); none of
 // the first r; and nothing where the window is longer than the line (apply_ramp's \`w > len(x)\`). A point's place is
 // counted on x itself, each row once (a running count of x's rows in date order), so a form that drops points of its own
-// (beta's first three) moves no other's.
+// (beta's first three) moves no other's. A ramp longer than the line is refused, as gs-quant raises (_check_window:
+// "Ramp value must be less than the length of the series"; the review of 2026-11-08) -- the condition the filter's
+// first, a CASE's WHEN, so a database evaluates it on every row whatever the rest answers.
 function timeseries::line::helpers::ramp<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], toDate: Relation<(key:K, date:D, value:Number)>[1], windowed: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], ramp: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->extend(~line_src:row|0)->concatenate($toDate->extend(~line_src:row|1))->concatenate($windowed->extend(~line_src:row|2))
     ->extend(over(~[key], [~date->ascending(), ~line_src->ascending()], rows(unbounded(), 0)), ~line_at:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
     ->extend(over(~[key]), ~line_n:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
-    ->filter(row|($row.line_at > $ramp) && ($row.line_n >= $w) && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)))
+    ->filter(row|if(timeseries::line::helpers::rampFits($row.line_n, $ramp), |($row.line_at > $ramp) && ($row.line_n >= $w) && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)), |false))
     ->select(~[key, date, value])
+}
+
+// A window's ramp no longer than its line's n points: true; refused where it is longer, as gs-quant's Window(w, r)
+// raises (helper._check_window).
+function timeseries::line::helpers::rampFits(n: Integer[1], ramp: Integer[1]): Boolean[1]
+{
+  if($ramp > $n, |fail('a window\\'s ramp, r, is longer than its line: gs-quant raises (Ramp value must be less than the length of the series) -- a smaller r, or a longer line (item 13)'), |true)
 }
 
 // A returns type given, else simple (gs-quant's Returns.SIMPLE).
@@ -4501,7 +4513,10 @@ function timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, time:
 // from the rate itself: each date's level the one before grown by the rate before over the days between.
 function {meta::pure::profiles::doc.doc = 'The cash index of an overnight rate in percent a year (5.3 for 5.3%): from 100 at its first date, each the one before grown by the rate before over the days between, actual/360 unless given (actual_365f: SONIA\\'s, TONA\\'s, AONIA\\'s) -- the cash a currency\\'s excess returns are over: excess_returns(x, cash_index(rate)).', timeseries::Words.label = 'Cash index', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (a cash index of an overnight rate)', timeseries::Words.about = 'A cash account\\'s level from an overnight rate: 100 at the first date, then grown each day by the rate before over the days since (actual/360, or actual/365 fixed).', timeseries::Words.param = 'day_count: actual_360 (SOFR\\'s, €STR\\'s, SARON\\'s, SWESTR\\'s) or actual_365f (SONIA\\'s, TONA\\'s, AONIA\\'s)', timeseries::Words.given = 'day_count: actual_360', timeseries::Words.search = 'risk free'} timeseries::line::cash_index<K,D>(rate: Relation<(key:K, date:D, value:Number)>[1], day_count: timeseries::DayCount[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $rate->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->toOne()->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
+  // a date of no rate is no date of the account's: the rate before accrues over the days to the next (the review of
+  // 2026-11-08: its interval's days were lost)
+  $rate->filter(row|$row.value->isNotEmpty())
+    ->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->toOne()->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
     ->extend(over(~[key], [~date->ascending()]), ~line_g:{p,f,row|1 + (($p->lag($row).value->toOne() / 100) * (($row.line_dn->toOne() - $p->lag($row).line_dn->toOne())
       / if($day_count->isNotEmpty() && ($day_count->toOne() == timeseries::DayCount.actual_365f), |365.0, |360.0)))})
     ->timeseries::windowProduct(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~line_g, ~line_p)
@@ -4802,15 +4817,8 @@ function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number
   timeseries::line::helpers::ramp($x, timeseries::line::product($x, $w), timeseries::line::product($x, $w), 0, $r)
 }
 
-function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
-{
-  timeseries::line::helpers::ramp($x, timeseries::line::vol_swap_volatility($x, timeseries::Scope.all), timeseries::line::vol_swap_volatility($x, $w), $w, $r)
-}
-
-function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
-{
-  timeseries::line::helpers::ramp($x, timeseries::line::vol_swap_volatility($x, $w), timeseries::line::vol_swap_volatility($x, $w), 0, $r)
-}
+// vol_swap_volatility has no r: gs-quant's n_days is Window(n, n - 1) alone ("Ramp-up must be the size of the window
+// minus 1"), the word's own ramp (a value once the window holds w); the review of 2026-11-08.
 
 function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {

@@ -62,17 +62,22 @@ def frames(samples):
     return out
 
 
-def window(w):
+def window(w, r=None):
     """A window as gs-quant takes it: a count of observations, a span ('1y'), every one to date (the tree's 0:
-    Window(None, 0)), or the whole line (the tree's 'whole': gs-quant's None)."""
+    Window(None, 0)), or the whole line (the tree's 'whole': gs-quant's None) -- its ramp apart from its size where the
+    tree has one (the language's r: gs-quant's Window(w, r), item 13; the review of 2026-11-08 found it read no r)."""
+    if w == "across":
+        raise NoOracle("a cross-section of a date's instruments: gs-quant reads none, and the oracle no split")
     if w == "whole":
-        return None
+        return None if r is None else Window(None, int(r))
     if w is None or w == "all" or w == 0:
-        return Window(None, 0)
+        return Window(None, 0 if r is None else int(r))
     if isinstance(w, str):
+        if r is not None:
+            raise NoOracle("a calendar window's ramp apart from its period: none of the language's")
         n, unit = SPAN.fullmatch(w).groups()
         return {"d": f"{n}d", "w": f"{n}w", "mo": f"{n}m", "q": f"{3 * int(n)}m", "y": f"{n}y"}[unit]
-    return int(w)
+    return int(w) if r is None else Window(int(w), int(r))
 
 
 class Evaluator:
@@ -117,18 +122,19 @@ class Evaluator:
     def call(self, name, a, kw):
         x = a[0] if a else None
         arg = lambda i, k, d=None: a[i] if len(a) > i else kw.get(k, d)  # noqa: E731
+        r = kw.get("r")  # a window's ramp apart from its size (item 13), by name in the tree
         windowed = {"mean": ts.mean, "avg": ts.mean, "sum": ts.sum_, "min": ts.min_, "max": ts.max_, "std": ts.std,
                     "var": ts.var, "median": ts.median, "volatility": ts.volatility, "zscores": ts.zscores,
                     "max_drawdown": ts.max_drawdown, "product": ts.product,
                     "smoothed_moving_average": ts.smoothed_moving_average}
         if name in windowed:
-            return windowed[name](x, window(arg(1, "w")))
+            return windowed[name](x, window(arg(1, "w"), r))
         if name == "range":
-            return ts.range_(x, window(arg(1, "w")))
+            return ts.range_(x, window(arg(1, "w"), r))
         if name == "percentiles":
-            return ts.percentiles(x, w=window(arg(1, "w")))
+            return ts.percentiles(x, w=window(arg(1, "w"), r))
         if name == "percentile":
-            return ts.percentile(x, float(arg(1, "n", 50)), window(arg(2, "w")))
+            return ts.percentile(x, float(arg(1, "n", 50)), window(arg(2, "w"), r))
         if name == "returns":
             kind = {"log": "logarithmic"}.get(arg(2, "type", "simple"), arg(2, "type", "simple"))
             return ts.returns(x, int(arg(1, "obs", 1)), Returns(kind))
@@ -155,13 +161,14 @@ class Evaluator:
         if name == "rsi":
             return ts.relative_strength_index(x, int(arg(1, "w", 14)))
         if name == "bollinger_bands":
-            return ts.bollinger_bands(x, window(arg(1, "w", 20)), float(arg(2, "k", 2)))
+            return ts.bollinger_bands(x, window(arg(1, "w", 20), r), float(arg(2, "k", 2)))
         if name == "winsorize":
-            return ts.winsorize(x, float(arg(1, "limit", 2.5)))
+            # gs-quant's winsorize reads the whole series whatever its window, which drops its first r points alone
+            return ts.winsorize(x, float(arg(1, "limit", 2.5)), *([] if r is None else [Window(None, int(r))]))
         if name == "vol_swap_volatility":
             return ts.vol_swap_volatility(x, window(arg(1, "w")))
         if name in ("correlation", "beta", "cov"):
-            return {"correlation": ts.correlation, "beta": ts.beta, "cov": ts.cov}[name](x, a[1], window(arg(2, "w", 63)))
+            return {"correlation": ts.correlation, "beta": ts.beta, "cov": ts.cov}[name](x, a[1], window(arg(2, "w", 63), r))
         if name == "if":
             return ts.if_(x, a[1], a[2])
         if name == "compare":
@@ -182,7 +189,7 @@ class Evaluator:
             # the line read as excess-return levels: gs-quant's sharpe_ratio of curve_type EXCESS_RETURNS, whose pure
             # core needs no session (econometrics.get_ratio_pure)
             from gs_quant.timeseries.econometrics import get_ratio_pure
-            w = window(arg(1, "w", 0))
+            w = window(arg(1, "w", 0), r)
             return get_ratio_pure(x, w if w is not None else None)
         if name == "excess_returns":
             # over a cash index, or a rate accrued actual/360 (gs-quant's own, offline)
@@ -260,9 +267,14 @@ class Second(Evaluator):
     """gs-quant's evaluator, and each word it lacks from a pinned reference -- the word's definition, its doc's, computed
     by TA-Lib, statsmodels or pandas (B5)."""
 
-    def __init__(self, data, sources):
+    def __init__(self, data, sources, adjusted=False):
         super().__init__(data, sources)
         self.used = set()
+        # each reference answers its own result; `adjusted`, the word's own sentence where it departs from the reference
+        # (the review of 2026-11-08: adjusting a reference to lite's rule made it agree by construction) -- a series
+        # that agrees only so is reported DEPARTS, the departures named
+        self.adjusted = adjusted
+        self.departures = set()
 
     def eval(self, node):
         if node["kind"] == "column" and node.get("fn", "last") != "last":
@@ -301,16 +313,19 @@ class Second(Evaluator):
         m = met(*a[:3])
         h, l, c = m.T.values
         k, _ = talib.STOCHF(h, l, c, fastk_period=int(kw.get("w", 14)), fastd_period=1, fastd_matype=0)
-        # none where the high and the low are one (the word's sentence; TA-Lib's gives 0)
+        k = pd.Series(k, index=m.index)
+        self.departures.add("stochastic: none where the window's high and low are one (the word's sentence; TA-Lib's 0)")
+        if not self.adjusted:
+            return "TA-Lib", k
         hh = pd.Series(h, index=m.index).rolling(int(kw.get("w", 14))).max()
         ll = pd.Series(l, index=m.index).rolling(int(kw.get("w", 14))).min()
-        return "TA-Lib", pd.Series(k, index=m.index).where(hh != ll)
+        return "TA-Lib", k.where(hh != ll)
 
     def w_obv(self, a, kw):
         m = met(*a[:2])
         c, v = m.T.values
-        # TA-Lib's starts at the first volume; the word's at 0 (StockCharts', its sentence): TA-Lib's less that volume
-        return "TA-Lib", pd.Series(talib.OBV(c, v) - v[0], index=m.index)
+        self.departures.add("obv: from 0 (StockCharts', the word's sentence; TA-Lib's from the first volume)")
+        return "TA-Lib", pd.Series(talib.OBV(c, v) - (v[0] if self.adjusted else 0), index=m.index)
 
     def w_donchian_channels(self, a, kw):
         m = met(*a[:2])
@@ -325,13 +340,19 @@ class Second(Evaluator):
         m = met(*a[:3])
         h, l, c = m.T.values
         w, k = int(kw.get("w", 20)), float(kw.get("k", 2))
-        # the close's exponential mean of span w from the first close (pandas' ewm, adjust=False), drawn once it holds
-        # w closes; k of TA-Lib's average true range over a either side
-        mid = m.iloc[:, 2].ewm(span=w, adjust=False).mean()
-        mid.iloc[: w - 1] = np.nan
+        # the close's exponential mean of span w, k of TA-Lib's average true range over a either side: TA-Lib's EMA
+        # seeded with its first w closes' mean; the word's from the first close (pandas' ewm, adjust=False), drawn once it
+        # holds w closes
+        self.departures.add("keltner_channels: the middle line's exponential mean from the first close (the word's"
+                            " sentence; TA-Lib's EMA seeds with the first w closes' mean)")
+        if self.adjusted:
+            mid = m.iloc[:, 2].ewm(span=w, adjust=False).mean()
+            mid.iloc[: w - 1] = np.nan
+        else:
+            mid = pd.Series(talib.EMA(c, timeperiod=w), index=m.index)
         atr = pd.Series(talib.ATR(h, l, c, timeperiod=int(kw.get("a", 10))), index=m.index)
         lower, upper = mid - k * atr, mid + k * atr
-        return "TA-Lib", pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower})
+        return "TA-Lib" if not self.adjusted else "TA-Lib+pandas", pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower})
 
     def w_vwap(self, a, kw):
         m = met(*a[:2])
@@ -549,6 +570,11 @@ def main(path):
                     got = second.eval(e["tree"])
                     oracle = "+".join(sorted(second.used, key=str.lower))
                     status, note = compare_fields(e, got)
+                    if status == "DIFFER" and second.departures:
+                        # the references read as the word's sentence says it departs: DEPARTS where lite agrees so
+                        adjusted = Second(frames_, e["sources"], adjusted=True)
+                        if compare_fields(e, adjusted.eval(e["tree"]))[0] == "AGREE":
+                            status, note = "DEPARTS", "; ".join(sorted(second.departures)) + f" -- {note}"
             except (NoGsQuant, NoOracle) as n:
                 status, note, oracle = "NO-ORACLE", str(n), "-"
             except Exception as x:  # noqa: BLE001 -- the report says what failed

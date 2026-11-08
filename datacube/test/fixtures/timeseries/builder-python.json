@@ -705,6 +705,21 @@
   "text": "0 - consecutive(returns(close['EURUSD'], 1, 'simple'), direction => 'negative')"
  },
  {
+  "series": "ramp A",
+  "python": "zscores(column('close', 'NVDA'), w=Window(63, 0))",
+  "text": "zscores(close['NVDA'], w => 63, r => 0)"
+ },
+ {
+  "series": "ramp B",
+  "python": "volatility(column('close', 'NVDA'), w=Window(22, 5), returns_type=Returns.SIMPLE)",
+  "text": "volatility(close['NVDA'], w => 22, type => 'simple', r => 5)"
+ },
+ {
+  "series": "ramp C",
+  "python": "sharpe_ratio(column('close', 'NVDA'), w=Window(63, 10), curve_type=CurveType.EXCESS_RETURNS)",
+  "text": "sharpe_ratio(close['NVDA'], w => 63, r => 10)"
+ },
+ {
   "series": "volatility A",
   "python": "volatility(column('close', 'SPX'), w=21, returns_type=Returns.SIMPLE)",
   "text": "volatility(close['SPX'], w => 21, type => 'simple')"

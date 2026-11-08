@@ -93,7 +93,7 @@ export const WORD_SIGNATURES: Readonly<Record<string, TsSignature>> = {
   up_capture: { series: 2, reads: ['x', 'benchmark'], params: [{ name: 'w', kind: 'span', default: 63, min: 0, required: false }, { name: 'r', kind: 'whole', required: false }] },
   value_at: { series: 1, params: [] },
   var: { series: 1, params: [{ name: 'w', kind: 'span', min: 0, required: true, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
-  vol_swap_volatility: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false }, { name: 'r', kind: 'whole', required: false }] },
+  vol_swap_volatility: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false }] },
   volatility: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false, gsQuant: 0 }, { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'], required: false }, { name: 'annualization_factor', kind: 'whole', required: false }, { name: 'r', kind: 'whole', required: false }] },
   vwap: { series: 2, reads: ['price', 'volume'], params: [{ name: 'w', kind: 'span', default: 20, min: 0, required: false }, { name: 'r', kind: 'whole', required: false }] },
   weekday: { series: 1, params: [] },

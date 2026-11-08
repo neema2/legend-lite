@@ -64,6 +64,7 @@ class TsIslandTest {
               Table PRICES ( SYMBOL VARCHAR(8), DAY DATE, CLOSE DOUBLE )
               Table INSTRUMENTS ( TICKER VARCHAR(8) PRIMARY KEY, SECTOR VARCHAR(8) )
               Table TICKS ( SYMBOL VARCHAR(8), AT TIMESTAMP, PRICE DOUBLE )
+              Table SECTION ( SYMBOL VARCHAR(8), DAY DATE, CLOSE DOUBLE )
               Join QuoteInstrument(PRICES.SYMBOL = INSTRUMENTS.TICKER)
             )
             """;
@@ -180,7 +181,35 @@ class TsIslandTest {
             }
             ps.executeBatch();
         }
+        // a cross-section (SECTION_ROWS): four instruments, a date of one, a close missing
+        String section = backend.dialect().storedName(tables.get(3).name(), tables.get(3).quoted());
+        try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + section + " VALUES (?, ?, ?)")) {
+            for (Object[] row : SECTION_ROWS) {
+                ps.setString(1, (String) row[0]);
+                if (!javaTime) {
+                    ps.setDate(2, java.sql.Date.valueOf(FIRST.plusDays((Integer) row[1])));
+                } else {
+                    ps.setObject(2, FIRST.plusDays((Integer) row[1]));
+                }
+                if (row[2] == null) {
+                    ps.setNull(3, java.sql.Types.DOUBLE);
+                } else {
+                    ps.setDouble(3, (Double) row[2]);
+                }
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
     }
+
+    /** SECTION's rows (symbol, day, close): four instruments over four days -- the second's CCC close missing, the
+     *  third AAA's alone (the review of 2026-11-08: across's cross-sections of two instruments alone were tested). */
+    private static final Object[][] SECTION_ROWS = {
+        {"AAA", 0, 10.0}, {"BBB", 0, 20.0}, {"CCC", 0, 40.0},
+        {"AAA", 1, 11.0}, {"BBB", 1, 19.0}, {"CCC", 1, null}, {"DDD", 1, 30.0},
+        {"AAA", 2, 12.0},
+        {"AAA", 3, 13.0}, {"BBB", 3, 15.0}, {"CCC", 3, 41.0}, {"DDD", 3, 25.0},
+    };
 
     /** {@code query}'s rows on {@code backend}, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(TestBackend backend, String query) throws Exception {
@@ -1020,7 +1049,9 @@ class TsIslandTest {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT zscores(CLOSE) AS z, zscores(CLOSE, all) AS za,"
                     + " zscores(CLOSE, whole) AS zw, winsorize(CLOSE, 1.5) AS w, winsorize(CLOSE, 1.5, whole) AS ww"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
-            Double[] toDate = each(n, i -> i == 0 ? null : (AAA[i] - meanOf(AAA, 0, i)) / sampleStdOf(AAA, 0, i));
+            // the first point 0: to date is gs-quant's Window(None, 0), rolling(len, 0) of _zscore, 0 of one point (the
+            // review of 2026-11-08)
+            Double[] toDate = each(n, i -> i == 0 ? 0.0 : (AAA[i] - meanOf(AAA, 0, i)) / sampleStdOf(AAA, 0, i));
             assertClose(toDate, column(got, "SYMBOL", "AAA", "z"), backend + ": zscores to date");
             assertClose(toDate, column(got, "SYMBOL", "AAA", "za"), backend + ": zscores(x, all), to date");
             assertClose(each(n, i -> (AAA[i] - meanOf(AAA, 0, n - 1)) / sampleStdOf(AAA, 0, n - 1)),
@@ -1168,7 +1199,54 @@ class TsIslandTest {
                 }
             }
             assertEquals(List.of(), wrong, backend + ": bollinger_bands, winsorize, a window longer than the line");
+            // a ramp of 0: every partial window from the first point, by hand (the review of 2026-11-08: the forms above
+            // are held to each other alone) -- gs-quant's _zscore of one point is 0, a sample deviation of one none
+            List<Map<String, String>> zero = rows(backend, "|#TS{SELECT zscores(CLOSE, w => 5, r => 0) AS z,"
+                    + " std(CLOSE, 5, 0) AS s FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(n, i -> partial(i, 5, true)), column(zero, "SYMBOL", "AAA", "z"),
+                    backend + ": zscores of Window(5, 0), its first point 0");
+            assertClose(each(n, i -> i == 0 ? null : partial(i, 5, false)), column(zero, "SYMBOL", "AAA", "s"),
+                    backend + ": std of Window(5, 0)");
+            // a ramp longer than the line: gs-quant raises (_check_window), and so does the line when it runs
+            Exception longer = assertThrows(Exception.class, () -> rows(backend,
+                    "|#TS{SELECT mean(CLOSE, 5, " + (n + 1) + ") AS m FROM PRICES ON DAY BY SYMBOL}#"), backend + ": r > n");
+            assertTrue(String.valueOf(longer.getMessage()).contains("a window's ramp, r, is longer than its line"),
+                    backend + ": a ramp longer than the line refused by name: " + longer.getMessage());
+            assertEquals(n, column(rows(backend, "|#TS{SELECT CLOSE AS c, mean(CLOSE, 5, " + n + ") AS m FROM PRICES ON DAY"
+                    + " BY SYMBOL}#"), "SYMBOL", "AAA", "c").length, backend + ": a ramp of the line's length answers, none");
         }
+        // what gs-quant raises on before it reads a point is refused as the text is read: a negative ramp, percentiles'
+        // ramp over its window (pandas' min_periods), a ramp vol_swap_volatility's n_days has not (Window(n, n - 1) alone)
+        assertTrue(refused("SELECT mean(CLOSE, 5, -1) AS m FROM PRICES ON DAY BY SYMBOL", true)
+                .contains("a window's ramp, is a whole number from 0"), "a negative ramp");
+        assertTrue(refused("SELECT percentiles(CLOSE, w => 3, r => 5) AS p FROM PRICES ON DAY BY SYMBOL", true)
+                .contains("percentiles's r is at most its window, 3"), "percentiles' ramp over its window");
+        assertTrue(refused("SELECT vol_swap_volatility(CLOSE, w => 5, r => 4) AS v FROM PRICES ON DAY BY SYMBOL", true)
+                .contains("has no option r"), "vol_swap_volatility's ramp");
+    }
+
+    /** The z-score (or the sample deviation) of AAA's i-th point over its window of w to date, by hand: gs-quant's
+     *  rolling(w, 0) of _zscore (0 of one point) or of std (none of one point). */
+    private static Double partial(int i, int w, boolean z) {
+        int from = Math.max(0, i - w + 1);
+        int k = i - from + 1;
+        if (k == 1) {
+            return z ? 0.0 : null;
+        }
+        double m = 0;
+        for (int j = from; j <= i; j++) {
+            m += AAA[j];
+        }
+        m /= k;
+        double v = 0;
+        for (int j = from; j <= i; j++) {
+            v += (AAA[j] - m) * (AAA[j] - m);
+        }
+        double s = Math.sqrt(v / (k - 1));
+        if (!z) {
+            return s;
+        }
+        return s == 0 ? null : Double.valueOf((AAA[i] - m) / s);
     }
 
     /**
@@ -1206,6 +1284,23 @@ class TsIslandTest {
                 }
             }
             assertEquals(List.of(), wrong, backend + ": sharpe_ratio as gs-quant's get_ratio_pure");
+            // to date of a line whose first row has no value (diff's first): the first level and its date both the first
+            // valued row's (the review of 2026-11-08: the date was the first row's)
+            List<Map<String, String>> d = rows(backend, "|#TS{SELECT CLOSE AS c, sharpe_ratio(diff(CLOSE, 1) + 1000, all) AS s,"
+                    + " volatility(diff(CLOSE, 1) + 1000, w => all, type => 'simple') AS v FROM PRICES ON DAY BY SYMBOL}#");
+            List<Map<String, String>> da = d.stream().filter(r -> "AAA".equals(r.get("SYMBOL"))).toList();
+            assertEquals(AAA.length, da.size(), backend + ": a row every date");
+            List<String> off = new ArrayList<>();
+            for (int j = 0; j < da.size(); j++) {
+                double ej = AAA[j] - (j == 0 ? 0 : AAA[j - 1]) + 1000;
+                double e1 = AAA[1] - AAA[0] + 1000;
+                String want = j < 3 ? null : String.valueOf((Math.pow(ej / e1, 365.25 / java.time.temporal.ChronoUnit.DAYS
+                        .between(day[1], day[j])) - 1) / Double.parseDouble(da.get(j).get("v")) * 100);
+                if (!near(da.get(j).get("s"), want)) {
+                    off.add(j + ": " + da.get(j).get("s") + " not " + want);
+                }
+            }
+            assertEquals(List.of(), off, backend + ": sharpe_ratio to date from the first valued row");
         }
     }
 
@@ -1236,6 +1331,14 @@ class TsIslandTest {
                 }
             }
             assertEquals(List.of(), wrong, backend + ": cash_index");
+            // a date of no rate is none of the account's: the rate before accrues over the days to the next (the review
+            // of 2026-11-08: SECTION's CCC, 40 then none then 41, accrued one day of three)
+            List<Map<String, String>> ccc = rows(backend, "|#TS{SELECT cash_index(CLOSE) AS a FROM SECTION ON DAY BY SYMBOL}#")
+                    .stream().filter(r -> "CCC".equals(r.get("SYMBOL"))).sorted(java.util.Comparator.comparing(r -> r.get("DAY")))
+                    .toList();
+            assertEquals(2, ccc.size(), backend + ": CCC's two dates of a rate");
+            assertTrue(near(ccc.get(0).get("a"), "100.0") && near(ccc.get(1).get("a"),
+                    String.valueOf(100 * (1 + 40.0 / 100 * 3 / 360))), backend + ": over a missing rate: " + ccc);
         }
     }
 
@@ -1272,6 +1375,39 @@ class TsIslandTest {
                 }
             }
             assertEquals(List.of(), wrong, backend + ": zscores, winsorize and percentile across");
+            // three and four instruments a date, one alone, one's close missing (SECTION), by hand: a z-score of two at
+            // least, none of one; one held at itself and its own percentile; a missing close no row, nor in any figure
+            List<Map<String, String>> section = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, across) AS z,"
+                    + " winsorize(CLOSE, 0.5, across) AS wz, percentile(CLOSE, 90, across) AS p FROM SECTION ON DAY"
+                    + " BY SYMBOL}#");
+            assertEquals(11, section.size(), backend + ": a row an instrument a date it has a close");
+            Map<Integer, List<Double>> byDate = new java.util.TreeMap<>();
+            for (Object[] row : SECTION_ROWS) {
+                if (row[2] != null) {
+                    byDate.computeIfAbsent((Integer) row[1], d -> new ArrayList<>()).add((Double) row[2]);
+                }
+            }
+            List<String> off = new ArrayList<>();
+            for (Map<String, String> r : section) {
+                int d = (int) java.time.temporal.ChronoUnit.DAYS.between(FIRST, LocalDate.parse(r.get("DAY").substring(0, 10)));
+                List<Double> xs = byDate.get(d);
+                double v = Double.parseDouble(r.get("c"));
+                int k = xs.size();
+                double m = xs.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
+                double s = k < 2 ? Double.NaN : Math.sqrt(xs.stream().mapToDouble(x -> (x - m) * (x - m)).sum() / (k - 1));
+                String z = k < 2 ? null : String.valueOf((v - m) / s);
+                String wz = String.valueOf(k < 2 ? v : Math.max(m - 0.5 * s, Math.min(m + 0.5 * s, v)));
+                double[] sorted = xs.stream().mapToDouble(Double::doubleValue).sorted().toArray();
+                double pos = (k - 1) * 0.9;
+                int lo = (int) Math.floor(pos);
+                String p = String.valueOf(lo + 1 < k ? sorted[lo] + (pos - lo) * (sorted[lo + 1] - sorted[lo]) : sorted[lo]);
+                for (String[] f : new String[][] {{"z", z}, {"wz", wz}, {"p", p}}) {
+                    if (!near(r.get(f[0]), f[1])) {
+                        off.add(r.get("DAY") + " " + r.get("SYMBOL") + " " + f[0] + ": " + r.get(f[0]) + " not " + f[1]);
+                    }
+                }
+            }
+            assertEquals(List.of(), off, backend + ": across three and four instruments, one alone, a close missing");
         }
     }
 

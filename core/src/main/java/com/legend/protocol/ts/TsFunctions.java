@@ -163,6 +163,20 @@ final class TsFunctions {
                         + String.join(", ", sig.params().stream().map(Param::name).toList())) + " (R10)", fc.pos());
             }
         }
+        // gs-quant's Window(w, r) (item 13) refuses a ramp it reads no point of (helper._check_window: "Ramp value must
+        // be ... greater than zero"), and percentiles' r is pandas' min_periods, never more than its window ("min_periods
+        // must be <= window") -- refused here as gs-quant raises (the review of 2026-11-08); a ramp longer than its line
+        // is the library's to refuse, where the line's length is known (helpers::rampFits)
+        if (out.get("r") instanceof TsWords.Whole r) {
+            if (r.value() < 0) {
+                throw invalid(fn + "'s r, a window's ramp, is a whole number from 0: gs-quant's Window(w, r) refuses a"
+                        + " negative one (item 13)", fc.pos());
+            }
+            if ("percentiles".equals(fn) && out.get("w") instanceof TsWords.Observations w && r.value() > w.n()) {
+                throw invalid(fn + "'s r is at most its window, " + w.n() + ": gs-quant's percentiles reads r as the"
+                        + " window's least number of points (item 13)", fc.pos());
+            }
+        }
         return out;
     }
 

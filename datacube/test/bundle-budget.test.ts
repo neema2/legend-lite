@@ -944,8 +944,12 @@ const CHART_BUDGET = 303_500;
  *  deletion lowers this budget (A3 step 5, the order's step 3). It landed as 9968907a7 (the tile's parser and printers
  *  deleted), between the 139,300 and 139,800 raises, and the budget was not lowered on its own then: the 139,546
  *  measured at item 13 is the size after those deletions and item 13's growth together, and every ceiling since sits
- *  within 1% of its measure. No deletion is promised here now. */
-const TIMESERIES_BUDGET = 142_300;
+ *  within 1% of its measure. No deletion is promised here now.
+ *  142,300 -> 143,000 (2026-11-08, the review of #81's commits, the library's findings; the user: "Do review"): the
+ *  library's text, which the tile carries, with gs-quant's edges of Window(w, r) -- a ramp longer than its line refused
+ *  (helpers::rampFits), a one-point window's z-score 0, to-date sharpe's first valued row, cash_index over a missing
+ *  rate, vol_swap_volatility's r overloads gone -- and their sentences. Measured 142,751. */
+const TIMESERIES_BUDGET = 143_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

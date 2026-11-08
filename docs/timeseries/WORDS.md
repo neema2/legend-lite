@@ -961,9 +961,8 @@ The volatility a variance swap's realized leg reads, of x's values over a window
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
-| `r` | whole |  | no |
 
-Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)`, `vol_swap_volatility(x: Line, w: Scope)`, `vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)`, `vol_swap_volatility(x: Line, w: Integer, r: Integer)`, `vol_swap_volatility(x: Line, w: Scope, r: Integer)`.
+Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)`, `vol_swap_volatility(x: Line, w: Scope)`, `vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)`.
 
 ## `volatility`
 

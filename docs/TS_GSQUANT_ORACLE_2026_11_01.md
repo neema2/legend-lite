@@ -40,6 +40,15 @@ library's own, now said so) and `percent_change` said "in percent" of a share (i
 said so). Of the library's 86 words, six no oracle reads yet, none of them in a gallery series: `rank`, `round_down`,
 `round_up`, `seasonally_adjusted`, `trend`, `value_at`.
 
+**After the review of 2026-11-08** the oracle reads a window's ramp (`r`: gs-quant's `Window(w, r)`; it read none, and
+no gallery series carried one -- the gallery's `ramp` tile now does: a 63-day z-score from its first day, a 22-day
+volatility from its sixth, a 63-day Sharpe ratio from its eleventh, each the whole line), and a reference answers its
+own result: where the word's sentence departs from it (obv from 0, Keltner's middle line from the first close,
+stochastic's none where the high is the low) lite is reported DEPARTS with that sentence, never AGREE by an adjusted
+reference. **AGREE 185, DEPARTS 4, NOT-CHECKED 26, no DIFFER, no ERROR** -- the three ramps agree with gs-quant at
+every point; obv and Keltner's channels depart as their sentences say (stochastic's high never meets its low in the
+sample); `across`, a split, is NOT-CHECKED.
+
 ## gs-quant runs Show Python's calls (2026-11-08)
 
 The review of #81's commits found that the Python the tile shows (B4: `datacube/test/fixtures/timeseries/
@@ -51,7 +60,8 @@ line, a call needing gs-quant's service (a currency's cash) bound and not run. I
 two were DataCube's own words or the sample's dates, and the printer's fixes it found are in: `filter_(x)` for the
 empty operator, `n_days` always told, `Window(None, 0)` for a window to date, and `excess_returns_pure(x, y)` for
 excess returns over another line (gs-quant's `excess_returns` reads an asset, a currency or a rate, never a line).
-**248 run, 4 bound, 1 refused for the sample alone (`if_`'s own call on prices), 2 refused**: a comparison of two
+**251 run (the ramp tile's three among them: `Window(63, 0)`, `Window(22, 5)`, `Window(63, 10)`), 4 bound, 1
+refused for the sample alone (`if_`'s own call on prices), 2 refused**: a comparison of two
 lines of different dates (`close < mean(close, w=200)`), which pandas raises on (it compares identically-labelled
 series alone) where the language answers on the dates both have (S152) -- for the user to rule.
 

@@ -438,9 +438,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const want = AAA.map((v, i) => (i < 9 ? null : (v - avg(AAA.slice(i - 9, i + 1))) / sd(AAA.slice(i - 9, i + 1))));
     close((await line(await spec({ A: "zscores(close['AAA'], w => 10)" }))).values, ramp(want, 10), 'rolling z', 1e-7);
     // with no window, to date (D2's look-ahead rule, R7: docs/SEMANTICS_REGISTER.md S150, 2026-11-06): each date's
-    // z-score against the line's values to it, none at its first
+    // z-score against the line's values to it, 0 at its first (gs-quant's Window(None, 0): _zscore of one point; the
+    // review of 2026-11-08)
     close((await line(await spec({ A: "zscores(close['AAA'], w => all)" }))).values,
-      AAA.map((v, i) => (i === 0 ? null : (v - avg(AAA.slice(0, i + 1))) / sd(AAA.slice(0, i + 1)))), 'z', 1e-7);
+      AAA.map((v, i) => (i === 0 ? 0 : (v - avg(AAA.slice(0, i + 1))) / sd(AAA.slice(0, i + 1)))), 'z', 1e-7);
   });
 
   it('volatility: the annualized standard deviation of returns, in percent (gs-quant: 20% is 20)', async () => {
@@ -3081,8 +3082,9 @@ describe('a series combining two grids, planned over one model of their tables (
  *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31; 149, the other
  *  views' sheet, five: the next phases' 3; 171, an analyst's packs, 22: the next phases' 4; 173, the On the chart
  *  sheet's two: Phase 5; 174, excess returns over dollar cash, its index made from its overnight rate: the risk-free
- *  data model, item 13b, 2026-11-08; 175, the stocks' momentum z-scored across each day's equities: item 13c). */
-const GALLERY_SERIES = 175;
+ *  data model, item 13b, 2026-11-08; 175, the stocks' momentum z-scored across each day's equities: item 13c; 178, the
+ *  ramp tile's three, a window's ramp apart from its size the oracle reads against gs-quant: the review of 2026-11-08). */
+const GALLERY_SERIES = 178;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

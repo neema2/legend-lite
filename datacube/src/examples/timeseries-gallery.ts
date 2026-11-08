@@ -236,6 +236,18 @@ const ROLLING: GallerySheet = {
       range: { last: '6m' },
       panes: [{ height: 1 }, { height: 1 }],
     }),
+    // gs-quant's Window(w, r) (item 13): a window's ramp apart from its size -- a figure from the line's (r + 1)-th point,
+    // over the points it has before the window is full; the whole line drawn, so the oracle reads every ramp against
+    // gs-quant's (the review of 2026-11-08: no gallery series carried an r)
+    tile('ramp', 'A window\'s ramp apart from its size: Nvidia\'s 63-day z-score from its first day, its 22-day volatility from its sixth, its 63-day Sharpe ratio from its eleventh', {
+      sources: ON_PRICES,
+      series: [
+        s('A', "zscores(close['NVDA'], w => 63, r => 0)", { name: '63-day z-score, ramp 0', style: { kind: 'area' } }),
+        s('B', "volatility(close['NVDA'], w => 22, type => 'simple', r => 5)", { name: '22-day volatility, ramp 5', pane: 1 }),
+        s('C', "sharpe_ratio(close['NVDA'], w => 63, r => 10)", { name: '63-day Sharpe ratio, ramp 10', pane: 2 }),
+      ],
+      panes: [{ height: 1 }, { height: 1 }, { height: 1 }],
+    }),
   ]],
 };
 

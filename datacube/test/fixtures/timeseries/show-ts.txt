@@ -92,6 +92,9 @@ percentiles D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percen
 product-streaks A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT product(1 + returns(close[symbol = 'EURUSD'], 1, 'simple'), w => 5) - 1 AS ts_value FROM px ON date
 product-streaks B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT consecutive(returns(close[symbol = 'EURUSD'], 1, 'simple'), direction => 'positive') AS ts_value FROM px ON date
 product-streaks C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT 0 - consecutive(returns(close[symbol = 'EURUSD'], 1, 'simple'), direction => 'negative') AS ts_value FROM px ON date
+ramp A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'NVDA'], w => 63, r => 0) AS ts_value FROM px ON date
+ramp B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'NVDA'], w => 22, type => 'simple', r => 5) AS ts_value FROM px ON date
+ramp C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sharpe_ratio(close[symbol = 'NVDA'], w => 63, r => 10) AS ts_value FROM px ON date
 volatility A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 21, type => 'simple') AS ts_value FROM px ON date
 volatility B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 63, type => 'simple') AS ts_value FROM px ON date
 volatility C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 252, type => 'simple') AS ts_value FROM px ON date
