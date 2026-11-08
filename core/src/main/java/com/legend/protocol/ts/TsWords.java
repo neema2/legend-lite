@@ -261,7 +261,7 @@ final class TsWords {
         for (TsToPure.Overload r : c.model().overloads(rowsFqn)) {
             List<TsToPure.Parameter> p = r.params();
             if (p.size() != own.size() + 7 || !p.subList(5, p.size() - 2).stream().map(TsToPure.Parameter::type)
-                    .toList().equals(own)) {
+                    .toList().equals(own) || !computes(r, bound)) {
                 continue;
             }
             TsLines.Valued v = l.line();
@@ -280,6 +280,38 @@ final class TsWords {
             return new TsLines.Valued(line, out);
         }
         return null;
+    }
+
+    /** The tag of a rows form computing one argument's value alone ({@code timeseries::Words.when}, 'mode: truncate'). */
+    static final String WHEN = "when";
+
+    /**
+     * Whether the call's arguments {@code bound} -- its line, then its own -- are those the rows form {@code r} computes
+     * ({@code timeseries::Words.when}: lag's rows form is its truncate alone, a column of its line's table, where its
+     * extend grows the line past its end): each argument it names spelled as it says, an option's word compared, never
+     * computed (the world map's compare-not-compute). A rows form that says none computes every call.
+     */
+    private static boolean computes(TsToPure.Overload r, List<ValueSpecification> bound) {
+        for (String w : r.facts().getOrDefault(WHEN, List.of())) {
+            int colon = w.indexOf(": ");
+            String name = w.substring(0, colon);
+            String value = w.substring(colon + 2);
+            int at = -1;
+            for (int i = 5; i < r.params().size() - 2; i++) {
+                if (r.params().get(i).name().equals(name)) {
+                    at = i;
+                }
+            }
+            if (at < 0) {
+                throw new IllegalStateException("a rows form's when names no parameter of it: " + w);
+            }
+            // its own parameters after the table, its columns and the presence; the call's after its line
+            ValueSpecification given = bound.get(at - 4);
+            if (!(given instanceof EnumValue e) || !e.value().equals(value)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

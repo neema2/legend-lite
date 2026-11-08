@@ -25,7 +25,7 @@ bonds C: WITH px AS (SELECT * FROM local::DB.markets_prices), rates AS (SELECT *
 returns A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'simple') AS ts_value FROM px ON date
 returns B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'log') AS ts_value FROM px ON date
 diff-lag A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
-diff-lag B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT lag(close[symbol = 'GLD'], 5) AS ts_value FROM px ON date
+diff-lag B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT lag(close[symbol = 'GLD'], 5, 'truncate') AS ts_value FROM px ON date
 diff-lag C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT diff(close[symbol = 'GLD'], 5) AS ts_value FROM px ON date
 compounded A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'NVDA'], base => 100) AS ts_value FROM px ON date
 compounded A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'NVDA'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date

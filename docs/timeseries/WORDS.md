@@ -407,14 +407,15 @@ Forms: `keltner_channels(high: Line, low: Line, close: Line, k: Float (optional)
 
 ## `lag`
 
-The value obs observations back (1 unless given), or as of a calendar period back.
+The value obs observations back (1 unless given), or as of a calendar period back; extend, unless truncate is given, also puts the last values past the line's end (gs-quant's lag).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
 | `obs` | span | observations, period | no |
+| `mode` | word | extend, truncate | no |
 
-Forms: `lag(x: Line)`, `lag(x: Line, obs: Integer)`, `lag(x: Line, obs: Integer, unit: DurationUnit)`.
+Forms: `lag(x: Line, mode: LagMode (optional))`, `lag(x: Line, obs: Integer, mode: LagMode (optional))`, `lag(x: Line, obs: Integer, unit: DurationUnit, mode: LagMode (optional))`.
 
 ## `last`
 

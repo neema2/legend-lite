@@ -82,9 +82,9 @@ export function diff(x: Line, ...args: Args<[obs: WindowLike], { obs?: WindowLik
   return word(DIFF_SHAPE, [x], args);
 }
 
-const LAG_SHAPE: WordShape = { word: 'lag', gsFunction: 'analysis.lag', lines: ['x'], gs: [{ name: 'obs', default: 1 }, { name: 'mode', only: true, default: 'extend', also: ['truncate'] }], extra: [] };
-/** Lag: The value obs observations before, or as of a calendar period before. (gs-quant's analysis.lag.) */
-export function lag(x: Line, ...args: Args<[obs: WindowLike, mode: typeof LagMode.EXTEND | typeof LagMode.TRUNCATE], { obs?: WindowLike; mode?: typeof LagMode.EXTEND | typeof LagMode.TRUNCATE }>): Term {
+const LAG_SHAPE: WordShape = { word: 'lag', gsFunction: 'analysis.lag', lines: ['x'], gs: [{ name: 'obs', default: 1 }, { name: 'mode', default: 'extend' }], extra: [] };
+/** Lag: The value obs observations before, or as of a calendar period before; extend (gs-quant's default) also puts the last obs values on the obs calendar days after the line's last date, a period's on each date that far after one of its own past its end; truncate, its own dates alone. (gs-quant's analysis.lag.) */
+export function lag(x: Line, ...args: Args<[obs: WindowLike, mode: LagMode], { obs?: WindowLike; mode?: LagMode }>): Term {
   return word(LAG_SHAPE, [x], args);
 }
 

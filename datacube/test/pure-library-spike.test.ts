@@ -322,7 +322,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 
   it('a value as of a calendar period back (lag 1m): an as-of join', async () => {
     same(await spikeLine('$prices->spike::lagBack(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.MONTHS, ~b)', 'b'),
-      await today('lag(close[AAA], 1m)'), 'lag 1m');
+      await today('lag(close[AAA], 1m, truncate)'), 'lag 1m');
   });
 
   it('a figure of each whole line (max drawdown): a group by the line, its working columns gone with the group', async () => {

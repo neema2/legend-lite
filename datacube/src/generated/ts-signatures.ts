@@ -48,7 +48,7 @@ export const WORD_SIGNATURES: Readonly<Record<string, TsSignature>> = {
   information_ratio: { series: 2, reads: ['x', 'benchmark'], params: [{ name: 'w', kind: 'span', default: 63, min: 0, required: false }, { name: 'annualization_factor', kind: 'whole', required: false }] },
   interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'intersect', words: ['intersect', 'nan', 'zero', 'step'], required: false, gsQuant: 'intersect' }] },
   keltner_channels: { series: 3, reads: ['high', 'low', 'close'], params: [{ name: 'w', kind: 'whole', default: 20, min: 1, required: false }, { name: 'a', kind: 'whole', default: 10, min: 1, required: false }, { name: 'k', kind: 'number', default: 2, min: 0, required: false }] },
-  lag: { series: 1, params: [{ name: 'obs', kind: 'span', default: 1, min: 1, required: false, gsQuant: 1 }] },
+  lag: { series: 1, params: [{ name: 'obs', kind: 'span', default: 1, min: 1, required: false, gsQuant: 1 }, { name: 'mode', kind: 'word', default: 'extend', words: ['extend', 'truncate'], required: false, gsQuant: 'extend' }] },
   last: { series: 1, params: [{ name: 'w', kind: 'span', required: true }] },
   lead_lag: { series: 2, params: [{ name: 'lag', kind: 'whole', default: 1, min: -252, max: 252, required: false }, { name: 'w', kind: 'span', default: 63, min: 0, required: false }] },
   macd: { series: 1, params: [{ name: 'm', kind: 'whole', default: 12, min: 1, required: false, gsQuant: 12 }, { name: 'n', kind: 'whole', default: 26, min: 1, required: false, gsQuant: 26 }, { name: 's', kind: 'whole', default: 1, min: 1, required: false, gsQuant: 1 }] },

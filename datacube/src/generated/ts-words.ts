@@ -430,11 +430,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
       { name: 'obs', kind: 'span', takes: ['observations', 'period'], words: [], required: false },
+      { name: 'mode', kind: 'word', takes: [], words: ['extend', 'truncate'], required: false },
     ],
-    forms: ['lag(x: Line)', 'lag(x: Line, obs: Integer)', 'lag(x: Line, obs: Integer, unit: DurationUnit)'],
-    doc: 'The value obs observations back (1 unless given), or as of a calendar period back.',
+    forms: ['lag(x: Line, mode: LagMode (optional))', 'lag(x: Line, obs: Integer, mode: LagMode (optional))', 'lag(x: Line, obs: Integer, unit: DurationUnit, mode: LagMode (optional))'],
+    doc: 'The value obs observations back (1 unless given), or as of a calendar period back; extend, unless truncate is given, also puts the last values past the line\'s end (gs-quant\'s lag).',
     aliases: [],
-    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before.'], given: ['obs: 1'], limit: ['obs: >= 1'], gsAlso: ['mode: truncate'] },
+    facts: { label: ['Lag'], family: ['Returns'], unit: ['same'], level: ['keeps'], gsQuant: ['analysis.lag'], about: ['The value obs observations before, or as of a calendar period before; extend (gs-quant\'s default) also puts the last obs values on the obs calendar days after the line\'s last date, a period\'s on each date that far after one of its own past its end; truncate, its own dates alone.'], given: ['obs: 1', 'mode: extend'], limit: ['obs: >= 1'], param: ['mode: extend (gs-quant\'s default), its last values also past its end; truncate, its own dates alone'] },
     marks: [],
   },
   last: {

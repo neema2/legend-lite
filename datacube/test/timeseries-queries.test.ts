@@ -394,7 +394,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.ok(kept.values[0] !== null, 'its first value has its five returns');
     // a value that is a window itself (a running sum, a running drawdown, a lag): every one over every date too -- a
     // plain filter after a window's extend is folded into its WHERE (core lowering/Fold.java filterSlot), never so here
-    for (const text of ['sum(close[AAA], 0)', 'drawdown(close[AAA])', 'lag(close[AAA], 3)', 'max(close[AAA], 0)']) {
+    for (const text of ['sum(close[AAA], 0)', 'drawdown(close[AAA])', 'lag(close[AAA], 3, truncate)', 'max(close[AAA], 0)']) {
       const every = await line(spec({ A: text }));
       const cut = await line(spec({ A: text }), 'A', {}, { from, to });
       assert.deepEqual(cut.dates, DAYS.slice(10, 21), text);
@@ -404,7 +404,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('diff and lag', async () => {
     close((await line(spec({ A: 'diff(close[AAA], 2)' }))).values, zip(AAA, lagged(AAA, 2), (v, p) => v - p), 'diff');
-    close((await line(spec({ A: 'lag(close[AAA], 3)' }))).values, lagged(AAA, 3), 'lag');
+    close((await line(spec({ A: 'lag(close[AAA], 3, truncate)' }))).values, lagged(AAA, 3), 'lag');
   });
 
   it('rolling mean, sum, min, max, range, standard deviation and variance: drawn from the point after the first full window (gs-quant\'s ramp)', async () => {
@@ -470,8 +470,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       return islandText(q);
     };
     const want: readonly [string, string, string?][] = [
-      ['diff(close[AAA], 2)', 'diff'], ['diff(close[AAA], 1m)', 'diffPeriod'], ['lag(close[AAA], 3)', 'lag'],
-      ['lag(close[AAA], 1m)', 'lagPeriod'], ['returns(close[AAA], 1w)', 'returnsPeriod'], ['annualize(close[AAA])', 'annualize'],
+      ['diff(close[AAA], 2)', 'diff'], ['diff(close[AAA], 1m)', 'diffPeriod'], ['lag(close[AAA], 3, truncate)', 'lag'],
+      ['lag(close[AAA], 1m, truncate)', 'lagPeriod'], ['returns(close[AAA], 1w)', 'returnsPeriod'], ['annualize(close[AAA])', 'annualize'],
       ['first(close[AAA])', 'first'], ['last(close[AAA])', 'last'], ['index(close[AAA], 100)', 'index'],
       ['index(close[AAA], 100)', 'indexFrom', '2024-01-15'], ['change(close[AAA])', 'change'],
       ['change(close[AAA])', 'changeFrom', '2024-01-15'], ['percent_change(close[AAA])', 'percentChange'],
@@ -678,10 +678,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const ra = simple(AAA);
     const rb = simple(lagged(BBB, 3));
     const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
-    close((await line(spec({ A: 'alpha(close[AAA], lag(close[BBB], 3), 8)' }))).values,
+    close((await line(spec({ A: 'alpha(close[AAA], lag(close[BBB], 3, truncate), 8)' }))).values,
       pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha on a lag', 1e-7);
-    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 8)' }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
-    close((await line(spec({ A: 'correlation(close[AAA], lag(close[BBB], 3), 8)' }))).values,
+    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3, truncate), 8)' }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
+    close((await line(spec({ A: 'correlation(close[AAA], lag(close[BBB], 3, truncate), 8)' }))).values,
       pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 'correlation on a lag', 1e-7);
     const mb = ramped(rolling(BBB, 5, avg), 5);
     close((await line(spec({ A: 'residual(close[AAA], mean(close[BBB], 5), 8)' }))).values,
@@ -929,7 +929,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       over(AAA, BBB, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual 3w', 1e-9);
     // a second series that starts later: its pairs, and its ramp from the first pair's date
     const lb = simple(lagged(BBB, 3));
-    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 3w)' }))).values, over(ra, lb, slope), 'beta on a lag 3w', 1e-9);
+    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3, truncate), 3w)' }))).values, over(ra, lb, slope), 'beta on a lag 3w', 1e-9);
   });
 
   // the library's calendar forms of a product and a vol swap (pure-library.ts productPeriod, volSwapVolatilityPeriod)
@@ -1085,7 +1085,7 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
   });
 
   it('three parts under step: each its last value at or before each date, a lag of CCC on CCC\'s own dates', async () => {
-    const l = await line(spec({ A: 'close[AAA] - close[CCC] + lag(close[CCC], 1)' }, { align: 'step' } as Partial<TimeseriesSpec>));
+    const l = await line(spec({ A: 'close[AAA] - close[CCC] + lag(close[CCC], 1, truncate)' }, { align: 'step' } as Partial<TimeseriesSpec>));
     // the lag's first value at CCC's second date, none before it (R12: never backfilled)
     const first = own[1]!;
     assert.deepEqual(l.dates, DAYS);
@@ -1198,7 +1198,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     const m3 = ramp(rolling(AAA, 3, avg), 3);
     const after = await line(spec({ A: 'filter(mean(close[AAA], 3), greater_than, 102)' }));
     close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
-    const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
+    const empty = await line(spec({ A: 'filter(lag(close[AAA], 2, truncate))' }));
     assert.deepEqual(empty.dates, DAYS.slice(2), 'empty: the dates of none dropped');
     // every other operator, each a value of timeseries::FilterOperator (the enum round's review, 2026-10-28)
     const at = AAA[7]!;
@@ -1240,7 +1240,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
   it('compare beside none: 0, as gs-quant\'s (x > y) - (x < y); filter not_equals drops the dates of none too', async () => {
     const c = await line(spec({ A: 'compare(close[AAA], close[CCC] * 5)' }, { align: 'nan' } as Partial<TimeseriesSpec>));
     close(c.values, AAA.map((v, i) => (i % 3 === 0 ? Math.sign(v - CCC[i]! * 5) : 0)), 'compare', 0);
-    const f = await line(spec({ A: `filter(lag(close[AAA], 2), not_equals, ${AAA[0]})` }));
+    const f = await line(spec({ A: `filter(lag(close[AAA], 2, truncate), not_equals, ${AAA[0]})` }));
     assert.deepEqual(f.dates, [DAYS[2]!], 'the value equal to it alone: none is not equal to it');
   });
 
@@ -1288,10 +1288,10 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
   it('first, last and count: its first and last value on every date it has, and how many to date', async () => {
     const lagged2 = lagged(AAA, 2);
     // on every date, those with none too: gs-quant's fill its index (the Phase 1 review's 6)
-    close((await line(spec({ A: 'first(lag(close[AAA], 2))' }))).values, lagged2.map(() => AAA[0]!), 'first', 0);
-    close((await line(spec({ A: 'day(lag(close[AAA], 2))' }))).values, DAYS.map((d) => Number(d.slice(8))), 'a date part of none', 0);
+    close((await line(spec({ A: 'first(lag(close[AAA], 2, truncate))' }))).values, lagged2.map(() => AAA[0]!), 'first', 0);
+    close((await line(spec({ A: 'day(lag(close[AAA], 2, truncate))' }))).values, DAYS.map((d) => Number(d.slice(8))), 'a date part of none', 0);
     close((await line(spec({ A: 'last(close[AAA])' }))).values, AAA.map(() => AAA.at(-1)!), 'last', 0);
-    close((await line(spec({ A: 'count(lag(close[AAA], 2))' }))).values, lagged2.map((_, i) => Math.max(0, i - 1)), 'count', 0);
+    close((await line(spec({ A: 'count(lag(close[AAA], 2, truncate))' }))).values, lagged2.map((_, i) => Math.max(0, i - 1)), 'count', 0);
   });
 
   it('union, append and prepend: two series spliced on every date either has', async () => {
@@ -2305,7 +2305,7 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     const prices = [Q_IDX.map((i) => PC[i]!), Q_IDX.map((i) => QC[i]!)];
     close((await packLine('basket(close[P], 1, close[Q], -1, rebalance=monthly)')).values,
       gsBasket(Q_DAYS, prices, [1, -1], 'monthly'), 'long P, short Q', 1e-9);
-    const gap = await packLine('basket(lag(close[P], 1), 0.5, close[Q], 0.5)');
+    const gap = await packLine('basket(lag(close[P], 1, truncate), 0.5, close[Q], 0.5)');
     assert.ok(gap.values.length > 0 && gap.values.every((v) => v === null), 'none from its first price of none on');
     const ts = spec({ A: 'basket(close[P], 0.5, close[Q], 0.5)' });
     const yearly: TimeseriesSpec = { ...ts, series: [{ ...ts.series[0]!, text: writtenText({ ...(treeOf(ts.series[0]!, ts.series) as Extract<TsExpr, { kind: 'call' }>), params: { rebalance: 'yearly' } }, []) }] };

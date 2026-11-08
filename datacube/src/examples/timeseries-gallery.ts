@@ -34,7 +34,7 @@ const RETURNS: GallerySheet = {
       sources: ON_PRICES,
       series: [
         s('A', "close['GLD']", { name: 'Gold' }),
-        s('B', "lag(close['GLD'], 5)", { name: 'A week before', style: { dash: 'dashed', width: 1 } }),
+        s('B', "lag(close['GLD'], 5, 'truncate')", { name: 'A week before', style: { dash: 'dashed', width: 1 } }),
         s('C', "diff(close['GLD'], 5)", { name: 'Change over the week', pane: 1, style: { kind: 'bars' } }),
       ],
       range: { last: '6m' },

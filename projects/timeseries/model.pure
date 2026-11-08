@@ -24,6 +24,13 @@ Enum timeseries::Returns
   simple, log, absolute
 }
 
+// gs-quant's LagMode (timeseries.analysis.lag): extend, its default, also puts a line's last obs values on the obs
+// calendar days after its last date; truncate, the line's own dates alone.
+Enum timeseries::LagMode
+{
+  extend, truncate
+}
+
 Enum timeseries::FilterOperator
 {
   empty, less_than, greater_than, l_equals, g_equals, equals, not_equals
@@ -2237,11 +2244,12 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // A WORD'S SIGNATURE'S FACTS (docs/TS_DECISIONS_2026_11_07.md §4): given and limit, a parameter's default and bounds;
 // for the builders, which spell a call as gs-quant's, where gs-quant says it otherwise -- gsParam a parameter's name
 // ('type: returns_type'), gsValue an option's ('type: logarithmic log'), gsAlso a value of gs-quant's the word computes
-// beside its default ('mode: truncate').
+// beside its default. On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
+// lag past the line's end is no column of its table).
 Profile timeseries::Words
 {
   stereotypes: [band, candles, anchored];
-  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search, pairs, given, limit, gsParam, gsValue, gsAlso];
+  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search, pairs, given, limit, gsParam, gsValue, gsAlso, when];
 }
 
 // The scopes a window names that are no number of observations: all, the line's start to date.
@@ -2460,7 +2468,7 @@ function timeseries::rows::max_drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: C
     ->without(~[rows_pk, rows_dd, rows_md, rows_c, rows_n])->without(~rows_t)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
-function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], obs: Integer[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+function {timeseries::Words.when = 'mode: truncate'} timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], obs: Integer[1], mode: timeseries::LagMode[0..1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->extend(over($key, [$date->ascending()]), ~rows_l:{p,f,r|$p->lag($r, $obs)->read($value)})
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
@@ -2697,7 +2705,7 @@ function timeseries::rows::max_drawdown<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: C
     ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
-function timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
+function {timeseries::Words.when = 'mode: truncate'} timeseries::rows::lag<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], mode: timeseries::LagMode[0..1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
   $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::lagPeriod($key, $date, $value, $w, $unit, ~rows_m)
     ->extend(~rows_q:x|if($x->read($present)->isNotEmpty(), |1, |[]))
@@ -3424,19 +3432,82 @@ function timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Numb
   $x->timeseries::winsorize(over(~[key], [~date->ascending()], rows(unbounded(), unbounded())), ~value, if($limit->isEmpty(), |2.5, |$limit->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The value obs observations back (1 unless given), or as of a calendar period back.', timeseries::Words.label = 'Lag', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.lag', timeseries::Words.about = 'The value obs observations before, or as of a calendar period before.', timeseries::Words.given = 'obs: 1', timeseries::Words.limit = 'obs: >= 1', timeseries::Words.gsAlso = 'mode: truncate'} timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The value obs observations back (1 unless given), or as of a calendar period back; extend, unless truncate is given, also puts the last values past the line\'s end (gs-quant\'s lag).', timeseries::Words.label = 'Lag', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.lag', timeseries::Words.about = 'The value obs observations before, or as of a calendar period before; extend (gs-quant\'s default) also puts the last obs values on the obs calendar days after the line\'s last date, a period\'s on each date that far after one of its own past its end; truncate, its own dates alone.', timeseries::Words.given = 'obs: 1', timeseries::Words.given = 'mode: extend', timeseries::Words.limit = 'obs: >= 1', timeseries::Words.param = 'mode: extend (gs-quant\'s default), its last values also past its end; truncate, its own dates alone'} timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], mode: timeseries::LagMode[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::lag(1)
+  $x->timeseries::line::lag(1, $mode)
 }
 
-function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], mode: timeseries::LagMode[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::lag(over(~[key], [~date->ascending()]), ~value, $obs, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+    ->timeseries::line::helpers::lagExtended($x->timeseries::line::helpers::lagTail($obs), $mode)
 }
 
-function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], mode: timeseries::LagMode[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::lagPeriod(~key, ~date, ~value, $obs, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+    ->timeseries::line::helpers::lagExtended($x->timeseries::line::helpers::lagTail($obs, $unit), $mode)
+}
+
+// A lag's line and, extended (gs-quant's LagMode.extend, its default), its tail after it: truncate, the line alone.
+function timeseries::line::helpers::lagExtended<K,D>(lagged: Relation<(key:K, date:D, value:Number)>[1], tail: Relation<(key:K, date:D, value:Number)>[1], mode: timeseries::LagMode[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  if(if($mode->isEmpty(), |timeseries::LagMode.extend, |$mode->toOne()) == timeseries::LagMode.truncate, |$lagged, |$lagged->concatenate($tail))
+}
+
+// A line lagged by obs observations, past its end (gs-quant's extend: its index grown by obs calendar days, then
+// shifted): its last obs values, each on a calendar day after its last date, in their order -- the k-th from its end on
+// the (obs + 1 - k)-th day after it. Its dates moved as dates (lagMoved), then each the line's own type again.
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:StrictDate, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:StrictDate, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs)->extend(~date:r|$r.ln->toOne()->cast(@StrictDate))->select(~[key, date, value])
+}
+
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:DateTime, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:DateTime, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs)->extend(~date:r|$r.ln->toOne()->cast(@DateTime))->select(~[key, date, value])
+}
+
+// a line of periods (SAMPLE BY's): its dates dates already
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:Date, value:Number)>[1], obs: Integer[1]): Relation<(key:K, date:Date, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs)->rename(~ln, ~date)
+}
+
+function timeseries::line::helpers::lagMoved<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1]): Relation<(key:K, ln:Date, value:Number)>[1]
+{
+  $x->extend(over(~[key], [~date->descending()]), ~lk:{p,f,r|$p->rowNumber($r)})
+    ->extend(over(~[key]), ~ld:{p,f,r|$r.date}:y|$y->max())
+    ->filter(r|$r.lk <= $obs)
+    ->extend(~ln:r|$r.ld->toOne()->adjust($obs + 1 - $r.lk, meta::pure::functions::date::DurationUnit.DAYS))
+    ->select(~[key, ln, value])
+}
+
+// A line lagged by a calendar period, past its end (gs-quant's extend: each date moved on by the period): each value
+// on its date that far after, where that is after the line's last date -- of two moved onto one date, the earlier.
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:StrictDate, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:StrictDate, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs, $unit)->extend(~date:r|$r.ln->toOne()->cast(@StrictDate))->select(~[key, date, value])
+}
+
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:DateTime, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:DateTime, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs, $unit)->extend(~date:r|$r.ln->toOne()->cast(@DateTime))->select(~[key, date, value])
+}
+
+function timeseries::line::helpers::lagTail<K>(x: Relation<(key:K, date:Date, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:Date, value:Number)>[1]
+{
+  $x->timeseries::line::helpers::lagMoved($obs, $unit)->rename(~ln, ~date)
+}
+
+function timeseries::line::helpers::lagMoved<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], obs: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, ln:Date, value:Number)>[1]
+{
+  $x->extend(over(~[key]), ~ld:{p,f,r|$r.date}:y|$y->max())
+    ->extend(~ln:r|$r.date->toOne()->adjust($obs, $unit))
+    ->filter(r|$r.ln->toOne() > $r.ld->toOne())
+    ->extend(over(~[key, ln], [~date->ascending()]), ~lk:{p,f,r|$p->rowNumber($r)})
+    ->filter(r|$r.lk == 1)
+    ->select(~[key, ln, value])
 }
 
 function {meta::pure::profiles::doc.doc = 'Each value less the one obs observations back (1 unless given), or a calendar period back.', timeseries::Words.label = 'Difference', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.gsQuant = 'analysis.diff', timeseries::Words.about = 'The change over obs observations: x - x[-obs].', timeseries::Words.given = 'obs: 1', timeseries::Words.limit = 'obs: >= 1'} timeseries::line::diff<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]

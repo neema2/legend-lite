@@ -795,7 +795,7 @@ class TsIslandTest {
     void aSpanBackIsAsOfThatDateAndADateWindowRunsFromIt() throws Exception {
         // R9: returns(x, 1w) against the value as of a week back; R4: sum(x, '2024-01-25') the total since the 25th
         List<Map<String, String>> got = rows(one(), "|#TS{SELECT returns(CLOSE['AAA'], 1w) AS wk,"
-                + " sum(CLOSE['AAA'], '2024-01-25') AS since, lag(CLOSE['AAA'], 2d) AS two FROM PRICES ON DAY"
+                + " sum(CLOSE['AAA'], '2024-01-25') AS since, lag(CLOSE['AAA'], 2d, 'truncate') AS two FROM PRICES ON DAY"
                 + " BY SYMBOL}#");
         // R6: no row on the 20th and the 21st, where no item has a value
         assertClose(each(AAA.length - 2, i -> i + 2 < 7 ? null : AAA[i + 2] / AAA[i - 5] - 1),
@@ -812,6 +812,33 @@ class TsIslandTest {
             return sum;
         }), column(got, null, null, "since"), "the total since the 25th");
         assertClose(each(AAA.length - 2, i -> AAA[i]), column(got, null, null, "two"), "the value two days back");
+    }
+
+    @Test
+    void lagExtendsPastTheLinesEndAsGsQuantsDoesUnlessTruncated() throws Exception {
+        // gs-quant's lag (timeseries/analysis.py): its default LagMode.EXTEND grows the line's dates by obs calendar days
+        // after its last and shifts -- its last obs values on those days, the k-th from its end on the (obs + 1 - k)-th
+        // day after; TRUNCATE its own dates alone (the user, 2026-11-08: "extend default to align with truncate option")
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> cut = rows(backend, "|#TS{SELECT lag(CLOSE['AAA'], 2, 'truncate') AS l FROM PRICES"
+                    + " ON DAY BY SYMBOL}#");
+            List<Map<String, String>> ext = rows(backend, "|#TS{SELECT lag(CLOSE['AAA'], 2) AS l FROM PRICES ON DAY BY"
+                    + " SYMBOL}#");
+            // the first two dates are no item's point (lag's ramp): no row
+            int n = AAA.length;
+            assertClose(each(n - 2, i -> AAA[i]), column(cut, null, null, "l"), backend + ": truncate");
+            assertEquals(java.util.stream.IntStream.range(2, n).mapToObj(i -> FIRST.plusDays(i).toString()).toList(),
+                    cut.stream().map(r -> r.get("DAY")).toList(), backend + ": truncate's dates, the line's own");
+            assertClose(each(n, i -> AAA[i]), column(ext, null, null, "l"), backend + ": extend");
+            assertEquals(java.util.stream.IntStream.range(2, n + 2).mapToObj(i -> FIRST.plusDays(i).toString()).toList(),
+                    ext.stream().map(r -> r.get("DAY")).toList(), backend + ": extend's dates, two calendar days on");
+            // a calendar period: each date moved on by it, those past the end added
+            List<Map<String, String>> period = rows(backend, "|#TS{SELECT lag(CLOSE['AAA'], 3d) AS l FROM PRICES ON DAY"
+                    + " BY SYMBOL}#");
+            assertClose(each(n, i -> AAA[i]), column(period, null, null, "l"), backend + ": extend by a period");
+            assertEquals(java.util.stream.IntStream.range(3, n + 3).mapToObj(i -> FIRST.plusDays(i).toString()).toList(),
+                    period.stream().map(r -> r.get("DAY")).toList(), backend + ": a period's dates, three days on");
+        }
     }
 
     @Test
@@ -1655,8 +1682,9 @@ class TsIslandTest {
             for (String col : List.of("c", "l", "r")) {
                 assertArrayEquals(column(want, null, null, col), column(got, null, null, col), of + col + " as its call");
             }
-            // from the second day: the first is no item's point (lag's ramp, a return's first)
-            assertClose(each(AAA.length - 1, i -> AAA[i]), column(got, null, null, "l"), of + "the day before's close");
+            // from the second day: the first is no item's point (lag's ramp, a return's first); and, lag extending
+            // past the line as gs-quant's does (its default, 2026-11-08), the last close on the day after the last
+            assertClose(each(AAA.length, i -> AAA[i]), column(got, null, null, "l"), of + "the day before's close");
         }
         // read as its call, a default writes the explicit call's SQL
         String sql = Compiler.query(Compiler.compileModel(model(TestBackends.platform(), true)), q).plan("ts::RT").sql();
@@ -1763,7 +1791,7 @@ class TsIslandTest {
         // W3 (2026-11-06): s is AAA and BBB met; t meets s's table with AAA's change, so t's rows are some of s's.
         // The answer's periods, every period any item has, are s's rows: s's table is the answer's spine, t's values
         // joined onto it -- no union of the two tables' periods, no grouping of them (spec-13's shape: its 5 joins 4)
-        String q = "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s, lag(s, 1) * diff(CLOSE['AAA'], 1) AS t"
+        String q = "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS s, lag(s, 1, 'truncate') * diff(CLOSE['AAA'], 1) AS t"
                 + " FROM PRICES ON DAY BY SYMBOL}#";
         for (TestBackend backend : backends()) {
             String of = backend + ": ";

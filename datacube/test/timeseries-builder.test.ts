@@ -35,7 +35,6 @@ const spelled = (gsName: string): string => (gsName === 'var' ? 'var_' : gsName)
  */
 const LEDGER: Readonly<Record<string, string>> = {
   'var_ spelled': 'TypeScript reserves var: gs-quant\'s own way with Python\'s keywords (sum_, if_), a trailing underscore',
-  'lag.mode only': 'the language\'s lag is on the line\'s own dates -- gs-quant\'s TRUNCATE, which it takes too; EXTEND, gs-quant\'s default, puts the last values on calendar days after the line, which no line here has',
   'mean.mean_type only': 'an arithmetic mean alone: the language has no quadratic one',
   'volatility.assume_zero_mean only': 'deviations about the mean alone (the language has no zero-mean form)',
   'sharpe_ratio.currency only': 'no risk-free rate: the language\'s Sharpe ratio is its mean over its volatility (register S155)',
@@ -152,7 +151,8 @@ describe('a builder term is its #TS text', () => {
     assert.equal(basket_series!([spx, ndx], [0.6, 0.4], null, 'monthly').text(),
       "basket(close['SPX'], 0.6, close['NDX'], 0.4, rebalance => 'monthly')");
     assert.equal(smooth_spikes!(spx, 0.3).text(), "smooth_spikes(close['SPX'], threshold => 0.3, type => 'percentage')");
-    assert.equal(lag!(spx, 2, LagMode.TRUNCATE).text(), "lag(close['SPX'], 2)");
+    assert.equal(lag!(spx, 2, LagMode.TRUNCATE).text(), "lag(close['SPX'], 2, 'truncate')");
+    assert.equal(lag!(spx).text(), "lag(close['SPX'], 1, 'extend')");
     assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(close['SPX'], w => 252)");
     assert.equal(append!([spx, ndx]).text(), "append(close['SPX'], close['NDX'])");
   });
