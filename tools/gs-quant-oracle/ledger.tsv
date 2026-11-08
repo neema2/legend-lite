@@ -40,7 +40,7 @@ percentile n=90,w=3mo	OK	PASS	-	4814a05e888849a45356ceeb5fb36d26f24343a51783e015
 percentiles default	OK	PASS	-	5d5e3018a223dfbcdf4d76d36da56b1d004028c8b539dfbe0e52338573a111ce	-	1304 points
 percentiles w=20	OK	PASS	-	aa6de8fbc59cf26e0e7804ba97f763b2f120eb444eef70d3cefb670ba2338523	-	1284 points
 percentiles w=3mo	OK	PASS	-	04586ec4982ab6fc359e7012014aa1a9f16faf9f3689ff9a7ed94cc5999d6a7a	-	1239 points
-zscores default	OK	DIFF	S150	b64ddc4187b51e325a16c01fe52941dc0725d78cb0028066f7b33c2dee37d1ca	-	1304 points | lite: 1304 gs-quant points, 1303 lite's; 1302 dates apart (worst absolute 3.787275500576429), 1 gs-quant's alone from 2020-01-02, 0 lite's alone; 2020-01-03: gs-quant -0.9353660014519545, lite -0.707106781186549; 2020-01-06: gs-quant -0.9359445049083146, lite -0.617130077080545; 2020-01-07: gs-quant -0.9613986569881644, lite -1.3962264254388674
+zscores default	OK	DIFF	S150	b64ddc4187b51e325a16c01fe52941dc0725d78cb0028066f7b33c2dee37d1ca	-	1304 points | lite: 1304 gs-quant points, 1304 lite's; 1303 dates apart (worst absolute 3.787275500576429), 0 gs-quant's alone, 0 lite's alone; 2020-01-02: gs-quant -0.9232174288683898, lite 0.0; 2020-01-03: gs-quant -0.9353660014519545, lite -0.707106781186549; 2020-01-06: gs-quant -0.9359445049083146, lite -0.617130077080545
 zscores w=20	OK	PASS	-	5cbbfe23c4e7521ff2aa855a09710d028e4c0dd1296c097aa6634579c54580ab	-	1284 points
 zscores w=3mo	OK	PASS	-	9191503ea40113a3d8b021b878837839d710818300b796565a8a698f93365122	-	1239 points
 zscores w=whole	OK	PASS	-	b64ddc4187b51e325a16c01fe52941dc0725d78cb0028066f7b33c2dee37d1ca	-	1304 points
