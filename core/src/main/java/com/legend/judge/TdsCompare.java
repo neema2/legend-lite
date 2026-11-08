@@ -58,9 +58,9 @@ public final class TdsCompare {
         // the grid's DECLARED column types decide each cell (step 2b);
         // the rows are the judge's, ordered or as a multiset
         // each grid's cells typed by its own declared columns (the user's ruling, 2026-11-03: never the peer's)
-        List<com.legend.compiler.element.type.Type> eKinds = new ArrayList<>();
+        List<String> eKinds = new ArrayList<>();
         expected.columns().forEach(c -> eKinds.add(c.pureType()));
-        List<com.legend.compiler.element.type.Type> aKinds = new ArrayList<>();
+        List<String> aKinds = new ArrayList<>();
         actual.columns().forEach(c -> aKinds.add(c.pureType()));
         List<Object> ef = new ArrayList<>();
         e.forEach(ef::addAll);

@@ -3,7 +3,6 @@
 
 package com.legend.judge;
 
-import com.legend.compiler.element.type.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -84,24 +83,18 @@ public final class PureAsserts {
                 + "\nactual:   " + (ones ? repr(a.get(0), aClass) : reprList(a, aClass));
     }
 
-    /** With each side's STATIC type (the {@code instanceOf Type} half of
-     * an instance's representation — the wire map carries no type). */
+    /** With each side's STATIC class (the {@code instanceOf Type} half of an instance's representation -- the wire
+     *  map carries no type): a class's FQN, or a generic class's raw FQN (a {@code Pair<Integer, String>} is of its
+     *  raw class, as upstream's toRepresentation writes its {@code type()->elementToPath()}), read at planning; null
+     *  for any other type. */
     public static @com.legend.base.Nullable String assertEquals(
             List<Object> expected, List<Object> actual,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type expectedType,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            @com.legend.base.Nullable String expectedClass,
+            @com.legend.base.Nullable String actualClass, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         if (equal(expected, actual, rules)) {
             return null;
         }
-        return equalsMessage(expected, actual, classFqnOf(expectedType), classFqnOf(actualType));
-    }
-
-    private static @com.legend.base.Nullable String classFqnOf(
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type t) {
-        // a generic class's instance (a Pair<Integer, String>) is of its raw class, as upstream's toRepresentation
-        // writes its type()->elementToPath() (2026-11-04, the assert bar: the pair printed 'instanceOf ?')
-        return t instanceof com.legend.compiler.element.type.Type.ClassType c ? c.fqn()
-                : t instanceof com.legend.compiler.element.type.Type.GenericType g ? g.rawFqn() : null;
+        return equalsMessage(expected, actual, expectedClass, actualClass);
     }
 
     /** {@code assertSameElements(expected, actual)}
@@ -115,16 +108,16 @@ public final class PureAsserts {
     /** With each side's STATIC type, an instance's {@code instanceOf} half (2026-11-05, the assert bar: two lists of
      *  pairs printed {@code instanceOf ?}). */
     public static @com.legend.base.Nullable String assertSameElements(List<Object> expected, List<Object> actual,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type expectedType,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType,
+            @com.legend.base.Nullable String expectedClass,
+            @com.legend.base.Nullable String actualClass,
             com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
         List<Object> es = sorted(expected);
         List<Object> as = sorted(actual);
         if (equal(es, as, rules)) {
             return null;
         }
-        return "\nexpected: " + reprList(es, classFqnOf(expectedType)) + "\nactual:   "
-                + reprList(as, classFqnOf(actualType));
+        return "\nexpected: " + reprList(es, expectedClass) + "\nactual:   "
+                + reprList(as, actualClass);
     }
 
     /** {@code assertSize(collection, size)} (assertSize.pure:17). */
@@ -153,10 +146,10 @@ public final class PureAsserts {
 
     /** With each side's STATIC type, an instance's {@code instanceOf} half. */
     public static String containsMessage(List<Object> collection, @com.legend.base.Nullable Object value,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type collectionType,
-            com.legend.compiler.element.type.@com.legend.base.Nullable Type valueType) {
-        return reprList(collection, classFqnOf(collectionType)) + " does not contain "
-                + repr(value, classFqnOf(valueType));
+            @com.legend.base.Nullable String collectionClass,
+            @com.legend.base.Nullable String valueClass) {
+        return reprList(collection, collectionClass) + " does not contain "
+                + repr(value, valueClass);
     }
 
     /** {@code assertEmpty(collection)}'s message (assertEmpty.pure:17-20, its own test: {@code '[1, 2] is not
@@ -278,7 +271,7 @@ public final class PureAsserts {
         String type = rawType.substring(rawType.lastIndexOf(':') + 1);
         String actual = carrierTypeName(v);
         boolean ok = switch (type) {
-            case "Any", com.legend.compiler.element.type.PlatformTypes.ANY -> true;
+            case "Any", com.legend.result.RowDecode.ANY -> true;
             case "Number" -> actual.equals("Integer")
                     || actual.equals("Float") || actual.equals("Decimal");
             case "Date" -> actual.equals("StrictDate")

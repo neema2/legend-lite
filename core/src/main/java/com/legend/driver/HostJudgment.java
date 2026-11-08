@@ -38,12 +38,12 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
      *  name for the census. */
     record SideFacts(ExprType info, @Nullable String classFqn, @Nullable KindClass kind, boolean anyStamped,
-            boolean nil, boolean mapCarrier, String typeName) {
+            boolean nil, boolean mapCarrier, String typeName, String declared) {
 
         static SideFacts of(TypedSpec s) {
             Type t = s.info().type();
             return new SideFacts(s.info(), EqualityKeys.fqnOf(t), KindClass.of(t), AssertVerdicts.isAnyStamped(s),
-                    PlatformTypes.isNil(t), PlatformTypes.isMapCarrier(t), AssertVerdicts.typeName(s));
+                    PlatformTypes.isNil(t), PlatformTypes.isMapCarrier(t), AssertVerdicts.typeName(s), t.typeName());
         }
 
         Type type() {

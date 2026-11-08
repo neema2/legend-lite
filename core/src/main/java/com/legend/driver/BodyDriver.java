@@ -539,15 +539,13 @@ public final class BodyDriver {
         m.put(com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(), SeedSqlForms::assertForm);
         m.put(com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2, SeedSqlForms::assertForm);
         m.put(com.legend.builtin.NativeFn.Effect.PRINT.fqn(),
-                (body, nc, env) -> new TypedSide.Scalar(null,
-                        com.legend.compiler.element.type.Type.Primitive.STRING));
+                (body, nc, env) -> new TypedSide.Scalar(null, "String"));
         // debug output: a NO-OP — the argument is NEVER evaluated (it may be an
         // unlowerable diagnostic); engine parity is the statement's inertness
         m.put(com.legend.builtin.NativeFn.Effect.PRINTLN.fqn(),
-                (body, nc, env) -> new TypedSide.Scalar(null,
-                        com.legend.compiler.element.type.Type.Primitive.STRING));
+                (body, nc, env) -> new TypedSide.Scalar(null, "String"));
         m.put(com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
-                (body, nc, env) -> new TypedSide.Scalar(null, nc.info().type()));
+                (body, nc, env) -> new TypedSide.Scalar(null, nc.info().type().typeName()));
         return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
@@ -629,8 +627,8 @@ public final class BodyDriver {
         Object v = com.legend.compiler.spec.typed.Literals.fold(value, lets);
         return switch (v) {
             case null -> null;
-            case java.util.List<?> l -> new TypedSide.Collection(new java.util.ArrayList<>(l), value.info().type());
-            default -> new TypedSide.Scalar(v, value.info().type());
+            case java.util.List<?> l -> new TypedSide.Collection(new java.util.ArrayList<>(l), value.info().type().typeName());
+            default -> new TypedSide.Scalar(v, value.info().type().typeName());
         };
     }
 
@@ -653,10 +651,9 @@ public final class BodyDriver {
             }
             case com.legend.planner.Prepared.StoreWrite w -> throw new IllegalStateException("a write into a store"
                     + " table is a step of the body's plan, never a side answered while the body is planned");
-            case com.legend.planner.Prepared.DdlText d -> new TypedSide.Scalar(d.text(), d.type());
-            case com.legend.planner.Prepared.Handle h -> new TypedSide.Scalar(null, h.type());
-            case com.legend.planner.Prepared.DdlTexts c -> new TypedSide.Collection(c.texts(),
-                    com.legend.compiler.element.type.Type.Primitive.STRING);
+            case com.legend.planner.Prepared.DdlText d -> new TypedSide.Scalar(d.text(), d.type().typeName());
+            case com.legend.planner.Prepared.Handle h -> new TypedSide.Scalar(null, h.type().typeName());
+            case com.legend.planner.Prepared.DdlTexts c -> new TypedSide.Collection(c.texts(), "String");
             case com.legend.planner.Prepared.EffectfulMap m -> throw new IllegalStateException("a map over an"
                     + " effectful lambda is a step of the body's plan, never a side answered while the body is planned");
         };

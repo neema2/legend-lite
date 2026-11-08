@@ -112,7 +112,7 @@ final class JudgePlans {
                 // a value is one, [1] as Pure types it (the test-is-the-product plan's §9 item 2; the user,
                 // 2026-11-01: "match upstream engine/pure"): until then [0..1] whatever it held
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE;
-                columns = java.util.List.of(hostColumn("value", s.returnType().typeName(),
+                columns = java.util.List.of(hostColumn("value", s.returnType(),
                         s.value() == null ? new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1) : one));
                 if (s.value() != null) {
                     rows.add(hostRow(s.value()));
@@ -120,7 +120,7 @@ final class JudgePlans {
             }
             case TypedSide.Collection c -> {
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE;
-                columns = java.util.List.of(hostColumn("value", c.returnType().typeName(),
+                columns = java.util.List.of(hostColumn("value", c.returnType(),
                         new com.legend.executionplan.ExecutionPlan.Multiplicity(0, null)));
                 for (Object v : c.values()) {
                     rows.add(hostRow(v));
@@ -131,8 +131,7 @@ final class JudgePlans {
                 java.util.List<com.legend.executionplan.ExecutionPlan.Column> cs = new java.util.ArrayList<>();
                 for (com.legend.judge.Column c : t.columns()) {
                     // the side's column carries the typer's multiplicity where the judge had one; one otherwise
-                    cs.add(hostColumn(c.name(), c.pureType().typeName(), c.multiplicity() == null ? one
-                            : com.legend.plan.PlanColumns.multiplicity(c.multiplicity())));
+                    cs.add(hostColumn(c.name(), c.pureType(), c.multiplicity() == null ? one : c.multiplicity()));
                 }
                 columns = cs;
                 for (com.legend.judge.Row r : t.rows()) {
@@ -405,7 +404,7 @@ final class JudgePlans {
         return switch (p.kind()) {
             case CONSTANT -> decodeConstant((ExecutionPlan.Side.Constant) p.side(),
                     java.util.Objects.requireNonNull(p.answered(), "a constant side's value"), rows);
-            case GRAPH -> new TypedSide.Graph(objectsShape(rows), p.wrappedSide().shapeInfo().type());
+            case GRAPH -> new TypedSide.Graph(objectsShape(rows), p.wrappedSide().shapeInfo().type().typeName());
             case TABULAR -> tabularShape(rows, java.util.Objects.requireNonNull(p.schema(), "a grid's schema"),
                     p.wrappedSide().shapeInfo());
             case KEYED -> keyedShape(rows, java.util.Objects.requireNonNull(p.schema(), "a keyed grid's schema"),
@@ -494,35 +493,47 @@ final class JudgePlans {
     private static TypedSide tabularShape(PlanRunner.Rows rows, Type.RelationType schema, ExprType info) {
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
-            columns.add(new Column(c.name(), c.type(), c.multiplicity()));
+            columns.add(new Column(c.name(), c.type().typeName(), planMultiplicity(c.multiplicity())));
         }
         if (schema.columns().isEmpty()) {
             // a raw grid's: the columns its result reported, each typed by the Pure type the wire table named
             for (ExecutionPlan.Column c : rows.columns()) {
-                columns.add(new Column(c.name(), reportedType(c), c.multiplicity().lower() == 0
-                        ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
-                        : com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                columns.add(new Column(c.name(), reportedType(c),
+                        new ExecutionPlan.Multiplicity(c.multiplicity().lower() == 0 ? 0 : 1, 1)));
             }
         }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
             out.add(new Row(r));
         }
-        return new TypedSide.Tabular(columns, out, info.type());
+        return new TypedSide.Tabular(columns, out, info.type().typeName(), oneCarrier(info.type()));
     }
 
-    /** A reported column's Pure type: the primitive the wire table named, or Any (its cells the driver's kind). */
-    private static Type reportedType(ExecutionPlan.Column c) {
+    /** A reported column's Pure type, in the plan's spelling: the primitive the wire table named, or Any (its cells
+     *  the driver's kind). */
+    private static String reportedType(ExecutionPlan.Column c) {
         for (Type.Primitive p : Type.Primitive.values()) {
             if (p.typeName().equals(c.type())) {
-                return p;
+                return p.typeName();
             }
         }
         if (c.type().equals("Any")) {
-            return new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+            return com.legend.compiler.element.type.PlatformTypes.ANY;
         }
         throw new IllegalStateException("a reported column's type '" + c.type() + "' is no primitive the wire table"
                 + " names");
+    }
+
+    /** Whether a side of type {@code t} is ONE carrier in the engine's {@code Result.values} (a relation's or a TDS's
+     *  type): read where the side is shaped, carried on the judged side as a fact ({@link TypedSide#envelopeCarriers}). */
+    private static boolean oneCarrier(Type t) {
+        return Type.schemaView(t) != null || PlatformTypes.isTdsType(t);
+    }
+
+    /** A compiler multiplicity in the plan's form, or null where none is known. */
+    private static ExecutionPlan.@com.legend.base.Nullable Multiplicity planMultiplicity(
+            com.legend.compiler.element.type.@com.legend.base.Nullable Multiplicity m) {
+        return m == null ? null : com.legend.plan.PlanColumns.multiplicity(m);
     }
 
     /** A keyed side's rows: each answered column typed by the schema's one pivot rule
@@ -540,14 +551,15 @@ final class JudgePlans {
             }
             Type.Column fixed = schema.columns().stream().filter(x -> x.name().equals(c.name())).findFirst()
                     .orElse(null);
-            columns.add(fixed != null ? new Column(fixed.name(), fixed.type(), fixed.multiplicity())
-                    : new Column(Type.RelationType.presentPivotName(c.name()), t));
+            columns.add(fixed != null
+                    ? new Column(fixed.name(), fixed.type().typeName(), planMultiplicity(fixed.multiplicity()))
+                    : new Column(Type.RelationType.presentPivotName(c.name()), t.typeName()));
         }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
             out.add(new Row(r));
         }
-        return new TypedSide.Tabular(columns, out, info.type());
+        return new TypedSide.Tabular(columns, out, info.type().typeName(), oneCarrier(info.type()));
     }
 
     /** A value root's rows in the VALUE lane's carrier: a timestamp slot's cell with its digits trimmed
@@ -603,9 +615,9 @@ final class JudgePlans {
                 // the value IS a List (a List<T> instance is one value holding its list, as the legacy executor kept
                 // the decoded list; 2026-10-27, the result boundary program's phase 5: the plan's decode reads every
                 // array as a list, so the declared type decides)
-                return new TypedSide.Collection(new ArrayList<>(l), type);
+                return new TypedSide.Collection(new ArrayList<>(l), type.typeName());
             }
-            return new TypedSide.Scalar(v, type);
+            return new TypedSide.Scalar(v, type.typeName());
         }
         List<Object> values = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
@@ -633,7 +645,7 @@ final class JudgePlans {
                     + " values, below its declared lower bound " + lower
                     + " — NULL cells were dropped past the type's own contract");
         }
-        return new TypedSide.Collection(values, type);
+        return new TypedSide.Collection(values, type.typeName());
     }
 
     // ---- a constant side: the program's text in the plan, read back by its column's type (S2f) ------------------
@@ -643,7 +655,7 @@ final class JudgePlans {
      *  word (the three kinds the folds admit; another kind refused by name); {@code joined} marks the compiler's join
      *  of the program's constant tokens (the user's ruling, 2026-10-30). */
     static ExecutionPlan.Side.Constant constantSide(TypedSide answered, boolean joined) {
-        String type = answered.returnType().typeName();
+        String type = answered.returnType();
         List<Object> values = switch (answered) {
             case TypedSide.Scalar s -> java.util.Collections.singletonList(s.value());
             case TypedSide.Collection c -> c.values();

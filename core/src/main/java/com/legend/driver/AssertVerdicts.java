@@ -2471,7 +2471,7 @@ final class AssertVerdicts {
 
     static TypedSide ok() {
         return new TypedSide.Scalar(Boolean.TRUE,
-                com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
+                "Boolean");
     }
 
     static TypedSide fail(String message) {

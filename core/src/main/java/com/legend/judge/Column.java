@@ -1,24 +1,15 @@
 package com.legend.judge;
 
-import com.legend.compiler.element.type.Type;
-
 /**
- * One column of a judged side ({@code TypedSide}; exec's until D72, 2026-10-30: a column in the compiler's types is
- * the judges', the runtime's row is typed by the plan's own column): the name and the PURE type — the OBJECT, not a
- * name string. Consumers convert values by pureType only. (The
- * informational sqlType field is DELETED, documented-debts batch
- * 2026-08-18: §11 closed its last consumer with F5.1/F5.3B, so the
- * field had become a display string nobody displayed — and feeding it
- * was the positional branch's only {@code getColumnTypeName} read.)
- * The multiplicity rides since F5.2.
+ * One column of a judged side ({@code TypedSide}; exec's until D72, 2026-10-30): its name, its Pure type in the plan's
+ * spelling (a name, as an exec column's type is: the plan-as-data design's step 1, 2026-11-08 -- until then the
+ * compiler's type object), and its multiplicity where it is known.
  */
-public record Column(String name, Type pureType,
-        com.legend.compiler.element.type.@com.legend.base.Nullable Multiplicity
-                multiplicity) {
+public record Column(String name, String pureType,
+        com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Multiplicity multiplicity) {
 
-    /** Pre-F5.2 arity — multiplicity unknown at this construction site
-     * (scalar envelopes, pivot-rebuilt schemas). */
-    public Column(String name, Type pureType) {
+    /** A column whose multiplicity is not known at its construction (scalar envelopes, pivot-rebuilt schemas). */
+    public Column(String name, String pureType) {
         this(name, pureType, null);
     }
 }

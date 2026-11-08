@@ -190,10 +190,10 @@ final class SqlTextVerdicts {
             HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook, at == env ? null : at);
             if (readingGolden) {
                 deferredGolden = ask;
-                return new TypedSide.Scalar(goldenToken, side.info().type());
+                return new TypedSide.Scalar(goldenToken, side.info().type().typeName());
             }
             deferred = ask;
-            return new TypedSide.Scalar(token, side.info().type());
+            return new TypedSide.Scalar(token, side.info().type().typeName());
         }
 
         @Override
@@ -241,7 +241,7 @@ final class SqlTextVerdicts {
                 return null;
             }
             oursRow = rows.scalarRow(false);
-            return new TypedSide.Scalar(token, side.info().type());
+            return new TypedSide.Scalar(token, side.info().type().typeName());
         }
 
         @Override
@@ -2112,7 +2112,7 @@ final class SqlTextVerdicts {
 
     private static TypedSide ok() {
         return new TypedSide.Scalar(Boolean.TRUE,
-                com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
+                "Boolean");
     }
 
     private static TypedSide fail(String message) {

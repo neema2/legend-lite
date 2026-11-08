@@ -167,7 +167,7 @@ final class AssertErrorNative {
             }
         }
         return new TypedSide.Scalar(Boolean.TRUE,
-                com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
+                "Boolean");
     }
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent

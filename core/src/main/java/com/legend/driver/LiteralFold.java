@@ -50,10 +50,10 @@ public final class LiteralFold {
 
     static @com.legend.base.Nullable TypedSide fold(TypedSpec root) {
         if (root instanceof TypedCString s) {
-            return new TypedSide.Scalar(s.value(), root.info().type());
+            return new TypedSide.Scalar(s.value(), root.info().type().typeName());
         }
         if (root instanceof TypedCBoolean b) {
-            return new TypedSide.Scalar(b.value(), root.info().type());
+            return new TypedSide.Scalar(b.value(), root.info().type().typeName());
         }
         return null;
     }

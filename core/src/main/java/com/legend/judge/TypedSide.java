@@ -1,7 +1,5 @@
 package com.legend.judge;
 
-import com.legend.compiler.element.type.Type;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -16,8 +14,10 @@ import java.util.Objects;
  */
 public sealed interface TypedSide {
 
-    /** The Pure-level result type. Never null. */
-    Type returnType();
+    /** The Pure-level result type, in the plan's spelling ({@code Integer}, {@code Decimal(10,2)}, a class's or an
+     *  enumeration's FQN, ...): a name, as an exec column's type is (the plan-as-data design's step 1, 2026-11-08: the
+     *  judged side carries no compiler type). Never null. */
+    String returnType();
 
     List<Column> columns();
 
@@ -39,16 +39,11 @@ public sealed interface TypedSide {
      * This is the arity rule the harness's {@code tds ? 1 : size}
      * branch encoded; the MODEL owns it now. */
     default long envelopeCarriers(long flatSize) {
-        boolean tds = this instanceof Tabular tb
-                && (com.legend.compiler.element.type.Type
-                        .schemaView(tb.returnType()) != null
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .isTdsType(tb.returnType()));
-        return tds ? 1L : flatSize;
+        return this instanceof Tabular tb && tb.oneCarrier() ? 1L : flatSize;
     }
 
     /** Single scalar value: {@code 1 + 1} → 2. */
-    record Scalar(@com.legend.base.Nullable Object value, Type returnType)
+    record Scalar(@com.legend.base.Nullable Object value, String returnType)
             implements TypedSide {
         public Scalar {
             Objects.requireNonNull(returnType, "returnType");
@@ -66,7 +61,7 @@ public sealed interface TypedSide {
     }
 
     /** A flat collection: N rows × 1 column flattened; {@code returnType} is the ELEMENT type. */
-    record Collection(List<Object> values, Type returnType) implements TypedSide {
+    record Collection(List<Object> values, String returnType) implements TypedSide {
         public Collection {
             Objects.requireNonNull(values, "values");
             Objects.requireNonNull(returnType, "returnType");
@@ -83,8 +78,10 @@ public sealed interface TypedSide {
         }
     }
 
-    /** Tabular result: full rows × typed columns (the relation surface). */
-    record Tabular(List<Column> columns, List<Row> rows, Type returnType)
+    /** Tabular result: full rows × typed columns (the relation surface). {@code oneCarrier}: whether the engine's
+     *  {@code Result.values} holds this as ONE carrier (a relation's or a TDS's type, decided where the side is shaped
+     *  from its declared type -- {@link #envelopeCarriers}). */
+    record Tabular(List<Column> columns, List<Row> rows, String returnType, boolean oneCarrier)
             implements TypedSide {
         public Tabular {
             Objects.requireNonNull(columns, "columns");
@@ -94,14 +91,14 @@ public sealed interface TypedSide {
     }
 
     /** Graph result: the json IS a well-formed JSON array built by the database. */
-    record Graph(String json, Type returnType) implements TypedSide {
+    record Graph(String json, String returnType) implements TypedSide {
         public Graph {
             Objects.requireNonNull(returnType, "returnType");
         }
 
         @Override
         public List<Column> columns() {
-            return List.of(new Column("json", Type.Primitive.STRING));
+            return List.of(new Column("json", "String"));
         }
 
         @Override

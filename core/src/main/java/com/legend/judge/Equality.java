@@ -5,7 +5,6 @@ package com.legend.judge;
 
 import com.legend.diagnostics.Census;
 
-import com.legend.compiler.element.type.Type;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -43,14 +42,34 @@ public final class Equality {
     private Equality() {
     }
 
-    /** A value with the kind its declaration gave it ({@code null} kind =
-     * take the carrier's). */
-    public record Typed(@com.legend.base.Nullable Object value, @com.legend.base.Nullable Type kind) {
+    /** The kinds a value is compared under: its carrier's at run, or the one its declaration names where that is
+     *  numeric (the plan-as-data design's step 1, 2026-11-08: the judge's own kinds, read off the value and the
+     *  plan's type name -- until then the compiler's primitive types). */
+    enum Kind { INTEGER, FLOAT, DECIMAL, STRING, BOOLEAN, STRICT_DATE, DATE, DATE_TIME }
+
+    /** The numeric kind a declared type names, in the plan's spelling ({@code Integer}, {@code Float},
+     *  {@code Decimal}, a precise decimal {@code Decimal(p,s)}; a precise primitive spells as its base), or null: every
+     *  other declaration keeps the carrier's kind ({@link #effectiveKind}). */
+    static @com.legend.base.Nullable Kind declaredNumeric(@com.legend.base.Nullable String declared) {
+        if (declared == null) {
+            return null;
+        }
+        return switch (declared) {
+            case "Integer" -> Kind.INTEGER;
+            case "Float" -> Kind.FLOAT;
+            case "Decimal" -> Kind.DECIMAL;
+            default -> declared.startsWith("Decimal(") ? Kind.DECIMAL : null;
+        };
+    }
+
+    /** A value with the type its declaration gave it, in the plan's spelling ({@code null} = take the carrier's
+     *  kind). */
+    public record Typed(@com.legend.base.Nullable Object value, @com.legend.base.Nullable String kind) {
         public static Typed of(@com.legend.base.Nullable Object value) {
             return new Typed(value, null);
         }
 
-        public static List<Typed> all(List<Object> values, @com.legend.base.Nullable Type kind) {
+        public static List<Typed> all(List<Object> values, @com.legend.base.Nullable String kind) {
             List<Typed> out = new ArrayList<>(values.size());
             for (Object v : values) {
                 out.add(new Typed(v, kind));
@@ -90,28 +109,28 @@ public final class Equality {
     // ---- SCALARS ----------------------------------------------------------
 
     /** The kind a carrier has at runtime (the engine's runtime kind). */
-    static @com.legend.base.Nullable Type carrierKind(@com.legend.base.Nullable Object v) {
+    static @com.legend.base.Nullable Kind carrierKind(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> null;
-            case BigDecimal ignored -> Type.Primitive.DECIMAL;
-            case Double ignored -> Type.Primitive.FLOAT;
-            case Float ignored -> Type.Primitive.FLOAT;
-            case Long ignored -> Type.Primitive.INTEGER;
-            case Integer ignored -> Type.Primitive.INTEGER;
-            case Short ignored -> Type.Primitive.INTEGER;
-            case Byte ignored -> Type.Primitive.INTEGER;
-            case BigInteger ignored -> Type.Primitive.INTEGER;
-            case String ignored -> Type.Primitive.STRING;
-            case Boolean ignored -> Type.Primitive.BOOLEAN;
-            case com.legend.values.PureDateLiteral.StrictDate ignored -> Type.Primitive.STRICT_DATE;
-            case com.legend.values.PureDateLiteral ignored -> Type.Primitive.DATE;
+            case BigDecimal ignored -> Kind.DECIMAL;
+            case Double ignored -> Kind.FLOAT;
+            case Float ignored -> Kind.FLOAT;
+            case Long ignored -> Kind.INTEGER;
+            case Integer ignored -> Kind.INTEGER;
+            case Short ignored -> Kind.INTEGER;
+            case Byte ignored -> Kind.INTEGER;
+            case BigInteger ignored -> Kind.INTEGER;
+            case String ignored -> Kind.STRING;
+            case Boolean ignored -> Kind.BOOLEAN;
+            case com.legend.values.PureDateLiteral.StrictDate ignored -> Kind.STRICT_DATE;
+            case com.legend.values.PureDateLiteral ignored -> Kind.DATE;
             // JDBC temporal carriers (a date literal read back): the same
             // kind on both sides, equal by the carrier's own equality
-            case java.time.LocalDate ignored -> Type.Primitive.STRICT_DATE;
-            case java.util.Date ignored -> Type.Primitive.DATE;   // the driver's date and timestamp carriers
-            case java.time.LocalDateTime ignored -> Type.Primitive.DATE_TIME;
-            case java.time.OffsetDateTime ignored -> Type.Primitive.DATE_TIME;
-            case java.time.Instant ignored -> Type.Primitive.DATE_TIME;
+            case java.time.LocalDate ignored -> Kind.STRICT_DATE;
+            case java.util.Date ignored -> Kind.DATE;   // the driver's date and timestamp carriers
+            case java.time.LocalDateTime ignored -> Kind.DATE_TIME;
+            case java.time.OffsetDateTime ignored -> Kind.DATE_TIME;
+            case java.time.Instant ignored -> Kind.DATE_TIME;
             default -> null;   // instances, collections
         };
     }
@@ -126,22 +145,19 @@ public final class Equality {
      * to {@code accountTable.id INT} (mapping::tree) delivers the Integer 11 in
      * the engine and in lite alike, and its test asserts {@code [11, 'OrgName3']}
      * against it — a declaration is not a cast. */
-    private static @com.legend.base.Nullable Type effectiveKind(Typed t) {
-        Type k = t.kind();
-        if (k instanceof Type.PrecisionDecimal) {
-            k = Type.Primitive.DECIMAL;
-        }
-        Type carrier = carrierKind(t.value());
-        if ((k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
-                || k == Type.Primitive.INTEGER) && isNumericKind(carrier)) {
+    private static @com.legend.base.Nullable Kind effectiveKind(Typed t) {
+        Kind k = declaredNumeric(t.kind());
+        Kind carrier = carrierKind(t.value());
+        if ((k == Kind.FLOAT || k == Kind.DECIMAL
+                || k == Kind.INTEGER) && isNumericKind(carrier)) {
             return k;
         }
         return carrier;
     }
 
-    private static boolean isNumericKind(@com.legend.base.Nullable Type k) {
-        return k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
-                || k == Type.Primitive.INTEGER;
+    private static boolean isNumericKind(@com.legend.base.Nullable Kind k) {
+        return k == Kind.FLOAT || k == Kind.DECIMAL
+                || k == Kind.INTEGER;
     }
 
     /** Equal, or the first difference. */
@@ -167,8 +183,8 @@ public final class Equality {
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
             return structural(e, a, rules);
         }
-        Type ek = effectiveKind(et);
-        Type ak = effectiveKind(at);
+        Kind ek = effectiveKind(et);
+        Kind ak = effectiveKind(at);
         if (ek == null || ak == null) {
             if (e instanceof com.legend.values.PureDateLiteral
                     || a instanceof com.legend.values.PureDateLiteral) {
@@ -186,13 +202,13 @@ public final class Equality {
             return rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
                     && String.valueOf(e).equals(String.valueOf(a));
         }
-        if (ek == Type.Primitive.INTEGER) {
+        if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
                 return false;   // an Integer-declared non-integral carrier
             }
             return toBigInteger(e).equals(toBigInteger(a));
         }
-        if (ek == Type.Primitive.DECIMAL) {
+        if (ek == Kind.DECIMAL) {
             // the engine's assert seam: getValue().equals — SCALE-SENSITIVE
             // (VERDICT_RULE_AUDIT X2; the equality-worlds fixture pins
             // 3.0D ≠ 3.00D in World 1, while SQL '=' is scale-blind)
@@ -209,7 +225,7 @@ public final class Equality {
             }
             return eq;
         }
-        if (ek == Type.Primitive.FLOAT) {
+        if (ek == Kind.FLOAT) {
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
@@ -230,14 +246,14 @@ public final class Equality {
             }
             return within;
         }
-        if (ek == Type.Primitive.STRING) {
+        if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,
             // the user's "okay" to the S132 scope fix): S132's 2-ULP floats apply to a RENDERED result's text alone --
             // the host's rendered arm compares its cells (TdsCompare.renderedText), the database judge its rows in the
             // same verdict row (VerdictSql.either) -- never to two Strings a body computed
             return e.equals(a);
         }
-        if (ek == Type.Primitive.BOOLEAN) {
+        if (ek == Kind.BOOLEAN) {
             return e.equals(a);
         }
         return e.equals(a);   // dates: the literal's own equality
@@ -245,9 +261,9 @@ public final class Equality {
 
     /** Whether {@code x} and {@code y} are an Integer and a Decimal, either way round: the pair compiled legend-pure
      *  equates by text (S127). */
-    private static boolean integerAndDecimal(Type x, Type y) {
-        return x == Type.Primitive.INTEGER && y == Type.Primitive.DECIMAL
-                || x == Type.Primitive.DECIMAL && y == Type.Primitive.INTEGER;
+    private static boolean integerAndDecimal(Kind x, Kind y) {
+        return x == Kind.INTEGER && y == Kind.DECIMAL
+                || x == Kind.DECIMAL && y == Kind.INTEGER;
     }
 
     private static boolean structural(Object e, Object a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
@@ -288,7 +304,7 @@ public final class Equality {
 
     /** A grid's flat cells paired with their COLUMN kinds (cycling per
      * row) — the TDS's declared column types decide, cell by cell. */
-    public static List<Typed> grid(List<Object> cells, List<Type> columnKinds) {
+    public static List<Typed> grid(List<Object> cells, List<String> columnKinds) {
         int w = columnKinds.size();
         List<Typed> out = new ArrayList<>(cells.size());
         for (int i = 0; i < cells.size(); i++) {

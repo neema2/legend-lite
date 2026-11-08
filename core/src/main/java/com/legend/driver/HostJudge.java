@@ -59,8 +59,8 @@ final class HostJudge {
     // deleted (P1, 2026-11-07).
 
     /** A grid side's declared column kinds, in order; none for a side that is no grid (its cells keep their own). */
-    private static List<com.legend.compiler.element.type.Type> columnKinds(TypedSide.@com.legend.base.Nullable Tabular grid) {
-        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
+    private static List<String> columnKinds(TypedSide.@com.legend.base.Nullable Tabular grid) {
+        List<String> kinds = new ArrayList<>();
         if (grid != null) {
             grid.columns().forEach(c -> kinds.add(c.pureType()));
         }
@@ -85,8 +85,8 @@ final class HostJudge {
         // each side's cells typed by ITS OWN declaration (step 2b): a grid's declared column types decide its cells
         // (the engine's boundary rule on the wire), a literal's cells keep their own kinds -- never the peer's
         // declaration stamped on them (the user's ruling, 2026-11-03: Integer 1 against a Float column's 1.0 differs)
-        List<com.legend.compiler.element.type.Type> eKinds = columnKinds(ef.grid());
-        List<com.legend.compiler.element.type.Type> aKinds = columnKinds(af.grid());
+        List<String> eKinds = columnKinds(ef.grid());
+        List<String> aKinds = columnKinds(af.grid());
         boolean hostHeld;
         if (mixedFlatVsTds) {
             hostHeld = false;
@@ -235,7 +235,7 @@ final class HostJudge {
      * primitive kind decide and takes the carrier's for Number / classes. */
     static List<com.legend.judge.Equality.Typed> typedSide(List<Object> values,
             HostJudgment.SideFacts arg) {
-        return com.legend.judge.Equality.Typed.all(values, arg.type());
+        return com.legend.judge.Equality.Typed.all(values, arg.declared());
     }
 
     /** A class-kind side's values with JSON object text decoded to structures ({@link AssertVerdicts#structured}). */
@@ -509,7 +509,7 @@ final class HostJudge {
                         com.legend.judge.Equality.Typed.of(val.get(0)), rules));
         return member ? AssertVerdicts.ok()
                 : AssertVerdicts.fail(com.legend.judge.PureAsserts.containsMessage(coll, val.get(0),
-                        j.collection().type(), j.value().type()));
+                        j.collection().classFqn(), j.value().classFqn()));
     }
 
     static HostSides.Check planTolerance(List<TypedSpec> args,
@@ -730,7 +730,7 @@ final class HostJudge {
                 ? restrictToKeys(aVals, ik, j.keys()) : aVals;
         String d = com.legend.judge.Equality.sameElements(
                 typedSide(e, j.e()), typedSide(a, j.a()), rules) == null
-                ? null : com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules);
+                ? null : com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().classFqn(), j.a().classFqn(), rules);
         com.legend.judge.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -893,7 +893,8 @@ final class HostJudge {
                             number(rowArgValue(j.args().get(2), row, j.name()), j.name()))
                     : com.legend.judge.PureAsserts.assertEquals(
                             java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
-                            j.expectedInfo().type(), j.actualInfo().type(), rules);
+                            com.legend.compiler.element.EqualityKeys.fqnOf(j.expectedInfo().type()),
+                            com.legend.compiler.element.EqualityKeys.fqnOf(j.actualInfo().type()), rules);
             if (d != null) {
                 return AssertVerdicts.fail(d);
             }
@@ -1010,8 +1011,8 @@ final class HostJudge {
                 name, e, a, equal, incidental);
         return finish(name, wantEqual, equal,
                 () -> incidental
-                        ? com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().type(), j.a().type(), rules)
-                        : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().type(), j.a().type(), rules),
+                        ? com.legend.judge.PureAsserts.assertSameElements(e, a, j.e().classFqn(), j.a().classFqn(), rules)
+                        : com.legend.judge.PureAsserts.assertEquals(e, a, j.e().classFqn(), j.a().classFqn(), rules),
                 () -> com.legend.judge.PureAsserts.notEqualsMessage(e, a));
     }
 

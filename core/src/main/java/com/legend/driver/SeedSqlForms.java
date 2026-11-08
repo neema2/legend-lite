@@ -39,7 +39,7 @@ final class SeedSqlForms {
                         com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
                                 records, seedDb,
                                 f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)),
-                        com.legend.compiler.element.type.Type.Primitive.STRING);
+                        "String");
             }
         }
         String csv = BodyDriver.evalStringArg(body, gen.args().get(0), env);
@@ -52,7 +52,7 @@ final class SeedSqlForms {
                 dbDef != null ? com.legend.setup.Ddl.setUpDataSqlsText(csv,
                         dbDef, f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)
                         : com.legend.setup.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
+                "String");
     }
 
     /** The literal records shape — a collection of {@code list([...])}

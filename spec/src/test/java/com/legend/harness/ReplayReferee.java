@@ -267,7 +267,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
         }
-        RefereeVerify.enumPrecheck(ours, enumDecode);
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             // INCREMENTAL path: extras run OUTSIDE the cursor (§9a) —
@@ -332,7 +331,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
-        RefereeVerify.enumPrecheck(ours, enumDecode);
         try (Statement st = session.createStatement()) {
             return RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                     graphEnumProp, facts);
@@ -720,19 +718,25 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();
-        if (mappingFqn != null
-                && !(ours instanceof TypedSide.Graph)) {
+        // a column is an enumeration's where its type -- the plan's spelling, an FQN -- names one in the model (the
+        // plan-as-data design's step 1, 2026-11-08: the judged side carries a type name, no compiler type)
+        java.util.Set<Integer> enumColumns = new java.util.LinkedHashSet<>();
+        if (!(ours instanceof TypedSide.Graph)) {
             for (int i = 0; i < ours.columns().size(); i++) {
-                if (ours.columns().get(i).pureType()
-                        instanceof com.legend.compiler.element.type.Type
-                                .EnumType et) {
-                    var dec = RefereeVerify.decodeOf(ctx, mappingFqn, et.fqn());
+                String type = ours.columns().get(i).pureType();
+                if (ctx.findEnum(type).isEmpty()) {
+                    continue;
+                }
+                enumColumns.add(i);
+                if (mappingFqn != null) {
+                    var dec = RefereeVerify.decodeOf(ctx, mappingFqn, type);
                     if (dec != null) {
                         enumDecode.put(i, dec);
                     }
                 }
             }
         }
+        RefereeVerify.enumPrecheck(enumColumns, enumDecode);
         java.util.function.Function<String,
                 java.util.Map<String, String>> enumProp = key -> {
             if (mappingFqn == null || rootClassFqn == null) {

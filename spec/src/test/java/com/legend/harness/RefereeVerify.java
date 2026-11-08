@@ -259,15 +259,12 @@ public final class RefereeVerify {
      * replay rung). A column with NO derivable map keeps the counted
      * decline. Shared precheck of the {@link ReplayReferee} verify
      * entry points (Graph frames decode per-key instead). */
-    static void enumPrecheck(TypedSide ours,
+    /** An enumeration's column ({@code enumColumns}, read off the model where the referee is called) with no decode
+     *  table cannot be replayed: refused as unverifiable. */
+    static void enumPrecheck(java.util.Set<Integer> enumColumns,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
-        if (ours instanceof TypedSide.Graph) {
-            return;
-        }
-        for (int i = 0; i < ours.columns().size(); i++) {
-            if (ours.columns().get(i).pureType()
-                    instanceof com.legend.compiler.element.type.Type.EnumType
-                    && !enumDecode.containsKey(i)) {
+        for (int i : enumColumns) {
+            if (!enumDecode.containsKey(i)) {
                 throw new Unverifiable(
                         "enum-decoded column (post-transform rows)", null);
             }
