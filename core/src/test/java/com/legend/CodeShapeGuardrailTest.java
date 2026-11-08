@@ -89,6 +89,9 @@ class CodeShapeGuardrailTest {
             // held appeal (wroteAfterHold) -- told by the runner's sink at each writing step, read when the appeals are
             // decided: an appeal whose rows a write moved, or a failed run's rollback undid, is refused by name
             "Appeals.wrote", "Appeals.wroteAfterHold",
+            // 2026-11-08, the plan-as-data design's step 0: a body's verdict ids -- one counter per body, the last id
+            // given; planning state, never read at run
+            "VerdictIds.last",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

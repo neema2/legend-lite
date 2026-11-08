@@ -279,7 +279,7 @@ public final class BodyRouter {
                         throw new IllegalStateException("a verdict step planned under " + v.rules()
                                 + " in a run judging by " + runRules);
                     }
-                    v.verdicts().forEach(each -> rulesOf.put(each, v.rules()));
+                    v.verdicts().forEach(each -> rulesOf.put(each.id(), v.rules()));
                 }
                 default -> {
                 }
@@ -288,7 +288,7 @@ public final class BodyRouter {
 
         /** The rules {@code verdict}'s step names. */
         private com.legend.executionplan.ExecutionPlan.JudgingRules rules(ExecutionPlan.Verdict verdict) {
-            return java.util.Objects.requireNonNull(rulesOf.get(verdict),
+            return java.util.Objects.requireNonNull(rulesOf.get(verdict.id()),
                     () -> "a verdict no step of the plan holds: " + verdict.name());
         }
 
@@ -296,7 +296,7 @@ public final class BodyRouter {
         private @Nullable TypedSide lastVerdict;
         /** The rules each verdict is judged by, read off the plan's verdict steps (the explicit rule, 2026-11-04): the
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
-        private final java.util.Map<ExecutionPlan.Verdict, com.legend.executionplan.ExecutionPlan.JudgingRules> rulesOf = new java.util.IdentityHashMap<>();
+        private final java.util.Map<Integer, com.legend.executionplan.ExecutionPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
         Moved(TestDoor.Planned planned, com.legend.executionplan.ExecutionPlan.JudgingRules runRules, SqlDialect dialect,
                 RawSqlBoundary.@Nullable Recorder recorder,

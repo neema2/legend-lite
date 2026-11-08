@@ -83,7 +83,7 @@ class VerdictBatchSplitRungTest {
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
         VerdictBatch batch = new VerdictBatch((statements, frames) -> statements.get(0), (generic, ruled) -> generic,
-                (row, name, wantEqual) -> row, (name, row) -> { }, RUNNER, new ExecutionTrace());
+                (row, name, wantEqual) -> row, (name, row) -> { }, RUNNER, new ExecutionTrace(), new VerdictIds());
         batch.open("a");
         batch.defer("a1", true, member(1), ON);
         batch.defer("a2", true, member(2), ON);

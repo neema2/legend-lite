@@ -261,7 +261,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * each absent where it raised nothing or carried no position) to the parameters {@link #RAISED_MESSAGE},
      * {@link #RAISED_LINE} and {@link #RAISED_COLUMN} before it runs the wrapper, the verdict statement comparing them.
      */
-    public record Verdict(String name, String arm, List<Side> base,
+    public record Verdict(int id, String name, String arm, List<Side> base,
             @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises) {
         /** The parameter a raising verdict's statement reads the message its base raised from (absent: none). */
         public static final String RAISED_MESSAGE = "__raised_message";
@@ -271,6 +271,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public static final String RAISED_COLUMN = "__raised_column";
 
         public Verdict {
+            // the verdict's id, unique in its plan (the plan-as-data design's step 0, 2026-11-08): every reference to
+            // a verdict -- the runner's row for it, its rules, its batch member, its agreement pair -- is by id, never
+            // by the Java object, so a plan read back from its JSON names the same verdicts
+            if (id < 1) {
+                throw new IllegalArgumentException("a verdict's id is a positive number, unique in its plan: " + id);
+            }
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arm, "arm");
             if (arm.isEmpty()) {
@@ -290,14 +296,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
 
         /** A verdict that reads its base as any assert does. */
-        public Verdict(String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
+        public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
                 @com.legend.base.Nullable Side message) {
-            this(name, arm, base, wrapper, message, false);
+            this(id, name, arm, base, wrapper, message, false);
         }
 
         /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */
-        public Verdict(String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper) {
-            this(name, arm, base, wrapper, null);
+        public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper) {
+            this(id, name, arm, base, wrapper, null);
         }
     }
 

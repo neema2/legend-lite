@@ -246,6 +246,7 @@ public final class PlanJson {
                 List<Object> verdicts = new ArrayList<>();
                 for (ExecutionPlan.Verdict each : v.verdicts()) {
                     Map<String, Object> vo = new LinkedHashMap<>();
+                    vo.put("id", each.id());
                     vo.put("name", each.name());
                     vo.put("arm", each.arm());
                     List<Object> base = new ArrayList<>();
@@ -576,7 +577,7 @@ public final class PlanJson {
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     Json.Obj m = vo.getObjOr("message", null);
-                    verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
+                    verdicts.add(new ExecutionPlan.Verdict(vo.getInt("id"), vo.getString("name"), vo.getString("arm"),
                             base, w == null ? null : readNode(w), m == null ? null : readSide(m),
                             vo.getBoolOr("raises", false)));
                 }

@@ -74,8 +74,11 @@ Read     = Rows(TdsResult) | KeyedRows(Keyed) | Constant(columns, cells)  -- tod
                                                                            of any type, decoded by testexec by type name
 ```
 
-Every verdict has an `id`, unique in its plan, counted in body order from 1 (the database judge's members with equal
-names are equal records today, so ids replace every identity map). `root` is the id of the statement-root assert's
+Every verdict has an `id`, unique in its plan, given as it is planned by one counter per body
+(`judge/VerdictIds`, in the body's environment, shared by every planner of the body; built in step 0, 2026-11-08: the
+database judge's members with equal names were equal records, so ids replace every identity map). A verdict rebuilt
+from another -- a raising verdict's statement, a caller's message carried, the agreement judge's combined verdict --
+keeps the id of the one it replaces. `root` is the id of the statement-root assert's
 first verdict; `orElse` the ruled row's verdict id; `pairedWith` the other half's verdict id under the agreement judge.
 A step is named by its index in `steps`, as today.
 

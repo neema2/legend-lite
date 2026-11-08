@@ -201,6 +201,8 @@ public final class VerdictBatch {
     }
 
     private final Fusion fusion;
+    /** The body's verdict ids: each verdict this batch plans takes the next. */
+    private final VerdictIds ids;
     private final SelfContained selfContained;
     private final Judge judge;
     private final Runner runner;
@@ -217,7 +219,8 @@ public final class VerdictBatch {
     private final Either either;
 
     public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained, Judge judge, Runner runner,
-            ExecutionTrace trace) {
+            ExecutionTrace trace, VerdictIds ids) {
+        this.ids = ids;
         this.fusion = fusion;
         this.either = either;
         this.selfContained = selfContained;
@@ -516,7 +519,7 @@ public final class VerdictBatch {
             messages.put(r, sideOf(java.util.Objects.requireNonNull(a.plan())));
         }
         List<Group> out = new ArrayList<>();
-        Map<ExecutionPlan.Verdict, Pending> members = new java.util.IdentityHashMap<>();
+        Map<Integer, Pending> members = new java.util.HashMap<>();
         // the members the dialect cannot spell (the split rung at planning): each refused at its place, nothing sent
         // for it (2026-11-04, the core program)
         java.util.Set<Pending> unspelled = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -561,9 +564,10 @@ public final class VerdictBatch {
             for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
                 List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                 for (Pending p : part.getKey()) {
-                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null);
+                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
+                            null);
                     verdicts.add(v);
-                    members.put(v, p);
+                    members.put(v.id(), p);
                 }
                 out.add(new Group(new ExecutionPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
                         runner.rules()), g.getKey(), false));
@@ -588,7 +592,7 @@ public final class VerdictBatch {
     /** {@code groups} with each root's caller's message on the root's first verdict in them (the milestone audit's 3,
      *  2026-11-07: until then the message rode the root's first pending member, which a refused member or a root
      *  decided at planning left in no group); {@code members} keyed by the verdicts as rebuilt. */
-    private static List<Group> carried(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
+    private static List<Group> carried(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
             Map<Root, ExecutionPlan.Side> messages) {
         Map<Pending, ExecutionPlan.Side> carry = new java.util.IdentityHashMap<>();
         java.util.Set<Pending> grouped = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -612,16 +616,15 @@ public final class VerdictBatch {
         for (Group g : groups) {
             List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(g.step().verdicts().size());
             for (ExecutionPlan.Verdict v : g.step().verdicts()) {
-                Pending p = members.get(v);
+                Pending p = members.get(v.id());
                 ExecutionPlan.Side side = p == null ? null : carry.get(p);
                 if (side == null) {
                     verdicts.add(v);
                     continue;
                 }
-                ExecutionPlan.Verdict withMessage = new ExecutionPlan.Verdict(v.name(), v.arm(), v.base(), v.wrapper(),
+                ExecutionPlan.Verdict withMessage = new ExecutionPlan.Verdict(v.id(), v.name(), v.arm(), v.base(), v.wrapper(),
                         side);
-                members.remove(v);
-                members.put(withMessage, p);
+                // the same verdict with its message: the same id, so its member stands
                 verdicts.add(withMessage);
             }
             out.add(new Group(new ExecutionPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(),
@@ -654,7 +657,7 @@ public final class VerdictBatch {
     public final class Planned {
         private final List<Root> batch;
         private final List<Group> groups;
-        private final Map<ExecutionPlan.Verdict, Pending> members;
+        private final Map<Integer, Pending> members;
         private final java.util.Set<Pending> unspelled;
         private final Map<Integer, List<Object>> rows = new HashMap<>();
         private boolean counted;
@@ -665,7 +668,7 @@ public final class VerdictBatch {
         /** A caller's message the dialect cannot spell: its refusal, raised where the root fails. */
         private final Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals;
 
-        private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members,
+        private Planned(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
                 java.util.Set<Pending> unspelled, Map<Pending, com.legend.sql.dialect.DialectCapability> refusals,
                 Map<Root, ExecutionPlan.Side> messages,
                 Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals) {
@@ -720,7 +723,7 @@ public final class VerdictBatch {
          *  place. */
         public void received(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
             counted();
-            Pending p = members.get(verdict);
+            Pending p = members.get(verdict.id());
             if (p == null) {
                 throw new IllegalStateException("a verdict row for no member of this batch: " + verdict.name());
             }
@@ -858,7 +861,7 @@ public final class VerdictBatch {
             return planned.refused(r.listenerName, refusal);
         }
         ExecutionPlan.Side side = java.util.Objects.requireNonNull(planned.messages.get(r));
-        if (planned.members.keySet().stream().noneMatch(v -> side.equals(v.message()))) {
+        if (planned.groups.stream().flatMap(g -> g.step().verdicts().stream()).noneMatch(v -> side.equals(v.message()))) {
             // a root with no verdict in the plan (every member refused, or decided at planning): its message rides no
             // statement of the plan, so it is not read -- refused by name (the milestone audit's 3)
             return new com.legend.error.NotImplementedException(r.listenerName + ": the assert's caller's message reads"
@@ -903,14 +906,14 @@ public final class VerdictBatch {
      *  wrapper the dialect cannot spell leaves its member out, unspelled: the root loop raises its refusal at its place,
      *  nothing sent. Null where no member is spelled. */
     private @com.legend.base.Nullable Group ownStatements(List<Pending> keyed, ExecutionPlan.Target on,
-            Map<ExecutionPlan.Verdict, Pending> members, java.util.Set<Pending> unspelled, boolean isKeyed) {
+            Map<Integer, Pending> members, java.util.Set<Pending> unspelled, boolean isKeyed) {
         List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
             try {
-                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(),
+                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
                         runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
                 verdicts.add(v);
-                members.put(v, p);
+                members.put(v.id(), p);
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 unspelled.add(p);
             }

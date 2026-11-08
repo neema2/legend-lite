@@ -19,7 +19,6 @@ import com.legend.testplan.TestDoor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +66,7 @@ final class HostAsserts implements TestDoor.Asserts {
     private final Map<Integer, Branched> branches;
     /** The same, by the verdict the runner hands back (a record compares by value: two asserts alike are two
      *  verdicts). */
-    private final Map<ExecutionPlan.Verdict, Planned> byVerdict;
+    private final Map<Integer, Planned> byVerdict;
     /** The stamp parameter minted for each frame let, by the let's place (M9c): the comment the let's eager run
      *  binds and the sides reading the frame's activities carry. */
     private final Map<Integer, String> frameStamps;
@@ -77,8 +76,8 @@ final class HostAsserts implements TestDoor.Asserts {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
-        Map<ExecutionPlan.Verdict, Planned> verdicts = new IdentityHashMap<>();
-        byStatement.values().forEach(p -> verdicts.put(p.verdict(), p));
+        Map<Integer, Planned> verdicts = new java.util.HashMap<>();
+        byStatement.values().forEach(p -> verdicts.put(p.verdict().id(), p));
         // a branch side's asserts are this body's: the runner hands their verdicts back as any other's
         branches.values().forEach(b -> {
             verdicts.putAll(b.then().byVerdict);
@@ -203,7 +202,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 TypedSpec bare = Lets.bare(statement);
                 Planned p = pendingLet != null
                         ? planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                                pendingLet), HostSides.Planned.NONE, env.options().judgingRules())
+                                pendingLet), HostSides.Planned.NONE, env)
                         : planAssertError(statement, bare, letPrefix, frames, specs, env);
                 if (p == null) {
                     return null;
@@ -219,7 +218,7 @@ final class HostAsserts implements TestDoor.Asserts {
             Planned p;
             if (pendingLet != null) {
                 p = planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                        pendingLet), HostSides.Planned.NONE, env.options().judgingRules());
+                        pendingLet), HostSides.Planned.NONE, env);
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
@@ -317,7 +316,7 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             // the frame environment raised: the walk raises it before the arm is entered (S1)
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare), e),
-                    HostSides.Planned.NONE, env.options().judgingRules());
+                    HostSides.Planned.NONE, env);
         }
         AssertVerdicts.HostAssert assertion;
         try {
@@ -341,7 +340,7 @@ final class HostAsserts implements TestDoor.Asserts {
             } catch (IllegalStateException | com.legend.error.NotImplementedException e) {
                 // the lowering's refusal of an assert native as a scalar (NoRule: "not as a scalar")
                 return planned(AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null, e),
-                        HostSides.Planned.NONE, env.options().judgingRules());
+                        HostSides.Planned.NONE, env);
             }
             return null;
         }
@@ -375,7 +374,7 @@ final class HostAsserts implements TestDoor.Asserts {
             // any run (M9d)
             return null;
         }
-        return planned(assertion, sides, env.options().judgingRules());
+        return planned(assertion, sides, env);
     }
 
     /**
@@ -403,7 +402,7 @@ final class HostAsserts implements TestDoor.Asserts {
             args = AssertErrorNative.args(ae, letPrefix);
         } catch (com.legend.error.NotImplementedException e) {
             // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
-            return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env.options().judgingRules());
+            return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env);
         }
         com.legend.compiler.spec.typed.TypedSpec inner = QueryDoor.innerAssert(ae, specs);
         if (inner != null) {
@@ -416,7 +415,7 @@ final class HostAsserts implements TestDoor.Asserts {
             AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
                     new HostSides.Check(p.assertion().check().asks(), new HostJudgment.AssertError(args.expected(),
                             args.line(), args.column(), null, p.assertion())));
-            return planned(assertion, p.sides(), savepoint, env.options().judgingRules());
+            return planned(assertion, p.sides(), savepoint, env);
         }
         List<TypedSpec> body = args.f().body();
         if (body.isEmpty()) {
@@ -451,7 +450,7 @@ final class HostAsserts implements TestDoor.Asserts {
             at = BodyDriver.frameReplaceEnv(statement, frames, env, before, specs);
             hook = BodyDriver.spliceHook(frames, before, specs, env)::apply;
         } catch (RuntimeException e) {
-            return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE, env.options().judgingRules());
+            return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name, e), HostSides.Planned.NONE, env);
         }
         List<HostSides.Ask> asks = new ArrayList<>(working.size());
         for (TypedSpec side : working) {
@@ -465,7 +464,7 @@ final class HostAsserts implements TestDoor.Asserts {
             caught = AssertErrorNative.caught(e);
             if (caught == null) {
                 // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
-                return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env.options().judgingRules());
+                return planned(AssertVerdicts.HostAssert.raising(name, null, e), HostSides.Planned.NONE, env);
             }
             sides = HostSides.Planned.NONE;
         }
@@ -476,7 +475,7 @@ final class HostAsserts implements TestDoor.Asserts {
         AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
                 new HostSides.Check(caught == null ? asks : List.of(),
                         new HostJudgment.AssertError(args.expected(), args.line(), args.column(), caught)));
-        return planned(assertion, sides, savepoint, env.options().judgingRules());
+        return planned(assertion, sides, savepoint, env);
     }
 
     /** The dialect's savepoint texts for a statement whose failure the program survives, or null where it has none. */
@@ -486,12 +485,14 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     /** {@code assertion}'s verdict step over {@code sides}' base: one verdict, its wrapper none (the host judges). */
-    private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides, ExecutionPlan.JudgingRules rules) {
-        return planned(assertion, sides, null, rules);
+    private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides, BodyDriver.ExecEnv env) {
+        return planned(assertion, sides, null, env);
     }
 
+    /** {@code env}: the body's environment -- the rules its verdicts are judged by, and its verdict ids. */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
-            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint, ExecutionPlan.JudgingRules rules) {
+            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint, BodyDriver.ExecEnv env) {
+        ExecutionPlan.JudgingRules rules = env.options().judgingRules();
         // a caller's message, the check's last side (HostJudge.messaged), is the verdict's MESSAGE: the runner never
         // reads it on its own, the judge asks for it only where the assert fails (upstream evaluates it only there)
         List<ExecutionPlan.Side> base = sides.base();
@@ -501,8 +502,8 @@ final class HostAsserts implements TestDoor.Asserts {
             message = base.get(m.innerSides());
             base = base.subList(0, m.innerSides());
         }
-        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(assertion.listenerName(), assertion.name(),
-                base, null, message);
+        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
+                assertion.name(), base, null, message);
         return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint, rules));
     }
 
@@ -542,6 +543,6 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** The assert planned for {@code verdict}, or null where this judge planned none for it (the database judge's). */
     @Nullable Planned find(ExecutionPlan.Verdict verdict) {
-        return byVerdict.get(verdict);
+        return byVerdict.get(verdict.id());
     }
 }

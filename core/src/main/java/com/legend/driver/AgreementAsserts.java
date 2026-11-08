@@ -16,7 +16,6 @@ import com.legend.testplan.TestDoor;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
          *  database's raising one). */
         final List<ExecutionPlan.Verdicts> steps;
         final ExecutionPlan.Verdict hostVerdict;
-        final Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> members;
+        final Map<Integer, ExecutionPlan.Verdict> members;
         AssertVerdicts.@Nullable HostHeld held;
         /** An assertError's (S135): the step is its raising verdict, and the database half's row is the statement's. */
         final boolean raising;
@@ -81,7 +80,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             this.raisingVerdict = null;
             this.host = host;
             this.database = database;
-            Map<ExecutionPlan.Verdict, ExecutionPlan.Verdict> m = new IdentityHashMap<>();
+            Map<Integer, ExecutionPlan.Verdict> m = new java.util.HashMap<>();
             ExecutionPlan.Verdict hv = host.verdict();
             ExecutionPlan.Verdicts group = database == null ? null : database.group();
             if (group == null) {
@@ -90,14 +89,15 @@ final class AgreementAsserts implements TestDoor.Asserts {
             } else {
                 // the host's base on the database's first member: one verdict carries both judges' statements
                 ExecutionPlan.Verdict first = group.verdicts().get(0);
-                ExecutionPlan.Verdict both = new ExecutionPlan.Verdict(hv.name(), hv.arm(), hv.base(),
+                // it replaces the database's first member in the plan, so it keeps that member's id
+                ExecutionPlan.Verdict both = new ExecutionPlan.Verdict(first.id(), hv.name(), hv.arm(), hv.base(),
                         first.wrapper(), hv.message());
                 List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(group.verdicts().size());
                 verdicts.add(both);
-                m.put(both, first);
+                m.put(both.id(), first);
                 for (ExecutionPlan.Verdict v : group.verdicts().subList(1, group.verdicts().size())) {
                     verdicts.add(v);
-                    m.put(v, v);
+                    m.put(v.id(), v);
                 }
                 this.step = new ExecutionPlan.Verdicts(verdicts, group.fused(), group.savepoint(), group.rules());
                 this.hostVerdict = both;
@@ -117,18 +117,18 @@ final class AgreementAsserts implements TestDoor.Asserts {
     /** The branches (the asserts-as-plan-nodes program, step 4), by the statement's place: the host half's branch,
      *  each side's asserts assembled for both judges. */
     private final Map<Integer, ExecutionPlan.Branch> branches;
-    private final Map<ExecutionPlan.Verdict, One> byVerdict;
+    private final Map<Integer, One> byVerdict;
 
     private AgreementAsserts(HostAsserts host, Map<Integer, One> byStatement, Map<Integer, ExecutionPlan.Branch> branches,
             List<AgreementAsserts> sides) {
         this.host = host;
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
-        Map<ExecutionPlan.Verdict, One> verdicts = new IdentityHashMap<>();
+        Map<Integer, One> verdicts = new java.util.HashMap<>();
         for (One one : byStatement.values()) {
             for (ExecutionPlan.Verdicts step : one.steps) {
                 for (ExecutionPlan.Verdict v : step.verdicts()) {
-                    verdicts.put(v, one);
+                    verdicts.put(v.id(), one);
                 }
             }
         }
@@ -224,7 +224,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
 
     /** The assert the runner handed {@code verdict} for. */
     One of(ExecutionPlan.Verdict verdict) {
-        One one = byVerdict.get(verdict);
+        One one = byVerdict.get(verdict.id());
         if (one == null) {
             throw new IllegalStateException("a verdict step no assert of the body planned: " + verdict.name());
         }
@@ -266,7 +266,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             one.raisingRow = row;
             return decided(one, listener, reader);
         }
-        ExecutionPlan.Verdict member = one.members.get(verdict);
+        ExecutionPlan.Verdict member = one.members.get(verdict.id());
         if (member != null) {
             java.util.Objects.requireNonNull(one.database).planned().received(member, row);
         }

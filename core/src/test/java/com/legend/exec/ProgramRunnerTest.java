@@ -36,6 +36,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 final class ProgramRunnerTest {
 
+    /** Each verdict its own id, as a body's counter gives them (the plan-as-data design's step 0). */
+    private static final java.util.concurrent.atomic.AtomicInteger VERDICT_IDS =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    private static int nextVerdictId() {
+        return VERDICT_IDS.incrementAndGet();
+    }
+
     private static Connection conn;
     private static ExecutionPlan.Target target;
 
@@ -123,9 +131,9 @@ final class ProgramRunnerTest {
                 List.of(col("value", "Integer", "INTEGER"))));
         ExecutionPlan.Side right = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
-        ExecutionPlan.Verdict first = new ExecutionPlan.Verdict("assertEquals@2", "assertEquals",
+        ExecutionPlan.Verdict first = new ExecutionPlan.Verdict(nextVerdictId(), "assertEquals@2", "assertEquals",
                 List.of(left, right), wrapper(true, "x", "x"));
-        ExecutionPlan.Verdict second = new ExecutionPlan.Verdict("assertEquals@3", "assertEquals",
+        ExecutionPlan.Verdict second = new ExecutionPlan.Verdict(nextVerdictId(), "assertEquals@3", "assertEquals",
                 List.of(left, right), wrapper(false, "a", "b"));
         return new ExecutionPlan.Verdicts(List.of(first, second), fused, ExecutionPlan.JudgingRules.LITE);
     }
@@ -185,8 +193,8 @@ final class ProgramRunnerTest {
         ExecutionPlan.Side raising = new ExecutionPlan.Side.Rows(relation("SELECT * FROM no_such_table_message",
                 List.of(col("value", "String", "VARCHAR"))));
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
-                new ExecutionPlan.Verdict("assert@1", "assert", List.of(base), null, raising),
-                new ExecutionPlan.Verdict("assert@2", "assert", List.of(base), null, message)),
+                new ExecutionPlan.Verdict(nextVerdictId(), "assert@1", "assert", List.of(base), null, raising),
+                new ExecutionPlan.Verdict(nextVerdictId(), "assert@2", "assert", List.of(base), null, message)),
                 null, ExecutionPlan.JudgingRules.LITE);
         List<Object> read = new ArrayList<>();
         PlanRunner.SideReader[] reader = new PlanRunner.SideReader[1];
@@ -248,7 +256,7 @@ final class ProgramRunnerTest {
             + " read, no row")
     void noFusedStatementRunsEachWrapper() throws IOException {
         ExecutionPlan.Verdicts g = group(null);
-        ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict("assertIs@4", "assertIs",
+        ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict(nextVerdictId(), "assertIs@4", "assertIs",
                 g.verdicts().get(0).base(), null);
         ExecutionPlan.Verdicts withUnjudged = new ExecutionPlan.Verdicts(
                 List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null, ExecutionPlan.JudgingRules.LITE);
@@ -346,7 +354,7 @@ final class ProgramRunnerTest {
                 1, body, ExecutionPlan.Keyed.Snapshot.TRANSACTION, null);
         ExecutionPlan.Side keyedSide = new ExecutionPlan.Side.KeyedRows(keyed);
         ExecutionPlan.Verdicts g = group(fused(FUSED));
-        ExecutionPlan.Verdict third = new ExecutionPlan.Verdict("assertTdsEquivalent@5", "assertTdsEquivalent",
+        ExecutionPlan.Verdict third = new ExecutionPlan.Verdict(nextVerdictId(), "assertTdsEquivalent@5", "assertTdsEquivalent",
                 List.of(keyedSide, new ExecutionPlan.Side.Constant(List.of(col("a", "Integer", null),
                         optional("b", "String", null)), List.of(List.of("1", "x"), java.util.Arrays.asList("2", null)),
                         true)),
@@ -367,7 +375,7 @@ final class ProgramRunnerTest {
     /** One assert whose one rows side reads {@code sql}. */
     private static ExecutionPlan.Verdicts oneVerdict(String name, String sql) {
         ExecutionPlan.Side side = new ExecutionPlan.Side.Rows(relation(sql, List.of(col("value", "Integer", "INTEGER"))));
-        return new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(name, "assert", List.of(side), null)),
+        return new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(nextVerdictId(), name, "assert", List.of(side), null)),
                 null, ExecutionPlan.JudgingRules.LITE);
     }
 
@@ -394,9 +402,9 @@ final class ProgramRunnerTest {
                 List.of(List.of("true")), false);
         ExecutionPlan.Side three = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
-        ExecutionPlan.Verdicts then = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("then@1",
+        ExecutionPlan.Verdicts then = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(nextVerdictId(), "then@1",
                 "assertEquals", List.of(three, three), null)), null, ExecutionPlan.JudgingRules.LITE);
-        ExecutionPlan.Verdicts otherwise = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("else@1",
+        ExecutionPlan.Verdicts otherwise = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(nextVerdictId(), "else@1",
                 "assertEquals", List.of(three, three), null)), null, ExecutionPlan.JudgingRules.LITE);
         ExecutionPlan.Branch inner = new ExecutionPlan.Branch(yes, List.of(), List.of(otherwise));
         ExecutionPlan.Branch branch = new ExecutionPlan.Branch(yes, List.of(then, inner), List.of(otherwise));
@@ -413,7 +421,7 @@ final class ProgramRunnerTest {
         // constants-alone path handed it no sides until 2026-11-04, so it was never judged under the database judge
         ExecutionPlan.Side three = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
-        ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict("assertError@1",
+        ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(new ExecutionPlan.Verdict(nextVerdictId(), "assertError@1",
                 "assertError", List.of(three), null)), null, ExecutionPlan.JudgingRules.LITE);
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), step), Map.of(), PlanSessions.shared(),

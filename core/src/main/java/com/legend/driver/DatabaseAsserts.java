@@ -22,7 +22,6 @@ import com.legend.testplan.TestDoor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +62,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     /** The steps at each statement-root assert's place (empty: absorbed into a later assert's). */
     private final Map<Integer, List<ExecutionPlan.Verdicts>> byStatement;
     /** The segment each verdict group's verdicts belong to (a record compares by value: by identity). */
-    private final Map<ExecutionPlan.Verdict, Segment> byVerdict;
+    private final Map<Integer, Segment> byVerdict;
     /** The stamp parameter minted for each frame let, by the let's place: the comment of its segment's fused statement. */
     private final Map<Integer, String> frameStamps;
 
@@ -71,9 +70,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     private final Map<Integer, ExecutionPlan.Branch> branches;
 
     private DatabaseAsserts(Map<Integer, List<ExecutionPlan.Verdicts>> byStatement,
-            Map<ExecutionPlan.Verdict, Segment> byVerdict, Map<Integer, String> frameStamps,
-            Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps,
-            Map<ExecutionPlan.Verdict, HostAsserts.Planned> errorVerdicts, Map<Integer, ExecutionPlan.Branch> branches) {
+            Map<Integer, Segment> byVerdict, Map<Integer, String> frameStamps,
+            Map<Integer, HostAsserts.Planned> hostSteps,
+            Map<Integer, HostAsserts.Planned> errorVerdicts, Map<Integer, ExecutionPlan.Branch> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.byVerdict = byVerdict;
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
@@ -84,15 +83,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The assertErrors the database judges (S135), by their verdict: the host planner's step each was made from, for
      *  its name and its census. */
-    private final Map<ExecutionPlan.Verdict, HostAsserts.Planned> errorVerdicts;
+    private final Map<Integer, HostAsserts.Planned> errorVerdicts;
 
     /** The assertErrors' steps by their verdict (ruling N3: the comparison is Java's in both judge modes, so the step
      *  is the host planner's, its sides read and judged by the host's rule at the assert's turn). */
-    private final Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps;
+    private final Map<Integer, HostAsserts.Planned> hostSteps;
 
     /** The assertError step {@code verdict} is, or null: a verdict of the database's segments. */
     HostAsserts.@Nullable Planned hostStep(ExecutionPlan.Verdict verdict) {
-        return hostSteps.get(verdict);
+        return hostSteps.get(verdict.id());
     }
 
     /**
@@ -139,15 +138,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
-        Map<ExecutionPlan.Verdict, HostAsserts.Planned> hostSteps = new IdentityHashMap<>();
-        Map<ExecutionPlan.Verdict, HostAsserts.Planned> errorVerdicts = new IdentityHashMap<>();
+        Map<Integer, HostAsserts.Planned> hostSteps = new java.util.HashMap<>();
+        Map<Integer, HostAsserts.Planned> errorVerdicts = new java.util.HashMap<>();
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, List<ExecutionPlan.Verdicts>> byStatement = new LinkedHashMap<>();
         Map<Integer, ExecutionPlan.Branch> branches = new LinkedHashMap<>();
-        Map<ExecutionPlan.Verdict, Segment> byVerdict = new IdentityHashMap<>();
+        Map<Integer, Segment> byVerdict = new java.util.HashMap<>();
         Map<Integer, String> frameStamps = new LinkedHashMap<>();
         // the walk's fragment map: a frame's CTE name to the let it came from, so a split rung's reason names it
         Map<String, String> fragments = new LinkedHashMap<>();
@@ -277,7 +276,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (judged != null) {
                     // the user's ruling S135 (2026-11-05): the host catches, the database judges
                     byStatement.put(i, List.of(judged));
-                    errorVerdicts.put(judged.verdicts().get(0), step);
+                    errorVerdicts.put(judged.verdicts().get(0).id(), step);
                     continue;
                 }
                 if (step.assertion().beforeTheArm() == null && HostJudgment.core(
@@ -289,7 +288,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     return null;
                 }
                 byStatement.put(i, List.of(step.step()));
-                hostSteps.put(step.verdict(), step);
+                hostSteps.put(step.verdict().id(), step);
                 com.legend.diagnostics.Diagnostics.judgeSend("host-step", AssertVerdicts.listenerName(
                         Lets.bare(statement)));
                 continue;
@@ -408,7 +407,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         ExecutionPlan.Node wrapper = JudgePlans.rowsPlan(com.legend.lowering.VerdictSql.assertError(ae.expected(),
                 ae.line(), ae.column(), raised), com.legend.lowering.VerdictSql.schema(), env);
-        ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(step.verdict().name(), step.verdict().arm(), base, wrapper,
+        // the host's verdict rebuilt as the raising one: the same verdict, so the same id
+        ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(step.verdict().id(), step.verdict().name(),
+                step.verdict().arm(), base, wrapper,
                 null, raises);
         return new ExecutionPlan.Verdicts(List.of(v), null, host.savepoint(), host.rules());
     }
@@ -808,7 +809,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  the body: a group on another session than the body's, or a keyed member. */
     private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
             BodyDriver.ExecEnv env, Map<Integer, List<ExecutionPlan.Verdicts>> byStatement,
-            Map<ExecutionPlan.Verdict, Segment> byVerdict) {
+            Map<Integer, Segment> byVerdict) {
         VerdictBatch.Planned planned = batch.plan();
         if (planned == null) {
             return true;
@@ -825,11 +826,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // dialect's own words before anything is sent (VerdictBatch.executeOne) -- the host judge's raise for the
             // same side (2026-11-03: the walk had kept such a body, so the database judge alone planned 9 PCT bodies
             // fewer than the host on DuckDB, and refused H2's 33 list operations)
-            ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict("decided@" + place + segment, "decided",
+            ExecutionPlan.Verdict decided = new ExecutionPlan.Verdict(env.verdictIds().next(), "decided@" + place + segment,
+                    "decided",
                     List.of(), null);
             ExecutionPlan.Verdicts step = new ExecutionPlan.Verdicts(List.of(decided), null, null,
                     env.options().judgingRules());
-            byVerdict.put(decided, new Segment(planned, List.of(step), true));
+            byVerdict.put(decided.id(), new Segment(planned, List.of(step), true));
             byStatement.put(lastAssert, List.of(step));
             return true;
         }
@@ -843,7 +845,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         Segment seg = new Segment(planned, steps, false);
         for (ExecutionPlan.Verdicts step : steps) {
             for (ExecutionPlan.Verdict v : step.verdicts()) {
-                byVerdict.put(v, seg);
+                byVerdict.put(v.id(), seg);
             }
         }
         byStatement.put(lastAssert, steps);
@@ -886,7 +888,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The segment the runner handed {@code verdict} for. */
     Segment of(ExecutionPlan.Verdict verdict) {
-        Segment s = byVerdict.get(verdict);
+        Segment s = byVerdict.get(verdict.id());
         if (s == null) {
             throw new IllegalStateException("a verdict the database judge's planner did not plan: " + verdict.name());
         }
@@ -897,7 +899,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  in (the batch's root loop: the walk's census and listener protocol, the first failure raising). */
     void received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row, @Nullable AssertListener listener,
             com.legend.exec.PlanRunner.@Nullable SideReader reader) {
-        HostAsserts.Planned error = errorVerdicts.get(verdict);
+        HostAsserts.Planned error = errorVerdicts.get(verdict.id());
         if (error != null) {
             AssertVerdicts.judgedRowAtItsStep(error.assertion(), java.util.Objects.requireNonNull(row,
                     "an assertError's verdict statement answered no row"), listener);
