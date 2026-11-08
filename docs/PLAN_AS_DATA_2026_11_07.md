@@ -903,3 +903,20 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
 - **Slice 3 closed at `e8a932cb`** (2026-11-08): every lane green, two audits (the invariant audit and its
   follow-up), the record in GATES. Its own pins are at zero: guard 1, guard 3, the listener, the rule re-read.
   Marker branch `claude/plan-as-data-slice-3`.
+
+### Slice 4's progress (drafted while slice 3's lanes ran; lands after slice 3 closes)
+
+- **Hole 1 (`608eabbf`, branch `claude/slice4-hole1`):** an engine-text appeal's rows leg carries the enumerations
+  its referee decodes (`Appeal.Enums`: the enum types among our columns and the root class's properties, each one's
+  decode under the mapping), read from the model at planning (`JudgmentFacts.enumsOf`). The referee's SPI takes them
+  in place of the model; the decision takes no model. `noCompiledModelReachesTheRun` goes from 16 sites to 7.
+- **Hole 7, read but not designed yet.** Sessions are opened from the model through the `Execution.Source` contract,
+  `open(Target, ModelContext)`. The product's source (`server.ConnectionResolver`) reads the model for two things:
+  - a content key of the model's store definitions, so requests over the same stores share one database;
+  - the model's Data rows, inserted when a session is made (`ProjectData.fill`).
+
+  Both belong to the plan's target: its connection description (2.6) and its setup steps. The source then takes the
+  plan's `ExecutionPlan.Target` and nothing else, keyed by the target's own content. To check first: whether the
+  planner already writes the Data rows into a target's setup steps (it writes a connection's declared test data,
+  2026-10-09), and how the server's shared-database key reads when it comes from the plan. Hole 7 and D3 (a CSV
+  load's local path) are both about what a plan's target carries, so they share one design pass.
