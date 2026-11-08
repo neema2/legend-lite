@@ -1028,3 +1028,15 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
    `session(ctx, runtime)` becomes a session for a planned target (the tests).
 5. **Guards:** hole 7's `MODEL_SITES` (the 24 product sites and the run's four) go. **Measure:** the plan's size on
    the demo project (PARK-35's `query/demo/verify.mjs`) and on the largest ###Data in the tests.
+
+**Refined before the code (2026-11-08):**
+- **The once-when-made steps belong to the DATABASE's identity, not the target** (C5: named by what it holds). This is
+  `ExecutionPlan.Project(String key, List<SetupStep> made)`: the stores' and Data rows' content key
+  (`ProjectData.contentKey`) and the statements that make and fill it. It is a nullable component of
+  `Database.Declared` and `Database.Platform`: the platform's own database is also kept per model's stores today
+  (D100). Null means no project database (the test road, and every connection that opens by URL or by a user's name).
+- **The runner opens a project database by the database's identity:** keyed by its JSON (connection and project),
+  made once with `project.made`, kept. The per-acquisition setup stays the door's (`Execution.Establish`), run on
+  each query, so the declared test data is not run twice on a database's first query.
+- **Sites:** 14 constructions of `Database.Declared` (10 in tests, which pass null) and the Platform's. `PlanJson`
+  writes and reads `project`; its version is bumped.
