@@ -84,5 +84,13 @@ class TsIslandRoundTripTest {
         TsAst.Filtered f = (TsAst.Filtered) TsParser.parse("SELECT x AS y FROM (db::Db.s.prices WHERE v > 0) ON d")
                 .sources().get(0).source();
         assertEquals("db::Db.s.prices", ((TsAst.Named) f.of()).name());
+        // LATEST BY seq (the user's ruling of 2026-11-08 on duplicate prints): the source's sequence, read and printed
+        String latest = "SELECT sum(volume) AS v FROM prices ON date BY symbol LATEST BY seq SAMPLE BY 1w";
+        TsAst.From named = TsParser.parse(latest).sources().get(0);
+        assertEquals("symbol", named.by().parts().get(0).text());
+        assertEquals("seq", named.latest().parts().get(0).text());
+        assertNull(TsParser.parse("SELECT x AS y FROM t ON d BY s").sources().get(0).latest(), "none unless said");
+        assertTrue(TsPrinter.print(TsParser.parse(latest)).contains("FROM prices ON date BY symbol LATEST BY seq"),
+                TsPrinter.print(TsParser.parse(latest)));
     }
 }

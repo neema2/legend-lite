@@ -951,8 +951,10 @@ const CHART_BUDGET = 303_500;
  *  rate, vol_swap_volatility's r overloads gone -- and their sentences. Measured 142,751.
  *  143,000 -> 143,500 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 14c; the user: "Last print wins, else
  *  refuse"): the library's text with SAMPLE BY's last and first refusing a tie at the moment they pick
- *  (lines::onceTaken) and its sentence. Measured 143,164. */
-const TIMESERIES_BUDGET = 143_500;
+ *  (lines::onceTaken) and its sentence. Measured 143,164.
+ *  143,500 -> 144,000 (2026-11-08, item 14c; the user: "A clause: LATEST BY seq"): the library's text with LATEST BY's
+ *  rule (lines::latestBy, onceLatest) and its sentence. Measured 143,624. */
+const TIMESERIES_BUDGET = 144_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

@@ -1419,6 +1419,35 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * LATEST BY (the user's ruling of 2026-11-08 on duplicate prints, "Last print wins", spelled "A clause: LATEST BY
+     * seq"): of a key's rows on one date, the one of the greatest sequence; a date whose sequence names no one latest is
+     * refused, naming the fix.
+     */
+    @Test
+    void latestByKeepsEachDatesGreatestSequenceAndRefusesOneOfNoOrder() throws Exception {
+        for (TestBackend backend : deep()) {
+            // under SAMPLE BY (the platform's database, as every SAMPLE BY case here): last(x) of one row a date
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT last(CLOSE) AS l FROM PRICES ON DAY"
+                    + " LATEST BY CLOSE SAMPLE BY 1d}#");
+            assertClose(each(AAA.length, i -> Math.max(AAA[i], BBB[i])), column(got, null, null, "l"),
+                    backend + ": each date's greatest, last(x) of one row a date");
+        }
+        for (TestBackend backend : backends()) {
+            // a line of no instrument, two rows a date (AAA's and BBB's): LATEST BY CLOSE keeps the greater
+            assertClose(each(AAA.length, i -> Math.max(AAA[i], BBB[i])), column(rows(backend, "|#TS{SELECT CLOSE AS c"
+                    + " FROM PRICES ON DAY LATEST BY CLOSE}#"), null, null, "c"), backend + ": each date's greatest");
+            // two rows of one sequence: no one latest
+            Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{SELECT CLOSE AS c FROM"
+                    + " (SELECT *, 1 AS ONE FROM PRICES) p ON DAY LATEST BY ONE}#"), backend + ": a sequence alike");
+            assertTrue(String.valueOf(e.getMessage()).contains("whose sequence names no one latest"),
+                    backend + ": refused by name: " + e.getMessage());
+            // by instrument, each line's own dates kept (one row each): the line as it was
+            assertClose(each(AAA.length, i -> AAA[i]), column(rows(backend, "|#TS{SELECT CLOSE AS c FROM PRICES ON DAY"
+                    + " BY SYMBOL LATEST BY CLOSE}#"), "SYMBOL", "AAA", "c"), backend + ": a line of one row a date");
+        }
+    }
+
     private static boolean near(String said, String want) {
         return want == null ? said == null : said != null && Math.abs(Double.parseDouble(said) - Double.parseDouble(want))
                 <= 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)));

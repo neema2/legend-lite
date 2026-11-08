@@ -93,6 +93,9 @@ public final class TsPrinter {
         if (f.by() != null) {
             b.append(" BY ").append(path(f.by()));
         }
+        if (f.latest() != null) {
+            b.append(" LATEST BY ").append(path(f.latest()));
+        }
         return b.toString();
     }
 

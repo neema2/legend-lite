@@ -60,10 +60,12 @@ line, a call needing gs-quant's service (a currency's cash) bound and not run. I
 two were DataCube's own words or the sample's dates, and the printer's fixes it found are in: `filter_(x)` for the
 empty operator, `n_days` always told, `Window(None, 0)` for a window to date, and `excess_returns_pure(x, y)` for
 excess returns over another line (gs-quant's `excess_returns` reads an asset, a currency or a rate, never a line).
-**251 run (the ramp tile's three among them: `Window(63, 0)`, `Window(22, 5)`, `Window(63, 10)`), 4 bound, 1
-refused for the sample alone (`if_`'s own call on prices), 2 refused**: a comparison of two
-lines of different dates (`close < mean(close, w=200)`), which pandas raises on (it compares identically-labelled
-series alone) where the language answers on the dates both have (S152) -- for the user to rule.
+**253 run (the ramp tile's three among them: `Window(63, 0)`, `Window(22, 5)`, `Window(63, 10)`), 4 bound, 1
+refused for the sample alone (`if_`'s own call on prices), none refused.** Show Python is the typed wrapper's program
+(`from legend_lite.timeseries import ...`: gs-quant's names, signatures and enumerations over `#TS` terms), so its
+operators are the wrapper's -- two lines compare on the dates both have (S152) -- never plain pandas', which raises on
+two series of different dates; the check's sample lines compare as the wrapper does (the user, 2026-11-08: "our python
+was going to show our typed gs-quant wrapper of #TS").
 
 ## What it found
 

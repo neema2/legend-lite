@@ -57,7 +57,7 @@ Clause order: `SELECT … FROM … SAMPLE BY … FILL(…) FILTER …`. Only `SE
 
 ### R1. Sources
 
-`[WITH name AS (subquery), …] … FROM <source> [alias] ON <date column> [BY <instrument column>]`
+`[WITH name AS (subquery), …] … FROM <source> [alias] ON <date column> [BY <instrument column>] [LATEST BY <sequence column>]`
 
 A source is any of four things (the user, 2026-10-30, for Class models):
 
@@ -109,6 +109,14 @@ WITH daily AS TS (SELECT close['SPX'] / close['QQQ'] AS r FROM prices ON date BY
 - `ON` names the date column; `BY` the column naming each row's instrument (a symbol, a tenor, a series). `BY` is left
   out where the source has one instrument: its columns are then lines with no subscript (`total_volume`), a
   subquery's columns included.
+- `LATEST BY` names a column ordering an instrument's rows on one date -- a print's ingest sequence -- and keeps the
+  greatest: a corrected print supersedes its original before any word reads the line (the user, 2026-11-08, on a
+  corrected print: "Last print wins", spelled "A clause: LATEST BY seq"; register S163). `FROM prices ON date BY
+  symbol LATEST BY seq SAMPLE BY 1w` sums each date's last print. A date whose rows' sequence names no one latest (a
+  row of none, two alike) is refused while the query runs. Without it, several rows on one date are several
+  observations: a word that reads the line in order refuses them (S149: windows of n, lags, `last(x)` and `first(x)`
+  under `SAMPLE BY` at a tied moment), and a period's order-free aggregate (`sum`, `avg`, `min`, `max`, `count`) takes
+  them all -- several trades on one date are no corrections.
 - Several sources are separated by commas, each with its own `ON` and `BY` and an alias:
   `FROM prices px ON date BY symbol, rates rf ON date BY tenor`. **The comma is not a join**: each source's lines are
   picked first (R2), and lines meet on dates (R6).

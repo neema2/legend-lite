@@ -43,7 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the correct one; DIFF, another (a finding, ledgered: the words are never edited to make a case pass); REFUSED, lite's
  * refusal. A case that does not face its trap (its source has the trap undone by hand, or the trap is a mistake lite
  * never makes) is evidence of the word, not of the trap, and says so. Rewrite the ledger on purpose with {@code
- * --jvm_flag=-Dts.adversarial.update=<core/src/test/resources/ts-adversarial/ledger.tsv in the workspace>}. The naive
+ * bazel test //core:ts_adversarial_test --strategy=TestRunner=local
+ * --jvmopt=-Dts.adversarial.update=$PWD/core/src/test/resources/ts-adversarial/ledger.tsv} (a test argument
+ * {@code --jvm_flag} is no JUnitMain argument: measured 2026-11-08). The naive
  * SQL's answers are no ratchet: a naive form that stops giving its answer, or gives the correct one, fails the target,
  * as the fixture is then wrong.
  *
@@ -103,6 +105,11 @@ class TsAdversarialTest {
                             + " ~rn:{p,f,r|$p->rowNumber($r)})->filter(r|$r.rn == 1);"
                             + " #TS{SELECT sum(VOLUME['BTCUSD']) AS v FROM $px ON DATE BY SYMBOL SAMPLE BY 1w}#;",
                     "v", false, false),
+            // ... and in #TS itself, the source naming its sequence: LATEST BY SEQ keeps each date's greatest (the
+            // user's ruling of 2026-11-08, "Last print wins", spelled "A clause: LATEST BY seq")
+            new Case("duplicate_row/latest_by_seq", "duplicate_row",
+                    ts("SELECT sum(VOLUME['BTCUSD']) AS v FROM PRICES ON DATE BY SYMBOL LATEST BY SEQ SAMPLE BY 1w"),
+                    "v", false, true),
             // the trap is a change-only filter lite never applies: evidence of the word, not of the trap
             new Case("stale_price_5d", "stale_price_5d",
                     ts("SELECT volatility(CLOSE['BRAVO'], 10, annualization_factor => 252) AS v FROM PRICES ON DATE"
@@ -210,6 +217,17 @@ class TsAdversarialTest {
             // a line of no tie answers as it did: ALPHA's weeks
             assertTrue(!rows(model, c, ts("SELECT last(CLOSE['ALPHA']) AS v FROM PRICES ON DATE BY SYMBOL"
                     + " SAMPLE BY 1d")).isEmpty(), "a line of one row a date");
+            // the source naming its sequence, LATEST BY SEQ: the correction, whatever the load order -- last and first
+            // alike, the date one row
+            for (String table : List.of("PRICES", "PRICES_REVERSED")) {
+                for (String taken : List.of("last", "first")) {
+                    List<Map<String, String>> on = on(rows(model, c, ts("SELECT " + taken + "(CLOSE['BTCUSD']) AS v FROM "
+                            + table + " ON DATE BY SYMBOL LATEST BY SEQ SAMPLE BY 1d")), date);
+                    assertEquals(1, on.size(), table + ": one period on " + date);
+                    assertEquals(closes.get(closes.size() - 1), value(on, "v"), table + ": " + taken
+                            + "(x) LATEST BY SEQ is the correction");
+                }
+            }
         }
     }
 

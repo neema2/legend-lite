@@ -100,7 +100,7 @@ public final class TsShow {
         }
         withs.addAll(q.withs());
         List<TsAst.From> sources = q.sources().stream().map(f -> new TsAst.From(named(f.source(), grids), f.alias(),
-                f.on(), f.by(), f.pos())).toList();
+                f.on(), f.by(), f.latest(), f.pos())).toList();
         List<TsAst.With> own = withs.stream().map(w -> new TsAst.With(w.name(), named(w.body(), grids))).toList();
         TsAst.Query one = new TsAst.Query(own, q.items(), sources, q.sample(), q.dated(), q.fill(), q.filter(), q.alls(),
                 q.spans(), q.plain());
@@ -134,7 +134,7 @@ public final class TsShow {
             case TsAst.Nested n -> new TsAst.Nested(new TsAst.Query(n.query().withs().stream()
                     .map(w -> new TsAst.With(w.name(), named(w.body(), grids))).toList(), n.query().items(),
                     n.query().sources().stream().map(f -> new TsAst.From(named(f.source(), grids), f.alias(), f.on(),
-                            f.by(), f.pos())).toList(), n.query().sample(), n.query().dated(), n.query().fill(),
+                            f.by(), f.latest(), f.pos())).toList(), n.query().sample(), n.query().dated(), n.query().fill(),
                     n.query().filter(), n.query().alls(), n.query().spans(), n.query().plain()), n.pos());
             case TsAst.Named n -> n;
         };

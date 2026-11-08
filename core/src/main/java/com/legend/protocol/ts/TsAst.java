@@ -68,10 +68,13 @@ public final class TsAst {
         }
     }
 
-    /** A FROM source: what it reads, its alias (none: null), its date column ({@code ON}) and its instrument column
-     *  ({@code BY}; none: null), each a column or a class's dotted path. */
+    /** A FROM source: what it reads, its alias (none: null), its date column ({@code ON}), its instrument column
+     *  ({@code BY}; none: null) and its sequence column ({@code LATEST BY}; none: null: each instrument's date keeps
+     *  its row of the greatest sequence, a corrected print superseding its original -- the user's ruling of
+     *  2026-11-08), each a column or a class's dotted path. */
     public record From(Source source, SqlAst.@com.legend.base.Nullable Ident alias, SqlAst.ColumnRef on,
-            SqlAst.@com.legend.base.Nullable ColumnRef by, SqlAst.Pos pos) {
+            SqlAst.@com.legend.base.Nullable ColumnRef by, SqlAst.@com.legend.base.Nullable ColumnRef latest,
+            SqlAst.Pos pos) {
     }
 
     /** What a source reads. */

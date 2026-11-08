@@ -1922,6 +1922,28 @@ function timeseries::lines::line<T,K,D,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key:
     ->rename(~lk, $outKey)->rename(~lp, $period)->rename(~lo, $ord)->rename(~la, $at)->rename(~lv, $out)
 }
 
+// LATEST BY (the user's ruling of 2026-11-08 on duplicate prints, "Last print wins", spelled "A clause: LATEST BY
+// seq"; PR #90's finding 2): of each key's rows on one date, the one of the greatest sequence -- a corrected print
+// supersedes its original before any word reads the line. A date of several rows whose sequence names no one latest (a
+// row of none, or two alike) is refused while the query runs (lines::onceLatest), never one the database picks; a
+// date of one row is kept whatever its sequence.
+function timeseries::lines::latestBy<T,K,D,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], seq: ColSpec<Q⊆T>[1]): Relation<T>[1]
+{
+  $t->extend(~[lb_k:r|$r->read($key), lb_d:r|$r->read($date), lb_q:r|$r->read($seq)])
+    ->extend(over(~[lb_k, lb_d], [~lb_q->descending()]), ~lb_n:{p,f,r|$p->rowNumber($r)})
+    ->extend(over(~[lb_k, lb_d]), ~[lb_c:{p,f,r|1}:y|$y->count(), lb_z:{p,f,r|if($r.lb_q->isEmpty(), |1, |0)}:y|$y->sum()])
+    ->extend(over(~[lb_k, lb_d, lb_q]), ~lb_t:{p,f,r|1}:y|$y->count())
+    ->filter(r|if(timeseries::lines::onceLatest($r.lb_c, $r.lb_z, $r.lb_t), |$r.lb_n == 1, |false))
+    ->without(~[lb_k, lb_d, lb_q, lb_n, lb_c, lb_z, lb_t])
+}
+
+// A date's rows under LATEST BY: true where one, or where each names its sequence and no two alike; refused otherwise,
+// naming the fix.
+function timeseries::lines::onceLatest(rows: Integer[1], unsequenced: Integer[1], alike: Integer[1]): Boolean[1]
+{
+  if(($rows > 1) && (($unsequenced > 0) || ($alike > 1)), |fail('LATEST BY met a date of several rows whose sequence names no one latest -- a row of no sequence, or two of one: each print names its own (D8)'), |true)
+}
+
 // The period of a SAMPLE BY a day is in: the first day of its week, month, quarter or year; a day's, the day.
 function timeseries::lines::periodOf(d: Date[1], sample: timeseries::Sample[1]): Date[1]
 {

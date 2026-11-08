@@ -52,7 +52,10 @@ SAMPLE_ONLY = {
 
 
 class Line(pd.Series):
-    """A sample line, and the builder's .period(...) on it (the tile's frequency's value: the same line here)."""
+    """A sample line, and the builder's .period(...) on it (the tile's frequency's value: the same line here). Its
+    comparisons are the builder's (legend_lite.timeseries' Term, the program's own import): two lines compare on the dates
+    both have (S152), where plain pandas raises on two series of different dates -- the program's operators are the
+    wrapper's, never pandas' (the user, 2026-11-08: "our python was going to show our typed gs-quant wrapper of #TS")."""
 
     @property
     def _constructor(self):
@@ -60,6 +63,24 @@ class Line(pd.Series):
 
     def period(self, fn):
         return self
+
+    def _met(self, other, op):
+        if isinstance(other, pd.Series):
+            a, b = self.align(other, join='inner')
+            return Line(op(pd.Series(a), pd.Series(b)))
+        return Line(op(pd.Series(self), other))
+
+    def __lt__(self, other):
+        return self._met(other, lambda a, b: a < b)
+
+    def __le__(self, other):
+        return self._met(other, lambda a, b: a <= b)
+
+    def __gt__(self, other):
+        return self._met(other, lambda a, b: a > b)
+
+    def __ge__(self, other):
+        return self._met(other, lambda a, b: a >= b)
 
 
 def sample(*key):

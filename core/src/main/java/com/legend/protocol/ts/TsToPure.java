@@ -384,9 +384,11 @@ public final class TsToPure {
                 String on = resolver.single(o, o.from().on(), "ON");
                 SqlAst.ColumnRef by = o.from().by();
                 String instrument = by == null ? null : resolver.single(o, by, "BY");
+                SqlAst.ColumnRef seq = o.from().latest();
+                String latest = seq == null ? null : resolver.single(o, seq, "LATEST BY");
                 SqlAst.Expr where = o.read() instanceof Instances i && i.where() != null
                         ? resolver.within(o, perPoint(i.where())) : null;
-                resolved.add(new Resolved(o, on, instrument, where));
+                resolved.add(new Resolved(o, on, instrument, latest, where));
             }
             for (int i = 0; i < exprs.size(); i++) {
                 exprs.set(i, resolver.expression(exprs.get(i), i));
@@ -413,6 +415,12 @@ public final class TsToPure {
                 }
                 own.addAll(types.keySet());
                 java.util.Objects.requireNonNull(types.get(r.date()), "the source's date column");
+                if (r.latest() != null) {
+                    // LATEST BY: each instrument's date its row of the greatest sequence (the library's rule,
+                    // timeseries::lines::latestBy; a line of no instrument, each date's)
+                    rel = call(TsLines.LINES + "latestBy", rel, new ColSpec(r.instrument() != null ? r.instrument()
+                            : r.date()), new ColSpec(r.date()), new ColSpec(r.latest()));
+                }
                 opened.put(o.key(), new TsLines.Source(rel, r.date(), r.instrument(),
                         o.alias().isEmpty() ? "the source" : o.alias()));
             }
@@ -624,9 +632,9 @@ public final class TsToPure {
         }
 
         /** A source opened and its clauses resolved: its date column, its instrument column (none: null), its
-         *  condition (a class's {@code WHERE}; none: null). */
+         *  sequence column ({@code LATEST BY}; none: null), its condition (a class's {@code WHERE}; none: null). */
         private record Resolved(Opening opening, String date, @com.legend.base.Nullable String instrument,
-                SqlAst.@com.legend.base.Nullable Expr where) {
+                @com.legend.base.Nullable String latest, SqlAst.@com.legend.base.Nullable Expr where) {
         }
 
         /**

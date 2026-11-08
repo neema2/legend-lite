@@ -258,7 +258,7 @@ public final class TsParser {
     private static TsAst.Query valued(TsAst.Query q, java.util.function.UnaryOperator<SqlAst.Expr> f) {
         return new TsAst.Query(q.withs().stream().map(w -> new TsAst.With(w.name(), valued(w.body(), f))).toList(),
                 valued(q.items(), f), q.sources().stream().map(s -> new TsAst.From(valued(s.source(), f), s.alias(),
-                        s.on(), s.by(), s.pos())).toList(), q.sample(), q.dated(), q.fill(),
+                        s.on(), s.by(), s.latest(), s.pos())).toList(), q.sample(), q.dated(), q.fill(),
                 q.filter() == null ? null : f.apply(q.filter()), q.alls(), q.spans(), q.plain());
     }
 
@@ -680,11 +680,18 @@ public final class TsParser {
             by = path(i + 1, to, next, "BY");
             i = next[0];
         }
+        // LATEST BY seq: of each instrument's rows on one date, the one of the greatest sequence (the user's ruling of
+        // 2026-11-08 on duplicate prints, "Last print wins", spelled "A clause: LATEST BY seq")
+        SqlAst.ColumnRef latest = null;
+        if (i + 1 < to && tokens.get(i).is("latest") && tokens.get(i + 1).is("by")) {
+            latest = path(i + 2, to, next, "LATEST BY");
+            i = next[0];
+        }
         if (i < to) {
             throw invalid("syntax error at or near \"" + tokens.get(i).text() + "\": a source is FROM prices"
-                    + " [alias] ON date [BY symbol]", tokens.get(i).pos());
+                    + " [alias] ON date [BY symbol] [LATEST BY seq]", tokens.get(i).pos());
         }
-        return new TsAst.From(source, alias, on, by, first.pos());
+        return new TsAst.From(source, alias, on, by, latest, first.pos());
     }
 
     /** Whether the select in tokens {@code [from, to)} is the language's own: a source read ON its date (an ON after a
