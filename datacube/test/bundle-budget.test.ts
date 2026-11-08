@@ -912,8 +912,13 @@ const CHART_BUDGET = 303_500;
  *  me"): the words' signatures and facts generated from core's catalog (src/generated/ts-signatures.ts,
  *  ts-facts.ts) in place of the tile's two hand-kept tables, every word of the library's facts among them, and the rule
  *  of a parameter neither told nor defaulted (timeseries-spec.ts writtenParams, begunParams). Measured 137,191; step
- *  3's deletions take it down. */
-const TIMESERIES_BUDGET = 137_400;
+ *  3's deletions take it down.
+ *  137,400 -> 137,800 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 2, the user: "keep going in
+ *  order"): the library's text, which the tile carries, with the builders' facts of a word's signature
+ *  (timeseries::Words.gsParam, gsValue, gsAlso: where gs-quant names a parameter or spells an option otherwise) and the
+ *  profile's sentence on them; the builder itself is no part of the tile (src/timeseries-builder.ts, imported by no
+ *  page). Measured 137,512. */
+const TIMESERIES_BUDGET = 137_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

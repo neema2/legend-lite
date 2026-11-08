@@ -2248,15 +2248,10 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // reads, which are alias's); and, as stereotypes, whether it draws a band or candles, or is anchored to the first date
 // shown. The tile reads them from the catalog (TsCatalog), its own table deleted with its grammar (A3 step 5).
 //
-// A WORD'S SIGNATURE'S FACTS (docs/TS_DECISIONS_2026_11_07.md §4, the order's steps 1 and 2): given, a parameter's
-// default where a call leaves it out ('w: 22', each proved its call without it: TsIslandTest); limit, its bounds
-// ('w: >= 0'); and, for the builders, which spell each word's call as gs-quant's (its names, order, defaults and
-// types, read from gs-quant itself: projects/timeseries/gs-quant-signatures.json), where gs-quant says it otherwise --
-// gsParam, a parameter gs-quant names otherwise ('type: returns_type'), and gsValue, an option's word gs-quant spells
-// otherwise ('type: logarithmic log': gs-quant's Returns.LOGARITHMIC is the language's log); gsAlso, a value of a
-// gs-quant parameter the language has no word for that the word computes beside gs-quant's default ('mode: truncate':
-// lag on the line's own dates is gs-quant's LagMode.TRUNCATE -- its default EXTEND's future dates the language makes
-// none of).
+// A WORD'S SIGNATURE'S FACTS (docs/TS_DECISIONS_2026_11_07.md §4): given and limit, a parameter's default and bounds;
+// for the builders, which spell a call as gs-quant's, where gs-quant says it otherwise -- gsParam a parameter's name
+// ('type: returns_type'), gsValue an option's ('type: logarithmic log'), gsAlso a value of gs-quant's the word computes
+// beside its default ('mode: truncate').
 Profile timeseries::Words
 {
   stereotypes: [band, candles, anchored];
