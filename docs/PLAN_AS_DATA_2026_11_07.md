@@ -1040,3 +1040,26 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
   each query, so the declared test data is not run twice on a database's first query.
 - **Sites:** 14 constructions of `Database.Declared` (10 in tests, which pass null) and the Platform's. `PlanJson`
   writes and reads `project`; its version is bumped.
+- **Step 1 done (`fb15b167`):** `ExecutionPlan.Project(key, made)` on `Database.Declared`/`Platform`, PlanJson v29;
+  every site passes null.
+- **Steps 2 to 5, exactly (read at `fb15b167`):**
+  - **Planner (`PlanMaker.target`, its two product call sites; the test door, `door == TEST`, stays null).** A
+    declared or platform target carries `Project(ProjectData.contentKey(ctx), made)`. For a declared database, `made`
+    is the Data fill (`ProjectData.fill(ctx, dialect)` as setup statements); for the platform's database it is
+    empty: today's server keys that one by the stores and fills nothing. Memoized per model and dialect (planning
+    knowledge). The planner cannot ask exec how a connection opens, so it writes `made` for every declared database,
+    and the runner uses it only where it makes the database itself.
+  - **Runner (`PlanSessions`): a new opening, `projectDatabase(target)`, keyed by the database's JSON (connection and
+    project).**
+    - A held in-memory database is made with `project.made` once and kept (C5: today the server fills only this kind).
+    - An unnamed in-memory database and the platform's are keyed apart by the project, filled with nothing, as today.
+    - A URL or a user-named database opens as today; the project is not its identity. It is the user's database, and
+      today's server does not fill it either.
+    - It runs NO per-query setup: the door's `Establish.DECLARED_SETUP` runs the target's setup per query, as today.
+  - **Door (`Execution.run`):** it plans first, then opens `sessions.open(plan's answer target)`. A constant answer
+    opens nothing. `Execution.Source` becomes `open(ExecutionPlan.Target)`; `Source.given` ignores the target.
+  - **Server:** `ConnectionResolver.SOURCE = PlanSessions::projectDatabase`. Its keys and fill are deleted.
+    `session(ctx, runtime)`, used by tests, becomes a session for a planned target, through a planning helper that
+    returns a runtime's target.
+  - **Guards and checks:** `MODEL_SITES` loses hole 7's sites. `PureV1ApiTest`, `ConnectionLeaseTest`, the server
+    suites and the corpus must stay green. Measure the plan size on the demo project.
