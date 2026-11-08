@@ -1096,3 +1096,23 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
   - whether any lane runs bodies on parallel threads in one JVM (one catalog session needs them to take turns:
     per-thread sessions if so);
   - DuckDB's registration through `INSERT ... SELECT` (the appender ignores the transaction).
+- **Checked:** no lane runs bodies on parallel threads in one JVM (no JUnit parallel configuration). One catalog
+  session per engine needs no extra locking.
+- **The code's shape (read at `12e60ad8`):**
+  - *Rows.* `MetamodelSeeds.rows(table, ctx)` gives a model's rows per table. The platform's rows are the same call on
+    an empty compiled model, once per process (planning knowledge). A model's own rows are its rows minus the
+    platform's, a multiset difference by row content (`SplitCheck`: every platform row appears unchanged in every
+    model's rows).
+  - *Steps.*
+    - The platform setup is `Ddl.metamodelSteps(def, schema, platformRows, dialect)`: the DDL and the platform's rows,
+      keyed by the platform's content, established once per catalog session.
+    - The registration is the same row load without the DDL: `RowLoad` staged on DuckDB, a temporary staging table
+      then `INSERT ... SELECT`, which stays in the transaction; `VALUES` on H2.
+  - *Target.* `Database.System(type, key)`'s key names the platform's content, not the graph's, so one session per
+    engine. The model's rows ride the program's registration step.
+  - *Transaction.* The runner opens a transaction on the catalog session before the registration and rolls it back
+    when the program's run ends (`TestRun.run`'s end, inside the run: THE WALL), whatever the outcome.
+  - *Holder.* `SystemDatabase` becomes one process-level holder keyed by (engine, platform key), so `of(ctx)` goes and
+    so do hole 2's six `MODEL_SITES`.
+  - *Scope.* Server engines keep their temporary tables (check 3 of the catalog design). The product's own metamodel
+    carriage (`PlanMaker.Metamodel`) is the catalog's product half, later.
