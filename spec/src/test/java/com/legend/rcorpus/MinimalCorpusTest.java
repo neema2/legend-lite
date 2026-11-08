@@ -229,11 +229,11 @@ public class MinimalCorpusTest {
                 long tStart = System.nanoTime();
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
-                int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
-                int unplannedBefore = com.legend.exec.Census.UNPLANNED_ASSERTS.size();
-                long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
-                long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
-                long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                int fallbacksBefore = com.legend.diagnostics.Census.FALLBACK_REASONS.size();
+                int unplannedBefore = com.legend.diagnostics.Census.UNPLANNED_ASSERTS.size();
+                long flushesBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FLUSHES);
+                long hostDecidedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_HOST_DECIDED);
+                long movedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -253,7 +253,7 @@ public class MinimalCorpusTest {
                     System.clearProperty("legend.test.current");
                 }
                 ran.add(r.fqn());
-                long movedNow = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                long movedNow = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
                 if (movedNow > movedBefore) {
                     // the tests whose run the body router moved bodies of, and how many (a test's setup program and
                     // its body each count; the test-is-the-product plan's M6, 2026-11-01: the census above counts
@@ -294,23 +294,23 @@ public class MinimalCorpusTest {
                 originRows.add(originRow.toString());
                 String shape = corpus.bodyShape(r.fqn());
                 String outside = outsideBody(originsBefore, originsAfter, shape,
-                        com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES) - flushesBefore);
+                        com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FLUSHES) - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
                 }
-                long hostDecided = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED) - hostDecidedBefore;
+                long hostDecided = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_HOST_DECIDED) - hostDecidedBefore;
                 if (hostDecided > 0) {
                     hostComparedRows.add(r.fqn() + " ||| host-decided=" + hostDecided);
                 }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
-                for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
-                    fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
+                for (int fi = fallbacksBefore; fi < com.legend.diagnostics.Census.FALLBACK_REASONS.size(); fi++) {
+                    fallbackRows.add(r.fqn() + "\t" + com.legend.diagnostics.Census.FALLBACK_REASONS.get(fi));
                 }
                 // one row per label per body: the router plans a body before the walk runs it, and the walk asks the
                 // host planner again about the assert the program road refused -- the same refusal, counted once
                 java.util.Set<String> bodyLabels = new java.util.LinkedHashSet<>();
-                for (int ui = unplannedBefore; ui < com.legend.exec.Census.UNPLANNED_ASSERTS.size(); ui++) {
-                    bodyLabels.add(com.legend.exec.Census.UNPLANNED_ASSERTS.get(ui));
+                for (int ui = unplannedBefore; ui < com.legend.diagnostics.Census.UNPLANNED_ASSERTS.size(); ui++) {
+                    bodyLabels.add(com.legend.diagnostics.Census.UNPLANNED_ASSERTS.get(ui));
                 }
                 for (String label : bodyLabels) {
                     unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + label);
@@ -372,8 +372,8 @@ public class MinimalCorpusTest {
         System.out.println("[corpus2] body-shapes pure=" + pure + " effectful=" + effectful
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
-        System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
-        System.out.println("[corpus2] body-router moved=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED));
+        System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.EFFECTS_IN_SCRIPT));
+        System.out.println("[corpus2] body-router moved=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED));
         // THE UNPLANNED-ASSERT CENSUS (M10c, 2026-11-02): each assert the host planner declined, by its shape, per test
         Files.write(com.legend.testing.TestOutputs.file("corpus2-unplanned-asserts.tsv"), unplannedRows);
         java.util.Map<String, Integer> unplannedHist = new java.util.TreeMap<>();
@@ -797,13 +797,13 @@ public class MinimalCorpusTest {
         System.out.println("[corpus2] sql-census policy ulp="
                 + com.legend.judge.CanonicalDivergence.sqlUlpPolicyCount()
                 + " decimal-scale-only=" + com.legend.judge.CanonicalDivergence.decimalScaleOnlyCount()
-                + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
-                + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
+                + " batch-statements=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FUSED)
+                + " batch-fallbacks=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.judge.VerdictBatch.frameCensus() + "]");
         System.out.println("[corpus2] sql-census round-trips="
-                + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS) + " (every statement the executor"
+                + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS) + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)"
-                + " sql-chars=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_CHARS)
+                + " sql-chars=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.SQL_CHARS)
                 + " detaches=" + com.legend.testbackend.WorkspaceCensus.DETACHES.get()
                 + " detach-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_NANOS.get() / 1_000_000L
                 + " detach-max-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_MAX_NANOS.get() / 1_000_000L);

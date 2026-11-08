@@ -1200,12 +1200,11 @@ class JavaEvalLedgerTest {
                     // statements sent as one statement and reported in body
                     // order; the SQL shape is the lowering's, the row's
                     // judgment the verdict arm's — no value compared here
-                    // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
-                    // one storage, one snapshot; no value is produced or compared
                     // D72, 2026-10-30 (B2, the wall): Column and Row left for judge (a judged side's column in the
                     // compiler's types; the runtime's row is typed by the plan's own column), SystemDatabase for the
                     // root (the driver's: keyed by the graph, seeded through the plan side's DDL and dialect)
-                    "Census.java",
+                    // Census.java left 2026-11-08 (the plan-as-data design's step 0): the one census owner moved to
+                    // //core:diagnostics, which both the planning and the running halves reach (counters only)
                     // bulk load (2026-09-23): the seam an engine's own bulk API
                     // joins through, for rows of TEXT cells the database casts
                     // (setup.RowLoad since 2026-10-08). Egress only: nothing is

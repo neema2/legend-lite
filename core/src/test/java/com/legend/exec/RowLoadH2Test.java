@@ -3,6 +3,8 @@
 
 package com.legend.exec;
 
+import com.legend.diagnostics.Census;
+
 import com.legend.testing.Lean;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.setup.RowLoad;

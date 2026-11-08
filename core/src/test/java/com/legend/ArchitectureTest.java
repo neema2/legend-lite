@@ -1586,12 +1586,12 @@ final class ArchitectureTest {
                 // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): every count the lanes
                 // print or pin, one storage, one snapshot — read by the lanes and the
                 // divergence report only, never by a verdict
-                "com.legend.exec.Census.COUNTS",
-                "com.legend.exec.Census.KEYED",
-                "com.legend.exec.Census.FALLBACK_REASONS",
+                "com.legend.diagnostics.Census.COUNTS",
+                "com.legend.diagnostics.Census.KEYED",
+                "com.legend.diagnostics.Census.FALLBACK_REASONS",
                 // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
                 // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
-                "com.legend.exec.Census.UNPLANNED_ASSERTS",
+                "com.legend.diagnostics.Census.UNPLANNED_ASSERTS",
                 // (com.legend.base.RunScope.REPORTED left 2026-11-06 with the wall's report mode: nothing turns the
                 // wall off)
                 // write-once static-init tables (populated once in <clinit>,

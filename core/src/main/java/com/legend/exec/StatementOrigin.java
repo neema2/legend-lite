@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.exec;
 
+import com.legend.diagnostics.Census;
+
 /**
  * CENSUS: where every statement the platform or the test harness sends to a
  * database comes from — measurement only, printed by the corpus lanes, read by

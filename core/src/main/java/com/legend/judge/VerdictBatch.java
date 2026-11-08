@@ -3,7 +3,7 @@
 
 package com.legend.judge;
 
-import com.legend.exec.Census;
+import com.legend.diagnostics.Census;
 import com.legend.exec.ExecutionTrace;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PrepTrace;

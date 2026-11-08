@@ -3,7 +3,7 @@
 
 package com.legend.judge;
 
-import com.legend.exec.Census;
+import com.legend.diagnostics.Census;
 
 import java.util.ArrayList;
 import java.util.List;

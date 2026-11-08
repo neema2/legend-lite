@@ -239,7 +239,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 if (p != null && !AssertVerdicts.oneTextOrigin(p.assertion().check().judgment())) {
                     // an unroll whose parts' texts carry different statement origins: one step cannot be sent under
                     // both (the M10c item 8 audit's finding 2)
-                    com.legend.exec.Census.unplannedAssert("unrolled engine texts under two origins");
+                    com.legend.diagnostics.Census.unplannedAssert("unrolled engine texts under two origins");
                     com.legend.diagnostics.Diagnostics.judgeDecline("host", AssertVerdicts.listenerName(bare),
                             "unrolled engine texts under two origins");
                     return null;

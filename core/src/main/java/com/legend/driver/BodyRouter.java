@@ -11,7 +11,7 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.DataError;
-import com.legend.exec.Census;
+import com.legend.diagnostics.Census;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;

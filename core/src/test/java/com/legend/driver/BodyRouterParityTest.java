@@ -8,7 +8,7 @@ import com.legend.ExecuteOptions;
 import com.legend.Execution;
 import com.legend.TypedQuery;
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.Census;
+import com.legend.diagnostics.Census;
 import com.legend.exec.Sessions;
 import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;

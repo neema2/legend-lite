@@ -3,6 +3,8 @@
 
 package com.legend.exec;
 
+import com.legend.diagnostics.Census;
+
 import com.legend.executionplan.ExecutionPlan;
 
 import java.sql.Connection;

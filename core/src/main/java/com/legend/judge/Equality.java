@@ -3,7 +3,7 @@
 
 package com.legend.judge;
 
-import com.legend.exec.Census;
+import com.legend.diagnostics.Census;
 
 import com.legend.compiler.element.type.Type;
 

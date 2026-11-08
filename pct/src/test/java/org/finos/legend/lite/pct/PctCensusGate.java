@@ -125,7 +125,7 @@ public final class PctCensusGate {
             @Override
             protected void setUp() {
                 start = counts();
-                movedStart = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                movedStart = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
             }
 
             @Override
@@ -137,7 +137,7 @@ public final class PctCensusGate {
                 }
                 System.out.println("[pct-census] " + suite + " (its own traffic): mismatch=" + d[0]
                         + " untyped=" + d[1] + " bottom-mult=" + d[2] + " bodies-moved="
-                        + (com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED) - movedStart));
+                        + (com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED) - movedStart));
                 System.out.println("[pct-census] after " + suite + ": "
                         + SqlTypeCensus.summary());
                 SqlTypeCensus.classes(100).forEach(c -> System.out

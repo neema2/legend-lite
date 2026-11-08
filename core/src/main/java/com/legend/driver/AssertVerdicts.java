@@ -208,7 +208,7 @@ final class AssertVerdicts {
             if (e.collected().golden() == null) {
                 // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
                 // database judge's text equality with the golden a constant -- the walk's, by name
-                com.legend.exec.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
+                com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
                 return DatabaseGate.UNPLANNED;
             }
             if (e.collected().ours() == null) {
@@ -961,7 +961,7 @@ final class AssertVerdicts {
      *  no refused assert. A measurement, deciding nothing. */
     private static void unplanned(TypedSpec bare, SpecCompiler specs, String label) {
         if (com.legend.compiler.spec.StatementEffects.callsVerdict(bare, specs, new java.util.HashMap<>())) {
-            com.legend.exec.Census.unplannedAssert(label);
+            com.legend.diagnostics.Census.unplannedAssert(label);
             // the same refusal, named with its test (judge-declines: the walk deletion's measurement, 2026-11-06)
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", listenerName(bare), label);
         }
