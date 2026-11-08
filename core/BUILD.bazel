@@ -519,6 +519,9 @@ legend_java_library(
             "src/test/java/com/legend/integration/TsReplayTest.java",
             # their shared comparison with DuckDB's answer, the replay's and the documents' lanes' (item 9b)
             "src/test/java/com/legend/integration/TsAnswers.java",
+            # the gs-quant parity is :ts_gsquant_parity_test's alone: it reads the oracle's answers and the samples
+            # (2026-11-07, tools/gs-quant-oracle/README.md)
+            "src/test/java/com/legend/integration/TsGsquantParityTest.java",
             # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
             "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
@@ -1206,6 +1209,62 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GS-QUANT PARITY OF #TS (tools/gs-quant-oracle/README.md, 2026-11-07): every case of the oracle's mapping -- a
+# word of the library as a #TS item -- run on DuckDB and judged against gs-quant's own function at the oracle's pin
+# (tools/gs-quant-oracle/pins.env), snapped by tools/gs-quant-oracle/snap.py (1e-9 absolute, 1e-8 relative for a
+# volatility, a correlation, a beta), over three datasets: the gallery's samples and the adversarial fixture's two price
+# files, raw and adjusted, each its own answers and ledger. Each case's verdict is held by its ledger, a DIFF written
+# with lite's SQL to the undeclared outputs (gsquant-findings.md); JDK_JAVA_OPTIONS=-Dts.gsquant.update=<the oracle's
+# directory in the workspace> rewrites the ledgers' verdicts (the JUnit launcher takes no -D).
+junit_test(
+    name = "ts_gsquant_parity_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/TsAnswers.java",
+        "src/test/java/com/legend/integration/TsGsquantParityTest.java",
+    ],
+    data = [
+        "//datacube:ts_replay_samples",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+        "//tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz",
+        "//tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz",
+        "//tools/gs-quant-oracle:answers.jsonl.gz",
+        "//tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv",
+        "//tools/gs-quant-oracle:ledger-adversarial-raw.tsv",
+        "//tools/gs-quant-oracle:ledger.tsv",
+        "//tools/gs-quant-oracle:mapping.yaml",
+        "//tools/gs-quant-oracle:pins.env",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.gsquant.pins=$(rlocationpath //tools/gs-quant-oracle:pins.env)",
+        "-Dts.gsquant.mapping=$(rlocationpath //tools/gs-quant-oracle:mapping.yaml)",
+        "-Dts.gsquant.samples=$(rlocationpath //datacube:ts_replay_samples)",
+        "-Dts.gsquant.answers=$(rlocationpath //tools/gs-quant-oracle:answers.jsonl.gz)",
+        "-Dts.gsquant.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger.tsv)",
+        "-Dts.gsquant.adversarial-raw.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.gsquant.adversarial-raw.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz)",
+        "-Dts.gsquant.adversarial-raw.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-raw.tsv)",
+        "-Dts.gsquant.adversarial-adjusted.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.gsquant.adversarial-adjusted.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz)",
+        "-Dts.gsquant.adversarial-adjusted.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv)",
+    ],
+    select = ["--select-class=com.legend.integration.TsGsquantParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

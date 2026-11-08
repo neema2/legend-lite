@@ -3497,3 +3497,21 @@ Status lives in the plan's Progress table (rule 0b.16).
     case-sensitive clone (each pair compared directly, all identical), and three datacube browser tests
     (`live_channel_test`, `live_soak_test`, `page_app_test`) that run past their limit here even alone and depend on no
     file the branch changes (`bazel query`).
+
+## A fifteenth line, 2026-11-07: the gs-quant oracle for #TS (the user's ask, rule 5)
+
+Branch `abs/ts-gsquant-oracle` (absnarang/legend-lite), stacked on #90 (`abs/ts-adversarial-fixture`, the adversarial
+markets fixture, at `0f76abe80` on `claude/timeseries-language` `aad8e762a`): #90 merges first. Every word of `#TS`
+held to `gs_quant.timeseries` itself at one pinned release (`tools/gs-quant-oracle/README.md`; GATES "The gs-quant
+oracle for #TS").
+
+- **Its own files:** `tools/gs-quant-oracle/` (new), `core/src/test/java/com/legend/integration/TsGsquantParityTest.java`
+  (new).
+- **Cross-area (announced 2026-11-07, before it lands):** `core/BUILD.bazel` (the timeseries line's and the Bazel
+  program's: the target `:ts_gsquant_parity_test` beside #90's `:ts_adversarial_test`, reading #90's two price files,
+  and its source excluded from `:core_tests`' glob beside the other `Ts*` lanes'); `gates/BUILD.bazel` (the `core` lane
+  gains `//core:ts_gsquant_parity_test`, `checks` `//tools/gs-quant-oracle:tools_build_test`); the root `BUILD.bazel`
+  (`//:generated` gains `//tools/gs-quant-oracle:update_generated_tests`, `//:update_generated` its two writers);
+  `docs/GATES.md`; this file. No main source, no word of the library and no register row is touched (a contributor
+  never edits `docs/SEMANTICS_REGISTER.md`, the user's standing rule, 2026-11-08): each DIFF is posted with the PR and
+  its proposed register row written there in full, for the user to rule.
