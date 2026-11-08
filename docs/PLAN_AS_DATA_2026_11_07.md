@@ -1,386 +1,308 @@
-# The plan as data, totally (design for the user's review, 2026-11-07)
+# The plan as data, totally (the design, 2026-11-07/08)
 
-> **Status: PROPOSED, not ratified.** Nothing below is implemented. The user asked (2026-11-07): "should we fix the
-> whole plan to be real data fully and totally in this step? So we don't have to revisit that later again? When you do
-> plan it please show us what the plan has/looks like before we implement." This is that showing.
+> **Status: every decision RULED by the user (2026-11-08); a focused independent check of the three parts no review
+> has seen (the runner's callback, the edge's extension point, the connection description) precedes step 0.** This
+> document replaces the earlier drafts and their appendix; its history is the branch's commits (`83f68e44` to
+> `982929bc`). Nothing below is implemented yet.
 
-## 0. The one rule
+## 0. The rule, and how it is proven
 
-**The run reads one thing: the plan, which is data, plus the rows the database returns.** No Java object made while
-planning reaches the run: no closure, no exception object, no typed tree, no environment, no compiler type, no map
-keyed by a Java object's identity. The proof is mechanical (4.8, ruled 2026-11-08): a test walks the plan's types and
-requires every one to be data, so no field can hold code; every plan survives its JSON round trip; the run's
-libraries cannot compile against a planning library; and one lane runs the plan decoded from its JSON.
+**A test body's run reads one thing: its plan, which is data, plus the rows the database returns.** No Java object
+made while planning reaches the run: no closure, no exception object, no typed tree, no environment, no compiler
+type, no map keyed by a Java object's identity. The user (2026-11-08): *"the thing I really want to ensure is that
+there is no code in the plan, it's all data."*
 
-This serves G4 (the plan is SQL and data only, never Java), G11 (the plan as portable data) and G1 (one planner: all
-planning, the asserts' included, lives in the planner's libraries).
+Proven mechanically (section 2.10): a test walks the plan's TYPES and requires each to be data, so no field can hold
+code; every plan survives its JSON round trip; the run's libraries cannot compile against a planning library; one
+lane runs the plan decoded from its JSON. Later, a planner-free runner binary (G11's own gate).
 
-## 1. What runs on what today
+Serves G4 (the plan is SQL and data only), G11 (the plan as portable data), G1 (one planner, one runner) and G5 (the
+edge depends on the product, never the reverse).
+
+## 1. Today
 
 | Road | What the run reads | Data? |
 |---|---|---|
-| A product query (`Execution.run`) | the `ExecutionPlan` alone (`PlanRunner.stream(plan, sessions, sink)`; the writers read the plan's columns) | **yes**, one wrinkle: the session's database is decided from the model (`Compiler.executesOn`) beside the plan, not read off the plan's target |
-| A test body (`BodyRouter`) | the `ExecutionPlan` **plus a sidecar of Java objects** the driver keeps beside it (section 3) | **no** |
+| A product query (`Execution.run`) | the `ExecutionPlan` alone (`PlanRunner.stream`); the writers read the plan's columns | yes, but the session's database is decided from the model (`Compiler.executesOn`) beside the plan |
+| A test body (`BodyRouter`) | the `ExecutionPlan` plus a sidecar of Java objects the driver keeps beside it | no |
 
-So the work is the test road: the sidecar moves into the plan, as data.
+**The plan** (`ExecutionPlan`, written and read by `PlanJson`, round-tripped on every lane) is data: a `Sequence` of
+`TdsResult`, `Keyed`, `Constant`, `Update`, `Check`, `Effect`, `Setup`, `Branch` and `Verdicts` steps; each
+statement an `Sql(statement, slots, target, tree, regions, stamp)`. A `Verdict` says which rows an assert reads
+(`base`), not what to compare or how. Test concepts sit in the product: the plan type (`Verdicts`, `Verdict`, `Side`,
+`Branch`, `JudgingRules`, the verdict `Savepoint`), the runtime (`PlanRunner.program` runs verdict groups and
+branches; `ProgramSink` has `verdict`, `sides`, `fused`), the product planner (`PlanMaker.testProgram`, and
+`PlanMaker.program`'s `Door.TEST` branches) and the product's options (`ExecuteOptions`' judge mode, judging rules,
+recorder).
 
-## 2. The plan today (already data)
+**The sidecar** (measured from the bytecode and an independent review, 2026-11-07/08):
 
-`ExecutionPlan(parameters, root)`. A program's root is a `Sequence` of steps. Every node below is a record of
-strings, numbers, booleans, lists and enums, written and read by `PlanJson` (with `MirJson` for the typed SQL tree),
-and every lane already checks the round trip (`PlanJson.requireRoundTrip`).
-
-```
-ExecutionPlan
-├─ parameters: [Parameter(name, type, multiplicity, enumValues)]
-└─ root: Node
-     Sequence(steps: [Node])
-     TdsResult(shape: RELATION|VALUE|OBJECTS, columns: [Column], sql: Sql)        -- a query's rows
-     Keyed(keys: Sql, keysOf, admitted, keyFields, outputs)                       -- rows whose columns the data names
-     Constant(columns, cells)                                                     -- a folded answer
-     Update(sql, count) / Check(sql) / Effect(sql, script) / Setup(key, steps, target)
-     Branch(condition: Side, then: [Node], otherwise: [Node])
-     Verdicts(verdicts: [Verdict], fused: TdsResult?, savepoint, rules: LITE|COMPILED_PURE_COMPAT)
-       Verdict(name, arm, base: [Side], wrapper: Node?, message: Side?, raises)
-       Side = Rows(TdsResult) | KeyedRows(Keyed) | Constant(columns, cells, folded)
-Sql(statement, slots: [Slot(parameter, binding)], target: Target, tree: SqlQuery?, regions, stamp)
-Column(name, type: "Integer" | "meta::x::Person" | ..., multiplicity, slot, store, precision)
-Target(database: Declared(connection) | Platform(type) | System(type), session: [String], setup: [SetupStep])
-```
-
-What a `Verdict` does **not** say today: what to compare, how, and what to do when it fails. That is the sidecar.
-
-## 3. The sidecar today: what the run reads that is not in the plan
-
-Measured from the bytecode (a method-level call graph of the driver and judge, 2026-11-07): every method the run
-reaches (the body's sink `BodyRouter$Moved`, the held appeals, the run's reader) and every planning type it touches.
-
-| Holder (beside the plan) | What the run reads from it | Not data |
+| Beside the plan | What the run reads | Not data |
 |---|---|---|
-| `TestDoor.Planned` | each effect step's ledger texts (`Recorded(text, query)`), each seed step's ledger texts, the steps that are a let's eager run (`frameRuns`) | it is a Java map beside the plan, keyed by step index |
-| the sink's own maps (`Moved`) | which steps are database-judge groups, the statement origin of a deferred text, the rules of each verdict (an identity map), the dialect and the engine-text recorder | identity maps; a `SqlDialect` object at run |
-| **the host judge's planned asserts** (`HostAsserts.Planned` → `AssertVerdicts.HostAssert` → `HostSides.Check` + `HostJudgment`) | the listener name, family and polarity; the comparison (`HostJudgment`, 26 kinds); how each side's rows are shaped into a value (`JudgePlans.PlannedSide`) | `SideFacts.info` and `Rows.expected/actualInfo` are compiler `ExprType`s; `Keys` holds compiler `EqualityKeys`; `Raise`, `Messaged.unplanned`, `AssertError.caught` and `HostAssert.beforeTheArm` hold **exception objects**; `Unrolled`/`AssertError.inner` hold nested `HostAssert`s; `HostSides.Ask` holds a **typed tree, a splice closure and the environment** (inert at run, measured); `PlannedSide` holds `ExprType`, a `RelationType` schema, a `TypedSpec` root and a pre-answered `TypedSide` |
-| **the database judge's planned batch** (`DatabaseAsserts.Segment` → `VerdictBatch.Planned`) | the roots in body order (each assert's listener name and its steps), each verdict's paired ruled row (`orElse`), the members the dialect could not spell and the dialect's words, each root's message side | `Pending` holds a `SqlQuery` and an **appeal closure**; `Resolved` holds an **exception object**; refusals are **`DialectCapability` objects**; every map is keyed by Java identity |
-| the agreement judge's pairing (`AgreementAsserts.One`) | which database verdict pairs with which host verdict, and the host half's held verdict | identity maps between verdict objects |
-| **the engine-text comparison** (`HostJudgment.EngineText` → `SqlTextVerdicts.Collected`) | the golden text, our text (or the side that reads it), whether they are equal, a decline reason | the **appeal closure** (`TextAppeal`: 4 construction sites) and the **environment** (`ExecEnv`) |
-| **the held appeals** (`Appeals`) | each appeal, decided after the run | `Supplier` **closures**; inside them the referee, the planned row sides, the replay facts, and `BooleanSupplier` **fixture closures** from the listener |
-| the batch's judge (`VerdictBatch.Judge`) | how a verdict row is read | a **method reference** (`DatabaseJudge.verdictOf`) wired at planning |
+| `TestDoor.Planned` | effects' and seeds' ledger texts, frame-run places | maps keyed by step index |
+| the sink (`BodyRouter$Moved`) | which steps are database groups, deferred texts' origins, each verdict's rules, the dialect, the recorder | identity maps; a `SqlDialect` at run |
+| the host judge's planned asserts (`HostAsserts.Planned` → `HostAssert` → `HostSides.Check` + `HostJudgment`, 23 kinds) | the assert's name, family, polarity; the comparison; each side's shaping (`JudgePlans.PlannedSide`) | compiler `ExprType`s, `EqualityKeys`, exception objects (`Raise`, `Messaged.unplanned`, `AssertError.caught`, `beforeTheArm`), nested `HostAssert`s, typed trees and the environment in `HostSides.Ask` (inert at run), a pre-answered `TypedSide` |
+| the database judge's batch (`DatabaseAsserts.Segment` → `VerdictBatch.Planned`) | roots in body order, each row's ruled row, the dialect's refusals, messages | appeal closures, exception objects, `DialectCapability`s, identity maps |
+| the agreement judge (`AgreementAsserts.One`) | host/database verdict pairing, the held host verdict | identity maps |
+| the engine-text comparison (`SqlTextVerdicts.Collected`) | the golden, our text, equality, a decline | the appeal closure (`TextAppeal`, 4 sites) and the environment |
+| the held appeals (`Appeals`) | each appeal, after the run | `Supplier` closures holding the referee, a separate read planned only for the appeal, replay facts, fixture closures |
+| the batch's judge | how a verdict row is read | a method reference wired at planning |
+| out-of-plan channels | the system store's session per graph (`SystemDatabase`, keyed by `ModelContext`); the harness listener's fixture registry (filled at planning, run in `beforeRun`); `Execution.PlannedProgram` closures | no plan field at all |
 
-And the run's **value model** uses the compiler's type vocabulary: `TypedSide.Scalar/Tabular.returnType` is a compiler
-`Type`, and `Equality`, `PureAsserts`, `TdsCompare` and `HostJudge` decide kinds with `Type.Primitive`,
-`Type.ClassType`, `PrecisionDecimal`, `RelationType`. The planning types the run touches (from the bytecode):
-`Type`, `ExprType`, `Multiplicity`, `EqualityKeys`, `PlatformTypes`, `AssertMessages`, `VerdictSql`,
-`DialectCapability`, `RawSqlBoundary`, `SqlQuery`, `ExecEnv` and the test door's `Planned`/`Effect`/`Recorded`.
+And the run's value model uses the compiler's types (`TypedSide.returnType`; `Equality`, `PureAsserts`, `TdsCompare`,
+`HostJudge` decide kinds with `Type`).
 
-## 4. The proposal: the plan holds all of it
+## 2. The design
 
-### 4.0 Two plan types: the product's, and a test plan around it
+### 2.1 Two plan types
 
-The user's question (2026-11-07): "Should we have a test plan type so the product plan is not polluted?" Yes. Today the
-product is polluted in four places, used by nothing in the product (every user is the driver, the judges, `testplan`
-or these four): the plan type (`ExecutionPlan` carries `Verdicts`, `Verdict`, `Side`, `Branch`, `Check`,
-`JudgingRules` and the verdict `Savepoint`), the runtime (`exec`'s `PlanRunner.program` runs verdict groups and
-branches; its `ProgramSink` has `verdict`, `sides` and `fused` hooks), the product planner (`PlanMaker.testProgram`)
-and the product's options (`ExecuteOptions`' judge mode and judging rules).
+The product's `ExecutionPlan` keeps what a product query or service needs: `Sequence`, `TdsResult`, `Keyed`,
+`Constant`, `Update`, `Check` (a product write program makes one per statement before its last), `Effect`, `Setup`.
+It loses `Verdicts`, `Verdict`, `Side`, `Branch`, `JudgingRules` and the verdict `Savepoint`.
 
-By composition, as the libraries are layered:
+A new data library `test_plan` (on `execution_plan`) holds
+`TestPlan(parameters, steps: [TestStep], extensionsByVerdict: {verdictId: [Extension]}, extensionsByStep: {step: [Extension]})`:
 
 ```
-ExecutionPlan (execution_plan: the product's)       TestPlan (test_plan: new, on top of execution_plan)
-  parameters                                          parameters
-  root: Sequence | TdsResult | Keyed | Update |       steps: [TestStep]
-        Effect | Setup | Constant                       TestStep = Run(ExecutionPlan.Node)    -- a product step, as is
-                                                                 | Verdicts(verdicts, fused, judge, rules, savepoint)
-                                                                 | Branch(condition, then, otherwise)
-                                                                 | FrameRun(Check)
-                                                      (no compatibility part: the edge renders the test plan, 4.5)
+TestStep = Run(ExecutionPlan.Node)                    -- a product step, as is
+         | Verdicts(verdicts: [Verdict], fused: TdsResult?, judge: HOST|DATABASE|AGREEMENT, rules, savepoint?)
+         | Branch(condition: Read, then: [TestStep], otherwise: [TestStep])
+         | FrameRun(check: ExecutionPlan.Check)       -- a let's eager run, its origin LET
+Verdict  = (id, name, arm, assertion: (listener, family?, wantEqual), base: [Read], message: Read?,
+            judgment: Judgment?, shapes: [SideShape], failure: Failure?, root, orElse?, pairedWith?, raises)
+Read     = Rows(TdsResult) | KeyedRows(Keyed) | Constant(columns, cells)  -- today's Side
 ```
 
-- `planner` makes product plans only; `testplan` makes test plans (`PlanMaker.testProgram` moves there), composing the
-  planner's product nodes.
-- `exec` runs product plans, and offers one way to run a product step inside an open program (the program's
-  sessions and transaction stay `exec`'s); `testexec` walks a test plan, hands each product step to `exec`, runs the
-  verdict statements through `exec` and judges. The test half of `PlanRunner.program` (verdict groups, the host
-  sides' reads, the verdict savepoints, branches) moves to `testexec`; `ProgramSink`'s verdict hooks are deleted.
-- The judge mode and the judging rules leave `ExecuteOptions` for the test road's own options.
-- `TestPlanJson` writes the test steps and reuses `PlanJson` for every product node.
-- A test body with no assert IS a product plan, run by `exec` directly.
+Every verdict has an `id`, unique in its plan, counted in body order from 1 (the database judge's members with equal
+names are equal records today, so ids replace every identity map). `root` is the id of the statement-root assert's
+first verdict; `orElse` the ruled row's verdict id; `pairedWith` the other half's verdict id under the agreement judge.
+A step is named by its index in `steps`, as today.
 
-Everything below that says "added to the plan" means the TEST plan; the product plan gains nothing.
+### 2.2 Judgment: the 23 comparisons as data
 
-### 4.1 What is added to the plan
+Each `HostJudgment` kind keeps its name and data fields; the others change form:
 
-```
-Verdicts(verdicts, fused, savepoint, rules,
-         + judge: HOST | DATABASE | AGREEMENT)                   -- replaces the sink's databaseGroups set
-
-Verdict(name, arm, base, wrapper, message, raises,
-        + assertion: Assertion(listener, family?, wantEqual)    -- today HostAssert's fields
-        + judgment: Judgment?                                   -- the host judge's comparison, as data (4.2)
-        + shapes: [SideShape]                                   -- how each base side's rows become a value (4.3)
-        + failure: Failure?                                     -- decided at planning, raised at its turn (4.4)
-        + root: int                                             -- the statement-root assert it belongs to
-        + orElse: int?                                          -- database judge: its ruled row's place
-        + pairedWith: VerdictRef?)                              -- agreement judge: the other half's verdict
-
-a read (a side, a query step) + facts: ReadFacts(order: (sorted, keys)?,   -- the neutral facts the edge renders
-                                      provenance: (mapping, class, stores)?, -- from (4.5); no compatibility record
-                                      page: (unpaged: Node)?)
-Check(sql, + origin: LET?)                                      -- today TestDoor.Planned.frameRuns
-(the effects' and seeds' ledger texts, today TestDoor.Planned.effects/seeds, are not stored: the edge renders them
- from the statements, 4.5)
-Verdict ... + oursOrigin                                        -- today the sink's deferredTextOrigins
-```
-
-`TestDoor.Planned` becomes just the plan; the sink keeps only run state (the rows it has read, the verdicts told).
-
-### 4.2 Judgment: the 26 comparisons, as data
-
-Each `HostJudgment` kind keeps its name and its data fields; the non-data fields change form:
-
-| Today | In the plan |
+| Today | In the test plan |
 |---|---|
-| `SideFacts(ExprType info, classFqn, KindClass kind, flags...)` | `SideFacts(type: TypeRef, classFqn, kind: Kind, flags...)` |
-| `TypeRef` (new) | `{name: "Integer" \| "meta::x::Person" \| ..., multiplicity: [lower, upper], columns: [Column]?}` -- the plan's own type spelling, as `Column.type` already is |
-| `KindClass` (`Primitive` enum, `Instance(fqn)`, `Element(fqn)`) | the same, as a tagged value |
-| `Keys(EqualityKeys e, a, flags, byClass)` | `Keys(e: KeyTree?, a: KeyTree?, flags, byClass: {fqn: KeyTree})`, `KeyTree(classFqn, [Key(name, many, nested: KeyTree?, objectOnly, declaredClass)])` -- `EqualityKeys`' own fields, copied |
+| `SideFacts(ExprType info, classFqn, KindClass kind, flags, typeName)` | `SideFacts(type: TypeRef, classFqn, kind, flags, typeName)` |
+| `TypeRef` (new) | `(name, multiplicity: [lower, upper], columns: [Column]?)` in the plan's spelling, as `Column.type` is |
+| `KindClass` (`Primitive`, `Instance`, `Element`, `Enum`) | the same, tagged |
+| `Keys(EqualityKeys e, a, flags, byClass)` | `KeyTree(classFqn, [Key(name, many, nested?, objectOnly, declaredClass)])` per side and per class; `byClass` for an `Any` slot measured first (it can hold every keyed class) |
 | `Rows(..., ExprType expectedInfo, actualInfo, ...)` | `TypeRef`s |
-| `RowArg.Literal(Object value)` | a typed cell, as `Side.Constant` spells cells |
-| `Unrolled(parts: [HostAssert], askCounts)` | `parts: [Assertion + Judgment]`, nested |
-| `Messaged(inner, innerSides, RuntimeException unplanned)` | `unplanned: Failure?` |
-| `Raise(RuntimeException)` | `Failure` |
-| `AssertError(expected, line, column, RuntimeException caught, HostAssert inner)` | `caught: Failure?`, `inner: Assertion + Judgment` |
-| `EngineText(Collected(golden, ours, textEqual, decline, TextAppeal, ExecEnv), routed)` | `EngineText(golden, ours?, textEqual, decline?, routed)`; the appeal is the verdict's `appeal` (4.5) |
+| `RowArg.Literal(Object)` | a typed cell (Float included: a constant side spells none today) |
+| `Unrolled(parts: [HostAssert], askCounts)` | nested `(assertion, judgment)` parts |
+| `Messaged(inner, innerSides, unplanned)`, `Raise`, `AssertError(..., caught, inner)` | `Failure`s (2.4), nested parts |
+| `EngineText(Collected(...), routed)` | `EngineText(decline?, routed)`: the two texts are the verdict's reads |
+| `Eq`'s side facts | dropped: never read at run |
 
-The other 17 kinds (`Equals`' flags, `GridPair`, `Size`, `Condition`, `Decided`, `InstanceOf`, `Rendered`, ...) are
-already strings, booleans and lists.
+### 2.3 SideShape
 
-### 4.3 SideShape: how a side's rows become a value
+`SideShape(kind: CONSTANT|GRAPH|TABULAR|KEYED|VALUES, type: TypeRef, schema: [Column]?, listCarrier)`, replacing
+`PlannedSide`'s `ExprType`, `RelationType` and pre-answered value; a constant's value is its cells. Where a dynamic
+pivot's column types come from names read at run, the shape carries the template-to-type rule as data.
 
-Today `JudgePlans.shape` reads `PlannedSide(kind, wrapped.shapeInfo: ExprType, schema: RelationType, answered:
-TypedSide)`. In the plan: `SideShape(kind: CONSTANT|GRAPH|TABULAR|KEYED|VALUES, type: TypeRef, schema: [Column]?)`;
-a constant's value is its `Side.Constant` cells (already in the plan).
+### 2.4 Failure: an error known at planning
 
-### 4.4 Failure: an error known at planning
+`Failure(exceptionClass, message, position?: (source, line, column), phase?, unjudgedReason?, beforeTheArm, where)`:
 
-`Failure(kind, message, unjudgedReason?)`, `kind` one of the error types the run may raise (`ASSERT_FAILED`,
-`DATA_ERROR`, `NOT_IMPLEMENTED`, `ILLEGAL_STATE`, `DIALECT_CAPABILITY`, `TYPE_INFERENCE`, ... -- the closed list is
-taken from what is raised today). The run raises that type with that message at the verdict's turn. Replaces every
-exception object carried today: `Raise`, `Resolved`, `beforeTheArm`, `Messaged.unplanned`, `AssertError.caught`,
-`SideAhead.failure`, `Sole.Decided`, the dialect's refusals. What is lost: the planning-time stack trace (the message,
-the type and the assert's place are kept).
+- `exceptionClass` from a closed list of the exception classes raised today (names, not categories: messages print
+  the simple class name, the agreement judge's message names it, catch-by-type decides counting);
+- `position`: the cause's source position (`assertError` reads line and column); `phase`: a `ModelException`'s;
+- `beforeTheArm`: raised with no census and no listener report, as today;
+- `where`: the planning site, for debugging (ruled 2026-11-08), stable across runs.
 
-### 4.5 The edge is a renderer of the test plan (no appeal record, no third artifact)
+The run raises that class with that message at the verdict's turn. Lost: the planning-time stack trace.
 
-The user's question (2026-11-07): "Are we sure the edge should not just be a renderer of the test plan instead of yet
-another third artifact thing by ID?" Yes, it should: lite already treats legend-engine's text this way (the engine-text
-printer, `EngineStyleH2`, is a render target of the one compiler, as a dialect renders the SQL tree). So the test plan
-holds FACTS about its reads and never a compatibility record; renderers derive their views from it -- the product's
-dialects lite's own text, the edge's engine style the engine texts and ledger texts, the edge's referee the appeal.
+### 2.5 The judges' types: exec's way
 
-Each appeal input today, and where the renderer finds it:
+`exec` runs with no type model: the planner writes each column's facts (`type` name, `slot`, `precision`, `store`)
+and exec reads cells by slot into plain Java values. The judges do the same: a judged value pairs its Java value with
+the plan's type name; every decision made today from a declared type is made at planning and carried as a fact.
+Step 1 starts by completing this list (known so far): `Equality` (carrier and effective kinds, integer-vs-decimal,
+numeric family, the fine numeric kind per side and per column), `PureAsserts.classFqnOf`, `JudgePlans` shaping
+(reported type, relation columns, multiplicity, list carriers), `HostJudge.rowsOf` and `restrictOne` (key trees),
+`AssertErrorNative`'s judging, dynamic-pivot column types, `TypedSide.returnType` everywhere, and the referee's
+interface and the spec harness, which read compiler types from `TypedSide`.
 
-| Appeal input (today, captured by a closure) | From the test plan |
-|---|---|
-| our engine text; the ledger texts | rendered in engine style from each statement's SQL tree (the plan carries the tree) |
-| the golden; a plan golden's bindings | constants and parameters of the body |
-| the in-list seed; extra temp tables the golden reads | the in-list literals in the tree; the temps from the golden text |
-| our rows | the read's own step |
-| ordered, and the sort keys | a neutral ORDER fact on the read (the planner's order view: sorted, keys) |
-| the mapping, the class, the stores the read touches (the fixtures to provide) | a neutral PROVENANCE fact on the read (mapping, class, stores) |
-| the page population (our read without its tail page) | a neutral PAGE fact on a paged read: its unpaged form, planned with it (deriving it from the SQL tree instead risks differing from re-planning; measured before choosing) |
-| whether the read is a subset of the class extent (`extentSubset`) | a fact on the read, as the compiler reads it today |
+### 2.6 The connection description, and the system store's key
 
-**Said plainly (2026-11-07, on the user's "do you think it's actually a good idea or just went with it bc I asked?"):**
-the texts are renderings outright, but three of these facts are the REFEREE'S needs and nothing else reads them -- a
-paged read's unpaged form, `extentSubset`, and the stores a read touches (for the fixtures). They are true of the
-query, and they ride the test plan under their own names, not as compatibility records; the alternative (an edge
-attachment keyed by ids, with an edge planning hook in `testplan`) costs more and can drift. They are kept to the
-minimum the appeal needs; making the referee need fewer of them (the page population derived from the SQL tree, no
-extent check) could change appeal outcomes, so it is measured against upstream before it is chosen.
+The plan stops holding the model's `ConnectionDefinition`. It holds its own records (ruled 2026-11-08):
 
-The facts are true of a query whatever the rules (legend-engine's own plans carry provenance), so the test plan is the
-same under both rules but for the values a rule renders: what `sqlRemoveFormatting()` returns is rendered at planning
-by the renderer the rules name and kept as a plain string. The edge depends on the test plan, never the reverse (G5).
-Each appeal kind's inputs are checked one by one when this step is built; one that cannot be derived becomes a
-neutral fact on the read, never an edge record.
+```
+Database = Declared(key, type, spec: Spec, auth: AuthRef)   -- the model's record, copied once at planning
+         | Platform(type)
+         | System(type, graphKey)                            -- the graph's content key: which system store
+Spec     = InMemory | LocalFile(path) | EmbeddedH2(name, directory, autoServer) | Static(host, port, database)
+         | Trino(...) | Snowflake(...) | Databricks(...) | BigQuery(...) | Spanner(...) | ...   (the model's fields)
+AuthRef  = None | VaultUserPassword(userRef, passwordRef) | KeyPairRef(...) | Kerberos(...) | OAuth(key, scope) | ...
+```
 
-### 4.6 The run's types: exec's way, no type model at run
+- **Secrets stay references.** An authentication holding a literal secret is refused at planning, by name (no
+  fallback); `ApiToken(apiToken)` is checked against upstream before this lands.
+- **Exec's connector renders the URL at open**, as today: URL formats and driver settings are the connector's (D72:
+  exec alone makes sessions). It fills what only the run knows: a private in-memory database's fresh name, an embedded
+  server's port, a file path.
+- **`key` and `kind` are the routing identity**: statements route and sessions share by which database a target is.
+  `System(graphKey)` replaces `SystemDatabase`'s `ModelContext`-keyed sessions, so the system store's session is
+  exec's, keyed by plan data.
 
-`exec` already runs with no type vocabulary of its own: the planner decides every type question and writes the answers
-into each column as facts -- `type` (the Pure type's name, a string, carried as a label), `slot` (what the database
-answers with, the instruction for reading the cell) and `precision`/`store` -- and exec reads each cell by its slot
-into a plain Java value. Only a few named rules read the label itself (`result/RowDecode.numericPure`, `ANY`,
-`VARIANT`). The judges take the same road:
+### 2.7 The edge plans, under the compatibility rules, into a typed extension point
 
-- a judged value is already a Java value paired with a declared type (`Equality.Typed(value, kind)`), and its carrier
-  kind already comes from the Java value (`Long`, `BigDecimal`, `String`, a date literal); the declared half becomes
-  the plan's type name (a string), not the compiler's `Type`;
-- every decision a judge makes today from a declared type (the numeric family, whether a decimal's scale counts, a
-  class's keys, a relation's columns) is made at planning and written into the judgment as a fact, the way `slot` is.
+The edge cannot be a pure renderer (the independent review, confirmed): an appeal's rows are a SEPARATE read planned
+only for the appeal from the typed body (`SqlTextVerdicts.java:713-719`: a `toSQLString` test never runs its query;
+only the appeal does), the referee decodes enums with the model, the in-list seed comes from the typed query and its
+lets, and the ledger texts are authored texts or the referee dialect's. So (ruled 2026-11-08):
 
-At run a judge reads facts and values; it classifies nothing (the user's question, 2026-11-07: "How does exec run
-without its own Type vocabulary?").
+- `test_plan` declares one interface, `Extension`; the test plan holds extensions by verdict id (an appeal's) and by
+  step index (an effect's or a seed's ledger texts).
+- Under `COMPILED_PURE_COMPAT` alone, `testplan` calls the edge's planning hook with the typed body; the edge plans its
+  needs as its OWN typed records implementing `Extension`: the appeal's reads (product nodes), the replay facts
+  (ordered, sort keys, extent subset, page population, provenance, in-list seed, temps, plan-golden bindings), the
+  stores whose fixtures it provides, the ledger texts of effects and seeds.
+- Under `LITE` nothing is planned for the edge (E3: the product does not change what it plans to serve compatibility).
+- JSON: each extension record carries its type tag, read through a codec the edge registers (the `ServiceLoader`
+  pattern `exec`'s plug-ins use). G5 holds: `test_plan` declares, the edge implements.
+- After the run, the edge's referee decides each appeal from the plan, its extensions and the model (the edge may use
+  the model; the run may not).
+- Values a rule renders (what `sqlRemoveFormatting()` returns under the compatibility rules) are rendered at planning
+  by the renderer the rules name and kept as plain strings.
 
-### 4.7 Where the code lives afterwards: the product's shape, twice; no driver
+A `Read` carries no fact for the referee: everything only the referee reads (order, sort keys, extent subset, page
+population, provenance, the stores to provide) lives in the edge's extension, planned under the compatibility rules
+alone.
 
-The user's question (2026-11-07): "if planner pieces of driver move to planner should exec part move to exec under
-testexec or something? Why is there anything in driver that would cross over between the two to have a third
-package?" There is no reason, once the plan is data. The product already has the shape: `planner` plans, `exec`
-runs, and the front door (`com.legend.Execution`) sequences the two and is the one place that sees both. A test body
-takes the same shape, beside it:
+### 2.8 The runner: exec is the one walker
 
-| Product | Test body | Holds |
+Exec walks every program (G1: one runner) and calls back for the steps it does not know (the independent review's
+recommendation, ruled 2026-11-08):
+
+```
+exec:      record Program(parameters, steps: [ProgramStep])
+           ProgramStep = Node(ExecutionPlan.Node, origin?) | Callback(id, declared: [ExecutionPlan.Node])
+           PlanRunner.program(Program, values, sessions, Callbacks, ProgramSink)
+           interface Callbacks { void step(int id, OpenProgram open); }
+           interface OpenProgram {
+               Rows read(ExecutionPlan.Node read, origin?); -- on its routed session, inside the program
+               void run(ExecutionPlan.Node step);           -- a product step inside the program (a branch's arm)
+               <T> T guarded(Savepoint sp, Work<T> work);   -- under exec's Savepoint(set, rollbackTo, release)
+               boolean insideATransaction();
+               Map<String, Checked> values();               -- live values: trace stamps, write counts
+           }
+```
+
+- `testexec` lowers a `TestPlan` to a `Program`: each `Run` a `Node`; each `FrameRun` a `Node` whose origin is `LET`;
+  each `Verdicts` and `Branch` a `Callback` whose `declared` nodes are every statement it may send (the fused
+  statement, wrappers, sides, messages, a branch's condition and arms). A statement's origin (today the sink's
+  `originOf` and its deferred texts' origins) is the step's or the read's, passed to exec as data.
+- Exec keeps everything that needs all statements or exec's internals: the program's shape (one target, the system
+  session, the snapshot, the constants-alone path) computed over nodes and declared nodes; sessions and routing; the
+  transaction bracket around every step, callbacks included; statement origins; write marking; the reader's guard,
+  built from declared reads; the savepoint statements.
+- `testexec`'s handler runs a verdict group (reads through the handle, judging, the root loop) and a branch (its
+  condition through the handle, the taken arm's steps by `run` or its own handler).
+- `ProgramSink`'s `verdict`, `sides` and `fused` hooks are deleted; the sink keeps the answer's columns and batches.
+- A test body with no assert still runs through `testexec`: the answer's cardinality, the seeds and the ledger are
+  the test road's.
+
+### 2.9 The libraries
+
+| Library | Holds | May not depend on |
 |---|---|---|
-| `planner` | `testplan` (exists) | planning: for tests, the body's program (today), and ALL assert planning (moved in): the three judges' planners, the arms, `DatabaseJudge`, `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, the planning environment (`BodyDriver.ExecEnv`) |
-| `exec` | `testexec` (new; today's `judge` becomes it) | running: for tests, the body's sink, the judges' comparisons (`HostJudge`'s run half, `Equality`, `PureAsserts`, `TdsCompare`, the agreement rule, `assertError`'s judging), the database judge's root loop over the verdict rows. It depends on `exec`, never the reverse: the product runtime carries no test judging (D71) |
-| `Execution.run` | `Execution.runProgram` | the front door: plans with `testplan`, runs with `exec` + `testexec`; what `BodyRouter` does today, in the front door as the product's is |
-| `execution_plan` | `test_plan` (new, on `execution_plan`) | the plan types (4.0): the product's; the test's, with the judgments and the rest of 4.1 to 4.6 and the reads' neutral facts the edge renders from (4.5) |
+| `execution_plan` | the product plan, its JSON, the connection description | any planning or runtime library |
+| `test_plan` (new) | the test plan, its JSON, `Extension` | the same, and the edge |
+| `planner` / `testplan` | planning: the product's / the test's: the body's program, ALL assert planning, the edge's hook | `exec`, `testexec` |
+| `exec` / `testexec` (new; today's `judge` becomes part of it) | running: the product's, with the callback / the test's handler, the judges' comparisons, the root loop, the agreement rule | `testexec` may not depend on compiler, lowering, resolver, `planner`, `testplan` |
+| the edge (P2's package, created here as far as the appeal and the ledgers need) | the hook, its extension records and codec, the referee, the engine-text renderer | the product never depends on it |
+| `diagnostics`, `error`, `json` (lower) | what both halves use: the census counters (`Census` moves out of exec), the asserts' message texts, the strict JSON reader | |
+| front doors | `Execution.run` (product) and `Execution.runProgram` (test) in separate targets | `server_lib` reaches the product door only |
 
-Where each piece of today's `driver` goes:
+Where today's `driver` goes:
 
-| Today in `driver` | Goes to |
+| Today | Goes to |
 |---|---|
-| `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `AssertVerdicts`' arms, `DatabaseJudge`, `HostSides`, `JudgePlans`, `AssertBranch`, `LiteralFold`, `SeedSqlForms`, `VerdictArm`, `BodyDriver` (its environment), `SqlTextVerdicts`' planning half, `BodyRouter`'s classify-and-plan | `testplan` |
-| `BodyRouter$Moved` (the sink), `HostJudge`'s run half, `AgreementArm`, `AssertErrorNative`'s judging, `RunReader` (likely deleted: the runner reads every side off the plan) | `testexec` |
+| `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `AssertVerdicts`' arms, `DatabaseJudge` (planning), `HostSides`' planning, `JudgePlans`' planning, `AssertBranch`, `LiteralFold`, `SeedSqlForms`, `VerdictArm`, `BodyDriver` (the environment), `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, `BodyRouter`'s classify-and-plan | `testplan` |
+| `BodyRouter$Moved`, `HostJudge`'s judging, `AgreementArm`, `AssertErrorNative`'s judging, `DatabaseJudge.verdictOf`, `AssertVerdicts.judgedAtItsStep`/`heldAtItsStep`/`ok`/`fail`, `SqlTextVerdicts.judge`, `JudgePlans.shape`/`host`, `HostSides.shapedBase`, `VerdictBatch.Planned.judge` (the root loop) | `testexec` |
 | `HostJudgment`, `KindClass` (as data) | `test_plan` |
-| `SystemDatabase` (the system store's session) | `exec` |
-| `Appeals`, `SqlTextVerdicts`' appeal and rows leg, `JudgeJson`'s compatibility grammar, the referee | the edge (P2) |
+| `SystemDatabase` | exec, keyed by `Database.System.graphKey` |
+| `Appeals`, `SqlTextVerdicts`' appeal and rows leg, `JudgeJson`'s compatibility grammar, the referee, the recorder | the edge |
 | `BodyRouter`'s sequencing | `Execution.runProgram` |
+| `RunReader` | deleted (the runner reads every side off the plan) |
 
-What both halves use is not a middle package; it is a LOWER library each depends on: the census counters
-(`diagnostics`), the asserts' message texts, the strict JSON reader (`json`). Each layer is pinned in
-`tools/deps/core-layers.txt`: `testplan` may not depend on `exec` or `testexec`; `testexec` may not depend on
-`planner`, `testplan`, the compiler, lowering or the resolver. A run class that names a planning type does not
-compile. ArchUnit R1-R4 become hard rules on top, with R3 read as "only the front door sees both".
+Pinned in `tools/deps/core-layers.txt`; ArchUnit R1-R4 hard (R3: only the front doors see both halves).
 
-### 4.8 The guards: no code in the plan, all data (ruled 2026-11-08)
+### 2.10 The guards (ruled 2026-11-08: A and B now, D later)
 
-The user's requirement: **"the thing I really want to ensure is that there is no code in the plan, it's all data."**
-Three guards, the first two in this step, the third later:
+1. **The plan's types are data.** A test walks every type reachable from `ExecutionPlan`, `TestPlan` and every
+   `Extension` implementation on the classpath (record components, sealed subtypes, the type arguments of `List`,
+   `Set`, `Map`): each must be a primitive or its box, `String`, `BigDecimal`/`BigInteger`, an enum, or a record or
+   sealed interface of the plan's own libraries, the edge's extension records, or the SQL tree (`com.legend.sql`,
+   pure data by AGENTS.md 3a). It fails on any functional type, `Throwable`, `Object`, a wildcard, or a type of a
+   planning or runtime library. Introduced with the two plan types (step 3), its violations pinned shrink-only.
+2. **The round trip and the walls (A).** `PlanJson`/`TestPlanJson` round-trip every plan on every lane; `testexec`'s
+   entry takes a `TestPlan` and sessions, and its library cannot reach a planning library.
+3. **One lane on the decoded plan (B).** The DuckDB corpus lane runs only the plan read back from its JSON: in report
+   mode from step 3, a hard check from step 9.
+4. **Out-of-plan channels removed by name**, since A and B cannot see them: the `ModelContext`-keyed system sessions
+   (2.6), the listener's fixture registry (the edge's extension names the stores), the `PlannedProgram` closures
+   (plans), the environment inside `Collected` (gone with 2.7).
+5. **Later, D:** a planner-free runner binary runs plans the planning pass wrote to files (G11's gate; the only form
+   that also catches state shared through statics).
 
-1. **The plan's types are data, by construction** (new: a structural test over the types themselves, so no field CAN
-   hold code). Starting from `ExecutionPlan` and `TestPlan`, walk every record component and every permitted subtype
-   of every sealed interface, through the type arguments of `List`, `Set` and `Map`. Each type reached must be a
-   primitive or its box, `String`, `BigDecimal`/`BigInteger`, an enum, a record, or a sealed interface whose
-   permitted subtypes pass -- and the records must be the plan's own (`execution_plan`, `test_plan`) or the SQL
-   tree's (`com.legend.sql`, closed and pure data by AGENTS.md invariant 3a). It fails on any functional interface or
-   lambda type, `Throwable`, `Object` or a wildcard, and any type of a planning or runtime library (compiler,
-   lowering, resolver, planner, testplan, exec, judge). Today it would fail on `Database.Declared(ConnectionDefinition)`
-   (a model record: checked and either allowed by name, with its reason, or copied into the plan's own record) and,
-   once judgments move in, on anything like `RowArg.Literal(Object)` -- which is the point.
-2. **Option A, the round trip and the walls**: `PlanJson.requireRoundTrip` on every plan (already on every lane:
-   whatever is in the plan survives JSON), and the compile walls (4.7): `testexec`'s entry takes a `TestPlan` and the
-   sessions, and cannot depend on any planning library, so nothing but the plan can reach the run.
-3. **Option B, one checking lane runs the decoded plan**: the DuckDB corpus lane writes each plan, reads it back, and
-   runs only the decoded copy -- a whole lane shown working from JSON.
+## 3. The rulings (the user, 2026-11-07/08)
 
-Later, **option D** as G11's own gate: a planner-free runner binary (no planning library on its classpath) runs plans
-the planning pass wrote to files -- the only form that also catches state shared through statics.
+1. Two plan types (2.1). 2. Failures known at planning are data, with `where` (2.4). 3. The judges take exec's way
+with types (2.5). 4. The guards: A and B now, D later, "no code in the plan, it's all data" (2.10). 5. The edge plans,
+under the compatibility rules, into a typed extension point (2.7; the pure renderer and the generic section were
+withdrawn after the review). 6. The plan's own connection description, the URL rendered by exec at open (2.6). 7. Exec
+is the one walker and calls back for test steps (2.8). 8. No `driver` package: `testplan`/`testexec` beside
+`planner`/`exec` (2.9).
 
-## 5. Decisions for the user
+## 4. The order of work
 
-**Ruled (the user, 2026-11-08): "Yes to all"** -- decisions 1, 2, 3 and 5 as written below. Decision 4 (the user, 2026-11-08): **"A+B now, D later, the thing I really want to ensure is that there is no
-code in the plan it's all data"** -- the guards of 4.8: the plan's types walked and required to be data, the round
-trip and the walls, one checking lane on the decoded plan; a planner-free runner later.
+Each step lands as one or more commits on the branch, held to the baseline of 2026-11-07 (GATES: every lane green at
+`69ba09c2` with the H2 register fix).
 
-1. **The edge is a renderer of the test plan** (4.5, the user's correction): no compatibility record in any plan and
-   no third artifact; the test plan carries neutral facts about its reads (order, provenance, page), and the edge's
-   engine style and referee derive the engine texts, ledgers and appeals from it.
-2. **A failure known at planning is data** (type and message); its planning-time stack trace is not kept.
-3. **The judges take exec's way with types** (4.6): the plan's type names and planning-time facts replace the
-   compiler's `Type` at run. This touches every comparison, so it lands first, alone, held to identical verdicts on
-   every lane.
-4. **The guards** (4.8, ruled A+B now and D later): the plan's types are data by construction, the round trip and the
-   walls, one checking lane on the decoded plan; a planner-free runner later.
-5. **Two plan types** (4.0): the product's `ExecutionPlan` loses every test node; a `TestPlan` composes product steps
-   with the test's; `testexec` runs it through `exec`.
+0. **Preparation, no behaviour change**: verdict ids; `Census` to `diagnostics`; step 1's type-decision list completed
+   (2.5); the `ApiToken` check against upstream.
+1. **The judges' types the exec way** (2.5), alone, with the referee's interface and the spec harness.
+2. **Failures as data** (2.4).
+3. **Two plan types and the callback** (2.1, 2.8): `TestPlan`, `Program`/`Callbacks`/`OpenProgram` in exec, the
+   test steps out of the product's plan, runtime, planner and options; guard 1 pinned; guard 3 in report mode.
+4. **Judgments and side shapes in the test plan** (2.2, 2.3).
+5. **The database judge's root loop from the test plan**; `VerdictBatch.Planned`'s identity maps deleted; the batch's
+   judge a plain function.
+6. **The agreement pairing** in the test plan.
+7. **The sidecar into the test plan, and the plan-owned descriptions** (2.6): origins and each group's judge; the
+   connection description; `System(graphKey)`.
+8. **The edge's extension point** (2.7): the edge package created as far as needed; its hook, records and codec; the
+   appeals' reads and facts by verdict, the ledger texts by step; the referee from the plan and its extensions; the
+   closures deleted; the out-of-plan channels removed (2.10.4); `TestDoor.Planned` is the test plan.
+9. **The guards complete** (2.10): guard 1 at zero; guard 3 hard on the DuckDB corpus lane.
+10. **The move** (2.9): `testplan`, `testexec`, the edge's libraries; `driver` deleted; the front doors' targets split;
+    deps pinned; R1-R4 hard.
+11. **All lanes and an audit** (the P1 milestone).
 
-## 5a. The independent audit (2026-11-08): three blockers; decision 1 reopened
+## 5. Verification
 
-A reviewer read this design against the code at `abfccc5c` (read-only, with file:line evidence; two blockers
-spot-checked by the author and confirmed). The design's direction stands; it is NOT executable as written.
+- **Each change**: the touched core suites (driver and judge under the three judges, exec, integration, guardrails,
+  census, architecture) and the fast list.
+- **Each step**: the DuckDB corpus under both judges (every roster, register and failure line identical to the
+  baseline); a step touching H2-specific, PCT or stress code also runs that lane.
+- **Step 1 and step 3**, the riskiest: every lane before the next step starts.
+- **The milestone (step 11)**: every lane one at a time, an independent audit, the GATES record. P1 lands through a
+  PR, merged only on the user's word.
 
-**Blockers**
-1. **The edge cannot be a pure renderer of the test plan (decision 1).** The appeal's rows are not a step of the body:
-   they are a SEPARATE read planned only for the appeal, from the typed body -- the toSQLString producer's query under
-   the producer's own context (`SqlTextVerdicts.java:713-719`, confirmed), the plan-text arm's last statement with
-   its bindings (`:1323-1369`), a let chosen by matching the golden's text (`:1066-1080`), planned with their own
-   scan order. The referee needs the compiled model for enum decoding (`SqlReplayReferee.java:56-62`). The in-list
-   seed is derived from the typed query and every let (`:1574`). A renderer of the plan cannot do these: the edge must
-   PLAN, from the typed body, at planning time.
-2. **The ledger texts cannot be rendered from the plan.** Effect steps carry no tree (`TestKinds.java:482`,
-   confirmed); a raw-SQL ledger text is the AUTHORED text before translation; DDL and CSV-load texts are rendered in
-   the referee's dialect; seed texts are authored or the INSERT text where the plan holds a bulk load
-   (`EffectPlanner.java`, `CsvSeed.java:85-95`).
-3. **The runner split as sketched breaks things it does not name.** The program's shape needs the verdict and branch
-   statements (one target, the system session, the snapshot, the constants-alone path); the transaction bracket wraps
-   verdict steps; values flow from product steps into verdict statements (trace stamps, write counts); savepoints and
-   the raising verdict use exec's internal statements and routing; the reader's guard is built from verdict sides
-   (`PlanRunner.java:240-266, 422-590, 678-923, 1393-1403, 1578-1583`). And "a test body with no assert IS a product
-   plan" is false: the product path refuses seed steps, the test sink holds the answer's cardinality, feeds the
-   ledger and the LET origin. The reviewer's recommendation: exec stays the ONE walker (G1) and calls back for the
-   steps it does not know, handing over an open-program handle.
+## 6. The risks, and what catches each
 
-**Should-fix** (folded into the steps they touch)
-- `Check` is a product node (write programs make one per statement before the last, `PlanMaker.java:317, 531-533`).
-- `Failure` needs the exact class (a closed list of classes, not categories: messages print the simple class name),
-  the cause's source position (`assertError` reads line and column), a `ModelException`'s phase, and the
-  "before the arm" flag (no census, no listener).
-- Layering: code moving to `testplan` uses `exec`'s `StatementOrigin`, `Census`, `PlanRunner.Rows`/`SideReader`,
-  `RaisedErrors`, `Sessions`; builds `TypedSide`s at planning; calls `AssertListener.fixtureAhead` at planning;
-  `VerdictBatch.Planned` is an inner class of the planning half; the mixed classes' run halves are unnamed;
-  `SystemDatabase` is keyed by `ModelContext` (cannot go to exec); the root doors share the `driver` target with
-  `server_lib`, so a front door holding `runProgram` would pull test code into the server unless the target splits.
-- The system store's identity is not in the plan: `Database.System` needs the graph's content key.
-- More run-time type decisions than 4.6 lists: dynamic-pivot column types from names read at run, the list-carrier
-  check, the fine numeric kind per side and column, `Keys.byClass` for an `Any` slot (every keyed class in the model),
-  Float row literals; step 1 also changes the referee's interface and the spec harness.
-- Order: `driver` cannot be deleted before the edge exists (the referee names `ModelContext`); the decoded-plan check
-  belongs in report mode from step 3.
-- Decision 4: options A-C cannot see state outside the plan -- the `ctx`-keyed system sessions, the harness listener's
-  fixture registry (filled at planning, run in `beforeRun`), the `Execution.PlannedProgram` closures, the environment
-  inside `Collected`; each must be removed by name, or D brought forward.
+| Risk | Caught by |
+|---|---|
+| a type decision moved to planning changes a verdict (step 1) | every lane, identical verdicts, before step 2 |
+| the callback changes a transaction, a routing or an origin (step 3) | every lane before step 4; the store-write, savepoint and system-routed core suites |
+| a failure's class, message or position drifts (step 2) | the core suites that pin exception types and messages; the harness's printed class names |
+| an `Any` slot's key trees make plans large (step 4) | measured at step 0; restricted to the classes the slot's values can be, if large |
+| the edge's planned reads differ from today's appeal reads (step 8) | the DuckDB and H2 corpora's referee census and appeal outcomes, identical |
 
-**Notes**: `HostJudgment` permits 23 kinds, not 26; `KindClass` also has `Enum(fqn)`; `Eq`'s facts are never read
-at run; `ExecuteOptions.recorder` should leave the options too; `PlanMaker.program`'s `Door.TEST` branches stay in the
-product planner after `testProgram` moves; carrying referee-only facts under the LITE rules plans work nobody reads
-(against E3).
-
-**What it changes** (proposed, for the user's ruling):
-- **Decision 1, reopened.** The edge PLANS as well as renders: under the compatibility rules alone, `testplan` calls
-  an edge hook (the edge implements it, given the typed body) that plans the appeal's reads and the ledger texts as
-  DATA, held in one generic section of the test plan keyed by verdict (reads as product nodes, texts as strings,
-  facts as strings and booleans; no edge type in `test_plan`, so G5's direction holds); under the LITE rules nothing
-  is planned for the edge (E3). The plan-types-are-data test covers the section like the rest.
-- **The runner: exec stays the one walker** (the reviewer's recommendation), with a callback for test steps and an
-  open-program handle, instead of `testexec` walking.
-- **The edge (P2) comes into this step** as far as the appeal and the ledgers need it, or `driver` keeps that remnant
-  until P2.
-
- (each step compiles and keeps the fast loop green)
-
-1. The judges' types the exec way (4.6): `TypedSide`, `Equality`, `PureAsserts`, `TdsCompare` off the compiler's
-   `Type`, onto the plan's type names and planning-time facts.
-2. Failures as data (4.4).
-3. The two plan types (4.0): `TestPlan` around `ExecutionPlan`; the test nodes leave the product's plan, runtime,
-   planner and options; `testexec` drives a test plan through `exec`. With it, the plan-types-are-data test (4.8,
-   guard 1), its remaining violations pinned shrink-only, each later step removing its own.
-4. Judgments and side shapes in the test plan (4.2, 4.3); `HostJudgment`, `HostSides.Planned`,
-   `JudgePlans.PlannedSide` deleted from the run's view.
-5. The database judge's root loop from the test plan (roots, `orElse`, refusals, messages); `VerdictBatch.Planned`'s
-   identity maps deleted; the batch's judge a plain function.
-6. The agreement pairing in the test plan.
-7. The sidecar into the test plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the test plan.
-8. The edge as a renderer (4.5): the reads' order, provenance and page facts in the test plan; the referee derives each
-   appeal from the plan; the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures' `BooleanSupplier`s).
-9. The guards complete (4.8): the plan-types-are-data test at zero violations; the DuckDB corpus lane on the decoded
-   plan.
-10. The move (4.7): all assert planning into `testplan`, the sink and the judging into `testexec`, the sequencing into
-   `Execution.runProgram`, `driver` deleted, the deps pinned, R1-R4 hard.
-11. All lanes and an audit (the P1 milestone), held to the baseline of 2026-11-07 (GATES).
-
-## 7. An example: `projection::limit::testSimpleLimit`, as it is planned today and as proposed
+## 7. An example: `projection::limit::testSimpleLimit`
 
 The test (legend-engine's, the DuckDB corpus, compatibility rules):
 
@@ -393,100 +315,83 @@ assertEquals('select top 1 ...', $result2->sqlRemoveFormatting());
 assertSize($result2.values->at(0).rows, 1);
 ```
 
-Printed with `-Dlegend.diagnostics=plan-json` (2026-11-07). The run plans three programs for it: the test's two setup
-programs (80 KB and 100 KB of JSON: their DDL and inserts, each statement as a tree and as script text) and the body
-(10 KB). Below, the body; each `Sql`'s `target` (connection and session) and `tree` (its typed SQL) are elided.
+Printed with `-Dlegend.diagnostics=plan-json` (2026-11-07): two setup programs (80 KB and 100 KB of JSON) and the
+body (10 KB). Below, the body; each statement's `target` and `tree` elided.
 
-### 7.1 The host judge, today: the plan
+**Today, the host judge's plan** -- which rows each assert reads, not what to compare:
 
 ```json
 {"_type": "sequence", "steps": [
  {"_type": "check", "sql": {"statement": "SELECT t0.FIRSTNAME AS name\nFROM personTable AS t0\nLIMIT 0"}},
  {"_type": "verdicts", "rules": "compiledPureCompat", "fused": null, "verdicts": [
    {"name": "meta::pure::functions::asserts::assertEquals", "arm": "assertEquals", "wrapper": null, "base": [
-     {"_type": "constant", "columns": [{"name": "value", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}],
+     {"_type": "constant", "columns": [{"name": "value", "type": "String"}],
       "cells": [["select top 0 \"root\".FIRSTNAME as \"name\" from personTable as \"root\""]]},
-     {"_type": "constant", "columns": [{"name": "value", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}],
+     {"_type": "constant", "columns": [{"name": "value", "type": "String"}],
       "cells": [["select top 0 \"root\".FIRSTNAME as \"name\" from personTable as \"root\""]]}]}]},
  {"_type": "verdicts", "rules": "compiledPureCompat", "fused": null, "verdicts": [
    {"name": "meta::pure::functions::asserts::assertSize", "arm": "assertSize", "wrapper": null, "base": [
-     {"_type": "constant", "columns": [{"name": "value", "type": "Integer", "multiplicity": {"lower": 1, "upper": 1}}],
-      "cells": [["0"]]},
+     {"_type": "constant", "columns": [{"name": "value", "type": "Integer"}], "cells": [["0"]]},
      {"_type": "rows", "result": {"_type": "tdsResult", "shape": "RELATION",
-      "columns": [{"name": "name", "type": "String", "multiplicity": {"lower": 1, "upper": 1},
-                   "slot": "VARCHAR", "store": "VARCHAR(200)"}],
+      "columns": [{"name": "name", "type": "String", "slot": "VARCHAR", "store": "VARCHAR(200)"}],
       "sql": {"statement": "SELECT t0.FIRSTNAME AS name\nFROM personTable AS t0\nLIMIT 0"}}}]}]},
  ... the same three steps for result2 (LIMIT 1) ...
 ]}
 ```
 
-The plan says *which* rows each assert reads. It does not say what to compare or how.
-
-### 7.2 The host judge, today: the sidecar the driver keeps beside it
-
-Printed by a probe (typed trees, environments and closures shown as markers):
+**Today, beside it** (a probe's print; typed trees, environments and closures shown as markers):
 
 ```
 assertSize   -> HostAssert(listenerName=...assertSize, family=assertSize, wantEqual=true,
-                  check=Check(asks=[Ask(arg=<TypedSpec TypedCInteger>, hook=<closure>, ...),
-                                    Ask(arg=<TypedSpec TypedPropertyAccess>, hook=<closure>, ...)],
+                  check=Check(asks=[Ask(arg=<TypedSpec TypedCInteger>, hook=<closure>, ...), Ask(arg=<TypedSpec ...>)],
                               judgment=Size(envelopeValuesRead=false)), beforeTheArm=null)
-   side 0       PlannedSide(kind=CONSTANT, answered=Scalar(value=0, returnType=INTEGER))           -- a compiler Type
-   side 1       PlannedSide(kind=TABULAR, wrapped=WrappedSide(plan=SqlSelect(...),
-                  shapeInfo=ExprType(GenericType(Relation, [RelationType(columns=[...])]), [1..1]), ...), schema=...)
-assertEquals -> HostAssert(..., judgment=EngineText(collected=Collected(name=assertEquals,
-                  golden="select top 0 ...", ours="select top 0 ...", textEqual=true, decline=null,
-                  appeal=<closure>, env=<ExecEnv>, oursOrigin=null), routed=true))
+   sides        PlannedSide(kind=CONSTANT, answered=Scalar(value=0, returnType=INTEGER))
+                PlannedSide(kind=TABULAR, wrapped=WrappedSide(plan=SqlSelect(...), shapeInfo=ExprType(...)), schema=...)
+assertEquals -> HostAssert(..., judgment=EngineText(collected=Collected(golden="select top 0 ...",
+                  ours="select top 0 ...", textEqual=true, appeal=<closure>, env=<ExecEnv>), routed=true))
 ```
 
-### 7.3 The host judge, proposed: one plan, nothing beside it
+**Proposed, the same verdicts in the test plan, nothing beside it:**
 
 ```json
 {"_type": "verdicts", "judge": "host", "rules": "compiledPureCompat", "fused": null, "verdicts": [
-  {"name": "meta::pure::functions::asserts::assertSize", "arm": "assertSize", "root": 1,
+  {"id": 2, "name": "meta::pure::functions::asserts::assertSize", "arm": "assertSize", "root": 2,
    "assertion": {"listener": "meta::pure::functions::asserts::assertSize", "family": "assertSize", "wantEqual": true},
    "judgment": {"_type": "size", "envelopeValuesRead": false},
-   "base": [ ...the same two sides as today... ],
-   "shapes": [
-     {"kind": "CONSTANT", "type": {"name": "Integer", "multiplicity": [1, 1]}},
-     {"kind": "TABULAR", "type": {"name": "meta::pure::metamodel::relation::Relation", "multiplicity": [1, 1]},
-      "schema": [{"name": "name", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}]}]}]}
-```
+   "base": [ ...the same two reads as today... ],
+   "shapes": [{"kind": "CONSTANT", "type": {"name": "Integer", "multiplicity": [1, 1]}},
+              {"kind": "TABULAR", "type": {"name": "meta::pure::metamodel::relation::Relation", "multiplicity": [1, 1]},
+               "schema": [{"name": "name", "type": "String", "multiplicity": {"lower": 1, "upper": 1}}]}]}]}
 
-```json
 {"_type": "verdicts", "judge": "host", "rules": "compiledPureCompat", "fused": null, "verdicts": [
-  {"name": "meta::pure::functions::asserts::assertEquals", "arm": "assertEquals", "root": 0,
-   "assertion": {"listener": "meta::pure::functions::asserts::assertEquals", "family": "assertEquals",
-                 "wantEqual": true},
+  {"id": 1, "name": "meta::pure::functions::asserts::assertEquals", "arm": "assertEquals", "root": 1,
+   "assertion": {"listener": "meta::pure::functions::asserts::assertEquals", "family": "assertEquals", "wantEqual": true},
    "judgment": {"_type": "engineText", "decline": null, "routed": true},
    "base": [ ...the golden and our text, the same two constants as today... ],
    "shapes": [{"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}},
               {"kind": "CONSTANT", "type": {"name": "String", "multiplicity": [1, 1]}}]}]}
 ```
 
-There is no appeal in the plan: under the compatibility rules, where the texts differ, the edge's referee derives
-the appeal from the plan (4.5) -- here the golden and our text are constants of the plan and equal, so it has nothing
-to decide. The `Ask`s' typed trees, the splice closure and the environment are planning's alone and are not in the
-plan.
+Here the two texts are constants and equal, so the edge plans nothing for the appeal; where our text differs or is
+read at run, the edge's extension for verdict 1 carries the appeal's reads and replay facts (2.7).
 
-### 7.4 The database judge, today and proposed
+**The database judge** today plans one step: a fused statement that computes all four verdicts and their messages in
+the database (`WITH frame_result AS MATERIALIZED (... LIMIT 0), ... SELECT 0 AS __ix, <verdict>, <expected>,
+<actual>, <unjudged>, <lenient>, <holds>, <message> FROM __p_0 UNION ALL ...`), its four verdicts named only
+`assertEquals`, `assertSize`, `assertEquals`, `assertSize`. Proposed: each carries its `id`, `assertion` and `root`;
+the statement is unchanged.
 
-Today the database judge's plan for this body is already almost all data: ONE step, a fused statement that computes
-all four verdicts and their messages in the database (`WITH frame_result AS MATERIALIZED (... LIMIT 0), frame_result2
-AS MATERIALIZED (... LIMIT 1), __p_0 AS (... the two texts ...), __p_1 AS (... COUNT ...) ... SELECT 0 AS __ix,
-<verdict>, <expected>, <actual>, <unjudged>, <lenient>, <holds>, <message> FROM __p_0 UNION ALL ...`), and four
-verdicts named only `assertEquals`, `assertSize`, `assertEquals`, `assertSize`. Beside it, `VerdictBatch.Planned`
-holds the roots (which assert each verdict belongs to, in body order), identity maps from verdicts to pending rows,
-and, under the compatibility rules, an appeal closure per engine-text row.
+**Noted, not in this step** (G3, plan size): the host judge runs `SELECT ... LIMIT 0` twice (the let's check and
+`assertSize`'s read; the database judge once); every statement repeats its whole target; the setup programs carry
+each statement as tree and text.
 
-Proposed: each of the four verdicts carries its `assertion` and `root`; an engine-text row whose text may differ
-is appealed by the edge from the plan (4.5); a member the dialect could not spell carries its `failure`. The
-statement is unchanged.
+## 8. The independent review (2026-11-08), and where each finding is answered
 
-### 7.5 Things the example shows that are not about data (noted, not in this step)
-
-- The host judge's plan runs `SELECT ... LIMIT 0` twice: once as the let's `check` step and again as `assertSize`'s
-  side. The database judge's reads it once (the frame). A G3 item.
-- Every `Sql` repeats its whole `target` (the connection and the session statements): the body's 10 KB is mostly
-  that and the typed trees. A plan-size item (G3), easy once the plan is the one artifact: targets by reference.
-- The setup programs carry each statement twice (its tree and its script text).
+Three blockers: the edge as a pure renderer (answered by 2.7), the ledger texts (2.7: the edge plans them), the
+runner split (2.8: exec walks and calls back; a body with no assert stays on the test road). Should-fix: `Check` is a
+product node (2.1); `Failure`'s class, position, phase and flag (2.4); the layering snags (2.9: the mixed classes'
+run halves named, `Census` moved, `SystemDatabase` keyed by plan data, the front doors' targets split); the system
+store's identity (2.6); the run-time type decisions (2.5, step 0's list); the order (4: the edge before the move,
+guard 3 in report mode from step 3); decision 4's blind spots (2.10.4). Notes folded in: 23 kinds, `KindClass.Enum`,
+`Eq`'s unused facts, `ExecuteOptions.recorder`, `PlanMaker.program`'s test branches, the referee-only facts under
+`LITE` (2.7: none planned).
