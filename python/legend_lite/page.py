@@ -2606,7 +2606,7 @@ class Timeseries(Tile):
         return pd.DataFrame([table[k] for k in keys], index=index, columns=[*months, 'Year'])
 
     def swap(self, instrument: Any, to: Any, *, source: str | None = None) -> Timeseries:
-        """Instrument ``instrument`` read as ``to`` in every series that reads it (``close[SPX]``: a match on its source's
+        """Instrument ``instrument`` read as ``to`` in every series that reads it (``close['SPX']``: a match on its source's
         instrument column) -- of source ``source`` alone when given -- a name that says it saying the other: the screen's
         Swap, by the tile's one rule (timeseries-edit.ts). An instrument column of numbers takes them as numbers
         (``swap(10, 20)``); the spaces round a name are not of it. Refused where no series reads it."""
