@@ -273,7 +273,12 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      enumerations and operators, generated from the same catalog as TypeScript's (`make.mts` emits `_ts_words.py`), each
      term a gs-quant call told as JSON that headless DataCube makes with the TypeScript builder's own functions
      (`timeseries-builder-wire.ts`) -- one mapping to the tile's tree -- plotted by `Timeseries.plot`/`edit` and
-     `page.timeseries`; Python's chart face is its `Timeseries` methods, already one per change;
+     `page.timeseries`; Python's chart face is its `Timeseries` methods, already one per change. **B4 done 2026-11-08**:
+     the Code window and `Timeseries.code` print each series as gs-quant's call of it (`timeseries-builder-source.ts`, in
+     TypeScript or Python, each option gs-quant's enumeration's member), its `#TS` text where gs-quant has no call of its
+     meaning (a z-score to date; a compare by the tile's align); every gallery series as Python's code is held with its
+     text (`test/fixtures/timeseries/builder-python.json`) and run in Python by `//python:ts_builder_test`; every gallery
+     tile's TypeScript program, run, builds its tile; `legend_lite.timeseries.text(term)` says a term's text;
 - **ClickHouse: 26.3 LTS** (asked against the pin, 25.8.2.29, the 2025 LTS; 26.3 the current LTS, 26.6 the newest):
   "Upgrade to 26.3 LTS". Pinned 26.3.60.2. Its `WITH ... AS MATERIALIZED` (experimental, off by default) would compute
   a shared relation once natively; the planner's staging stays until it is not experimental.
