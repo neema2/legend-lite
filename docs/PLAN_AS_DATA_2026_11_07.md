@@ -68,9 +68,10 @@ TestStep = Run(ExecutionPlan.Node)                    -- a product step, as is
          | Verdicts(verdicts: [Verdict], fused: TdsResult?, judge: HOST|DATABASE|AGREEMENT, rules, savepoint?)
          | Branch(condition: Read, then: [TestStep], otherwise: [TestStep])
          | FrameRun(check: ExecutionPlan.Check)       -- a let's eager run, its origin LET
-Verdict  = (id, name, arm, assertion: (listener, family?, wantEqual), base: [Read], message: Read?,
+Verdict  = (id, name, arm, assertion: (listener, family?, wantEqual), base: [Read], wrapper: Node?, message: Read?,
             judgment: Judgment?, shapes: [SideShape], failure: Failure?, root, orElse?, pairedWith?, raises)
-Read     = Rows(TdsResult) | KeyedRows(Keyed) | Constant(columns, cells)  -- today's Side
+Read     = Rows(TdsResult) | KeyedRows(Keyed) | Constant(columns, cells)  -- today's Side; a constant's cells are text
+                                                                           of any type, decoded by testexec by type name
 ```
 
 Every verdict has an `id`, unique in its plan, counted in body order from 1 (the database judge's members with equal
@@ -126,81 +127,119 @@ interface and the spec harness, which read compiler types from `TypedSide`.
 
 ### 2.6 The connection description, and the system store's key
 
-The plan stops holding the model's `ConnectionDefinition`. It holds its own records (ruled 2026-11-08):
+The plan stops holding the model's `ConnectionDefinition` (ruled 2026-11-08) and holds its own copy, FAITHFUL: the same
+variants under the same names with the same fields, `qualifiedName` included (every refusal names it, and the
+connectors' refusal messages print the class names), `LocalH2` kept as its own specification (DuckDB and SQLite refuse
+it, H2 opens it as in-memory), and every authentication kept distinct (`NoAuth` is not `DefaultH2`/`TestAuth`: Trino
+builds its URL from the test user; Mongo's `UsernamePassword` has a literal user and a `kind:key` password reference
+read at open). A reduced summary would lose these (the focused check, 2026-11-08).
 
 ```
-Database = Declared(key, type, spec: Spec, auth: AuthRef)   -- the model's record, copied once at planning
+Database = Declared(Connection)        -- the plan's own record: the model's fields, copied once at planning
          | Platform(type)
-         | System(type, graphKey)                            -- the graph's content key: which system store
-Spec     = InMemory | LocalFile(path) | EmbeddedH2(name, directory, autoServer) | Static(host, port, database)
-         | Trino(...) | Snowflake(...) | Databricks(...) | BigQuery(...) | Spanner(...) | ...   (the model's fields)
-AuthRef  = None | VaultUserPassword(userRef, passwordRef) | KeyPairRef(...) | Kerberos(...) | OAuth(key, scope) | ...
+         | System(type, graphKey)      -- which system store
 ```
 
-- **Secrets stay references.** An authentication holding a literal secret is refused at planning, by name (no
-  fallback); `ApiToken(apiToken)` is checked against upstream before this lands.
-- **Exec's connector renders the URL at open**, as today: URL formats and driver settings are the connector's (D72:
-  exec alone makes sessions). It fills what only the run knows: a private in-memory database's fresh name, an embedded
-  server's port, a file path.
-- **`key` and `kind` are the routing identity**: statements route and sessions share by which database a target is.
-  `System(graphKey)` replaces `SystemDatabase`'s `ModelContext`-keyed sessions, so the system store's session is
-  exec's, keyed by plan data.
+- **No secret in the plan**: authentication holds references, as upstream's does (`ApiToken(apiToken)` is a vault key
+  upstream: `Vault.INSTANCE.getValue(authStrategy.apiToken)`; `UsernamePassword`'s password is a `kind:key`
+  reference). Where and when a credential is refused stays as today (at open), so no error moves.
+- **Exec's connector renders the URL at open**, as today (D72). The only parts filled at run today are private
+  in-memory names (`plan_<hash>_<n>`, `private<n>`).
+- **The identity of a database stays the WHOLE target** (its database, session statements and setup), as today:
+  `sameTarget`, `UserBeside` and the shared sessions (`PlanSessions.openShared`, keyed by the target) compare it all, so
+  runtimes with different seeds never share one database.
+- **`graphKey` is a hash of the system store's planned seed steps, per engine** (the seed is every store table's rows
+  in the engine's dialect, so equal content means an equal store). Exec owns the system store's sessions, keyed by it,
+  with an EXPLICIT lifetime (today a `Cleaner` closes them when the graph is collected; a string key has no such
+  signal): the sessions source holds them and closes them when it closes. Two graphs of equal content share one
+  store: their concurrent use is checked before this lands. A server engine's system connections stay run
+  configuration of the sessions source, not plan data.
 
 ### 2.7 The edge plans, under the compatibility rules, into a typed extension point
 
 The edge cannot be a pure renderer (the independent review, confirmed): an appeal's rows are a SEPARATE read planned
 only for the appeal from the typed body (`SqlTextVerdicts.java:713-719`: a `toSQLString` test never runs its query;
 only the appeal does), the referee decodes enums with the model, the in-list seed comes from the typed query and its
-lets, and the ledger texts are authored texts or the referee dialect's. So (ruled 2026-11-08):
+lets, and the ledger texts are authored texts or the referee dialect's. So (ruled 2026-11-08), in three parts:
 
-- `test_plan` declares one interface, `Extension`; the test plan holds extensions by verdict id (an appeal's) and by
-  step index (an effect's or a seed's ledger texts).
-- Under `COMPILED_PURE_COMPAT` alone, `testplan` calls the edge's planning hook with the typed body; the edge plans its
-  needs as its OWN typed records implementing `Extension`: the appeal's reads (product nodes), the replay facts
-  (ordered, sort keys, extent subset, page population, provenance, in-list seed, temps, plan-golden bindings), the
-  stores whose fixtures it provides, the ledger texts of effects and seeds.
-- Under `LITE` nothing is planned for the edge (E3: the product does not change what it plans to serve compatibility).
+**At planning: the edge's hook, called by testplan's arms, with testplan's ids.**
+- `test_plan` declares one interface, `Extension`; the test plan holds extensions by verdict id and part index (an
+  appeal's: an `Unrolled` verdict can hold several engine-text parts) and by step index (an effect's or a seed's
+  ledger texts).
+- The arms keep computing an appeal's inputs where they do today (the route from the golden, the mapping, the facts,
+  the population, the temps, the plan bindings, the `appealOn` environment: about 2,000 lines that stay in
+  `testplan`); under `COMPILED_PURE_COMPAT` alone they hand the edge's hook a typed REQUEST with the verdict id and
+  part, and the edge plans its own typed records implementing `Extension`: the appeal's reads (product nodes, with
+  their failures and shapes as data), the replay facts, the stores whose fixtures it provides. Effect and seed steps
+  hand the hook their ledger texts with their step index (consecutive effects merge into one step; established seeds
+  are de-duplicated: the ids are testplan's, never derived from the typed body alone).
+- Under `LITE` nothing is planned for the edge (E3).
 - JSON: each extension record carries its type tag, read through a codec the edge registers (the `ServiceLoader`
   pattern `exec`'s plug-ins use). G5 holds: `test_plan` declares, the edge implements.
-- After the run, the edge's referee decides each appeal from the plan, its extensions and the model (the edge may use
-  the model; the run may not).
-- Values a rule renders (what `sqlRemoveFormatting()` returns under the compatibility rules) are rendered at planning
-  by the renderer the rules name and kept as plain strings.
 
-A `Read` carries no fact for the referee: everything only the referee reads (order, sort keys, extent subset, page
-population, provenance, the stores to provide) lives in the edge's extension, planned under the compatibility rules
-alone.
+**At run: the run RECORDS, it does not decide.** Some of an appeal's inputs exist only at run: our text and a deferred
+golden read at the verdict step, and under the database judge our text is the row's actual cell. So the hold that
+`Appeals` does today splits: `testexec` keeps a RUN RECORD, as data -- each held appeal's verdict id and part, the
+texts as read, whether they were equal, the order of the holds, and whether a write ran after the first hold -- and
+keeps the listener's reports back as today (the `Keeping` listener). The run record is the run's output, never planned
+and never fed back into a run.
+
+**After the run: the edge decides** each appeal from the plan, its extensions, the run record and the model (the edge
+may use the model; the run may not), in body order, the first failure the body's, as `Appeals.decide` does today.
+
+**The ledger** (the referee's record of the statements a session ran): only its TEXTS can be planned. Its entries are
+run state -- a seed skipped as already established, a seed's answered rows, a script that failed part-way, the
+entries of earlier bodies on the same session, the harness's own fixture entries -- so the edge's recorder builds them
+at run from exec's step events (`ProgramSink.seeded`, `effectRan`, `writing`, kept for it, 2.8) and the planned texts.
+A recorder IMPLIES the compatibility rules (today it is set independently, but only the compatibility corpus records;
+`BodyRouterParityTest` runs `LITE` with a recorder it no longer asserts on, and changes with this).
+
+Values a rule renders (what `sqlRemoveFormatting()` returns under the compatibility rules) are rendered at planning by
+the renderer the rules name and kept as plain strings. A `Read` carries no fact for the referee: everything only the
+referee reads lives in the edge's extension, planned under the compatibility rules alone.
 
 ### 2.8 The runner: exec is the one walker
 
 Exec walks every program (G1: one runner) and calls back for the steps it does not know (the independent review's
-recommendation, ruled 2026-11-08):
+recommendation, ruled 2026-11-08; the focused check's fixes folded in):
 
 ```
 exec:      record Program(parameters, steps: [ProgramStep])
            ProgramStep = Node(ExecutionPlan.Node, origin?) | Callback(id, declared: [ExecutionPlan.Node])
            PlanRunner.program(Program, values, sessions, Callbacks, ProgramSink)
-           interface Callbacks { void step(int id, OpenProgram open); }
-           interface OpenProgram {
-               Rows read(ExecutionPlan.Node read, origin?); -- on its routed session, inside the program
-               void run(ExecutionPlan.Node step);           -- a product step inside the program (a branch's arm)
-               <T> T guarded(Savepoint sp, Work<T> work);   -- under exec's Savepoint(set, rollbackTo, release)
+           interface Callbacks { void step(int id); }                 -- called at the callback's place
+           interface OpenProgram {                                    -- ONE per program, valid until it ends
+               Rows read(ExecutionPlan.Node read, origin, bindings);  -- routed, inside the program; live values
+                                                                      -- merged with the call's bindings
+               Raised readRaising(ExecutionPlan.Node read, origin);   -- an assertError's side: its rows, or the
+                                                                      -- database's error as DATA (message, line,
+                                                                      -- column), never a JDBC type
+               <T> T guarded(Savepoint sp, Work<T> work);             -- exec's Savepoint(set, rollbackTo, release):
+                                                                      -- on failure rolls back, then rethrows the
+                                                                      -- original exception unwrapped
                boolean insideATransaction();
-               Map<String, Checked> values();               -- live values: trace stamps, write counts
            }
+           ProgramSink keeps: columns, batches, seeded(step, answeredRows), effectRan(step), writing(step)
 ```
 
 - `testexec` lowers a `TestPlan` to a `Program`: each `Run` a `Node`; each `FrameRun` a `Node` whose origin is `LET`;
   each `Verdicts` and `Branch` a `Callback` whose `declared` nodes are every statement it may send (the fused
-  statement, wrappers, sides, messages, a branch's condition and arms). A statement's origin (today the sink's
-  `originOf` and its deferred texts' origins) is the step's or the read's, passed to exec as data.
-- Exec keeps everything that needs all statements or exec's internals: the program's shape (one target, the system
-  session, the snapshot, the constants-alone path) computed over nodes and declared nodes; sessions and routing; the
-  transaction bracket around every step, callbacks included; statement origins; write marking; the reader's guard,
-  built from declared reads; the savepoint statements.
-- `testexec`'s handler runs a verdict group (reads through the handle, judging, the root loop) and a branch (its
-  condition through the handle, the taken arm's steps by `run` or its own handler).
-- `ProgramSink`'s `verdict`, `sides` and `fused` hooks are deleted; the sink keeps the answer's columns and batches.
+  statement, every verdict's wrapper -- keyed ones included -- sides, messages, a branch's condition and its arms'
+  statements).
+- The handle is opened once per program and stays valid until the program ends: the database judge judges a segment
+  at its last group (a later step) and reads earlier verdicts' messages then; the agreement judge holds a message
+  reader across steps. The reader's guard covers every declared read of the whole program.
+- Declared nodes add statements, the snapshot and the system target to the program's shape, never result steps (the
+  shape's top-level rule would refuse a second result). Exec keeps the shape, sessions and routing, the transaction
+  bracket around every step (callbacks included), statement origins, write marking, the savepoint statements.
+- Origins keep today's layering (`enterIfUnmarked`): verdict and branch steps run under `BODY` only when the database
+  judge alone judges; a branch's condition reads under `STATEMENT`; the origin is passed with each read as data.
+- A constant read is decoded by `testexec` from its cells by type name (exec's `constantRows` decodes only strings and
+  booleans and is not used for it).
+- The constants-alone path (no target) folds into the main path: its on-demand reader is unused (every carried
+  statement side gives the program a target), checked when step 3 lands.
+- `ProgramSink`'s `verdict`, `sides` and `fused` hooks are deleted; `seeded`, `effectRan` and `writing` stay (the
+  ledger and the run record need them).
 - A test body with no assert still runs through `testexec`: the answer's cardinality, the seeds and the ledger are
   the test road's.
 
@@ -223,8 +262,9 @@ Where today's `driver` goes:
 | `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `AssertVerdicts`' arms, `DatabaseJudge` (planning), `HostSides`' planning, `JudgePlans`' planning, `AssertBranch`, `LiteralFold`, `SeedSqlForms`, `VerdictArm`, `BodyDriver` (the environment), `SqlTextVerdicts`' planning half, `VerdictBatch`'s planning half, `BodyRouter`'s classify-and-plan | `testplan` |
 | `BodyRouter$Moved`, `HostJudge`'s judging, `AgreementArm`, `AssertErrorNative`'s judging, `DatabaseJudge.verdictOf`, `AssertVerdicts.judgedAtItsStep`/`heldAtItsStep`/`ok`/`fail`, `SqlTextVerdicts.judge`, `JudgePlans.shape`/`host`, `HostSides.shapedBase`, `VerdictBatch.Planned.judge` (the root loop) | `testexec` |
 | `HostJudgment`, `KindClass` (as data) | `test_plan` |
-| `SystemDatabase` | exec, keyed by `Database.System.graphKey` |
-| `Appeals`, `SqlTextVerdicts`' appeal and rows leg, `JudgeJson`'s compatibility grammar, the referee, the recorder | the edge |
+| `SystemDatabase` | exec, keyed by `Database.System.graphKey`, its lifetime the sessions source's |
+| `Appeals`' hold and the `Keeping` listener (the run record) | `testexec` |
+| `Appeals.decide`, `SqlTextVerdicts`' rows leg, `JudgeJson`'s compatibility grammar, the referee, the recorder | the edge |
 | `BodyRouter`'s sequencing | `Execution.runProgram` |
 | `RunReader` | deleted (the runner reads every side off the plan) |
 
@@ -243,8 +283,10 @@ Pinned in `tools/deps/core-layers.txt`; ArchUnit R1-R4 hard (R3: only the front 
 3. **One lane on the decoded plan (B).** The DuckDB corpus lane runs only the plan read back from its JSON: in report
    mode from step 3, a hard check from step 9.
 4. **Out-of-plan channels removed by name**, since A and B cannot see them: the `ModelContext`-keyed system sessions
-   (2.6), the listener's fixture registry (the edge's extension names the stores), the `PlannedProgram` closures
-   (plans), the environment inside `Collected` (gone with 2.7).
+   (2.6), the listener's fixture registry (the edge's extension names the stores; whether to provide one stays the
+   harness's run state), the `PlannedProgram` closures (plans), the environment inside `Collected` (gone with 2.7).
+   What the run hands the edge after it (the run record, the ledger's entries) is the run's OUTPUT, data, never
+   planned and never read back into a run.
 5. **Later, D:** a planner-free runner binary runs plans the planning pass wrote to files (G11's gate; the only form
    that also catches state shared through statics).
 
@@ -274,9 +316,11 @@ Each step lands as one or more commits on the branch, held to the baseline of 20
 6. **The agreement pairing** in the test plan.
 7. **The sidecar into the test plan, and the plan-owned descriptions** (2.6): origins and each group's judge; the
    connection description; `System(graphKey)`.
-8. **The edge's extension point** (2.7): the edge package created as far as needed; its hook, records and codec; the
-   appeals' reads and facts by verdict, the ledger texts by step; the referee from the plan and its extensions; the
-   closures deleted; the out-of-plan channels removed (2.10.4); `TestDoor.Planned` is the test plan.
+8. **The edge's extension point** (2.7): the edge package created as far as needed; its hook, called by the arms with
+   a typed request and testplan's ids; its records and codec; the run record in `testexec`; the edge's decision after
+   the run from the plan, its extensions and the run record; the ledger from planned texts and exec's step events; a
+   recorder implies the compatibility rules; the closures deleted; the out-of-plan channels removed (2.10.4);
+   `TestDoor.Planned` is the test plan.
 9. **The guards complete** (2.10): guard 1 at zero; guard 3 hard on the DuckDB corpus lane.
 10. **The move** (2.9): `testplan`, `testexec`, the edge's libraries; `driver` deleted; the front doors' targets split;
     deps pinned; R1-R4 hard.
@@ -395,3 +439,22 @@ store's identity (2.6); the run-time type decisions (2.5, step 0's list); the or
 guard 3 in report mode from step 3); decision 4's blind spots (2.10.4). Notes folded in: 23 kinds, `KindClass.Enum`,
 `Eq`'s unused facts, `ExecuteOptions.recorder`, `PlanMaker.program`'s test branches, the referee-only facts under
 `LITE` (2.7: none planned).
+
+## 9. The focused check (2026-11-08) of 2.6, 2.7 and 2.8, and where each finding is answered
+
+Verdict: all three executable with fixes, two of them changing the design itself (spot-checked by the author: the
+raising verdict's bindings, `PlanRunner.java:900-914`; the shared sessions keyed by the target; the recorder set
+independently of the rules).
+- **The runner (2.8)**: the raising verdict needs bindings and a raising read returning the error as data; `Verdict`
+  keeps its `wrapper`; one handle per program, its guard over every declared read; declared nodes join the shape as
+  statements only; `seeded`/`effectRan`/`writing` stay; constant reads decoded by testexec; `guarded` rolls back and
+  rethrows unwrapped; origins keep their layering; `run(node)` dropped (no caller: a branch's arms hold only verdict
+  groups and branches).
+- **The edge (2.7)**: appeals take inputs only the run reads -- the run RECORDS them as data and the edge decides
+  after the run; the hook is called by the arms with testplan's ids (verdict and part, step), the arms keeping their
+  computation; the ledger's entries are built at run from exec's step events, only its texts planned; a recorder
+  implies the compatibility rules. Noted for later, unchanged here: under `LITE` an engine-text arm still requires a
+  registered referee at planning.
+- **The connection (2.6)**: the identity stays the whole target (key and kind alone would let different seeds share a
+  database); the copy is faithful (`LocalH2`, class names, `qualifiedName`, every authentication); `graphKey` is a hash
+  of the planned seed steps per engine with an explicit lifetime; refusal timing unchanged.
