@@ -15,12 +15,11 @@ import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { MARKETS_PROJECT, SAVED_GRIDS, savedQueryTree } from '../src/examples/markets-classes.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_SPLIT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import type { TimeGrain } from '../src/chart-spec.ts';
 import type { TimeseriesSpec, TsSource } from '../src/timeseries-spec.ts';
-import { plannerFor } from './catalog-builder.ts';
-import { writtenText } from '../src/timeseries-text.ts';
+import { plannerFor, readText } from './catalog-builder.ts';
+import { readSeriesTexts } from '../src/timeseries-text.ts';
 
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
   projects: { groupId: string; artifactId: string; versionId: string; models: string[] }[];
@@ -57,8 +56,8 @@ FILTER ticker IN ('AAPL', 'MSFT')`,
 FROM   marketdata::MarketQuote ON quoteTime BY instrument.ticker`,
     sources: [QUOTES],
     series: [
-      { name: 'aapl_vol', expr: 'volatility(close[AAPL], 63)' },
-      { name: 'msft_vol', expr: 'volatility(close[MSFT], 63)' },
+      { name: 'aapl_vol', expr: "volatility(close['AAPL'], w => 63, type => 'simple')" },
+      { name: 'msft_vol', expr: "volatility(close['MSFT'], w => 63, type => 'simple')" },
     ],
   },
   {
@@ -67,7 +66,7 @@ FROM   marketdata::MarketQuote ON quoteTime BY instrument.ticker`,
 FROM   (marketdata::MarketQuote WHERE instrument.sector.name = 'Information Technology')
        ON quoteTime BY instrument.ticker`,
     sources: [QUOTES],
-    series: [{ name: 'indexed', expr: 'rebase(close[sector="Information Technology"])', split: 'ticker' }],
+    series: [{ name: 'indexed', expr: "rebase(close[sector = 'Information Technology'], base => 100)", split: 'ticker' }],
   },
   {
     title: '4. Weekly: Nvidia\'s week-end close and its weekly return',
@@ -78,8 +77,8 @@ SAMPLE BY 1w`,
     sources: [QUOTES],
     grain: 'week',
     series: [
-      { name: 'wk_close', expr: 'close[NVDA]' },
-      { name: 'wk_ret', expr: 'returns(close[NVDA])' },
+      { name: 'wk_close', expr: "close['NVDA']" },
+      { name: 'wk_ret', expr: "returns(close['NVDA'], 1, 'simple')" },
     ],
   },
   {
@@ -92,11 +91,11 @@ FROM   marketdata::MarketQuote px ON quoteTime BY instrument.ticker,
 SAMPLE BY 1d`,
     sources: [QUOTES, TRADES],
     series: [
-      { name: 'close', expr: 'px:close[AAPL]' },
+      { name: 'close', expr: "px.close['AAPL']" },
       // an enumeration's value by its name, as the #TS query beside it writes it: the tile writes #TS, which reads 'BUY' as
       // trading::Side.BUY (R13, built 2026-10-31); the stored code ('B', the mapping's) is no value of it, refused by name
-      { name: 'bought', expr: 'tr:quantity[AAPL, side="BUY"].sum' },
-      { name: 'sold', expr: 'tr:quantity[AAPL, side="SELL"].sum' },
+      { name: 'bought', expr: "sum(tr.quantity['AAPL', side = 'BUY'])" },
+      { name: 'sold', expr: "sum(tr.quantity['AAPL', side = 'SELL'])" },
     ],
   },
 ];
@@ -132,9 +131,10 @@ it('the examples, each planned and answered over the markets project', async () 
     const out: string[] = [`\n=== ${ex.title}`, '--- #TS (the design)', ex.ts, '--- the tile today: the same chart'];
     const spec: TimeseriesSpec = {
       sources: [...ex.sources],
-      series: ex.series.map((s, i) => ({ id: String.fromCharCode(65 + i), text: writtenText(parseExpr(s.expr), []), ...(s.split ? { split: s.split } : {}) })),
+      series: ex.series.map((s, i) => ({ id: String.fromCharCode(65 + i), text: s.expr, ...(s.split ? { split: s.split } : {}) })),
       grain: ex.grain ?? 'day',
     };
+    await readSeriesTexts(spec.series, readText);
     for (const [i, s] of ex.series.entries()) {
       const q = seriesQuery(inputs, spec, spec.series[i]!);
       const t = await engine.execute(await planner.plan(q.query), 0);

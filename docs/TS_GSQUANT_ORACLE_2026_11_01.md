@@ -10,6 +10,13 @@ How to run it, and what each status means: `tools/ts-oracle/oracle.py`'s header.
 requirement of the repository: the oracle is a manual check, as the corpus lanes are. The full report of this run:
 `tools/ts-oracle/report-2026-11-01.txt`.
 
+Since 2026-11-08 (the order's step 3, `docs/TS_DECISIONS_2026_11_07.md` §4) the oracle reads each series' **tree**,
+every parameter told as lite computed it, and no text: the tile's own grammar it parsed with Python's is deleted, and
+the report shows the series' #TS. Reading the tree, it sends gs-quant lite's own values for parameters a series leaves
+to its default, and `all` as `Window(None, 0)` (the text path sent it as a zero window, which gs-quant refuses): on
+that day **AGREE 144, DIFFER 2** (the same two), NO-GSQUANT 39, NOT-CHECKED 25, no ERROR (`sum B`,
+`sum(volume['AAPL'], all)`, now agrees).
+
 ## What it found
 
 First run (2026-11-01): AGREE 119, DIFFER 27 (26 by a window's first value, O1; compare, O2), NO-GSQUANT 39,

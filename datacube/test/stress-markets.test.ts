@@ -25,14 +25,14 @@ import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
-import { parseExpr, wholeOf } from '../src/timeseries-expr.ts';
+import { wholeOf } from '../src/timeseries-expr.ts';
 import { marksQuery, seriesQuery, seriesSources, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { readsBase, tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import type { TimeseriesSpec, TsAnnotation, TsView } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
-import { plannerFor, readPageTexts } from './catalog-builder.ts';
+import { plannerFor, readPageTexts, readText } from './catalog-builder.ts';
 import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
-import { treeOf, writtenText } from '../src/timeseries-text.ts';
+import { readSeriesTexts, treeOf } from '../src/timeseries-text.ts';
 
 /** The markets project as config.json lists it: its model files, each as the site serves it. */
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
@@ -137,17 +137,21 @@ type Line = { dates: string[]; values: (number | null)[] };
 
 /** A tile of one series over the class (`classes`, `referenced`: with its reference data) or the table (`rows`),
  *  daily, a line per value of `split` when it is given. */
-const spec = (text: string, over: Over, split?: string): TimeseriesSpec => ({
-  sources: [over === 'rows'
-    ? { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }
-    : { alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
-  series: [{ id: 'A', text: writtenText(parseExpr(over === 'rows' ? text : text.replaceAll('close[', 'closePrice[')), []), ...(split !== undefined ? { split } : {}) }],
-  grain: 'day',
-});
+async function spec(text: string, over: Over, split?: string): Promise<TimeseriesSpec> {
+  const ts: TimeseriesSpec = {
+    sources: [over === 'rows'
+      ? { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }
+      : { alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
+    series: [{ id: 'A', text: over === 'rows' ? text : text.replaceAll('close[', 'closePrice['), ...(split !== undefined ? { split } : {}) }],
+    grain: 'day',
+  };
+  await readSeriesTexts(ts.series, readText);
+  return ts;
+}
 
 /** The series' lines, each by its split's value ('' when it has none), earliest first, as the database answers them. */
 async function lines(text: string, over: Over, split?: string): Promise<Map<string, Line>> {
-  const ts = spec(text, over, split);
+  const ts = await spec(text, over, split);
   const planner = over === 'rows' ? table : corpus;
   const q = seriesQuery(over === 'rows' ? rows : over === 'classes' ? classes : referenced, ts, ts.series[0]!);
   const t = await (over === 'rows' ? engine : projectEngine).execute(await planner.plan(q.query), 0);
@@ -219,8 +223,8 @@ describe('the trading model\'s tables, as its store declares them', () => {
 });
 
 describe('a timeseries over MarketQuote through stress::AllMapping is the timeseries over the table', () => {
-  for (const text of ['close[AAPL]', 'volatility(close[AAPL], 22)', 'correlation(close[AAPL], close[MSFT], 63)',
-    'returns(close[NVDA], 5)', 'beta(close[JPM], close[SPX], 2m)']) {
+  for (const text of ["close['AAPL']", "volatility(close['AAPL'], w => 22, type => 'simple')", "correlation(close['AAPL'], close['MSFT'], w => 63)",
+    "returns(close['NVDA'], 5, 'simple')", "beta(close['JPM'], close['SPX'], w => 2mo)"]) {
     it(text, async () => {
       const [over, flat] = await Promise.all([line(text, 'classes'), line(text, 'rows')]);
       same(over, flat, text);
@@ -232,25 +236,25 @@ describe('a timeseries over MarketQuote through stress::AllMapping is the timese
 // its split; the flat table has neither, so each is held to the instruments it names, added or one by one.
 describe('a series matched and split by the reference data the associations reach', () => {
   it('close[sector="Energy"] is XOM\'s close: the one instrument of its sector', async () => {
-    same(await line('close[sector="Energy"]', 'referenced'), await line('close[XOM]', 'rows'), 'Energy');
+    same(await line("close[sector = 'Energy']", 'referenced'), await line("close['XOM']", 'rows'), 'Energy');
   });
 
   it('a sector\'s volume summed is its instruments\' volumes added', async () => {
-    same(await line('volume[sector="Information Technology"].sum', 'referenced'),
-      await line('volume[AAPL].sum + volume[MSFT].sum + volume[NVDA].sum', 'rows'), 'IT volume');
+    same(await line("sum(volume[sector = 'Information Technology'])", 'referenced'),
+      await line("sum(volume['AAPL']) + sum(volume['MSFT']) + sum(volume['NVDA'])", 'rows'), 'IT volume');
   });
 
   it('split by ticker within a sector: a line per instrument of it, each its own returns', async () => {
-    const over = await lines('returns(close[sector="Information Technology"], 1)', 'referenced', 'ticker');
+    const over = await lines("returns(close[sector = 'Information Technology'], 1, 'simple')", 'referenced', 'ticker');
     assert.deepEqual([...over.keys()].sort(), ['AAPL', 'MSFT', 'NVDA'], 'the sector\'s instruments');
-    for (const t of over.keys()) same(over.get(t)!, await line(`returns(close[${t}], 1)`, 'rows'), t);
+    for (const t of over.keys()) same(over.get(t)!, await line(`returns(close['${t}'], 1, 'simple')`, 'rows'), t);
   });
 
   it('split by exchange: a line per listing venue, each the volume of the instruments listed there', async () => {
-    const over = await lines('volume.sum', 'referenced', 'exchange');
+    const over = await lines('sum(volume)', 'referenced', 'exchange');
     assert.deepEqual([...over.keys()].sort(), ['Cboe Options Exchange', 'NYSE Arca', 'Nasdaq', 'New York Stock Exchange', 'Off exchange'], 'the exchanges listing them');
-    same(over.get('New York Stock Exchange')!, await line('volume[JPM].sum + volume[XOM].sum', 'rows'), 'NYSE');
-    same(over.get('Nasdaq')!, await line('volume[NDX].sum + volume[AAPL].sum + volume[MSFT].sum + volume[NVDA].sum + volume[TLT].sum', 'rows'), 'Nasdaq');
+    same(over.get('New York Stock Exchange')!, await line("sum(volume['JPM']) + sum(volume['XOM'])", 'rows'), 'NYSE');
+    same(over.get('Nasdaq')!, await line("sum(volume['NDX']) + sum(volume['AAPL']) + sum(volume['MSFT']) + sum(volume['NVDA']) + sum(volume['TLT'])", 'rows'), 'Nasdaq');
   });
 });
 
@@ -378,11 +382,12 @@ describe('the example page over the classes, opened the page\'s way', () => {
     const ts: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
       series: [
-        { id: 'A', text: writtenText(parseExpr('mean(turnover.sum, 21)'), []), split: 'listing' },
-        { id: 'B', text: writtenText(parseExpr('tone[sector="Energy"].sum'), []) },
+        { id: 'A', text: 'mean(sum(turnover), 21)', split: 'listing' },
+        { id: 'B', text: "sum(tone[sector = 'Energy'])" },
       ],
       grain: 'day',
     };
+    await readSeriesTexts(ts.series, readText);
     for (const series of ts.series) {
       const sent = tsSeriesQuery(inputs, ts, series);
       const shown = await corpus.tsStatement(sent);

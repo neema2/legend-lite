@@ -4,10 +4,12 @@
 
 The frozen answers hold lite to what it answered; this holds it to what gs-quant answers. Every series of the
 gallery and markets pages is recomputed here with gs_quant.timeseries itself, on the same sample data, from the
-same formula, and compared point by point with lite's answer.
+same tree, and compared point by point with lite's answer.
 
 Its input is what //datacube:timeseries_ts_parity_test writes to its undeclared outputs (oracle-input.json):
-each series' formula (inlined), its tile's settings, lite's answer, and the samples. Run it with gs-quant
+each series' tree (inlined, every parameter told: what lite computed) and its #TS text (shown in the report), its
+tile's settings, lite's answer, and the samples. It reads the tree, never a text: no grammar of its own (the order to
+one reader, docs/TS_DECISIONS_2026_11_07.md §4, step 3). Run it with gs-quant
 installed (it is not one of the repository's locked requirements -- a manual check, as the corpus lanes are):
 
     bazel test //datacube:timeseries_ts_parity_test
@@ -21,7 +23,6 @@ needs its service), or NOT-CHECKED (a tile setting the oracle does not model yet
 from-date).
 """
 
-import ast
 import io
 import json
 import math
@@ -48,8 +49,11 @@ def frames(samples):
 
 
 def window(w):
-    """A window as gs-quant takes it: a count of observations, a span ('1y'), or every one to date (None)."""
-    if w is None or w == "all":
+    """A window as gs-quant takes it: a count of observations, a span ('1y'), every one to date (the tree's 0:
+    Window(None, 0)), or the whole line (the tree's 'whole': gs-quant's None)."""
+    if w == "whole":
+        return None
+    if w is None or w == "all" or w == 0:
         return Window(None, 0)
     if isinstance(w, str):
         n, unit = SPAN.fullmatch(w).groups()
@@ -71,41 +75,30 @@ class Evaluator:
         return s.dropna().sort_index().astype(float)
 
     def eval(self, node):
-        if isinstance(node, ast.Expression):
-            return self.eval(node.body)
-        if isinstance(node, ast.Constant):
-            return node.value
-        if isinstance(node, ast.Name):
-            return node.id
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-            return -self.eval(node.operand)
-        if isinstance(node, ast.Subscript):
-            target = node.value
-            key = self.eval(node.slice)
-            if isinstance(target, ast.Name) and target.id.startswith("__"):
-                alias, column = target.id[2:].split("__", 1)
-                return self.line(alias, column.rstrip("_"), key)
-            return self.line(self.default, target.id.rstrip("_"), key)
-        if isinstance(node, ast.BinOp):
-            a, b = self.eval(node.left), self.eval(node.right)
-            op = {ast.Add: lambda x, y: x + y, ast.Sub: lambda x, y: x - y, ast.Mult: lambda x, y: x * y,
-                  ast.Div: lambda x, y: x / y, ast.Pow: lambda x, y: x ** y}[type(node.op)]
+        kind = node["kind"]
+        if kind == "number":
+            return node["value"]
+        if kind == "column":
+            where = node.get("where") or []
+            if len(where) != 1 or "column" in where[0]:
+                raise NoGsQuant(f"a line the oracle does not pick: {node['column']} of {where or 'every row'}")
+            if node.get("fn", "last") != "last":
+                raise NoGsQuant(f"a period's {node['fn']} of {node['column']}")
+            return self.line(node.get("source", self.default), node["column"], where[0]["value"])
+        if kind == "binary":
+            a, b = self.eval(node["left"]), self.eval(node["right"])
             if isinstance(a, pd.Series) and isinstance(b, pd.Series):
                 a, b = a.align(b, join="inner")
+            op = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "*": lambda x, y: x * y, "/": lambda x, y: x / y,
+                  "<": lambda x, y: (x < y).astype(float), ">": lambda x, y: (x > y).astype(float),
+                  "<=": lambda x, y: (x <= y).astype(float), ">=": lambda x, y: (x >= y).astype(float),
+                  "==": lambda x, y: (x == y).astype(float), "!=": lambda x, y: (x != y).astype(float),
+                  "and": lambda x, y: ((x != 0) & (y != 0)).astype(float),
+                  "or": lambda x, y: ((x != 0) | (y != 0)).astype(float)}[node["op"]]
             return op(a, b)
-        if isinstance(node, ast.Compare):
-            a, b = self.eval(node.left), self.eval(node.comparators[0])
-            if isinstance(a, pd.Series) and isinstance(b, pd.Series):
-                a, b = a.align(b, join="inner")
-            op = {ast.Lt: lambda x, y: x < y, ast.Gt: lambda x, y: x > y, ast.LtE: lambda x, y: x <= y,
-                  ast.GtE: lambda x, y: x >= y, ast.Eq: lambda x, y: x == y}[type(node.ops[0])]
-            return op(a, b).astype(float)
-        if isinstance(node, ast.Call):
-            name = node.func.id.rstrip("_")
-            args = [self.eval(a) for a in node.args]
-            kw = {k.arg: self.eval(k.value) for k in node.keywords}
-            return self.call(name, args, kw)
-        raise NoGsQuant(f"no reading of {ast.dump(node)[:60]}")
+        if kind == "call":
+            return self.call(node["fn"], [self.eval(a) for a in node["args"]], dict(node.get("params") or {}))
+        raise NoGsQuant(f"no reading of a {kind}")
 
     def call(self, name, a, kw):
         x = a[0] if a else None
@@ -125,9 +118,12 @@ class Evaluator:
         if name == "returns":
             kind = {"log": "logarithmic"}.get(arg(2, "type", "simple"), arg(2, "type", "simple"))
             return ts.returns(x, int(arg(1, "obs", 1)), Returns(kind))
-        if name in ("diff", "lag"):
-            n = int(arg(1, "obs", 1))
-            return ts.diff(x, n) if name == "diff" else x.shift(n).dropna()
+        if name == "diff":
+            return ts.diff(x, int(arg(1, "obs", 1)))
+        if name == "lag":
+            from gs_quant.timeseries.analysis import LagMode
+            obs = arg(1, "obs", 1)
+            return ts.lag(x, int(obs) if not isinstance(obs, str) else window(obs), LagMode(kw.get("mode", "extend")))
         if name == "prices":
             return ts.prices(x, arg(1, "initial", 1))
         if name == "index":
@@ -193,15 +189,6 @@ class Evaluator:
         raise NoGsQuant(name)
 
 
-def formula_ast(text):
-    py = re.sub(r"\b(\w+):(\w+)\[", r"__\1__\2[", text)
-    # a line's key as text (10Y, SPX); a column a Python keyword names (yield) as its name and an underscore
-    py = re.sub(r"\[([A-Za-z0-9_.]+)\]", r"['\1']", py)
-    py = re.sub(r"\b(yield|if|not)\b", r"\1_", py)
-    py = SPAN.sub(r"'\1\2'", py)
-    return ast.parse(py, mode="eval")
-
-
 def lite_points(entry):
     cols = {c["name"]: c["values"] for c in entry["columns"]}
     dates = cols.get("date") or cols[entry["sources"][0]["date"]]
@@ -248,7 +235,7 @@ def main(path):
             status, note = "NOT-CHECKED", ", ".join(why)
         else:
             try:
-                got = Evaluator(frames_, e["sources"]).eval(formula_ast(e["formula"]))
+                got = Evaluator(frames_, e["sources"]).eval(e["tree"])
                 status, note = compare(lite_points(e), got)
             except NoGsQuant as n:
                 status, note = "NO-GSQUANT", str(n)

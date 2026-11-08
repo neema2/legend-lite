@@ -20,7 +20,9 @@ import {
 import type { TimeseriesSpec, TsExpr, TsSeries, TsView } from '../src/timeseries-spec.ts';
 import { readsBase, TS_ITEM, tsIsland, tsItemText, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
-import { exprText, parseExpr, wholeOf } from '../src/timeseries-expr.ts';
+import { wholeOf } from '../src/timeseries-expr.ts';
+import * as b from '../src/timeseries-builder.ts';
+import { builderSource } from '../src/timeseries-builder-source.ts';
 import { seriesExpr, seriesText, told, treeOf } from '../src/timeseries-text.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -178,7 +180,10 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               shownOf = shown.statement;
             }
             oracle[id] = {
-              formula: exprText(wholeOf(series, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
+              // the series inlined: its tree (every parameter told, as lite computed it) is what the oracle reads; its
+              // #TS text is what the report shows
+              formula: seriesText(wholeOf(series, ts.series), []), tree: told(wholeOf(series, ts.series)),
+              split: series.split ?? null, grain: ts.grain ?? null,
               align: ts.align ?? null, anchor: anchor ?? null,
               sources: ts.sources.map((x) => ({ alias: x.alias, cube: x.cube, date: x.date, key: x.key ?? null })),
               columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => ((v as unknown) instanceof Date
@@ -241,9 +246,9 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const at = (q: number): string => (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0).toFixed(2);
   console.log(`One reader: ${items} series' items read by core; a read takes ${at(0.5)} ms (median), ${at(0.9)} ms`
     + ` (90th), ${at(1)} ms (slowest), the first ${(itemTimes[0] ?? 0).toFixed(2)} ms`);
-  for (const [formula, ids] of OWN_CASES) {
-    const wrong = await ownTextWrong(parseExpr(formula), ids);
-    if (wrong !== undefined) ownWrong.push(`${formula}: ${wrong}`);
+  for (const [term, ids] of OWN_CASES) {
+    const wrong = await ownTextWrong(term.expr, ids);
+    if (wrong !== undefined) ownWrong.push(`${builderSource(term.expr)}: ${wrong}`);
   }
   console.log(`A series' own text: ${owned} series and ${OWN_CASES.length} cases read back as themselves`);
   assert.deepEqual(ownWrong, [], 'each series\' own text, read by core, prints as itself and maps back to its tree (A3 step 3)');
@@ -271,26 +276,31 @@ function holdStatements(text: string): void {
     'every series\' Show #TS statement as held (a change on purpose rewrites the fixture: holdStatements says how)');
 }
 
-/** The forms the examples write few or none of, each its own text read back (the tile's formula, the tile's ids). */
-const OWN_CASES: readonly (readonly [string, readonly string[]])[] = [
-  ['-1.5 * close - -2', []],
-  ['close - (open - low) / (high * 2)', []],
-  ['(close + 1) * 2 / 3 - 4', []],
-  ['close > mean(close, 50) and close < 100 or not(close == 3)', []],
-  ['close != 0.000001', []],
-  ['floor(returns(close), -0.5) + ceil(close, 2)', []],
-  ['log(close) - exp(1) + sqrt(abs(power(close, 3)))', []],
-  ['px:close[symbol=SPX] / rates:yield[10Y]', []],
-  ['close[venue="NY SE", 12, true]', []],
-  ['volume[AAPL].sum + close.average + high.max + low.min + open.first + close.last', []],
-  ['percentile(close, 50, 3m) + mean(close, 0) + sum(close, 0) + volatility(close, 1y, log)', []],
-  ['first(close) + last(close) + count(close)', []],
-  ['$A - $B2', ['A', 'B2']],
-  ['correlation($A, close[SPX], 63)', ['A']],
-  ['weighted_sum(close[AAPL], 0.5, close[MSFT], 0.5)', []],
-  ['if(close > 1, close, 0)', []],
-  ['macd(close, 12, 26, 9) + rsi(close) + bollinger_bands(close, 20, 2.5)', []],
-  ['basket(close[AAPL], 0.6, close[MSFT], 0.4, rebalance=weekly)', []],
+/** The forms the examples write few or none of, each built with the builder (a tree no text reader made) and its own
+ *  text read back (the tile's ids). */
+const close = b.column('close');
+const OWN_CASES: readonly (readonly [b.Term, readonly string[]])[] = [
+  [close.rmul(-1.5).sub(-2), []],
+  [close.sub(b.column('open').sub(b.column('low')).div(b.column('high').mul(2))), []],
+  [close.add(1).mul(2).div(3).sub(4), []],
+  [close.gt(b.mean(close, 50)).and(close.lt(100)).or(b.not_(close.eq(3))), []],
+  [close.ne(0.000001), []],
+  [b.floor(b.returns(close), -0.5).add(b.ceil(close, 2)), []],
+  // a scalar word of a number: no builder call (gs-quant's exp takes a series), so its tree by hand
+  [b.log(close).sub(new b.Term({ kind: 'call', fn: 'exp', args: [{ kind: 'number', value: 1 }] })).add(b.sqrt(b.abs_(b.power(close, 3)))), []],
+  [b.column('px.close', { symbol: 'SPX' }).div(b.column('rates.yield', '10Y')), []],
+  [b.column('close', { venue: 'NY SE' }, 12, true), []],
+  [b.column('volume', 'AAPL').period('sum').add(close.period('average')).add(b.column('high').period('max'))
+    .add(b.column('low').period('min')).add(b.column('open').period('first')).add(close.period('last')), []],
+  [b.percentile(close, 50, '3m').add(b.mean(close, new b.Window(null, 0))).add(b.sum_(close, new b.Window(null, 0)))
+    .add(b.volatility(close, '1y', b.Returns.LOGARITHMIC)), []],
+  [b.first(close).add(b.last(close)).add(b.count(close)), []],
+  [b.series('A').sub(b.series('B2')), ['A', 'B2']],
+  [b.correlation(b.series('A'), b.column('close', 'SPX'), 63), ['A']],
+  [b.weighted_sum([b.column('close', 'AAPL'), b.column('close', 'MSFT')], [0.5, 0.5]), []],
+  [b.if_(close.gt(1), close, 0), []],
+  [b.macd(close, 12, 26, 9).add(b.relative_strength_index(close)).add(b.bollinger_bands(close, 20, 2.5)), []],
+  [b.basket_series([b.column('close', 'AAPL'), b.column('close', 'MSFT')], [0.6, 0.4], null, b.RebalFreq.WEEKLY), []],
 ];
 
 /** Where `expr`'s own text, read by core, is not itself again: its text printed otherwise, or its tree mapped back

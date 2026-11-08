@@ -18,12 +18,11 @@ import { openDatabase } from '#test-host';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile } from '../src/upload.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readText } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, statsQuery, type TsInputs, type TsQuery } from '../src/timeseries-query.ts';
-import { writtenText } from '../src/timeseries-text.ts';
+import { readSeriesTexts } from '../src/timeseries-text.ts';
 
 const RUNS = 5;
 const DAYS = 1560;
@@ -51,18 +50,18 @@ const CSV = [
 
 /** The queries measured: a name, the series' formula, and the tile's settings beside it. */
 const QUERIES: { name: string; expr: string; more?: Partial<TimeseriesSpec>; stats?: true }[] = [
-  { name: 'level', expr: 'close[AAA]' },
-  { name: 'mean_50', expr: 'mean(close[AAA], 50)' },
-  { name: 'volatility_63', expr: 'volatility(close[AAA], 63)' },
-  { name: 'volatility_3m', expr: 'volatility(close[AAA], 3m)' },
-  { name: 'returns_1y', expr: 'returns(close[AAA], 1y)' },
-  { name: 'beta_63', expr: 'beta(close[AAA], close[BBB], 63)' },
-  { name: 'drawdown', expr: 'drawdown(close[AAA])' },
-  { name: 'rsi_14', expr: 'rsi(close[AAA], 14)' },
-  { name: 'bollinger_20', expr: 'bollinger_bands(close[AAA], 20, 2)' },
-  { name: 'zscores_of_volatility', expr: 'zscores(volatility(close[AAA], 21), 252)' },
-  { name: 'ratio_step', expr: 'close[AAA] / close[CCC]', more: { align: 'step' } as Partial<TimeseriesSpec> },
-  { name: 'statistics', expr: 'close[AAA]', stats: true },
+  { name: 'level', expr: "close['AAA']" },
+  { name: 'mean_50', expr: "mean(close['AAA'], 50)" },
+  { name: 'volatility_63', expr: "volatility(close['AAA'], w => 63, type => 'simple')" },
+  { name: 'volatility_3m', expr: "volatility(close['AAA'], w => 3mo, type => 'simple')" },
+  { name: 'returns_1y', expr: "returns(close['AAA'], 1y, 'simple')" },
+  { name: 'beta_63', expr: "beta(close['AAA'], close['BBB'], w => 63)" },
+  { name: 'drawdown', expr: "drawdown(close['AAA'], w => all)" },
+  { name: 'rsi_14', expr: "rsi(close['AAA'], w => 14)" },
+  { name: 'bollinger_20', expr: "bollinger_bands(close['AAA'], w => 20, k => 2)" },
+  { name: 'zscores_of_volatility', expr: "zscores(volatility(close['AAA'], w => 21, type => 'simple'), w => 252)" },
+  { name: 'ratio_step', expr: "close['AAA'] / close['CCC']", more: { align: 'step' } as Partial<TimeseriesSpec> },
+  { name: 'statistics', expr: "close['AAA']", stats: true },
 ];
 
 /** Every CASE expression of `sql`, nested ones included, each from its CASE to its matching END. */
@@ -138,7 +137,8 @@ for (const q of QUERIES) {
       series: [],
       ...q.more,
     };
-    const series: TsSeries = { id: 'A', text: writtenText(parseExpr(q.expr), []) };
+    const series: TsSeries = { id: 'A', text: q.expr };
+    await readSeriesTexts([series], readText);
     const query: TsQuery = q.stats ? statsQuery(inputs, { ...ts, series: [series] }, series)
       : seriesQuery(inputs, { ...ts, series: [series] }, series);
     const p0 = performance.now();
