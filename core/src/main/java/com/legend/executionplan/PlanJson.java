@@ -75,8 +75,10 @@ public final class PlanJson {
      *  record carries its own polarity (the test-is-the-product plan's M8b, MV2: the plan carries nothing about the
      *  assert but the listener's name and the census arm); 26 since 2026-11-01: a target's database may be the graph's
      *  SYSTEM database on an engine ({@code system}: a test body reading the metamodel store, the test-is-the-product
-     *  plan's M10a). */
-    public static final int VERSION = 27;
+     *  plan's M10a); 27 since 2026-11-08: the verdict group and the branch leave for the test plan's own format (the
+     *  plan-as-data design's step 3); 28 the same day: the system database names its store by its content's key
+     *  ({@code graphKey}, step 7). */
+    public static final int VERSION = 28;
 
     private PlanJson() {
     }
@@ -387,6 +389,7 @@ public final class PlanJson {
             case ExecutionPlan.Database.System s -> {
                 o.put("_type", DatabaseTag.system.name());
                 o.put("databaseType", s.type().name());
+                o.put("graphKey", s.graphKey());
             }
         }
         return o;
@@ -646,7 +649,7 @@ public final class PlanJson {
             case platform -> new ExecutionPlan.Database.Platform(
                     ConnectionWire.databaseType(o.getString("databaseType")));
             case system -> new ExecutionPlan.Database.System(
-                    ConnectionWire.databaseType(o.getString("databaseType")));
+                    ConnectionWire.databaseType(o.getString("databaseType")), o.getString("graphKey"));
         };
     }
 

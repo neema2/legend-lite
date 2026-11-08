@@ -112,7 +112,8 @@ class PlanJsonTest {
     void theGraphsSystemDatabaseReadsBack() {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
         // database on its engine; the plan names it by type alone (the one who opens it holds the session)
-        Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of(), List.of());
+        Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
+                List.of(), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -143,15 +144,16 @@ class PlanJsonTest {
         // folded flag (S2f); 22 the same day: a keyed result's key source, a statement's rows or its reported columns
         // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
         // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12); 27 since 2026-11-08: the
-        // verdict group and the branch leave for the test plan's own format (the plan-as-data design's step 3)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":27,"), json);
+        // verdict group and the branch leave for the test plan's own format (the plan-as-data design's step 3); 28 the
+        // same day: the system database names its store by its content's key (step 7)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":28,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v27 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v28 plan"), refused.getMessage());
     }
 
     @Test

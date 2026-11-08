@@ -323,7 +323,8 @@ public final class PlanMaker {
         // them, once per graph, below)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? new ExecutionPlan.Target(systemRouted
-                        ? new ExecutionPlan.Database.System(ConnectionPlans.type(decided.target().type()))
+                        ? new ExecutionPlan.Database.System(ConnectionPlans.type(decided.target().type()),
+                                SystemRoutes.graphKey(query.context()))
                         : database(decided.target()),
                         decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
@@ -533,13 +534,13 @@ public final class PlanMaker {
     /** The graph's SYSTEM database beside {@code home} (a program's own target): a statement reading the system
      *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine and the session statements
      *  {@code home}'s, as the system database is the runtime's engine in this process. */
-    public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home) {
+    public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home, String graphKey) {
         com.legend.executionplan.DatabaseType type = switch (home.database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System s -> s.type();
         };
-        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type), home.session(), List.of());
+        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type, graphKey), home.session(), List.of());
     }
 
     /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3

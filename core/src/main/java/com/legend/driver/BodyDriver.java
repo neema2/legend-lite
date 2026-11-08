@@ -608,7 +608,7 @@ public final class BodyDriver {
             com.legend.sql.dialect.SqlDialect dialect) {
         return new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.System(
-                        com.legend.planner.ConnectionPlans.type(route.engine())), dialect.sessionSetup(),
+                        com.legend.planner.ConnectionPlans.type(route.engine()), route.graphKey()), dialect.sessionSetup(),
                 java.util.List.of());
     }
 
@@ -617,7 +617,8 @@ public final class BodyDriver {
     static com.legend.planner.SystemRoutes.Route systemRouteOf(ModelContext ctx, String runtimeFqn) {
         var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
-        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store);
+        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store,
+                com.legend.planner.SystemRoutes.graphKey(ctx));
     }
 
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */

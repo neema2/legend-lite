@@ -156,7 +156,7 @@ public final class BodyRouter {
             // (per-statement routing, 2026-11-03) -- one session per graph and engine (SystemDatabase), opened when a
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    target -> SystemDatabase.of(typed.context()).sessionFor(target.type(), options.systemConnections());
+                    target -> SystemDatabase.of(typed.context()).sessionFor(target, options.systemConnections());
             Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
@@ -230,7 +230,7 @@ public final class BodyRouter {
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    system -> SystemDatabase.of(typed.context()).sessionFor(system.type(), options.systemConnections());
+                    system -> SystemDatabase.of(typed.context()).sessionFor(system, options.systemConnections());
             Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.recorder(), null, null,
                     null, sessionsByTarget(target, systemSessions));
             try {

@@ -69,7 +69,8 @@ public final class SystemDatabase {
         }
     }
 
-    private final Map<com.legend.executionplan.DatabaseType, Sessions.Session> sessions = new HashMap<>();
+    /** The open sessions, by the engine and the store's key the plan names (step 7, 2026-11-08). */
+    private final Map<String, Sessions.Session> sessions = new HashMap<>();
     private final Closer closer = new Closer();
 
     private SystemDatabase() {
@@ -91,15 +92,17 @@ public final class SystemDatabase {
      * seed step ({@code SystemRoutes.seeds}), which the runner runs on this session once (the walker-deletion program,
      * 2026-11-03: planning sends nothing).
      */
-    public synchronized Sessions.Session sessionFor(com.legend.executionplan.DatabaseType engine,
+    public synchronized Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Database.System system,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
-        Sessions.Session s = sessions.get(engine);
+        com.legend.executionplan.DatabaseType engine = system.type();
+        String key = engine + "/" + system.graphKey();
+        Sessions.Session s = sessions.get(key);
         if (s == null) {
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> conns =
                     java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
             s = Sessions.lazy(() -> Sessions.inProcess(engine) ? openPrivate(engine) : openSystem(engine, conns));
             closer.open.add(s);
-            sessions.put(engine, s);
+            sessions.put(key, s);
         }
         return s;
     }

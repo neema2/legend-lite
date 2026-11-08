@@ -748,10 +748,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          *  2026-11-01): the metamodel store's tables, written once per graph by the one who opens it -- the sessions
          *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
          *  from every user connection). A test body reading the metamodel store runs its program here; the product's
-         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). */
-        record System(DatabaseType type) implements Database {
+         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). {@code graphKey} names WHICH
+         *  store (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of the store's content -- every table's
+         *  definition and the graph's rows -- so two plans of one graph name one store, and the plan, not the compiled
+         *  graph object beside it, says which. */
+        record System(DatabaseType type, String graphKey) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");
+                Objects.requireNonNull(graphKey, "graphKey");
             }
         }
     }

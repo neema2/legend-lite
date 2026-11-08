@@ -23,7 +23,7 @@ public final class SystemRoutes {
 
     /** A body's route to the system database: the database it executes on and the store. */
     public record Route(com.legend.model.ConnectionDefinition.DatabaseType engine,
-            com.legend.model.DatabaseDefinition store) {
+            com.legend.model.DatabaseDefinition store, String graphKey) {
     }
 
     /** Whether {@code runtimeFqn} executes on an engine the platform runs IN PROCESS (DuckDB, H2, SQLite), where the
@@ -45,7 +45,7 @@ public final class SystemRoutes {
         var store = env.ctx().findDatabase(storeFqn).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is"
                         + " not in the model — injection regressed"));
-        return new Route(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type(), store);
+        return new Route(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type(), store, graphKey(env.ctx()));
     }
 
     /** The stores {@code body}, resolved, reads, in name order. */
@@ -89,6 +89,51 @@ public final class SystemRoutes {
                 c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> seedSteps(ctx, dialect));
         return new com.legend.executionplan.ExecutionPlan.Setup(
                 com.legend.executionplan.ExecutionPlan.Setup.SYSTEM_STORE, steps, system);
+    }
+
+    /** The graph's system store's KEY (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of its content -- each
+     *  table's schema, name and definition, and the graph's rows for it -- in no dialect's spelling, so it names the
+     *  store on every engine; the plan's {@code Database.System} carries it, and the run finds the store's session by
+     *  it. Knowledge, derived once per graph. */
+    public static String graphKey(com.legend.compiler.element.ModelContext ctx) {
+        return ctx.derived(GraphKey.class, c -> new GraphKey(hashOf(c))).key;
+    }
+
+    private static final class GraphKey {
+        private final String key;
+
+        GraphKey(String key) {
+            this.key = key;
+        }
+    }
+
+    private static String hashOf(com.legend.compiler.element.ModelContext ctx) {
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
+                new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
+        java.security.MessageDigest digest;
+        try {
+            digest = java.security.MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is every JDK's", e);
+        }
+        StringBuilder content = new StringBuilder();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                content.append(schema.name()).append('\u0001').append(def).append('\u0001');
+                for (java.util.List<String> row : MetamodelSeeds.rows(def.name(), ctx)) {
+                    for (String cell : row) {
+                        content.append(cell == null ? "\u0000" : cell).append('\u0002');
+                    }
+                    content.append('\u0003');
+                }
+            }
+        }
+        byte[] hash = digest.digest(content.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (int i = 0; i < 16; i++) {
+            hex.append(Character.forDigit((hash[i] >> 4) & 0xF, 16)).append(Character.forDigit(hash[i] & 0xF, 16));
+        }
+        return hex.toString();
     }
 
     /** The store's seed steps, per engine, of one graph ({@code ModelContext.derived}). */

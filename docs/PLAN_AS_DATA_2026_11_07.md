@@ -679,3 +679,11 @@ independently of the rules).
   ArchitectureTest's invariant 6j keeps the model depending on protocol, values and error alone. The copy the design
   names keeps 6j and is what landed; the model keeps its own vocabulary, and a caller handing the model's types to exec
   copies them (`ConnectionPlans.of`, `.type`).
+- **Step 7b (2026-11-08): the system database names its store by its content's key.** `Database.System(type,
+  graphKey)`: a hash of the store's content -- each table's schema, name and definition, and the graph's rows -- in no
+  dialect's spelling (the seed text is per dialect, and the first planner to seed a graph's engine fixes it; the key must
+  not depend on which asked first). The run finds the store's session by the plan's key. The session's OWNER is still
+  the graph's holder (`SystemDatabase`, keyed by the compiled graph, closed by a `Cleaner`): 2.6's exec-owned sessions
+  with an explicit lifetime, two graphs of equal content sharing one store, change every caller that runs a body (a
+  holder each caller opens and closes) and need the concurrency check 2.6 names -- they go with step 8's removal of the
+  out-of-plan channels (2.10.4 names this one). The product plan's JSON is version 28.
