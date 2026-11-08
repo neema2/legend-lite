@@ -817,3 +817,52 @@ independently of the rules).
 
   Its placement in this plan is open (its section 9). Until it lands, the model-keyed `SystemDatabase` stays the one
   recorded out-of-plan channel.
+
+## 11. Closing the invariant: slices 3, 4 and 5 (the user's word, 2026-11-08)
+
+Slice 2's invariant audit (GATES, 2026-11-08) found the invariant does not yet hold. It holds for the plan's types and
+inside the walker and the judges' run halves, and fails at the boundary around them. This section replaces section 4's
+steps 9 to 11. Its checklist is the audit's holes. **The product is in scope** (the user: "we need to close all holes
+including product").
+
+**The rule for every pin (the user, 2026-11-08):** "we just have to make sure we actually drive pins to zero -- we also in
+this project have tendency not to drive to zero so if we do pins they better go to zero fully." Each guard below starts
+as a ratchet: today's holes listed by name, shrink-only, a dated note on every removal. **A slice does not close while any
+pin it owns is non-zero.** At the end of slice 5 every list is empty and every guard is hard. A pin is never moved to a
+later slice to close one; that is a question for the user.
+
+### The holes (the audit's numbering)
+
+| # | Hole | Where today | Closed by |
+|---|---|---|---|
+| 1 | The appeal decision reads the compiled model (enum decoding), the referee's static mirror and the ledger | `BodyRouter` decider, `SqlTextVerdicts.rowsLegNow`, `SqlReplayReferee`, spec `ReplayReferee` | the enum and property decode facts planned into `Appeal.Rows`; the referee takes no model. The mirror and the ledger are the edge's after-run inputs, by 2.7, and are said so plainly |
+| 2 | The system store's sessions are found through the compiled model, and the run writes into the model's cache | `SystemDatabase`, `BodyRouter`, `Execution.runPlanned(ctx)` | the catalog's test half (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md`), after its H2 DDL check |
+| 3 | The router decides after the run whether the last verdict is the answer, from planner objects | `BodyRouter.execute` (`asserts.at(...)`, `typed.body()`) | a fact of the test plan |
+| 4 | The listener carries code: `fixtureAhead`'s closure, and `beforeRun` makes the harness plan and run fixtures between the body's plan and its run | `AssertListener`, `PureTestRunner` | the listener is output only. The door returns the plan; the caller provides the fixtures the plan names (its own plans and runs); then it calls run |
+| 5 | Under the database judge, planning reports declines the plan does not carry (attributed to the wrong verdict), and arm planning depends on whether a referee object exists | `SqlTextVerdicts.decide`/`declined`, the `refereed` checks | the decline carried in the plan and reported at its root's turn; planning gated on the judging rules |
+| 6 | Three thread-locals carry run state | `Appeals.OPEN`, `RunReader.CURRENT`, `CallerMessage.DEPTH` | an explicit run record through the run's sink |
+| 7 | Sessions are opened from the model, on the test road and the product's door alike; the plan's own connection is ignored for ordinary targets | `Execution.run`, `Execution.runProgram` (`sessions.open(executesOn(ctx, ...), ctx)`), `BodyRouter.sessionsByTarget` | sessions opened from the plan's targets (its connection description, 2.6); the `Source` contract takes no model |
+| 8 | The run re-checks the plan's rules against the options | `Moved.rulesOf` | deleted: the plan's rules stand |
+| D1 | Guard 1 deduplicates by type, so its `Number` pin also hides `Following.n` | `PlanTypesAreDataTest` | report by (type, path); the frame offset a closed type (the step 9 draft) |
+| D2 | The plan is not self-contained: its appeal numbers point into a planner registry, and the router adds the appeals | `BodyRouter`, `TestDoor.planned` | test planning returns the whole test plan, appeals included. Under lite's own rules there are no dangling numbers |
+| D3 | A CSV load's local file path in the plan | `options.resources()` at planning | to be designed in slice 4. A portability matter (G11) |
+| E | No thin door: `BodyRouter` makes about ten decisions; the mixed classes; the planning environment carries run resources | `driver/*`, `judge.VerdictBatch` | slice 5: the run record, then step 10 as a spec. Each library's entry points, the thin door, and ArchUnit rules first |
+
+### The guards (ratchets in slice 3, hard by slice 5)
+
+- **Guard 1** reports by (type, path). It goes to zero at slice 3 (the step 9 draft).
+- **Guard 3** is hard on the DuckDB corpus lane from slice 3 (it already passes).
+- **R1** measures every class, the mixed ones, `BodyRouter` and `SystemDatabase` included. It is pinned by name, and
+  zero at slice 5.
+- **A new check: no compiled model reaches the run.** No run class, door call or sink receives a `ModelContext` or
+  `TypedQuery`. It is pinned per site, zero at slice 4.
+- **A new check: the listener is output only.** No `AssertListener` method returns a value. Zero at slice 3.
+
+### The slices
+
+- **Slice 3:** the guards as ratchets; step 9 (the draft); holes 3, 4, 5, 8 and D2.
+- **Slice 4:** holes 1, 2 and 7 (the product's door included), and D3.
+- **Slice 5:** hole 6 and E. The run record, then step 10 as a spec reviewed by the user before code, the thin door and
+  the package split. Every pin at zero, every guard hard.
+
+Each slice closes with every lane and an invariant audit, briefed with the rule, not the step list.

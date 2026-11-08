@@ -20949,3 +20949,64 @@ with no assert's verdict where the split rung used to record each assert): four 
   three judges), architecture, guardrails, census and layering green; the DuckDB corpus on both judges identical
   (host 2436, database 2429, failure lines and registers); **guard 3's report**: the DuckDB corpus run on every body's
   plan READ BACK from its JSON (`-Dlegend.diagnostics=decoded-plan`), identical on both judges; the Postgres lane green.
+
+## 2026-11-08 — The plan as data, slice 2 (steps 4-8, docs/PLAN_AS_DATA_2026_11_07.md): every lane, two audits; THE INVARIANT IS NOT YET COMPLETE
+
+- **Steps:**
+  - 4a `3dea6293`, 4b `dc655af8`: the host judgment and the sides' shapes are the test plan's data.
+  - 5 `040bf06d`: the database judge's root loop.
+  - 6 `eb7ef50b`: the agreement pairing.
+  - 7a `3283487d`: the plan's own faithful copy of the connection description, so exec no longer reaches the model.
+  - 7b `32d07ef1`, its fix `6c72d970`: the system store named by its content's key, hashed in plain long arithmetic
+    because the planner's WebAssembly build has no `MessageDigest`.
+  - 8a `24f4a4ba`: the ledger texts are the edge's records.
+  - 8b `3a866f75`: an engine-text appeal is plan data, decided after the run.
+  - 8c `07258c9e`: three out-of-plan channels removed by name.
+
+  Each step: the DuckDB corpus on both judges identical to the baseline (host 2436/108/7, database 2429/108/7).
+- **The conformance audit** (read-only, `fbd29531..07258c9e`): 2 must-fixes, 8 should-fixes and 8 notes, all fixed and
+  recorded in the design's section 10 (`9de03396`).
+  - Must-fixes: an appeal side's failure of an unlisted class aborted the body's planning; fixture stores were provided
+    in verdict-id order.
+  - Should-fixes, among them: exec's class wall admitted the model; the R1 set missed the new run classes; dead code,
+    including a second copy of the shaping rules; a loosened root-loop check; a non-exhaustive switch; no round-trip test
+    of every record (now `TestPlanJsonRoundTripTest`); no guard on extension-codec providers.
+- **Every lane at `9de03396`, green:**
+  - `//gates:core` and `//gates:checks`; the Postgres tests as an unprivileged user;
+  - `//gates:corpus_duckdb`, `//gates:corpus_h2`;
+  - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+  - `//core:stress_suites`, `//core:stress_suites_h2`;
+  - `//wasm:planner` and `//pure-protocol:twins_test` (red at `07258c9e`, fixed by `6c72d970`).
+
+  Guard 3, report mode: the DuckDB corpus run from every body's plan read back from its JSON is identical on both judges
+  (host 2436/108/7, database 2429/108/7).
+- **The invariant audit** (read-only, `7d50ff56`). It was briefed with the rule, not the step list: the run reads only
+  its plan plus the database's rows; no code in the plan; only a thin door sees both halves.
+
+  **Verdict: the invariant does not hold at this commit.** It holds for the plan's types, and inside the walker and the
+  judges' run halves. It fails at the boundary around them:
+  1. The appeal decision reads the compiled model (enum decoding), plus the referee's static mirror and the ledger.
+  2. The system store's sessions are found through the compiled model, and the run writes its sessions into the model's
+     cache.
+  3. After the run, the router decides whether the last verdict is the answer, from planner objects.
+  4. The listener carries code: `fixtureAhead`'s closure, and `beforeRun` makes the harness plan and run fixtures between
+     the body's plan and its run.
+  5. Under the database judge, planning reports declines the plan does not carry, attributed to the wrong verdict, and
+     arm planning depends on whether a referee object exists.
+  6. Three thread-locals carry run state.
+  7. Sessions are opened from the model, on the test road and on the product's door alike; the plan's own connection is
+     ignored for ordinary targets.
+  8. The run re-checks the plan's rules against the options.
+
+  The guards were blind to most of it:
+  - guard 1 deduplicates by type, so its `Number` pin also hides `Following.n`;
+  - guard 3 is in report mode;
+  - the R1 measurement skips the mixed classes, `BodyRouter` and `SystemDatabase`;
+  - the plan's appeal numbers point into a planner registry;
+  - `BodyRouter` is no thin door.
+
+  The audit's first brief (conformance to the steps) could not see these, because the design's own step texts deferred
+  them. From here on, a milestone's audit is briefed with the invariant.
+- **What this record claims:** steps 4-8 as designed, verified on every lane. **Not** that the invariant holds. The
+  holes above are slices 3 to 5's checklist (the design's section 11), closed by guards that pin each hole and must
+  reach zero. Marker branch `claude/plan-as-data-slice-2`.
