@@ -160,7 +160,7 @@ export function var_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r
   return word(VAR_SHAPE, [x], args);
 }
 
-const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] }, whole: 'default' }], extra: ['r'] };
+const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] }, whole: 'unsized' }], extra: ['r'] };
 /** Z-score: How many standard deviations from the mean: over the last w observations, or every one to date. (gs-quant's statistics.zscores.) */
 export function zscores(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(ZSCORES_SHAPE, [x], args);
@@ -376,10 +376,10 @@ export function cash_index(rate: Line, ...args: Args<[day_count: 'actual_360' | 
   return word(CASH_INDEX_SHAPE, [rate], args);
 }
 
-const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w', default: null }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: ['r'] };
+const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w' }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: ['r'] };
 /** Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.) */
-export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowLike | null, annualization_factor: 252, assume_zero_mean: true], { n_days?: WindowLike | null; annualization_factor?: 252; assume_zero_mean?: true; r?: number | null }>): Term {
-  return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], args);
+export function vol_swap_volatility(prices: Line, n_days: WindowLike, ...args: Args<[annualization_factor: 252, assume_zero_mean: true], { annualization_factor?: 252; assume_zero_mean?: true; r?: number | null }>): Term {
+  return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], [n_days, ...args]);
 }
 
 const CONSECUTIVE_SHAPE: WordShape = { word: 'consecutive', gsFunction: 'analysis.consecutive', lines: ['x'], gs: [{ name: 'direction', default: 'positive', enum: 'SignDirection' }], extra: [] };

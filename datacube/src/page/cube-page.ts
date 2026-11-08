@@ -3487,8 +3487,15 @@ export class CubePage {
         tile.body.textContent = 'This page reads no timeseries: its host has no #TS reader (legend-lite\'s module).';
         return;
       }
-      // its series' texts read by core before it is drawn (A3 step 3): the tile's every walk reads core's trees
-      await readSeriesTexts(tile.spec.series, readText);
+      // its series' texts read by core before it is drawn (A3 step 3): the tile's every walk reads core's trees -- a reader
+      // that fails says so in the tile, as the view says a later read's failure (the review of 2026-11-08: the tile was
+      // left blank, the rejection unhandled)
+      try {
+        await readSeriesTexts(tile.spec.series, readText);
+      } catch (e) {
+        if (!tile.view && !this.#disposed) tile.body.textContent = `Its series could not be read: ${e instanceof Error ? e.message : String(e)}`;
+        return;
+      }
       if (tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
         readText,

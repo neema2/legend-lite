@@ -19,7 +19,7 @@ import { codeOfPage, tileCode } from '../src/timeseries-code.ts';
 import { tileAsks } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { readPageTexts } from './catalog-builder.ts';
-import { builderSource } from '../src/timeseries-builder-source.ts';
+import { builderSource, CodeRefusal } from '../src/timeseries-builder-source.ts';
 import { treeOf } from '../src/timeseries-text.ts';
 // the builder each program imports for its series (B4: each series gs-quant's call of it), in the test's files to run them
 import '../src/timeseries-builder.ts';
@@ -63,7 +63,8 @@ describe('a timeseries tile as the code that builds it', () => {
         let said: string;
         try {
           said = builderSource(treeOf(s, spec.series), 'python');
-        } catch {
+        } catch (e) {
+          if (!(e instanceof CodeRefusal)) throw e;
           said = `'${s.text.replace(/'/g, "\\'")}'`;
         }
         assert.ok(python.includes(said), `${v.id} ${s.id}: ${said}`);

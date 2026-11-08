@@ -309,11 +309,20 @@ function ident(name: string): string {
   return /^[a-z_][a-z0-9_]*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
 }
 
-/** A number as core prints it: plain, never in exponent form. */
+/** A number as core prints it (BigDecimal's toPlainString): plain, never in exponent form -- JavaScript's own shortest
+ *  digits of it, its point moved, so no digit is lost or made up (the review of 2026-11-08: 1e-25 was written 0, 1e21
+ *  in exponent form, a 17-digit fraction cut to 14). */
 function numberText(n: number): string {
   if (!Number.isFinite(n)) throw new TsTextRefusal(`${n} is no number a series is written with`);
   const plain = String(Math.abs(n));
-  const text = /e/i.test(plain) ? Math.abs(n).toFixed(20).replace(/0+$/, '').replace(/\.$/, '') : plain;
+  const m = /^(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(plain);
+  if (m === null) return n < 0 ? `-${plain}` : plain;
+  const digits = m[1]! + (m[2] ?? '');
+  // where the point falls among the digits: after the first, moved by the exponent
+  const point = 1 + Number(m[3]);
+  const text = point <= 0 ? `0.${'0'.repeat(-point)}${digits}`
+    : point >= digits.length ? digits + '0'.repeat(point - digits.length)
+      : `${digits.slice(0, point)}.${digits.slice(point)}`;
   return n < 0 ? `-${text}` : text;
 }
 

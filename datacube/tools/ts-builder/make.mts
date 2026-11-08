@@ -181,7 +181,11 @@ for (const name of TS_FUNCTION_NAMES) {
       // the library's own default in its place (the user, 2026-11-08: "Should we not default moving to 14?")
       const unsaid = lib?.kind === 'whole' && p.default !== null && 'window' in p.default && p.default.window[0] === null;
       if (unsaid && lib.default === undefined) throw new Error(`${name}'s ${p.name}: gs-quant's default the language has no way to say, and the library none`);
-      const d = unsaid ? { has: true, text: lit(lib.default), value: lib.default } : defaultOf(p.default);
+      // a gs-quant default the language does not say, the parameter told in every call (the library's gsTold:
+      // vol_swap_volatility's n_days, gs-quant's None one figure of the whole series at its last date)
+      const toldAlways = tagged(cat, 'gsTold').has(p.name);
+      const d = toldAlways ? { has: false, text: '', value: undefined }
+        : unsaid ? { has: true, text: lit(lib.default), value: lib.default } : defaultOf(p.default);
       const isWeights = members && p.name === 'weights';
       const entry: string[] = [`name: ${q(p.name)}`];
       let type: string;

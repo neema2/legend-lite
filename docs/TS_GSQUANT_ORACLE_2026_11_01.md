@@ -40,6 +40,21 @@ library's own, now said so) and `percent_change` said "in percent" of a share (i
 said so). Of the library's 86 words, six no oracle reads yet, none of them in a gallery series: `rank`, `round_down`,
 `round_up`, `seasonally_adjusted`, `trend`, `value_at`.
 
+## gs-quant runs Show Python's calls (2026-11-08)
+
+The review of #81's commits found that the Python the tile shows (B4: `datacube/test/fixtures/timeseries/
+builder-python.json`, every gallery series and every word's own call) was read back only by legend-lite's own builder:
+two of its rows were calls gs-quant raises on (`filter_(x, operator='empty', value=0)`, `vol_swap_volatility(x,
+n_days=0)`). `tools/ts-oracle/calls.py` now runs every row with gs-quant itself -- each word's arguments bound to
+gs-quant's own signature, the call made on sample lines, DataCube's own words (gs-quant has none) answering a sample
+line, a call needing gs-quant's service (a currency's cash) bound and not run. Its first run refused 65 rows; all but
+two were DataCube's own words or the sample's dates, and the printer's fixes it found are in: `filter_(x)` for the
+empty operator, `n_days` always told, `Window(None, 0)` for a window to date, and `excess_returns_pure(x, y)` for
+excess returns over another line (gs-quant's `excess_returns` reads an asset, a currency or a rate, never a line).
+**248 run, 4 bound, 1 refused for the sample alone (`if_`'s own call on prices), 2 refused**: a comparison of two
+lines of different dates (`close < mean(close, w=200)`), which pandas raises on (it compares identically-labelled
+series alone) where the language answers on the dates both have (S152) -- for the user to rule.
+
 ## What it found
 
 First run (2026-11-01): AGREE 119, DIFFER 27 (26 by a window's first value, O1; compare, O2), NO-GSQUANT 39,

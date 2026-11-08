@@ -3,17 +3,23 @@
 // place and the rest by name, columns and series by name, each option gs-quant's enumeration's member (Returns.LOGARITHMIC)
 // -- in TypeScript (src/timeseries-builder.ts: a trailing object of the rest, pandas' methods for arithmetic) or in Python
 // (python/legend_lite/timeseries.py: keyword arguments, Python's operators). Run, it builds the same tree again
-// (timeseries-builder.test.ts holds TypeScript's so, test_ts_builder.py Python's); where gs-quant has no call of the
-// tree's meaning it is refused in words (a z-score to date).
+// (timeseries-builder.test.ts holds TypeScript's so, test_ts_builder.py Python's) -- but for a comparison with its number
+// first, written the series' way round (1 < x as x > 1, the same meaning, its tree mirrored: no method of a series' puts
+// the number first; the review of 2026-11-08); where gs-quant has no call of the
+// tree's meaning it is refused in words (a z-score to date), a CodeRefusal -- the one throw Show Code reads as "write the
+// series' #TS" (the review of 2026-11-08: any other is a defect, never a fallback).
 
 import type { TsComparison, TsExpr, TsOperator } from './timeseries-spec.ts';
 import * as generated from './generated/ts-builder-words.ts';
 import { BUILDER_WORDS } from './generated/ts-builder-words.ts';
-import { cashOver, takesCash, type GsParam } from './timeseries-builder-core.ts';
+import { cashOver, RISK_FREE_CURRENCIES, takesCash, type GsParam } from './timeseries-builder-core.ts';
 import { told as filled } from './timeseries-text.ts';
 
 /** The languages a series is written in as the builder's code. */
 export type BuilderLanguage = 'typescript' | 'python';
+
+/** A tree gs-quant has no call of: its series is written as its #TS text instead (Show Code). */
+export class CodeRefusal extends Error {}
 
 /** SQL's words per point, the builder's own (timeseries-builder-core.ts, _ts_terms.py), by the tile's word. */
 const SCALAR_SOURCE: Readonly<Record<string, string>> = {
@@ -26,7 +32,7 @@ const METHOD: Readonly<Record<TsOperator, string>> = {
   and: 'and', or: 'or',
 };
 const REVERSED: Readonly<Partial<Record<TsOperator, string>>> = { '+': 'radd', '-': 'rsub', '*': 'rmul', '/': 'rdiv' };
-const MIRRORED: Readonly<Record<TsComparison, TsComparison>> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=', '==': '==', '!=': '!=' };
+const MIRRORED: Readonly<Partial<Record<TsOperator, TsComparison>>> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=', '==': '==', '!=': '!=' };
 
 /** Python's operator for each, and how tightly it binds: a comparison least (below & and |, unlike the language's). */
 const PY_OPERATOR: Readonly<Record<TsOperator, string>> = {
@@ -43,7 +49,16 @@ const quote = (v: string): string => `'${v.replace(/\\/g, '\\\\').replace(/'/g, 
 /** The builder's code of `e` in `language`: each parameter as the tile's tree means it (its default written where it was
  *  left out), refused in words where gs-quant has no call of that meaning. */
 export function builderSource(e: TsExpr, language: BuilderLanguage = 'typescript'): string {
-  return new Printer(language).source(filled(e)).text;
+  return builderSourceOf(e, language).text;
+}
+
+/** The builder's code of `e`, and the builder's names it calls (its words, column, series, Window, an enumeration): what
+ *  a program imports -- the printer's own record of them, never its text read back (a column named `Price (USD)` is no
+ *  call). */
+export function builderSourceOf(e: TsExpr, language: BuilderLanguage = 'typescript'): { readonly text: string; readonly names: readonly string[] } {
+  const p = new Printer(language);
+  const text = p.source(filled(e)).text;
+  return { text, names: [...p.names].sort() };
 }
 
 interface Code {
@@ -54,6 +69,8 @@ interface Code {
 
 class Printer {
   readonly #py: boolean;
+  /** The builder's names the code calls. */
+  readonly names = new Set<string>();
 
   constructor(language: BuilderLanguage) {
     this.#py = language === 'python';
@@ -73,17 +90,32 @@ class Printer {
 
   /** `items`, a trailing object of what is told by name (TypeScript's) or keyword arguments (Python's). */
   call(fn: string, placed: readonly string[], byName: readonly string[]): string {
+    this.names.add(fn);
     const rest = byName.length === 0 ? [] : this.#py ? byName : [`{ ${byName.join(', ')} }`];
     return `${fn}(${[...placed, ...rest].join(', ')})`;
+  }
+
+  /** gs-quant's Window(w, r), the builder's. */
+  window(w: string, r: string): string {
+    this.names.add('Window');
+    return `${this.#py ? '' : 'new '}Window(${w}, ${r})`;
+  }
+
+  /** An enumeration's member, the builder's (Returns.LOGARITHMIC). */
+  member(enumeration: string, name: string): string {
+    this.names.add(enumeration);
+    return /^[A-Za-z_$][\w$]*$/.test(name) ? `${enumeration}.${name}` : `${enumeration}[${quote(name)}]`;
   }
 
   source(e: TsExpr): Code {
     switch (e.kind) {
       case 'number':
-        throw new Error('a number alone is no series of the builder\'s: it is an argument');
+        throw new CodeRefusal('a number alone is no series of the builder\'s: it is an argument');
       case 'ref':
+        this.names.add('series');
         return { text: `series(${quote(e.series)})`, at: PY_ATOM };
       case 'column': {
+        this.names.add('column');
         const name = e.source === undefined ? e.column : `${e.source}.${e.column}`;
         const where = (e.where ?? []).map((m) => (m.column === undefined ? this.literal(m.value)
           : this.#py ? `{${quote(m.column)}: ${this.literal(m.value)}}`
@@ -98,14 +130,23 @@ class Printer {
     }
   }
 
+  /** A binary's number first, which reads the other way round where it can (5 + x, 1 < x): and, or of a number first
+   *  have no method of a series' -- refused, never written as a method that is not there. */
+  numberFirst(e: Extract<TsExpr, { kind: 'binary' }>): void {
+    if (e.left.kind === 'number' && e.right.kind === 'number') throw new CodeRefusal('arithmetic of two numbers is no series');
+    if (e.left.kind === 'number' && REVERSED[e.op] === undefined && MIRRORED[e.op] === undefined) {
+      throw new CodeRefusal(`${e.op} of a number first is no builder's call (write the language's #TS)`);
+    }
+  }
+
   /** TypeScript's arithmetic: pandas' methods. */
   tsBinary(e: Extract<TsExpr, { kind: 'binary' }>): string {
-    if (e.left.kind === 'number' && e.right.kind === 'number') throw new Error('arithmetic of two numbers is no series');
+    this.numberFirst(e);
     if (e.left.kind === 'number') {
       const reversed = REVERSED[e.op];
       if (reversed !== undefined) return `${this.source(e.right).text}.${reversed}(${e.left.value})`;
       // a comparison with its number first: the series' side compared the other way (1 < x is x > 1)
-      return `${this.source(e.right).text}.${METHOD[MIRRORED[e.op as TsComparison]]}(${e.left.value})`;
+      return `${this.source(e.right).text}.${METHOD[MIRRORED[e.op]!]}(${e.left.value})`;
     }
     const right = e.right.kind === 'number' ? String(e.right.value) : this.source(e.right).text;
     return `${this.source(e.left).text}.${METHOD[e.op]}(${right})`;
@@ -113,10 +154,10 @@ class Printer {
 
   /** Python's arithmetic: its operators, in parentheses where Python binds otherwise than the tree. */
   pyBinary(e: Extract<TsExpr, { kind: 'binary' }>): Code {
-    if (e.left.kind === 'number' && e.right.kind === 'number') throw new Error('arithmetic of two numbers is no series');
+    this.numberFirst(e);
     // a comparison with its number first: the series' side compared the other way (1 < x is x > 1), as Python reflects it
     const flipped = e.left.kind === 'number' && REVERSED[e.op] === undefined;
-    const op = flipped ? MIRRORED[e.op as TsComparison] : e.op;
+    const op = flipped ? MIRRORED[e.op]! : e.op;
     const [left, right] = flipped ? [e.right, e.left] : [e.left, e.right];
     const at = PY_PRECEDENCE[op];
     const comparison = at === PY_PRECEDENCE['>'];
@@ -135,22 +176,28 @@ class Printer {
     const arg = (a: TsExpr): string => (a.kind === 'number' ? String(a.value) : this.source(a).text);
     if (scalar !== undefined) {
       if (e.fn === 'not' && this.#py) {
+        this.names.add(scalar);
         const c = this.source(e.args[0]!);
         return { text: `~${c.at < PY_NOT ? `(${c.text})` : c.text}`, at: PY_NOT };
       }
       const told = Object.values(e.params ?? {});
+      this.names.add(scalar);
       return { text: `${scalar}(${[arg(e.args[0]!), ...told.map((v) => this.literal(v))].join(', ')})`, at: PY_ATOM };
     }
     const entry = Object.entries(BUILDER_WORDS).find(([, s]) => s.word === e.fn);
-    if (entry === undefined) throw new Error(`${e.fn} is no word of the builder's`);
+    if (entry === undefined) throw new CodeRefusal(`${e.fn} is no word of the builder's`);
     const [tsName, shape] = entry;
-    // Python's name gs-quant's own (var, not TypeScript's var_)
-    const name = this.#py && shape.gsFunction !== null ? shape.gsFunction.slice(shape.gsFunction.lastIndexOf('.') + 1) : tsName;
+    // Python's name gs-quant's own (var, not TypeScript's var_); excess returns over another line's levels gs-quant's
+    // excess_returns_pure, in both (its excess_returns reads an asset, a currency or a rate, never a line: the review of
+    // 2026-11-08, gs-quant run over Show Python's calls, tools/ts-oracle/calls.py)
+    const overLine = shape.gsFunction === 'econometrics.excess_returns' && e.args[1] !== undefined && e.args[1].kind !== 'number';
+    const name = overLine ? 'excess_returns_pure'
+      : this.#py && shape.gsFunction !== null ? shape.gsFunction.slice(shape.gsFunction.lastIndexOf('.') + 1) : tsName;
     const lines: string[] = [];
     const kw: string[] = [];
     const placed: string[] = [];
     // gs-quant's risk-free cash (item 13b): a line's excess returns over a currency's cash is gs-quant's PRICES of that
-    // currency; any other line, its EXCESS_RETURNS
+    // currency, one of its seven; any other line, its EXCESS_RETURNS
     let args = e.args;
     let excess = false;
     if (takesCash(shape)) {
@@ -158,8 +205,11 @@ class Printer {
       if (over === undefined) {
         excess = true;
       } else {
+        if (!RISK_FREE_CURRENCIES.includes(over.currency)) {
+          throw new CodeRefusal(`${e.fn} over cash.index['${over.currency}']: no RiskFreeRateCurrency of gs-quant's (${RISK_FREE_CURRENCIES.join(', ')})`);
+        }
         args = [over.x, ...e.args.slice(1)];
-        placed.push(`RiskFreeRateCurrency.${over.currency}`);
+        placed.push(this.member('RiskFreeRateCurrency', over.currency));
       }
     }
     if (shape.members !== undefined) {
@@ -176,16 +226,25 @@ class Printer {
       lines.push(...args.map(arg));
     }
     const told = { ...(e.params ?? {}) };
+    // gs-quant's filter_ of no operator and no value removes the missing values: the language's operator 'empty'
+    if (shape.gsFunction === 'algebra.filter_' && told['operator'] === 'empty') {
+      if (told['value'] !== undefined && told['value'] !== 0) throw new CodeRefusal('filter\'s empty operator reads no value');
+      delete told['operator'];
+      delete told['value'];
+    }
     for (const g of shape.gs) {
       if (g.only || g.weights) continue;
       const lib = g.lib ?? g.name;
       const v = told[lib];
       delete told[lib];
       if (v === 'across') {
-        throw new Error(`${e.fn}'s ${g.name} across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)`);
+        throw new CodeRefusal(`${e.fn}'s ${g.name} across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)`);
+      }
+      if (g.name === 'n_days' && v === 0) {
+        throw new CodeRefusal(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its None is one figure of the whole series, at its last date (write the language's #TS)`);
       }
       if (g.whole !== undefined) {
-        // gs-quant's default here is the whole line: written as its call without it; to date is none of its calls
+        // gs-quant's default here is the whole line: written as its call without it
         if (v === 'whole') {
           // a window gs-quant reads for its ramp alone (winsorize's): Window(r, r), its first r points dropped (item 13)
           const ramp = g.whole === 'always' ? told['r'] : undefined;
@@ -195,37 +254,39 @@ class Printer {
           }
           continue;
         }
-        if (v === undefined || v === 0) throw new Error(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its ${g.name} of no window is the whole series' (write the language's #TS)`);
+        // to date: percentile's Window(None, 0) (its whole line is None); none of zscores' or winsorize's calls
+        if (v === undefined || (v === 0 && g.whole !== 'default')) {
+          throw new CodeRefusal(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its ${g.name} of no window is the whole series' (write the language's #TS)`);
+        }
       }
       if (v === undefined) {
         // left to the tile where gs-quant always has one (a compare's method, the tile's align): no call of gs-quant's says it
         if (g.default !== undefined && g.default !== null && typeof g.default !== 'object') {
-          throw new Error(`${e.fn}'s ${g.name} is the tile's own here: gs-quant's ${name} takes ${String(g.default)} unless told -- no call of gs-quant's says it (write the language's #TS)`);
+          throw new CodeRefusal(`${e.fn}'s ${g.name} is the tile's own here: gs-quant's ${name} takes ${String(g.default)} unless told -- no call of gs-quant's says it (write the language's #TS)`);
         }
         continue;
       }
       // a window's ramp apart from its size: gs-quant's Window(w, r) (item 13), the library's w and r
-      const ramp = typeof g.default === 'object' && g.default !== null ? told['r'] : undefined;
+      const ramp = lib === 'w' ? told['r'] : undefined;
       if (ramp !== undefined) delete told['r'];
-      const value = ramp === undefined ? this.gsValue(g, v)
-        : `${this.#py ? '' : 'new '}Window(${v === 0 ? this.literal(null) : this.literal(v)}, ${String(ramp)})`;
+      const value = ramp !== undefined ? this.window(v === 0 ? this.literal(null) : this.literal(v), String(ramp))
+        : lib === 'w' && v === 0 && shape.gsFunction !== null ? this.window(this.literal(null), '0') : this.gsValue(g, v);
       if (g.default === undefined) placed.push(value);
       else kw.push(this.named(g.name, value));
     }
     for (const [lib, v] of Object.entries(told)) kw.push(this.named(lib, typeof v === 'string' && /^[1-9][0-9]*[dwmy]$/.test(v) ? quote(v) : this.literal(v)));
-    if (excess) kw.push(this.named('curve_type', 'CurveType.EXCESS_RETURNS'));
+    if (excess) kw.push(this.named('curve_type', this.member('CurveType', 'EXCESS_RETURNS')));
     return { text: this.call(name, [...lines, ...placed], kw), at: PY_ATOM };
   }
 
-  /** A tile's parameter value as gs-quant's argument: a window its size, `all` every observation (Window(None, 0)), an
-   *  option gs-quant's enumeration's member (log is Returns.LOGARITHMIC). */
+  /** A tile's parameter value as gs-quant's argument: a window its size, an option gs-quant's enumeration's member (log
+   *  is Returns.LOGARITHMIC). */
   gsValue(g: GsParam, v: number | string): string {
-    if (v === 0 && g.default !== undefined && typeof g.default === 'object' && g.default !== null) return this.#py ? 'Window(None, 0)' : 'new Window(null, 0)';
     if (typeof v !== 'string') return String(v);
     const gs = Object.entries(g.values ?? {}).find(([, lib]) => lib === v)?.[0] ?? v;
     const members = g.enum === undefined ? undefined : (generated as unknown as Record<string, Readonly<Record<string, string>> | undefined>)[g.enum];
     const member = members === undefined ? undefined : Object.entries(members).find(([, x]) => x === gs)?.[0];
     if (member === undefined) return quote(gs);
-    return /^[A-Za-z_$][\w$]*$/.test(member) ? `${g.enum}.${member}` : `${g.enum}[${quote(member)}]`;
+    return this.member(g.enum!, member);
   }
 }

@@ -939,7 +939,12 @@ const CHART_BUDGET = 303_500;
  *  account, and its day count (timeseries::DayCount, gs-quant's names). Measured 141,677.
  *  141,900 -> 142,300 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13c; the user: "A window scope: across"): the
  *  library's text with zscores', winsorize's and percentile's forms across a date's instruments (timeseries::Across), and
- *  the tile's across window (TsParamShape.across). Measured 142,041. */
+ *  the tile's across window (TsParamShape.across). Measured 142,041.
+ *  A correction (2026-11-08, the review of #81's commits): the notes above at 132,000, 135,000 and 136,500 say a later
+ *  deletion lowers this budget (A3 step 5, the order's step 3). It landed as 9968907a7 (the tile's parser and printers
+ *  deleted), between the 139,300 and 139,800 raises, and the budget was not lowered on its own then: the 139,546
+ *  measured at item 13 is the size after those deletions and item 13's growth together, and every ceiling since sits
+ *  within 1% of its measure. No deletion is promised here now. */
 const TIMESERIES_BUDGET = 142_300;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts

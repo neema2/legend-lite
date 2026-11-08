@@ -9,7 +9,7 @@
 // other than at gs-quant's default.
 
 import type { TsAggregate, TsExpr, TsFunctionName, TsMatch, TsOperator, TsParamShape } from './timeseries-spec.ts';
-import { TS_SIGNATURES } from './timeseries-spec.ts';
+import { AGGREGATES, TS_SIGNATURES } from './timeseries-spec.ts';
 import { seriesText } from './timeseries-text.ts';
 
 /** What the builder refuses: a value gs-quant takes that the language has no way to say, in words. */
@@ -119,6 +119,8 @@ export class ColumnTerm extends Term {
   /** Each period's `fn` of its rows under the tile's frequency (the language's `sum(volume)`); `last` unless told. */
   period(fn: TsAggregate): ColumnTerm {
     if (this.expr.kind !== 'column') throw new BuilderRefusal('a period is taken of a column');
+    // the wire's too (Python's term): any other word was written as a call of nothing (the review of 2026-11-08)
+    if (!AGGREGATES.includes(fn)) throw new BuilderRefusal(`a period's value is one of ${AGGREGATES.join(', ')}, not ${String(fn)}`);
     return new ColumnTerm({ ...this.expr, fn });
   }
 }
@@ -216,6 +218,28 @@ function wholeRampOf(fn: string, name: string, v: unknown): number {
   return w.r;
 }
 
+/** A window as gs-quant takes it (helper.normalize_window, _check_window), refused where gs-quant raises or answers no
+ *  point: a window of 0 (but sharpe_ratio's, which reads `w or None`: to date), `Window()` (the whole series ramped by its
+ *  whole length); vol_swap_volatility's n_days is Window(n, n - 1), its ramp the size less 1 alone (the review of
+ *  2026-11-08). */
+function gsWindow(fn: string, g: GsParam, gsFunction: string | null, v: WindowLike): WindowLike {
+  if (gsFunction === 'econometrics.sharpe_ratio' && v === 0) return v;
+  const size = v instanceof Window ? v.w : v;
+  if (size === 0) {
+    throw new BuilderRefusal(`${fn}'s ${g.name}: gs-quant refuses a window of 0 (Window value must be greater than zero); Window(None, 0) is every observation to date`);
+  }
+  if (v instanceof Window && v.w === null && v.r === null) {
+    throw new BuilderRefusal(`${fn}'s ${g.name}: Window() is gs-quant's whole series ramped by its whole length -- no point; Window(None, 0) is every observation to date`);
+  }
+  if (g.name === 'n_days' && v instanceof Window) {
+    if (typeof v.w !== 'number' || v.r !== v.w - 1) {
+      throw new BuilderRefusal(`${fn}'s ${g.name}: gs-quant's ramp-up is the window's size less 1, Window(n, n - 1), not Window(${JSON.stringify(v.w)}, ${JSON.stringify(v.r)})`);
+    }
+    return v.w;
+  }
+  return v;
+}
+
 /** A window as the tile holds it (timeseries-spec.ts: a span, 0 every observation, `3m` a period); its ramp apart from its
  *  size is rampOf's. */
 function spanOf(fn: string, name: string, v: WindowLike): number | string {
@@ -279,9 +303,10 @@ export interface GsParam {
   readonly weights?: true;
   /** Given by name alone (gs-quant's keyword-only: excess_returns' day_count_convention). */
   readonly kwOnly?: true;
-  /** A window gs-quant takes as the whole line (the library's gsWhole): its default (zscores', percentile's: written
-   *  `whole`, the look-ahead seen), or whatever it is told (winsorize's, its window only a ramp: another refused). */
-  readonly whole?: 'default' | 'always';
+  /** A window gs-quant takes as the whole line (the library's gsWhole): its default, None (percentile's: written `whole`,
+   *  the look-ahead seen; Window(None, 0) is to date); any window of no size (zscores': `if not w.w`, Window(None, r) and
+   *  Window(0, r) alike, its ramp ignored); or whatever it is told (winsorize's, its window only a ramp). */
+  readonly whole?: 'default' | 'unsized' | 'always';
 }
 
 function isKeywords(v: unknown): v is Readonly<Record<string, unknown>> {
@@ -332,6 +357,10 @@ function libValue(fn: string, gsName: string, p: TsParamShape, g: GsParam | unde
  */
 export const CASH_INDEX = 'cash.index';
 
+/** gs-quant's risk-free currencies, the cash its sharpe_ratio can read (econometrics.SharpeAssets, RiskFreeRateCurrency):
+ *  the cash lines a page may name, `cash.index['USD']`. */
+export const RISK_FREE_CURRENCIES: readonly string[] = ['USD', 'AUD', 'CHF', 'EUR', 'GBP', 'JPY', 'SEK'];
+
 /** Whether `shape` takes gs-quant's risk-free currency and curve type. */
 export function takesCash(shape: WordShape): boolean {
   return shape.gs.some((g) => g.name === 'currency') && shape.gs.some((g) => g.name === 'curve_type');
@@ -351,9 +380,9 @@ function cashOf(fn: string, told: ReadonlyMap<string, unknown>): string | null {
   const curve = told.get('curve_type') ?? 'prices';
   if (curve === 'excess_returns') return null;
   if (curve !== 'prices') throw new BuilderRefusal(`${fn}'s curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS, not ${JSON.stringify(curve)}`);
-  const currency = told.get('currency') ?? 'USD';
-  if (typeof currency !== 'string' || !/^[A-Za-z]{3}$/.test(currency)) {
-    throw new BuilderRefusal(`${fn}'s currency is a RiskFreeRateCurrency (USD, EUR, ...), not ${JSON.stringify(currency)}`);
+  const currency = told.has('currency') ? told.get('currency') : 'USD';
+  if (typeof currency !== 'string' || !RISK_FREE_CURRENCIES.includes(currency.toUpperCase())) {
+    throw new BuilderRefusal(`${fn}'s currency is one of gs-quant's RiskFreeRateCurrency (${RISK_FREE_CURRENCIES.join(', ')}), not ${JSON.stringify(currency)}`);
   }
   return currency.toUpperCase();
 }
@@ -379,28 +408,49 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     if (told.has(k)) throw new BuilderRefusal(`${fn}'s ${k} is given twice: by place and by name`);
     told.set(k, v);
   }
+  // gs-quant's None is its default only where its default is None: lag(x, 1, None) truncates, volatility(x, 2, None) is
+  // no simple return, compare(x, y, None) raises (the review of 2026-11-08)
+  for (const [k, v] of told) {
+    const g = shape.gs.find((x) => x.name === k);
+    if (v === null && g !== undefined && g.default !== null) {
+      throw new BuilderRefusal(`${fn}'s ${k} of None is not gs-quant's default${g.default === undefined ? '' : ` (${JSON.stringify(g.default)})`}: leave it out, or say its value`);
+    }
+  }
+  // gs-quant's filter_ takes an operator and a value together, or neither (its missing values removed): an operator of no
+  // value raises, a value of no operator is no operator (algebra.filter_)
+  if (shape.gsFunction === 'algebra.filter_' && ((told.get('operator') ?? null) === null) !== ((told.get('value') ?? null) === null)) {
+    throw new BuilderRefusal(`${fn} takes an operator and a value together, or neither (its missing values removed): gs-quant's filter_ refuses one alone`);
+  }
   const params: Record<string, number | string> = {};
   let weights: unknown;
   // gs-quant's risk-free cash: the currency's cash line the word's line is over, or none (its excess returns already)
   const cash = takesCash(shape) ? cashOf(fn, told) : undefined;
   for (const g of shape.gs) {
     if (cash !== undefined && (g.name === 'currency' || g.name === 'curve_type')) continue;
-    const v = told.has(g.name) ? told.get(g.name) : defaultOf(g);
+    let v = told.has(g.name) ? told.get(g.name) : defaultOf(g);
+    if ((g.lib ?? g.name) === 'w' && shape.gsFunction !== null && v !== undefined && v !== null) {
+      // gs-quant's window rules (helper.normalize_window, _check_window): a window of 0 raises, Window() is the whole
+      // series ramped by its whole length (no point) -- but zscores reads any window of no size as the whole series
+      // (`if not w.w`, its ramp ignored), sharpe_ratio reads `w or None` (0 to date), vol_swap_volatility its own ramp
+      if (g.whole === 'unsized' && (v instanceof Window ? v.w === null || v.w === 0 : false)) v = undefined;
+      else v = gsWindow(fn, g, shape.gsFunction, v as WindowLike);
+    }
     if (g.weights) {
       weights = v;
       continue;
     }
     if (g.whole !== undefined) {
-      const told = v !== undefined && v !== null && !same(v, defaultOf(g));
-      if (told && g.whole === 'always') {
+      const said = v !== undefined && v !== null && !same(v, defaultOf(g));
+      if (said && g.whole === 'always') {
         // gs-quant's clips by the whole series' mean and deviation whatever its window is: its window drops the first
         // points alone, the library's r (item 13)
         params[g.lib ?? g.name] = 'whole';
         const r = wholeRampOf(fn, g.name, v);
+        if (r > 0 && told.has('r')) throw new BuilderRefusal(`${fn}'s r is given twice: in its ${g.name} and by name`);
         if (r > 0) params['r'] = r;
         continue;
       }
-      if (!told) {
+      if (!said) {
         params[g.lib ?? g.name] = 'whole';
         continue;
       }
@@ -420,6 +470,7 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     const ramp = p.kind === 'span' ? rampOf(fn, g.name, v as WindowLike) : undefined;
     if (ramp !== undefined) {
       if (!sig.params.some((q) => q.name === 'r')) throw new BuilderRefusal(`${fn} takes no ramp apart from its window's size: Window(${JSON.stringify((v as Window).w)}) alone`);
+      if (told.has('r')) throw new BuilderRefusal(`${fn}'s r is given twice: in its ${g.name} and by name`);
       params['r'] = ramp;
     }
   }
@@ -428,6 +479,7 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     if (v === undefined || v === null) continue;
     const p = sig.params.find((q) => q.name === name);
     if (p === undefined) throw new Error(`${fn} has no library parameter ${name}`);
+    if (params[name] !== undefined) throw new BuilderRefusal(`${fn}'s ${name} is given twice: in a window and by name`);
     params[name] = libValue(fn, name, p, undefined, v);
   }
   const missing = sig.params.find((p) => p.required && params[p.name] === undefined);

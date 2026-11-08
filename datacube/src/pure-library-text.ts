@@ -2246,13 +2246,15 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // begun, what a picker begins one with that every call gives and that has no default ('n: 50');
 // for the builders, which spell a call as gs-quant's, where gs-quant says it otherwise -- gsParam a parameter's name
 // ('type: returns_type'), gsValue an option's ('type: logarithmic log'), gsAlso a value of gs-quant's the word computes
-// beside its default, gsWhole a window gs-quant takes as the whole line ('w: default': its default, zscores' and
-// percentile's; 'w: always': whatever it is told, winsorize's -- the builders write whole, the look-ahead seen). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
+// beside its default, gsWhole a window gs-quant takes as the whole line ('w: default': its default, None, percentile's;
+// 'w: unsized': any window of no size, zscores' \`if not w.w\`; 'w: always': whatever it is told, winsorize's -- the
+// builders write whole, the look-ahead seen); gsTold a gs-quant parameter the builders take in every call, its default
+// none the language says ('n_days: ...', vol_swap_volatility's, the review of 2026-11-08). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
 // lag past the line's end is no column of its table).
 Profile timeseries::Words
 {
   stereotypes: [band, candles, anchored];
-  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search, pairs, given, limit, gsParam, gsValue, gsAlso, when, begun, gsWhole];
+  tags: [alias, label, family, unit, level, bounds, gsQuant, about, differs, param, search, pairs, given, limit, gsParam, gsValue, gsAlso, when, begun, gsWhole, gsTold];
 }
 
 // The scopes a window names that are no number of observations: all, the line's start to date.
@@ -3234,7 +3236,7 @@ function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Num
     ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The z-score of each of x\\'s values against its window -- w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date (its default, and all), the whole line (whole), or each date\\'s instruments (across: a cross-section, as rank).', timeseries::Words.label = 'Z-score', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.zscores', timeseries::Words.about = 'How many standard deviations from the mean: over the last w observations, or every one to date.', timeseries::Words.differs = 'no window: to date (gs-quant: the whole series; whole is gs-quant\\'s)', timeseries::Words.param = 'w: observations in the window, all, whole, or across', timeseries::Words.search = 'zscore', timeseries::Words.search = 'z', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsWhole = 'w: default'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The z-score of each of x\\'s values against its window -- w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date (its default, and all), the whole line (whole), or each date\\'s instruments (across: a cross-section, as rank).', timeseries::Words.label = 'Z-score', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.zscores', timeseries::Words.about = 'How many standard deviations from the mean: over the last w observations, or every one to date.', timeseries::Words.differs = 'no window: to date (gs-quant: the whole series; whole is gs-quant\\'s)', timeseries::Words.param = 'w: observations in the window, all, whole, or across', timeseries::Words.search = 'zscore', timeseries::Words.search = 'z', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsWhole = 'w: unsized'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
@@ -3378,7 +3380,7 @@ function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number
   $x->timeseries::productPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The volatility a variance swap\\'s realized leg reads, of x\\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; the line\\'s start to date unless given.', timeseries::Words.label = 'Vol swap volatility', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'econometrics.vol_swap_volatility', timeseries::Words.about = 'The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.', timeseries::Words.differs = 'w defaults to every observation to date (gs-quant: the whole series)', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsParam = 'w: n_days'} timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The volatility a variance swap\\'s realized leg reads, of x\\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\\'s start to date; the line\\'s start to date unless given.', timeseries::Words.label = 'Vol swap volatility', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'econometrics.vol_swap_volatility', timeseries::Words.about = 'The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.', timeseries::Words.differs = 'w defaults to every observation to date (gs-quant: the whole series)', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsParam = 'w: n_days', timeseries::Words.gsTold = 'n_days: gs-quant\\'s default, None, is one figure of the whole series at its last date, which the language does not say'} timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::vol_swap_volatility(timeseries::Scope.all)
 }

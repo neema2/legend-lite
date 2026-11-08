@@ -304,7 +304,7 @@ def cash_index(rate, day_count=_Default('\'actual_360\'')) -> Term:
     return _word('cash_index', [rate], **{'day_count': day_count})
 
 
-def vol_swap_volatility(prices, n_days=_Default('None'), annualization_factor=_Default('252'), assume_zero_mean=_Default('True'), *, r=_Default('None')) -> Term:
+def vol_swap_volatility(prices, n_days, annualization_factor=_Default('252'), assume_zero_mean=_Default('True'), *, r=_Default('None')) -> Term:
     """Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.)"""
     return _word('vol_swap_volatility', [prices], **{'n_days': n_days, 'annualization_factor': annualization_factor, 'assume_zero_mean': assume_zero_mean, 'r': r})
 

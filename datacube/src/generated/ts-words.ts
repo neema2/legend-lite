@@ -977,7 +977,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['vol_swap_volatility(x: Line)', 'vol_swap_volatility(x: Line, w: Integer)', 'vol_swap_volatility(x: Line, w: Scope)', 'vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)', 'vol_swap_volatility(x: Line, w: Integer, r: Integer)', 'vol_swap_volatility(x: Line, w: Scope, r: Integer)'],
     doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
     aliases: [],
-    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'], gsParam: ['w: n_days'] },
+    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'], gsParam: ['w: n_days'], gsTold: ['n_days: gs-quant\'s default, None, is one figure of the whole series at its last date, which the language does not say'] },
     marks: [],
   },
   volatility: {
@@ -1059,7 +1059,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['zscores(x: Line)', 'zscores(x: Line, w: Whole)', 'zscores(x: Line, w: Across)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)', 'zscores(x: Line, w: Integer, r: Integer)', 'zscores(x: Line, w: Scope, r: Integer)'],
     doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), the whole line (whole), or each date\'s instruments (across: a cross-section, as rank).',
     aliases: [],
-    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, whole, or across'], search: ['zscore', 'z'], given: ['w: all'], limit: ['w: >= 0'], gsWhole: ['w: default'] },
+    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, whole, or across'], search: ['zscore', 'z'], given: ['w: all'], limit: ['w: >= 0'], gsWhole: ['w: unsized'] },
     marks: [],
   },
 };

@@ -5,6 +5,16 @@
 // (timeseries-chart.ts, B3: a tile built in code, each call one of the tile's changes). No part of the page's startup
 // bundle.
 
+import { excess_returns } from './generated/ts-builder-words.ts';
+import type { Line, Term } from './timeseries-builder-core.ts';
+
 export * from './timeseries-builder-core.ts';
 export * from './generated/ts-builder-words.ts';
 export { Chart, Plotted, type TsPaneOptions, type TsPlotOptions } from './timeseries-chart.ts';
+
+/** gs-quant's excess_returns_pure: price_series' excess returns over another line's levels (a cash index, a benchmark's
+ *  prices) -- excess_returns of two lines, by the name gs-quant calls it (its excess_returns reads an asset, a currency
+ *  or a rate; the review of 2026-11-08). */
+export function excess_returns_pure(price_series: Line, spot_curve: Line): Term {
+  return excess_returns(price_series, spot_curve);
+}

@@ -66,7 +66,8 @@ const LEDGER: Readonly<Record<string, string>> = {
   'union list': 'two series: the language\'s union reads two lines',
   'append list': 'two series: the language\'s append reads two lines',
   'prepend list': 'two series: the language\'s prepend reads two lines',
-  'smoothed_moving_average.w default': 'the library\'s 14, Wilder\'s, as rsi\'s and atr\'s: gs-quant\'s default smooths by the whole series\' length, each past value changed by data to come (S150\'s look-ahead rule; the user, 2026-11-08)',
+  'vol_swap_volatility.n_days required': 'gs-quant\'s n_days of None is one figure of the whole series, at its last date, which no #TS says: told in every call (the library\'s gsTold; the review of 2026-11-08)',
+  'smoothed_moving_average.w default':'the library\'s 14, Wilder\'s, as rsi\'s and atr\'s: gs-quant\'s default smooths by the whole series\' length, each past value changed by data to come (S150\'s look-ahead rule; the user, 2026-11-08)',
 };
 
 /** The ledger's rows the generated builder has. */
@@ -257,6 +258,20 @@ it('every builder word\'s default call is text core reads back as the term\'s ow
   assert.deepEqual(wrong, []);
 });
 
+it('a number is written with every digit it has, never in exponent form, and core reads it back so', async () => {
+  // the review of 2026-11-08: 1e-25 was written 0, 1e21 in exponent form, a 17-digit fraction cut to 14
+  const cases: [number, string][] = [
+    [1e-25, '0.0000000000000000000000001'], [1e21, '1000000000000000000000'],
+    [1.2345678901234566e-7, '0.00000012345678901234566'], [-2.5e-8, '-0.000000025'], [0.5, '0.5'], [42, '42'],
+  ];
+  for (const [n, text] of cases) {
+    const own = column('close').mul(n).text();
+    assert.equal(own, `close * ${text}`, String(n));
+    const read = await readText(own);
+    assert.equal(read.text, own, `${n}: core prints it back as written`);
+  }
+});
+
 it('every series is the builder\'s code, which run builds the same tree (B4\'s Show TypeScript, begun)', () => {
   const names = Object.keys(functions);
   const run = (code: string): Term => new Function(...names, `return ${code};`)(...names.map((n) => functions[n])) as Term;
@@ -295,6 +310,8 @@ it('a term as Python tells it is the builder\'s own (B3\'s Python twin: python/l
   assert.throws(() => termOf({ term: 'word', name: 'vola', lines: [spx], kw: {} }), /vola is no word of the builder's/);
   assert.throws(() => termOf({ term: 'word', name: 'volatility', lines: [spx], kw: { width: 3 } }), /volatility has no parameter width/);
   assert.throws(() => termOf(42), /is no series/);
+  // a period's value one of the language's (the review of 2026-11-08: 'median' was written as a call of nothing)
+  assert.throws(() => termOf({ term: 'column', name: 'close', period: 'median' }), /a period's value is one of last, first, average, sum, min, max, not median/);
 });
 
 /**

@@ -106,7 +106,7 @@
  },
  {
   "series": "word sharpe_ratio",
-  "python": "sharpe_ratio(column('close'), RiskFreeRateCurrency.USD, w=0)",
+  "python": "sharpe_ratio(column('close'), RiskFreeRateCurrency.USD, w=Window(None, 0))",
   "text": "sharpe_ratio(excess_returns(close, cash.index['USD']), w => all)"
  },
  {
@@ -226,7 +226,7 @@
  },
  {
   "series": "word filter_",
-  "python": "filter_(column('close'), operator='empty', value=0)",
+  "python": "filter_(column('close'))",
   "text": "filter(close, operator => 'empty', value => 0)"
  },
  {
@@ -251,7 +251,7 @@
  },
  {
   "series": "word excess_returns",
-  "python": "excess_returns(column('close'), column('open'))",
+  "python": "excess_returns_pure(column('close'), column('open'))",
   "text": "excess_returns(close, open)"
  },
  {
@@ -261,8 +261,8 @@
  },
  {
   "series": "word vol_swap_volatility",
-  "python": "vol_swap_volatility(column('close'), n_days=0)",
-  "text": "vol_swap_volatility(close, w => all)"
+  "python": "vol_swap_volatility(column('close'), 5)",
+  "text": "vol_swap_volatility(close, w => 5)"
  },
  {
   "series": "word consecutive",
@@ -476,12 +476,12 @@
  },
  {
   "series": "excess C",
-  "python": "excess_returns(column('close', 'SPX'), column('close', 'TLT'))",
+  "python": "excess_returns_pure(column('close', 'SPX'), column('close', 'TLT'))",
   "text": "excess_returns(close['SPX'], close['TLT'])"
  },
  {
   "series": "excess D",
-  "python": "excess_returns(column('close', 'SPX'), cash_index(column('cash.rate', 'USD'), day_count='actual_360'))",
+  "python": "excess_returns_pure(column('close', 'SPX'), cash_index(column('cash.rate', 'USD'), day_count='actual_360'))",
   "text": "excess_returns(close['SPX'], cash_index(cash.rate['USD'], day_count => 'actual_360'))"
  },
  {
@@ -771,7 +771,7 @@
  },
  {
   "series": "vol-swap A",
-  "python": "vol_swap_volatility(column('close', 'SPX'), n_days=21)",
+  "python": "vol_swap_volatility(column('close', 'SPX'), 21)",
   "text": "vol_swap_volatility(close['SPX'], w => 21)"
  },
  {

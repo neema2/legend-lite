@@ -21,7 +21,7 @@ import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { columnsOf, nextSeriesId } from './timeseries-expr.ts';
 import { treeOf } from './timeseries-text.ts';
-import { builderSource, type BuilderLanguage } from './timeseries-builder-source.ts';
+import { builderSourceOf, CodeRefusal, type BuilderLanguage } from './timeseries-builder-source.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
 /** The languages a tile's code is written in. */
@@ -132,40 +132,32 @@ function pyName(title: string, taken: Set<string>): string {
 }
 
 /** EACH SERIES AS THE BUILDER'S CODE (B4: Show TypeScript, Show Python; timeseries-builder-source.ts) -- gs-quant's call
- *  of it -- or, where gs-quant has none of its meaning (a z-score to date, a compare by the tile's align), undefined: its
- *  #TS text stands in the program. */
-function builderCode(spec: TimeseriesSpec, language: BuilderLanguage): (string | undefined)[] {
+ *  of it, with the builder's names it calls -- or, where gs-quant has none of its meaning (a z-score to date, a compare
+ *  by the tile's align: the printer's CodeRefusal, nothing else), undefined: its #TS text stands in the program. */
+function builderCode(spec: TimeseriesSpec, language: BuilderLanguage): ({ readonly text: string; readonly names: readonly string[] } | undefined)[] {
   return spec.series.map((s) => {
     try {
-      return builderSource(treeOf(s, spec.series), language);
-    } catch {
-      return undefined;
+      return builderSourceOf(treeOf(s, spec.series), language);
+    } catch (e) {
+      if (e instanceof CodeRefusal) return undefined;
+      throw e;
     }
   });
 }
 
-/** The builder's names a program's code calls (its words, column, series, Window, an enumeration): what it imports, and
- *  what no variable of its own may be named. */
-function namesUsed(code: readonly (string | undefined)[]): string[] {
-  const out = new Set<string>();
-  for (const c of code) {
-    if (c === undefined) continue;
-    // each name before a call or an enumeration's member, not a method's (a lookbehind: a call in a call is read too)
-    for (const m of c.matchAll(/(?<![.\w$'])([A-Za-z_$][\w$]*)\s*\(/g)) out.add(m[1]!);
-    for (const m of c.matchAll(/(?<![.\w$'])([A-Z][A-Za-z]*)\.[A-Za-z_][\w$]*(?![\w$]|\s*\()/g)) out.add(m[1]!);
-    if (/\bnew Window\(|(^|[^.\w])Window\(/.test(c)) out.add('Window');
-  }
-  out.delete('new');
-  return [...out].sort();
+/** The builder's names a program's code calls (its words, column, series, Window, an enumeration), as the printer
+ *  recorded them: what it imports, and what no variable of its own may be named. */
+function namesUsed(code: readonly ({ readonly names: readonly string[] } | undefined)[]): string[] {
+  return [...new Set(code.flatMap((c) => c?.names ?? []))].sort();
 }
 
 /** Each series as `page.timeseries` takes it: its term (the builder's code) or its #TS text alone, or a mapping of it and
  *  how it is drawn -- its id told where it is not the one the reader would give it (the next free letter, nextSeriesId). */
-function pySeries(series: readonly TsSeries[], code: readonly (string | undefined)[]): string[] {
+function pySeries(series: readonly TsSeries[], code: readonly ({ readonly text: string } | undefined)[]): string[] {
   return series.map((s, i) => {
     const natural = nextSeriesId(series.slice(0, i)) === s.id;
     const rest = SERIES_KEYS.filter((k) => s[k] !== undefined);
-    const term = code[i];
+    const term = code[i]?.text;
     if (natural && rest.length === 0) return term ?? py(s.text);
     const told = [...(natural ? [] : [`'id': ${py(s.id)}`]), term !== undefined ? `'term': ${term}` : `'text': ${py(s.text)}`,
       ...rest.map((k) => `${py(k)}: ${py(s[k])}`)];
@@ -327,7 +319,7 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     'export const spec: TimeseriesSpec = {',
     `  sources: [${spec.sources.map(source).join(', ')}],`,
     '  series: [',
-    ...spec.series.map((s, i) => `    ${tsSeries(s, code[i])},`),
+    ...spec.series.map((s, i) => `    ${tsSeries(s, code[i]?.text)},`),
     '  ],',
     ...slots,
     '};',

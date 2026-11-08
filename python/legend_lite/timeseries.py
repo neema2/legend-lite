@@ -9,8 +9,17 @@ import json
 from ._ts_terms import ColumnTerm, Term, Window, abs_, column, exp, log, not_, power, series, sqrt
 from ._ts_words import *  # noqa: F403 -- gs-quant's words, generated from the catalog
 from ._ts_words import __all__ as _words
+from ._ts_words import excess_returns
 
-__all__ = ['ColumnTerm', 'Term', 'Window', 'abs_', 'column', 'exp', 'log', 'not_', 'power', 'series', 'sqrt', 'text', *_words]
+__all__ = ['ColumnTerm', 'Term', 'Window', 'abs_', 'column', 'excess_returns_pure', 'exp', 'log', 'not_', 'power',
+           'series', 'sqrt', 'text', *_words]
+
+
+def excess_returns_pure(price_series: Term, spot_curve: Term) -> Term:
+    """gs-quant's excess_returns_pure: ``price_series``' excess returns over another line's levels (a cash index, a
+    benchmark's prices) -- excess_returns of two lines, by the name gs-quant calls it (its excess_returns reads an asset,
+    a currency or a rate; the review of 2026-11-08)."""
+    return excess_returns(price_series, spot_curve)
 
 
 def text(term: Term) -> str:
