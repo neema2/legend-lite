@@ -38,6 +38,10 @@ public final class TsParser {
      *  quoted, {@code "whole"}. */
     public static final String WHOLE = "__ts_whole";
 
+    /** The name {@code across} as a window is read as (each date's instruments, item 13c: {@code zscores(x, across)}),
+     *  at the same positions as {@link #ALL}'s. */
+    public static final String ACROSS = "__ts_across";
+
     /** The function a subscript is read as (R2): {@code close['SPX', venue = 'NYSE']} is
      *  {@code __ts_pick(close, 'SPX', venue = 'NYSE')}, its line first, then its matches. */
     public static final String PICK = "__ts_pick";
@@ -192,13 +196,13 @@ public final class TsParser {
             } else if (t.is("order") && i + 1 < lexed.size() && lexed.get(i + 1).is("by") && !parens.isEmpty()) {
                 parens.peek()[1] = true;
             }
-            if ((t.is("all") || t.is("whole")) && i > 0
+            if ((t.is("all") || t.is("whole") || t.is("across")) && i > 0
                     && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
                     && i + 1 < lexed.size()
                     && (lexed.get(i + 1).kind() == Kind.RPAREN || lexed.get(i + 1).kind() == Kind.COMMA)) {
-                // a window of everything to date (R4), or of the whole line (D3): read as a column the builder knows
-                // by its place
-                tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : WHOLE, t.pos()));
+                // a window of everything to date (R4), of the whole line (D3), or of each date's instruments (13c):
+                // read as a column the builder knows by its place
+                tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : t.is("whole") ? WHOLE : ACROSS, t.pos()));
                 alls.add(t.pos());
             } else if ((t.is("desc") || t.is("asc")) && i > 0 && i + 1 < lexed.size()
                     && lexed.get(i + 1).kind() == Kind.RPAREN && lexed.get(i - 1).kind() != Kind.LPAREN

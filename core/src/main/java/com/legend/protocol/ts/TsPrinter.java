@@ -231,6 +231,9 @@ public final class TsPrinter {
             if (TsParser.WHOLE.equals(name)) {
                 return "whole";
             }
+            if (TsParser.ACROSS.equals(name)) {
+                return "across";
+            }
         }
         return path(c);
     }

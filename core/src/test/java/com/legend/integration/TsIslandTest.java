@@ -1239,6 +1239,42 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * ACROSS A DATE'S INSTRUMENTS (item 13c, the user's ruling of 2026-11-08: a window scope, {@code across}): each
+     * value against its date's instruments -- their mean and sample deviation, their percentile -- as rank is its
+     * place; no date reads another.
+     */
+    @Test
+    void aWindowAcrossADatesInstrumentsIsItsCrossSection() throws Exception {
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE AS c, zscores(CLOSE, across) AS z,"
+                    + " winsorize(CLOSE, 0.5, across) AS wz, percentile(CLOSE, 90, across) AS p"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            assertEquals(2 * AAA.length, got.size(), backend + ": a row an instrument a date");
+            Map<String, List<Map<String, String>>> byDay = new java.util.TreeMap<>();
+            got.forEach(r -> byDay.computeIfAbsent(r.get("DAY"), d -> new ArrayList<>()).add(r));
+            List<String> wrong = new ArrayList<>();
+            for (List<Map<String, String>> day : byDay.values()) {
+                double a = day.stream().mapToDouble(r -> Double.parseDouble(r.get("c"))).max().orElseThrow();
+                double b = day.stream().mapToDouble(r -> Double.parseDouble(r.get("c"))).min().orElseThrow();
+                double m = (a + b) / 2;
+                double s = (a - b) / Math.sqrt(2);
+                for (Map<String, String> r : day) {
+                    boolean high = Double.parseDouble(r.get("c")) == a;
+                    String z = String.valueOf(high ? 1 / Math.sqrt(2) : -1 / Math.sqrt(2));
+                    String wz = String.valueOf(high ? m + 0.5 * s : m - 0.5 * s);
+                    String p = String.valueOf(b + 0.9 * (a - b));
+                    for (String[] f : new String[][] {{"z", z}, {"wz", wz}, {"p", p}}) {
+                        if (!near(r.get(f[0]), f[1])) {
+                            wrong.add(r.get("DAY") + " " + r.get("SYMBOL") + " " + f[0] + ": " + r.get(f[0]) + " not " + f[1]);
+                        }
+                    }
+                }
+            }
+            assertEquals(List.of(), wrong, backend + ": zscores, winsorize and percentile across");
+        }
+    }
+
     private static boolean near(String said, String want) {
         return want == null ? said == null : said != null && Math.abs(Double.parseDouble(said) - Double.parseDouble(want))
                 <= 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)));

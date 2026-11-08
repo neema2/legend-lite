@@ -194,6 +194,14 @@ const ROLLING: GallerySheet = {
       ],
       range: { last: '3m' },
     }),
+    // across a date's instruments (item 13c, the user's ruling of 2026-11-08): the factor researcher's normalization --
+    // each stock's 3-month return as a z-score among that day's stocks, no date reading another
+    tile('cross-section', 'Across the stocks: each one\'s 3-month return as a z-score among the day\'s equities', {
+      sources: ON_PRICES,
+      series: [s('A', "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), across)", { name: 'Momentum z-score', split: 'symbol' })],
+      range: { last: '1y' },
+      annotations: [{ kind: 'level', value: 0 }],
+    }),
   ], [
     tile('exponential', 'Exponential and Wilder\'s averages: the S&P 500, its EMA, its smoothed average, its exponential deviation', {
       sources: ON_PRICES,

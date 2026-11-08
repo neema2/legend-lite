@@ -50,7 +50,8 @@ public final class TsTree {
                     n.put("n", span.n());
                     n.put("unit", span.unit());
                 } else if (line.alls().contains(c.pos()) && c.parts().size() == 1) {
-                    n.put("k", TsParser.WHOLE.equals(c.parts().get(0).text()) ? "whole" : "all");
+                    String scope = c.parts().get(0).text();
+                    n.put("k", TsParser.WHOLE.equals(scope) ? "whole" : TsParser.ACROSS.equals(scope) ? "across" : "all");
                 } else {
                     n.put("k", "column");
                     n.put("parts", c.parts().stream().map(SqlAst.Ident::text).toList());

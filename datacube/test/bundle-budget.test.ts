@@ -936,8 +936,11 @@ const CHART_BUDGET = 303_500;
  *  Sharpe ratio (helpers::sharpe, annualizedReturn of a count, to date and of a period, the Window(w, r) form's own
  *  stitch) and its sentences, less S155's two helpers. Measured 140,814.
  *  141,100 -> 141,900 (2026-11-08, item 13b, the same): the library's text with cash_index, an overnight rate's cash
- *  account, and its day count (timeseries::DayCount, gs-quant's names). Measured 141,677. */
-const TIMESERIES_BUDGET = 141_900;
+ *  account, and its day count (timeseries::DayCount, gs-quant's names). Measured 141,677.
+ *  141,900 -> 142,300 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13c; the user: "A window scope: across"): the
+ *  library's text with zscores', winsorize's and percentile's forms across a date's instruments (timeseries::Across), and
+ *  the tile's across window (TsParamShape.across). Measured 142,041. */
+const TIMESERIES_BUDGET = 142_300;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

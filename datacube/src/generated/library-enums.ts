@@ -5,6 +5,7 @@
 /** Each enumeration of timeseries by its name, its values in their declared order: the one source of an option's
  *  values, which the catalog's words and the writer's check both read. */
 export const LIBRARY_ENUMS = {
+  Across: ['across'],
   All: ['all'],
   Compare: ['none', 'rebase', 'percent'],
   Cycle: ['week', 'month', 'quarter', 'year'],

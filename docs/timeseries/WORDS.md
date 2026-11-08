@@ -608,16 +608,16 @@ Forms: `percent_change(x: Line)`, `percent_change(x: Line, from: StrictDate)`.
 
 ## `percentile`
 
-The n-th percentile of x's values over a window -- w observations to date, a calendar period back, the line's start to date (its default, and all), or the whole line (whole: gs-quant's one number of no window, on every date).
+The n-th percentile of x's values over a window -- w observations to date, a calendar period back, the line's start to date (its default, and all), the whole line (whole: gs-quant's one number of no window, on every date), or each date's instruments (across).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
 | `n` | number |  | yes |
-| `w` | span | observations, period, all, whole | no |
+| `w` | span | observations, period, all, whole, across | no |
 | `r` | whole |  | no |
 
-Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Whole)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`, `percentile(x: Line, n: Float, w: Integer, r: Integer)`, `percentile(x: Line, n: Float, w: Scope, r: Integer)`.
+Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Whole)`, `percentile(x: Line, n: Float, w: Across)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`, `percentile(x: Line, n: Float, w: Integer, r: Integer)`, `percentile(x: Line, n: Float, w: Scope, r: Integer)`.
 
 ## `percentiles`
 
@@ -1014,16 +1014,16 @@ Forms: `weighted_sum(members: Members)`.
 
 ## `winsorize`
 
-x's values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line's (whole).
+x's values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, of the whole line's (whole), or of each date's instruments' (across).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
 | `limit` | number |  | no |
-| `w` | span | whole | no |
+| `w` | span | whole, across | no |
 | `r` | whole |  | no |
 
-Forms: `winsorize(x: Line, limit: Float (optional))`, `winsorize(x: Line, limit: Float (optional), w: Whole)`, `winsorize(x: Line, limit: Float (optional), w: Whole, r: Integer)`.
+Forms: `winsorize(x: Line, limit: Float (optional))`, `winsorize(x: Line, limit: Float (optional), w: Whole)`, `winsorize(x: Line, limit: Float (optional), w: Across)`, `winsorize(x: Line, limit: Float (optional), w: Whole, r: Integer)`.
 
 ## `year`
 
@@ -1037,12 +1037,12 @@ Forms: `year(x: Line)`.
 
 ## `zscores`
 
-The z-score of each of x's values against its window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date (its default, and all), or the whole line (whole).
+The z-score of each of x's values against its window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date (its default, and all), the whole line (whole), or each date's instruments (across: a cross-section, as rank).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `w` | span | observations, period, all, whole | no |
+| `w` | span | observations, period, all, whole, across | no |
 | `r` | whole |  | no |
 
-Forms: `zscores(x: Line)`, `zscores(x: Line, w: Whole)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`, `zscores(x: Line, w: Integer, r: Integer)`, `zscores(x: Line, w: Scope, r: Integer)`.
+Forms: `zscores(x: Line)`, `zscores(x: Line, w: Whole)`, `zscores(x: Line, w: Across)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`, `zscores(x: Line, w: Integer, r: Integer)`, `zscores(x: Line, w: Scope, r: Integer)`.

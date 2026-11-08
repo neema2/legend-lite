@@ -324,7 +324,7 @@ function literal(v: string | number | boolean): string {
 /** A window or a lag as the language writes it: observations, `all` for the tile's 0, a span (`3mo` for its `3m`). */
 function span(v: number | string): string {
   if (typeof v === 'number') return v === 0 ? 'all' : numberText(v);
-  if (v === 'whole') return 'whole';
+  if (v === 'whole' || v === 'across') return v;
   const m = /^([1-9][0-9]*)([dwmy])$/.exec(v);
   if (!m) throw new TsTextRefusal(`a span is n then d, w, m or y: ${v}`);
   return `${m[1]}${m[2] === 'm' ? 'mo' : m[2]}`;
@@ -555,6 +555,7 @@ function paramOf(fn: TsFunctionName, name: string, v: TsNode, no: (what: string,
   const kind = TS_SIGNATURES[fn].params.find((p) => p.name === name)!.kind;
   if (kind === 'span' && v.k === 'all') return 0;
   if (kind === 'span' && v.k === 'whole') return 'whole';
+  if (kind === 'span' && v.k === 'across') return 'across';
   if (kind === 'span' && v.k === 'span') {
     const unit = String(v['unit']);
     const tile = unit === 'mo' ? 'm' : unit;

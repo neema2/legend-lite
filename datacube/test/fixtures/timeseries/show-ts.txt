@@ -80,6 +80,7 @@ std-var B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT var(close[
 zscores A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'NVDA'], w => 63) AS ts_value FROM px ON date
 winsorize A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT winsorize(returns(close[symbol = 'EURUSD'], 1, 'simple'), limit => 1.5) AS ts_value FROM px ON date
 winsorize B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'EURUSD'], 1, 'simple') AS ts_value FROM px ON date
+cross-section A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), w => across) AS ts_value FROM px ON date BY symbol
 exponential A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
 exponential B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exponential_moving_average(close[symbol = 'SPX'], beta => 0.9) AS ts_value FROM px ON date
 exponential C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT smoothed_moving_average(close[symbol = 'SPX'], w => 20) AS ts_value FROM px ON date

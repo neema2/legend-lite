@@ -47,6 +47,9 @@ export interface TsParamShape {
   /** A window that takes the whole line, `whole` (a z-score's, a percentile's: the future read, said so), as the tile
    *  holds it: 'whole'. */
   readonly whole?: true;
+  /** A window that takes each date's instruments, `across` (a cross-section's z-score, winsorized value, percentile:
+   *  item 13c), as the tile holds it: 'across'. */
+  readonly across?: true;
   /** What a picked word begins it with, where every call gives it, the language has no default for it and gs-quant
    *  none either (the library's `timeseries::Words.begun`: a percentile's n 50). */
   readonly begin?: number | string;

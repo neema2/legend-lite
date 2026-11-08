@@ -143,6 +143,10 @@ public final class TsCatalogExport {
                 if (p.kind().equals("span") && p.takes().contains("whole")) {
                     b.append(", whole: true");
                 }
+                // a window of each date's instruments (13c): zscores(x, across)
+                if (p.kind().equals("span") && p.takes().contains("across")) {
+                    b.append(", across: true");
+                }
                 b.append(", required: ").append(p.required());
                 Object g = gs.get(p.name());
                 String gl = g == null ? "" : gsLiteral(p, g);

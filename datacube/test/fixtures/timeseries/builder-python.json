@@ -645,6 +645,11 @@
   "text": "returns(close['EURUSD'], 1, 'simple')"
  },
  {
+  "series": "cross-section A",
+  "refused": "zscores's w across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)",
+  "text": "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), across)"
+ },
+ {
   "series": "exponential A",
   "python": "column('close', 'SPX')",
   "text": "close['SPX']"

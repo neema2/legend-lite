@@ -64,7 +64,7 @@ export const WORD_SIGNATURES: Readonly<Record<string, TsSignature>> = {
   obv: { series: 2, reads: ['close', 'volume'], params: [] },
   ohlc: { series: 4, reads: ['open', 'high', 'low', 'close'], params: [] },
   percent_change: { series: 1, params: [] },
-  percentile: { series: 1, params: [{ name: 'n', kind: 'number', min: 0, max: 100, begin: 50, required: true }, { name: 'w', kind: 'span', default: 0, min: 0, whole: true, required: false }, { name: 'r', kind: 'whole', required: false }] },
+  percentile: { series: 1, params: [{ name: 'n', kind: 'number', min: 0, max: 100, begin: 50, required: true }, { name: 'w', kind: 'span', default: 0, min: 0, whole: true, across: true, required: false }, { name: 'r', kind: 'whole', required: false }] },
   percentiles: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
   prepend: { series: 2, params: [] },
   prices: { series: 1, params: [{ name: 'initial', kind: 'number', default: 1, required: false, gsQuant: 1 }, { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'], required: false, gsQuant: 'simple' }] },
@@ -98,7 +98,7 @@ export const WORD_SIGNATURES: Readonly<Record<string, TsSignature>> = {
   vwap: { series: 2, reads: ['price', 'volume'], params: [{ name: 'w', kind: 'span', default: 20, min: 0, required: false }, { name: 'r', kind: 'whole', required: false }] },
   weekday: { series: 1, params: [] },
   weighted_sum: { series: 'many', params: [] },
-  winsorize: { series: 1, params: [{ name: 'limit', kind: 'number', default: 2.5, min: 0, required: false, gsQuant: 2.5 }, { name: 'w', kind: 'span', whole: true, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
+  winsorize: { series: 1, params: [{ name: 'limit', kind: 'number', default: 2.5, min: 0, required: false, gsQuant: 2.5 }, { name: 'w', kind: 'span', whole: true, across: true, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
   year: { series: 1, params: [] },
-  zscores: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, whole: true, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
+  zscores: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, whole: true, across: true, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
 };

@@ -199,7 +199,7 @@ public final class TsCatalog {
             }
         }
         // in the order a reader meets them, whatever the overloads' order
-        return List.of("observations", "period", "all", "whole", "date").stream().filter(out::contains).toList();
+        return List.of("observations", "period", "all", "whole", "across", "date").stream().filter(out::contains).toList();
     }
 
     private static String unexpected(String name, String type) {
@@ -213,10 +213,12 @@ public final class TsCatalog {
                 && !q.optional()));
     }
 
-    /** Whether {@code type} is a span's word: {@code timeseries::Scope} ({@code all}, the line's start to date) or
-     *  {@code timeseries::Whole} ({@code whole}, the whole line: D3). */
+    /** Whether {@code type} is a span's word: {@code timeseries::Scope} ({@code all}, the line's start to date),
+     *  {@code timeseries::Whole} ({@code whole}, the whole line: D3) or {@code timeseries::Across} ({@code across}, each
+     *  date's instruments: 13c). */
     private static boolean scope(String type) {
-        return (TsToPure.LIBRARY + "Scope").equals(type) || (TsToPure.LIBRARY + "Whole").equals(type);
+        return (TsToPure.LIBRARY + "Scope").equals(type) || (TsToPure.LIBRARY + "Whole").equals(type)
+                || (TsToPure.LIBRARY + "Across").equals(type);
     }
 
     /** Whether {@code name} is a span in {@code ps}: an Integer a DurationUnit follows (a calendar span's count and

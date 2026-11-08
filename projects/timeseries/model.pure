@@ -2254,6 +2254,13 @@ Enum timeseries::Whole
   whole
 }
 
+// A window of each date's instruments (item 13c, ruled 2026-11-08): a cross-section's figure, kdb's `by date` -- no
+// date's figure reads another date (zscores(x, across), as rank).
+Enum timeseries::Across
+{
+  across
+}
+
 // x's values from the date on, none before (a window's since-date form).
 function timeseries::line::helpers::since<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
@@ -3213,7 +3220,7 @@ function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Num
     ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole).', timeseries::Words.label = 'Z-score', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.zscores', timeseries::Words.about = 'How many standard deviations from the mean: over the last w observations, or every one to date.', timeseries::Words.differs = 'no window: to date (gs-quant: the whole series; whole is gs-quant\'s)', timeseries::Words.param = 'w: observations in the window, all, or whole', timeseries::Words.search = 'zscore', timeseries::Words.search = 'z', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsWhole = 'w: default'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), the whole line (whole), or each date\'s instruments (across: a cross-section, as rank).', timeseries::Words.label = 'Z-score', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.zscores', timeseries::Words.about = 'How many standard deviations from the mean: over the last w observations, or every one to date.', timeseries::Words.differs = 'no window: to date (gs-quant: the whole series; whole is gs-quant\'s)', timeseries::Words.param = 'w: observations in the window, all, whole, or across', timeseries::Words.search = 'zscore', timeseries::Words.search = 'z', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsWhole = 'w: default'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
@@ -3221,6 +3228,13 @@ function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values ag
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Whole[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(unbounded(), unbounded())), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// ACROSS A DATE'S INSTRUMENTS (item 13c, the user's ruling of 2026-11-08: a window scope, `across`): each value
+// against its date's instruments -- their mean and sample deviation, two at least -- as rank is each date's place
+function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Across[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->filter(row|$row.value->isNotEmpty())->timeseries::zscores(over(~date), ~value, 2, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3458,7 +3472,7 @@ function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)
   $x->timeseries::quantilePeriod(~key, ~date, ~value, $w, $unit, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The n-th percentile of x\'s values over a window -- w observations to date, a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole: gs-quant\'s one number of no window, on every date).', timeseries::Words.label = 'Rolling percentile', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.percentile', timeseries::Words.about = 'The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 (all) every one to date, whole the whole series\'', timeseries::Words.param = 'n: the percentile, 0 to 100', timeseries::Words.param = 'w: observations in the window, a calendar period (3m, 1y), all to date, or whole', timeseries::Words.search = 'quantile', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'n: >= 0, <= 100', timeseries::Words.limit = 'w: >= 0', timeseries::Words.begun = 'n: 50', timeseries::Words.differs = 'no window: to date (gs-quant: one number of the whole series; whole is gs-quant\'s)', timeseries::Words.gsWhole = 'w: default'} timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The n-th percentile of x\'s values over a window -- w observations to date, a calendar period back, the line\'s start to date (its default, and all), the whole line (whole: gs-quant\'s one number of no window, on every date), or each date\'s instruments (across).', timeseries::Words.label = 'Rolling percentile', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.percentile', timeseries::Words.about = 'The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 (all) every one to date, whole the whole series\'', timeseries::Words.param = 'n: the percentile, 0 to 100', timeseries::Words.param = 'w: observations in the window, a calendar period (3m, 1y), all to date, whole, or across (each date\'s instruments)', timeseries::Words.search = 'quantile', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'n: >= 0, <= 100', timeseries::Words.limit = 'w: >= 0', timeseries::Words.begun = 'n: 50', timeseries::Words.differs = 'no window: to date (gs-quant: one number of the whole series; whole is gs-quant\'s)', timeseries::Words.gsWhole = 'w: default'} timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::percentile($n, timeseries::Scope.all)
 }
@@ -3480,6 +3494,12 @@ function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Num
   $x->timeseries::quantileOfLine(~key, ~value, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
+// across a date's instruments (13c): the n-th percentile of the date's values, on each of its instruments
+function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1], w: timeseries::Across[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->filter(row|$row.value->isNotEmpty())->timeseries::quantileOfLine(~date, ~value, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
 function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::quantilePeriod(~key, ~date, ~value, $w, $unit, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
@@ -3491,7 +3511,7 @@ function timeseries::line::helpers::fraction(n: Float[0..1]): Float[1]
   if($n->isEmpty(), |0.5, |$n->toOne() / 100)
 }
 
-function {meta::pure::profiles::doc.doc = 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line\'s (whole).', timeseries::Words.label = 'Winsorize', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.winsorize', timeseries::Words.about = 'Held within limit standard deviations of its mean to date.', timeseries::Words.differs = 'to date (gs-quant: the whole series; whole is gs-quant\'s)', timeseries::Words.param = 'limit: standard deviations from the mean it is held within', timeseries::Words.given = 'limit: 2.5', timeseries::Words.limit = 'limit: >= 0', timeseries::Words.gsWhole = 'w: always'} timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, of the whole line\'s (whole), or of each date\'s instruments\' (across).', timeseries::Words.label = 'Winsorize', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'statistics.winsorize', timeseries::Words.about = 'Held within limit standard deviations of its mean to date.', timeseries::Words.differs = 'to date (gs-quant: the whole series; whole is gs-quant\'s)', timeseries::Words.param = 'limit: standard deviations from the mean it is held within', timeseries::Words.given = 'limit: 2.5', timeseries::Words.limit = 'limit: >= 0', timeseries::Words.gsWhole = 'w: always'} timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::winsorize(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, if($limit->isEmpty(), |2.5, |$limit->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
@@ -3499,6 +3519,12 @@ function {meta::pure::profiles::doc.doc = 'x\'s values winsorized: each held wit
 function timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1], w: timeseries::Whole[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::winsorize(over(~[key], [~date->ascending()], rows(unbounded(), unbounded())), ~value, if($limit->isEmpty(), |2.5, |$limit->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// across a date's instruments (13c): each value held within limit sample deviations of its date's instruments' mean
+function timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1], w: timeseries::Across[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->filter(row|$row.value->isNotEmpty())->timeseries::winsorize(over(~date), ~value, if($limit->isEmpty(), |2.5, |$limit->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 function {meta::pure::profiles::doc.doc = 'The value obs observations back (1 unless given), or as of a calendar period back; extend, unless truncate is given, also puts the last values past the line\'s end (gs-quant\'s lag).', timeseries::Words.label = 'Lag', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'analysis.lag', timeseries::Words.about = 'The value obs observations before, or as of a calendar period before; extend (gs-quant\'s default) also puts the last obs values on the obs calendar days after the line\'s last date, a period\'s on each date that far after one of its own past its end; truncate, its own dates alone.', timeseries::Words.given = 'obs: 1', timeseries::Words.given = 'mode: extend', timeseries::Words.limit = 'obs: >= 1', timeseries::Words.param = 'mode: extend (gs-quant\'s default), its last values also past its end; truncate, its own dates alone'} timeseries::line::lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], mode: timeseries::LagMode[0..1]): Relation<(key:K, date:D, value:Number)>[1]

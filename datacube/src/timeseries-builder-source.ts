@@ -181,6 +181,9 @@ class Printer {
       const lib = g.lib ?? g.name;
       const v = told[lib];
       delete told[lib];
+      if (v === 'across') {
+        throw new Error(`${e.fn}'s ${g.name} across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)`);
+      }
       if (g.whole !== undefined) {
         // gs-quant's default here is the whole line: written as its call without it; to date is none of its calls
         if (v === 'whole') {

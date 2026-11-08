@@ -603,5 +603,5 @@ public final class TsShow {
             "group", "having", "in", "initially", "intersect", "into", "leading", "limit", "not", "null", "offset",
             "on", "only", "or", "order", "primary", "references", "returning", "select", "some", "table", "then",
             "to", "trailing", "true", "union", "unique", "user", "using", "when", "where", "window", "with", "by",
-            "filter", "sample", "fill", "ts", "whole");
+            "filter", "sample", "fill", "ts", "whole", "across");
 }
