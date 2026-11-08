@@ -1,0 +1,186 @@
+diff --git a/core/src/main/java/com/legend/executionplan/MirJson.java b/core/src/main/java/com/legend/executionplan/MirJson.java
+index 0bc5c52..85f66bb 100644
+--- a/core/src/main/java/com/legend/executionplan/MirJson.java
++++ b/core/src/main/java/com/legend/executionplan/MirJson.java
+@@ -1080,9 +1080,9 @@ public final class MirJson {
+     private static SqlExpr.WindowCall.Frame.Bound readBound(Json.Obj o) {
+         return switch (tagOf(BoundTag.class, o, "window bound")) {
+             case unboundedPreceding -> new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
+-            case preceding -> new SqlExpr.WindowCall.Frame.Bound.Preceding(readNumber(o));
++            case preceding -> SqlExpr.WindowCall.Frame.Bound.Preceding.of(readNumber(o));
+             case currentRow -> new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+-            case following -> new SqlExpr.WindowCall.Frame.Bound.Following(readNumber(o));
++            case following -> SqlExpr.WindowCall.Frame.Bound.Following.of(readNumber(o));
+             case unboundedFollowing -> new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+             case intervalPreceding -> new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(o.getLong("n"),
+                     o.getString("unit"));
+diff --git a/core/src/main/java/com/legend/lowering/Windows.java b/core/src/main/java/com/legend/lowering/Windows.java
+index be4d3eb..d343a5d 100644
+--- a/core/src/main/java/com/legend/lowering/Windows.java
++++ b/core/src/main/java/com/legend/lowering/Windows.java
+@@ -259,11 +259,11 @@ final class Windows {
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
+                     new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
+-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
++                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(p.n());
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
+                     new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
+-                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
++                    SqlExpr.WindowCall.Frame.Bound.Following.of(fo.n());
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
+                     new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
+diff --git a/core/src/main/java/com/legend/sql/SqlExpr.java b/core/src/main/java/com/legend/sql/SqlExpr.java
+index 5231e69..047167c 100644
+--- a/core/src/main/java/com/legend/sql/SqlExpr.java
++++ b/core/src/main/java/com/legend/sql/SqlExpr.java
+@@ -1417,13 +1417,76 @@ public sealed interface SqlExpr
+                 record UnboundedPreceding() implements Bound {
+                 }
+ 
+-                record Preceding(Number n) implements Bound {
++                record Preceding(Offset offset) implements Bound {
++                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
++                    public static Preceding of(Number n) {
++                        return new Preceding(Offset.of(n));
++                    }
++
++                    /** The offset as the number it is. */
++                    public Number n() {
++                        return offset.value();
++                    }
+                 }
+ 
+                 record CurrentRow() implements Bound {
+                 }
+ 
+-                record Following(Number n) implements Bound {
++                record Following(Offset offset) implements Bound {
++                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
++                    public static Following of(Number n) {
++                        return new Following(Offset.of(n));
++                    }
++
++                    /** The offset as the number it is. */
++                    public Number n() {
++                        return offset.value();
++                    }
++                }
++
++                /** A ROWS or RANGE frame side's offset, the number the program wrote -- an integer, a float or a decimal
++                 *  (the plan-as-data design's step 9, 2026-11-08: guard 1 at zero; an abstract {@code Number} is no type
++                 *  a plan holds). */
++                sealed interface Offset permits Offset.Int, Offset.Float, Offset.Dec {
++
++                    /** The offset as the Java number it was written as. */
++                    Number value();
++
++                    /** {@code n}'s offset: refused by name for a number of another kind. */
++                    static Offset of(Number n) {
++                        return switch (n) {
++                            case Long l -> new Int(l);
++                            case Integer i -> new Int(i);
++                            case Double d -> new Float(d);
++                            case java.math.BigDecimal b -> new Dec(b);
++                            default -> throw new IllegalArgumentException("a window frame offset is an integer, a float"
++                                    + " or a decimal, not a " + n.getClass().getSimpleName());
++                        };
++                    }
++
++                    /** An integer offset. */
++                    record Int(long n) implements Offset {
++                        @Override
++                        public Number value() {
++                            return n;
++                        }
++                    }
++
++                    /** A float offset (a RANGE frame's). */
++                    record Float(double n) implements Offset {
++                        @Override
++                        public Number value() {
++                            return n;
++                        }
++                    }
++
++                    /** A decimal offset (a RANGE frame's). */
++                    record Dec(java.math.BigDecimal n) implements Offset {
++                        @Override
++                        public Number value() {
++                            return n;
++                        }
++                    }
+                 }
+ 
+                 record UnboundedFollowing() implements Bound {
+diff --git a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+index 8bc85f1..1e9cc0d 100644
+--- a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
++++ b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+@@ -2605,9 +2605,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
+     private static SqlExpr.WindowCall.Frame.Bound millis(SqlExpr.WindowCall.Frame.Bound b) {
+         return switch (b) {
+             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p ->
+-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(Math.multiplyExact(p.n(), unitMillis(p.unit())));
++                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(Math.multiplyExact(p.n(), unitMillis(p.unit())));
+             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
+-                    new SqlExpr.WindowCall.Frame.Bound.Following(Math.multiplyExact(f.n(), unitMillis(f.unit())));
++                    SqlExpr.WindowCall.Frame.Bound.Following.of(Math.multiplyExact(f.n(), unitMillis(f.unit())));
+             case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> b;
+             case SqlExpr.WindowCall.Frame.Bound.Preceding p -> b;
+             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> b;
+diff --git a/core/src/test/java/com/legend/PlanTypesAreDataTest.java b/core/src/test/java/com/legend/PlanTypesAreDataTest.java
+index 1ea2f3a..6e53bc3 100644
+--- a/core/src/test/java/com/legend/PlanTypesAreDataTest.java
++++ b/core/src/test/java/com/legend/PlanTypesAreDataTest.java
+@@ -37,13 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
+ class PlanTypesAreDataTest {
+ 
+     /** The violations at the guard's introduction (2026-11-08), each the offending type and the first path to it. */
+-    private static final Set<String> PINNED = Set.of(
++    private static final Set<String> PINNED = Set.<String>of(
+             // (2026-11-08, the plan-as-data design's step 7: the model's ConnectionDefinition at Declared.connection and
+             // its DatabaseType enum at Platform.type left the pins -- the plan holds its own faithful copy of the
+             // connection description, executionplan.Connection and the records it names)
+-            // a window frame's bound in the SQL tree: an abstract Number (an Integer or a Long, as the frame was
+-            // written); a concrete type is the tree's to choose (pinned 2026-11-08, step 3)
+-            "java.lang.Number at Preceding.n");
++            // (2026-11-08, the plan-as-data design's step 9: the window frame bound's abstract Number left the pins --
++            // the SQL tree's offset is a closed data type, Frame.Offset: an integer, a float or a decimal. Guard 1 is at
++            // zero: a new violation fails, nothing is pinned)
++            );
+ 
+     private static final Set<String> DATA_PACKAGES = Set.of("com.legend.executionplan", "com.legend.testexecutionplan",
+             "com.legend.sql",
+diff --git a/core/src/test/java/com/legend/sql/dialect/ClickHouseDialectTest.java b/core/src/test/java/com/legend/sql/dialect/ClickHouseDialectTest.java
+index d7cdbbe..3106eb8 100644
+--- a/core/src/test/java/com/legend/sql/dialect/ClickHouseDialectTest.java
++++ b/core/src/test/java/com/legend/sql/dialect/ClickHouseDialectTest.java
+@@ -96,8 +96,8 @@ class ClickHouseDialectTest {
+         SqlExpr w = new SqlExpr.WindowCall(new SqlAgg.Reducer(fn, List.of(v), false, List.of()), List.of(),
+                 List.of(new SqlSelect.SortKey(k, true, null, null)),
+                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.RANGE,
+-                        new SqlExpr.WindowCall.Frame.Bound.Preceding(0.5),
+-                        new SqlExpr.WindowCall.Frame.Bound.Following(0.5)));
++                        SqlExpr.WindowCall.Frame.Bound.Preceding.of(0.5),
++                        SqlExpr.WindowCall.Frame.Bound.Following.of(0.5)));
+         return render(select(table("t", "t0", "k", SqlType.Scalar.DOUBLE), null, w));
+     }
+ 
+diff --git a/spec/BUILD.bazel b/spec/BUILD.bazel
+index 7c65075..8425a8e 100644
+--- a/spec/BUILD.bazel
++++ b/spec/BUILD.bazel
+@@ -181,6 +181,10 @@ corpus_lane(
+     name = "corpus_duckdb",
+     memory_mb = 1024,
+     data = _CORPUS_INPUTS,
++    # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
++    # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
++    # shows here as a verdict that moves, against the committed rosters
++    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
+     rosters = "duckdb",
+     runtime_deps = [":spec_tests_lib"],
+ )

@@ -781,3 +781,39 @@ independently of the rules).
   `java.security`; step 7b's key used `MessageDigest`. The key is two 64-bit hashes in plain long arithmetic
   (`SystemRoutes.hashOf`), the same content; the planner builds for the browser again (`//pure-protocol:twins_test`
   with it).
+- **Slice 2's lanes (2026-11-08, at `9de03396`, the audit's fixes in): every lane green.** The lanes were core,
+  Postgres, the DuckDB and H2 corpus, PCT and stress. The DuckDB corpus run from the plan read back from its JSON
+  (guard 3, report mode) is identical to the baseline on both judges: host 2436/108/7, database 2429/108/7.
+- **Step 10's first attempt (2026-11-08) was abandoned before it reached the tree, and why.** It ran in a scratch copy
+  compiled with plain `javac` while the lanes ran. The class-level cuts held: zero planning-to-run and zero
+  run-to-planning references, measured with `jdeps`, kept as `docs/plan-as-data-homework/step-10-cuts-draft.patch.txt`
+  with its own README. The package move then went wrong in three ways the user caught:
+  - **It created `com.legend.testdoor`**, holding the router's sequencing, the system store's sessions and the appeal
+    decider's interface. That is a renamed driver touching both halves. 2.9 and R3 allow exactly one thing that sees
+    both: the test front door, thin, calling one `testplan` entry and one `testexec` entry and holding no logic.
+  - **It widened visibility to whatever the compiler reported**, so the public surface became whatever happened to be
+    called, not each library's chosen entry points.
+  - **It would have pinned `testplan -> testdatagen -> exec/testexec`**, where strict separation splits the generator's
+    planning entry from its run.
+
+  **The corrected approach**, to settle with the user before any code:
+  1. Write step 10 as a spec first: each library's few public entry points, and the thin door.
+  2. Write its rules as ArchUnit checks that fail on today's code.
+  3. Move code until they pass.
+
+  Three things had no home in either half, and should have been questions instead of a package:
+  - the router's sequencing, which goes in the thin door;
+  - the system store's sessions, which the catalog design replaces (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md`);
+  - the referee's read of the model to decode enum columns, whose facts can be planned into the appeal record.
+- **Step 9 is ready as a draft, not landed:** `docs/plan-as-data-homework/step-9-draft.patch.txt`. A frame's offset
+  becomes a closed type, so guard 1 is at zero, and guard 3 becomes hard on the DuckDB corpus lane. It compiles with core,
+  spec and PCT, and has not been run under Bazel.
+- **The system store's sessions (the held question of 2.6 and step 8c) have a design**, worked through with the user on
+  2026-11-08: `docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md`, with its measurements and probes.
+  - **One catalog per process**, the platform's rows written once.
+  - **The product** registers a loaded project and commits.
+  - **A test** registers its model inside its own transaction, only when a plan reads the catalog, and rolls back.
+  - **`Class.all()`** is every class in the catalog the session sees.
+
+  Its placement in this plan is open (its section 9). Until it lands, the model-keyed `SystemDatabase` stays the one
+  recorded out-of-plan channel.

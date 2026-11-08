@@ -1,0 +1,172 @@
+import com.legend.compiler.element.ModelContext;
+import java.sql.*;
+import java.util.*;
+
+/** The two checks: (1) registering the stress model's catalog rows inside one transaction, timed; (2) a second
+ *  session never sees them, and a rollback leaves only the platform's rows. On DuckDB and H2. */
+public class CatalogCheck {
+    static Map<String, List<List<String>>> catalog(ModelContext ctx) {
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow();
+        Map<String, List<List<String>>> out = new LinkedHashMap<>();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                out.put(def.name(), com.legend.planner.MetamodelSeeds.rows(def.name(), ctx));
+            }
+        }
+        return out;
+    }
+
+    /** The model's own rows: its catalog minus the platform's (a multiset difference, checked exact earlier). */
+    static Map<String, List<List<String>>> minus(Map<String, List<List<String>>> full, Map<String, List<List<String>>> platform) {
+        Map<String, List<List<String>>> out = new LinkedHashMap<>();
+        for (var e : full.entrySet()) {
+            Map<List<String>, Integer> drop = new HashMap<>();
+            for (List<String> r : platform.get(e.getKey())) {
+                drop.merge(r, 1, Integer::sum);
+            }
+            List<List<String>> keep = new ArrayList<>();
+            for (List<String> r : e.getValue()) {
+                Integer n = drop.get(r);
+                if (n != null && n > 0) {
+                    drop.put(r, n - 1);
+                } else {
+                    keep.add(r);
+                }
+            }
+            out.put(e.getKey(), keep);
+        }
+        return out;
+    }
+
+    static int width(String table, Map<String, List<List<String>>> a, Map<String, List<List<String>>> b) {
+        int w = 1;
+        for (var m : List.of(a, b)) {
+            for (List<String> r : m.get(table)) {
+                w = Math.max(w, r.size());
+            }
+        }
+        return w;
+    }
+
+    static long insert(Connection c, Map<String, List<List<String>>> rows, Map<String, Integer> widths, String model) throws SQLException {
+        long n = 0;
+        for (var e : rows.entrySet()) {
+            int w = widths.get(e.getKey());
+            StringBuilder q = new StringBuilder("INSERT INTO cat_" + e.getKey() + " VALUES (?");
+            for (int i = 0; i < w; i++) {
+                q.append(", ?");
+            }
+            q.append(")");
+            try (PreparedStatement ps = c.prepareStatement(q.toString())) {
+                int batch = 0;
+                for (List<String> r : e.getValue()) {
+                    ps.setString(1, model);
+                    for (int i = 0; i < w; i++) {
+                        ps.setString(i + 2, i < r.size() ? r.get(i) : null);
+                    }
+                    ps.addBatch();
+                    n++;
+                    if (++batch == 5000) {
+                        ps.executeBatch();
+                        batch = 0;
+                    }
+                }
+                ps.executeBatch();
+            }
+        }
+        return n;
+    }
+
+    /** DuckDB's bulk path (exec's DuckDbAppenderLoad): the appender, on the session's own transaction. */
+    static long append(Connection c, Map<String, List<List<String>>> rows, Map<String, Integer> widths, String model) throws SQLException {
+        long n = 0;
+        for (var e : rows.entrySet()) {
+            int w = widths.get(e.getKey());
+            // exec's staging shape (DuckDbAppenderLoad): a session-private TEMP table filled by the appender, then one
+            // set-based INSERT ... SELECT into the catalog table -- the insert is the session's transaction's
+            try (Statement st = c.createStatement()) {
+                st.execute("CREATE TEMP TABLE stage_" + e.getKey() + " AS SELECT * FROM cat_" + e.getKey() + " LIMIT 0");
+            }
+            try (org.duckdb.DuckDBAppender ap = ((org.duckdb.DuckDBConnection) c).createAppender("temp", "main", "stage_" + e.getKey())) {
+                for (List<String> r : e.getValue()) {
+                    ap.beginRow();
+                    ap.append(model);
+                    for (int i = 0; i < w; i++) {
+                        String cell = i < r.size() ? r.get(i) : null;
+                        if (cell == null) {
+                            ap.append((String) null);
+                        } else {
+                            ap.append(cell);
+                        }
+                    }
+                    ap.endRow();
+                    n++;
+                }
+            }
+            try (Statement st = c.createStatement()) {
+                st.execute("INSERT INTO cat_" + e.getKey() + " SELECT * FROM stage_" + e.getKey());
+                st.execute("DROP TABLE stage_" + e.getKey());
+            }
+        }
+        return n;
+    }
+
+    static long count(Connection c, String table) throws SQLException {
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM cat_" + table)) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        ModelContext empty = com.legend.Compiler.compileModel("Class zz::Empty { x: String[1]; }");
+        Map<String, List<List<String>>> platformAll = catalog(empty);
+        Map<String, List<List<String>>> platform = new LinkedHashMap<>();
+        platformAll.forEach((t, rs) -> platform.put(t, rs.stream().filter(r -> r.stream().noneMatch(x -> x != null && x.contains("zz::"))).toList()));
+        Map<String, List<List<String>>> stress = minus(catalog(StressSeed.build()), platform);
+        Map<String, Integer> widths = new LinkedHashMap<>();
+        for (String t : platform.keySet()) {
+            widths.put(t, width(t, platform, stress));
+        }
+        for (String engine : List.of("duckdb", "h2")) {
+            Connection a;
+            Connection b;
+            if (engine.equals("duckdb")) {
+                a = DriverManager.getConnection("jdbc:duckdb:");
+                b = ((org.duckdb.DuckDBConnection) a).duplicate();
+            } else {
+                a = DriverManager.getConnection("jdbc:h2:mem:catalog;DB_CLOSE_DELAY=-1");
+                b = DriverManager.getConnection("jdbc:h2:mem:catalog;DB_CLOSE_DELAY=-1");
+            }
+            // boot: the catalog's tables and the platform's rows, committed
+            long t0 = System.nanoTime();
+            try (Statement s = a.createStatement()) {
+                for (var e : widths.entrySet()) {
+                    StringBuilder ddl = new StringBuilder("CREATE TABLE cat_" + e.getKey() + " (model VARCHAR");
+                    for (int i = 0; i < e.getValue(); i++) {
+                        ddl.append(", c").append(i).append(" VARCHAR");
+                    }
+                    s.execute(ddl.append(")").toString());
+                }
+            }
+            long platformRows = engine.equals("duckdb") ? append(a, platform, widths, "platform") : insert(a, platform, widths, "platform");
+            long tBoot = System.nanoTime();
+            // a test's transaction: the stress model registered, uncommitted
+            a.setAutoCommit(false);
+            long modelRows = engine.equals("duckdb") ? append(a, stress, widths, "stress") : insert(a, stress, widths, "stress");
+            long tReg = System.nanoTime();
+            long seenByOwn = count(a, "classes");
+            long seenByOther = count(b, "classes");
+            a.rollback();
+            long tRb = System.nanoTime();
+            long afterRollback = count(a, "classes");
+            a.setAutoCommit(true);
+            System.out.printf("%s: boot %d platform rows in %d ms | register %d stress rows in one transaction in %d ms,"
+                    + " rollback %d ms | classes: own session %d, other session %d, after rollback %d (platform %d)%n",
+                    engine, platformRows, (tBoot - t0) / 1_000_000, modelRows, (tReg - tBoot) / 1_000_000,
+                    (tRb - tReg) / 1_000_000, seenByOwn, seenByOther, afterRollback, platform.get("classes").size());
+            b.close();
+            a.close();
+        }
+    }
+}
