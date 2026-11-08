@@ -157,8 +157,8 @@ public final class BodyRouter {
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     target -> SystemDatabase.of(typed.context()).sessionFor(target.type(), options.systemConnections());
-            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early, host,
-                    database, agreement, listener, sessionsByTarget(session, systemSessions));
+            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
+                    listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
                 listener.beforeRun();
@@ -232,7 +232,7 @@ public final class BodyRouter {
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     system -> SystemDatabase.of(typed.context()).sessionFor(system.type(), options.systemConnections());
             Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.recorder(), null, null,
-                    null, null, null, null, sessionsByTarget(target, systemSessions));
+                    null, sessionsByTarget(target, systemSessions));
             try {
                 TestRun.run(ahead.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
                         moved::textOrigin, moved, moved);
@@ -264,14 +264,10 @@ public final class BodyRouter {
         private final Execution.@Nullable Answer answer;
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
-        /** The body's asserts as the host judge planned them (an assert program's under the host judge), or null. */
-        private final @Nullable HostAsserts asserts;
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
         private final com.legend.judge.RootLoops.@Nullable Runs databaseRuns;
-        /** The body's asserts as the database judge planned them (under the database judge), or null. */
-        private final @Nullable DatabaseAsserts database;
-        /** The body's asserts as both judges planned them (under the agreement judge), or null. */
-        private final @Nullable AgreementAsserts agreement;
+        /** The agreement judge's asserts, read from the plan (step 6, 2026-11-08), or null under another judge. */
+        private final @Nullable AgreementRuns agreementRuns;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
@@ -314,9 +310,7 @@ public final class BodyRouter {
 
         Moved(TestDoor.Planned planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules, SqlDialect dialect,
                 RawSqlBoundary.@Nullable Recorder recorder,
-                Execution.@Nullable Answer answer, @Nullable ResultSink early,
-                @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
-                @Nullable AgreementAsserts agreement, @Nullable AssertListener listener,
+                Execution.@Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
             this.planned = planned;
             this.sessions = sessions;
@@ -324,11 +318,13 @@ public final class BodyRouter {
             this.recorder = recorder;
             this.answer = answer;
             this.early = early;
-            this.asserts = asserts;
-            this.database = database;
-            this.agreement = agreement;
             this.listener = listener;
-            this.databaseRuns = database != null ? new com.legend.judge.RootLoops.Runs(planned.plan().steps()) : null;
+            // each judge's run read from the plan: its judge, and the segments or pairings its verdict groups carry
+            // (the plan-as-data design's steps 5 and 6, 2026-11-08)
+            TestPlan.Judge judge = planned.plan().judge();
+            this.databaseRuns = judge == TestPlan.Judge.DATABASE
+                    ? new com.legend.judge.RootLoops.Runs(planned.plan().steps()) : null;
+            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.plan().steps()) : null;
             planned.plan().steps().forEach(step -> rulesOf(step, runRules));
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.plan().steps();
@@ -340,7 +336,8 @@ public final class BodyRouter {
                 }
                 // the host's facts the plan carries on the group's first verdict (step 4, 2026-11-08): an agreement
                 // step's or a host judge's one assert's
-                TestPlan.Host p = agreement != null || asserts != null && group.verdicts().size() == 1
+                TestPlan.Host p = judge == TestPlan.Judge.AGREEMENT
+                        || judge == TestPlan.Judge.HOST && group.verdicts().size() == 1
                         ? group.verdicts().get(0).host() : null;
                 if (p != null) {
                     // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
@@ -362,11 +359,11 @@ public final class BodyRouter {
          *  verdict by the batch's root loop; a body ending on an assert answers the verdict the walk answers. */
         @Override
         public void verdict(TestPlan.Verdict verdict, @Nullable List<Object> row) {
-            if (agreement != null) {
+            if (agreementRuns != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
                 TypedSide v;
                 try (var judging = RunReader.judging(reader, sessions)) {
-                    v = agreement.received(verdict, row, listener, reader);
+                    v = agreementRuns.of(verdict).received(verdict, row, listener, reader);
                 }
                 if (v != null) {
                     lastVerdict = v;
@@ -412,8 +409,8 @@ public final class BodyRouter {
 
         @Override
         public void fused(TestPlan.Verdicts group, @Nullable DataError rejected) {
-            if (agreement != null) {
-                agreement.fused(group, rejected);
+            if (agreementRuns != null) {
+                agreementRuns.of(group.verdicts().get(0)).fused(rejected);
                 return;
             }
             com.legend.judge.RootLoops.Runs runs = databaseRuns;
@@ -429,9 +426,10 @@ public final class BodyRouter {
          *  comes to {@link #sidesFailed}, judged by the same path. */
         @Override
         public void sides(TestPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
-            if (agreement != null) {
+            if (agreementRuns != null) {
                 // the host's verdict held until the database half's rows are in
-                agreement.hostSides(verdict, () -> rows, messageOf(verdict), listener, rules(verdict));
+                agreementRuns.of(verdict).hostSides(verdict, () -> rows, messageOf(verdict), listener,
+                        rules(verdict));
                 return;
             }
             TestPlan.Host p = hostOf(verdict);
@@ -473,8 +471,8 @@ public final class BodyRouter {
          *  counted and reported as the walk counts and reports an assert whose side raised). */
         @Override
         public void sidesFailed(TestPlan.Verdict verdict, RuntimeException failure) {
-            if (agreement != null) {
-                agreement.hostSides(verdict, () -> {
+            if (agreementRuns != null) {
+                agreementRuns.of(verdict).hostSides(verdict, () -> {
                     throw failure;
                 }, null, listener, rules(verdict));
                 return;
@@ -489,7 +487,7 @@ public final class BodyRouter {
         private TestPlan.Host hostOf(TestPlan.Verdict verdict) {
             TestPlan.Host h = verdict.host();
             if (h == null) {
-                throw new IllegalStateException(database != null
+                throw new IllegalStateException(databaseRuns != null
                         ? "host sides for a verdict the database judge planned: " + verdict.name()
                         : "a verdict's sides in a moved body whose plan carries no host facts for it: "
                                 + verdict.name());

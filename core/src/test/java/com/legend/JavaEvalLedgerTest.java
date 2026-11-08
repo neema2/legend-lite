@@ -1502,6 +1502,11 @@ class JavaEvalLedgerTest {
                     // the agreement rule (AgreementArm.agree) through AssertVerdicts' seam. Plans only; sends nothing;
                     // judges through the two judges' seams
                     "AgreementAsserts.java",
+                    // 2026-11-08 (the plan-as-data design's step 6): the agreement judge run from the plan -- each
+                    // assert's pairing and its database half's root loop read off the group that closes it, the host
+                    // half held and the agreement rule deciding through AssertVerdicts' seam, as the planner's One did;
+                    // sends nothing, plans nothing
+                    "AgreementRuns.java",
                     // an assert under an if (the asserts-as-plan-nodes program, step 4, 2026-11-04): a branch
                     // statement's parts read from the typed tree -- its condition, each side a statement a judge plans
                     // or a constant -- so each side is planned as a body of its own by the same judge's planner, the

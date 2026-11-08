@@ -99,6 +99,10 @@ class CodeShapeGuardrailTest {
             // 2026-11-08, the plan-as-data design's step 4: the body's engine-text appeals' last number given (planning
             // state, one per body; the registry leaves at step 8)
             "EngineTextAppeals.last",
+            // 2026-11-08, the plan-as-data design's step 6: one agreement-judged assert's run state -- the host half's
+            // verdict held until the database half's rows are in, and an assertError's raising row -- once per run,
+            // read from the plan's pairing (the planner's One held them until then, unscanned: no visibility)
+            "AgreementRuns.held", "AgreementRuns.heldHost", "AgreementRuns.raisingRow",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

@@ -1181,9 +1181,9 @@ final class ArchitectureTest {
             // R1: the body's sink holds the judges' planned asserts and judges through them at each verdict step: the
             // planned values move to their own package (driver.planned) with the split
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.compiler.element.type.Multiplicity",
-            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.AgreementAsserts",
-            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.DatabaseAsserts",
-            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostAsserts",
+            // (gone 2026-11-08, the plan-as-data design's steps 5 and 6: the sink reads each judge's facts from the
+            // plan -- the host's off the verdict, the database's root loop and the agreement's pairing off the group --
+            // and holds no planner's asserts: Moved -> AgreementAsserts, DatabaseAsserts, HostAsserts)
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostSides",
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.JudgePlans",
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.testplan.TestDoor",

@@ -24,8 +24,9 @@ public final class TestPlanJson {
 
     /** 1 (2026-11-08): the verdict groups and branches out of the product's format (its version 27), the frame runs
      *  steps of their own, the judge the plan's; 2 the same day (step 4): a verdict's host facts -- its assertion, its
-     *  judgment, its sides' shapes; 3 the same day (step 5): the database judge's root loop on a segment's last group. */
-    public static final int VERSION = 3;
+     *  judgment, its sides' shapes; 3 the same day (step 5): the database judge's root loop on a segment's last group;
+     *  4 the same day (step 6): the agreement judge's pairing on an assert's last group. */
+    public static final int VERSION = 4;
 
     private TestPlanJson() {
     }
@@ -138,6 +139,9 @@ public final class TestPlanJson {
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
+                if (v.agreement() != null) {
+                    o.put("agreement", HostJson.wAgreement(v.agreement()));
+                }
             }
             case TestPlan.Branch b -> {
                 o.put("_type", StepTag.branch.name());
@@ -237,6 +241,7 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
+                Json.Obj agreement = o.getObjOr("agreement", null);
                 String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
@@ -246,7 +251,8 @@ public final class TestPlanJson {
                             case "compiledPureCompat" -> TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
                             default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
                                     + "': lite or compiledPureCompat");
-                        }, roots == null ? null : HostJson.rRootLoop(roots));
+                        }, roots == null ? null : HostJson.rRootLoop(roots),
+                        agreement == null ? null : HostJson.rAgreement(agreement));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));

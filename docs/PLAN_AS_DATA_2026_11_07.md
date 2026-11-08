@@ -660,3 +660,9 @@ independently of the rules).
 - **Step 5: under the database judge the run tells an assertError's two forms apart by the plan's facts**: its verdict
   row the database judges (S135) carries the host's facts (the assert it reports under) and a statement; its step the
   host judges (N3) carries the host's facts and no statement.
+- **Step 6 (2026-11-08): the agreement judge's pairing is data on the group that closes the assert**
+  (`Verdicts.agreement`: the verdict that carries the host's base, an assertError's raising verdict), the database
+  half's root loop on the same group (`Verdicts.roots`, null where the database judge declines the assert). The run
+  (`driver/AgreementRuns`) finds each assert's pairing from the plan's groups; the planner's `One` keeps no run state
+  and the planner no map by verdict. The router reads which judge runs a plan from the plan (`TestPlan.judge`), never
+  from which planner object it was handed. The test plan's JSON is version 4.
