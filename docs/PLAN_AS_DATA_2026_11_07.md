@@ -906,10 +906,13 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
 
 ### Slice 4's progress (drafted while slice 3's lanes ran; lands after slice 3 closes)
 
-- **Hole 1 (`608eabbf`, branch `claude/slice4-hole1`):** an engine-text appeal's rows leg carries the enumerations
+- **Hole 1 (`3f60de81`):** an engine-text appeal's rows leg carries the enumerations
   its referee decodes (`Appeal.Enums`: the enum types among our columns and the root class's properties, each one's
   decode under the mapping), read from the model at planning (`JudgmentFacts.enumsOf`). The referee's SPI takes them
-  in place of the model; the decision takes no model. `noCompiledModelReachesTheRun` goes from 16 sites to 7.
+  in place of the model; the decision takes no model. `noCompiledModelReachesTheRun` loses hole 1's nine sites (40
+  to 31; the 24 of hole 7's product door arrived with slice 3's follow-up audit).
+- **A1 (`97df8749`):** one appeal per assert under the agreement judge -- the database half's appeal joins the host
+  half's (`Appeal.joins`, `Appeals.join`); the parity pin moved from 2 to 1.
 - **Hole 7, read but not designed yet.** Sessions are opened from the model through the `Execution.Source` contract,
   `open(Target, ModelContext)`. The product's source (`server.ConnectionResolver`) reads the model for two things:
   - a content key of the model's store definitions, so requests over the same stores share one database;
