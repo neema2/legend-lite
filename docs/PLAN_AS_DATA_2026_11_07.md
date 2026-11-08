@@ -1076,3 +1076,23 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
     - measure the plan's size with Data inline (the demo project, `query/demo/verify.mjs`);
     - D3 (a CSV load's local path, the same shape: content in the plan);
     - the full lane round with slice 4's close.
+
+**Hole 2, read before the code (2026-11-08, at `17e62749`):**
+- **Today:**
+  - the plan's seed step (`ExecutionPlan.Setup` keyed `SYSTEM_STORE`, built by `SystemRoutes.seeds`, memoized per
+    model and engine) writes EVERY table of the store and ALL its rows, the platform's and the model's;
+  - the run sends it once per session (`PlanRunner.seed`, the session's established key) on the per-model system
+    database `SystemDatabase.of(ctx).sessionFor(System(engine, graphKey))`;
+  - each core test compiles a new model, so a new database and the whole seed per test: the 85% of core's SQL
+    (`docs/CORE_SQL_SIZE_2026_11_04.md`).
+- **The catalog's run needs:**
+  - one session per engine for the process, created with the DDL and the platform's rows (a platform setup keyed by
+    the platform's content);
+  - the plan's step carrying only the model's rows, inserts with no DDL;
+  - the runner opening a transaction on that session before the registration and rolling it back when the program
+    ends, inside the run (THE WALL).
+  - Found by engine and platform key: no model, so hole 2's six `MODEL_SITES` go.
+- **To check:**
+  - whether any lane runs bodies on parallel threads in one JVM (one catalog session needs them to take turns:
+    per-thread sessions if so);
+  - DuckDB's registration through `INSERT ... SELECT` (the appender ignores the transaction).
