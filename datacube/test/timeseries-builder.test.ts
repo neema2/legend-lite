@@ -156,7 +156,7 @@ describe('a builder term is its #TS text', () => {
     assert.equal(smooth_spikes!(spx, 0.3).text(), "smooth_spikes(close['SPX'], threshold => 0.3, type => 'percentage')");
     assert.equal(lag!(spx, 2, LagMode.TRUNCATE).text(), "lag(close['SPX'], 2, 'truncate')");
     assert.equal(lag!(spx).text(), "lag(close['SPX'], 1, 'extend')");
-    assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(close['SPX'], w => 252)");
+    assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(close['SPX'], w => all)");
     assert.equal(append!([spx, ndx]).text(), "append(close['SPX'], close['NDX'])");
   });
 

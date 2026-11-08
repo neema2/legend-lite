@@ -66,7 +66,8 @@ describe('the expression language', () => {
 
   it('a parameter left at its default is left off; one told by name is placed', () => {
     assert.equal(exprText(parseExpr('returns(close, 1, simple)')), 'returns(close)');
-    assert.equal(exprText(parseExpr('volatility(close, type=log)')), 'volatility(close, 22, log)');
+    // its window every observation unless told, gs-quant's Window(None, 0) (2026-11-08): the tile's own 0
+    assert.equal(exprText(parseExpr('volatility(close, type=log)')), 'volatility(close, 0, log)');
     assert.equal(exprText(parseExpr('returns(close, type=absolute)')), 'returns(close, 1, absolute)');
     // a function of many series' by name: by its place, a word after the weights read as one more series (it was
     // written basket(x, 0.6, y, 0.4, monthly), which no reader read back)
