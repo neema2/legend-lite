@@ -344,7 +344,7 @@ final class HostJudge {
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
             case HostJudgment.Json js -> jsonOf(js, sides, rules);
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
-            case HostJudgment.Raise r -> throw r.failure();
+            case HostJudgment.Raise r -> throw com.legend.judge.Failures.raised(r.failure());
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message);
@@ -564,9 +564,10 @@ final class HostJudge {
             if (e.unjudgedReason() != null) {
                 throw e;
             }
-            if (m.unplanned() != null) {
+            com.legend.testexecutionplan.Failure unplanned = m.unplanned();
+            if (unplanned != null) {
                 throw new com.legend.error.AssertFailed(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(m.unplanned()));
+                        com.legend.compiler.spec.AssertMessages.unevaluated(unplanned.message()));
             }
             // read now, the assert having failed: through the verdict's reader, or the side after the inner ones
             TypedSide read = message != null ? message.get() : sides.get(m.innerSides());
@@ -760,8 +761,9 @@ final class HostJudge {
             int n = u.askCounts().get(i);
             List<TypedSide> slice = sides.subList(at, at + n);
             at += n;
-            if (part.beforeTheArm() != null) {
-                throw part.beforeTheArm();
+            com.legend.testexecutionplan.Failure before = part.beforeTheArm();
+            if (before != null) {
+                throw com.legend.judge.Failures.raised(before);
             }
             part.enter();
             TypedSide v = part.judge(slice, rules);

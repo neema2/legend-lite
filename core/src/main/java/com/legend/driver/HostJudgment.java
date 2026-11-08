@@ -302,15 +302,17 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  message is no side -- its planning raised that (a message reading what the planner cannot plan), named in the
      *  failure where {@code inner} fails ({@code AssertMessages.unevaluated}), as upstream evaluates the message only
      *  there (2026-11-04, the assert bar). */
-    record Messaged(HostJudgment inner, int innerSides, @Nullable RuntimeException unplanned) implements HostJudgment {
+    record Messaged(HostJudgment inner, int innerSides, com.legend.testexecutionplan.@Nullable Failure unplanned)
+            implements HostJudgment {
         /** The message a side the plan reads. */
         Messaged(HostJudgment inner, int innerSides) {
             this(inner, innerSides, null);
         }
     }
 
-    /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it. */
-    record Raise(RuntimeException failure) implements HostJudgment {
+    /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it --
+     *  data (the plan-as-data design's 2.4), raised as its class with its message at the turn. */
+    record Raise(com.legend.testexecutionplan.Failure failure) implements HostJudgment {
     }
 
     /** {@code assertError(f, expected[, line, column])} (the walker-deletion program, 2026-11-03): an ordinary verdict
@@ -321,9 +323,10 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
      *  error was thrown". */
     record AssertError(String expected, @Nullable Long line, @Nullable Long column,
-            @Nullable RuntimeException caught, AssertVerdicts.@Nullable HostAssert inner) implements HostJudgment {
+            com.legend.testexecutionplan.@Nullable Failure caught, AssertVerdicts.@Nullable HostAssert inner) implements HostJudgment {
         /** f's body a value: the error a side raises is the answer. */
-        AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable RuntimeException caught) {
+        AssertError(String expected, @Nullable Long line, @Nullable Long column,
+                com.legend.testexecutionplan.@Nullable Failure caught) {
             this(expected, line, column, caught, null);
         }
     }

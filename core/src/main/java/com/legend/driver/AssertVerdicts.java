@@ -84,13 +84,13 @@ final class AssertVerdicts {
         try {
             v = adjudicate(bare, letPrefix, specs, at, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            batch.resolve(e);
+            batch.resolve(com.legend.judge.Failures.of(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();
             return DatabasePlan.PLANNED;
         } catch (RuntimeException e) {
             // counted as batched counts the exit, at the arm, under the wall's own family
             com.legend.judge.CanonicalDivergence.sqlRaised();
-            batch.wall(e);
+            batch.wall(com.legend.judge.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;
         } finally {
@@ -481,7 +481,7 @@ final class AssertVerdicts {
                 // a message the planner cannot plan: the assert fails naming it, as the host judge's does
                 // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
                 message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(e), null), env.target());
+                        com.legend.compiler.spec.AssertMessages.unevaluated(e.getMessage()), null), env.target());
             }
             com.legend.judge.VerdictBatch batch = env.verdictBatch();
             com.legend.sql.SqlQuery read = message.message().row();
@@ -691,7 +691,7 @@ final class AssertVerdicts {
      * place ({@link #run}); the body router places its sides as a verdict step's base and judges at that step.
      */
     record HostAssert(String listenerName, @com.legend.base.Nullable String family, boolean wantEqual,
-            HostSides.Check check, @com.legend.base.Nullable RuntimeException beforeTheArm) {
+            HostSides.Check check, com.legend.testexecutionplan.@com.legend.base.Nullable Failure beforeTheArm) {
 
         HostAssert(String listenerName, @com.legend.base.Nullable String family, boolean wantEqual,
                 HostSides.Check check) {
@@ -703,7 +703,7 @@ final class AssertVerdicts {
          *  raised; {@code family} null where the classification raised before any family was named (the walk counts
          *  that raise before any family). */
         static HostAssert raising(String listenerName, @com.legend.base.Nullable String family,
-                RuntimeException failure) {
+                com.legend.testexecutionplan.Failure failure) {
             return new HostAssert(listenerName, family, true,
                     new HostSides.Check(List.of(), new HostJudgment.Raise(failure)));
         }
@@ -711,7 +711,7 @@ final class AssertVerdicts {
         /** An assert whose statement raised {@code failure} BEFORE its arm was entered -- the walk raises a let's
          *  handle registration at the let's turn and the assert's frame environment before {@link #tryAdjudicate}
          *  is called -- so it is raised at its turn with no census and no listener (M6's audit, S1). */
-        static HostAssert raisingBeforeTheArm(String listenerName, RuntimeException failure) {
+        static HostAssert raisingBeforeTheArm(String listenerName, com.legend.testexecutionplan.Failure failure) {
             return new HostAssert(listenerName, null, true,
                     new HostSides.Check(List.of(), new HostJudgment.Raise(failure)), failure);
         }
@@ -780,9 +780,10 @@ final class AssertVerdicts {
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        if (a.beforeTheArm() != null) {
+        com.legend.testexecutionplan.Failure before = a.beforeTheArm();
+        if (before != null) {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
-            throw a.beforeTheArm();
+            throw com.legend.judge.Failures.raised(before);
         }
         if (listener == null) {
             a.enter();
@@ -860,8 +861,9 @@ final class AssertVerdicts {
     static HostHeld heldAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        if (a.beforeTheArm() != null) {
-            throw a.beforeTheArm();
+        com.legend.testexecutionplan.Failure before = a.beforeTheArm();
+        if (before != null) {
+            throw com.legend.judge.Failures.raised(before);
         }
         if (listener != null) {
             com.legend.judge.CanonicalDivergence.sqlEnter();
@@ -1042,7 +1044,7 @@ final class AssertVerdicts {
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
             // the family counted first, as adjudicate counts it before the arm (N2)
-            return HostAssert.raising(listenerName(bare), name, e);
+            return HostAssert.raising(listenerName(bare), name, com.legend.judge.Failures.of(e, "AssertVerdicts.planHost: the arm's classification"));
         }
         if (SqlTextVerdicts.notAConstant(check)) {
             // a text side the arm would evaluate by a statement at the assert's turn: the walk's (the census names

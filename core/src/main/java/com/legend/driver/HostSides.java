@@ -83,8 +83,8 @@ final class HostSides {
                 || m.innerSides() != check.asks().size() - 1) {
             return null;
         }
-        return new Check(check.asks().subList(0, m.innerSides()),
-                new HostJudgment.Messaged(m.inner(), m.innerSides(), failure));
+        return new Check(check.asks().subList(0, m.innerSides()), new HostJudgment.Messaged(m.inner(), m.innerSides(),
+                com.legend.judge.Failures.of(failure, "HostSides.planChecked: the caller's message")));
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}

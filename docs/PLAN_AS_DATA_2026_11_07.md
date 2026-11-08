@@ -534,3 +534,33 @@ independently of the rules).
 
 ## 10. Questions held for the end, and decisions taken on the way (2026-11-08 on)
 
+
+**Decisions taken on the way** (each by the design's own rules; none changes a ruling):
+
+- **Step 1 (2026-11-08, `0a1edf63`)** left three reads for later steps, as the design orders them: `JudgePlans`' shaping
+  and `HostJudge`'s `Rows` still read the compiler's `ExprType` at run (the side shapes and the judgments become data at
+  step 4); `PureAsserts` reads `ClassLayouts`' synthetic type and id names (string constants of the compiler's layout;
+  they move with the libraries at step 10). The referee's harness decides an enum column from the model by the
+  column's type name at its builder (`ReplayReferee`), where it read the compiler's `Type.EnumType` from the side.
+- **Step 1's lanes**: every lane run on step 1 alone before step 2 (it changes how numbers compare), not only at the
+  slice's end.
+- **The test plan's Java package is `com.legend.testexecutionplan`** (library `//core:test_plan`, created at step 2):
+  `testplan` is the test's planner by the ruling, so the data takes the product's pattern (`executionplan` is the
+  product plan's data, `planner` its planner, `exec` its runner).
+- **Step 2's `Failure` has no position.** Planning sends no statement, so no planned error carries a database's raise
+  and its source position (the position rides a cause only the database raises at run; `assertError`'s line and
+  column checks read it from the run's own errors, unchanged). The record keeps `kind` (the closed list of classes),
+  `message`, a model error's `phase`, a compile error's `element`, an `unjudgedReason` and `where`. `beforeTheArm`
+  stays the assert's (a `Failure` there, as the exception was), not a flag inside `Failure`.
+- **The closed list is checked when a failure is recorded**: a planning failure of a class not on it fails that
+  planning by name (`Failures.of`), never recorded as a stand-in class; the lanes are the census of what is raised.
+- **`NOT_A_CONSTANT` is never raised at run**: the engine-text arm's refusal is answered at planning (the body is
+  refused by name); raising it is an invariant break, loud.
+- **`DialectCapability` and `TypeInferenceException` are raised by the run** (a member or a message the dialect cannot
+  spell, refused at its place; a side whose typing failed at planning): the run builds each from the failure's data. At
+  step 10 `testexec` may not depend on the dialects or the compiler, so the two classes move to the `error` library then
+  (a leaf every layer reaches).
+- **The closed list, checked by its own refusal** (step 2's first corpus run, 2026-11-08): one class the list lacked,
+  `TypeInferenceException` (12 tests: a side whose typing failed while planned), was named by the list's loud refusal --
+  the counts unchanged, the failure lines naming the missing class. It is on the list since. Every lane at the slice's
+  end is the rest of the census.

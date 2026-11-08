@@ -76,6 +76,10 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
 legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
+# THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's step 2, 2026-11-08): a test body's
+# plan as data, beside the product's (:execution_plan) -- from step 2 an error known at planning (Failure). Data alone: it
+# depends on no planning or runtime library.
+legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", ":error"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
@@ -217,7 +221,8 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/judge/*.java"]),
     # :execution_plan and :result since 2026-10-30 (the seam program's S2e): the verdict batch builds a verdict group
     # and runs it through the plan runner, its program sink (a result sink) the batch's own
-    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":execution_plan", ":lowering", ":result", ":sql", ":sql_dialect", ":values"],
+    # :test_plan since 2026-11-08 (the plan-as-data design's step 2): a planning failure is the test plan's data
+    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":execution_plan", ":lowering", ":result", ":sql", ":sql_dialect", ":test_plan", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -267,8 +272,8 @@ legend_java_library(
         "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
-        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":testplan", ":validation",
-        ":values",
+        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":test_plan", ":testdatagen", ":testplan",
+        ":validation", ":values",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1

@@ -165,7 +165,7 @@ public final class VerdictBatch {
     /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
      *  listener hears its verdict), or a WALL the arm left through ({@code reported} false: the walk discards the root
      *  and surfaces the wall after the roots before it; the program road raises it at its turn the same way). */
-    private record Resolved(RuntimeException failure, boolean reported) implements Step {
+    private record Resolved(com.legend.testexecutionplan.Failure failure, boolean reported) implements Step {
     }
 
     private static final class Root {
@@ -314,9 +314,9 @@ public final class VerdictBatch {
         if (step instanceof Pending p && p.appeal() == null && p.orElse() == null) {
             return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
         }
-        if (step instanceof Resolved r && r.reported() && r.failure() instanceof com.legend.error.AssertFailed f
-                && f.unjudgedReason() == null) {
-            return new Sole.Decided(f);
+        if (step instanceof Resolved r && r.reported() && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED
+                && r.failure().unjudgedReason() == null) {
+            return new Sole.Decided(r.failure());
         }
         return null;
     }
@@ -328,7 +328,7 @@ public final class VerdictBatch {
         }
 
         /** The assert's failure, decided at planning. */
-        record Decided(com.legend.error.AssertFailed failure) implements Sole {
+        record Decided(com.legend.testexecutionplan.Failure failure) implements Sole {
         }
     }
 
@@ -350,7 +350,7 @@ public final class VerdictBatch {
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             Pending p = java.util.Objects.requireNonNull(orElseOf.peek());
             r.steps.set(r.steps.indexOf(p), new Pending(p.ix(), p.name(), p.query(), p.on(), p.appeal(),
-                    new Resolved(e, true)));
+                    new Resolved(Failures.of(e, "VerdictBatch.orElse: the ruled arm decided at planning"), true)));
         } finally {
             orElseOf.pop();
         }
@@ -390,7 +390,7 @@ public final class VerdictBatch {
         return sb.toString();
     }
 
-    public void resolve(RuntimeException failure) {
+    public void resolve(com.legend.testexecutionplan.Failure failure) {
         java.util.Objects.requireNonNull(current, "verdict batch: no open root")
                 .steps.add(new Resolved(failure, true));
     }
@@ -399,7 +399,7 @@ public final class VerdictBatch {
      *  it are judged, told to no listener -- as the walk's {@code batched} discards it and surfaces it after the flush
      *  (the test-is-the-product plan's M7: the program road plans the raise at the root's place; its exit is counted
      *  where it was planned, as the walk counts it at the arm). */
-    public void wall(RuntimeException failure) {
+    public void wall(com.legend.testexecutionplan.Failure failure) {
         java.util.Objects.requireNonNull(current, "verdict batch: no open root")
                 .steps.add(new Resolved(failure, false));
     }
@@ -466,7 +466,8 @@ public final class VerdictBatch {
                     // the texts on one session, the rows they render on another (a side routed to the graph's system
                     // database): no one statement holds both, and two would be the fallback ruled out -- this assert
                     // UNJUDGED by name, the batch's other asserts judged (the final audit, 2026-11-06)
-                    r.steps.set(i, new Resolved(unjudged(p.name(), "a rendered text and its rows on two sessions"),
+                    r.steps.set(i, new Resolved(Failures.of(unjudged(p.name(),
+                            "a rendered text and its rows on two sessions"), "VerdictBatch.plan: a ruled row on two sessions"),
                             true));
                     continue;
                 }
@@ -486,7 +487,8 @@ public final class VerdictBatch {
                     one = new Pending(p.ix(), p.name(), f.query(), p.on(), null, null);
                 } else if (genericRefused == null) {
                     one = new Pending(p.ix(), p.name(), p.query(), p.on(), null,
-                            new Resolved(java.util.Objects.requireNonNull(ruledRefused), true));
+                            new Resolved(Failures.of(java.util.Objects.requireNonNull(ruledRefused),
+                                    "VerdictBatch.plan: a ruled row the dialect cannot spell"), true));
                 } else {
                     one = new Pending(p.ix(), p.name(), p.query(), p.on(), null, null);
                 }
@@ -506,14 +508,14 @@ public final class VerdictBatch {
         // the groups are made: carried), read through the run's reader only where the root fails; a message the
         // dialect cannot spell keeps its refusal, raised there
         Map<Root, ExecutionPlan.Side> messages = new java.util.IdentityHashMap<>();
-        Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals = new java.util.IdentityHashMap<>();
+        Map<Root, com.legend.testexecutionplan.Failure> messageRefusals = new java.util.IdentityHashMap<>();
         for (Root r : batch) {
             if (r.message == null) {
                 continue;
             }
             Ahead a = planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
-                messageRefusals.put(r, a.refused());
+                messageRefusals.put(r, Failures.of(a.refused(), "VerdictBatch.plan: a caller's message the dialect cannot spell"));
                 continue;
             }
             messages.put(r, sideOf(java.util.Objects.requireNonNull(a.plan())));
@@ -576,14 +578,14 @@ public final class VerdictBatch {
         // a member the dialect cannot spell is refused at its place in the root loop with the dialect's own words,
         // planned here; nothing is sent for it (P1.2, 2026-11-07: the root loop sends nothing outside the plan -- the
         // split rung's run-time retry and its statements planned outside the plan are deleted)
-        Map<Pending, com.legend.sql.dialect.DialectCapability> refusals = new java.util.IdentityHashMap<>();
+        Map<Pending, com.legend.testexecutionplan.Failure> refusals = new java.util.IdentityHashMap<>();
         for (Pending u : unspelled) {
             com.legend.sql.dialect.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
             if (refused == null) {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
             }
-            refusals.put(u, refused);
+            refusals.put(u, Failures.of(refused, "VerdictBatch.plan: a member the dialect cannot spell"));
         }
         return new Planned(batch, carried(batch, out, members, messages), members, unspelled, refusals, messages,
                 messageRefusals);
@@ -662,16 +664,16 @@ public final class VerdictBatch {
         private final Map<Integer, List<Object>> rows = new HashMap<>();
         private boolean counted;
         /** The dialect's refusal of each member it cannot spell, raised at the member's place (nothing sent). */
-        private final Map<Pending, com.legend.sql.dialect.DialectCapability> refusals;
+        private final Map<Pending, com.legend.testexecutionplan.Failure> refusals;
         /** Each root's caller's message that reads, a side of the plan (on its first verdict, Verdict.message). */
         private final Map<Root, ExecutionPlan.Side> messages;
         /** A caller's message the dialect cannot spell: its refusal, raised where the root fails. */
-        private final Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals;
+        private final Map<Root, com.legend.testexecutionplan.Failure> messageRefusals;
 
         private Planned(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-                java.util.Set<Pending> unspelled, Map<Pending, com.legend.sql.dialect.DialectCapability> refusals,
+                java.util.Set<Pending> unspelled, Map<Pending, com.legend.testexecutionplan.Failure> refusals,
                 Map<Root, ExecutionPlan.Side> messages,
-                Map<Root, com.legend.sql.dialect.DialectCapability> messageRefusals) {
+                Map<Root, com.legend.testexecutionplan.Failure> messageRefusals) {
             this.batch = batch;
             this.groups = groups;
             this.members = members;
@@ -682,10 +684,10 @@ public final class VerdictBatch {
         }
 
         /** A refusal decided at planning raised at its place: counted UNJUDGED, raised as itself (as orElseDecides). */
-        private RuntimeException refused(String name, com.legend.sql.dialect.DialectCapability refused) {
+        private RuntimeException refused(String name, com.legend.testexecutionplan.Failure refused) {
             CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
-                    + String.valueOf(refused.getMessage()).split("\n")[0]);
-            return refused;
+                    + String.valueOf(refused.message()).split("\n")[0]);
+            return Failures.raised(refused);
         }
 
         /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
@@ -740,13 +742,13 @@ public final class VerdictBatch {
                 // statement of its own sent after a failure
                 throw new IllegalStateException("verdict batch: a ruled row left as a statement of its own: " + p.name());
             }
-            if (decided.failure() instanceof com.legend.sql.dialect.DialectCapability refused) {
+            if (decided.failure().kind() == com.legend.testexecutionplan.Failure.Kind.DIALECT_CAPABILITY) {
                 // counted UNJUDGED (the census), raised as the dialect's own refusal: a dialect wall is raised as
                 // itself on both roads (BodyRouterParityTest's quantified programs), never turned into a verdict
                 CanonicalDivergence.sqlUnjudged(p.name(), "dialect-capability: "
-                        + String.valueOf(refused.getMessage()).split("\n")[0]);
+                        + String.valueOf(decided.failure().message()).split("\n")[0]);
             }
-            throw decided.failure();
+            throw Failures.raised(decided.failure());
         }
 
         /** Every root judged in body order: a pending step's row (as the runner read it from the plan; a member the
@@ -790,7 +792,7 @@ public final class VerdictBatch {
                                 // a member the dialect cannot spell, refused at planning: raised at its place, nothing
                                 // sent; any other absent row is the runner's defect (a rejected fused statement fails
                                 // the body before the root loop runs)
-                                com.legend.sql.dialect.DialectCapability refusal = refusals.get(p);
+                                com.legend.testexecutionplan.Failure refusal = refusals.get(p);
                                 if (refusal == null) {
                                     throw new IllegalStateException(p.name() + ": the runner answered no row for a"
                                             + " verdict of the plan");
@@ -823,7 +825,7 @@ public final class VerdictBatch {
                             }
                         } else if (s instanceof Resolved rv) {
                             reported = rv.reported();
-                            throw rv.failure();
+                            throw Failures.raised(rv.failure());
                         }
                     } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
                         failure = e;
@@ -856,7 +858,7 @@ public final class VerdictBatch {
      *  the root's place, its value the failure's text -- or the error reading it raised. */
     private RuntimeException messaged(Root r, Planned planned, PlanRunner.@com.legend.base.Nullable SideReader reader) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
-        com.legend.sql.dialect.DialectCapability refusal = planned.messageRefusals.get(r);
+        com.legend.testexecutionplan.Failure refusal = planned.messageRefusals.get(r);
         if (refusal != null) {
             return planned.refused(r.listenerName, refusal);
         }

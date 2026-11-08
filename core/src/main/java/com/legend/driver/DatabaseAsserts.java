@@ -314,7 +314,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the gate's own classification raised (a side's planning): the arm would raise the same at the
                 // assert's turn, after the roots before it reported -- a wall at the root's place
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(e);
+                batch.wall(com.legend.judge.Failures.of(e, "DatabaseAsserts.plan: the gate's classification"));
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }
@@ -374,7 +374,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // is the outcome as a constant
             com.legend.judge.VerdictBatch.Sole sole = innerSole.get();
             if (sole instanceof com.legend.judge.VerdictBatch.Sole.Decided d) {
-                raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(d.failure().getMessage()), null,
+                raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(d.failure().message()), null,
                         null);
                 base = List.of();
                 raises = false;
@@ -391,12 +391,10 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             } else {
                 return null;
             }
-        } else if (ae.caught() != null) {
-            Throwable cause = ae.caught() instanceof com.legend.error.DataError ? ae.caught().getCause() : null;
-            com.legend.exec.RaisedErrors.Positioned at = cause instanceof com.legend.exec.RaisedErrors.Positioned p
-                    ? p : null;
-            raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(ae.caught().getMessage()),
-                    at == null ? null : (long) at.line(), at == null ? null : (long) at.column());
+        } else if (ae.caught() instanceof com.legend.testexecutionplan.Failure caught) {
+            // the error f raised while it was planned, as the plan's data: no position (planning sends no statement,
+            // so no database's raise carries one)
+            raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(caught.message()), null, null);
             base = List.of();
             raises = false;
         } else {
@@ -691,7 +689,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // turn, a wall at the root's place (a frame environment's raise is the host half's before its arm: the
                 // agreement judge never asks this half there)
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(e);
+                batch.wall(com.legend.judge.Failures.of(e, "DatabaseAsserts.planEach: the frame environment, the gate or the arm"));
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }

@@ -74,8 +74,9 @@ final class AssertErrorNative {
     /** The error {@code f} raised, as the arm catches it: a database's error (its message clean, its cause the raise's
      *  position where the raise was ours) or a deferred guard's model error; any other exception is no answer of the
      *  arm's (a wall stays loud) and is null here. */
-    static @com.legend.base.Nullable RuntimeException caught(RuntimeException e) {
-        return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException ? e : null;
+    static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where) {
+        return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
+                ? com.legend.judge.Failures.of(e, where) : null;
     }
 
     /** THE ARM'S VERDICT at its step (the walker-deletion program, 2026-11-03): the error {@code f} raised -- while it
@@ -85,7 +86,6 @@ final class AssertErrorNative {
      *  raised as it was. */
     static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
             com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
-        RuntimeException raised = a.caught();
         if (a.inner() != null) {
             // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
             // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the
@@ -102,13 +102,18 @@ final class AssertErrorNative {
             }
             return judged(a.expected(), a.line(), a.column(), message, null);
         }
-        if (raised == null) {
-            try {
-                sides.get();
-            } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
-                // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
-                raised = e;
-            }
+        com.legend.testexecutionplan.Failure planned = a.caught();
+        if (planned != null) {
+            // the error f raised while it was planned, as the plan's data: its message; no position (planning sends
+            // no statement, so no database's raise carries one)
+            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null);
+        }
+        RuntimeException raised = null;
+        try {
+            sides.get();
+        } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
+            // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
+            raised = e;
         }
         return judged(a.expected(), a.line(), a.column(), raised == null ? null : String.valueOf(raised.getMessage()),
                 raised instanceof com.legend.error.DataError ? raised.getCause() : null);

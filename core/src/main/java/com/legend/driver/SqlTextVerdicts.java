@@ -121,7 +121,7 @@ final class SqlTextVerdicts {
      *  callers leave the body to the walk and count the refusal once, by {@link #why}. Never judged. */
     static boolean notAConstant(HostSides.@com.legend.base.Nullable Check check) {
         return check != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.Raise r
-                && r.failure() instanceof NotAConstant;
+                && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.NOT_A_CONSTANT;
     }
 
     /** The side a {@link #notAConstant} check names: its kind and planned root (the message after its label). */
@@ -129,7 +129,7 @@ final class SqlTextVerdicts {
         if (check == null) {
             throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
         }
-        String what = String.valueOf(((HostJudgment.Raise) HostJudgment.core(check.judgment())).failure().getMessage());
+        String what = String.valueOf(((HostJudgment.Raise) HostJudgment.core(check.judgment())).failure().message());
         return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
@@ -289,7 +289,8 @@ final class SqlTextVerdicts {
             collecting.planning = false;
         }
         if (notAConstant != null) {
-            return new HostSides.Check(List.of(), new HostJudgment.Raise(notAConstant));
+            return new HostSides.Check(List.of(), new HostJudgment.Raise(com.legend.judge.Failures.of(notAConstant,
+                    "SqlTextVerdicts.plan: a text side not a constant")));
         }
         if (answered == null) {
             return null;

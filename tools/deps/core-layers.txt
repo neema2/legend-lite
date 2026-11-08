@@ -96,19 +96,22 @@ setup	base cache compiler execution_plan model protocol sql sql_dialect
 # sql_dialect gone with the judges' column and row (`judge`), the driver's decode facts (the connector's), the session source
 # and the system database (the driver's), and the wire table's compiler type (a name in the plan's vocabulary).
 exec	base cache diagnostics error execution_plan json model result sql values
-judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect values
+judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect test_plan values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
 testdatagen	base builtin compiler compiler_element_type error exec execution_plan judge lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
+# 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
+# driver reach it (a planning failure recorded as data, raised at its turn).
+test_plan	base error
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen testplan validation values
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testplan validation values
 # 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
 # test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
 # extension point; nothing on the plan side reaches it.
