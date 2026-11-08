@@ -193,11 +193,20 @@ public final class Execution {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
-    /** A program PLANNED before it runs ({@link #planProgram}): run once, on a session of the database it was planned
-     *  for; running it plans nothing. */
-    @FunctionalInterface
-    public interface PlannedProgram {
-        void run(com.legend.exec.Sessions.Session session);
+    /** A program PLANNED before it runs ({@link #planProgram}): its test plan, data (the plan-as-data design's step 8c,
+     *  2026-11-08: until then a closure); run once by {@link #runPlanned}, on a session of the database it was planned
+     *  for, which plans nothing. */
+    public record PlannedProgram(com.legend.testexecutionplan.TestPlan plan) {
+        public PlannedProgram {
+            java.util.Objects.requireNonNull(plan, "plan");
+        }
+    }
+
+    /** {@code planned} run on {@code session} under {@code options}, the graph {@code ctx} it was planned over holding
+     *  its system store's sessions. */
+    public static void runPlanned(PlannedProgram planned, com.legend.exec.Sessions.Session session, ModelContext ctx,
+            ExecuteOptions options) {
+        BodyRouter.runPlanned(planned.plan(), session, ctx, options);
     }
 
     /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the

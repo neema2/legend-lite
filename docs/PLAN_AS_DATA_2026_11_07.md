@@ -718,3 +718,17 @@ independently of the rules).
   is data in the plan now (the user's rule: no code in the plan); moving the decision code into the edge library, on an
   interface the product declares, belongs with the package move (step 10), where testexec's run services get their
   public form.
+- **Step 8c (2026-11-08): the out-of-plan channels removed by name (2.10.4)**, three of four:
+  - *the harness's fixture registry, filled at planning*: an appeal's rows leg NAMES the stores it reads in the plan
+    (`Appeal.Rows.stores`); the harness is handed them before the body's run (`AssertListener.beforeRun(stores)`) and
+    provides each it can, and the decision asks again by name after the run (answered by the same provision). The
+    arms no longer ask the harness while they plan.
+  - *the planned program's closure*: `Execution.PlannedProgram` is its test plan, data; `Execution.runPlanned` runs it.
+  - *the run's dialect and the collected comparison's environment*: the router's sink holds no `SqlDialect`, and an
+    engine-text comparison holds no planning environment.
+- **Step 8c: the system store's sessions stay keyed by the compiled graph** (2.6's fourth channel, held for the user,
+  section 10's questions): the plan names the store by its content's key (7b), and the run finds the session by it, but
+  the sessions' OWNER is still the graph's holder (`SystemDatabase`, closed by a `Cleaner` when the graph is collected).
+  2.6's exec-owned sessions with an explicit lifetime need an owner every caller opens and closes (a corpus run holds
+  thousands of graphs; a per-run owner re-seeds the store per body, the cost `CORE_SQL_SIZE` measured), and two graphs
+  of equal content sharing one store need the concurrency check 2.6 asks for before it lands.

@@ -93,6 +93,19 @@ final class AppealsByVerdict {
         return out;
     }
 
+    /** The stores whose fixtures {@code plan}'s appeals ask the harness to provide before the run (step 8c: the plan
+     *  names them; until then the harness's registry was filled while the asserts were planned). */
+    static java.util.Set<String> stores(TestPlan plan) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (Appeal a : byNumber(plan).values()) {
+            Appeal.Rows r = a.rows();
+            if (r != null) {
+                out.addAll(r.stores());
+            }
+        }
+        return out;
+    }
+
     /** The appeals {@code plan} carries, by number. */
     static Map<Integer, Appeal> byNumber(TestPlan plan) {
         Map<Integer, Appeal> out = new LinkedHashMap<>();

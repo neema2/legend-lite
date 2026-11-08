@@ -93,7 +93,7 @@ final class SqlTextVerdicts {
      *  the harness's objects: the appeal is harness Java outside the plan by the user's ruling (R3, T13, R6), built
      *  when the assert is planned and run at the step on a failed text alone. */
     record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
-            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env,
+            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal,
             com.legend.exec.@com.legend.base.Nullable StatementOrigin oursOrigin) {
     }
 
@@ -160,7 +160,7 @@ final class SqlTextVerdicts {
                         + " comparison");
             }
             collected.add(new Collected(name, deferredGoldenText ? null : golden, deferredText ? null : ours,
-                    textEqual, decline, appeal, env, deferredText || deferredGoldenText ? deferredOrigin : null));
+                    textEqual, decline, appeal, deferredText || deferredGoldenText ? deferredOrigin : null));
         }
 
         @Override
@@ -1736,17 +1736,11 @@ final class SqlTextVerdicts {
         if (!appeals(env) || textEqual || com.legend.base.RunScope.running()) {
             return null;
         }
-        // the stores the harness provides a fixture for, asked now (it plans their programs ahead) and named in the
-        // plan's data: the appeal's decision asks again, by name, after the run
-        List<String> stores = new java.util.ArrayList<>();
-        com.legend.judge.AssertListener l = env.assertListener();
-        if (l != null && mappingFqn != null) {
-            for (String store : storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>())) {
-                if (l.fixtureAhead(store) != null) {
-                    stores.add(store);
-                }
-            }
-        }
+        // the stores the rows leg reads, named in the plan's data: the harness is asked for their fixtures before the
+        // body's run, and the decision asks again, by name, after it (step 8c, 2026-11-08: the harness's registry was
+        // filled here, while the assert was planned)
+        List<String> stores = mappingFqn == null ? List.of()
+                : List.copyOf(storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>()));
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
         BodyDriver.ExecEnv on = env.appealOn() != null ? env.appealOn() : env;

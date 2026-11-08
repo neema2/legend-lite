@@ -293,7 +293,8 @@ public final class PureTestRunner implements AutoCloseable {
         if (planned == null) {
             return null;
         }
-        return () -> provideFixture(storeFqn, conn, ran, shared, (fqn, target) -> planned.run(target));
+        return () -> provideFixture(storeFqn, conn, ran, shared,
+                (fqn, target) -> Execution.runPlanned(planned, target, ctx, options));
     }
 
     /** The setups {@code body} calls at its top level (testGroupByWithWindowSubset runs
@@ -590,8 +591,12 @@ public final class PureTestRunner implements AutoCloseable {
                             }
 
                             @Override
-                            public void beforeRun() {
-                                // the fixtures the planned appeals asked for, each a run of its own before the body's
+                            public void beforeRun(java.util.Set<String> stores) {
+                                // the fixtures of the stores the plan's appeals name (step 8c, 2026-11-08), each a run
+                                // of its own before the body's
+                                for (String store : stores) {
+                                    fixtureAhead(store);
+                                }
                                 for (java.util.function.BooleanSupplier f : pendingFixtures) {
                                     f.getAsBoolean();
                                 }

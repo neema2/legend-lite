@@ -163,11 +163,11 @@ public final class BodyRouter {
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     target -> SystemDatabase.of(typed.context()).sessionFor(target, options.systemConnections());
-            Moved moved = new Moved(plan, options.judgingRules(), dialect, options.edge(), answer, early,
+            Moved moved = new Moved(plan, options.judgingRules(), options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
-                listener.beforeRun();
+                listener.beforeRun(AppealsByVerdict.stores(plan));
             }
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = AppealsByVerdict.byNumber(plan);
@@ -234,19 +234,23 @@ public final class BodyRouter {
                 // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
                 ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
                 : planned;
-        return target -> {
-            Census.inc(Census.Key.BODIES_MOVED);
-            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    system -> SystemDatabase.of(typed.context()).sessionFor(system, options.systemConnections());
-            Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.edge(), null, null,
-                    null, sessionsByTarget(target, systemSessions));
-            try {
-                TestRun.run(ahead, Map.of(), PlanSessions.of(target, null, systemSessions),
-                        moved::textOrigin, moved, moved);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
+        return new Execution.PlannedProgram(ahead);
+    }
+
+    /** A program planned ahead ({@link #planned}) run on {@code target}: its plan, data, alone (step 8c, 2026-11-08). */
+    public static void runPlanned(TestPlan ahead, Sessions.Session target, com.legend.compiler.element.ModelContext ctx,
+            ExecuteOptions options) {
+        Census.inc(Census.Key.BODIES_MOVED);
+        java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
+                system -> SystemDatabase.of(ctx).sessionFor(system, options.systemConnections());
+        Moved moved = new Moved(ahead, options.judgingRules(), options.edge(), null, null,
+                null, sessionsByTarget(target, systemSessions));
+        try {
+            TestRun.run(ahead, Map.of(), PlanSessions.of(target, null, systemSessions),
+                    moved::textOrigin, moved, moved);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
@@ -266,7 +270,6 @@ public final class BodyRouter {
 
     private static final class Moved implements com.legend.exec.ProgramRunner.ProgramSink, TestRun.Judges {
         private final TestPlan planned;
-        private final SqlDialect dialect;
         /** The compatibility edge the run was handed, which records the referee's ledger, or null (lite's rules). */
         private final com.legend.testexecutionplan.@Nullable Edge edge;
         private final Execution.@Nullable Answer answer;
@@ -318,13 +321,12 @@ public final class BodyRouter {
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
         private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
-        Moved(TestPlan planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules, SqlDialect dialect,
+        Moved(TestPlan planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules,
                 com.legend.testexecutionplan.@Nullable Edge edge,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
             this.planned = planned;
             this.sessions = sessions;
-            this.dialect = dialect;
             this.edge = edge;
             this.answer = answer;
             this.early = early;

@@ -303,8 +303,8 @@ final class Appeals {
         }
 
         @Override
-        public void beforeRun() {
-            to.beforeRun();
+        public void beforeRun(java.util.Set<String> stores) {
+            to.beforeRun(stores);
         }
     }
 }
