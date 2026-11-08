@@ -64,6 +64,10 @@ test_suite(
         "//core:ts_documents_test",
         # the #TS{...}# island's cases on the embedded Postgres 16 (docs/TS_V1_PROGRAM_2026_11_01.md B1)
         "//core:ts_island_postgres_test",
+        # every mapped word of #TS against gs-quant's own function at the oracle's pin (tools/gs-quant-oracle/pins.env),
+        # snapped by tools/gs-quant-oracle (2026-11-07),
+        # each case's verdict held by tools/gs-quant-oracle/ledger.tsv
+        "//core:ts_gsquant_parity_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
@@ -145,6 +149,9 @@ test_suite(
         "//tools/iq-oracle:tools_build_test",
         # the #Cypher{}# island's oracle (tools/neo4j-oracle/README.md): built here, run by hand where a Neo4j runs
         "//tools/neo4j-oracle:tools_build_test",
+        # the #TS{...}# island's gs-quant oracle (tools/gs-quant-oracle/README.md): built here, run by hand (snap.sh installs
+        # the pin, tools/gs-quant-oracle/pins.env)
+        "//tools/gs-quant-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )
