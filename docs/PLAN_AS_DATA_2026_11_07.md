@@ -986,3 +986,45 @@ ruled out. So the steps:
 
 Measure before and after: the corpus's `system=` statement count, and core's SQL size (`docs/CORE_SQL_SIZE_2026_11_04.md`:
 85% of core's SQL is this seed re-sent per test).
+
+### Hole 7 v1: the project database inline (the user's go, 2026-11-08) -- the implementation plan
+
+**The ruling:** the plan carries the project's data inline, as instructions. Exec finds or makes the database from
+those instructions alone, reusing it while they are unchanged. The planner opens nothing. Drop-and-redo was ruled out:
+concurrent queries would collide, it would wipe tables a caller loaded, and it reloads on every query.
+
+**Read (at `3d897fc4`):**
+- **The production entry:**
+  - `ConnectionResolver.RUNNER` calls `Execution.run(..., SOURCE, PlanSessions.shared(), DECLARED_SETUP, ...)`.
+  - On the read path, the door opens `SOURCE.open(Compiler.executesOn(ctx), ctx)` BEFORE planning (the bug). Then it
+    runs the plan's declared setup on that session per query.
+  - The write path already opens through the runner's content-keyed sessions (`PlanSessions.openShared`, keyed by
+    the target's JSON) with no model.
+- **`ConnectionResolver.session(ctx, runtime)` is used by tests alone** (`Seed`, `ConnectionLeaseTest`,
+  `PostgresArmTest`): they seed tables, then query the same database.
+- **The planner's `PlanMaker.target`** writes the connection's declared test data (`CsvSeed.declaredSteps`) and the
+  system store into the target. The model's ###Data rows are filled only on the server's held path
+  (`ConnectionResolver.connect` with `ProjectData.fill`), never on the test road.
+
+**Two details the change keeps:**
+1. **Two cadences.**
+   - The project's Data loads ONCE, when its database is made (C5).
+   - A connection's declared test data runs on EVERY acquisition, as legend-engine establishes a connection.
+
+   So the target needs both: a once-when-made list, which is part of the database's identity, and today's per-query
+   setup. Folding the Data into the per-query setup would insert its rows again on every query.
+2. **Models kept apart (type audit D100).** The server keys a database by the model's store definitions, so two
+   models with different table shapes never share one. The runner keys by the target's content, so the target must
+   carry the stores' content key (`ProjectData.contentKey`), or the leak returns.
+
+**Steps:**
+1. **`ExecutionPlan.Target` gains the once-when-made steps**, part of its content key, beside the per-acquisition
+   setup. The planner writes the project's Data fill and the stores' key into them when the caller asks for the
+   project's database (the server's runner, a planning option), never for the test road. PlanJson's version is bumped.
+2. **`PlanSessions`** runs the once-when-made steps when it makes a database, and the per-acquisition setup as today.
+3. **`Execution.Source` becomes `open(ExecutionPlan.Target)`.** `Execution.run` plans first and opens from the plan's
+   target. A constant answer opens nothing.
+4. **`ConnectionResolver`'s source becomes the runner's content-keyed opening:** its own keys and fill are deleted.
+   `session(ctx, runtime)` becomes a session for a planned target (the tests).
+5. **Guards:** hole 7's `MODEL_SITES` (the 24 product sites and the run's four) go. **Measure:** the plan's size on
+   the demo project (PARK-35's `query/demo/verify.mjs`) and on the largest ###Data in the tests.
