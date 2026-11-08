@@ -1,15 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-package com.legend.driver;
+package com.legend.testexecutionplan;
 
-import com.legend.testexecutionplan.TestPlan;
 import com.legend.base.Nullable;
-import com.legend.compiler.element.EqualityKeys;
-import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.element.type.ExprType;
-import com.legend.compiler.element.type.PlatformTypes;
-import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.typed.TypedSpec;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -23,33 +16,23 @@ import java.util.Set;
  * per comparison, a closed list -- with the few facts the comparison needs that the sides' rows do not carry, every
  * one computed when the assert is PLANNED from the typed arguments and the model: the order view of a side, whether a
  * {@code $r.values} read is the envelope's, the subtype closure an {@code assertInstanceOf} accepts, the key trees a
- * keyed pair restricts to, the byte verdict's static gates. {@link HostJudge#judge} switches on the record and runs
- * that one Java function over the rows and the facts. The sink holds no compiler object: no typed tree, no let prefix,
- * no model, no closure -- but for the engine-text asserts' APPEAL ({@link EngineText}, the plan's M10b): harness Java
- * outside the plan by the user's ruling (R3, T13, R6), run at the step on a failed text alone. The walk runs the same
- * function in place ({@link HostSides#run}).
+ * keyed pair restricts to, the byte verdict's static gates. {@code HostJudge.judge} switches on the record and runs
+ * that one Java function over the rows and the facts. Part of a test body's plan (the plan-as-data design's step 4,
+ * 2026-11-08: docs/PLAN_AS_DATA_2026_11_07.md 2.2): data alone -- no compiler object, no typed tree, no model, no
+ * closure; the engine-text asserts' APPEAL is named by its number ({@link EngineText}), held beside the plan until the
+ * design's step 8 makes it the edge's extension.
  */
-sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
+public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
         HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
 
-    /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
-     *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
-     *  name for the census. */
-    record SideFacts(ExprType info, @Nullable String classFqn, @Nullable KindClass kind, boolean anyStamped,
-            boolean nil, boolean mapCarrier, String typeName, String declared) {
-
-        static SideFacts of(TypedSpec s) {
-            Type t = s.info().type();
-            return new SideFacts(s.info(), EqualityKeys.fqnOf(t), KindClass.of(t), AssertVerdicts.isAnyStamped(s),
-                    PlatformTypes.isNil(t), PlatformTypes.isMapCarrier(t), AssertVerdicts.typeName(s), t.typeName());
-        }
-
-        Type type() {
-            return info.type();
-        }
+    /** The static facts of one side's typed argument the equality arms read: the keyed class it declares (null for a
+     *  non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's name for the
+     *  census, and the declared type's name its values are judged by. */
+    record SideFacts(@Nullable String classFqn, @Nullable KindClass kind, boolean anyStamped, boolean nil,
+            boolean mapCarrier, String typeName, String declared) {
     }
 
     /**
@@ -63,99 +46,10 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      * -- and, transitively, the same for the slots of those classes' keys; read once at planning. Null keys where a
      * side declares no class.
      */
-    record Keys(@Nullable EqualityKeys e, @Nullable EqualityKeys a, boolean eSubA, boolean aSubE,
-            Map<String, EqualityKeys> byClass) {
+    record Keys(@Nullable KeyTree e, @Nullable KeyTree a, boolean eSubA, boolean aSubE,
+            Map<String, KeyTree> byClass) {
         public Keys {
             byClass = Collections.unmodifiableMap(new LinkedHashMap<>(byClass));
-        }
-
-        static Keys of(TypedSpec eSpec, TypedSpec aSpec, ModelContext ctx) {
-            String ef = EqualityKeys.fqnOf(eSpec.info().type());
-            String af = EqualityKeys.fqnOf(aSpec.info().type());
-            boolean eSubA = false;
-            boolean aSubE = false;
-            if (ef != null && af != null && !ef.equals(af)) {
-                eSubA = ctx.isSubtype(ef, af);
-                aSubE = ctx.isSubtype(af, ef);
-            }
-            EqualityKeys e = ef != null && (ef.equals(af) || eSubA) ? EqualityKeys.resolve(ctx, eSpec.info().type())
-                    : null;
-            EqualityKeys a = aSubE ? EqualityKeys.resolve(ctx, aSpec.info().type()) : null;
-            Map<String, EqualityKeys> byClass = new LinkedHashMap<>();
-            Set<String> seen = new java.util.HashSet<>();
-            ownClassesOfTheSlots(e, ctx, byClass, seen);
-            ownClassesOfTheSlots(a, ctx, byClass, seen);
-            return new Keys(e, a, eSubA, aSubE, byClass);
-        }
-
-        /**
-         * The keyed classes a value may carry as its own in a key slot of {@code k} that declares no keyed class
-         * (the slot's declared class is keyless or Any: {@link HostJudge#restrictNested} judges the value by its own
-         * classifier's keys): the declared class and its subtree -- the model's whole universe for Any, whose subtree
-         * the knowledge layer indexes by explicit generalization alone -- each class that DECLARES a key resolved once
-         * ({@link EqualityKeys#declaresKeys}: read off the definitions, so no class the body never touched is compiled
-         * here; a class declaring none has no keys); a keyed class found contributes its own slots the same way (a
-         * nested slot of a declared keyed class is walked through its keys).
-         */
-        private static void ownClassesOfTheSlots(@Nullable EqualityKeys k, ModelContext ctx,
-                Map<String, EqualityKeys> byClass, Set<String> seen) {
-            if (k == null) {
-                return;
-            }
-            for (EqualityKeys.Key key : k.keys()) {
-                if (key.nested() != null) {
-                    ownClassesOfTheSlots(key.nested(), ctx, byClass, seen);
-                    continue;
-                }
-                String declared = key.declaredClass();
-                if (declared == null || !seen.add(declared + "[*]")) {
-                    continue;
-                }
-                Iterable<String> candidates = declared.equals(PlatformTypes.ANY) ? ctx.resolutionUniverse()
-                        : withSubtree(declared, ctx);
-                for (String fqn : candidates) {
-                    if (!seen.add(fqn) || !EqualityKeys.declaresKeys(ctx, fqn)) {
-                        continue;
-                    }
-                    EqualityKeys own = EqualityKeys.resolve(ctx, fqn);
-                    if (own != null) {
-                        byClass.put(fqn, own);
-                        ownClassesOfTheSlots(own, ctx, byClass, seen);
-                    }
-                }
-            }
-        }
-
-        private static Set<String> withSubtree(String declared, ModelContext ctx) {
-            Set<String> out = new java.util.LinkedHashSet<>();
-            out.add(declared);
-            out.addAll(ctx.subtree(declared));
-            return out;
-        }
-
-        /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a
-         *  supertype counts as the other's class when every value on its wire is of it), as
-         *  {@code AssertVerdicts.instanceKeys} decided it with the typed arguments and the model. */
-        @Nullable EqualityKeys resolve(SideFacts ef, SideFacts af, List<Object> eVals, List<Object> aVals) {
-            String ec = ef.classFqn();
-            String ac = af.classFqn();
-            EqualityKeys ek = e;
-            EqualityKeys ak = a;
-            if (ec != null && ac != null && !ec.equals(ac)) {
-                if (eSubA && HostJudge.allWireType(aVals, ec)) {
-                    ac = ec;
-                    ak = ek;
-                } else if (aSubE && HostJudge.allWireType(eVals, ac)) {
-                    ec = ac;
-                    ek = ak;
-                }
-            }
-            return ec != null && ec.equals(ac) ? ek : null;
-        }
-
-        /** The keys of the class {@code fqn} (a polymorphic key slot's value's own), or null where it has none. */
-        @Nullable EqualityKeys of(String fqn) {
-            return byClass.get(fqn);
         }
     }
 
@@ -193,13 +87,16 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     }
 
     /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
-     *  the element arm judges a pair ({@link com.legend.judge.PureAsserts}: the same decision, the same message, the
+     *  the element arm judges a pair ({@code judge.PureAsserts}: the same decision, the same message, the
      *  first failing row's): the sides are the zip's arms ({@code pairing}: their pairing by position, stopped at the
      *  shorter, zip's own rule) or one relation source ({@code pairing} null: its rows as records by column name); each
      *  argument a row's field, the row itself, or a literal, decided at planning (2026-11-04, the core program: until
      *  then the walk's alone, HostJudge.quantifiedRows). */
-    record Rows(String name, boolean tolerance, List<RowArg> args, ExprType expectedInfo, ExprType actualInfo,
-            @Nullable Pairing pairing) implements HostJudgment {
+    record Rows(String name, boolean tolerance, List<RowArg> args, @Nullable String expectedClass,
+            @Nullable String actualClass, @Nullable Pairing pairing) implements HostJudgment {
+        public Rows {
+            args = List.copyOf(args);
+        }
     }
 
     /** A row assert's argument: the row, one of its fields, or a literal. */
@@ -210,7 +107,10 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
         record Field(String name) implements RowArg {
         }
 
-        record Literal(@Nullable Object value) implements RowArg {
+        /** A literal argument: the Java carrier the compiler typed it as ({@code String}, {@code Boolean},
+         *  {@code Double}, {@code Long}, {@code Integer}, {@code BigInteger}) and its text, read back to the same value
+         *  at the step (a double's {@code Double.toString} reads back exactly). */
+        record Literal(String carrier, String text) implements RowArg {
         }
     }
 
@@ -227,11 +127,15 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  its own slice of the sides ({@code askCounts} asks each), each counted as the walk counts it (entered, its
      *  family); the statement's one verdict is the last element's, the first failure raising -- exactly the walk's
      *  unroll, which adjudicates each element and reports the statement once. */
-    record Unrolled(List<AssertVerdicts.HostAssert> parts, List<Integer> askCounts) implements HostJudgment {
+    record Unrolled(List<Part> parts) implements HostJudgment {
         public Unrolled {
             parts = List.copyOf(parts);
-            askCounts = List.copyOf(askCounts);
         }
+    }
+
+    /** One element's planned assert inside an unrolled quantifier, or the assert inside an {@code assertError}: its
+     *  facts, its judgment, and how many of the step's sides it reads. */
+    record Part(Assertion assertion, HostJudgment judgment, int asks) {
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)} on the identity lane. */
@@ -252,7 +156,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     /** {@code assertInstanceOf(v, type)}: the type's name and the classes it accepts -- itself and its subtree,
      *  the model's subtype relation read at planning; a null name where the type argument is no reference (the
      *  judgment declines the side it read: the walk's generic path). */
-    record InstanceOf(@Nullable String typeName, Set<String> acceptedTypes) implements HostJudgment {
+    record InstanceOf(@Nullable String typeName, java.util.Set<String> acceptedTypes) implements HostJudgment {
         public InstanceOf {
             acceptedTypes = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(acceptedTypes));
         }
@@ -303,17 +207,16 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  message is no side -- its planning raised that (a message reading what the planner cannot plan), named in the
      *  failure where {@code inner} fails ({@code AssertMessages.unevaluated}), as upstream evaluates the message only
      *  there (2026-11-04, the assert bar). */
-    record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned)
-            implements HostJudgment {
+    record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned) implements HostJudgment {
         /** The message a side the plan reads. */
-        Messaged(HostJudgment inner, int innerSides) {
+        public Messaged(HostJudgment inner, int innerSides) {
             this(inner, innerSides, null);
         }
     }
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it --
      *  data (the plan-as-data design's 2.4), raised as its class with its message at the turn. */
-    record Raise(com.legend.testexecutionplan.Failure failure) implements HostJudgment {
+    record Raise(Failure failure) implements HostJudgment {
     }
 
     /** {@code assertError(f, expected[, line, column])} (the walker-deletion program, 2026-11-03): an ordinary verdict
@@ -323,22 +226,21 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  any assert is; {@code caught} the error {@code f} raised while it was PLANNED (a deferred guard's, as the walk's arm
      *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
      *  error was thrown". */
-    record AssertError(String expected, @Nullable Long line, @Nullable Long column,
-            com.legend.testexecutionplan.@Nullable Failure caught, AssertVerdicts.@Nullable HostAssert inner) implements HostJudgment {
+    record AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught,
+            @Nullable Part inner) implements HostJudgment {
         /** f's body a value: the error a side raises is the answer. */
-        AssertError(String expected, @Nullable Long line, @Nullable Long column,
-                com.legend.testexecutionplan.@Nullable Failure caught) {
+        public AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught) {
             this(expected, line, column, caught, null);
         }
     }
 
-    /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned ({@link SqlTextVerdicts.Collected}: the
-     *  two texts, their equality, the decline decided before them, the APPEAL and its environment) and whether the
-     *  equality arm's census route is counted at the step. The one judgment holding a closure and the harness's
-     *  objects: the rows leg is harness Java outside the plan by the user's ruling (R3, T13, R6), run at the step on a
-     *  failed text alone; the texts themselves are the step's two sides -- constants checked against the planned ones,
-     *  or our text the side the step RUNS where the arm's actual side is a statement over the plan's rows (M10c item
-     *  8: {@code Collected.ours} null, the equality computed at the step). */
-    record EngineText(SqlTextVerdicts.Collected collected, boolean routed) implements HostJudgment {
+    /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned -- its name, the golden and our text where
+     *  the plan holds them as constants (null: the text is a side the step reads), their equality, the decline decided
+     *  before them, the statement origin our text is read under (an exec origin's name, or null) -- and its APPEAL,
+     *  named by its number in the body ({@code appeal}): the rows leg is harness Java held beside the plan until the
+     *  design's step 8 makes it the edge's extension (2.7, the user's ruling R3, T13, R6); whether the equality arm's
+     *  census route is counted at the step. */
+    record EngineText(String name, @Nullable String golden, @Nullable String ours, boolean textEqual,
+            @Nullable String decline, @Nullable String oursOrigin, int appeal, boolean routed) implements HostJudgment {
     }
 }

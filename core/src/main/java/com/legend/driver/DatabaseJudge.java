@@ -1,6 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
+import com.legend.testexecutionplan.KindClass;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;

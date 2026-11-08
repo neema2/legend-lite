@@ -3,6 +3,8 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
+import com.legend.testexecutionplan.KindClass;
 import com.legend.ExecuteOptions;
 
 import com.legend.builtin.NativeFn;
@@ -136,7 +138,7 @@ final class AssertVerdicts {
         }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e
-                && e.collected().golden() != null && e.collected().ours() != null && e.collected().textEqual();
+                && e.golden() != null && e.ours() != null && e.textEqual();
     }
 
     /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
@@ -205,13 +207,13 @@ final class AssertVerdicts {
             return DatabaseGate.RAISES;
         }
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e) {
-            if (e.collected().golden() == null) {
+            if (e.golden() == null) {
                 // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
                 // database judge's text equality with the golden a constant -- the walk's, by name
                 com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
                 return DatabaseGate.UNPLANNED;
             }
-            if (e.collected().ours() == null) {
+            if (e.ours() == null) {
                 // our text a side the plan reads (M10c item 8; the database judge since 2026-11-04, the core
                 // program): the verdict row computes it and the equality, its ACTUAL column the appeal's text
                 return DatabaseGate.ENGINE_TEXT_READ;
@@ -724,9 +726,7 @@ final class AssertVerdicts {
         /** The census at the assert's turn: its family, counted before any side runs (as {@link #adjudicate}
          *  counts it). */
         void enter() {
-            if (family != null) {
-                familyEntered(family);
-            }
+            AssertVerdicts.enter(assertionOf(this));
         }
 
         /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null); an
@@ -741,11 +741,7 @@ final class AssertVerdicts {
         @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides,
                 com.legend.testexecutionplan.TestPlan.JudgingRules rules,
                 java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-            TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides, rules, message));
-            if (v != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.EngineText e && e.routed()) {
-                sqlTextRouted(name());
-            }
-            return v;
+            return AssertVerdicts.judge(assertionOf(this), check.judgment(), sides, rules, message);
         }
 
     }
@@ -757,6 +753,39 @@ final class AssertVerdicts {
     /** The equality arm's census route, as {@link #adjudicate} counts it once the engine-text arm answered. */
     private static void sqlTextRouted(String family) {
         com.legend.judge.CanonicalDivergence.sqlRoute(family, "sql-text");
+    }
+
+    /** {@code a}'s facts as the test plan carries them (the plan-as-data design's step 4, 2026-11-08). */
+    static com.legend.testexecutionplan.Assertion assertionOf(HostAssert a) {
+        return new com.legend.testexecutionplan.Assertion(a.listenerName(), a.family(), a.wantEqual(), a.beforeTheArm());
+    }
+
+    /** {@code a} as a part of another judgment (an unrolled quantifier's element, an assertError's inner assert): its
+     *  facts, its judgment and how many of the step's sides it reads. */
+    static HostJudgment.Part part(HostAssert a) {
+        return new HostJudgment.Part(assertionOf(a), a.check().judgment(), a.check().asks().size());
+    }
+
+    /** The census at a planned assert's turn: its family, counted before any side runs (as {@link #adjudicate}
+     *  counts it). */
+    static void enter(com.legend.testexecutionplan.Assertion a) {
+        if (a.family() != null) {
+            familyEntered(a.family());
+        }
+    }
+
+    /** The verdict of {@code a}, judged by {@code j} over its sides as the runner read them (their rows, or the error
+     *  reading them raised): a declined judgment counted as the generic path's (null); an engine-text equality's census
+     *  route counted once the arm answered (M10b: never on a failed one, which raises before). */
+    static @com.legend.base.Nullable TypedSide judge(com.legend.testexecutionplan.Assertion a, HostJudgment j,
+            java.util.function.Supplier<List<TypedSide>> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+        TypedSide v = judgedOrFellThrough(HostJudge.judge(j, sides, rules, message));
+        if (v != null && HostJudgment.core(j) instanceof HostJudgment.EngineText e && e.routed()) {
+            sqlTextRouted(a.name());
+        }
+        return v;
     }
 
     private static @com.legend.base.Nullable TypedSide judgedOrFellThrough(@com.legend.base.Nullable TypedSide v) {
@@ -1599,7 +1628,7 @@ final class AssertVerdicts {
         HostJudgment j = HostJudgment.core(judgment);
         return j instanceof HostJudgment.EngineText
                 || j instanceof HostJudgment.Unrolled u
-                        && u.parts().stream().anyMatch(p -> holdsEngineText(p.check().judgment()));
+                        && u.parts().stream().anyMatch(p -> holdsEngineText(p.judgment()));
     }
 
     /** The statement origin the walk's arm marked for OUR text where {@code j} holds an engine-text comparison whose
@@ -1609,11 +1638,11 @@ final class AssertVerdicts {
     static com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredTextOrigin(HostJudgment judgment) {
         HostJudgment j = HostJudgment.core(judgment);
         if (j instanceof HostJudgment.EngineText e) {
-            return e.collected().oursOrigin();
+            return e.oursOrigin() == null ? null : com.legend.exec.StatementOrigin.valueOf(e.oursOrigin());
         }
         if (j instanceof HostJudgment.Unrolled u) {
             for (var p : u.parts()) {
-                com.legend.exec.StatementOrigin o = deferredTextOrigin(p.check().judgment());
+                com.legend.exec.StatementOrigin o = deferredTextOrigin(p.judgment());
                 if (o != null) {
                     return o;
                 }
@@ -1633,10 +1662,10 @@ final class AssertVerdicts {
         }
         java.util.Set<java.util.Optional<com.legend.exec.StatementOrigin>> marks = new java.util.HashSet<>();
         for (var p : u.parts()) {
-            if (!oneTextOrigin(p.check().judgment())) {
+            if (!oneTextOrigin(p.judgment())) {
                 return false;
             }
-            marks.add(java.util.Optional.ofNullable(deferredTextOrigin(p.check().judgment())));
+            marks.add(java.util.Optional.ofNullable(deferredTextOrigin(p.judgment())));
         }
         return marks.size() <= 1;
     }
@@ -1645,15 +1674,13 @@ final class AssertVerdicts {
      *  order, judged by {@link HostJudgment.Unrolled} element by element (each entered and counted there). */
     static HostAssert composite(TypedSpec bare, UnrollPlan unroll) {
         List<HostSides.Ask> asks = new ArrayList<>();
-        List<HostAssert> parts = new ArrayList<>(unroll.elements().size());
-        List<Integer> counts = new ArrayList<>(unroll.elements().size());
+        List<HostJudgment.Part> parts = new ArrayList<>(unroll.elements().size());
         for (Unrolled u : unroll.elements()) {
             asks.addAll(u.assertion().check().asks());
-            parts.add(u.assertion());
-            counts.add(u.assertion().check().asks().size());
+            parts.add(part(u.assertion()));
         }
         return new HostAssert(listenerName(bare), null, true,
-                new HostSides.Check(asks, new HostJudgment.Unrolled(parts, counts)));
+                new HostSides.Check(asks, new HostJudgment.Unrolled(parts)));
     }
 
     static @com.legend.base.Nullable QuantifiedPlan planQuantified(TypedSpec bare, List<TypedSpec> letPrefix,
@@ -2350,7 +2377,7 @@ final class AssertVerdicts {
         if (fqn != null && env.ctx().tracksClassifier(fqn)) {
             return new KindClass.Element(fqn);
         }
-        return KindClass.of(spec.info().type());
+        return JudgmentFacts.kindOf(spec.info().type());
     }
 
     /** A type written as a VALUE: a primitive type reference ({@code

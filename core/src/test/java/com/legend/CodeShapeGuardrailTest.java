@@ -95,6 +95,9 @@ class CodeShapeGuardrailTest {
             // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the open program's end, set once when the program ends (its reads refused after it), and the
             // test run's handing of the program's reader to the judges, once at the first callback
             "ProgramRunner.closed", "TestRun.reading",
+            // 2026-11-08, the plan-as-data design's step 4: the body's engine-text appeals' last number given (planning
+            // state, one per body; the registry leaves at step 8)
+            "EngineTextAppeals.last",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

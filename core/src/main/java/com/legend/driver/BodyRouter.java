@@ -60,6 +60,8 @@ public final class BodyRouter {
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
+        // the body's engine-text appeals, held beside its plan by number until the design's step 8 (EngineTextAppeals)
+        EngineTextAppeals textAppeals = null;
         // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
         // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
         // only the asserts' planning was scoped, and the system database's session was opened just before it)
@@ -81,6 +83,7 @@ public final class BodyRouter {
             BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
                     : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, listener, referee, options);
             BodyDriver.ExecEnv env = bodyEnv;
+            textAppeals = bodyEnv == null ? null : bodyEnv.appeals();
             if (systemRouted) {
                 BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
                 com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
@@ -160,7 +163,8 @@ public final class BodyRouter {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
                 listener.beforeRun();
             }
-            try (var open = appeals.open()) {
+            try (var open = appeals.open();
+                    var published = EngineTextAppeals.during(java.util.Objects.requireNonNull(textAppeals))) {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);
             } catch (RuntimeException runFailed) {

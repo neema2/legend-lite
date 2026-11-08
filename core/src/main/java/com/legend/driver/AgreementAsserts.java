@@ -3,6 +3,7 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;

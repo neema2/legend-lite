@@ -3,6 +3,7 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.compiler.spec.SpecCompiler;
@@ -421,7 +422,7 @@ final class HostAsserts implements TestDoor.Asserts {
             }
             AssertVerdicts.HostAssert assertion = new AssertVerdicts.HostAssert(name, null, true,
                     new HostSides.Check(p.assertion().check().asks(), new HostJudgment.AssertError(args.expected(),
-                            args.line(), args.column(), null, p.assertion())));
+                            args.line(), args.column(), null, AssertVerdicts.part(p.assertion()))));
             return planned(assertion, p.sides(), savepoint, env);
         }
         List<TypedSpec> body = args.f().body();

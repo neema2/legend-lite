@@ -3,6 +3,7 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedLambda;
@@ -310,7 +311,10 @@ final class SqlTextVerdicts {
         HostSides.Ask golden = c.golden() == null
                 ? java.util.Objects.requireNonNull(collecting.deferredGolden, "a deferred golden with no ask")
                 : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
-        return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c, routed));
+        // the comparison the plan's data; its appeal and environment held beside it by number until the design's step 8
+        int appeal = env.appeals().add(new EngineTextAppeals.Held(c.appeal(), c.env()));
+        return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
+                c.textEqual(), c.decline(), c.oursOrigin() == null ? null : c.oursOrigin().name(), appeal, routed));
     }
 
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
@@ -349,31 +353,32 @@ final class SqlTextVerdicts {
      *  decline reported, then the text decides -- equal holds; else the appeal, the walk's own rows leg, now, with the
      *  texts in hand. */
     static TypedSide judge(HostJudgment.EngineText e, List<TypedSide> sides) {
-        Collected c = e.collected();
+        // the appeal and its environment, held beside the plan by number (EngineTextAppeals, until step 8)
+        EngineTextAppeals.Held h = EngineTextAppeals.held(e.appeal());
         if (sides.size() != 2) {
-            throw new IllegalStateException(c.name() + ": the engine-text step handed " + sides.size()
+            throw new IllegalStateException(e.name() + ": the engine-text step handed " + sides.size()
                     + " sides, two texts expected");
         }
         String golden = scalarString(sides.get(0));
         String ours = scalarString(sides.get(1));
-        if (c.golden() != null && !c.golden().equals(golden) || c.ours() != null && !c.ours().equals(ours)) {
-            throw new IllegalStateException(c.name() + ": the verdict step's texts are not the texts the arm planned");
+        if (e.golden() != null && !e.golden().equals(golden) || e.ours() != null && !e.ours().equals(ours)) {
+            throw new IllegalStateException(e.name() + ": the verdict step's texts are not the texts the arm planned");
         }
-        if (c.golden() == null) {
+        if (e.golden() == null) {
             // a golden the plan read (2026-11-04, the core program): the two texts compare first, as any equality;
             // only a failed comparison re-runs the arm over them -- its golden processing and its appeal
             if (golden == null || ours == null) {
-                return fail(c.name() + " (sql-text): " + (golden == null ? "the golden" : "our text")
+                return fail(e.name() + " (sql-text): " + (golden == null ? "the golden" : "our text")
                         + " side, a String to one, read no string at the verdict step");
             }
             if (golden.equals(ours)) {
-                if (c.decline() != null) {
-                    declined(c.env(), c.name(), c.decline());
+                if (e.decline() != null) {
+                    declined(h.env(), e.name(), e.decline());
                 }
                 return ok();
             }
-            if (!appeals(c.env())) {
-                return textsDiffer(c.name(), golden, ours, c.decline());
+            if (!appeals(h.env())) {
+                return textsDiffer(e.name(), golden, ours, e.decline());
             }
             // compatibility mode: the appeal PLANNED with the assert, over the golden as read (2026-11-06, the plan
             // ahead: until then the arm was re-run over the step's texts while the program ran, planning as it went).
@@ -384,22 +389,22 @@ final class SqlTextVerdicts {
                 return ok();
             }
             if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
-                return fail(c.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
+                return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }
-            return appealed(c.name(), c.appeal(), g, ours, false);
+            return appealed(e.name(), h.appeal(), g, ours, false);
         }
-        boolean textEqual = c.textEqual();
-        if (c.ours() == null) {
+        boolean textEqual = e.textEqual();
+        if (e.ours() == null) {
             if (ours == null) {
-                return fail(c.name() + " (sql-text): our text side, a String to one, read no string at the verdict"
+                return fail(e.name() + " (sql-text): our text side, a String to one, read no string at the verdict"
                         + " step");
             }
-            textEqual = c.golden().equals(ours);
+            textEqual = e.golden().equals(ours);
         }
         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert)
-        return decide(c.env(), c.name(), c.golden(), java.util.Objects.requireNonNull(ours), textEqual, c.decline(),
-                c.appeal());
+        return decide(h.env(), e.name(), e.golden(), java.util.Objects.requireNonNull(ours), textEqual, e.decline(),
+                h.appeal());
     }
 
     /** THE ONE VERDICT SITE of the arms: {@code textEqual} the verdict (the user's ruling of 2026-09-21, option 1: a

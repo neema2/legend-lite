@@ -1,20 +1,17 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testexecutionplan;
 
-import com.legend.compiler.element.EqualityKeys;
-import com.legend.compiler.element.type.Type;
 
-import java.util.List;
-import java.util.Locale;
 
 /** Pure's EQUALITY KIND CLASSES over stamps (canon spec §3: the numeric
  * tower is ONE class; everything else compares within its kind) — a CLOSED
  * type (audit §4y: the stringly keys {@code "numeric"} / {@code "enum:fqn"}
  * / {@code "instance:fqn"} deleted). {@link #toString()} spells the census
- * vocabulary the registers' witnesses cite. */
-sealed interface KindClass {
+ * vocabulary the registers' witnesses cite. A fact of a side, decided at planning from its type and carried by the
+ * test plan (docs/PLAN_AS_DATA_2026_11_07.md 2.2, the design's step 4, 2026-11-08). */
+public sealed interface KindClass {
 
     /** The kinds whose static inequality IS the engine's answer (X4: the
      * engine has no cross-kind PRIMITIVE equality); an instance class is a
@@ -87,57 +84,4 @@ sealed interface KindClass {
         }
     }
 
-    /** The kind class of a stamp; null for a shape with no equality kind. */
-    static @com.legend.base.Nullable KindClass of(Type t) {
-        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
-                || t == Type.Primitive.DECIMAL
-                // NUMBER is the numeric tower's supertype — the concrete
-                // render refines from the PLAN's SQL type (V6 burn)
-                || t == Type.Primitive.NUMBER || t instanceof Type.PrecisionDecimal) {
-            return Primitive.NUMERIC;
-        }
-        if (t instanceof Type.EnumType et) {
-            return new Enum(et.fqn());
-        }
-        if (t == Type.Primitive.STRING) {
-            return Primitive.STRING;
-        }
-        if (t == Type.Primitive.BOOLEAN) {
-            return Primitive.BOOLEAN;
-        }
-        if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME
-                || t == Type.Primitive.DATE) {
-            return Primitive.TEMPORAL;
-        }
-        String fqn = EqualityKeys.fqnOf(t);
-        return fqn != null ? new Instance(fqn) : null;
-    }
-
-    /** The numeric tower's FINE kinds (pure's own Number dispatch): a
-     * refined stamp names one; an unrefined Number resolves from the
-     * runtime value kinds — selection, never evaluation. */
-    enum Fine {
-        INTEGER, FLOAT, DECIMAL;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        /** The fine kind a refined stamp names; null for an unrefined
-         * Number — decline, never guess. */
-        static @com.legend.base.Nullable Fine ofType(Type t) {
-            if (t == Type.Primitive.INTEGER) {
-                return INTEGER;
-            }
-            if (t == Type.Primitive.FLOAT) {
-                return FLOAT;
-            }
-            if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-                return DECIMAL;
-            }
-            return null;
-        }
-
-    }
 }

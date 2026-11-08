@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.PlanRunner;

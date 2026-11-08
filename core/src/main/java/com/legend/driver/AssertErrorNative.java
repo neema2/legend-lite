@@ -3,6 +3,7 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
@@ -93,8 +94,8 @@ final class AssertErrorNative {
             String message = null;
             try {
                 // the inner assert's sides were read with the step's, its caller's message among them: no reader
-                if (HostJudge.judge(a.inner().check().judgment(), sides, rules, null) == null) {
-                    throw new com.legend.error.NotImplementedException(a.inner().name()
+                if (HostJudge.judge(a.inner().judgment(), sides, rules, null) == null) {
+                    throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {

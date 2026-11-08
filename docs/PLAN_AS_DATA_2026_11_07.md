@@ -621,3 +621,17 @@ independently of the rules).
     phase, element, unjudged reason), step 3's origins, shape, raising bindings, routing and the constants path.
 - **Slice 1's lanes (2026-11-08, at `b33aecb0`)**: core (the root package's version test alone failing, fixed above),
   Postgres, the DuckDB and H2 corpus, PCT and stress green.
+- **Step 4 lands in two commits.** 4a: the judgment's types are the test plan's data (`HostJudgment`, `KindClass`,
+  `KeyTree`, `Assertion` in `//core:test_plan`); their planning facts read by `driver/JudgmentFacts`, the key tree a
+  pair restricts to selected at run by `HostJudge.restrictKeys`. 4b: each host-judged verdict carries them, with its
+  sides' shapes (`TestPlan.Host`), and the run reads them from the plan.
+- **Step 4a's data forms**, by the design's rule (only what the run reads is carried): `SideFacts` drops the compiler's
+  `ExprType` (no run reads it); `Rows` carries each side's class FQN (all its run reads of the types); a row
+  assert's literal is its Java carrier and text (`String`, `Boolean`, `Double`, `Long`, `Integer`, `BigInteger`,
+  read back to the same value); an unrolled quantifier's and an `assertError`'s inner assert are `Part`s (the
+  assertion's facts, its judgment, how many sides it reads); the unused `KindClass.Fine` left with the move.
+- **Step 4a: the engine-text comparison is data, its appeal held by number.** `EngineText` carries the arm's name,
+  the golden and our text where the plan holds them, their equality, the decline, the origin our text is read under,
+  and the NUMBER of its appeal: the appeal (harness Java, R3) and the environment it runs under are held beside the
+  plan in the body's `EngineTextAppeals`, published for the body's run and read where a text fails. An out-of-plan
+  channel, named, removed with the closures at step 8 (2.10's fourth guard).

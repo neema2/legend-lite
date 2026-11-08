@@ -1,6 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
+import com.legend.testexecutionplan.HostJudgment;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.spec.SpecCompiler;
@@ -166,7 +167,7 @@ final class HostJudge {
      * is the engine's rule, not a leniency). Keyless classes are
      * untouched (their sides never produce a non-null key tree). */
     static List<Object> restrictToKeys(List<Object> vals,
-            com.legend.compiler.element.EqualityKeys keys, HostJudgment.Keys known) {
+            com.legend.testexecutionplan.KeyTree keys, HostJudgment.Keys known) {
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
             out.add(restrictOne(v, keys, known));
@@ -175,7 +176,7 @@ final class HostJudge {
     }
 
     static Object restrictOne(Object v,
-            com.legend.compiler.element.EqualityKeys keys, HostJudgment.Keys known) {
+            com.legend.testexecutionplan.KeyTree keys, HostJudgment.Keys known) {
         if (!(v instanceof java.util.Map<?, ?> m)) {
             return v;
         }
@@ -207,7 +208,7 @@ final class HostJudge {
      * planning collected ({@code known}). A keyless class stays the
      * whole map (identity). */
     static Object restrictNested(Object v,
-            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys declared,
+            com.legend.testexecutionplan.@com.legend.base.Nullable KeyTree declared,
             HostJudgment.Keys known) {
         if (declared != null) {
             return restrictOne(v, declared, known);
@@ -215,7 +216,7 @@ final class HostJudge {
         if (v instanceof java.util.Map<?, ?> m
                 && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
                         instanceof String own) {
-            var keys = known.of(own);
+            var keys = known.byClass().get(own);
             if (keys != null) {
                 return restrictOne(v, keys, known);
             }
@@ -373,7 +374,27 @@ final class HostJudge {
 
     /** The static facts of one side, read once at planning. */
     private static HostJudgment.SideFacts facts(TypedSpec s) {
-        return HostJudgment.SideFacts.of(s);
+        return JudgmentFacts.sideFacts(s);
+    }
+
+    /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
+     *  counts as the other's class when every value on its wire is of it), as planning read the facts. */
+    static com.legend.testexecutionplan.@com.legend.base.Nullable KeyTree restrictKeys(HostJudgment.Keys k,
+            HostJudgment.SideFacts ef, HostJudgment.SideFacts af, List<Object> eVals, List<Object> aVals) {
+        String ec = ef.classFqn();
+        String ac = af.classFqn();
+        com.legend.testexecutionplan.KeyTree ek = k.e();
+        com.legend.testexecutionplan.KeyTree ak = k.a();
+        if (ec != null && ac != null && !ec.equals(ac)) {
+            if (k.eSubA() && allWireType(aVals, ec)) {
+                ac = ec;
+                ak = ek;
+            } else if (k.aSubE() && allWireType(eVals, ac)) {
+                ec = ac;
+                ek = ak;
+            }
+        }
+        return ec != null && ec.equals(ac) ? ek : null;
     }
 
     /** {@link #tdsEquivalent} planned: the two grids and the tolerances, one verdict's base (M6: the walk read the
@@ -624,7 +645,7 @@ final class HostJudge {
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
-        HostJudgment.Keys keys = HostJudgment.Keys.of(args.get(0), args.get(1), env.ctx());
+        HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
         return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.Eq(e, a, keys));
     }
@@ -704,7 +725,7 @@ final class HostJudge {
             BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
-        HostJudgment.Keys keys = HostJudgment.Keys.of(args.get(0), args.get(1), env.ctx());
+        HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
         return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.SameElements(e, a, gridPair, keys));
     }
@@ -725,7 +746,7 @@ final class HostJudge {
         // own rule for JSON slots — WORLD_MAP §4, __type rides along)
         List<Object> eVals = structuredSide(j.e(), ef.values());
         List<Object> aVals = structuredSide(j.a(), af.values());
-        var ik = j.keys().resolve(j.e(), j.a(), eVals, aVals);
+        var ik = restrictKeys(j.keys(), j.e(), j.a(), eVals, aVals);
         List<Object> e = ik != null
                 ? restrictToKeys(eVals, ik, j.keys()) : eVals;
         List<Object> a = ik != null
@@ -758,19 +779,20 @@ final class HostJudge {
         int at = 0;
         TypedSide last = null;
         for (int i = 0; i < u.parts().size(); i++) {
-            AssertVerdicts.HostAssert part = u.parts().get(i);
-            int n = u.askCounts().get(i);
+            HostJudgment.Part part = u.parts().get(i);
+            int n = part.asks();
             List<TypedSide> slice = sides.subList(at, at + n);
             at += n;
-            com.legend.testexecutionplan.Failure before = part.beforeTheArm();
+            com.legend.testexecutionplan.Failure before = part.assertion().beforeTheArm();
             if (before != null) {
                 throw com.legend.judge.Failures.raised(before);
             }
-            part.enter();
-            TypedSide v = part.judge(slice, rules);
+            AssertVerdicts.enter(part.assertion());
+            TypedSide v = AssertVerdicts.judge(part.assertion(), part.judgment(), () -> slice, rules, null);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
-                        "unrolled quantified assert: element verdict not adjudicable for " + part.listenerName());
+                        "unrolled quantified assert: element verdict not adjudicable for "
+                                + part.assertion().listenerName());
             }
             last = v;
         }
@@ -817,8 +839,9 @@ final class HostJudge {
             asks.add(valueAsk(arms.size() == 1 ? source : arm, hook));
         }
         HostJudgment.Pairing pairing = arms.size() == 1 ? null : pairing(bound, letPrefix, new int[] {0});
-        return new HostSides.Check(asks, new HostJudgment.Rows(fqn, isTolerance, read, args.get(0).info(),
-                args.get(1).info(), pairing));
+        return new HostSides.Check(asks, new HostJudgment.Rows(fqn, isTolerance, read,
+                com.legend.compiler.element.EqualityKeys.fqnOf(args.get(0).info().type()),
+                com.legend.compiler.element.EqualityKeys.fqnOf(args.get(1).info().type()), pairing));
     }
 
     /** A row assert's argument as data: {@link #rowValue}'s shapes, read at planning. */
@@ -830,10 +853,15 @@ final class HostJudge {
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa
                     when pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
                             && v.name().equals(binder) -> new HostJudgment.RowArg.Field(pa.property());
-            case com.legend.compiler.spec.typed.TypedCString l -> new HostJudgment.RowArg.Literal(l.value());
-            case com.legend.compiler.spec.typed.TypedCInteger l -> new HostJudgment.RowArg.Literal(l.value());
-            case com.legend.compiler.spec.typed.TypedCFloat l -> new HostJudgment.RowArg.Literal(l.value());
-            case com.legend.compiler.spec.typed.TypedCBoolean l -> new HostJudgment.RowArg.Literal(l.value());
+            // a literal as its carrier and its text: read back to the same value at the step (the plan-as-data
+            // design's step 4)
+            case com.legend.compiler.spec.typed.TypedCString l -> new HostJudgment.RowArg.Literal("String", l.value());
+            case com.legend.compiler.spec.typed.TypedCInteger l -> new HostJudgment.RowArg.Literal(
+                    l.value().getClass().getSimpleName(), l.value().toString());
+            case com.legend.compiler.spec.typed.TypedCFloat l -> new HostJudgment.RowArg.Literal("Double",
+                    Double.toString(l.value()));
+            case com.legend.compiler.spec.typed.TypedCBoolean l -> new HostJudgment.RowArg.Literal("Boolean",
+                    Boolean.toString(l.value()));
             // another argument is computed per element: the database computes it (the per-element form's operand
             // pairs, or the unroll's per-element sides), never this read of the row (2026-11-04)
             default -> null;
@@ -846,8 +874,9 @@ final class HostJudge {
     static HostSides.Check planPerElement(String fqn, TypedSpec pairs, com.legend.compiler.element.type.ExprType expected,
             com.legend.compiler.element.type.ExprType actual, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return new HostSides.Check(List.of(valueAsk(pairs, hook)), new HostJudgment.Rows(fqn, false,
-                List.of(new HostJudgment.RowArg.Field("first"), new HostJudgment.RowArg.Field("second")), expected,
-                actual, null));
+                List.of(new HostJudgment.RowArg.Field("first"), new HostJudgment.RowArg.Field("second")),
+                com.legend.compiler.element.EqualityKeys.fqnOf(expected.type()),
+                com.legend.compiler.element.EqualityKeys.fqnOf(actual.type()), null));
     }
 
     /** The zip's pairing over its arms, in {@link #zipArms}' order. */
@@ -896,13 +925,26 @@ final class HostJudge {
                             number(rowArgValue(j.args().get(2), row, j.name()), j.name()))
                     : com.legend.judge.PureAsserts.assertEquals(
                             java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
-                            com.legend.compiler.element.EqualityKeys.fqnOf(j.expectedInfo().type()),
-                            com.legend.compiler.element.EqualityKeys.fqnOf(j.actualInfo().type()), rules);
+                            j.expectedClass(), j.actualClass(), rules);
             if (d != null) {
                 return AssertVerdicts.fail(d);
             }
         }
         return AssertVerdicts.ok();
+    }
+
+    /** A literal argument's value, read back from its carrier and text exactly as the compiler typed it. */
+    private static Object literal(HostJudgment.RowArg.Literal l) {
+        return switch (l.carrier()) {
+            case "String" -> l.text();
+            case "Boolean" -> Boolean.valueOf(l.text());
+            case "Double" -> Double.valueOf(l.text());
+            case "Long" -> Long.valueOf(l.text());
+            case "Integer" -> Integer.valueOf(l.text());
+            case "BigInteger" -> new java.math.BigInteger(l.text());
+            default -> throw new IllegalStateException("a row assert's literal of carrier '" + l.carrier()
+                    + "': String, Boolean, Double, Long, Integer or BigInteger");
+        };
     }
 
     private static List<Object> pairedOf(HostJudgment.Pairing p, List<List<Object>> values) {
@@ -927,7 +969,7 @@ final class HostJudge {
     private static @com.legend.base.Nullable Object rowArgValue(HostJudgment.RowArg arg, Object row, String fqn) {
         return switch (arg) {
             case HostJudgment.RowArg.Whole w -> row;
-            case HostJudgment.RowArg.Literal l -> l.value();
+            case HostJudgment.RowArg.Literal l -> literal(l);
             case HostJudgment.RowArg.Field f -> {
                 if (!(row instanceof java.util.Map<?, ?> m) || !m.containsKey(f.name())) {
                     throw new com.legend.error.NotImplementedException(fqn + ": the quantified assert's row holds no"
@@ -970,7 +1012,7 @@ final class HostJudge {
             boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
-        HostJudgment.Keys keys = HostJudgment.Keys.of(args.get(0), args.get(1), env.ctx());
+        HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
         HostJudgment.FlatFacts flat = new HostJudgment.FlatFacts(
                 AssertVerdicts.bareRowStamp(args.get(0), letPrefix), AssertVerdicts.bareRowStamp(args.get(1), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
@@ -998,7 +1040,7 @@ final class HostJudge {
         // own rule for JSON slots — WORLD_MAP §4, __type rides along)
         List<Object> eVals = structuredSide(j.e(), ef.values());
         List<Object> aVals = structuredSide(j.a(), af.values());
-        var ik = j.keys().resolve(j.e(), j.a(), eVals, aVals);
+        var ik = restrictKeys(j.keys(), j.e(), j.a(), eVals, aVals);
         List<Object> e = ik != null
                 ? restrictToKeys(eVals, ik, j.keys()) : eVals;
         List<Object> a = ik != null
