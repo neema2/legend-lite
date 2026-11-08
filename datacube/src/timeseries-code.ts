@@ -21,6 +21,7 @@ import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { columnsOf, nextSeriesId } from './timeseries-expr.ts';
 import { treeOf } from './timeseries-text.ts';
+import { builderSource, type BuilderLanguage } from './timeseries-builder-source.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
 /** The languages a tile's code is written in. */
@@ -130,16 +131,45 @@ function pyName(title: string, taken: Set<string>): string {
   return name;
 }
 
-/** Each series as `page.timeseries` takes it: its expression alone, or a mapping of it and how it is drawn -- its id
- *  told where it is not the one the reader would give it (the next free letter, nextSeriesId). */
-function pySeries(series: readonly TsSeries[]): string[] {
+/** EACH SERIES AS THE BUILDER'S CODE (B4: Show TypeScript, Show Python; timeseries-builder-source.ts) -- gs-quant's call
+ *  of it -- or, where gs-quant has none of its meaning (a z-score to date, a compare by the tile's align), undefined: its
+ *  #TS text stands in the program. */
+function builderCode(spec: TimeseriesSpec, language: BuilderLanguage): (string | undefined)[] {
+  return spec.series.map((s) => {
+    try {
+      return builderSource(treeOf(s, spec.series), language);
+    } catch {
+      return undefined;
+    }
+  });
+}
+
+/** The builder's names a program's code calls (its words, column, series, Window, an enumeration): what it imports, and
+ *  what no variable of its own may be named. */
+function namesUsed(code: readonly (string | undefined)[]): string[] {
+  const out = new Set<string>();
+  for (const c of code) {
+    if (c === undefined) continue;
+    // each name before a call or an enumeration's member, not a method's (a lookbehind: a call in a call is read too)
+    for (const m of c.matchAll(/(?<![.\w$'])([A-Za-z_$][\w$]*)\s*\(/g)) out.add(m[1]!);
+    for (const m of c.matchAll(/(?<![.\w$'])([A-Z][A-Za-z]*)\.[A-Za-z_][\w$]*(?![\w$]|\s*\()/g)) out.add(m[1]!);
+    if (/\bnew Window\(|(^|[^.\w])Window\(/.test(c)) out.add('Window');
+  }
+  out.delete('new');
+  return [...out].sort();
+}
+
+/** Each series as `page.timeseries` takes it: its term (the builder's code) or its #TS text alone, or a mapping of it and
+ *  how it is drawn -- its id told where it is not the one the reader would give it (the next free letter, nextSeriesId). */
+function pySeries(series: readonly TsSeries[], code: readonly (string | undefined)[]): string[] {
   return series.map((s, i) => {
     const natural = nextSeriesId(series.slice(0, i)) === s.id;
     const rest = SERIES_KEYS.filter((k) => s[k] !== undefined);
-    if (natural && rest.length === 0) return py(s.text);
-    const told: Record<string, unknown> = { ...(natural ? {} : { id: s.id }), text: s.text };
-    for (const k of rest) told[k] = s[k];
-    return py(told);
+    const term = code[i];
+    if (natural && rest.length === 0) return term ?? py(s.text);
+    const told = [...(natural ? [] : [`'id': ${py(s.id)}`]), term !== undefined ? `'term': ${term}` : `'text': ${py(s.text)}`,
+      ...rest.map((k) => `${py(k)}: ${py(s[k])}`)];
+    return `{${told.join(', ')}}`;
   });
 }
 
@@ -174,8 +204,11 @@ function pyGrid(name: string, frame: string, title: string, source: CubeSource |
 }
 
 function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
-  // the program's own names, and Python's that it calls
-  const taken = new Set(['ll', 'page', 'tile', 's', 'print']);
+  // each series the builder's code, where gs-quant has a call of it (B4)
+  const code = builderCode(spec, 'python');
+  const used = namesUsed(code);
+  // the program's own names, and Python's and the builder's that it calls
+  const taken = new Set(['ll', 'page', 'tile', 's', 'print', ...used]);
   const grids = new Map<string, string>();
   // a frame's variable by the name it is served under: two grids over one frame read the one DataFrame
   const frames = new Map<string, string>();
@@ -200,12 +233,12 @@ function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     const s = spec.sources[0]!;
     // no key said as none, never left for DataCube to choose one
     const told = [`alias=${py(s.alias)}`, `date=${py(s.date)}`, `key=${py(s.key ?? null)}`];
-    return [`tile = ${grids.get(s.cube)!}.timeseries(`, ...pySeries(spec.series).map((x) => `    ${x},`), `    ${told.join(', ')},`, ...title, ...slots, ')'];
+    return [`tile = ${grids.get(s.cube)!}.timeseries(`, ...pySeries(spec.series, code).map((x) => `    ${x},`), `    ${told.join(', ')},`, ...title, ...slots, ')'];
   })() : [
     'tile = page.timeseries(',
     `    [${spec.sources.map((s) => `{'alias': ${py(s.alias)}, 'grid': ${grids.get(s.cube)!}, 'date': ${py(s.date)}, 'key': ${py(s.key ?? null)}${s.kept !== undefined ? `, 'kept': ${py(s.kept)}` : ''}}`).join(', ')}],`,
     '    [',
-    ...pySeries(spec.series).map((x) => `        ${x},`),
+    ...pySeries(spec.series, code).map((x) => `        ${x},`),
     '    ],',
     ...title,
     ...slots,
@@ -215,9 +248,11 @@ function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   // review, 2026-10-28: a title `coding=utf-7 ...` decoded the rest, `title='...'` included, as other code)
   return [
     '# A timeseries tile built in Python on a page of your own -- run it, and DataCube shows the same tile. Each series is',
-    '# a formula, DataCube\'s gs-quant shorthand for a Pure query the tile writes over its grid and the database runs: the',
-    `# loop at the end prints each formula's Pure. The tile: ${oneLine(of.title ?? 'untitled')}.`,
+    '# gs-quant\'s call of it (legend_lite.timeseries: its names, its Window, its enumerations), or its #TS formula where',
+    '# gs-quant has none -- each a Pure query the tile writes over its grid and the database runs: the loop at the end',
+    `# prints each one's Pure. The tile: ${oneLine(of.title ?? 'untitled')}.`,
     'import legend_lite as ll',
+    ...(used.length > 0 ? [`from legend_lite.timeseries import ${used.join(', ')}`] : []),
     '',
     'page = ll.Page()',
     ...lines,
@@ -251,13 +286,15 @@ function ts(v: unknown): string {
   throw new Error(`a ${typeof v} is no value a page holds`);
 }
 
-/** A series as its spec holds it: its text, which core reads. */
-function tsSeries(s: TsSeries): string {
+/** A series as its spec holds it: its text, which core reads -- the builder's term's (B4), else its #TS formula. */
+function tsSeries(s: TsSeries, term: string | undefined): string {
   const rest = SERIES_KEYS.filter((k) => s[k] !== undefined).map((k) => `, ${k}: ${ts(s[k])}`).join('');
-  return `{ id: ${ts(s.id)}, text: ${ts(s.text)}${rest} }`;
+  return `{ id: ${ts(s.id)}, text: ${term !== undefined ? `${term}.text()` : ts(s.text)}${rest} }`;
 }
 
 function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
+  const code = builderCode(spec, 'typescript');
+  const used = namesUsed(code);
   const slots = SLOTS.filter((k) => spec[k] !== undefined).map((k) => `  ${k}: ${ts(spec[k])},`);
   const key = (alias: string): string => (IDENTIFIER.test(alias) ? alias : ts(alias));
   const at = (alias: string): string => (IDENTIFIER.test(alias) ? `cubes.${alias}` : `cubes[${ts(alias)}]`);
@@ -273,9 +310,11 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   return [
     `// ${oneLine(of.title ?? 'A timeseries tile')}, built in TypeScript on a page of your own: its spec over your grids, and the page`,
     '// command the screen\'s Create ▸ Timeseries sends (Python\'s timeseries too) -- every change to a page is a command, applied by',
-    '// one function (page-commands.ts). Each series is a #TS formula, which the page reads by legend-lite\'s own reader, for the',
-    '// Pure query the tile writes for it (timeseries-query.ts askQuery); the paths are from the repository\'s root.',
+    '// one function (page-commands.ts). Each series is gs-quant\'s call of it (timeseries-builder.ts), or its #TS formula where',
+    '// gs-quant has none -- its text, which the page reads by legend-lite\'s own reader, for the Pure query the tile writes for it',
+    '// (timeseries-query.ts askQuery); the paths are from the repository\'s root.',
     'import { applyPageCommands, idsOf, type PageCommand } from \'./datacube/src/page-commands.ts\';',
+    ...(used.length > 0 ? [`import { ${used.join(', ')} } from ` + '\'./datacube/src/timeseries-builder.ts\';'] : []),
     'import type { PageDocument } from \'./datacube/src/page-document.ts\';',
     'import { tileAsks } from \'./datacube/src/timeseries-query.ts\';',
     'import type { TimeseriesSpec } from \'./datacube/src/timeseries-spec.ts\';',
@@ -288,7 +327,7 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     'export const spec: TimeseriesSpec = {',
     `  sources: [${spec.sources.map(source).join(', ')}],`,
     '  series: [',
-    ...spec.series.map((s) => `    ${tsSeries(s)},`),
+    ...spec.series.map((s, i) => `    ${tsSeries(s, code[i])},`),
     '  ],',
     ...slots,
     '};',

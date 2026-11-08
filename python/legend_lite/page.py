@@ -2854,7 +2854,8 @@ class Sheet:
         # no series: DataCube's first series of its first grid (its price-like value, a line per instrument)
         # a term of the builder (legend_lite.timeseries) told as one: DataCube's builder writes its text (B3)
         from ._ts_terms import Term
-        told = [{'term': s._wire} if isinstance(s, Term) else s for s in series]
+        told = [{'term': s._wire} if isinstance(s, Term)
+                else {**s, 'term': s['term']._wire} if isinstance(s, Mapping) and isinstance(s.get('term'), Term) else s for s in series]
         given = {'sources': _timeseries_sources(sources), **({'series': told} if series else {}),
                  **{k: v for k, v in slots.items() if v is not None}}
         said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(given)))

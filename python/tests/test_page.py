@@ -1213,7 +1213,9 @@ class Document(Paged):
         self.assertIn('page = ll.Page()', code)
         self.assertIn("prices = page.grid(prices_frame, name='prices')", code)
         self.assertIn('tile = prices.timeseries(', code)
-        self.assertIn("'returns(close[\\'T\\'], 1, \\'log\\')'", code)
+        # each series gs-quant's call of it (B4: legend_lite.timeseries)
+        self.assertIn('from legend_lite.timeseries import ', code)
+        self.assertIn("'term': returns(column('close', 'T'), obs=1, type=Returns.LOGARITHMIC)", code)
         for lookup in ('Page.load', 'page.sheets', 'page.grids', '.id =='):
             self.assertNotIn(lookup, code)
         # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid

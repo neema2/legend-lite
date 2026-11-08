@@ -4,7 +4,7 @@
 // row of the ledger below with its reason; each term's text core's to read, and read back as the term's own tree.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import * as builder from '../src/timeseries-builder.ts';
@@ -15,9 +15,11 @@ import {
 import { termOf } from '../src/timeseries-builder-wire.ts';
 import { TS_FUNCTION_NAMES, TS_SIGNATURES, type TsExpr } from '../src/timeseries-spec.ts';
 import { SCALARS } from '../src/timeseries-words.ts';
-import { seriesExpr, told } from '../src/timeseries-text.ts';
+import { seriesExpr, seriesText, told, treeOf } from '../src/timeseries-text.ts';
+import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
+import { pageToJson, readPage } from '../src/page-document.ts';
 import { builderSource } from '../src/timeseries-builder-source.ts';
-import { readText } from './catalog-builder.ts';
+import { readPageTexts, readText } from './catalog-builder.ts';
 
 type GsDefault = null | { value: unknown } | { window: [unknown, unknown] } | { enum: string; member: string };
 interface Gs {
@@ -268,4 +270,40 @@ it('a term as Python tells it is the builder\'s own (B3\'s Python twin: python/l
   assert.throws(() => termOf({ term: 'word', name: 'vola', lines: [spx], kw: {} }), /vola is no word of the builder's/);
   assert.throws(() => termOf({ term: 'word', name: 'volatility', lines: [spx], kw: { width: 3 } }), /volatility has no parameter width/);
   assert.throws(() => termOf(42), /is no series/);
+});
+
+/**
+ * B4'S SHOW PYTHON: every gallery series, and every word's own call, as Python's builder code with the text it writes --
+ * held to test/fixtures/timeseries/builder-python.json, which //python:ts_builder_test runs in Python (each source a
+ * term, its text DataCube's builder's, read by core). A series gs-quant has no call for is listed with why. A change on
+ * purpose rewrites the fixture:
+ *   bazel test //datacube:timeseries_builder_test --strategy=TestRunner=local \
+ *     --test_env=BUILDER_PYTHON_UPDATE=$PWD/datacube/test/fixtures/timeseries/builder-python.json
+ */
+it('every gallery series and every word as Python\'s builder code, with its text (held for Python to run)', async () => {
+  const page = await readPageTexts(readPage(pageToJson(await timeseriesGalleryPage())));
+  const rows: { readonly series: string; readonly python?: string; readonly refused?: string; readonly text: string }[] = [];
+  for (const [fn, s] of Object.entries(BUILDER_WORDS)) {
+    const expr = told(sampleCall(fn, s).expr);
+    rows.push({ series: `word ${fn}`, python: builderSource(expr, 'python'), text: seriesText(expr, []) });
+  }
+  for (const v of page.views) {
+    if (v.kind !== 'timeseries') continue;
+    for (const s of v.spec.series) {
+      const tree = treeOf(s, v.spec.series);
+      try {
+        rows.push({ series: `${v.id} ${s.id}`, python: builderSource(tree, 'python'), text: s.text });
+      } catch (e) {
+        rows.push({ series: `${v.id} ${s.id}`, refused: (e as Error).message, text: s.text });
+      }
+    }
+  }
+  const text = `${JSON.stringify(rows, null, 1)}\n`;
+  const update = process.env['BUILDER_PYTHON_UPDATE'];
+  if (update) {
+    writeFileSync(update, text);
+    return;
+  }
+  assert.equal(readFileSync(runfileFromEnv('BUILDER_PYTHON'), 'utf8'), text,
+    'every series as Python\'s builder code as held (a change on purpose rewrites the fixture: the comment above says how)');
 });

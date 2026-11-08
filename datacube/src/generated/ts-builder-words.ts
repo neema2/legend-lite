@@ -64,13 +64,13 @@ export type SignDirection = (typeof SignDirection)[keyof typeof SignDirection];
 export const ThresholdType = { absolute: 'absolute', percentage: 'percentage' } as const;
 export type ThresholdType = (typeof ThresholdType)[keyof typeof ThresholdType];
 
-const RETURNS_SHAPE: WordShape = { word: 'returns', gsFunction: 'econometrics.returns', lines: ['series'], gs: [{ name: 'obs', default: 1 }, { name: 'type', default: 'simple', values: { logarithmic: 'log' } }], extra: [] };
+const RETURNS_SHAPE: WordShape = { word: 'returns', gsFunction: 'econometrics.returns', lines: ['series'], gs: [{ name: 'obs', default: 1 }, { name: 'type', default: 'simple', enum: 'Returns', values: { logarithmic: 'log' } }], extra: [] };
 /** Returns: The return over obs observations. (gs-quant's econometrics.returns.) */
 export function returns(series: Line, ...args: Args<[obs: WindowLike, type: Returns], { obs?: WindowLike; type?: Returns }>): Term {
   return word(RETURNS_SHAPE, [series], args);
 }
 
-const PRICES_SHAPE: WordShape = { word: 'prices', gsFunction: 'econometrics.prices', lines: ['series'], gs: [{ name: 'initial', default: 1 }, { name: 'type', default: 'simple', values: { logarithmic: 'log' } }], extra: [] };
+const PRICES_SHAPE: WordShape = { word: 'prices', gsFunction: 'econometrics.prices', lines: ['series'], gs: [{ name: 'initial', default: 1 }, { name: 'type', default: 'simple', enum: 'Returns', values: { logarithmic: 'log' } }], extra: [] };
 /** Prices from returns: A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date. (gs-quant's econometrics.prices.) */
 export function prices(series: Line, ...args: Args<[initial: number, type: Returns], { initial?: number; type?: Returns }>): Term {
   return word(PRICES_SHAPE, [series], args);
@@ -82,7 +82,7 @@ export function diff(x: Line, ...args: Args<[obs: WindowLike], { obs?: WindowLik
   return word(DIFF_SHAPE, [x], args);
 }
 
-const LAG_SHAPE: WordShape = { word: 'lag', gsFunction: 'analysis.lag', lines: ['x'], gs: [{ name: 'obs', default: 1 }, { name: 'mode', default: 'extend' }], extra: [] };
+const LAG_SHAPE: WordShape = { word: 'lag', gsFunction: 'analysis.lag', lines: ['x'], gs: [{ name: 'obs', default: 1 }, { name: 'mode', default: 'extend', enum: 'LagMode' }], extra: [] };
 /** Lag: The value obs observations before, or as of a calendar period before; extend (gs-quant's default) also puts the last obs values on the obs calendar days after the line's last date, a period's on each date that far after one of its own past its end; truncate, its own dates alone. (gs-quant's analysis.lag.) */
 export function lag(x: Line, ...args: Args<[obs: WindowLike, mode: LagMode], { obs?: WindowLike; mode?: LagMode }>): Term {
   return word(LAG_SHAPE, [x], args);
@@ -172,7 +172,7 @@ export function winsorize(x: Line, ...args: Args<[limit: number, w: WindowLike],
   return word(WINSORIZE_SHAPE, [x], args);
 }
 
-const VOLATILITY_SHAPE: WordShape = { word: 'volatility', gsFunction: 'econometrics.volatility', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'returns_type', lib: 'type', default: 'simple', values: { logarithmic: 'log' } }, { name: 'annualization_factor', default: null }, { name: 'assume_zero_mean', only: true, default: false }], extra: [] };
+const VOLATILITY_SHAPE: WordShape = { word: 'volatility', gsFunction: 'econometrics.volatility', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'returns_type', lib: 'type', default: 'simple', enum: 'Returns', values: { logarithmic: 'log' } }, { name: 'annualization_factor', default: null }, { name: 'assume_zero_mean', only: true, default: false }], extra: [] };
 /** Realized volatility: The annualized standard deviation of its returns over the last w observations, in percent (20% is 20). (gs-quant's econometrics.volatility.) */
 export function volatility(x: Line, ...args: Args<[w: WindowLike, returns_type: Returns, annualization_factor: number | null, assume_zero_mean: false], { w?: WindowLike; returns_type?: Returns; annualization_factor?: number | null; assume_zero_mean?: false }>): Term {
   return word(VOLATILITY_SHAPE, [x], args);
@@ -328,13 +328,13 @@ export function if_(flags: Line, x: Line | number, y: Line | number): Term {
   return word(IF_SHAPE, [flags, x, y], []);
 }
 
-const COMPARE_SHAPE: WordShape = { word: 'compare', gsFunction: 'analysis.compare', lines: ['x', 'y'], gs: [{ name: 'method', default: 'step' }], extra: [] };
+const COMPARE_SHAPE: WordShape = { word: 'compare', gsFunction: 'analysis.compare', lines: ['x', 'y'], gs: [{ name: 'method', default: 'step', enum: 'Interpolate' }], extra: [] };
 /** Which is greater: 1 where x is above y, -1 where below, 0 where equal. (gs-quant's analysis.compare.) */
 export function compare(x: Line | number, y: Line | number, ...args: Args<[method: Interpolate], { method?: Interpolate }>): Term {
   return word(COMPARE_SHAPE, [x, y], args);
 }
 
-const FILTER_SHAPE: WordShape = { word: 'filter', gsFunction: 'algebra.filter_', lines: ['x'], gs: [{ name: 'operator', default: null }, { name: 'value', default: null }], extra: [] };
+const FILTER_SHAPE: WordShape = { word: 'filter', gsFunction: 'algebra.filter_', lines: ['x'], gs: [{ name: 'operator', default: null, enum: 'FilterOperator' }, { name: 'value', default: null }], extra: [] };
 /** Drop values: x without the values the operator matches (gs-quant's filter_ removes them; by not_equals, the dates of none too): every figure after it reads the dates left. (gs-quant's algebra.filter_.) */
 export function filter_(x: Line, ...args: Args<[operator: FilterOperator | null, value: number | null], { operator?: FilterOperator | null; value?: number | null }>): Term {
   return word(FILTER_SHAPE, [x], args);
@@ -358,7 +358,7 @@ export function weighted_sum(series: readonly Line[], weights: readonly number[]
   return word(WEIGHTED_SUM_SHAPE, [series], [weights]);
 }
 
-const SMOOTH_SPIKES_SHAPE: WordShape = { word: 'smooth_spikes', gsFunction: 'analysis.smooth_spikes', lines: ['x'], gs: [{ name: 'threshold' }, { name: 'threshold_type', lib: 'type', default: 'percentage' }], extra: [] };
+const SMOOTH_SPIKES_SHAPE: WordShape = { word: 'smooth_spikes', gsFunction: 'analysis.smooth_spikes', lines: ['x'], gs: [{ name: 'threshold' }, { name: 'threshold_type', lib: 'type', default: 'percentage', enum: 'ThresholdType' }], extra: [] };
 /** Spikes smoothed: A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped. (gs-quant's analysis.smooth_spikes.) */
 export function smooth_spikes(x: Line, threshold: number, ...args: Args<[threshold_type: ThresholdType], { threshold_type?: ThresholdType }>): Term {
   return word(SMOOTH_SPIKES_SHAPE, [x], [threshold, ...args]);
@@ -376,25 +376,25 @@ export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowL
   return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], args);
 }
 
-const CONSECUTIVE_SHAPE: WordShape = { word: 'consecutive', gsFunction: 'analysis.consecutive', lines: ['x'], gs: [{ name: 'direction', default: 'positive' }], extra: [] };
+const CONSECUTIVE_SHAPE: WordShape = { word: 'consecutive', gsFunction: 'analysis.consecutive', lines: ['x'], gs: [{ name: 'direction', default: 'positive', enum: 'SignDirection' }], extra: [] };
 /** Consecutive: How many values in a row to each date have been above 0 (or below); 0 where it breaks. (gs-quant's analysis.consecutive.) */
 export function consecutive(x: Line, ...args: Args<[direction: SignDirection], { direction?: SignDirection }>): Term {
   return word(CONSECUTIVE_SHAPE, [x], args);
 }
 
-const TREND_SHAPE: WordShape = { word: 'trend', gsFunction: 'technicals.trend', lines: ['x'], gs: [{ name: 'method', default: 'additive' }, { name: 'freq', default: 'year' }], extra: [] };
+const TREND_SHAPE: WordShape = { word: 'trend', gsFunction: 'technicals.trend', lines: ['x'], gs: [{ name: 'method', default: 'additive', enum: 'SeasonalModel' }, { name: 'freq', default: 'year', enum: 'Frequency' }], extra: [] };
 /** Trend: Its trend in a classical decomposition: a moving average centred over one cycle of the tile's frequency (a year of months, 12). (gs-quant's technicals.trend.) */
 export function trend(x: Line, ...args: Args<[method: SeasonalModel, freq: Frequency], { method?: SeasonalModel; freq?: Frequency }>): Term {
   return word(TREND_SHAPE, [x], args);
 }
 
-const SEASONALLY_ADJUSTED_SHAPE: WordShape = { word: 'seasonally_adjusted', gsFunction: 'technicals.seasonally_adjusted', lines: ['x'], gs: [{ name: 'method', default: 'additive' }, { name: 'freq', default: 'year' }], extra: [] };
+const SEASONALLY_ADJUSTED_SHAPE: WordShape = { word: 'seasonally_adjusted', gsFunction: 'technicals.seasonally_adjusted', lines: ['x'], gs: [{ name: 'method', default: 'additive', enum: 'SeasonalModel' }, { name: 'freq', default: 'year', enum: 'Frequency' }], extra: [] };
 /** Seasonally adjusted: x with its season taken out, a classical decomposition's: each place in the cycle's mean detrended value, centred, removed. (gs-quant's technicals.seasonally_adjusted.) */
 export function seasonally_adjusted(x: Line, ...args: Args<[method: SeasonalModel, freq: Frequency], { method?: SeasonalModel; freq?: Frequency }>): Term {
   return word(SEASONALLY_ADJUSTED_SHAPE, [x], args);
 }
 
-const INTERPOLATE_SHAPE: WordShape = { word: 'interpolate', gsFunction: 'datetime.interpolate', lines: ['x', 'dates'], gs: [{ name: 'method', default: 'intersect' }], extra: [] };
+const INTERPOLATE_SHAPE: WordShape = { word: 'interpolate', gsFunction: 'datetime.interpolate', lines: ['x', 'dates'], gs: [{ name: 'method', default: 'intersect', enum: 'Interpolate' }], extra: [] };
 /** Onto the dates of another: x on the dates of y -- its lines, a split's, under every line of y's -- by method (gs-quant's, its default intersect). (gs-quant's datetime.interpolate.) */
 export function interpolate(x: Line, dates: Line, ...args: Args<[method: Interpolate], { method?: Interpolate }>): Term {
   return word(INTERPOLATE_SHAPE, [x, dates], args);
@@ -532,7 +532,7 @@ export function total_return(price: Line, dividends: Line | number): Term {
   return word(TOTAL_RETURN_SHAPE, [price, dividends], []);
 }
 
-const BASKET_SHAPE: WordShape = { word: 'basket', gsFunction: 'backtesting.basket_series', lines: ['series'], gs: [{ name: 'weights', weights: true, default: null }, { name: 'costs', only: true, default: null }, { name: 'rebal_freq', lib: 'rebalance', default: 'daily' }, { name: 'return_type', only: true, default: 'excess_return' }], extra: [], members: { evenWeights: true } };
+const BASKET_SHAPE: WordShape = { word: 'basket', gsFunction: 'backtesting.basket_series', lines: ['series'], gs: [{ name: 'weights', weights: true, default: null }, { name: 'costs', only: true, default: null }, { name: 'rebal_freq', lib: 'rebalance', default: 'daily', enum: 'RebalFreq' }, { name: 'return_type', only: true, default: 'excess_return' }], extra: [], members: { evenWeights: true } };
 /** Basket, rebalanced: Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series' weight of the basket then. (gs-quant's backtesting.basket_series.) */
 export function basket_series(series: readonly Line[], ...args: Args<[weights: readonly number[] | null, costs: null, rebal_freq: RebalFreq, return_type: typeof ReturnType.EXCESS_RETURN], { weights?: readonly number[] | null; costs?: null; rebal_freq?: RebalFreq; return_type?: typeof ReturnType.EXCESS_RETURN }>): Term {
   return word(BASKET_SHAPE, [series], args);

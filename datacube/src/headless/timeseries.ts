@@ -124,6 +124,18 @@ async function textOf(s: Readonly<Record<string, unknown>>, what: string): Promi
   return read.text;
 }
 
+/** A TERM OF PYTHON'S BUILDER AS ITS TEXT (B3's twin, python/legend_lite/timeseries.py): `term` (JSON, the wire's:
+ *  timeseries-builder-wire.ts) made by this builder's functions, written in the language and read by core. JSON:
+ *  `{text}`, or `{problems}` in DataCube's words. */
+export async function timeseriesTermText(term: string): Promise<string> {
+  try {
+    return JSON.stringify({ text: await textOf({ term: JSON.parse(term) as unknown }, 'the term') });
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
 /**
  * A TIMESERIES' SPEC AS PYTHON TELLS IT: `given` (JSON) is a spec's own slots, but that each source may name its grid by
  * its tile (`grid`, its cube then the grid's) and leave out its alias, its date and its instrument column (DataCube's

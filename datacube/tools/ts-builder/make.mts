@@ -196,6 +196,9 @@ for (const name of TS_FUNCTION_NAMES) {
         // a window gs-quant takes as the whole line (the library's gsWhole: zscores', percentile's default; winsorize's)
         const whole = tagged(cat, 'gsWhole').get(libName);
         if (whole !== undefined) entry.push(`whole: ${q(whole)}`);
+        // the enumeration its values are members of (gs-quant's Returns): what a printer writes a value as
+        const named = Object.keys(GS.enums).find((e) => new RegExp(`\\b${e}\\b`).test(p.annotation ?? '') && Object.keys(GS.enums[e]!).length <= SMALL_ENUM);
+        if (named !== undefined) entry.push(`enum: ${q(named)}`);
         const v = values.get(libName);
         if (v !== undefined) {
           const [gsValue, libWord] = v.split(' ');

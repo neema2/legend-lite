@@ -247,6 +247,9 @@ export interface GsParam {
   readonly default?: number | string | boolean | null | { readonly window: readonly [number | string | null, number | string | null] };
   /** gs-quant's values the language spells otherwise (Returns.LOGARITHMIC: log). */
   readonly values?: Readonly<Record<string, string>>;
+  /** The gs-quant enumeration its values are members of (Returns), the builder's own of that name: how a printer writes
+   *  a value (timeseries-builder-source.ts). */
+  readonly enum?: string;
   /** No parameter of DataCube's: taken at gs-quant's default alone (or a value of `also`, which the word computes:
    *  lag's truncate), else refused. */
   readonly only?: true;

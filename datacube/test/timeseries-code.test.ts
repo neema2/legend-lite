@@ -19,6 +19,10 @@ import { codeOfPage, tileCode } from '../src/timeseries-code.ts';
 import { tileAsks } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { readPageTexts } from './catalog-builder.ts';
+import { builderSource } from '../src/timeseries-builder-source.ts';
+import { treeOf } from '../src/timeseries-text.ts';
+// the builder each program imports for its series (B4: each series gs-quant's call of it), in the test's files to run them
+import '../src/timeseries-builder.ts';
 
 describe('a timeseries tile as the code that builds it', () => {
   it('the timeseries gallery as code: each tile\'s TypeScript, run, builds the tile it was written of', async () => {
@@ -53,7 +57,17 @@ describe('a timeseries tile as the code that builds it', () => {
       assert.ok(python.includes('page = ll.Page()') && python.includes('ll.show(page)'), v.id);
       assert.ok(python.includes("print(s, tile.query(s)['pure'])"), v.id);
       for (const lookup of ['Page.load', 'page.sheets', 'page.grids', '.id ==']) assert.ok(!python.includes(lookup), `${v.id}: finds nothing of this page (${lookup})`);
-      for (const s of spec.series) assert.ok(python.includes(`'${s.text.replace(/'/g, "\\'")}'`), `${v.id} ${s.id}: ${s.text}`);
+      // each series gs-quant's call of it (B4: python/legend_lite/timeseries.py, run by //python:ts_builder_test), its
+      // #TS text where gs-quant has none
+      for (const s of spec.series) {
+        let said: string;
+        try {
+          said = builderSource(treeOf(s, spec.series), 'python');
+        } catch {
+          said = `'${s.text.replace(/'/g, "\\'")}'`;
+        }
+        assert.ok(python.includes(said), `${v.id} ${s.id}: ${said}`);
+      }
     }
   });
 

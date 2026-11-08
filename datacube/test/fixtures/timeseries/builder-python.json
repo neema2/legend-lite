@@ -1,0 +1,1277 @@
+[
+ {
+  "series": "word returns",
+  "python": "returns(column('close'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close, 1, 'simple')"
+ },
+ {
+  "series": "word prices",
+  "python": "prices(column('close'), initial=1, type=Returns.SIMPLE)",
+  "text": "prices(close, initial => 1, type => 'simple')"
+ },
+ {
+  "series": "word diff",
+  "python": "diff(column('close'), obs=1)",
+  "text": "diff(close, 1)"
+ },
+ {
+  "series": "word lag",
+  "python": "lag(column('close'), obs=1, mode=LagMode.EXTEND)",
+  "text": "lag(close, 1, 'extend')"
+ },
+ {
+  "series": "word index",
+  "python": "index(column('close'), initial=1)",
+  "text": "index(close, initial => 1)"
+ },
+ {
+  "series": "word rebase",
+  "python": "rebase(column('close'), base=100)",
+  "text": "rebase(close, base => 100)"
+ },
+ {
+  "series": "word change",
+  "python": "change(column('close'))",
+  "text": "change(close)"
+ },
+ {
+  "series": "word percent_change",
+  "python": "percent_change(column('close'))",
+  "text": "percent_change(close)"
+ },
+ {
+  "series": "word annualize",
+  "python": "annualize(column('close'))",
+  "text": "annualize(close)"
+ },
+ {
+  "series": "word mean",
+  "python": "mean(column('close'), w=Window(None, 0))",
+  "text": "mean(close, all)"
+ },
+ {
+  "series": "word sum_",
+  "python": "sum_(column('close'), w=Window(None, 0))",
+  "text": "sum(close, all)"
+ },
+ {
+  "series": "word min_",
+  "python": "min_(column('close'), w=Window(None, 0))",
+  "text": "min(close, all)"
+ },
+ {
+  "series": "word max_",
+  "python": "max_(column('close'), w=Window(None, 0))",
+  "text": "max(close, all)"
+ },
+ {
+  "series": "word range_",
+  "python": "range_(column('close'), w=Window(None, 0))",
+  "text": "range(close, w => all)"
+ },
+ {
+  "series": "word std",
+  "python": "std(column('close'), w=Window(None, 0))",
+  "text": "std(close, all)"
+ },
+ {
+  "series": "word var_",
+  "python": "var(column('close'), w=Window(None, 0))",
+  "text": "var(close, all)"
+ },
+ {
+  "series": "word zscores",
+  "python": "zscores(column('close'))",
+  "text": "zscores(close, w => whole)"
+ },
+ {
+  "series": "word winsorize",
+  "python": "winsorize(column('close'), limit=2.5)",
+  "text": "winsorize(close, limit => 2.5, w => whole)"
+ },
+ {
+  "series": "word volatility",
+  "python": "volatility(column('close'), w=Window(None, 0), returns_type=Returns.SIMPLE)",
+  "text": "volatility(close, w => all, type => 'simple')"
+ },
+ {
+  "series": "word drawdown",
+  "python": "drawdown(column('close'), w=0)",
+  "text": "drawdown(close, w => all)"
+ },
+ {
+  "series": "word max_drawdown",
+  "python": "max_drawdown(column('close'), w=Window(None, 0))",
+  "text": "max_drawdown(close, w => all)"
+ },
+ {
+  "series": "word sharpe_ratio",
+  "python": "sharpe_ratio(column('close'), w=0)",
+  "text": "sharpe_ratio(close, w => all)"
+ },
+ {
+  "series": "word correlation",
+  "python": "correlation(column('close'), column('open'), w=Window(None, 0))",
+  "text": "correlation(close, open, w => all)"
+ },
+ {
+  "series": "word beta",
+  "python": "beta(column('close'), column('open'), w=Window(None, 0))",
+  "text": "beta(close, open, w => all)"
+ },
+ {
+  "series": "word cov",
+  "python": "cov(column('close'), column('open'), w=Window(None, 0))",
+  "text": "cov(close, open, w => all)"
+ },
+ {
+  "series": "word alpha",
+  "python": "alpha(column('close'), column('open'), w=5)",
+  "text": "alpha(close, open, w => 5)"
+ },
+ {
+  "series": "word r_squared",
+  "python": "r_squared(column('close'), column('open'), w=63)",
+  "text": "r_squared(close, open, w => 63)"
+ },
+ {
+  "series": "word hedge_ratio",
+  "python": "hedge_ratio(column('close'), column('open'), w=63)",
+  "text": "hedge_ratio(close, open, w => 63)"
+ },
+ {
+  "series": "word residual",
+  "python": "residual(column('close'), column('open'), w=63)",
+  "text": "residual(close, open, w => 63)"
+ },
+ {
+  "series": "word bollinger_bands",
+  "python": "bollinger_bands(column('close'), w=Window(None, 0), k=2)",
+  "text": "bollinger_bands(close, w => all, k => 2)"
+ },
+ {
+  "series": "word relative_strength_index",
+  "python": "relative_strength_index(column('close'), w=14)",
+  "text": "rsi(close, w => 14)"
+ },
+ {
+  "series": "word ohlc",
+  "python": "ohlc(column('close'), column('open'), column('high'), column('low'))",
+  "text": "ohlc(close, open, high, low)"
+ },
+ {
+  "series": "word exponential_moving_average",
+  "python": "exponential_moving_average(column('close'), beta=0.75)",
+  "text": "exponential_moving_average(close, beta => 0.75)"
+ },
+ {
+  "series": "word exponential_std",
+  "python": "exponential_std(column('close'), beta=0.75)",
+  "text": "exponential_std(close, beta => 0.75)"
+ },
+ {
+  "series": "word exponential_volatility",
+  "python": "exponential_volatility(column('close'), beta=0.75)",
+  "text": "exponential_volatility(close, beta => 0.75)"
+ },
+ {
+  "series": "word exponential_spread_volatility",
+  "python": "exponential_spread_volatility(column('close'), beta=0.75)",
+  "text": "exponential_spread_volatility(close, beta => 0.75)"
+ },
+ {
+  "series": "word macd",
+  "python": "macd(column('close'), m=12, n=26, s=1)",
+  "text": "macd(close, m => 12, n => 26, s => 1)"
+ },
+ {
+  "series": "word smoothed_moving_average",
+  "python": "smoothed_moving_average(column('close'), w=14)",
+  "text": "smoothed_moving_average(close, w => 14)"
+ },
+ {
+  "series": "word percentiles",
+  "python": "percentiles(column('close'), w=Window(None, 0))",
+  "text": "percentiles(close, w => all)"
+ },
+ {
+  "series": "word median",
+  "python": "median(column('close'), w=Window(None, 0))",
+  "text": "median(close, w => all)"
+ },
+ {
+  "series": "word percentile",
+  "python": "percentile(column('close'), 50)",
+  "text": "percentile(close, n => 50, w => whole)"
+ },
+ {
+  "series": "word floor",
+  "python": "floor(column('close'), value=0)",
+  "text": "floor(close, 0)"
+ },
+ {
+  "series": "word ceil",
+  "python": "ceil(column('close'), value=0)",
+  "text": "ceil(close, 0)"
+ },
+ {
+  "series": "word if_",
+  "python": "if_(column('close'), column('open'), column('high'))",
+  "text": "if(close, open, high)"
+ },
+ {
+  "series": "word compare",
+  "python": "compare(column('close'), column('open'), method=Interpolate.STEP)",
+  "text": "compare(close, open, method => 'step')"
+ },
+ {
+  "series": "word filter_",
+  "python": "filter_(column('close'), operator='empty', value=0)",
+  "text": "filter(close, operator => 'empty', value => 0)"
+ },
+ {
+  "series": "word product",
+  "python": "product(column('close'), w=Window(None, 0))",
+  "text": "product(close, w => all)"
+ },
+ {
+  "series": "word geometrically_aggregate",
+  "python": "geometrically_aggregate(column('close'))",
+  "text": "geometrically_aggregate(close)"
+ },
+ {
+  "series": "word weighted_sum",
+  "python": "weighted_sum([column('close'), column('open')], [0.5, 0.5])",
+  "text": "weighted_sum(close, 0.5, open, 0.5)"
+ },
+ {
+  "series": "word smooth_spikes",
+  "python": "smooth_spikes(column('close'), 25, threshold_type=ThresholdType.percentage)",
+  "text": "smooth_spikes(close, threshold => 25, type => 'percentage')"
+ },
+ {
+  "series": "word excess_returns",
+  "python": "excess_returns(column('close'), column('open'))",
+  "text": "excess_returns(close, open)"
+ },
+ {
+  "series": "word vol_swap_volatility",
+  "python": "vol_swap_volatility(column('close'), n_days=0)",
+  "text": "vol_swap_volatility(close, w => all)"
+ },
+ {
+  "series": "word consecutive",
+  "python": "consecutive(column('close'), direction=SignDirection.POSITIVE)",
+  "text": "consecutive(close, direction => 'positive')"
+ },
+ {
+  "series": "word trend",
+  "python": "trend(column('close'), method=SeasonalModel.ADDITIVE, freq=Frequency.YEAR)",
+  "text": "trend(close, method => 'additive', freq => 'year')"
+ },
+ {
+  "series": "word seasonally_adjusted",
+  "python": "seasonally_adjusted(column('close'), method=SeasonalModel.ADDITIVE, freq=Frequency.YEAR)",
+  "text": "seasonally_adjusted(close, method => 'additive', freq => 'year')"
+ },
+ {
+  "series": "word interpolate",
+  "python": "interpolate(column('close'), column('open'), method=Interpolate.INTERSECT)",
+  "text": "interpolate(close, open, method => 'intersect')"
+ },
+ {
+  "series": "word union",
+  "python": "union([column('close'), column('open')])",
+  "text": "union(close, open)"
+ },
+ {
+  "series": "word append",
+  "python": "append([column('close'), column('open')])",
+  "text": "append(close, open)"
+ },
+ {
+  "series": "word prepend",
+  "python": "prepend([column('close'), column('open')])",
+  "text": "prepend(close, open)"
+ },
+ {
+  "series": "word first",
+  "python": "first(column('close'))",
+  "text": "first(close, all)"
+ },
+ {
+  "series": "word last",
+  "python": "last(column('close'))",
+  "text": "last(close, whole)"
+ },
+ {
+  "series": "word count",
+  "python": "count(column('close'))",
+  "text": "count(close, all)"
+ },
+ {
+  "series": "word day",
+  "python": "day(column('close'))",
+  "text": "day(close)"
+ },
+ {
+  "series": "word month",
+  "python": "month(column('close'))",
+  "text": "month(close)"
+ },
+ {
+  "series": "word year",
+  "python": "year(column('close'))",
+  "text": "year(close)"
+ },
+ {
+  "series": "word quarter",
+  "python": "quarter(column('close'))",
+  "text": "quarter(close)"
+ },
+ {
+  "series": "word weekday",
+  "python": "weekday(column('close'))",
+  "text": "weekday(close)"
+ },
+ {
+  "series": "word atr",
+  "python": "atr(column('close'), column('open'), column('high'), w=14)",
+  "text": "atr(close, open, high, w => 14)"
+ },
+ {
+  "series": "word stochastic",
+  "python": "stochastic(column('close'), column('open'), column('high'), w=14)",
+  "text": "stochastic(close, open, high, w => 14)"
+ },
+ {
+  "series": "word keltner_channels",
+  "python": "keltner_channels(column('close'), column('open'), column('high'), w=20, a=10, k=2)",
+  "text": "keltner_channels(close, open, high, w => 20, a => 10, k => 2)"
+ },
+ {
+  "series": "word donchian_channels",
+  "python": "donchian_channels(column('close'), column('open'), w=20)",
+  "text": "donchian_channels(close, open, w => 20)"
+ },
+ {
+  "series": "word obv",
+  "python": "obv(column('close'), column('open'))",
+  "text": "obv(close, open)"
+ },
+ {
+  "series": "word vwap",
+  "python": "vwap(column('close'), column('open'), w=20)",
+  "text": "vwap(close, open, w => 20)"
+ },
+ {
+  "series": "word tracking_error",
+  "python": "tracking_error(column('close'), column('open'), w=5)",
+  "text": "tracking_error(close, open, w => 5)"
+ },
+ {
+  "series": "word information_ratio",
+  "python": "information_ratio(column('close'), column('open'), w=5)",
+  "text": "information_ratio(close, open, w => 5)"
+ },
+ {
+  "series": "word up_capture",
+  "python": "up_capture(column('close'), column('open'), w=63)",
+  "text": "up_capture(close, open, w => 63)"
+ },
+ {
+  "series": "word down_capture",
+  "python": "down_capture(column('close'), column('open'), w=63)",
+  "text": "down_capture(close, open, w => 63)"
+ },
+ {
+  "series": "word total_return",
+  "python": "total_return(column('close'), column('open'))",
+  "text": "total_return(close, open)"
+ },
+ {
+  "series": "word basket_series",
+  "python": "basket_series([column('close'), column('open')], weights=[0.5, 0.5], rebal_freq=RebalFreq.DAILY)",
+  "text": "basket(close, 0.5, open, 0.5, rebalance => 'daily')"
+ },
+ {
+  "series": "word lead_lag",
+  "python": "lead_lag(column('close'), column('open'), lag=1, w=63)",
+  "text": "lead_lag(close, open, lag => 1, w => 63)"
+ },
+ {
+  "series": "word dickey_fuller",
+  "python": "dickey_fuller(column('close'), w=0)",
+  "text": "dickey_fuller(close, w => all)"
+ },
+ {
+  "series": "word half_life",
+  "python": "half_life(column('close'), w=0)",
+  "text": "half_life(close, w => all)"
+ },
+ {
+  "series": "returns A",
+  "python": "returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['SPX'], 1, 'simple')"
+ },
+ {
+  "series": "returns B",
+  "python": "returns(column('close', 'SPX'), obs=1, type=Returns.LOGARITHMIC)",
+  "text": "returns(close['SPX'], 1, 'log')"
+ },
+ {
+  "series": "diff-lag A",
+  "python": "column('close', 'GLD')",
+  "text": "close['GLD']"
+ },
+ {
+  "series": "diff-lag B",
+  "python": "lag(column('close', 'GLD'), obs=5, mode=LagMode.TRUNCATE)",
+  "text": "lag(close['GLD'], 5, 'truncate')"
+ },
+ {
+  "series": "diff-lag C",
+  "python": "diff(column('close', 'GLD'), obs=5)",
+  "text": "diff(close['GLD'], 5)"
+ },
+ {
+  "series": "compounded A",
+  "python": "rebase(column('close', 'NVDA'), base=100)",
+  "text": "rebase(close['NVDA'], base => 100)"
+ },
+ {
+  "series": "compounded B",
+  "python": "prices(returns(column('close', 'NVDA'), obs=1, type=Returns.SIMPLE), initial=100, type=Returns.SIMPLE)",
+  "text": "prices(returns(close['NVDA'], 1, 'simple'), initial => 100, type => 'simple')"
+ },
+ {
+  "series": "compounded C",
+  "python": "returns(column('close', 'NVDA'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['NVDA'], 1, 'simple')"
+ },
+ {
+  "series": "annualize A",
+  "python": "annualize(std(returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE), w=21))",
+  "text": "annualize(std(returns(close['SPX'], 1, 'simple'), 21))"
+ },
+ {
+  "series": "annualize B",
+  "python": "std(returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE), w=21)",
+  "text": "std(returns(close['SPX'], 1, 'simple'), 21)"
+ },
+ {
+  "series": "excess A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "excess B",
+  "python": "excess_returns(column('close', 'SPX'), 0.05)",
+  "text": "excess_returns(close['SPX'], 0.05)"
+ },
+ {
+  "series": "excess C",
+  "python": "excess_returns(column('close', 'SPX'), column('close', 'TLT'))",
+  "text": "excess_returns(close['SPX'], close['TLT'])"
+ },
+ {
+  "series": "compounded-to-date A",
+  "python": "geometrically_aggregate(returns(column('close', 'MSFT'), obs=1, type=Returns.SIMPLE))",
+  "text": "geometrically_aggregate(returns(close['MSFT'], 1, 'simple'))"
+ },
+ {
+  "series": "compounded-to-date B",
+  "python": "returns(column('close', 'MSFT'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['MSFT'], 1, 'simple')"
+ },
+ {
+  "series": "total-return A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "total-return B",
+  "python": "total_return(column('close', 'SPX'), 0.015)",
+  "text": "total_return(close['SPX'], 0.015)"
+ },
+ {
+  "series": "rebase A",
+  "python": "rebase(column('close', 'SPX'), base=100)",
+  "text": "rebase(close['SPX'], base => 100)"
+ },
+ {
+  "series": "rebase B",
+  "python": "rebase(column('close', 'XOM'), base=100)",
+  "text": "rebase(close['XOM'], base => 100)"
+ },
+ {
+  "series": "rebase C",
+  "python": "rebase(column('close', 'JPM'), base=100)",
+  "text": "rebase(close['JPM'], base => 100)"
+ },
+ {
+  "series": "rebase D",
+  "python": "rebase(column('close', 'EURUSD'), base=100)",
+  "text": "rebase(close['EURUSD'], base => 100)"
+ },
+ {
+  "series": "index A",
+  "python": "index(column('close', 'JPM'), initial=1)",
+  "text": "index(close['JPM'], initial => 1)"
+ },
+ {
+  "series": "index B",
+  "python": "index(column('close', 'XOM'), initial=1)",
+  "text": "index(close['XOM'], initial => 1)"
+ },
+ {
+  "series": "change A",
+  "python": "change(column('close', 'GLD'))",
+  "text": "change(close['GLD'])"
+ },
+ {
+  "series": "change B",
+  "python": "change(column('close', 'TLT'))",
+  "text": "change(close['TLT'])"
+ },
+ {
+  "series": "percent-change A",
+  "python": "percent_change(column('close', 'AAPL'))",
+  "text": "percent_change(close['AAPL'])"
+ },
+ {
+  "series": "percent-change B",
+  "python": "percent_change(column('close', 'MSFT'))",
+  "text": "percent_change(close['MSFT'])"
+ },
+ {
+  "series": "percent-change C",
+  "python": "percent_change(column('close', 'NVDA'))",
+  "text": "percent_change(close['NVDA'])"
+ },
+ {
+  "series": "decompose A",
+  "python": "column('value', 'RETAIL')",
+  "text": "value['RETAIL']"
+ },
+ {
+  "series": "decompose B",
+  "python": "trend(column('value', 'RETAIL'), method=SeasonalModel.MULTIPLICATIVE, freq=Frequency.YEAR)",
+  "text": "trend(value['RETAIL'], method => 'multiplicative', freq => 'year')"
+ },
+ {
+  "series": "decompose C",
+  "python": "seasonally_adjusted(column('value', 'RETAIL'), method=SeasonalModel.MULTIPLICATIVE, freq=Frequency.YEAR)",
+  "text": "seasonally_adjusted(value['RETAIL'], method => 'multiplicative', freq => 'year')"
+ },
+ {
+  "series": "mean A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "mean B",
+  "python": "mean(column('close', 'SPX'), w=50)",
+  "text": "mean(close['SPX'], 50)"
+ },
+ {
+  "series": "mean C",
+  "python": "mean(column('close', 'SPX'), w=200)",
+  "text": "mean(close['SPX'], 200)"
+ },
+ {
+  "series": "min-max-range A",
+  "python": "column('close', 'MSFT')",
+  "text": "close['MSFT']"
+ },
+ {
+  "series": "min-max-range B",
+  "python": "max_(column('close', 'MSFT'), w=252)",
+  "text": "max(close['MSFT'], 252)"
+ },
+ {
+  "series": "min-max-range C",
+  "python": "min_(column('close', 'MSFT'), w=252)",
+  "text": "min(close['MSFT'], 252)"
+ },
+ {
+  "series": "min-max-range D",
+  "python": "range_(column('close', 'MSFT'), w=252)",
+  "text": "range(close['MSFT'], w => 252)"
+ },
+ {
+  "series": "sum A",
+  "python": "sum_(column('volume', 'AAPL'), w=21)",
+  "text": "sum(volume['AAPL'], 21)"
+ },
+ {
+  "series": "sum B",
+  "python": "sum_(column('volume', 'AAPL'), w=Window(None, 0))",
+  "text": "sum(volume['AAPL'], all)"
+ },
+ {
+  "series": "std-var A",
+  "python": "std(column('close', 'GLD'), w=63)",
+  "text": "std(close['GLD'], 63)"
+ },
+ {
+  "series": "std-var B",
+  "python": "var(column('close', 'GLD'), w=63)",
+  "text": "var(close['GLD'], 63)"
+ },
+ {
+  "series": "zscores A",
+  "python": "zscores(column('close', 'NVDA'), w=63)",
+  "text": "zscores(close['NVDA'], w => 63)"
+ },
+ {
+  "series": "winsorize A",
+  "refused": "winsorize's w to date is no call of gs-quant's: its w of no window is the whole series' (write the language's #TS)",
+  "text": "winsorize(returns(close['EURUSD'], 1, 'simple'), limit => 1.5)"
+ },
+ {
+  "series": "winsorize B",
+  "python": "returns(column('close', 'EURUSD'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['EURUSD'], 1, 'simple')"
+ },
+ {
+  "series": "exponential A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "exponential B",
+  "python": "exponential_moving_average(column('close', 'SPX'), beta=0.9)",
+  "text": "exponential_moving_average(close['SPX'], beta => 0.9)"
+ },
+ {
+  "series": "exponential C",
+  "python": "smoothed_moving_average(column('close', 'SPX'), w=20)",
+  "text": "smoothed_moving_average(close['SPX'], w => 20)"
+ },
+ {
+  "series": "exponential D",
+  "python": "exponential_std(column('close', 'SPX'), beta=0.95)",
+  "text": "exponential_std(close['SPX'], beta => 0.95)"
+ },
+ {
+  "series": "percentiles A",
+  "python": "column('close', 'GLD')",
+  "text": "close['GLD']"
+ },
+ {
+  "series": "percentiles B",
+  "python": "median(column('close', 'GLD'), w='1y')",
+  "text": "median(close['GLD'], w => 1y)"
+ },
+ {
+  "series": "percentiles C",
+  "python": "percentile(column('close', 'GLD'), 90, w='1y')",
+  "text": "percentile(close['GLD'], n => 90, w => 1y)"
+ },
+ {
+  "series": "percentiles D",
+  "python": "percentiles(column('close', 'GLD'), w='1y')",
+  "text": "percentiles(close['GLD'], w => 1y)"
+ },
+ {
+  "series": "product-streaks A",
+  "python": "product(1 + returns(column('close', 'EURUSD'), obs=1, type=Returns.SIMPLE), w=5) - 1",
+  "text": "product(1 + returns(close['EURUSD'], 1, 'simple'), w => 5) - 1"
+ },
+ {
+  "series": "product-streaks B",
+  "python": "consecutive(returns(column('close', 'EURUSD'), obs=1, type=Returns.SIMPLE), direction=SignDirection.POSITIVE)",
+  "text": "consecutive(returns(close['EURUSD'], 1, 'simple'), direction => 'positive')"
+ },
+ {
+  "series": "product-streaks C",
+  "python": "0 - consecutive(returns(column('close', 'EURUSD'), obs=1, type=Returns.SIMPLE), direction=SignDirection.NEGATIVE)",
+  "text": "0 - consecutive(returns(close['EURUSD'], 1, 'simple'), direction => 'negative')"
+ },
+ {
+  "series": "volatility A",
+  "python": "volatility(column('close', 'SPX'), w=21, returns_type=Returns.SIMPLE)",
+  "text": "volatility(close['SPX'], w => 21, type => 'simple')"
+ },
+ {
+  "series": "volatility B",
+  "python": "volatility(column('close', 'SPX'), w=63, returns_type=Returns.SIMPLE)",
+  "text": "volatility(close['SPX'], w => 63, type => 'simple')"
+ },
+ {
+  "series": "volatility C",
+  "python": "volatility(column('close', 'SPX'), w=252, returns_type=Returns.SIMPLE)",
+  "text": "volatility(close['SPX'], w => 252, type => 'simple')"
+ },
+ {
+  "series": "drawdown A",
+  "python": "drawdown(column('close', 'NVDA'), w=0)",
+  "text": "drawdown(close['NVDA'], w => all)"
+ },
+ {
+  "series": "drawdown B",
+  "python": "max_drawdown(column('close', 'NVDA'), w=Window(None, 0))",
+  "text": "max_drawdown(close['NVDA'], w => all)"
+ },
+ {
+  "series": "sharpe A",
+  "python": "sharpe_ratio(column('close', 'SPX'), w=252)",
+  "text": "sharpe_ratio(close['SPX'], w => 252)"
+ },
+ {
+  "series": "sharpe B",
+  "python": "sharpe_ratio(column('close', 'GLD'), w=252)",
+  "text": "sharpe_ratio(close['GLD'], w => 252)"
+ },
+ {
+  "series": "sharpe C",
+  "python": "sharpe_ratio(column('close', 'TLT'), w=252)",
+  "text": "sharpe_ratio(close['TLT'], w => 252)"
+ },
+ {
+  "series": "max-drawdown-year A",
+  "python": "max_drawdown(column('close', 'SPX'), w=252)",
+  "text": "max_drawdown(close['SPX'], w => 252)"
+ },
+ {
+  "series": "max-drawdown-year B",
+  "python": "max_drawdown(column('close', 'NDX'), w=252)",
+  "text": "max_drawdown(close['NDX'], w => 252)"
+ },
+ {
+  "series": "exponential-volatility A",
+  "python": "exponential_volatility(column('px.close', 'SPX'), beta=0.94)",
+  "text": "exponential_volatility(px.close['SPX'], beta => 0.94)"
+ },
+ {
+  "series": "exponential-volatility B",
+  "python": "volatility(column('px.close', 'SPX'), w=63, returns_type=Returns.SIMPLE)",
+  "text": "volatility(px.close['SPX'], w => 63, type => 'simple')"
+ },
+ {
+  "series": "exponential-volatility C",
+  "python": "exponential_spread_volatility(column('rates.yield', '10Y') - column('rates.yield', '2Y'), beta=0.94)",
+  "text": "exponential_spread_volatility(rates.yield['10Y'] - rates.yield['2Y'], beta => 0.94)"
+ },
+ {
+  "series": "vol-swap A",
+  "python": "vol_swap_volatility(column('close', 'SPX'), n_days=21)",
+  "text": "vol_swap_volatility(close['SPX'], w => 21)"
+ },
+ {
+  "series": "vol-swap B",
+  "python": "volatility(column('close', 'SPX'), w=21, returns_type=Returns.SIMPLE)",
+  "text": "volatility(close['SPX'], w => 21, type => 'simple')"
+ },
+ {
+  "series": "benchmark A",
+  "python": "tracking_error(column('close', 'NVDA'), column('close', 'SPX'), w=63)",
+  "text": "tracking_error(close['NVDA'], close['SPX'], w => 63)"
+ },
+ {
+  "series": "benchmark B",
+  "python": "information_ratio(column('close', 'NVDA'), column('close', 'SPX'), w=63)",
+  "text": "information_ratio(close['NVDA'], close['SPX'], w => 63)"
+ },
+ {
+  "series": "capture A",
+  "python": "up_capture(column('close', 'NDX'), column('close', 'SPX'), w=252)",
+  "text": "up_capture(close['NDX'], close['SPX'], w => 252)"
+ },
+ {
+  "series": "capture B",
+  "python": "down_capture(column('close', 'NDX'), column('close', 'SPX'), w=252)",
+  "text": "down_capture(close['NDX'], close['SPX'], w => 252)"
+ },
+ {
+  "series": "correlation A",
+  "python": "correlation(column('close', 'SPX'), column('close', 'TLT'), w=63)",
+  "text": "correlation(close['SPX'], close['TLT'], w => 63)"
+ },
+ {
+  "series": "correlation B",
+  "python": "correlation(column('close', 'SPX'), column('close', 'GLD'), w=63)",
+  "text": "correlation(close['SPX'], close['GLD'], w => 63)"
+ },
+ {
+  "series": "beta A",
+  "python": "beta(column('close', 'AAPL'), column('close', 'SPX'), w=126)",
+  "text": "beta(close['AAPL'], close['SPX'], w => 126)"
+ },
+ {
+  "series": "beta B",
+  "python": "beta(column('close', 'MSFT'), column('close', 'SPX'), w=126)",
+  "text": "beta(close['MSFT'], close['SPX'], w => 126)"
+ },
+ {
+  "series": "beta C",
+  "python": "beta(column('close', 'NVDA'), column('close', 'SPX'), w=126)",
+  "text": "beta(close['NVDA'], close['SPX'], w => 126)"
+ },
+ {
+  "series": "cov A",
+  "python": "cov(returns(column('close', 'AAPL'), obs=1, type=Returns.SIMPLE), returns(column('close', 'MSFT'), obs=1, type=Returns.SIMPLE), w=63)",
+  "text": "cov(returns(close['AAPL'], 1, 'simple'), returns(close['MSFT'], 1, 'simple'), w => 63)"
+ },
+ {
+  "series": "regression A",
+  "python": "alpha(column('close', 'NVDA'), column('close', 'SPX'), w=126)",
+  "text": "alpha(close['NVDA'], close['SPX'], w => 126)"
+ },
+ {
+  "series": "regression B",
+  "python": "r_squared(column('close', 'NVDA'), column('close', 'SPX'), w=126)",
+  "text": "r_squared(close['NVDA'], close['SPX'], w => 126)"
+ },
+ {
+  "series": "regression C",
+  "python": "hedge_ratio(column('close', 'MSFT'), column('close', 'AAPL'), w=126)",
+  "text": "hedge_ratio(close['MSFT'], close['AAPL'], w => 126)"
+ },
+ {
+  "series": "regression D",
+  "python": "residual(column('close', 'MSFT'), column('close', 'AAPL'), w=126)",
+  "text": "residual(close['MSFT'], close['AAPL'], w => 126)"
+ },
+ {
+  "series": "pair A",
+  "python": "column('close', 'AAPL') / column('close', 'MSFT')",
+  "text": "close['AAPL'] / close['MSFT']"
+ },
+ {
+  "series": "pair B",
+  "python": "zscores(series('A'), w=126)",
+  "text": "zscores(A, w => 126)"
+ },
+ {
+  "series": "lead-lag A",
+  "python": "lead_lag(column('close', 'NVDA'), column('close', 'SPX'), lag=1, w=63)",
+  "text": "lead_lag(close['NVDA'], close['SPX'], lag => 1, w => 63)"
+ },
+ {
+  "series": "lead-lag B",
+  "python": "lead_lag(column('close', 'NVDA'), column('close', 'SPX'), lag=-1, w=63)",
+  "text": "lead_lag(close['NVDA'], close['SPX'], lag => -1, w => 63)"
+ },
+ {
+  "series": "reversion A",
+  "python": "column('close', 'AAPL') / column('close', 'MSFT')",
+  "text": "close['AAPL'] / close['MSFT']"
+ },
+ {
+  "series": "reversion B",
+  "python": "dickey_fuller(series('A'), w=252)",
+  "text": "dickey_fuller(A, w => 252)"
+ },
+ {
+  "series": "reversion C",
+  "python": "half_life(series('A'), w=252)",
+  "text": "half_life(A, w => 252)"
+ },
+ {
+  "series": "candles-weekly A",
+  "python": "ohlc(column('open', 'SPX'), column('high', 'SPX'), column('low', 'SPX'), column('close', 'SPX'))",
+  "text": "ohlc(open['SPX'], high['SPX'], low['SPX'], close['SPX'])"
+ },
+ {
+  "series": "bollinger A",
+  "python": "column('close', 'GLD')",
+  "text": "close['GLD']"
+ },
+ {
+  "series": "bollinger B",
+  "python": "bollinger_bands(column('close', 'GLD'), w=20, k=2)",
+  "text": "bollinger_bands(close['GLD'], w => 20, k => 2)"
+ },
+ {
+  "series": "bollinger C",
+  "python": "mean(column('close', 'GLD'), w=20)",
+  "text": "mean(close['GLD'], 20)"
+ },
+ {
+  "series": "rsi A",
+  "python": "column('close', 'NVDA')",
+  "text": "close['NVDA']"
+ },
+ {
+  "series": "rsi B",
+  "python": "relative_strength_index(column('close', 'NVDA'), w=14)",
+  "text": "rsi(close['NVDA'], w => 14)"
+ },
+ {
+  "series": "candles-volume A",
+  "python": "ohlc(column('open', 'MSFT'), column('high', 'MSFT'), column('low', 'MSFT'), column('close', 'MSFT'))",
+  "text": "ohlc(open['MSFT'], high['MSFT'], low['MSFT'], close['MSFT'])"
+ },
+ {
+  "series": "candles-volume B",
+  "python": "column('volume', 'MSFT')",
+  "text": "volume['MSFT']"
+ },
+ {
+  "series": "macd A",
+  "python": "macd(column('close', 'SPX'), m=12, n=26, s=1)",
+  "text": "macd(close['SPX'], m => 12, n => 26, s => 1)"
+ },
+ {
+  "series": "macd B",
+  "python": "macd(column('close', 'SPX'), m=12, n=26, s=9)",
+  "text": "macd(close['SPX'], m => 12, n => 26, s => 9)"
+ },
+ {
+  "series": "macd C",
+  "python": "series('A') - series('B')",
+  "text": "A - B"
+ },
+ {
+  "series": "atr-stochastic A",
+  "python": "column('close', 'NVDA')",
+  "text": "close['NVDA']"
+ },
+ {
+  "series": "atr-stochastic B",
+  "python": "atr(column('high', 'NVDA'), column('low', 'NVDA'), column('close', 'NVDA'), w=14)",
+  "text": "atr(high['NVDA'], low['NVDA'], close['NVDA'], w => 14)"
+ },
+ {
+  "series": "atr-stochastic C",
+  "python": "stochastic(column('high', 'NVDA'), column('low', 'NVDA'), column('close', 'NVDA'), w=14)",
+  "text": "stochastic(high['NVDA'], low['NVDA'], close['NVDA'], w => 14)"
+ },
+ {
+  "series": "channels A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "channels B",
+  "python": "keltner_channels(column('high', 'SPX'), column('low', 'SPX'), column('close', 'SPX'), w=20, a=10, k=2)",
+  "text": "keltner_channels(high['SPX'], low['SPX'], close['SPX'], w => 20, a => 10, k => 2)"
+ },
+ {
+  "series": "channels C",
+  "python": "donchian_channels(column('high', 'SPX'), column('low', 'SPX'), w=20)",
+  "text": "donchian_channels(high['SPX'], low['SPX'], w => 20)"
+ },
+ {
+  "series": "volume-flow A",
+  "python": "column('close', 'AAPL')",
+  "text": "close['AAPL']"
+ },
+ {
+  "series": "volume-flow B",
+  "python": "vwap(column('close', 'AAPL'), column('volume', 'AAPL'), w=20)",
+  "text": "vwap(close['AAPL'], volume['AAPL'], w => 20)"
+ },
+ {
+  "series": "volume-flow C",
+  "python": "obv(column('close', 'AAPL'), column('volume', 'AAPL'))",
+  "text": "obv(close['AAPL'], volume['AAPL'])"
+ },
+ {
+  "series": "log-exp A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "log-exp B",
+  "python": "exp(log(series('A')))",
+  "text": "exp(ln(A))"
+ },
+ {
+  "series": "log-exp C",
+  "python": "log(series('A'))",
+  "text": "ln(A)"
+ },
+ {
+  "series": "sqrt-power A",
+  "python": "std(column('close', 'GLD'), w=63)",
+  "text": "std(close['GLD'], 63)"
+ },
+ {
+  "series": "sqrt-power B",
+  "python": "sqrt(var(column('close', 'GLD'), w=63))",
+  "text": "sqrt(var(close['GLD'], 63))"
+ },
+ {
+  "series": "sqrt-power C",
+  "python": "power(series('A'), 2)",
+  "text": "power(A, 2)"
+ },
+ {
+  "series": "abs A",
+  "python": "abs_(returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE))",
+  "text": "abs(returns(close['SPX'], 1, 'simple'))"
+ },
+ {
+  "series": "abs B",
+  "python": "mean(series('A'), w=21)",
+  "text": "mean(A, 21)"
+ },
+ {
+  "series": "floor-ceil A",
+  "python": "zscores(column('close', 'EURUSD'), w=63)",
+  "text": "zscores(close['EURUSD'], w => 63)"
+ },
+ {
+  "series": "floor-ceil B",
+  "python": "ceil(floor(series('A'), value=-2), value=2)",
+  "text": "ceil(floor(A, -2), 2)"
+ },
+ {
+  "series": "if-compare A",
+  "python": "if_(column('close', 'SPX') < mean(column('close', 'SPX'), w=200), column('close', 'SPX'), mean(column('close', 'SPX'), w=200))",
+  "text": "if(close['SPX'] < mean(close['SPX'], 200), close['SPX'], mean(close['SPX'], 200))"
+ },
+ {
+  "series": "if-compare B",
+  "refused": "compare's method is the tile's own here: gs-quant's compare takes step unless told -- no call of gs-quant's says it (write the language's #TS)",
+  "text": "compare(close['SPX'], mean(close['SPX'], 200))"
+ },
+ {
+  "series": "if-compare C",
+  "python": "~(column('close', 'SPX') > mean(column('close', 'SPX'), w=200))",
+  "text": "NOT close['SPX'] > mean(close['SPX'], 200)"
+ },
+ {
+  "series": "filter-smooth A",
+  "python": "filter_(column('close', 'GLD'), operator=FilterOperator.GREATER, value=200)",
+  "text": "filter(close['GLD'], operator => 'greater_than', value => 200)"
+ },
+ {
+  "series": "filter-smooth B",
+  "python": "smooth_spikes(column('close', 'GLD'), 0.02, threshold_type=ThresholdType.percentage)",
+  "text": "smooth_spikes(close['GLD'], threshold => 0.02, type => 'percentage')"
+ },
+ {
+  "series": "filter-smooth C",
+  "python": "weighted_sum([rebase(column('close', 'SPX'), base=100), rebase(column('close', 'TLT'), base=100)], [0.6, 0.4])",
+  "text": "weighted_sum(rebase(close['SPX'], base => 100), 0.6, rebase(close['TLT'], base => 100), 0.4)"
+ },
+ {
+  "series": "basket A",
+  "python": "basket_series([column('close', 'SPX'), column('close', 'TLT')], weights=[0.6, 0.4], rebal_freq=RebalFreq.DAILY)",
+  "text": "basket(close['SPX'], 0.6, close['TLT'], 0.4, rebalance => 'daily')"
+ },
+ {
+  "series": "basket B",
+  "python": "basket_series([column('close', 'SPX'), column('close', 'TLT')], weights=[0.6, 0.4], rebal_freq=RebalFreq.MONTHLY)",
+  "text": "basket(close['SPX'], 0.6, close['TLT'], 0.4, rebalance => 'monthly')"
+ },
+ {
+  "series": "align A",
+  "python": "column('px.close', 'SPX') / column('macro.value', 'CPI') * 100",
+  "text": "px.close['SPX'] / macro.value['CPI'] * 100"
+ },
+ {
+  "series": "align B",
+  "python": "column('px.close', 'SPX')",
+  "text": "px.close['SPX']"
+ },
+ {
+  "series": "interpolate A",
+  "python": "interpolate(column('macro.value', 'CPI'), column('px.close', 'SPX'), method=Interpolate.STEP)",
+  "text": "interpolate(macro.value['CPI'], px.close['SPX'], method => 'step')"
+ },
+ {
+  "series": "interpolate B",
+  "python": "column('macro.value', 'CPI')",
+  "text": "macro.value['CPI']"
+ },
+ {
+  "series": "splice A",
+  "python": "append([filter_(if_(year(column('close', 'GLD')) < 2023, column('close', 'GLD'), 0), operator=FilterOperator.EQUALS, value=0), column('close', 'TLT')])",
+  "text": "append(filter(if(year(close['GLD']) < 2023, close['GLD'], 0), operator => 'equals', value => 0), close['TLT'])"
+ },
+ {
+  "series": "splice B",
+  "python": "prepend([column('close', 'GLD'), filter_(if_(year(column('close', 'TLT')) >= 2023, column('close', 'TLT'), 0), operator=FilterOperator.EQUALS, value=0)])",
+  "text": "prepend(close['GLD'], filter(if(year(close['TLT']) >= 2023, close['TLT'], 0), operator => 'equals', value => 0))"
+ },
+ {
+  "series": "splice C",
+  "python": "union([filter_(column('close', 'GLD'), operator=FilterOperator.GREATER, value=190), column('close', 'TLT')])",
+  "text": "union(filter(close['GLD'], operator => 'greater_than', value => 190), close['TLT'])"
+ },
+ {
+  "series": "calendar A",
+  "python": "weekday(column('close', 'SPX'))",
+  "text": "weekday(close['SPX'])"
+ },
+ {
+  "series": "calendar B",
+  "python": "month(column('close', 'SPX'))",
+  "text": "month(close['SPX'])"
+ },
+ {
+  "series": "calendar C",
+  "python": "quarter(column('close', 'SPX'))",
+  "text": "quarter(close['SPX'])"
+ },
+ {
+  "series": "calendar D",
+  "python": "day(column('close', 'SPX'))",
+  "text": "day(close['SPX'])"
+ },
+ {
+  "series": "calendar E",
+  "python": "year(column('close', 'SPX'))",
+  "text": "year(close['SPX'])"
+ },
+ {
+  "series": "first-last-count A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "first-last-count B",
+  "python": "first(column('close', 'SPX'))",
+  "text": "first(close['SPX'], all)"
+ },
+ {
+  "series": "first-last-count C",
+  "python": "last(column('close', 'SPX'))",
+  "text": "last(close['SPX'], whole)"
+ },
+ {
+  "series": "first-last-count D",
+  "python": "count(column('close', 'SPX'))",
+  "text": "count(close['SPX'], all)"
+ },
+ {
+  "series": "split A",
+  "python": "volatility(column('close', {'asset_class': 'Equity'}), w=63, returns_type=Returns.SIMPLE)",
+  "text": "volatility(close[asset_class = 'Equity'], w => 63, type => 'simple')"
+ },
+ {
+  "series": "monthly A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "monthly B",
+  "python": "returns(column('close', 'SPX'), obs=12, type=Returns.SIMPLE)",
+  "text": "returns(close['SPX'], 12, 'simple')"
+ },
+ {
+  "series": "log-scale A",
+  "python": "column('close', 'NVDA')",
+  "text": "close['NVDA']"
+ },
+ {
+  "series": "log-scale B",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "compare A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "compare B",
+  "python": "column('close', 'TLT')",
+  "text": "close['TLT']"
+ },
+ {
+  "series": "compare C",
+  "python": "column('close', 'GLD')",
+  "text": "close['GLD']"
+ },
+ {
+  "series": "compare D",
+  "python": "column('close', 'EURUSD')",
+  "text": "close['EURUSD']"
+ },
+ {
+  "series": "styles A",
+  "python": "column('close', 'JPM')",
+  "text": "close['JPM']"
+ },
+ {
+  "series": "styles B",
+  "python": "max_(column('close', 'JPM'), w=21)",
+  "text": "max(close['JPM'], 21)"
+ },
+ {
+  "series": "styles C",
+  "python": "mean(column('close', 'JPM'), w=21)",
+  "text": "mean(close['JPM'], 21)"
+ },
+ {
+  "series": "styles D",
+  "python": "returns(column('close', 'JPM'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['JPM'], 1, 'simple')"
+ },
+ {
+  "series": "styles E",
+  "python": "column('volume', 'JPM')",
+  "text": "volume['JPM']"
+ },
+ {
+  "series": "condition A",
+  "python": "column('px.close', 'SPX')",
+  "text": "px.close['SPX']"
+ },
+ {
+  "series": "condition B",
+  "python": "column('rates.yield', '10Y') - column('rates.yield', '2Y') < 0",
+  "text": "rates.yield['10Y'] - rates.yield['2Y'] < 0"
+ },
+ {
+  "series": "condition C",
+  "python": "column('rates.yield', '10Y') - column('rates.yield', '2Y')",
+  "text": "rates.yield['10Y'] - rates.yield['2Y']"
+ },
+ {
+  "series": "two-grids A",
+  "python": "column('px.close', 'SPX')",
+  "text": "px.close['SPX']"
+ },
+ {
+  "series": "two-grids B",
+  "python": "column('rates.yield', '2Y')",
+  "text": "rates.yield['2Y']"
+ },
+ {
+  "series": "two-grids C",
+  "python": "correlation(column('px.close', 'SPX'), column('rates.yield', '2Y'), w=63)",
+  "text": "correlation(px.close['SPX'], rates.yield['2Y'], w => 63)"
+ },
+ {
+  "series": "view-scatter A",
+  "python": "returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['SPX'], 1, 'simple')"
+ },
+ {
+  "series": "view-scatter B",
+  "python": "returns(column('close', 'NDX'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['NDX'], 1, 'simple')"
+ },
+ {
+  "series": "view-seasonality A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "view-histogram A",
+  "python": "returns(column('close', 'SPX'), obs=1, type=Returns.SIMPLE)",
+  "text": "returns(close['SPX'], 1, 'simple')"
+ },
+ {
+  "series": "view-curve A",
+  "python": "column('yield')",
+  "text": "yield"
+ },
+ {
+  "series": "projected A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ },
+ {
+  "series": "drawn A",
+  "python": "column('close', 'SPX')",
+  "text": "close['SPX']"
+ }
+]

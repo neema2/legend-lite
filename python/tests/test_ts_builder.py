@@ -114,3 +114,46 @@ class Plotted(unittest.TestCase):
         # what the builder refuses, in its words: a ramp apart from a window's size is item 13's
         with self.assertRaisesRegex(ValueError, r'series D: volatility.*item 13'):
             tile.plot(ts.volatility(spx, ts.Window(5, 2)))
+
+    def test_a_tiles_python_is_gs_quants_calls_and_run_builds_the_tile_again(self):
+        # B4's Show Python (timeseries-code.ts): each series gs-quant's call of it, the program run builds the same tile
+        page = ll.Page('Code')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 8 + ['T'] * 8, 'day': list(days) * 2,
+                               'close': [100.0 + i for i in range(8)] + [50.0 - i for i in range(8)]})
+        px = page.grid(prices, name='prices')
+        s, t = ts.column('close', 'S'), ts.column('close', 'T')
+        tile = page.timeseries({'px': px}, [s, {'term': ts.returns(t, 1, ts.Returns.LOGARITHMIC), 'name': 'log returns', 'pane': 1},
+                                            ts.basket_series([ts.series('A'), t], [0.5, 0.5], rebal_freq=ts.RebalFreq.WEEKLY),
+                                            ts.zscores(s, 3) > 1],
+                               title='Two')
+        code = tile.code()
+        self.assertIn('from legend_lite.timeseries import ', code)
+        self.assertIn("'term': returns(column('close', 'T'), obs=1, type=Returns.LOGARITHMIC)", code)
+        self.assertIn("basket_series([series('A'), column('close', 'T')], weights=[0.5, 0.5], rebal_freq=RebalFreq.WEEKLY)", code)
+        self.assertIn("zscores(column('close', 'S'), w=3) > 1", code)
+        shown = []
+        shim = type('ll', (), {'Page': ll.Page, 'show': staticmethod(shown.append)})
+        ran = {'ll': shim, 'prices_frame': prices, 'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)  # noqa: S102 -- DataCube's program
+        made = ran['page'].timeseries_tiles
+        cubes = lambda spec: {**spec, 'sources': [{**x, 'cube': None} for x in spec['sources']]}  # noqa: E731
+        self.assertEqual(cubes(made[0].spec), cubes(tile.spec))
+
+    def test_every_gallery_series_as_pythons_builder_code_writes_its_text(self):
+        # B4's Show Python, held by datacube/test/timeseries-builder.test.ts: each source run here is a term whose text,
+        # DataCube's builder's and read by core, is the series' own
+        rows = json.loads(Path(os.environ['LEGEND_LITE_BUILDER_PYTHON']).read_text(encoding='utf-8'))
+        names = {k: getattr(ts, k) for k in ts.__all__}
+        wrong = []
+        for row in rows:
+            if 'python' not in row:
+                continue
+            term = eval(row['python'], {'__builtins__': {}}, names)  # noqa: S307 -- the fixture's code, DataCube's own
+            written = ts.text(term)
+            if written != row['text']:
+                wrong.append(f"{row['series']}: {row['python']}\n    wrote {written}\n    not   {row['text']}")
+        self.assertEqual(wrong, [])
+        with self.assertRaisesRegex(ValueError, 'volatility.*item 13'):
+            ts.text(ts.volatility(ts.column('close'), ts.Window(5, 2)))
+        self.assertGreater(sum(1 for r in rows if 'python' in r), 200)

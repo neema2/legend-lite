@@ -399,9 +399,12 @@ py_test(
         "//datacube:headless_bundle",
         "//native:compiler",
         "//projects:timeseries/gs-quant-signatures.json",
+        "//datacube:test/fixtures/timeseries/builder-python.json",
     ],
     env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_GS_QUANT_SIGNATURES": "$(rlocationpath //projects:timeseries/gs-quant-signatures.json)",
+        # every gallery series as Python's builder code, with its text (B4's Show Python)
+        "LEGEND_LITE_BUILDER_PYTHON": "$(rlocationpath //datacube:test/fixtures/timeseries/builder-python.json)",
     },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,

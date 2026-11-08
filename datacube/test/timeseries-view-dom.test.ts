@@ -858,7 +858,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       await until(() => pures(2).length === SPEC.series.length && pures(2).every((x) => x !== 'Writing…'), 'each formula\'s Pure');
       assert.deepEqual([...panels[2]!.querySelectorAll('.dc-ts-field-label')].map((x) => x.textContent), SPEC.series.map((x) => `${x.id}  ${x.text}`));
       assert.ok(pures(2).every((x) => x.includes('#>{') || x.includes('->')), pures(2).join('\n'));
-      assert.match(python, /\{'text': 'close\[\\'SPX\\'\]', 'name': 'S&P 500'\}/);
+      // each series gs-quant's call of it (B4: legend_lite.timeseries)
+      assert.match(python, /\{'term': column\('close', 'SPX'\), 'name': 'S&P 500'\}/);
       windowButton(windows, 'Copy Python').click();
       await until(() => written.length === 1, 'its Python copied');
       assert.equal(written[0], python);
