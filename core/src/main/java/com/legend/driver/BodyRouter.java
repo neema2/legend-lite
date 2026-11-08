@@ -335,14 +335,14 @@ public final class BodyRouter {
                 if (!(steps.get(i) instanceof TestPlan.Verdicts group)) {
                     continue;
                 }
-                HostAsserts.Planned p = agreement != null ? agreement.of(group.verdicts().get(0)).host
-                        : asserts != null && group.verdicts().size() == 1 ? asserts.find(group.verdicts().get(0))
-                        : null;
+                // the host's facts the plan carries on the group's first verdict (step 4, 2026-11-08): an agreement
+                // step's or a host judge's one assert's
+                TestPlan.Host p = agreement != null || asserts != null && group.verdicts().size() == 1
+                        ? group.verdicts().get(0).host() : null;
                 if (p != null) {
                     // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
                     // marked for it (M10c item 8)
-                    com.legend.exec.StatementOrigin o = AssertVerdicts.deferredTextOrigin(
-                            p.assertion().check().judgment());
+                    com.legend.exec.StatementOrigin o = AssertVerdicts.deferredTextOrigin(p.judgment());
                     if (o != null) {
                         textOrigins.put(i, o);
                     }
@@ -373,7 +373,7 @@ public final class BodyRouter {
             if (database == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
             }
-            HostAsserts.Planned hostStep = database.hostStep(verdict);
+            TestPlan.Host hostStep = verdict.host();
             if (hostStep != null) {
                 // an assertError's step under the database judge: judged at its sides (ruling N3) -- or here, at its
                 // turn, where it has no side to read (its error caught at planning, or its inner assert decided there):
@@ -413,11 +413,11 @@ public final class BodyRouter {
                 agreement.hostSides(verdict, () -> rows, messageOf(verdict), listener, rules(verdict));
                 return;
             }
-            HostAsserts.Planned p = hostPlanned(verdict);
+            TestPlan.Host p = hostOf(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
             try (var judging = RunReader.judging(reader, sessions)) {
-                judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.sides(), rows),
-                        read == null ? null : HostSides.message(p.sides(), read), rules(verdict));
+                judged(p, () -> HostSides.shapedBase(p.assertion().name(), p.shapes(), rows),
+                        read == null ? null : HostSides.message(p.shapes(), read), rules(verdict));
             }
         }
 
@@ -458,30 +458,29 @@ public final class BodyRouter {
                 }, null, listener, rules(verdict));
                 return;
             }
-            judged(hostPlanned(verdict), () -> {
+            judged(hostOf(verdict), () -> {
                 throw failure;
             }, null, rules(verdict));
         }
 
-        /** The host's planned assert {@code verdict} is: the host judge's, or, under the database judge, an
-         *  assertError's step (ruling N3: Java compares the error in both judge modes). */
-        private HostAsserts.Planned hostPlanned(TestPlan.Verdict verdict) {
-            if (database != null) {
-                HostAsserts.Planned step = database.hostStep(verdict);
-                if (step == null) {
-                    throw new IllegalStateException("host sides for a verdict the database judge planned: "
-                            + verdict.name());
-                }
-                return step;
+        /** The host's facts {@code verdict} carries in the plan (step 4, 2026-11-08): the host judge's assert, or,
+         *  under the database judge, an assertError's step (ruling N3: Java compares the error in both judge modes). */
+        private TestPlan.Host hostOf(TestPlan.Verdict verdict) {
+            TestPlan.Host h = verdict.host();
+            if (h == null) {
+                throw new IllegalStateException(database != null
+                        ? "host sides for a verdict the database judge planned: " + verdict.name()
+                        : "a verdict's sides in a moved body whose plan carries no host facts for it: "
+                                + verdict.name());
             }
-            return assertOf(verdict);
+            return h;
         }
 
-        private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides,
+        private void judged(TestPlan.Host p, java.util.function.Supplier<List<TypedSide>> sides,
                 java.util.function.@Nullable Supplier<TypedSide> message,
                 com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-            AssertVerdicts.HostAssert a = p.assertion();
-            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides, rules, message);
+            com.legend.testexecutionplan.Assertion a = p.assertion();
+            TypedSide v = AssertVerdicts.judgedAtItsStep(p, listener, sides, rules, message);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");
@@ -500,13 +499,6 @@ public final class BodyRouter {
         private boolean systemStore(int step) {
             return planned.plan().steps().get(step) instanceof TestPlan.Run r
                     && r.node() instanceof ExecutionPlan.Setup u && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
-        }
-
-        private HostAsserts.Planned assertOf(TestPlan.Verdict verdict) {
-            if (asserts == null) {
-                throw new IllegalStateException("a verdict's sides in a moved body whose asserts no judge planned");
-            }
-            return asserts.of(verdict);
         }
 
         @Override

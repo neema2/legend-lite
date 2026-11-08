@@ -805,24 +805,25 @@ final class AssertVerdicts {
      * assert whose side raised inside the arm (M6's audit, S2; one path since 2026-11-03). Null where the judgment
      * declined the sides it read.
      */
-    static @com.legend.base.Nullable TypedSide judgedAtItsStep(HostAssert a,
+    static @com.legend.base.Nullable TypedSide judgedAtItsStep(com.legend.testexecutionplan.TestPlan.Host h,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+        com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
             throw com.legend.judge.Failures.raised(before);
         }
         if (listener == null) {
-            a.enter();
-            return a.judge(sides, rules, message);
+            enter(a);
+            return judge(a, h.judgment(), sides, rules, message);
         }
         com.legend.judge.CanonicalDivergence.sqlEnter();
         boolean settled = false;
         try {
-            a.enter();
-            TypedSide v = a.judge(sides, rules, message);
+            enter(a);
+            TypedSide v = judge(a, h.judgment(), sides, rules, message);
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -887,9 +888,10 @@ final class AssertVerdicts {
      * agreement arm (entered; a side's data error counted raised, reported and thrown at once, as the agreement arm
      * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
      */
-    static HostHeld heldAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+    static HostHeld heldAtItsStep(com.legend.testexecutionplan.TestPlan.Host h, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+        com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
             throw com.legend.judge.Failures.raised(before);
@@ -899,11 +901,11 @@ final class AssertVerdicts {
         }
         boolean settled = false;
         try {
-            a.enter();
+            enter(a);
             TypedSide v = null;
             com.legend.error.AssertFailed failed = null;
             try {
-                v = a.judge(sides, rules, message);
+                v = judge(a, h.judgment(), sides, rules, message);
             } catch (com.legend.error.AssertFailed e) {
                 failed = e;
             }
@@ -934,7 +936,8 @@ final class AssertVerdicts {
      *  {@link AgreementArm#agree}), reported to {@code listener} as {@link #tryAdjudicate} reports it: a pass, or a
      *  failure (an assert that does not hold, a data error) counted raised, its UNJUDGED reason and its verdict told,
      *  and thrown. */
-    static TypedSide agreedAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+    static TypedSide agreedAtItsStep(com.legend.testexecutionplan.Assertion a,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<@com.legend.base.Nullable TypedSide> agreed) {
         try {
             TypedSide v = java.util.Objects.requireNonNull(agreed.get(), "a host verdict the agreement rule dropped");

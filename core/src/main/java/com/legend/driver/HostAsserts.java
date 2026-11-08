@@ -513,8 +513,15 @@ final class HostAsserts implements TestDoor.Asserts {
             message = base.get(m.innerSides());
             base = base.subList(0, m.innerSides());
         }
+        // the host's facts are the verdict's own (the plan-as-data design's step 4, 2026-11-08): the assert, its
+        // judgment and each side's shape, read by the run from the plan alone
+        List<com.legend.testexecutionplan.SideShape> shapes = new java.util.ArrayList<>(sides.sides().size());
+        for (JudgePlans.PlannedSide p : sides.sides()) {
+            shapes.add(JudgePlans.shapeOf(p));
+        }
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
-                assertion.name(), base, null, message);
+                assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),
+                assertion.check().judgment(), shapes));
         return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint, rules));
     }
 

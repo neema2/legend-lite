@@ -414,6 +414,191 @@ final class JudgePlans {
         };
     }
 
+    /** {@code p}'s shape as the plan carries it (the plan-as-data design's step 4, 2026-11-08): every fact its
+     *  shaping reads, decided here from the side's declared type, so the run shapes the rows from the plan alone. A
+     *  constant side's text is read back here, at planning, and checked against the compiler's value (a difference is
+     *  the plan's text being wrong, raised by name). */
+    static com.legend.testexecutionplan.SideShape shapeOf(PlannedSide p) {
+        return switch (p.kind()) {
+            case CONSTANT -> {
+                TypedSide answered = java.util.Objects.requireNonNull(p.answered(), "a constant side's value");
+                decodeConstant((TestPlan.Side.Constant) p.side(), answered, constantRows(p));
+                yield sideShape(com.legend.testexecutionplan.SideShape.Kind.CONSTANT, answered.returnType(), List.of(),
+                        List.of(), false, answered instanceof TypedSide.Scalar, 0, "", false, false, false);
+            }
+            case GRAPH -> sideShape(com.legend.testexecutionplan.SideShape.Kind.GRAPH,
+                    p.wrappedSide().shapeInfo().type().typeName(), List.of(), List.of(), false, false, 0, "", false,
+                    false, false);
+            case TABULAR, KEYED -> {
+                Type.RelationType schema = java.util.Objects.requireNonNull(p.schema(), "a grid's schema");
+                Type t = p.wrappedSide().shapeInfo().type();
+                List<com.legend.testexecutionplan.SideShape.Column> templates = new ArrayList<>();
+                if (p.kind() == Kind.KEYED) {
+                    for (Type.Column c : schema.dynamicColumns()) {
+                        templates.add(shapeColumn(c));
+                    }
+                }
+                List<com.legend.testexecutionplan.SideShape.Column> columns = new ArrayList<>();
+                for (Type.Column c : schema.columns()) {
+                    columns.add(shapeColumn(c));
+                }
+                yield sideShape(p.kind() == Kind.KEYED ? com.legend.testexecutionplan.SideShape.Kind.KEYED
+                        : com.legend.testexecutionplan.SideShape.Kind.TABULAR, t.typeName(), columns, templates,
+                        oneCarrier(t), false, 0, "", false, false, false);
+            }
+            case VALUES -> {
+                BodyDriver.WrappedSide w = p.wrappedSide();
+                ExprType info = w.shapeInfo();
+                Type type = info.type();
+                boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
+                boolean nullable = PlatformTypes.isAny(type) || tdsNullRoot
+                        || type instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
+                yield sideShape(com.legend.testexecutionplan.SideShape.Kind.VALUES, type.typeName(), List.of(),
+                        List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR,
+                        info.multiplicity().requireBounded("result shape").lower(), info.multiplicity().text(),
+                        tdsNullRoot, nullable, PlatformTypes.isListCarrier(type));
+            }
+        };
+    }
+
+    private static com.legend.testexecutionplan.SideShape sideShape(com.legend.testexecutionplan.SideShape.Kind kind,
+            String typeName, List<com.legend.testexecutionplan.SideShape.Column> columns,
+            List<com.legend.testexecutionplan.SideShape.Column> templates, boolean oneCarrier, boolean scalar,
+            long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot, boolean listCarrier) {
+        return new com.legend.testexecutionplan.SideShape(kind, typeName, columns, templates, oneCarrier, scalar, lower,
+                multiplicity, tdsNullRoot, nullableRoot, listCarrier);
+    }
+
+    private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {
+        return new com.legend.testexecutionplan.SideShape.Column(c.name(), c.type().typeName(),
+                planMultiplicity(c.multiplicity()));
+    }
+
+    /** {@code rows}, read for a side the plan shapes as {@code s}: the same rules as {@link #shape(PlannedSide,
+     *  PlanRunner.Rows)}, read from the plan's facts alone (the plan-as-data design's step 4, 2026-11-08). */
+    static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
+        return switch (s.kind()) {
+            case CONSTANT -> {
+                List<Object> values = new ArrayList<>(rows.rows().size());
+                for (List<Object> row : rows.rows()) {
+                    Object cell = row.get(0);
+                    values.add(switch (cell) {
+                        case null -> null;
+                        case String text -> constantValue(text, s.typeName());
+                        default -> throw new IllegalStateException("a constant side's cell is its text, not a "
+                                + cell.getClass().getSimpleName());
+                    });
+                }
+                yield s.scalar() ? new TypedSide.Scalar(values.isEmpty() ? null : values.get(0), s.typeName())
+                        : new TypedSide.Collection(values, s.typeName());
+            }
+            case GRAPH -> new TypedSide.Graph(objectsShape(rows), s.typeName());
+            case TABULAR -> {
+                List<Column> columns = new ArrayList<>(s.columns().size());
+                for (com.legend.testexecutionplan.SideShape.Column c : s.columns()) {
+                    columns.add(new Column(c.name(), c.type(), c.multiplicity()));
+                }
+                if (s.columns().isEmpty()) {
+                    // a raw grid's: the columns its result reported, each typed by the Pure type the wire table named
+                    for (ExecutionPlan.Column c : rows.columns()) {
+                        columns.add(new Column(c.name(), reportedType(c),
+                                new ExecutionPlan.Multiplicity(c.multiplicity().lower() == 0 ? 0 : 1, 1)));
+                    }
+                }
+                yield new TypedSide.Tabular(columns, rowsOf(rows), s.typeName(), s.oneCarrier());
+            }
+            case KEYED -> {
+                List<Column> columns = new ArrayList<>(rows.columns().size());
+                for (ExecutionPlan.Column c : rows.columns()) {
+                    com.legend.testexecutionplan.SideShape.Column fixed = s.columns().stream()
+                            .filter(x -> x.name().equals(c.name())).findFirst().orElse(null);
+                    columns.add(fixed != null ? new Column(fixed.name(), fixed.type(), fixed.multiplicity())
+                            : new Column(Type.RelationType.presentPivotName(c.name()), pivotColumnType(s, c.name())));
+                }
+                yield new TypedSide.Tabular(columns, rowsOf(rows), s.typeName(), s.oneCarrier());
+            }
+            case VALUES -> valuesShape(valueLane(rows), s);
+        };
+    }
+
+    private static List<Row> rowsOf(PlanRunner.Rows rows) {
+        List<Row> out = new ArrayList<>(rows.rows().size());
+        for (List<Object> r : rows.rows()) {
+            out.add(new Row(r));
+        }
+        return out;
+    }
+
+    /** {@link Type.RelationType#pivotColumnType}'s one rule over the plan's columns: a fixed column by its name (the
+     *  presented name's quotes stripped), a per-key one by the template its generated name ends with. */
+    private static String pivotColumnType(com.legend.testexecutionplan.SideShape s, String rawName) {
+        String name = rawName.length() >= 2 && rawName.startsWith("'") && rawName.endsWith("'")
+                && rawName.contains(Type.RelationType.PIVOT_SEPARATOR)
+                ? rawName.substring(1, rawName.length() - 1) : rawName;
+        for (com.legend.testexecutionplan.SideShape.Column c : s.columns()) {
+            if (c.name().equals(name) || c.name().equals(rawName)) {
+                return c.type();
+            }
+        }
+        int sep = name.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
+        if (sep >= 0 && !s.templates().isEmpty()) {
+            String template = name.substring(sep + Type.RelationType.PIVOT_SEPARATOR.length());
+            return s.templates().stream().filter(c -> c.name().equals(template)).findFirst()
+                    .map(com.legend.testexecutionplan.SideShape.Column::type)
+                    .orElseThrow(() -> new IllegalStateException("pivot column '" + name + "' matches no aggregate"
+                            + " template " + s.templates().stream()
+                                    .map(com.legend.testexecutionplan.SideShape.Column::name).toList()));
+        }
+        throw new IllegalStateException("the keyed side's column '" + rawName + "' is neither among the schema's"
+                + " columns " + s.columns() + " nor a per-key column of its templates " + s.templates());
+    }
+
+    /** {@link #valuesShape(PlanRunner.Rows, BodyDriver.WrappedSide)}'s rules, read from the plan's shape. */
+    private static TypedSide valuesShape(PlanRunner.Rows rows, com.legend.testexecutionplan.SideShape s) {
+        long lower = s.lower();
+        if (s.scalar()) {
+            if (rows.rows().isEmpty() && lower >= 1) {
+                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
+                        + s.multiplicity());
+            }
+            if (rows.rows().size() > 1) {
+                throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
+                        + " contract was not enforced upstream");
+            }
+            Object v = rows.rows().isEmpty() ? null : rows.rows().get(0).get(0);
+            if (v instanceof List<?> l && !s.listCarrier()) {
+                return new TypedSide.Collection(new ArrayList<>(l), s.typeName());
+            }
+            return new TypedSide.Scalar(v, s.typeName());
+        }
+        List<Object> values = new ArrayList<>(rows.rows().size());
+        for (List<Object> r : rows.rows()) {
+            Object v = r.get(0);
+            if (v == null) {
+                if (s.tdsNullRoot()) {
+                    values.add(PlatformTypes.TDS_NULL_CELL);
+                } else if (s.nullableRoot()) {
+                    values.add(null);
+                } else {
+                    throw new IllegalStateException("NULL cell reached COLLECTION egress — the lowerer owns the"
+                            + " null-drop (COMPILER_SHORTCUT_AUDIT §5); a NULL here is a lowering defect, never an"
+                            + " empty");
+                }
+            } else {
+                values.add(v);
+            }
+        }
+        if (rows.rows().isEmpty() && lower >= 1) {
+            throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + s.multiplicity());
+        }
+        if (values.size() < lower) {
+            throw new IllegalStateException("collection-shaped result holds " + values.size()
+                    + " values, below its declared lower bound " + lower
+                    + " — NULL cells were dropped past the type's own contract");
+        }
+        return new TypedSide.Collection(values, s.typeName());
+    }
+
     /** A graph fetch side's statement: its one cell, the objects' JSON array as the database built it (the side's
      *  graph root), read as a typed value of one text column -- the plan asks the database for no output text
      *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */

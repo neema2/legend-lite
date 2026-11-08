@@ -635,3 +635,14 @@ independently of the rules).
   and the NUMBER of its appeal: the appeal (harness Java, R3) and the environment it runs under are held beside the
   plan in the body's `EngineTextAppeals`, published for the body's run and read where a text fails. An out-of-plan
   channel, named, removed with the closures at step 8 (2.10's fourth guard).
+- **Step 4b: `SideShape` holds the facts the shaping reads, by name** (2.3 drew a `TypeRef` and a schema): the declared
+  type's name, a grid's declared columns, a keyed side's per-key templates (the pivot rule as data: a fixed column by
+  its name, a generated one by the template its name ends with), a value side's scalar flag, lower bound, multiplicity
+  text, null and list-carrier flags. A representation choice; nothing ruled changes. A constant side's text is read
+  back at PLANNING and checked against the compiler's value there (it was checked at run); at run the constant is
+  decoded from its cells by its type's name (2.8).
+- **Step 4b: the test plan's own data has a hand-written codec** (`HostJson`). A first codec read the records by
+  reflection; the guards refused it (F1.11 bans reflection in production: `ArchitectureTest
+  .reflectionIsBannedInProduction`, `ErrorShapeGuardrailTest.reflectionSpellingsStayAtZero`), so every type is spelled
+  out, one method each way, generated once from the record list and kept as source. A type the codec does not name
+  cannot be written. The test plan's JSON is version 2 (3 at step 5).

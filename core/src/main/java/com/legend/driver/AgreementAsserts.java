@@ -58,6 +58,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
         /** An assertError's verdict whose row is the database half's (its raising step's). */
         final TestPlan.@Nullable Verdict raisingVerdict;
         @Nullable List<Object> raisingRow;
+        /** The host's facts the held verdict was judged by: the plan's, from the verdict the runner handed. */
+        TestPlan.@Nullable Host heldHost;
 
         /** An assertError's steps for both judges (S135): the database's raising verdict, whose base the host reads --
          *  but where the function IS an assert, each judge decides that assert (2026-11-05, the deep audit: "both"
@@ -93,7 +95,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 TestPlan.Verdict first = group.verdicts().get(0);
                 // it replaces the database's first member in the plan, so it keeps that member's id
                 TestPlan.Verdict both = new TestPlan.Verdict(first.id(), hv.name(), hv.arm(), hv.base(),
-                        first.wrapper(), hv.message());
+                        first.wrapper(), hv.message()).withHost(hv.host());
                 List<TestPlan.Verdict> verdicts = new ArrayList<>(group.verdicts().size());
                 verdicts.add(both);
                 m.put(both.id(), first);
@@ -262,10 +264,12 @@ final class AgreementAsserts implements TestDoor.Asserts {
             // the database's raising step is read for the database half: what it raised is its statement's, bound
             return;
         }
-        AssertVerdicts.HostAssert a = one.host.assertion();
-        one.held = AssertVerdicts.heldAtItsStep(a, listener,
-                () -> HostSides.shapedBase(a.name(), one.host.sides(), rows.get()), rules,
-                message == null ? null : HostSides.message(one.host.sides(), message));
+        // the host's facts as the plan carries them on the verdict the runner handed (step 4, 2026-11-08)
+        TestPlan.Host h = java.util.Objects.requireNonNull(verdict.host(), "a host verdict the plan carries no host for");
+        one.held = AssertVerdicts.heldAtItsStep(h, listener,
+                () -> HostSides.shapedBase(h.assertion().name(), h.shapes(), rows.get()), rules,
+                message == null ? null : HostSides.message(h.shapes(), message));
+        one.heldHost = h;
     }
 
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.
@@ -302,12 +306,13 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  through the program's {@code reader} (THE WALL, 2026-11-06: no run of its own). */
     private static TypedSide decided(One one, @Nullable AssertListener listener,
             com.legend.judge.@Nullable SideReader reader) {
-        AssertVerdicts.HostAssert a = one.host.assertion();
         AssertVerdicts.HostHeld held = one.held;
-        if (held == null) {
-            throw new IllegalStateException(a.listenerName() + ": the database half's rows arrived before the host"
-                    + " half judged its sides");
+        TestPlan.Host h = one.heldHost;
+        if (held == null || h == null) {
+            throw new IllegalStateException(one.hostVerdict.name() + ": the database half's rows arrived before the"
+                    + " host half judged its sides");
         }
+        com.legend.testexecutionplan.Assertion a = h.assertion();
         DatabaseAsserts.Each database = one.database;
         return AssertVerdicts.agreedAtItsStep(a, listener, () -> AgreementArm.agree(a.name(), listener,
                 () -> {

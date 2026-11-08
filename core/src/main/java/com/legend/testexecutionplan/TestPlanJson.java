@@ -23,8 +23,9 @@ public final class TestPlanJson {
     public static final String FORMAT = "legend-lite-test-plan";
 
     /** 1 (2026-11-08): the verdict groups and branches out of the product's format (its version 27), the frame runs
-     *  steps of their own, the judge the plan's. */
-    public static final int VERSION = 1;
+     *  steps of their own, the judge the plan's; 2 the same day (step 4): a verdict's host facts -- its assertion, its
+     *  judgment, its sides' shapes. */
+    public static final int VERSION = 2;
 
     private TestPlanJson() {
     }
@@ -115,6 +116,10 @@ public final class TestPlanJson {
                     if (each.raises()) {
                         vo.put("raises", true);
                     }
+                    if (each.host() != null) {
+                        // the host judge's facts, the judgment and the side shapes: the test plan's own codec
+                        vo.put("host", HostJson.wHost(each.host()));
+                    }
                     verdicts.add(vo);
                 }
                 o.put("verdicts", verdicts);
@@ -142,7 +147,7 @@ public final class TestPlanJson {
     }
 
     /** A verdict's side, or a branch's condition. */
-    private static Map<String, Object> side(TestPlan.Side side) {
+    static Map<String, Object> side(TestPlan.Side side) {
         Map<String, Object> so = new LinkedHashMap<>();
         switch (side) {
             case TestPlan.Side.Rows r -> {
@@ -220,9 +225,11 @@ public final class TestPlanJson {
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     Json.Obj m = vo.getObjOr("message", null);
+                    Json.Obj h = vo.getObjOr("host", null);
                     verdicts.add(new TestPlan.Verdict(vo.getInt("id"), vo.getString("name"), vo.getString("arm"),
                             base, w == null ? null : PlanJson.nodeOf(w), m == null ? null : readSide(m),
-                            vo.getBoolOr("raises", false)));
+                            vo.getBoolOr("raises", false),
+                            h == null ? null : HostJson.rHost(h)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
@@ -250,7 +257,7 @@ public final class TestPlanJson {
     }
 
     /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
-    private static TestPlan.Side readSide(Json.Obj so) {
+    static TestPlan.Side readSide(Json.Obj so) {
         return switch (tag(SideTag.class, so, "verdict side")) {
             case rows -> new TestPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));
             case keyedRows -> {

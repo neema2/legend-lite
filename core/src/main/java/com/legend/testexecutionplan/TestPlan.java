@@ -238,7 +238,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * {@link #RAISED_LINE} and {@link #RAISED_COLUMN} before it runs the wrapper, the verdict statement comparing them.
      */
     public record Verdict(int id, String name, String arm, List<Side> base,
-            @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises) {
+            @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises,
+            @com.legend.base.Nullable Host host) {
         /** The parameter a raising verdict's statement reads the message its base raised from (absent: none). */
         public static final String RAISED_MESSAGE = "__raised_message";
         /** The parameter a raising verdict's statement reads the raise's line from (absent: none or no position). */
@@ -274,12 +275,38 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         /** A verdict that reads its base as any assert does. */
         public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
                 @com.legend.base.Nullable Side message) {
-            this(id, name, arm, base, wrapper, message, false);
+            this(id, name, arm, base, wrapper, message, false, null);
+        }
+
+        /** A verdict that reads its base as any assert does, or a raising one ({@code raises}); no host facts. */
+        public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
+                @com.legend.base.Nullable Side message, boolean raises) {
+            this(id, name, arm, base, wrapper, message, raises, null);
+        }
+
+        /** This verdict judged by the HOST judge with {@code h}'s facts. */
+        public Verdict withHost(@com.legend.base.Nullable Host h) {
+            return new Verdict(id, name, arm, base, wrapper, message, raises, h);
         }
 
         /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */
         public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper) {
             this(id, name, arm, base, wrapper, null);
+        }
+    }
+
+    /**
+     * WHAT THE HOST JUDGE JUDGES A VERDICT BY (the plan-as-data design's step 4, 2026-11-08: 2.2 and 2.3, beside the
+     * plan until then): the assert's facts (its listener name, family, polarity, a failure before its arm), its
+     * judgment -- one of the closed list of comparisons, as data -- and how each side the step reads is shaped once read
+     * (the base's sides, then a caller's message where the verdict carries one). Null on a verdict the database judge
+     * alone judges.
+     */
+    public record Host(Assertion assertion, HostJudgment judgment, List<SideShape> shapes) {
+        public Host {
+            Objects.requireNonNull(assertion, "assertion");
+            Objects.requireNonNull(judgment, "judgment");
+            shapes = List.copyOf(shapes);
         }
     }
 
