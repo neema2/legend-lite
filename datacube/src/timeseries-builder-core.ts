@@ -53,6 +53,26 @@ export class Term {
     return binary('/', this, other);
   }
 
+  /** pandas' `x.radd(y)`: y + x (a number before the series: `5 + close`). */
+  radd(other: Term | number): Term {
+    return reversed('+', this, other);
+  }
+
+  /** pandas' `x.rsub(y)`: y - x. */
+  rsub(other: Term | number): Term {
+    return reversed('-', this, other);
+  }
+
+  /** pandas' `x.rmul(y)`: y * x (`100 * returns(x)`; `-x` is `x.rmul(-1)`). */
+  rmul(other: Term | number): Term {
+    return reversed('*', this, other);
+  }
+
+  /** pandas' `x.rdiv(y)`: y / x (`1 / close`). */
+  rdiv(other: Term | number): Term {
+    return reversed('/', this, other);
+  }
+
   /** pandas' `x.gt(y)`: 1 where x > y, else 0 -- a condition. */
   gt(other: Term | number): Term {
     return binary('>', this, other);
@@ -113,6 +133,10 @@ function termOf(v: Term | number): TsExpr {
 
 function binary(op: TsOperator, left: Term, right: Term | number): Term {
   return new Term({ kind: 'binary', op, left: left.expr, right: termOf(right) });
+}
+
+function reversed(op: TsOperator, right: Term, left: Term | number): Term {
+  return new Term({ kind: 'binary', op, left: termOf(left), right: right.expr });
 }
 
 /**

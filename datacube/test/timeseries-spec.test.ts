@@ -1,182 +1,31 @@
-// A TIMESERIES TILE'S SPEC (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §3, §4; src/timeseries-spec.ts): the
-// expression language read and printed back to the same tree, what it refuses and where, the saved spec's strict reader,
-// the problems against the sources' columns, and a first tile of a grid.
+// A TIMESERIES TILE'S SPEC (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §3, §4; src/timeseries-spec.ts): the catalog's
+// words, the saved spec's strict reader, the problems against the sources' columns, and a first tile of a grid. A series'
+// tree is the builder's (src/timeseries-builder.ts: the order's step 3 -- the tile's own grammar gone, core the one
+// reader of the language, whose own tests hold its reading).
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { treeProblem, tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
-  levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
+  aliasFor, candleOf, columnsOf, defaultTimeseries, functionNamed, inlined, nextSeriesId, refsOf, sourcesOf,
+  levelOf, timeseriesProblems, unitOf, type TsColumn, TS_FUNCTIONS, WORDS,
 } from '../src/timeseries-expr.ts';
+import {
+  bollinger_bands, change, column, correlation, diff, drawdown, index, mean, ohlc, prices, range_, rebase, returns,
+  Returns, series, std, var_, volatility, weighted_sum, zscores, type Term,
+} from '../src/timeseries-builder.ts';
 import { TS_WORDS } from '../src/generated/ts-words.ts';
 import { WORD_FACTS } from '../src/generated/ts-facts.ts';
-import { completionsAt, offeredWords, treeOf, writtenText, type TsOffer } from '../src/timeseries-text.ts';
+import { completionsAt, offeredWords, seriesText, treeOf, writtenText, type TsOffer } from '../src/timeseries-text.ts';
 
-const ROUND_TRIPS = [
-  'close',
-  'close[AAPL]',
-  'close[venue=NYSE, AAPL]',
-  'volume[AAPL].sum',
-  'px:close[SPX]',
-  'rates:yield[10Y]',
-  '`total pnl`',
-  'close["BRK.B"]',
-  'close["10"]',
-  '$A',
-  'returns(close[AAPL])',
-  'returns(close[AAPL], 5)',
-  'returns(close[AAPL], 1, log)',
-  'volatility($A, 63)',
-  'volatility($A, 63, log)',
-  'zscores($A, 252)',
-  // calendar periods: a window of dates, a lag as of a date (gs-quant's tenors)
-  'mean(close, 3m)',
-  'returns(close[AAPL], 1y)',
-  'correlation($A, $B, 6m)',
-  'volatility($A, 2w, log)',
-  // conditions: comparisons, and, or -- 1 where they hold
-  'close > mean(close, 50)',
-  'close[AAPL] >= 100 and close[MSFT] < 300',
-  'rates:yield[10Y] - rates:yield[2Y] < 0 or $A == 1',
-  '(close > 100) * 2',
-  'returns(close) != 0',
-  'correlation(px:close[SPX], rates:yield[10Y], 126)',
-  'bollinger_bands(close[AAPL], 20, 2.5)',
-  'close[AAPL] / close[MSFT]',
-  '($A + $B) / 2',
-  '$A - ($B - $C)',
-  '$A / ($B * 2)',
-  '100 * returns($A)',
-  '-1 * $A',
-  'rebase(close[AAPL])',
-  'rebase(close[AAPL], 1)',
-  'floor(close[AAPL], -5)',
-];
+/** A series of the builder's term, as a tile holds it: its own text, its reading held. */
+const text = (t: Term): string => writtenText(t.expr, []);
+const close = column('close');
 
-describe('the expression language', () => {
-  for (const text of ROUND_TRIPS) {
-    it(`reads and prints back ${text}`, () => {
-      const tree = parseExpr(text);
-      assert.equal(exprText(tree), text);
-      assert.deepEqual(parseExpr(exprText(tree)), tree);
-    });
-  }
-
-  it('a parameter left at its default is left off; one told by name is placed', () => {
-    assert.equal(exprText(parseExpr('returns(close, 1, simple)')), 'returns(close)');
-    // its window every observation unless told, gs-quant's Window(None, 0) (2026-11-08): the tile's own 0
-    assert.equal(exprText(parseExpr('volatility(close, type=log)')), 'volatility(close, 0, log)');
-    assert.equal(exprText(parseExpr('returns(close, type=absolute)')), 'returns(close, 1, absolute)');
-    // a function of many series' by name: by its place, a word after the weights read as one more series (it was
-    // written basket(x, 0.6, y, 0.4, monthly), which no reader read back)
-    assert.equal(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)')), 'basket(x, 0.6, y, 0.4, rebalance=monthly)');
-    assert.deepEqual(parseExpr(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'))), parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'));
-  });
-
-  // the code that builds a tile (timeseries-code.ts): its text reads back as the very expression, each parameter as told
-  it('exprSource: each parameter as it was told -- by its place while each before it is, else by its name', () => {
-    for (const [text, source] of [
-      ['returns(close, type=log)', 'returns(close, type=log)'],
-      ['returns(close, 1, simple)', 'returns(close, 1, simple)'],
-      ['returns(close)', 'returns(close)'],
-      ['volatility(close, 63)', 'volatility(close, 63)'],
-      ['basket(x, 0.6, y, 0.4, rebalance=monthly)', 'basket(x, 0.6, y, 0.4, rebalance=monthly)'],
-      ['mean(close[AAPL], 3m) / lag($A, 1y)', 'mean(close[AAPL], 3m) / lag($A, 1y)'],
-    ] as const) {
-      const tree = parseExpr(text);
-      assert.equal(exprSource(tree), source);
-      assert.deepEqual(parseExpr(exprSource(tree)), tree, `${text}: read back as itself`);
-    }
-  });
-
-  it('aliases are gs-quant\'s other names, and its own spellings', () => {
-    for (const [alias, name] of [['vol', 'volatility'], ['sma', 'mean'], ['moving_average', 'mean'], ['corr', 'correlation'],
-      ['zscore', 'zscores'], ['relative_strength_index', 'rsi'], ['abs_', 'abs'], ['sum_', 'sum']] as const) {
-      const e = parseExpr(name === 'correlation' ? `${alias}(close, open)` : `${alias}(close)`);
-      assert.equal(e.kind === 'call' && e.fn, name, alias);
-    }
-  });
-
-  it('a tree as the spec keeps it', () => {
-    assert.deepEqual(parseExpr('px:volume[AAPL, venue=NYSE].sum'), {
-      kind: 'column', source: 'px', column: 'volume', fn: 'sum',
-      where: [{ value: 'AAPL' }, { column: 'venue', value: 'NYSE' }],
-    });
-    assert.deepEqual(parseExpr('volatility($A, w=63)'), {
-      kind: 'call', fn: 'volatility', args: [{ kind: 'ref', series: 'A' }], params: { w: 63 },
-    });
-    assert.deepEqual(parseExpr('-2'), { kind: 'number', value: -2 });
-    assert.deepEqual(parseExpr('close[10Y, 2]'), { kind: 'column', column: 'close', where: [{ value: '10Y' }, { value: 2 }] });
-  });
-
-  const refused = (text: string, words: RegExp): void => {
-    assert.throws(() => parseExpr(text), (e: unknown) => e instanceof TsSyntaxError && words.test(e.message), text);
-  };
-
-  it('refuses what it cannot read, saying where', () => {
-    refused('returns(close', /"\)" was expected/);
-    refused('close +', /stops before its end/);
-    refused('close close', /goes on past its end/);
-    refused('foo(close)', /there is no function foo/);
-    refused('returns(close, 1.5)', /obs is a whole number/);
-    refused('returns(close, 1, cubic)', /type is one of simple, log, absolute/);
-    refused('volatility(close, w=-1)', /w is at least 0/);
-    refused('correlation(close)', /reads two series/);
-    refused('returns(close, 1, log, 3)', /takes one series and obs, type/);
-    refused('volatility(close, k=2)', /has no parameter k/);
-    refused('close.median', /a period's value is one of/);
-    refused('close[', /a value was expected/);
-    refused('#', /means nothing here/);
-    // a calendar period is days, weeks, months or years
-    refused('mean(close, 3q)', /w is a whole number of observations or a calendar period \(3m, 1y\)/);
-    refused('returns(close, 0y)', /obs is a whole number of observations or a calendar period/);
-    refused('mean(close, 2.5)', /w is a whole number/);
-    refused('close < 1 < 2', /a comparison compares two sides/);
-    const at = ((): number => {
-      try {
-        parseExpr('returns(close, x)');
-      } catch (e) {
-        return (e as TsSyntaxError).at;
-      }
-      return -1;
-    })();
-    assert.equal(at, 15, 'the refusal says where it is');
-  });
-
-  it('refuses gs-quant\'s functions DataCube does not compute, saying why', () => {
-    refused('smooth_outliers(close)', /an iterative procedure/);
-    refused('repeat(close)', /dates the data does not have/);
-    // built since (the next phases' 1, 2026-10-26): read as typed
-    assert.equal(exprText(parseExpr('seasonally_adjusted(close)')), 'seasonally_adjusted(close)');
-    refused('percentile(close, 101)', /n is at most 100/);
-  });
-
-  // the expert functions (2026-10-26): gs-quant's recursions, read with its defaults; a weight of 1 or more refused
-  it('reads the exponential averages, MACD and Wilder\'s, with gs-quant\'s defaults', () => {
-    assert.deepEqual(parseExpr('ema(close)'), { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'close' }] });
-    assert.equal(exprText(parseExpr('exponential_volatility(close, 0.94)')), 'exponential_volatility(close, 0.94)');
-    assert.equal(exprText(parseExpr('macd(close, 12, 26, 9)')), 'macd(close, 12, 26, 9)');
-    assert.equal(exprText(parseExpr('macd(close, 12, 26, 1)')), 'macd(close)');
-    refused('exponential_moving_average(close, 1)', /beta is below 1/);
-    refused('exponential_std(close, -0.1)', /beta is above 0/);
-    // the E9 review's 2: at beta 0 each value weighs alone, which has no deviation (the database's log of 0 refused it)
-    refused('exponential_std(close, 0)', /beta is above 0/);
-    refused('exponential_volatility(close, 0)', /beta is above 0/);
-    refused('exponential_spread_volatility(close, 0)', /beta is above 0/);
-    refused('exponential_moving_average(close, -0.1)', /beta is at least 0/);
-    refused('smoothed_moving_average(close, 3m)', /w is a number|whole/);
-    refused('rsi(close, 1m)', /w is a number|whole/);
-  });
-
+describe('the catalog\'s words', () => {
   it('every function in the catalog says what it is, and what of gs-quant it is', () => {
-    for (const f of TS_FUNCTIONS) {
-      assert.ok(f.about.length > 0 && f.gsQuant.length > 0, f.name);
-      // a weighted sum's series each with its weight
-      const args = f.series === 'many' ? 'close, 0.6, close, 0.4' : Array.from({ length: f.series }, () => 'close').join(', ');
-      assert.equal(exprText(parseExpr(`${f.name}(${args})`)), `${f.name}(${args})`, f.name);
-    }
+    for (const f of TS_FUNCTIONS) assert.ok(f.about.length > 0 && f.gsQuant.length > 0, f.name);
   });
 
   it('every word\'s facts are the library\'s: the tile tells the catalog\'s own (A3 step 1; generated, the order\'s step 1)', () => {
@@ -218,9 +67,12 @@ describe('the expression language', () => {
 // the Phase 1 review's 7 and 8 (2026-10-26)
 describe('a weighted sum\'s weights, and the catalog\'s words', () => {
   it('weights summing to nothing refused, said so -- a sum of floats near 0 as much as one of 0', () => {
-    assert.throws(() => parseExpr('weighted_sum(close[A], 1, close[B], -1)'), /its weights sum to 0/);
-    assert.throws(() => parseExpr('weighted_sum(close[A], 0.1, close[A], 0.2, close[A], -0.3)'), /its weights sum to 0/);
-    assert.throws(() => parseExpr('weighted_sum(close[A], 0.5, close[B])'), /reads series and their weights, in pairs/);
+    const a = column('close', 'A');
+    const b = column('close', 'B');
+    assert.match(treeProblem(weighted_sum([a, b], [1, -1]).expr, 'series A', ['px']) ?? '', /its weights sum to 0/);
+    assert.match(treeProblem(weighted_sum([a, a, a], [0.1, 0.2, -0.3]).expr, 'series A', ['px']) ?? '', /its weights sum to 0/);
+    const unpaired: TsExpr = { kind: 'call', fn: 'weighted_sum', args: [a.expr, { kind: 'number', value: 0.5 }, b.expr] };
+    assert.match(treeProblem(unpaired, 'series A', ['px']) ?? '', /reads series and their weights, in pairs/);
     const saved: TsExpr = { kind: 'call', fn: 'weighted_sum',
       args: [{ kind: 'column', column: 'c' }, { kind: 'number', value: 0.1 }, { kind: 'column', column: 'c' }, { kind: 'number', value: 0.2 },
         { kind: 'column', column: 'c' }, { kind: 'number', value: -0.3 }] };
@@ -237,9 +89,9 @@ describe('what an expression reads, and is', () => {
   const TS: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'g1', date: 'day', key: 'symbol' }, { alias: 'rates', cube: 'g2', date: 'd', key: 'tenor' }],
     series: [
-      { id: 'A', text: writtenText(parseExpr('px:close[SPX]'), []) },
-      { id: 'B', text: writtenText(parseExpr('rates:yield[10Y]'), []) },
-      { id: 'C', text: writtenText(parseExpr('correlation($A, $B, 63)'), []) },
+      { id: 'A', text: text(column('px.close', 'SPX')) },
+      { id: 'B', text: text(column('rates.yield', '10Y')) },
+      { id: 'C', text: text(correlation(series('A'), series('B'), 63)) },
     ],
   };
 
@@ -249,60 +101,65 @@ describe('what an expression reads, and is', () => {
     const whole = inlined(treeOf(c, TS.series), TS.series);
     assert.deepEqual(sourcesOf(TS, whole), ['px', 'rates']);
     assert.deepEqual([...columnsOf(TS, whole)], [['px', ['close', 'symbol']], ['rates', ['yield', 'tenor']]]);
-    assert.deepEqual(sourcesOf(TS, parseExpr('close')), ['px'], 'a column of no source reads the first');
+    assert.deepEqual(sourcesOf(TS, close.expr), ['px'], 'a column of no source reads the first');
   });
 
   it('a ref round in a circle is said', () => {
-    const series = [{ id: 'A', text: writtenText(parseExpr('$B'), []) }, { id: 'B', text: writtenText(parseExpr('$A + 1'), []) }];
-    assert.throws(() => inlined(treeOf(series[0]!, series), series), /series B reads itself: B reads A reads B/);
+    const two = [{ id: 'A', text: text(series('B')) }, { id: 'B', text: text(series('A').add(1)) }];
+    assert.throws(() => inlined(treeOf(two[0]!, two), two), /series B reads itself: B reads A reads B/);
   });
 
   it('its unit: a level, a ratio, a percent, a number, an index', () => {
-    const u = (t: string): string => unitOf(parseExpr(t));
-    assert.equal(u('close'), 'same');
-    assert.equal(u('mean(close, 20)'), 'same');
-    assert.equal(u('returns(close)'), 'ratio');
-    assert.equal(u('returns(close, 1, absolute)'), 'same');
-    assert.equal(u('volatility(close)'), 'percent');
-    assert.equal(u('zscores(close)'), 'number');
-    assert.equal(u('rebase(close)'), 'index');
-    assert.equal(u('close[A] / close[B]'), 'number');
-    assert.equal(u('close * 2'), 'same');
-    assert.equal(u('drawdown(close)'), 'ratio');
+    const u = (t: Term): string => unitOf(t.expr);
+    const a = column('close', 'A');
+    const b = column('close', 'B');
+    assert.equal(u(close), 'same');
+    assert.equal(u(mean(close, 20)), 'same');
+    assert.equal(u(returns(close)), 'ratio');
+    assert.equal(u(returns(close, 1, Returns.ABSOLUTE)), 'same');
+    assert.equal(u(volatility(close)), 'percent');
+    assert.equal(u(zscores(close)), 'number');
+    assert.equal(u(rebase(close)), 'index');
+    assert.equal(u(a.div(b)), 'number');
+    assert.equal(u(close.mul(2)), 'same');
+    assert.equal(u(drawdown(close)), 'ratio');
     // a level compounded from its returns is a level, as an index is -- not its returns' ratio
-    assert.equal(u('prices(returns(close), 100)'), 'index');
+    assert.equal(u(prices(returns(close), 100)), 'index');
     // the review's Q4: a ratio times 100 is a percent (`100 * returns(x)`, drawn a hundred times too large as a ratio), a
     // percent over 100 a ratio; another number keeps the unit; a number over a series is a number
-    assert.deepEqual(['100 * returns(close)', 'returns(close) * 100', 'volatility(close) / 100', '2 * returns(close)', '1 / close']
+    assert.deepEqual([returns(close).rmul(100), returns(close).mul(100), volatility(close).div(100), returns(close).rmul(2), close.rdiv(1)]
       .map(u), ['percent', 'percent', 'ratio', 'ratio', 'number']);
     // the second audit's N5: by a hundredth too, and a variance in its input's units squared -- a number
-    assert.deepEqual(['volatility(close) * 0.01', 'returns(close) / 0.01', 'var(returns(close))'].map(u), ['ratio', 'percent', 'number']);
+    assert.deepEqual([volatility(close).mul(0.01), returns(close).div(0.01), var_(returns(close), 5)].map(u), ['ratio', 'percent', 'number']);
   });
 
   // the review's Q2: what compare and the level statistics take -- a price, an index, a ratio or product of prices --
   // and what they do not, though it is in its input's units
   it('a level: a price and what keeps one; a change, a difference, a deviation, a spread none', () => {
-    const level = (t: string): boolean => levelOf(parseExpr(t));
-    assert.deepEqual(['close', 'mean(close, 5)', 'close[A] / close[B]', 'close * 2', 'rebase(close)', 'prices(returns(close))', 'ohlc(open, high, low, close)']
-      .map(level), [true, true, true, true, true, true, true]);
-    assert.deepEqual(['change(close)', 'diff(close)', 'std(close, 5)', 'var(close, 5)', 'range(close, 5)', 'close[A] - close[B]', 'returns(close)', 'rebase(close[A]) - rebase(close[B])']
-      .map(level), [false, false, false, false, false, false, false, false]);
+    const level = (t: Term): boolean => levelOf(t.expr);
+    const a = column('close', 'A');
+    const b = column('close', 'B');
+    assert.deepEqual([close, mean(close, 5), a.div(b), close.mul(2), rebase(close), prices(returns(close)),
+      ohlc(column('open'), column('high'), column('low'), close)].map(level), [true, true, true, true, true, true, true]);
+    assert.deepEqual([change(close), diff(close), std(close, 5), var_(close, 5), range_(close, 5), a.sub(b), returns(close),
+      rebase(a).sub(rebase(b))].map(level), [false, false, false, false, false, false, false, false]);
   });
 
   // the second audit's B1 (docs/TIMESERIES_REVIEW_2026_10_25.md): a level shifted by a number was one -- index(close) - 1,
   // gs-quant's cumulative return, compared from a start of zero (every value none) and given a level's statistics
   it('a level shifted, turned negative or spread is none; a basket, a scale and a ratio of levels are', () => {
-    const level = (t: string): boolean => levelOf(parseExpr(t));
-    assert.deepEqual(['index(close) - 1', 'rebase(close) - 100', 'close - 200', 'close + 5', '5 + close', '-close', 'close * -2', '100 / close']
-      .map(level), [false, false, false, false, false, false, false, false]);
-    assert.deepEqual(['(close[A] + close[B]) / 2', 'close[A] * close[B]', 'close / 100', '0.5 * close', 'mean(close[A] + close[B], 5)']
-      .map(level), [true, true, true, true, true]);
+    const level = (t: Term): boolean => levelOf(t.expr);
+    const a = column('close', 'A');
+    const b = column('close', 'B');
+    assert.deepEqual([index(close).sub(1), rebase(close).sub(100), close.sub(200), close.add(5), close.radd(5), close.rmul(-1),
+      close.mul(-2), close.rdiv(100)].map(level), [false, false, false, false, false, false, false, false]);
+    assert.deepEqual([a.add(b).div(2), a.mul(b), close.div(100), close.rmul(0.5), mean(a.add(b), 5)].map(level), [true, true, true, true, true]);
   });
 
   it('series ids run A to Z, then A2', () => {
     assert.equal(nextSeriesId([]), 'A');
-    assert.equal(nextSeriesId([{ id: 'A', text: writtenText(parseExpr('close'), []) }, { id: 'C', text: writtenText(parseExpr('close'), []) }]), 'B');
-    const all = Array.from({ length: 26 }, (_, i) => ({ id: String.fromCharCode(65 + i), text: writtenText(parseExpr('close') as TsExpr, []) }));
+    assert.equal(nextSeriesId([{ id: 'A', text: text(close) }, { id: 'C', text: text(close) }]), 'B');
+    const all = Array.from({ length: 26 }, (_, i) => ({ id: String.fromCharCode(65 + i), text: text(close) }));
     assert.equal(nextSeriesId(all), 'A2');
   });
 
@@ -319,7 +176,7 @@ describe('the saved spec\'s reader', () => {
   const OK: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'grid-1', date: 'day', key: 'symbol' }],
     grain: 'day',
-    series: [{ id: 'A', text: writtenText(parseExpr('rebase(close[AAPL])'), []), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
+    series: [{ id: 'A', text: text(rebase(column('close', 'AAPL'))), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
     panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
     annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' },
@@ -337,7 +194,7 @@ describe('the saved spec\'s reader', () => {
   it('reads a spec of every slot', () => {
     assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
     // a window of a calendar period, and a lag of one
-    assert.equal(tsProblem(with_({ series: [{ id: 'A', text: writtenText(parseExpr('returns(mean(close, 3m), 1y)'), []) }] })), null);
+    assert.equal(tsProblem(with_({ series: [{ id: 'A', text: text(returns(mean(close, '3m'), '1y')) }] })), null);
     // the next phases' 3: a view of its series, and each view's settings
     assert.equal(tsProblem(with_({ view: { mode: 'curve', of: ['A'], dates: ['latest', '1m', '2024-03-29'], years: 10, bins: 40 } })), null);
   });
@@ -430,16 +287,17 @@ describe('a timeseries against its sources\' columns', () => {
     { name: 'volume', type: 'Integer' }, { name: 'sector', type: 'String' },
   ];
   const RATES: TsColumn[] = [{ name: 'tenor', type: 'String' }, { name: 'obs', type: 'StrictDate' }, { name: 'yield', type: 'Float' }];
-  const TS = (series: Record<string, string>, more: Partial<TimeseriesSpec> = {}): TimeseriesSpec => ({
+  const TS = (all: Record<string, Term>, more: Partial<TimeseriesSpec> = {}): TimeseriesSpec => ({
     sources: [{ alias: 'px', cube: 'g1', date: 'day', key: 'symbol' }, { alias: 'rates', cube: 'g2', date: 'obs', key: 'tenor' }],
-    series: Object.entries(series).map(([id, text]) => ({ id, text: writtenText(parseExpr(text), []) })),
+    series: Object.entries(all).map(([id, t]) => ({ id, text: text(t) })),
     ...more,
   });
+  const pxClose = column('px.close');
   const cols = new Map([['px', PX], ['rates', RATES]]);
   const problems = (ts: TimeseriesSpec, c: ReadonlyMap<string, readonly TsColumn[] | undefined> = cols): string[] => timeseriesProblems(ts, c);
 
   it('draws what reads what is there', () => {
-    assert.deepEqual(problems(TS({ A: 'px:close[SPX]', B: 'rates:yield[10Y]', C: 'correlation($A, $B, 63)' })), []);
+    assert.deepEqual(problems(TS({ A: column('px.close', 'SPX'), B: column('rates.yield', '10Y'), C: correlation(series('A'), series('B'), 63) })), []);
   });
 
   it('says each thing that stops it', () => {
@@ -447,26 +305,26 @@ describe('a timeseries against its sources\' columns', () => {
       const p = problems(ts, c);
       assert.ok(p.some((x) => words.test(x)), `${words}: ${p.join(' | ')}`);
     };
-    has(TS({ A: 'px:price' }), /reads 'price', which source px has not/);
-    has(TS({ A: 'px:sector' }), /plots 'sector', which is not a number/);
-    has(TS({ A: '$Z' }), /reads 'Z', which source px has not/);
+    has(TS({ A: column('px.price') }), /reads 'price', which source px has not/);
+    has(TS({ A: column('px.sector') }), /plots 'sector', which is not a number/);
+    has(TS({ A: series('Z') }), /reads 'Z', which source px has not/);
     has(TS({}), /Add a series/);
-    has(TS({ A: 'px:close' }), /Source rates's grid is not on the page/, new Map([['px', PX], ['rates', undefined]]));
-    has({ ...TS({ A: 'close' }), sources: [{ alias: 'px', cube: 'g1', date: 'close' }] }, /is not a date/);
-    has({ ...TS({ A: 'close[AAPL]' }), sources: [{ alias: 'px', cube: 'g1', date: 'day' }] }, /choose source px's instrument column/);
-    has({ ...TS({ A: 'bollinger_bands(px:close, 20)', B: 'returns($A)' }) }, /a band is drawn, never read/);
-    has({ ...TS({ A: 'ohlc(px:close, px:close, px:close, px:close)', B: 'returns($A)' }) }, /reads series A, candles: candles are drawn, never read/);
-    has(TS({ A: 'mean(ohlc(px:close, px:close, px:close, px:close), 5)' }), /reads candles: candles are drawn, never read/);
-    const split: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: writtenText(parseExpr('px:close'), []), split: 'symbol' }, { id: 'B', text: writtenText(parseExpr('returns($A)'), []) }] };
+    has(TS({ A: pxClose }), /Source rates's grid is not on the page/, new Map([['px', PX], ['rates', undefined]]));
+    has({ ...TS({ A: close }), sources: [{ alias: 'px', cube: 'g1', date: 'close' }] }, /is not a date/);
+    has({ ...TS({ A: column('close', 'AAPL') }), sources: [{ alias: 'px', cube: 'g1', date: 'day' }] }, /choose source px's instrument column/);
+    has({ ...TS({ A: bollinger_bands(pxClose, 20), B: returns(series('A')) }) }, /a band is drawn, never read/);
+    has({ ...TS({ A: ohlc(pxClose, pxClose, pxClose, pxClose), B: returns(series('A')) }) }, /reads series A, candles: candles are drawn, never read/);
+    has(TS({ A: mean(ohlc(pxClose, pxClose, pxClose, pxClose), 5) }), /reads candles: candles are drawn, never read/);
+    const split: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: text(pxClose), split: 'symbol' }, { id: 'B', text: text(returns(series('A'))) }] };
     has(split, /split by 'symbol': a series reads only series split as it is/);
-    const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: writtenText(parseExpr('rates:yield'), []), split: 'symbol' }] };
+    const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', text: text(column('rates.yield')), split: 'symbol' }] };
     has(wrongSplit, /which source rates -- the one it reads first -- has not/);
   });
 
   // marks from a grid's rows (Phase 6's D4): each column they read their source's, the one they are drawn at a number
   it('says what stops marks from a grid\'s rows', () => {
     const marked = (marks: Record<string, unknown>, sources?: TimeseriesSpec['sources']): TimeseriesSpec =>
-      ({ ...TS({ A: 'px:close' }), ...(sources ? { sources } : {}), annotations: [{ kind: 'marks', source: 'px', ...marks } as TsAnnotation] });
+      ({ ...TS({ A: pxClose }), ...(sources ? { sources } : {}), annotations: [{ kind: 'marks', source: 'px', ...marks } as TsAnnotation] });
     assert.deepEqual(problems(marked({ where: [{ value: 'AAPL' }, { column: 'sector', value: 'IT' }], at: 'close', text: 'volume', label: 'Trades' })), []);
     assert.deepEqual(problems(marked({ at: 'price', label: 'Trades' })), ["Marks \"Trades\" read 'price', which source px has not."]);
     assert.deepEqual(problems(marked({ at: 'sector' })), ["Marks 1 are drawn at 'sector', which is not a number."]);
@@ -477,23 +335,21 @@ describe('a timeseries against its sources\' columns', () => {
 });
 
 describe('candles', () => {
-  it('ohlc reads four series, written back as it was read; three are refused in words', () => {
-    const e = parseExpr('ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])');
-    assert.equal(exprText(e), 'ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])');
-    assert.equal(unitOf(e), 'same');
-    assert.equal(exprText(parseExpr('candles(o, h, l, c)')), 'ohlc(o, h, l, c)', 'by its other names');
-    assert.throws(() => parseExpr('ohlc(open, high, low)'), /ohlc reads four series \(open, high, low and close\)/);
+  it('ohlc reads four series, written as it is; three are refused in words', () => {
+    const e = ohlc(column('open', 'AAPL'), column('high', 'AAPL'), column('low', 'AAPL'), column('close', 'AAPL'));
+    assert.equal(e.text(), "ohlc(open['AAPL'], high['AAPL'], low['AAPL'], close['AAPL'])");
+    assert.equal(unitOf(e.expr), 'same');
     assert.match(treeProblem({ kind: 'call', fn: 'ohlc', args: [{ kind: 'column', column: 'c' }] }, 'series A', ['px']) ?? '',
       /ohlc reads four series/);
   });
 
   it('a candle of a column: its source\'s open, high and low beside its close, by their names', () => {
     const cols = (...names: string[]) => names.map((name) => ({ name, type: 'Float' }));
-    assert.equal(exprText(candleOf(parseExpr('px:close[AAPL]'), cols('open', 'high', 'low', 'close'))!),
-      'ohlc(px:open[AAPL], px:high[AAPL], px:low[AAPL], px:close[AAPL])');
-    assert.equal(exprText(candleOf(parseExpr('close_px'), cols('Open_px', 'High_px', 'Low_px', 'close_px'))!), 'ohlc(Open_px, High_px, Low_px, close_px)');
-    assert.equal(candleOf(parseExpr('close'), cols('close', 'volume')), undefined, 'no open, high and low: none');
-    assert.equal(candleOf(parseExpr('returns(close)'), cols('open', 'high', 'low', 'close')), undefined, 'no column: none');
+    assert.equal(seriesText(candleOf(column('px.close', 'AAPL').expr, cols('open', 'high', 'low', 'close'))!, []),
+      "ohlc(px.open['AAPL'], px.high['AAPL'], px.low['AAPL'], px.close['AAPL'])");
+    assert.equal(seriesText(candleOf(column('close_px').expr, cols('Open_px', 'High_px', 'Low_px', 'close_px'))!, []), 'ohlc("Open_px", "High_px", "Low_px", close_px)');
+    assert.equal(candleOf(close.expr, cols('close', 'volume')), undefined, 'no open, high and low: none');
+    assert.equal(candleOf(returns(close).expr, cols('open', 'high', 'low', 'close')), undefined, 'no column: none');
   });
 });
 

@@ -17,7 +17,7 @@ import type { EChartsOption } from 'echarts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
+import { column, filter_, FilterOperator, mean, returns, series, volatility } from '../src/timeseries-builder.ts';
 import { tileCode } from '../src/timeseries-code.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
@@ -141,8 +141,8 @@ async function until(done: () => boolean, what: string): Promise<void> {
 const SPEC: TimeseriesSpec = {
   sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
   series: [
-    { id: 'A', text: writtenText(parseExpr('close[SPX]'), []), name: 'S&P 500' },
-    { id: 'B', text: writtenText(parseExpr('volatility($A, 21)'), []), name: '21d vol', pane: 1 },
+    { id: 'A', text: writtenText(column('close', 'SPX').expr, []), name: 'S&P 500' },
+    { id: 'B', text: writtenText(volatility(series('A'), 21).expr, []), name: '21d vol', pane: 1 },
   ],
   view: { stats: true },
 };
@@ -179,7 +179,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
 
   // a level's change in percent beside its value; a spread's start may be zero or below, so its legend says none
   it('the legend\'s change in percent: a level\'s, and none for a spread of the same unit', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, { id: 'C', text: writtenText(parseExpr('close[SPX] - 4000'), []), name: 'Over 4000' }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, { id: 'C', text: writtenText(column('close', 'SPX').sub(4000).expr, []), name: 'Over 4000' }] };
     const { root, view } = viewer(spec);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
@@ -235,7 +235,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   // the E9 review's 3 and 8: a hidden line's tables asked with the rest (tableSeries, Python's rule): shown again, its rows
   // are there -- never left out, nothing asked again
   it('a hidden line shown again: its drawdowns and its correlations there, nothing asked again', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, SPEC.series[1]!, { id: 'C', text: writtenText(parseExpr('close[NDX]'), []), name: 'Nasdaq', hidden: true }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, SPEC.series[1]!, { id: 'C', text: writtenText(column('close', 'NDX').expr, []), name: 'Nasdaq', hidden: true }] };
     const { root, view } = viewer(spec);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
@@ -299,7 +299,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   it('a condition shaded where it holds, across every pane; its chip says whether it holds; no statistics of it', async () => {
     const spec: TimeseriesSpec = {
       ...SPEC,
-      series: [...SPEC.series, { id: 'C', text: writtenText(parseExpr('close[SPX] > mean(close[SPX], 21)'), []), name: 'Above its 21-day' }],
+      series: [...SPEC.series, { id: 'C', text: writtenText(column('close', 'SPX').gt(mean(column('close', 'SPX'), 21)).expr, []), name: 'Above its 21-day' }],
     };
     const { root, drawn, view } = viewer(spec);
     try {
@@ -707,7 +707,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
 
   // the Phase 2 review's 6: the list painted again before the database answered the first: both answers appended
   it('Swap\'s list painted again while the database answers: the last paint\'s answer alone', async () => {
-    const two: TimeseriesSpec = { ...SPEC, series: [{ id: 'A', text: writtenText(parseExpr('close[SPX]'), []) }, { id: 'B', text: writtenText(parseExpr('close[NDX]'), []) }] };
+    const two: TimeseriesSpec = { ...SPEC, series: [{ id: 'A', text: writtenText(column('close', 'SPX').expr, []) }, { id: 'B', text: writtenText(column('close', 'NDX').expr, []) }] };
     const { root, windows, view } = viewer(two);
     try {
       await until(() => chips(root).length === 2, 'its lines');
@@ -936,7 +936,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
   // the Phase 2 review's 9: a number of no least had its slider from 0 -- a filter's -0.02 could go no lower, a power no
   // negative -- and a filter's 0 to 1 on prices was blind to their scale
   it('a number of no least or most: its slider either side of 0, as far as its value goes', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [...SPEC.series, { id: 'C', text: writtenText(parseExpr('filter(returns($A), less_than, -0.02)'), []), name: 'Bad days' }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [...SPEC.series, { id: 'C', text: writtenText(filter_(returns(series('A')), FilterOperator.LESS, -0.02).expr, []), name: 'Bad days' }] };
     const { root, windows, view } = viewer(spec);
     try {
       await until(() => chips(root).length === 3, 'its lines');
@@ -1019,7 +1019,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       set('Shade column', 'volume');
       set('Rows shaded', 'NDX');
       [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Shade')!.click();
-      assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', text: writtenText(parseExpr('volume[NDX] != 0'), []), name: 'volume' });
+      assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', text: writtenText(column('volume', 'NDX').ne(0).expr, []), name: 'volume' });
     } finally {
       view.dispose();
     }
@@ -1122,7 +1122,7 @@ const drawnSeries = (drawn: EChartsOption[], id: string): { data: unknown[]; nam
 describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonality, a curve, the calendar', () => {
   const TWO: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
-    series: [{ id: 'A', text: writtenText(parseExpr('close[SPX]'), []), name: 'S&P 500' }, { id: 'B', text: writtenText(parseExpr('close[NDX]'), []), name: 'Nasdaq 100' }],
+    series: [{ id: 'A', text: writtenText(column('close', 'SPX').expr, []), name: 'S&P 500' }, { id: 'B', text: writtenText(column('close', 'NDX').expr, []), name: 'Nasdaq 100' }],
     view: { stats: true },
   };
 
@@ -1189,7 +1189,7 @@ describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonal
   it('a curve: a split series\' lines across its key, each its latest value, as of the latest date', async () => {
     const spec: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
-      series: [{ id: 'A', text: writtenText(parseExpr('close'), []), split: 'symbol' }],
+      series: [{ id: 'A', text: writtenText(column('close').expr, []), split: 'symbol' }],
       view: { mode: 'curve', dates: ['latest'] },
     };
     const { drawn, view } = viewer(spec);
@@ -1357,7 +1357,7 @@ describe('a refusal said where it lands, never shown as something missing', () =
   it("a function on a blank box: of its source's first value by DataCube's rule, or refused -- never a column guessed", async () => {
     // a grid of no close: its first number (no price-like name) is its open (timeseries-expr.ts firstValue)
     const opens: TsGrid = { ...grid, snapshot: { ...grid.snapshot, columns: grid.snapshot.columns.filter((c) => c.name !== 'close') } };
-    const { root, windows, view } = viewer({ ...SPEC, series: [{ id: 'A', text: writtenText(parseExpr('open[SPX]'), []) }] }, undefined, opens);
+    const { root, windows, view } = viewer({ ...SPEC, series: [{ id: 'A', text: writtenText(column('open', 'SPX').expr, []) }] }, undefined, opens);
     try {
       [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === '+ Series')!.click();
       const fn = windows.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
@@ -1385,7 +1385,7 @@ describe('a refusal said where it lands, never shown as something missing', () =
   it("a level's blank statistics said why: at or below zero over the dates shown, or under a year", async () => {
     const below: TsGrid = { ...grid, snapshot: { ...grid.snapshot,
       derived: [{ name: 'gap', type: 'Float', lambda: lambda(['x'], minus(fn('toOne', col('x', 'close')), lit.integer(1_000_000))) }] } };
-    const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', text: writtenText(parseExpr('gap[SPX]'), []), name: 'Gap' }], view: { stats: true } }, undefined, below);
+    const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', text: writtenText(column('gap', 'SPX').expr, []), name: 'Gap' }], view: { stats: true } }, undefined, below);
     try {
       await until(() => root.querySelector('.dc-ts-stats-blanks') !== null, 'why its figures are blank');
       assert.match(root.querySelector('.dc-ts-stats-blanks')!.textContent!, /^Gap is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio/);
@@ -1450,8 +1450,8 @@ describe('asking the database what is shown, once', () => {
     const spec: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }, { alias: 'qx', cube: 'prices2', date: 'date', key: 'symbol' }],
       series: [
-        { id: 'A', text: writtenText(parseExpr('px:close[SPX] / qx:close[NDX]'), []), name: 'Ratio' },
-        { id: 'B', text: writtenText(parseExpr('px:close[SPX] + qx:close[NDX]'), []), name: 'Sum' },
+        { id: 'A', text: writtenText(column('px.close', 'SPX').div(column('qx.close', 'NDX')).expr, []), name: 'Ratio' },
+        { id: 'B', text: writtenText(column('px.close', 'SPX').add(column('qx.close', 'NDX')).expr, []), name: 'Sum' },
       ],
       view: { stats: true },
     };

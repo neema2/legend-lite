@@ -477,7 +477,6 @@ function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsN
   if (options.length > 0 && all.indexOf(options[0]!) < placed.length) return no(`${name} takes no argument by place after one by name`);
   const whole = WHOLE[fn];
   // the series it reads: as its signature counts them (a weighted sum's, all it is given by place)
-  const byPlace = BY_PLACE.has(fn) || fn === 'power' || fn === 'floor' || fn === 'ceil';
   const count = sig.series === 'many' ? placed.length : sig.series;
   const series = placed.slice(0, count);
   let rest = placed.slice(count);
@@ -485,17 +484,16 @@ function callOf(node: TsNode, ids: readonly string[], no: (what: string, n?: TsN
     if (rest[0]?.k !== whole) return no(`${name} is of the whole line: ${name}(x, ${whole})`);
     rest = rest.slice(1);
   }
+  // by place in the catalog's order, as core binds them (the tile writes them by name but for its own: BY_PLACE), then
+  // by name
   const params: Record<string, number | string> = {};
-  if (byPlace) {
-    if (rest.length > sig.params.length) return no(`${name} takes ${sig.params.length} parameters, not ${rest.length}`);
-    rest.forEach((r, i) => { params[sig.params[i]!.name] = paramOf(fn, sig.params[i]!.name, r, no); });
-  } else {
-    if (rest.length > 0) return no(`${name} takes its parameters by name: ${sig.params.map((p) => `${p.name} =>`).join(', ')}`, rest[0]);
-    for (const o of options) {
-      const pname = String(o['name']);
-      if (!sig.params.some((p) => p.name === pname)) return no(`${name} has no parameter ${pname}`, o);
-      params[pname] = paramOf(fn, pname, o['value'] as TsNode, no);
-    }
+  if (rest.length > sig.params.length) return no(`${name} takes ${sig.params.length} parameters, not ${rest.length}`);
+  rest.forEach((r, i) => { params[sig.params[i]!.name] = paramOf(fn, sig.params[i]!.name, r, no); });
+  for (const o of options) {
+    const pname = String(o['name']);
+    if (!sig.params.some((p) => p.name === pname)) return no(`${name} has no parameter ${pname}`, o);
+    if (params[pname] !== undefined) return no(`${name}'s ${pname} is given twice: by place and by name`, o);
+    params[pname] = paramOf(fn, pname, o['value'] as TsNode, no);
   }
   return {
     kind: 'call', fn, args: series.map((a) => seriesExpr(a, ids)),
