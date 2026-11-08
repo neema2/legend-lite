@@ -174,6 +174,7 @@ Each phase ends green; the status column is updated in the commit that does the 
 | 17 | v1's gate: every check, then CI on #81 when the user asks | 17 | |
 | 18b | The warehouses' remaining costs, found by the replays (2026-11-07): Snowflake COMPILES the gallery for 18 minutes and executes it in 9 s (99.1% compile, read from its query history by the Snowflake session; the exponential family worst, macd C 344 s of compile -- 21 nested SELECT levels, windows inside windows, each level's values read several times; its EXPLAIN alone, which compiles and runs nothing, 369.1 s of compile and 6 ms of execution, measured by the Snowflake session 2026-11-07 over the gallery's samples; the documents' spec-13 130.5 s and spec-15 79.7 s there); Postgres's calendar-period pair words (spec-16, past 120 s) | -- | open: an A/B of macd C's compile time without lite's own level merging (SelectMerge, SelectLayers) on Snowflake first: the Snowflake session holds the baseline (369 s, EXPLAIN) and a harness that compiles a statement's text |
 | 18 | F3: Postgres's wide table (the 100 lines' statement grows a backend past memory, at 1M rows as at 10M) -- the spread read once and pivoted, not a join a line (the lean SQL) | -- | added 2026-11-07 (the user: "Add fixing postgres to roadmap") |
+| 19 | Beyond gs-quant: a survey of what quants use that gs-quant lacks -- kdb+/q's verbs, the other quant libraries' -- each found function or feature weighed, the ones wanted proposed as words of the library; after every item above, a task of its own | -- | added 2026-11-08 (the user: "find any other functions/features that quants need that might not be in gs-quant but in kdb or other quant libraries that we would want to add - that can be after everything else as separate task") |
 
 ## 4. Rulings of 2026-11-07, the second set
 
@@ -266,7 +267,8 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      period's aggregate under the frequency, the role a word reads it by -- and a base's `from`), the translator's
      per-point `CASE`s, its `greatest`/`least` and its own word spelling gone; six Show #TS statements changed (the
      conditions and the bounds), every frozen answer the same, replayed on Postgres and ClickHouse;
-  5. B3's chart face and Python's twin, then B4. **B3 done 2026-11-08**: the chart face (`datacube/src/timeseries-chart.ts`
+  5. B3's chart face and Python's twin, then B4. **B3 done 2026-11-08 but for `Window(w, r)`** (a ramp apart from its
+     size, moved here from item 2: the builders refuse it as item 13's still -- the next item of the order): the chart face (`datacube/src/timeseries-chart.ts`
      `Chart`, exported with the builder) -- each method one of the tile's changes made by `editTimeseries`, a plotted
      series a handle a later term reads by name; the change-parity ledger holds it to every change kind (`state` listed:
      a frozen tile is the page's). Python's twin (`python/legend_lite/timeseries.py`): gs-quant's names, signatures,

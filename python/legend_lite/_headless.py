@@ -131,6 +131,15 @@ class Headless:
         self._db = duckdb.connect() if connection is None else connection
         if self._own_db:
             _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
+        from py_mini_racer import DEFAULT_V8_FLAGS, init_mini_racer
+
+        # V8 started once a process, before any engine's thread, its memory protection keys off: on a CPU that has them
+        # (Intel's pku, the kernel's ospke) V8 sets each thread's key rights where it starts, and an engine's thread
+        # started from a thread V8 never set up crashed the process when its context was made -- a second engine on
+        # another thread (2026-11-08: //python:headless_test's OneRead and //python:engine_test segfaulted in mini-racer on
+        # such a machine; with the keys off all 55 headless tests pass). The keys guard V8's own compiled code; the code
+        # V8 runs here is DataCube's bundle. A process whose V8 another library started first keeps that one's flags.
+        init_mini_racer(flags=(*DEFAULT_V8_FLAGS, '--no-memory-protection-keys'), ignore_duplicate_init=True)
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._serve, name='legend-lite-datacube', daemon=True)
         self._thread.start()
