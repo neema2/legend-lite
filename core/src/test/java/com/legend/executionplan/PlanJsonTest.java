@@ -32,7 +32,7 @@ class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
         return new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth))), List.of(),
+                spec, auth)), null), List.of(),
                 List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
 
@@ -87,7 +87,7 @@ class PlanJsonTest {
     @Test
     void bothSetupStepKindsReadBack_aNullCellStaysNull() {
         Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
-                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth()))),
+                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
                 List.of("SET TimeZone='UTC'"),
                 List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
@@ -102,7 +102,7 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of("SET TimeZone='UTC'"), List.of());
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -145,15 +145,16 @@ class PlanJsonTest {
         // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
         // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12); 27 since 2026-11-08: the
         // verdict group and the branch leave for the test plan's own format (the plan-as-data design's step 3); 28 the
-        // same day: the system database names its store by its content's key (step 7)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":28,"), json);
+        // same day: the system database names its store by its content's key (step 7); 29 the same day: a declared or
+        // platform database carries its project's identity (hole 7)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":29,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v28 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v29 plan"), refused.getMessage());
     }
 
     @Test

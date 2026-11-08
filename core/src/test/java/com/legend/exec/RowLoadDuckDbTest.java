@@ -50,7 +50,7 @@ class RowLoadDuckDbTest {
     /** The DuckDB session's target: the one fact the runner checks a session against. */
     private static final com.legend.executionplan.ExecutionPlan.Target TARGET =
             new com.legend.executionplan.ExecutionPlan.Target(new com.legend.executionplan.ExecutionPlan.Database
-                    .Platform(com.legend.executionplan.DatabaseType.DuckDB),
+                    .Platform(com.legend.executionplan.DatabaseType.DuckDB, null),
                     List.of(), List.of());
 
     /** {@code load} on {@code c} through the plan runner: the bulk path (the doors, 2026-10-29; SetupRunner's load

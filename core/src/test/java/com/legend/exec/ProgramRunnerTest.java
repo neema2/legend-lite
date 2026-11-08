@@ -41,7 +41,7 @@ final class ProgramRunnerTest {
     @BeforeAll
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
-        target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)),
+        target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
                 List.of(), List.of());
     }
 

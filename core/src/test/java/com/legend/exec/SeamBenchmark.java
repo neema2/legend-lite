@@ -109,10 +109,10 @@ final class SeamBenchmark {
         measure(db, "6 product runner, typed batches, no writer (again, beside 1')", rows, mustDrain,
                 () -> productDrain(c, new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(),
-                                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type)),
+                                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                                         com.legend.database.Databases.dialect(type).sessionSetup(), List.of()),
                                 null))), null, null));
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type)),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
@@ -190,7 +190,7 @@ final class SeamBenchmark {
             throws Exception {
         long warmNs = Long.getLong("seam.small.warmMs", 1000L) * 1_000_000L;
         long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type)),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
         for (int n : smallSizes()) {

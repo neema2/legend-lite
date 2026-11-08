@@ -86,7 +86,7 @@ public final class ConnectionResolver {
                 steps.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(sql));
             }
             com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
-                    new com.legend.executionplan.ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(def)),
+                    new com.legend.executionplan.ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(def), null),
                     dialect.sessionSetup(), steps);
             try (var origin = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
                 com.legend.exec.PlanRunner.setUp(steps, target, com.legend.exec.PlanSessions.of(made), null);

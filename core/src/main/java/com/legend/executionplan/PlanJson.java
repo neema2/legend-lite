@@ -77,8 +77,9 @@ public final class PlanJson {
      *  SYSTEM database on an engine ({@code system}: a test body reading the metamodel store, the test-is-the-product
      *  plan's M10a); 27 since 2026-11-08: the verdict group and the branch leave for the test plan's own format (the
      *  plan-as-data design's step 3); 28 the same day: the system database names its store by its content's key
-     *  ({@code graphKey}, step 7). */
-    public static final int VERSION = 28;
+     *  ({@code graphKey}, step 7); 29 the same day: a declared or platform database carries its project's identity
+     *  ({@code project}: the plan-as-data design's hole 7). */
+    public static final int VERSION = 29;
 
     private PlanJson() {
     }
@@ -391,10 +392,12 @@ public final class PlanJson {
             case ExecutionPlan.Database.Declared d -> {
                 o.put("_type", DatabaseTag.declared.name());
                 o.put("connection", ConnectionWire.write(d.connection()));
+                o.put("project", project(d.project()));
             }
             case ExecutionPlan.Database.Platform p -> {
                 o.put("_type", DatabaseTag.platform.name());
                 o.put("databaseType", p.type().name());
+                o.put("project", project(p.project()));
             }
             case ExecutionPlan.Database.System s -> {
                 o.put("_type", DatabaseTag.system.name());
@@ -655,12 +658,43 @@ public final class PlanJson {
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
         return switch (tag(DatabaseTag.class, o, "database")) {
-            case declared -> new ExecutionPlan.Database.Declared(ConnectionWire.read(fields(o.getObj("connection"))));
+            case declared -> new ExecutionPlan.Database.Declared(ConnectionWire.read(fields(o.getObj("connection"))),
+                    readProject(o));
             case platform -> new ExecutionPlan.Database.Platform(
-                    ConnectionWire.databaseType(o.getString("databaseType")));
+                    ConnectionWire.databaseType(o.getString("databaseType")), readProject(o));
             case system -> new ExecutionPlan.Database.System(
                     ConnectionWire.databaseType(o.getString("databaseType")), o.getString("graphKey"));
         };
+    }
+
+    /** A project database's identity (hole 7, 2026-11-08): its key and the steps that make it, or null for none. */
+    private static @com.legend.base.Nullable Map<String, Object> project(
+            ExecutionPlan.@com.legend.base.Nullable Project project) {
+        if (project == null) {
+            return null;
+        }
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("key", project.key());
+        List<Object> made = new ArrayList<>();
+        for (SetupStep step : project.made()) {
+            made.add(setupStep(step));
+        }
+        o.put("made", made);
+        return o;
+    }
+
+    private static ExecutionPlan.@com.legend.base.Nullable Project readProject(Json.Obj database) {
+        if (!database.has("project")) {
+            throw new IllegalArgumentException("a declared or platform database read without its 'project'");
+        }
+        if (!(database.get("project") instanceof Json.Obj o)) {
+            return null;
+        }
+        List<SetupStep> made = new ArrayList<>();
+        for (Json.Node n : o.getArr("made").items()) {
+            made.add(readSetupStep((Json.Obj) n));
+        }
+        return new ExecutionPlan.Project(o.getString("key"), made);
     }
 
     private static SetupStep readSetupStep(Json.Obj o) {

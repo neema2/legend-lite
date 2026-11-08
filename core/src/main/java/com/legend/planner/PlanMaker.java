@@ -844,8 +844,8 @@ public final class PlanMaker {
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */
     private static ExecutionPlan.Database database(Target decided) {
         return switch (decided) {
-            case Target.Platform p -> new ExecutionPlan.Database.Platform(ConnectionPlans.type(p.type()));
-            case Target.Declared d -> new ExecutionPlan.Database.Declared(ConnectionPlans.of(oneDefinition(d)));
+            case Target.Platform p -> new ExecutionPlan.Database.Platform(ConnectionPlans.type(p.type()), null);
+            case Target.Declared d -> new ExecutionPlan.Database.Declared(ConnectionPlans.of(oneDefinition(d)), null);
         };
     }
 

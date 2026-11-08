@@ -80,7 +80,7 @@ class PostgresArmTest {
             // are the database's)
             com.legend.exec.Statements statements = session.statements();
             statements.check(new com.legend.executionplan.ExecutionPlan.Target(
-                    new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(POSTGRES.type())),
+                    new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(POSTGRES.type()), null),
                     java.util.List.of(),
                     java.util.List.of()));
             statements.rows("SELECT inet_server_port() AS port, 41 + 1 AS answer", java.util.List.of(),

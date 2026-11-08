@@ -180,7 +180,7 @@ class PlanRunnerTest {
     /** A slot's null type is a JDBC type's name, or the plan is refused by name before any session is opened. */
     @Test
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
                 List.of(), List.of());
         ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
@@ -194,7 +194,7 @@ class PlanRunnerTest {
     // ---- sessions -------------------------------------------------------------------------------------------------
 
     static ExecutionPlan counting(ConnectionDefinition connection, String table) {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection)),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                 List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
                         new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
         return new ExecutionPlan(List.of(), cell(
@@ -270,7 +270,7 @@ class PlanRunnerTest {
     void aFailedSetupLeavesNothing_theNextRunSetsUpAfresh() {
         for (var connection : inMemoryConnections()) {
             ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection)), statement("CREATE TABLE FAILS_T (ID INTEGER)"), statement("INSERT INTO FAILS_T VALUES (1)"),
+                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null), statement("CREATE TABLE FAILS_T (ID INTEGER)"), statement("INSERT INTO FAILS_T VALUES (1)"),
                             statement("SELECT * FROM NO_SUCH_TABLE")));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var failed = assertThrows(com.legend.error.DataError.class, () -> run(p, PlanSessions.shared()));
@@ -297,7 +297,7 @@ class PlanRunnerTest {
             }
             checked++;
             ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection)),
+                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                             statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
@@ -325,7 +325,7 @@ class PlanRunnerTest {
     @Test
     void aPlatformTargetIsSharedAndSetUpOnce() throws Exception {
         ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM PLATFORM_T",
-                target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
+                target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
         long before = setupStatements();
         assertEquals("1", run(p, PlanSessions.shared()));
         assertEquals("1", run(p, PlanSessions.shared()));

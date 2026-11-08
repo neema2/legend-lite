@@ -52,9 +52,9 @@ final class JudgePlans {
     static ExecutionPlan.Target target(com.legend.database.Target decided, com.legend.sql.dialect.SqlDialect dialect) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(p.type()));
+                    com.legend.planner.ConnectionPlans.type(p.type()), null);
             case com.legend.database.Target.Declared d ->
-                    new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)));
+                    new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)), null);
         };
         return new ExecutionPlan.Target(database, dialect.sessionSetup(), List.of());
     }

@@ -91,7 +91,7 @@ class ReservedNamesGenerationTest {
     /** The private session's target: its database type, the one fact the runner checks a session against. */
     private static com.legend.executionplan.ExecutionPlan.Target target(DatabaseType type) {
         return new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type)),
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 List.of(), List.of());
     }
 

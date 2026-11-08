@@ -205,7 +205,7 @@ class PlanMakerTest {
         String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("m::RT");
         ExecutionPlan.Target t = target(plan);
-        assertEquals(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), t.database());
+        assertEquals(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), t.database());
         assertEquals(List.of(), t.setup());
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {

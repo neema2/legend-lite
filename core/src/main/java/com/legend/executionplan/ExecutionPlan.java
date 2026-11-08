@@ -716,8 +716,25 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
+    /**
+     * A PROJECT'S OWN DATABASE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's hole 7, the user's
+     * go of 2026-11-08): what the database holds when it is made, part of its identity -- named by what it holds, so
+     * an edited row or table is a fresh database, and two models whose stores differ never share one (type audit D100).
+     * The runner makes it once with {@code made} and keeps it; the per-query setup is the target's.
+     *
+     * @param key  the model's stores' and Data rows' content key ({@code ProjectData.contentKey})
+     * @param made the statements that make and fill it, run once when it is made
+     */
+    public record Project(String key, List<SetupStep> made) {
+        public Project {
+            Objects.requireNonNull(key, "key");
+            made = List.copyOf(made);
+        }
+    }
+
     /** The database a target runs on: one a connection declares, the platform's own engine, or the graph's system
-     *  database on an engine. */
+     *  database on an engine. A declared or platform database is a PROJECT'S own where {@code project} is non-null
+     *  (the server's queries), else the database itself (the test road; a URL; a database the user names). */
     public sealed interface Database permits Database.Declared, Database.Platform, Database.System {
 
         /** The database's type: what its session must be. */
@@ -725,7 +742,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
 
         /** The database a connection declares: its session is opened by this definition (or a caller's is checked
          *  against its type). */
-        record Declared(Connection connection) implements Database {
+        record Declared(Connection connection, @com.legend.base.Nullable Project project) implements Database {
             public Declared {
                 Objects.requireNonNull(connection, "connection");
             }
@@ -738,7 +755,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
 
         /** The platform's own in-process engine, for a runtime that binds no database, only model data
          *  (docs/SEMANTICS_REGISTER.md S27). */
-        record Platform(DatabaseType type) implements Database {
+        record Platform(DatabaseType type, @com.legend.base.Nullable Project project) implements Database {
             public Platform {
                 Objects.requireNonNull(type, "type");
             }
