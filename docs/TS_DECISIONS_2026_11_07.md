@@ -266,7 +266,14 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      period's aggregate under the frequency, the role a word reads it by -- and a base's `from`), the translator's
      per-point `CASE`s, its `greatest`/`least` and its own word spelling gone; six Show #TS statements changed (the
      conditions and the bounds), every frozen answer the same, replayed on Postgres and ClickHouse;
-  5. B3's chart face and Python's twin, then B4.
+  5. B3's chart face and Python's twin, then B4. **B3 done 2026-11-08**: the chart face (`datacube/src/timeseries-chart.ts`
+     `Chart`, exported with the builder) -- each method one of the tile's changes made by `editTimeseries`, a plotted
+     series a handle a later term reads by name; the change-parity ledger holds it to every change kind (`state` listed:
+     a frozen tile is the page's). Python's twin (`python/legend_lite/timeseries.py`): gs-quant's names, signatures,
+     enumerations and operators, generated from the same catalog as TypeScript's (`make.mts` emits `_ts_words.py`), each
+     term a gs-quant call told as JSON that headless DataCube makes with the TypeScript builder's own functions
+     (`timeseries-builder-wire.ts`) -- one mapping to the tile's tree -- plotted by `Timeseries.plot`/`edit` and
+     `page.timeseries`; Python's chart face is its `Timeseries` methods, already one per change;
 - **ClickHouse: 26.3 LTS** (asked against the pin, 25.8.2.29, the 2025 LTS; 26.3 the current LTS, 26.6 the newest):
   "Upgrade to 26.3 LTS". Pinned 26.3.60.2. Its `WITH ... AS MATERIALIZED` (experimental, off by default) would compute
   a shared relation once natively; the planner's staging stays until it is not experimental.
