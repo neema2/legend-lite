@@ -8,8 +8,9 @@
 
 **The run reads one thing: the plan, which is data, plus the rows the database returns.** No Java object made while
 planning reaches the run: no closure, no exception object, no typed tree, no environment, no compiler type, no map
-keyed by a Java object's identity. The proof is mechanical: every lane runs the plan *decoded from its own JSON* (the
-run never sees the in-memory plan), and the run's libraries cannot compile against a planning library (Bazel deps).
+keyed by a Java object's identity. The proof is mechanical (4.8, ruled 2026-11-08): a test walks the plan's types and
+requires every one to be data, so no field can hold code; every plan survives its JSON round trip; the run's
+libraries cannot compile against a planning library; and one lane runs the plan decoded from its JSON.
 
 This serves G4 (the plan is SQL and data only, never Java), G11 (the plan as portable data) and G1 (one planner: all
 planning, the asserts' included, lives in the planner's libraries).
@@ -253,19 +254,35 @@ What both halves use is not a middle package; it is a LOWER library each depends
 `planner`, `testplan`, the compiler, lowering or the resolver. A run class that names a planning type does not
 compile. ArchUnit R1-R4 become hard rules on top, with R3 read as "only the front door sees both".
 
-### 4.8 The guard
+### 4.8 The guards: no code in the plan, all data (ruled 2026-11-08)
 
-Every lane runs **the plan decoded from its JSON**: the router writes the plan, reads it back, and hands the run only
-the decoded copy. Anything the run needs that is not data then fails on every lane at once, not in review. Measured
-cost first (one write and one read per body).
+The user's requirement: **"the thing I really want to ensure is that there is no code in the plan, it's all data."**
+Three guards, the first two in this step, the third later:
+
+1. **The plan's types are data, by construction** (new: a structural test over the types themselves, so no field CAN
+   hold code). Starting from `ExecutionPlan` and `TestPlan`, walk every record component and every permitted subtype
+   of every sealed interface, through the type arguments of `List`, `Set` and `Map`. Each type reached must be a
+   primitive or its box, `String`, `BigDecimal`/`BigInteger`, an enum, a record, or a sealed interface whose
+   permitted subtypes pass -- and the records must be the plan's own (`execution_plan`, `test_plan`) or the SQL
+   tree's (`com.legend.sql`, closed and pure data by AGENTS.md invariant 3a). It fails on any functional interface or
+   lambda type, `Throwable`, `Object` or a wildcard, and any type of a planning or runtime library (compiler,
+   lowering, resolver, planner, testplan, exec, judge). Today it would fail on `Database.Declared(ConnectionDefinition)`
+   (a model record: checked and either allowed by name, with its reason, or copied into the plan's own record) and,
+   once judgments move in, on anything like `RowArg.Literal(Object)` -- which is the point.
+2. **Option A, the round trip and the walls**: `PlanJson.requireRoundTrip` on every plan (already on every lane:
+   whatever is in the plan survives JSON), and the compile walls (4.7): `testexec`'s entry takes a `TestPlan` and the
+   sessions, and cannot depend on any planning library, so nothing but the plan can reach the run.
+3. **Option B, one checking lane runs the decoded plan**: the DuckDB corpus lane writes each plan, reads it back, and
+   runs only the decoded copy -- a whole lane shown working from JSON.
+
+Later, **option D** as G11's own gate: a planner-free runner binary (no planning library on its classpath) runs plans
+the planning pass wrote to files -- the only form that also catches state shared through statics.
 
 ## 5. Decisions for the user
 
-**Ruled (the user, 2026-11-08): "Yes to all"** -- decisions 1, 2, 3 and 5 as written below. Decision 4 is open: the
-user asked for its alternative first (A: the existing round-trip check plus the compile walls; B: A plus one checking
-lane running the decoded plan; C: every test lane runs the decoded plan, as written; D: a planner-free runner binary
-over plans written to files, which alone also catches state shared through statics -- the author's recommendation
-now: A and B in this step, D later as G11's own gate).
+**Ruled (the user, 2026-11-08): "Yes to all"** -- decisions 1, 2, 3 and 5 as written below. Decision 4 (the user, 2026-11-08): **"A+B now, D later, the thing I really want to ensure is that there is no
+code in the plan it's all data"** -- the guards of 4.8: the plan's types walked and required to be data, the round
+trip and the walls, one checking lane on the decoded plan; a planner-free runner later.
 
 1. **The edge is a renderer of the test plan** (4.5, the user's correction): no compatibility record in any plan and
    no third artifact; the test plan carries neutral facts about its reads (order, provenance, page), and the edge's
@@ -274,7 +291,8 @@ now: A and B in this step, D later as G11's own gate).
 3. **The judges take exec's way with types** (4.6): the plan's type names and planning-time facts replace the
    compiler's `Type` at run. This touches every comparison, so it lands first, alone, held to identical verdicts on
    every lane.
-4. **Every lane runs the decoded plan** (4.8), permanently.
+4. **The guards** (4.8, ruled A+B now and D later): the plan's types are data by construction, the round trip and the
+   walls, one checking lane on the decoded plan; a planner-free runner later.
 5. **Two plan types** (4.0): the product's `ExecutionPlan` loses every test node; a `TestPlan` composes product steps
    with the test's; `testexec` runs it through `exec`.
 
@@ -284,7 +302,8 @@ now: A and B in this step, D later as G11's own gate).
    `Type`, onto the plan's type names and planning-time facts.
 2. Failures as data (4.4).
 3. The two plan types (4.0): `TestPlan` around `ExecutionPlan`; the test nodes leave the product's plan, runtime,
-   planner and options; `testexec` drives a test plan through `exec`.
+   planner and options; `testexec` drives a test plan through `exec`. With it, the plan-types-are-data test (4.8,
+   guard 1), its remaining violations pinned shrink-only, each later step removing its own.
 4. Judgments and side shapes in the test plan (4.2, 4.3); `HostJudgment`, `HostSides.Planned`,
    `JudgePlans.PlannedSide` deleted from the run's view.
 5. The database judge's root loop from the test plan (roots, `orElse`, refusals, messages); `VerdictBatch.Planned`'s
@@ -293,9 +312,11 @@ now: A and B in this step, D later as G11's own gate).
 7. The sidecar into the test plan (ledgers, origins, the judge of each group); `TestDoor.Planned` is the test plan.
 8. The edge as a renderer (4.5): the reads' order, provenance and page facts in the test plan; the referee derives each
    appeal from the plan; the closures deleted (`TextAppeal`, `VerdictBatch.Appeal`, the fixtures' `BooleanSupplier`s).
-9. Every lane runs the decoded plan (4.8); the move (4.7): all assert planning into `testplan`, the sink and the
-   judging into `testexec`, the sequencing into `Execution.runProgram`, `driver` deleted, the deps pinned, R1-R4 hard.
-10. All lanes and an audit (the P1 milestone), held to the baseline of 2026-11-07 (GATES).
+9. The guards complete (4.8): the plan-types-are-data test at zero violations; the DuckDB corpus lane on the decoded
+   plan.
+10. The move (4.7): all assert planning into `testplan`, the sink and the judging into `testexec`, the sequencing into
+   `Execution.runProgram`, `driver` deleted, the deps pinned, R1-R4 hard.
+11. All lanes and an audit (the P1 milestone), held to the baseline of 2026-11-07 (GATES).
 
 ## 7. An example: `projection::limit::testSimpleLimit`, as it is planned today and as proposed
 
