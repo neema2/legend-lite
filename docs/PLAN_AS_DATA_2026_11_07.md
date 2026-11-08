@@ -312,7 +312,8 @@ is the one walker and calls back for test steps (2.8). 8. No `driver` package: `
    the walker in `testexec` on a public exec toolkit, would reverse ruling 7 and G1's wording, rewrite ~970 lines
    against a new API, and still leave the statement-sending primitives in exec (only exec may send statements).
 2. **Landing in three slices**, each with its lanes and an audit, each merged only on the user's word: PR 1 after
-   step 3, PR 2 after step 8, PR 3 after step 10. **A stop rule**: a verdict change at step 1 that is not explained
+   step 3, PR 2 after step 8, PR 3 after step 10. The user (2026-11-08): "maybe -- I prefer three stacked in branch if
+   we go that route": three stacked branches, each cut from the one before. **A stop rule**: a verdict change at step 1 that is not explained
    quickly stops the work and goes to the user.
 3. **A recorder implies the compatibility rules** (2.7), written as designed; the user's explicit word asked.
 
