@@ -303,6 +303,20 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
     generated signature to gs-quant's. The `#TS` text the builder writes stays the language's spelling (`w => 22`).
 
 
+- **The statement writer's three questions** (step 4 of the order to one reader, asked 2026-11-08 before it is built):
+  - *A condition*: "1 or 0, as gs-quant" -- a condition whose value is a series' value (an item, a word's argument, an
+    operand of arithmetic) is 1 or 0, nothing where a side is nothing; one a clause tests (`WHERE`, `FILTER`, `CASE
+    WHEN`) stays SQL's boolean (register S160).
+  - *floor and ceil*: "Two-arg = gs-quant's" -- `floor(x, value)` and `ceil(x, value)` are gs-quant's bound, nothing
+    where `x` is nothing; one argument stays refused (D2), `round_down`/`round_up` SQL's rounding (register S161).
+  - *A frequency's aggregate*: asked "How do expert systems like kdb do this", answered from their documents -- kdb's
+    bar query writes each column's aggregate (`select last price, sum size by 10 xbar time.minute from trade`), a
+    column selected without one is a nested list, never refused, and only its empty select applies `last` to every
+    column; gs-quant's `bucketize(series, aggregate_function, period)` and Flux's `aggregateWindow(every, fn)` ask for
+    it; QuestDB's `SAMPLE BY` takes a bare column for a key -- then "Language explicit, tile writes it": `#TS` keeps R5
+    (a bare column under `SAMPLE BY` refused); a series' text stays as typed (`close['SPX']`), and the tile's
+    frequency writes each column's aggregate into the statement (`last`, a candle's or a technical's roles: open
+    `first`, high `max`, low `min`, volume `sum`), a column whose text says its own keeping it; Show #TS prints them.
 - **gs-quant's defaults, aligned** (the user, 2026-11-08: "What are the other differences? Should we try to align the
   defaults then we can change our code to not use the defaults if that makes sense", then on the recommendations
   "Okay I agree with everything, let's go"):
