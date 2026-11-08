@@ -254,6 +254,24 @@ seed step (2026-11-03), but kept the holder. The holder is what keys the run's d
    catalog's session (a staged grid's table, a temp table), its uncommitted rows get committed and leak into later tests.
    Check what those bodies send on that session. If any DDL is sent, it goes to another session, or the body is refused
    on H2 by name.
+
+   **Checked 2026-11-08 (by reading the planner, at `4b81e64a`): today nothing but the store's own seed is DDL on the
+   system database.**
+   - A SYSTEM-ROUTED body is an assert program (`BodyClass.systemRouted`'s javadoc: the frame, effect and store-write
+     exclusions are the class's). So it holds no effect, and no let is staged: `PlanMaker.stagedLet` and
+     `stagedGridLet` stage a let only where it is read after a later effect.
+   - A MIXED body routes to the system database only a statement that reads the system store alone
+     (`PlanMaker.systemBeside`). Its staged tables, effects and drops are written on the program's own target
+     (`state.target()`), and an engine-text appeal's temporary tables on the body's own environment
+     (`ExecEnv.appealOn`).
+   - On H2, a staged table is `CREATE LOCAL TEMPORARY TABLE ... ON COMMIT DROP TRANSACTIONAL` (`H2.tempTableAs`), which
+     does not commit the open transaction, and no `DROP TABLE` is sent for it
+     (`dropsStagedTablesWithTheirTransaction`).
+   - The one DDL on the system database is the store's own seed (`SystemRoutes.seeds`, the statement origin
+     `SYSTEM`), which this design replaces with the registration's inserts.
+
+   This rests on the classes' rules, not on a guard. When the catalog lands (slice 4), the planner should refuse by
+   name any DDL step whose target is the system database. That makes the property mechanical.
 2. **Reload in the product:** delete the old key's rows and insert the new key's in one transaction, under concurrent
    readers.
 3. **Server engines** (Postgres, MariaDB, Snowflake and the rest): today's system store is session-TEMPORARY tables on
