@@ -266,6 +266,8 @@ public final class BodyRouter {
         private final @Nullable ResultSink early;
         /** The body's asserts as the host judge planned them (an assert program's under the host judge), or null. */
         private final @Nullable HostAsserts asserts;
+        /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
+        private final com.legend.judge.RootLoops.@Nullable Runs databaseRuns;
         /** The body's asserts as the database judge planned them (under the database judge), or null. */
         private final @Nullable DatabaseAsserts database;
         /** The body's asserts as both judges planned them (under the agreement judge), or null. */
@@ -326,6 +328,7 @@ public final class BodyRouter {
             this.database = database;
             this.agreement = agreement;
             this.listener = listener;
+            this.databaseRuns = database != null ? new com.legend.judge.RootLoops.Runs(planned.plan().steps()) : null;
             planned.plan().steps().forEach(step -> rulesOf(step, runRules));
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.plan().steps();
@@ -370,10 +373,21 @@ public final class BodyRouter {
                 }
                 return;
             }
-            if (database == null) {
+            com.legend.judge.RootLoops.Runs runs = databaseRuns;
+            if (runs == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
             }
             TestPlan.Host hostStep = verdict.host();
+            if (hostStep != null && verdict.wrapper() != null) {
+                // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
+                // step -- the host's facts name the assert it reports under
+                try (var judging = RunReader.judging(reader, sessions)) {
+                    AssertVerdicts.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
+                            "an assertError's verdict statement answered no row"), listener);
+                }
+                lastVerdict = AssertVerdicts.ok();
+                return;
+            }
             if (hostStep != null) {
                 // an assertError's step under the database judge: judged at its sides (ruling N3) -- or here, at its
                 // turn, where it has no side to read (its error caught at planning, or its inner assert decided there):
@@ -384,8 +398,14 @@ public final class BodyRouter {
                 }
                 return;
             }
+            // a row of a segment: to its root loop, the plan's, judged once the segment's last verdict is in (inside
+            // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
+            com.legend.judge.RootLoops.Run run = runs.of(verdict);
             try (var judging = RunReader.judging(reader, sessions)) {
-                database.received(verdict, row, listener, reader);
+                run.received(verdict, row);
+                if (runs.closes(verdict)) {
+                    run.judge(listener, reader, true, DatabaseJudge::verdictOf, EngineTextAppeals::rowAppeal);
+                }
             }
             lastVerdict = AssertVerdicts.ok();
         }
@@ -396,10 +416,11 @@ public final class BodyRouter {
                 agreement.fused(group, rejected);
                 return;
             }
-            if (database == null) {
+            com.legend.judge.RootLoops.Runs runs = databaseRuns;
+            if (runs == null) {
                 throw new IllegalStateException("a fused verdict group in a body the host judge planned");
             }
-            database.fused(group, rejected);
+            runs.of(group.verdicts().get(0)).fused(rejected);
         }
 
         /** The assert {@code verdict} planned, judged over the rows the runner read for it -- counted and reported

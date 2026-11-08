@@ -1386,6 +1386,10 @@ class JavaEvalLedgerTest {
                     "TypedSide.java",
                     "Column.java", "Row.java",   // the judged side's column and row, exec's until D72 (2026-10-30)
                     "VerdictBatch.java",
+                    // 2026-11-08 (the plan-as-data design's step 5): the database judge's root loop run from the plan --
+                    // the batch's planned half's run, moved: each row judged by the function the caller hands, the
+                    // census and listener protocol as before; no value produced (it leaves for testexec at step 10)
+                    "RootLoops.java",
                     // 2026-11-08 (the plan-as-data design's step 0): a body's verdict ids, one counter per body -- planning
                     // state that names each verdict of the plan; it produces no value and compares none (it leaves for
                     // testplan with the planners, step 10)

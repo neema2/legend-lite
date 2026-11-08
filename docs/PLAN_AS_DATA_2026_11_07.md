@@ -646,3 +646,17 @@ independently of the rules).
   .reflectionIsBannedInProduction`, `ErrorShapeGuardrailTest.reflectionSpellingsStayAtZero`), so every type is spelled
   out, one method each way, generated once from the record list and kept as source. A type the codec does not name
   cannot be written. The test plan's JSON is version 2 (3 at step 5).
+- **Step 5 (2026-11-08): the database judge's root loop is ONE record of the plan** (`RootLoop`: the segment's roots
+  in body order, each its rows by the verdict that reads them -- or the dialect's refusal where no statement could be
+  spelled -- its ruled row's decision, its appeal by number and its outcomes decided at planning; its caller's message
+  as a side or a refusal, and whether a verdict carries it; the fragment map the census's reason reads), carried on the
+  segment's last verdict group (`Verdicts.roots`), not as fields spread over each verdict as 2.1 drew them (`root`,
+  `orElse`, `failure`): the decided outcomes and the refused members have no verdict to carry them, and one record keeps
+  the order the loop judges in. The run (`judge/RootLoops`) finds a verdict's segment from the plan's groups, judges
+  after the segment's closing verdict, takes the row's judgment as a plain function (`DatabaseJudge.verdictOf`) and
+  hears an appeal by its number (held beside the plan until step 8). The planned batch is data
+  (`VerdictBatch.Planned(groups, loop)`); its maps keyed by object identity are gone, and the database judge's planner
+  keeps no map for the run (each verdict's segment, the assertErrors' steps by verdict).
+- **Step 5: under the database judge the run tells an assertError's two forms apart by the plan's facts**: its verdict
+  row the database judges (S135) carries the host's facts (the assert it reports under) and a statement; its step the
+  host judges (N3) carries the host's facts and no statement.

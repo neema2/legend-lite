@@ -1548,9 +1548,12 @@ final class ArchitectureTest {
             // (raised, unjudged) and decides nothing (the row's judgment
             // is injected from AssertVerdicts)
             .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch")
-            // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01): the same root loop, moved into
-            // the inner class the program road judges through; the census calls it makes are the batch's own
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch$Planned")
+            // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01) is data since the plan-as-data
+            // design's step 5 (2026-11-08): its root loop is the plan's and runs in RootLoops, which makes the census
+            // calls the planned half made (raised, unjudged); it decides nothing -- the row's judgment is handed in
+            // (DatabaseJudge.verdictOf), its appeal heard by number
+            .and().doNotHaveFullyQualifiedName("com.legend.judge.RootLoops")
+            .and().doNotHaveFullyQualifiedName("com.legend.judge.RootLoops$Run")
             // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
             // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
             // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here

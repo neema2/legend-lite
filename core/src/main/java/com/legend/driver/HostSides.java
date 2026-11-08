@@ -138,22 +138,6 @@ final class HostSides {
         return new Planned(planned, base, on != null ? on : any);
     }
 
-    /** The rows the runner read for {@code planned}'s base, each shaped by its position as the arm takes it; the
-     *  to-one reader's check where a side was sent. */
-    static List<TypedSide> shaped(String name, Planned planned, List<PlanRunner.Rows> rows) {
-        if (rows.size() != planned.sides().size()) {
-            throw new IllegalStateException(name + ": the runner handed " + rows.size() + " sides for "
-                    + planned.sides().size() + " asked");
-        }
-        List<TypedSide> out = new ArrayList<>(rows.size());
-        for (int i = 0; i < rows.size(); i++) {
-            JudgePlans.PlannedSide p = planned.sides().get(i);
-            // a relation's toOne() is the database's to check (D2, 2026-11-07: ToOneGuard in the side's SQL)
-            out.add(JudgePlans.shape(p, rows.get(i)));
-        }
-        return out;
-    }
-
     /** The rows the runner read for a verdict's sides, each shaped by the plan's shape at its position (the plan-as-data
      *  design's step 4, 2026-11-08); the base's alone where the verdict carries a caller's message apart -- the
      *  rows one fewer than the shapes, the message {@link #message}'s to read. */
@@ -178,21 +162,4 @@ final class HostSides {
         return () -> JudgePlans.shape(last, read.get());
     }
 
-    /** {@code planned}'s BASE sides shaped from the rows the runner read for them: where the verdict carries its
-     *  caller's message apart ({@code TestPlan.Verdict.message}, the planned check's last side), the rows are one
-     *  fewer than the planned sides, and the message is {@link #message}'s to read. */
-    static List<TypedSide> shapedBase(String name, Planned planned, List<PlanRunner.Rows> rows) {
-        int n = rows.size();
-        return n == planned.sides().size() ? shaped(name, planned, rows)
-                : shaped(name, new Planned(planned.sides().subList(0, n), planned.base().subList(0, n), planned.on()),
-                        rows);
-    }
-
-    /** The reader of a verdict's caller's message: the planned check's last side, read through {@code read} (the
-     *  program's reader) and shaped as any side -- only where the judgment asks for it, the assert having failed. */
-    static java.util.function.Supplier<TypedSide> message(Planned planned,
-            java.util.function.Supplier<PlanRunner.Rows> read) {
-        JudgePlans.PlannedSide asked = planned.sides().get(planned.sides().size() - 1);
-        return () -> JudgePlans.shape(asked, read.get());
-    }
 }

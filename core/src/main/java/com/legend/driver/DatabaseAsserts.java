@@ -39,8 +39,8 @@ import java.util.Map;
  * ({@link TestDoor.Asserts#at}: the asserts before it absorbed). A frame let is built as the walk builds it under the
  * batch -- not run, its CTE defined when a reader splices it -- its activity comment the fused statement's stamp, a
  * parameter the fused step binds (the walk's {@code ExecutionTrace.reserve}). The router's sink hands each group's
- * rows back ({@link Segment}) and judges at the segment's last group with the batch's own root loop
- * ({@link VerdictBatch.Planned#judge}: the census and listener protocol; a member the fused statement could not spell
+ * rows back and judges at the segment's last group with the segment's root loop, the plan's data ({@code RootLoops},
+ * the plan-as-data design's step 5: the census and listener protocol; a member the fused statement could not spell
  * has its own statement in the plan, the split rung at planning, P1.2, 2026-11-07). Null where the body is not
  * planned here: an assert of a shape the database arms answer null for, a group on another session than the body's
  * (the system database's: M10a), a keyed member (a raw grid's report), a frame whose activity comment a later
@@ -48,54 +48,22 @@ import java.util.Map;
  */
 final class DatabaseAsserts implements TestDoor.Asserts {
 
-    /** One segment of the body: its planned batch and its groups' steps, in run order. */
-    record Segment(VerdictBatch.Planned planned, List<TestPlan.Verdicts> steps, boolean decided) {
-        Segment {
-            steps = List.copyOf(steps);
-        }
-
-        /** Whether {@code verdict} is the last verdict of the segment's last step: the segment is judged after it. */
-        boolean closes(TestPlan.Verdict verdict) {
-            TestPlan.Verdicts last = steps.get(steps.size() - 1);
-            // by id: the plan read back from its JSON holds equal verdicts, never the planner's objects (the slice 1
-            // audit, 2026-11-08)
-            return last.verdicts().get(last.verdicts().size() - 1).id() == verdict.id();
-        }
-    }
-
     /** The steps at each statement-root assert's place (empty: absorbed into a later assert's). */
     private final Map<Integer, List<TestPlan.Verdicts>> byStatement;
-    /** The segment each verdict group's verdicts belong to (a record compares by value: by identity). */
-    private final Map<Integer, Segment> byVerdict;
     /** The stamp parameter minted for each frame let, by the let's place: the comment of its segment's fused statement. */
     private final Map<Integer, String> frameStamps;
 
     /** The branches planned (the asserts-as-plan-nodes program, step 4), by the statement's place. */
     private final Map<Integer, TestPlan.Branch> branches;
 
-    private DatabaseAsserts(Map<Integer, List<TestPlan.Verdicts>> byStatement,
-            Map<Integer, Segment> byVerdict, Map<Integer, String> frameStamps,
-            Map<Integer, HostAsserts.Planned> hostSteps,
-            Map<Integer, HostAsserts.Planned> errorVerdicts, Map<Integer, TestPlan.Branch> branches) {
+    /** (the plan-as-data design's step 5, 2026-11-08: the planner's run-side maps -- each verdict's segment, the
+     *  assertErrors' steps by verdict -- deleted; the run reads each segment's root loop, a verdict's host facts and its
+     *  statement from the plan: BodyRouter, RootLoops) */
+    private DatabaseAsserts(Map<Integer, List<TestPlan.Verdicts>> byStatement, Map<Integer, String> frameStamps,
+            Map<Integer, TestPlan.Branch> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
-        this.byVerdict = byVerdict;
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
-        this.hostSteps = hostSteps;
-        this.errorVerdicts = errorVerdicts;
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
-    }
-
-    /** The assertErrors the database judges (S135), by their verdict: the host planner's step each was made from, for
-     *  its name and its census. */
-    private final Map<Integer, HostAsserts.Planned> errorVerdicts;
-
-    /** The assertErrors' steps by their verdict (ruling N3: the comparison is Java's in both judge modes, so the step
-     *  is the host planner's, its sides read and judged by the host's rule at the assert's turn). */
-    private final Map<Integer, HostAsserts.Planned> hostSteps;
-
-    /** The assertError step {@code verdict} is, or null: a verdict of the database's segments. */
-    HostAsserts.@Nullable Planned hostStep(TestPlan.Verdict verdict) {
-        return hostSteps.get(verdict.id());
     }
 
     /**
@@ -142,15 +110,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
-        Map<Integer, HostAsserts.Planned> hostSteps = new java.util.HashMap<>();
-        Map<Integer, HostAsserts.Planned> errorVerdicts = new java.util.HashMap<>();
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, List<TestPlan.Verdicts>> byStatement = new LinkedHashMap<>();
         Map<Integer, TestPlan.Branch> branches = new LinkedHashMap<>();
-        Map<Integer, Segment> byVerdict = new java.util.HashMap<>();
         Map<Integer, String> frameStamps = new LinkedHashMap<>();
         // the walk's fragment map: a frame's CTE name to the let it came from, so a split rung's reason names it
         Map<String, String> fragments = new LinkedHashMap<>();
@@ -202,7 +167,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the walk flushes before an effect runs: the segment closes here, the next opens with a fresh batch
                 if (!walled) {
                     batch.fragments(fragments);
-                    if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+                    if (!close(batch, place, segment, lastAssert, env, byStatement)) {
                         return null;
                     }
                     segment++;
@@ -231,7 +196,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     return null;
                 }
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
                     return null;
                 }
                 segment++;
@@ -248,11 +213,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 }
                 branches.put(i, new TestPlan.Branch(condition, then.steps(parts.then().size()),
                         otherwise.steps(parts.otherwise().size())));
-                for (DatabaseAsserts side : List.of(then, otherwise)) {
-                    byVerdict.putAll(side.byVerdict);
-                    hostSteps.putAll(side.hostSteps);
-                    errorVerdicts.putAll(side.errorVerdicts);
-                }
                 continue;
             }
             if (QueryDoor.assertErrorRoot(statement, specs)) {
@@ -264,7 +224,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     continue;
                 }
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
                     return null;
                 }
                 segment++;
@@ -280,7 +240,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (judged != null) {
                     // the user's ruling S135 (2026-11-05): the host catches, the database judges
                     byStatement.put(i, List.of(judged));
-                    errorVerdicts.put(judged.verdicts().get(0).id(), step);
                     continue;
                 }
                 if (step.assertion().beforeTheArm() == null && HostJudgment.core(
@@ -292,7 +251,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     return null;
                 }
                 byStatement.put(i, List.of(step.step()));
-                hostSteps.put(step.verdict().id(), step);
                 com.legend.diagnostics.Diagnostics.judgeSend("host-step", AssertVerdicts.listenerName(
                         Lets.bare(statement)));
                 continue;
@@ -331,7 +289,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             lastAssert = i;
             if (outcome == AssertVerdicts.DatabasePlan.WALLED) {
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
                     return null;
                 }
                 walled = true;
@@ -339,7 +297,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         if (!walled) {
             batch.fragments(fragments);
-            if (!close(batch, place, segment, lastAssert, env, byStatement, byVerdict)) {
+            if (!close(batch, place, segment, lastAssert, env, byStatement)) {
                 return null;
             }
         }
@@ -350,7 +308,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // the shape by name; kept as the guard behind it)
             return null;
         }
-        return new DatabaseAsserts(byStatement, byVerdict, frameStamps, hostSteps, errorVerdicts, branches);
+        return new DatabaseAsserts(byStatement, frameStamps, branches);
     }
 
     /**
@@ -412,7 +370,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         // the host's verdict rebuilt as the raising one: the same verdict, so the same id
         TestPlan.Verdict v = new TestPlan.Verdict(step.verdict().id(), step.verdict().name(),
                 step.verdict().arm(), base, wrapper,
-                null, raises);
+                null, raises).withHost(step.verdict().host());
         return new TestPlan.Verdicts(List.of(v), null, host.savepoint(), host.rules());
     }
 
@@ -424,9 +382,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         if (raising == null) {
             return null;
         }
-        // the host's facts ride the raising verdict here alone: under the agreement judge the host judges it too (its
-        // verdict the host's where the function is no assert); under the database judge's the database alone does,
-        // and a verdict carries the host's facts exactly where the host judges it (step 4, 2026-11-08)
         // both halves are steps of one plan under the agreement judge (the host's own step where the function is an
         // assert, then this one): the raising verdict is a verdict of its own, its own id -- the database judge's
         // alone keeps the host's, the step it replaces (the slice 1 audit's id fix, 2026-11-08: identity had told
@@ -821,11 +776,11 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                                 .equals(call.callee().qualifiedName()));
     }
 
-    /** The segment's batch planned and its groups placed at the segment's last assert; false where the walk keeps
-     *  the body: a group on another session than the body's, or a keyed member. */
+    /** The segment's batch planned and its groups placed at the segment's last assert, its root loop on the last of
+     *  them (the plan-as-data design's step 5, 2026-11-08: judged at run from the plan once that group's last verdict is
+     *  in); false where the walk keeps the body: a group on another session than the body's, or a keyed member. */
     private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
-            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
-            Map<Integer, Segment> byVerdict) {
+            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement) {
         VerdictBatch.Planned planned = batch.plan();
         if (planned == null) {
             return true;
@@ -837,17 +792,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // every root of the segment decided at planning (a statically identified assertIs: the compiler compares
             // the spelled types, for both judges alike; an unjudged decline; a planned raise), or every member's canon
             // one the dialect cannot spell (the split rung at planning): nothing for the database to read -- one
-            // verdict step with no statement carries the segment, and the sink runs the batch's root loop at it, as
-            // after a segment's fused statement, where an unspelled member is refused at its own place in the
-            // dialect's own words before anything is sent (VerdictBatch.executeOne) -- the host judge's raise for the
-            // same side (2026-11-03: the walk had kept such a body, so the database judge alone planned 9 PCT bodies
-            // fewer than the host on DuckDB, and refused H2's 33 list operations)
+            // verdict step with no statement carries the segment and its root loop, judged there, where an unspelled
+            // member is refused at its own place in the dialect's own words before anything is sent -- the host
+            // judge's raise for the same side (2026-11-03: the walk had kept such a body, so the database judge alone
+            // planned 9 PCT bodies fewer than the host on DuckDB, and refused H2's 33 list operations)
             TestPlan.Verdict decided = new TestPlan.Verdict(env.verdictIds().next(), "decided@" + place + segment,
                     "decided",
                     List.of(), null);
             TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(decided), null, null,
-                    env.options().judgingRules());
-            byVerdict.put(decided.id(), new Segment(planned, List.of(step), true));
+                    env.options().judgingRules()).withRoots(planned.loop());
             byStatement.put(lastAssert, List.of(step));
             return true;
         }
@@ -858,12 +811,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
             steps.add(stamped(g.step(), stampOfSegment(place, segment)));
         }
-        Segment seg = new Segment(planned, steps, false);
-        for (TestPlan.Verdicts step : steps) {
-            for (TestPlan.Verdict v : step.verdicts()) {
-                byVerdict.put(v.id(), seg);
-            }
-        }
+        int last = steps.size() - 1;
+        steps.set(last, steps.get(last).withRoots(planned.loop()));
         byStatement.put(lastAssert, steps);
         return true;
     }
@@ -877,7 +826,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         return new TestPlan.Verdicts(step.verdicts(),
                 new ExecutionPlan.TdsResult(fused.shape(), fused.columns(), fused.sql().stamped(stamp)),
-                step.savepoint(), step.rules());
+                step.savepoint(), step.rules(), step.roots());
     }
 
     /** The stamp parameter of the fused statement of segment {@code segment}: the stamp prefix (the program's, so the
@@ -907,39 +856,4 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return TestPlan.Judge.DATABASE;
     }
 
-    /** The segment the runner handed {@code verdict} for. */
-    Segment of(TestPlan.Verdict verdict) {
-        Segment s = byVerdict.get(verdict.id());
-        if (s == null) {
-            throw new IllegalStateException("a verdict the database judge's planner did not plan: " + verdict.name());
-        }
-        return s;
-    }
-
-    /** The runner's rows for {@code verdict} handed to its segment; the segment judged once its last verdict's row is
-     *  in (the batch's root loop: the walk's census and listener protocol, the first failure raising). */
-    void received(TestPlan.Verdict verdict, @Nullable List<Object> row, @Nullable AssertListener listener,
-            com.legend.judge.@Nullable SideReader reader) {
-        HostAsserts.Planned error = errorVerdicts.get(verdict.id());
-        if (error != null) {
-            AssertVerdicts.judgedRowAtItsStep(error.assertion(), java.util.Objects.requireNonNull(row,
-                    "an assertError's verdict statement answered no row"), listener);
-            return;
-        }
-        Segment s = of(verdict);
-        if (!s.decided()) {
-            // a decided segment's step carries no member of the batch: its root loop reads no row
-            s.planned().received(verdict, row);
-        }
-        if (s.closes(verdict)) {
-            // inside the program's run: a row the batch planned ahead is read through the program's reader (THE
-            // WALL, 2026-11-06: no run of its own)
-            s.planned().judge(listener, reader);
-        }
-    }
-
-    /** The runner's word on a group's fused statement, to its segment's batch. */
-    void fused(TestPlan.Verdicts group, com.legend.error.@Nullable DataError rejected) {
-        of(group.verdicts().get(0)).planned().fused(group, rejected);
-    }
 }

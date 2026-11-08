@@ -23,7 +23,29 @@ final class EngineTextAppeals {
     }
 
     private final Map<Integer, Held> held = new HashMap<>();
+    /** The database judge's row appeals (a failed engine-text row heard under the compatibility rules; step 5,
+     *  2026-11-08), numbered from the same count. */
+    private final Map<Integer, com.legend.judge.VerdictBatch.Appeal> rows = new HashMap<>();
     private int last;
+
+    /** Holds the database judge's row appeal {@code a}, answering its number. */
+    int addRow(com.legend.judge.VerdictBatch.Appeal a) {
+        rows.put(++last, a);
+        return last;
+    }
+
+    /** The row appeal numbered {@code n} of the body whose run is in progress. */
+    static com.legend.judge.VerdictBatch.Appeal rowAppeal(int n) {
+        EngineTextAppeals current = CURRENT.get();
+        if (current == null) {
+            throw new IllegalStateException("a row appeal asked for outside a body's run: " + n);
+        }
+        com.legend.judge.VerdictBatch.Appeal a = current.rows.get(n);
+        if (a == null) {
+            throw new IllegalStateException("no row appeal numbered " + n + " in the body's run");
+        }
+        return a;
+    }
 
     /** Holds {@code h}, answering its number (1 for a body's first). */
     int add(Held h) {

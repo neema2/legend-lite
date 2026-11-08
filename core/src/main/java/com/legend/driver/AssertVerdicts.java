@@ -847,17 +847,17 @@ final class AssertVerdicts {
     /** {@code a}'s verdict ROW, the database judge's own statement's (an assertError's, S135, 2026-11-05), judged at
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
      *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
-    static void judgedRowAtItsStep(HostAssert a, List<Object> row,
+    static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
         if (listener == null) {
-            a.enter();
+            enter(a);
             DatabaseJudge.verdictOf(a.name(), row);
             return;
         }
         com.legend.judge.CanonicalDivergence.sqlEnter();
         boolean settled = false;
         try {
-            a.enter();
+            enter(a);
             DatabaseJudge.verdictOf(a.name(), row);
             settled = true;
             listener.verdict(a.listenerName(), true, null);

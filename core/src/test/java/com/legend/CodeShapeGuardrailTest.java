@@ -79,8 +79,9 @@ class CodeShapeGuardrailTest {
             "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
             // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
             // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
-            // batch planned and left for the walk
-            "VerdictBatch.counted",
+            // batch planned and left for the walk -- since 2026-11-08 (the plan-as-data design's step 5) the latch of
+            // one segment's run, RootLoops.Run, the planned batch being data
+            "RootLoops.counted",
             // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
             // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
             // reports straight to the caller's listener

@@ -66,9 +66,6 @@ final class HostAsserts implements TestDoor.Asserts {
     private final Map<Integer, Planned> byStatement;
     /** The branches planned, by the statement's place. */
     private final Map<Integer, Branched> branches;
-    /** The same, by the verdict the runner hands back (a record compares by value: two asserts alike are two
-     *  verdicts). */
-    private final Map<Integer, Planned> byVerdict;
     /** The stamp parameter minted for each frame let, by the let's place (M9c): the comment the let's eager run
      *  binds and the sides reading the frame's activities carry. */
     private final Map<Integer, String> frameStamps;
@@ -78,14 +75,8 @@ final class HostAsserts implements TestDoor.Asserts {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
-        Map<Integer, Planned> verdicts = new java.util.HashMap<>();
-        byStatement.values().forEach(p -> verdicts.put(p.verdict().id(), p));
-        // a branch side's asserts are this body's: the runner hands their verdicts back as any other's
-        branches.values().forEach(b -> {
-            verdicts.putAll(b.then().byVerdict);
-            verdicts.putAll(b.otherwise().byVerdict);
-        });
-        this.byVerdict = Collections.unmodifiableMap(verdicts);
+        // (the plan-as-data design's step 5, 2026-11-08: no map by verdict -- the run reads a verdict's host facts
+        // off the verdict, step 4b)
     }
 
     /**
@@ -550,17 +541,4 @@ final class HostAsserts implements TestDoor.Asserts {
         return frameStamps.get(statement);
     }
 
-    /** The assert the runner handed {@code verdict} for. */
-    Planned of(TestPlan.Verdict verdict) {
-        Planned p = find(verdict);
-        if (p == null) {
-            throw new IllegalStateException("a verdict step no assert of the body planned: " + verdict.name());
-        }
-        return p;
-    }
-
-    /** The assert planned for {@code verdict}, or null where this judge planned none for it (the database judge's). */
-    @Nullable Planned find(TestPlan.Verdict verdict) {
-        return byVerdict.get(verdict.id());
-    }
 }

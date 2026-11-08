@@ -146,10 +146,12 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
      * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The test run sends
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules, the messages and the agreement of the two judges are the judges' own, outside
-     * the plan.
+     * the plan. {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
+     * design's step 5, 2026-11-08), judged once the group's last verdict is in; null on every other group.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) implements TestStep {
+            @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
+            @com.legend.base.Nullable RootLoop roots) implements TestStep {
         public Verdicts {
             Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
@@ -165,7 +167,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
-            this(verdicts, fused, null, rules);
+            this(verdicts, fused, null, rules, null);
+        }
+
+        /** A group that closes no database segment. */
+        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
+                @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) {
+            this(verdicts, fused, savepoint, rules, null);
+        }
+
+        /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
+        public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
+            return new Verdicts(verdicts, fused, savepoint, rules, r);
         }
 
         /**

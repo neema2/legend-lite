@@ -53,6 +53,9 @@ final class AgreementAsserts implements TestDoor.Asserts {
         final TestPlan.Verdict hostVerdict;
         final Map<Integer, TestPlan.Verdict> members;
         AssertVerdicts.@Nullable HostHeld held;
+        /** The database half's root loop as it runs (the plan-as-data design's step 5): its rows by verdict, read for
+         *  the loop the half planned (its batch's data); null where the database judge declines the assert. */
+        final com.legend.judge.RootLoops.@Nullable Run databaseRun;
         /** An assertError's (S135): the step is its raising verdict, and the database half's row is the statement's. */
         final boolean raising;
         /** An assertError's verdict whose row is the database half's (its raising step's). */
@@ -69,6 +72,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         One(HostAsserts.Planned host, TestPlan.Verdicts raising) {
             this.host = host;
             this.database = null;
+            this.databaseRun = null;
             boolean overAnAssert = HostJudgment.core(host.assertion().check().judgment())
                     instanceof HostJudgment.AssertError ae && ae.inner() != null;
             this.step = raising;
@@ -84,6 +88,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             this.raisingVerdict = null;
             this.host = host;
             this.database = database;
+            this.databaseRun = database == null ? null : new com.legend.judge.RootLoops.Run(database.planned().loop());
             Map<Integer, TestPlan.Verdict> m = new java.util.HashMap<>();
             TestPlan.Verdict hv = host.verdict();
             TestPlan.Verdicts group = database == null ? null : database.group();
@@ -287,7 +292,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         TestPlan.Verdict member = one.members.get(verdict.id());
         if (member != null) {
-            java.util.Objects.requireNonNull(one.database).planned().received(member, row);
+            java.util.Objects.requireNonNull(one.databaseRun).received(member, row);
         }
         if (!one.closes(verdict)) {
             return null;
@@ -298,8 +303,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
     /** The runner's word on a group's fused statement, to the assert's database root. */
     void fused(TestPlan.Verdicts group, com.legend.error.@Nullable DataError rejected) {
         One one = of(group.verdicts().get(0));
-        java.util.Objects.requireNonNull(one.database, "a fused statement for an assert the database declined")
-                .planned().fused(group, rejected);
+        java.util.Objects.requireNonNull(one.databaseRun, "a fused statement for an assert the database declined")
+                .fused(rejected);
     }
 
     /** {@code one} decided at its last row, inside the program's run: a row its database half planned ahead read
@@ -333,7 +338,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
                     }
                     // the verdict alone: a failure both judges agree on is told in the host's words, its message the
                     // host's side on the assert's verdict (AgreementArm)
-                    database.planned().judge(null, reader, false);
+                    java.util.Objects.requireNonNull(one.databaseRun).judge(null, reader, false,
+                            DatabaseJudge::verdictOf, EngineTextAppeals::rowAppeal);
                     return AssertVerdicts.ok();
                 }));
     }

@@ -754,6 +754,81 @@ final class HostJson {
         return new HostJudgment.Part(v_assertion, v_judgment, v_asks);
     }
 
+    static Map<String, Object> wRootLoop(RootLoop x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("roots", list(x.roots(), each -> wRlRoot(each)));
+        o.put("fragments", map(x.fragments(), each -> each));
+        return o;
+    }
+
+    static RootLoop rRootLoop(Json.Obj o) {
+        List<RootLoop.Root> v_roots = readList(field(o, "roots", "RootLoop"), each -> rRlRoot(obj(each)));
+        Map<String, String> v_fragments = readMap(field(o, "fragments", "RootLoop"), each -> str(each));
+        return new RootLoop(v_roots, v_fragments);
+    }
+
+    static Map<String, Object> wRlRoot(RootLoop.Root x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("listenerName", x.listenerName());
+        o.put("steps", list(x.steps(), each -> wRootStep(each)));
+        o.put("message", x.message() == null ? null : wRlMessage(x.message()));
+        return o;
+    }
+
+    static RootLoop.Root rRlRoot(Json.Obj o) {
+        String v_listenerName = str(field(o, "listenerName", "Root"));
+        List<RootLoop.Step> v_steps = readList(field(o, "steps", "Root"), each -> rRootStep(obj(each)));
+        RootLoop.@Nullable Message v_message = absent(o, "message", "Root") ? null : rRlMessage(obj(o.get("message")));
+        return new RootLoop.Root(v_listenerName, v_steps, v_message);
+    }
+
+    static Map<String, Object> wRlMessage(RootLoop.Message x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("side", x.side() == null ? null : TestPlanJson.side(x.side()));
+        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
+        o.put("carried", x.carried());
+        return o;
+    }
+
+    static RootLoop.Message rRlMessage(Json.Obj o) {
+        TestPlan.@Nullable Side v_side = absent(o, "side", "Message") ? null : TestPlanJson.readSide(obj(o.get("side")));
+        @Nullable Failure v_refusal = absent(o, "refusal", "Message") ? null : rFailure(obj(o.get("refusal")));
+        boolean v_carried = bool(field(o, "carried", "Message"));
+        return new RootLoop.Message(v_side, v_refusal, v_carried);
+    }
+
+    static Map<String, Object> wRsRow(RootLoop.Row x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("name", x.name());
+        o.put("verdict", x.verdict());
+        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
+        o.put("orElse", x.orElse() == null ? null : wFailure(x.orElse()));
+        o.put("appeal", x.appeal());
+        return o;
+    }
+
+    static RootLoop.Row rRsRow(Json.Obj o) {
+        String v_name = str(field(o, "name", "Row"));
+        int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
+        @Nullable Failure v_refusal = absent(o, "refusal", "Row") ? null : rFailure(obj(o.get("refusal")));
+        @Nullable Failure v_orElse = absent(o, "orElse", "Row") ? null : rFailure(obj(o.get("orElse")));
+        int v_appeal = Math.toIntExact(num(field(o, "appeal", "Row")));
+        return new RootLoop.Row(v_name, v_verdict, v_refusal, v_orElse, v_appeal);
+    }
+
+    static Map<String, Object> wRsDecided(RootLoop.Decided x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("failure", wFailure(x.failure()));
+        o.put("reported", x.reported());
+        return o;
+    }
+
+    static RootLoop.Decided rRsDecided(Json.Obj o) {
+        Failure v_failure = rFailure(obj(field(o, "failure", "Decided")));
+        boolean v_reported = bool(field(o, "reported", "Decided"));
+        return new RootLoop.Decided(v_failure, v_reported);
+    }
+
     static Map<String, Object> wKindClass(KindClass x) {
         return switch (x) {
             case KindClass.Primitive e -> {
@@ -1023,6 +1098,32 @@ final class HostJson {
             case "Arm" -> rPaArm(o);
             case "Zip" -> rPaZip(o);
             default -> throw new IllegalArgumentException("no member '" + tag + "' of Pairing");
+        };
+    }
+
+    static Map<String, Object> wRootStep(RootLoop.Step x) {
+        return switch (x) {
+            case RootLoop.Row m -> {
+                Map<String, Object> o = new LinkedHashMap<>();
+                o.put(TAG, "Row");
+                o.putAll(wRsRow(m));
+                yield o;
+            }
+            case RootLoop.Decided m -> {
+                Map<String, Object> o = new LinkedHashMap<>();
+                o.put(TAG, "Decided");
+                o.putAll(wRsDecided(m));
+                yield o;
+            }
+        };
+    }
+
+    static RootLoop.Step rRootStep(Json.Obj o) {
+        String tag = o.getString(TAG);
+        return switch (tag) {
+            case "Row" -> rRsRow(o);
+            case "Decided" -> rRsDecided(o);
+            default -> throw new IllegalArgumentException("no member '" + tag + "' of Step");
         };
     }
 
