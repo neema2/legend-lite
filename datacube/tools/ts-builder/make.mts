@@ -145,8 +145,10 @@ for (const name of TS_FUNCTION_NAMES) {
       const lib = sig.params.find((x) => x.name === libName);
       // gs-quant's default of every observation, where the library's is a whole number of them (smoothed_moving_average's
       // whole-series seed), is no value the language takes: the parameter is told (the test's ledger)
+      // the library's own default in its place (the user, 2026-11-08: "Should we not default moving to 14?")
       const unsaid = lib?.kind === 'whole' && p.default !== null && 'window' in p.default && p.default.window[0] === null;
-      const d = unsaid ? defaultOf(null) : defaultOf(p.default);
+      if (unsaid && lib.default === undefined) throw new Error(`${name}'s ${p.name}: gs-quant's default the language has no way to say, and the library none`);
+      const d = unsaid ? { has: true, text: lit(lib.default), value: lib.default } : defaultOf(p.default);
       const isWeights = members && p.name === 'weights';
       const entry: string[] = [`name: ${q(p.name)}`];
       let type: string;

@@ -398,12 +398,13 @@ export function writtenParams(fn: TsFunctionName, params: Readonly<Record<string
 }
 
 /** What a word is begun with (a picked function's): each parameter every call gives and the language has no default for,
- *  gs-quant's (a mean's window: gs-quant's Window(None, 0), every observation to date -- written, the spec's §7). An
+ *  gs-quant's (a mean's window: gs-quant's Window(None, 0), every observation to date -- written, the spec's §7), else
+ *  the library's beginning (a percentile's n 50: `begin`). An
  *  optional one of no default is left to the language, whose call without it is the tile's own: a compare's alignment
  *  its FILL, an annualization its frequency's. */
 export function begunParams(fn: TsFunctionName): Readonly<Record<string, number | string>> | undefined {
-  const begun = TS_SIGNATURES[fn].params.filter((p) => p.required && p.default === undefined && p.gsQuant !== undefined);
-  return begun.length === 0 ? undefined : Object.fromEntries(begun.map((p) => [p.name, p.gsQuant!]));
+  const begun = TS_SIGNATURES[fn].params.filter((p) => p.required && p.default === undefined && (p.gsQuant ?? p.begin) !== undefined);
+  return begun.length === 0 ? undefined : Object.fromEntries(begun.map((p) => [p.name, (p.gsQuant ?? p.begin)!]));
 }
 
 /**

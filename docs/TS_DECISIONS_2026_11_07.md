@@ -166,6 +166,7 @@ Each phase ends green; the status column is updated in the commit that does the 
 | 11 | A3 step 3, then steps 4 and 5: the tile stores `#TS` text; one reader | 2, 9 | step 3's store done 2026-11-07 (c23e4dee5 .. 5c66ec1ac): a series' own `#TS` text (another series named, `A`; every parameter told; gs-quant's spellings the language's) written by `timeseries-text.ts` and read back from core's tree, proved over every example series and 18 forms; the page document version 7 (6 refused, 9a); core reads every text -- a page's on opening (the host's legend-lite module, `QueryReading.tsItem`), the editor's as it is typed, Python's (headless `timeseriesMade`/`Edit`); the examples in `#TS`; core's `tsItem` answers a text with its tree or an error, never one alone. The box's completions and its error's place done (c047d41b0). Step 4 parked (§4); next the order of §4 (the order to one reader and the builders): generated signatures (done 2026-11-07), the term builder (done 2026-11-07), the parser deleted, the statement writer |
 | 12 | B5: a second oracle for the words gs-quant lacks | -- | |
 | 13 | B3: the builders -- Python's DSL and TypeScript's, `#TS` and the chart together, from one catalog (§4, ruled 2026-11-07) | -- | |
+| 13b | The risk-free data model: a cash index per currency (overnight rates compounded actual/360), `sharpe_ratio` and `excess_returns` reading it as a line, the builders' `currency` the page's source, gs-quant's 365.25-day annualized return (S155 retired), its sample data, the oracle on gs-quant's own functions | -- | added 2026-11-08 (the user) |
 | 14 | B4: Show Python and Show TypeScript, each the builder's code | -- | |
 | 15 | B7: the page as a dashboard (option D) | 15 | |
 | 16 | B8: the tile kinds | -- | |
@@ -288,3 +289,23 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
     gs-quant's signature is a listed row with its reason, and a test (a manual lane, as the oracle's) holds each
     generated signature to gs-quant's. The `#TS` text the builder writes stays the language's spelling (`w => 22`).
 
+
+- **gs-quant's defaults, aligned** (the user, 2026-11-08: "What are the other differences? Should we try to align the
+  defaults then we can change our code to not use the defaults if that makes sense", then on the recommendations
+  "Okay I agree with everything, let's go"):
+  - *lag*: gs-quant's `LagMode`, `extend` the default (its last values on the calendar days after the line's end),
+    `truncate` the option ("Yes extend default to align with truncate option, can refreeze with truncate option"); our
+    series and tests that meant the old lag write `truncate`. A rows form now says the argument it computes alone
+    (`timeseries::Words.when`), so truncate keeps lag's rows form.
+  - *Windows*: `range`, `volatility`, `median` (22), `bollinger_bands` (20), `correlation`, `beta`, `cov` (63) and
+    `sharpe_ratio` (252) default to every observation to date, gs-quant's `Window(None, 0)`; `percentile`'s `n` and
+    `smooth_spikes`' `threshold` are given in every call, as gs-quant's (a picker begins them with the library's
+    `timeseries::Words.begun`: 50, 0.5). `compare` already took gs-quant's `step` where no FILL says otherwise.
+  - *Kept as they are, rows of the register*: one-argument `sum`/`mean`/`max`/... without SAMPLE BY refused, not
+    gs-quant's to date (S158: one meaning per spelling); `smoothed_moving_average` 14, gs-quant's default reading the
+    future (S159).
+  - *percentile with no window*: put to the user again -- it is the whole line's percentile on every date today
+    (gs-quant's one number, drawn flat), not to date as first said.
+  - *A risk-free data model*: a roadmap item after B3 (13b) -- a cash index per currency from overnight rates, the
+    words reading it as a line, the builders' `currency` mapped to the page's source, gs-quant's arithmetic checked by
+    the oracle (the user: "We should have a risk free data model with data to implement those").

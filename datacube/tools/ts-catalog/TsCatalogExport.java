@@ -136,6 +136,10 @@ public final class TsCatalogExport {
                         b.append(", ").append(key).append(": ").append(op[1]);
                     }
                 }
+                String begun = tagged(w, "begun").get(p.name());
+                if (begun != null) {
+                    b.append(", begin: ").append(literal(p.kind(), begun));
+                }
                 b.append(", required: ").append(p.required());
                 Object g = gs.get(p.name());
                 String gl = g == null ? "" : gsLiteral(p, g);

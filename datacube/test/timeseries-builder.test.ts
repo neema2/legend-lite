@@ -57,7 +57,7 @@ const LEDGER: Readonly<Record<string, string>> = {
   'union list': 'two series: the language\'s union reads two lines',
   'append list': 'two series: the language\'s append reads two lines',
   'prepend list': 'two series: the language\'s prepend reads two lines',
-  'smoothed_moving_average.w required': 'gs-quant\'s default, a window of the whole series seeding its smoothing, is none the language computes: w is told (the library\'s own default 14 is not gs-quant\'s)',
+  'smoothed_moving_average.w default': 'the library\'s 14, Wilder\'s, as rsi\'s and atr\'s: gs-quant\'s default smooths by the whole series\' length, each past value changed by data to come (S150\'s look-ahead rule; the user, 2026-11-08)',
 };
 
 /** The ledger's rows the generated builder has. */
@@ -68,10 +68,13 @@ function differences(): string[] {
     const gsName = s.gsFunction.slice(s.gsFunction.lastIndexOf('.') + 1);
     if (fn !== gsName) out.push(`${fn} spelled`);
     for (const g of s.gs) if (g.only) out.push(`${fn}.${g.name} only`);
-    // a parameter told where gs-quant's has a default
+    // a parameter told where gs-quant's has a default, or defaulted otherwise
     const gs = GS.words[s.word]?.[0];
     for (const g of s.gs) {
-      if (g.default === undefined && !g.only && gs?.params.find((p) => p.name === g.name)?.default !== null) out.push(`${fn}.${g.name} required`);
+      const p = gs?.params.find((x) => x.name === g.name);
+      if (p === undefined || g.only || g.weights) continue;
+      if (g.default === undefined && p.default !== null) out.push(`${fn}.${g.name} required`);
+      else if (g.default !== undefined && JSON.stringify(g.default) !== JSON.stringify(gsDefault(p.default, GS.enums))) out.push(`${fn}.${g.name} default`);
     }
     for (const e of s.extra) out.push(`${fn} +${e}`);
     if (s.listOf !== undefined) out.push(`${fn} list`);
@@ -119,7 +122,7 @@ describe('the builder\'s words are gs-quant\'s', () => {
         const p = gs.params.find((x) => x.name === g.name);
         if (p === undefined) continue;
         const want = gsDefault(p.default, GS.enums);
-        if (LEDGER[`${fn}.${g.name} required`] !== undefined) continue;
+        if (LEDGER[`${fn}.${g.name} required`] !== undefined || LEDGER[`${fn}.${g.name} default`] !== undefined) continue;
         if (JSON.stringify(g.default) !== JSON.stringify(want)) wrong.push(`${fn}'s ${g.name} defaults to ${JSON.stringify(g.default)} where gs-quant's is ${JSON.stringify(want)}`);
         if ((p.kind === 'KEYWORD_ONLY') !== (g.kwOnly === true)) wrong.push(`${fn}'s ${g.name} by name alone where gs-quant's is ${p.kind}`);
       }

@@ -233,6 +233,8 @@ final class TsWords {
             case CFloat f -> "Float";
             case CString s -> "String";
             case com.legend.protocol.spec.CBoolean b -> "Boolean";
+            // an enumeration's value: its enumeration's path, as a parameter's type is read (timeseries::Scope)
+            case EnumValue e -> e.fullPath();
             default -> null;
         };
     }

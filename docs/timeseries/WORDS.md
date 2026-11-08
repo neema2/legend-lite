@@ -70,7 +70,7 @@ Forms: `basket(members: TimedMembers)`, `basket(members: TimedMembers, rebalance
 
 ## `beta`
 
-The beta of x's simple returns on y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given.
+The beta of x's simple returns on y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -82,7 +82,7 @@ Forms: `beta(x: Line, y: Line)`, `beta(x: Line, y: Line, w: Integer)`, `beta(x: 
 
 ## `bollinger_bands`
 
-Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band's width -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; 20 observations unless given. A struct (R10): its lower, upper and width.
+Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band's width -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; to date unless given, as gs-quant's. A struct (R10): its lower, upper and width.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -128,7 +128,7 @@ Forms: `consecutive(x: Line, direction: Direction (optional))`.
 
 ## `correlation`
 
-The correlation of x's and y's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given.
+The correlation of x's and y's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -151,7 +151,7 @@ Forms: `count(x: Line, w: Integer, unit: DurationUnit)`, `count(x: Line, w: Scop
 
 ## `cov`
 
-The sample covariance of x's and y's values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given.
+The sample covariance of x's and y's values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -491,7 +491,7 @@ Forms: `mean(x: Line, w: Integer)`, `mean(x: Line, w: Integer, unit: DurationUni
 
 ## `median`
 
-The median of x's values over a window -- w observations to date, a calendar period back, the line's start to date; 22 observations unless given.
+The median of x's values over a window -- w observations to date, a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -558,15 +558,15 @@ Forms: `percent_change(x: Line)`, `percent_change(x: Line, from: StrictDate)`.
 
 ## `percentile`
 
-The n-th percentile (50 unless given) of x's values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).
+The n-th percentile of x's values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `n` | number |  | no |
+| `n` | number |  | yes |
 | `w` | span | observations, period, all | no |
 
-Forms: `percentile(x: Line, n: Float (optional))`, `percentile(x: Line, n: Float (optional), w: Integer)`, `percentile(x: Line, n: Float (optional), w: Scope)`, `percentile(x: Line, n: Float (optional), w: Integer, unit: DurationUnit)`.
+Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`.
 
 ## `percentiles`
 
@@ -637,7 +637,7 @@ Forms: `r_squared(x: Line, y: Line)`, `r_squared(x: Line, y: Line, w: Integer)`,
 
 ## `range`
 
-The range of x's values (greatest less least) over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; 22 observations unless given.
+The range of x's values (greatest less least) over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -738,7 +738,7 @@ Forms: `seasonally_adjusted(x: Line)`, `seasonally_adjusted(x: Line, method: Sea
 
 ## `sharpe_ratio`
 
-The annualized Sharpe ratio of x's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 252 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
+The annualized Sharpe ratio of x's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's -- by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -750,15 +750,15 @@ Forms: `sharpe_ratio(x: Line, annualization_factor: Integer (optional))`, `sharp
 
 ## `smooth_spikes`
 
-x with each spike -- a value apart from both neighbours by more than threshold (0.5 unless given), as a percentage unless absolute -- the mean of its neighbours.
+x with each spike -- a value apart from both neighbours by more than threshold, as a percentage unless absolute -- the mean of its neighbours.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
-| `threshold` | number |  | no |
+| `threshold` | number |  | yes |
 | `type` | word | percentage, absolute | no |
 
-Forms: `smooth_spikes(x: Line, threshold: Float (optional), type: ThresholdType (optional))`.
+Forms: `smooth_spikes(x: Line, threshold: Float, type: ThresholdType (optional))`.
 
 ## `smoothed_moving_average`
 
@@ -904,7 +904,7 @@ Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)
 
 ## `volatility`
 
-The annualized volatility of x's returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
+The annualized volatility of x's returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's -- in percent, by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

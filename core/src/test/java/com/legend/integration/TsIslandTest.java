@@ -1501,11 +1501,12 @@ class TsIslandTest {
         List<String> calls = new ArrayList<>();
         for (String f : List.of("prices", "annualize", "index", "rebase", "change", "percent_change", "winsorize",
                 "drawdown", "max_drawdown", "exponential_moving_average", "exponential_std", "exponential_volatility",
-                "exponential_spread_volatility", "geometrically_aggregate", "smooth_spikes", "consecutive", "day",
+                "exponential_spread_volatility", "geometrically_aggregate", "consecutive", "day",
                 "month", "year", "quarter", "weekday")) {
             calls.add(f + "(" + x + ")");
         }
-        calls.addAll(List.of("first(" + x + ", all)", "last(" + x + ", whole)"));
+        // a threshold given in every call, as gs-quant's (the user, 2026-11-08)
+        calls.addAll(List.of("first(" + x + ", all)", "last(" + x + ", whole)", "smooth_spikes(" + x + ", 0.5)"));
         for (String f : List.of("range", "zscores", "volatility", "sharpe_ratio", "rsi", "smoothed_moving_average",
                 "percentiles", "median", "product", "vol_swap_volatility")) {
             calls.add(f + "(" + x + ", 3)");
@@ -1667,13 +1668,14 @@ class TsIslandTest {
 
     @Test
     void aDefaultIsReadAsTheCallItsBodyIs() throws Exception {
-        // W5 (2026-11-06): correlation(x, y) is the library's correlation($x, $y, 63, $sample), lag(x) its
+        // W5 (2026-11-06): correlation(x, y) is the library's correlation($x, $y, all, $sample) (gs-quant's Window(None, 0),
+        // every observation to date: the user, 2026-11-08, its defaults aligned with gs-quant's), lag(x) its
         // $x->lag(1), returns(x) its $x->returns(1, $type): each default read as that call, its rows form the called
         // overload's -- the default's value written once, in its body -- so each is a column of its line's table, and
         // its answer the explicit call's
         String q = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB']) AS c, lag(CLOSE['AAA']) AS l,"
                 + " returns(CLOSE['AAA']) AS r FROM PRICES ON DAY BY SYMBOL}#";
-        String explicit = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 63) AS c, lag(CLOSE['AAA'], 1) AS l,"
+        String explicit = "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], all) AS c, lag(CLOSE['AAA'], 1) AS l,"
                 + " returns(CLOSE['AAA'], 1) AS r FROM PRICES ON DAY BY SYMBOL}#";
         for (TestBackend backend : backends()) {
             String of = backend + ": ";

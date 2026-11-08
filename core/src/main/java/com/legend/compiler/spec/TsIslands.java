@@ -377,7 +377,8 @@ public final class TsIslands {
         }
 
         /** The arguments of the one call {@code body} is, where it calls {@code f}'s own function -- the declarations
-         *  its name finds hold {@code f} -- of its parameters and literals alone (a default: W5, 2026-11-06); else
+         *  its name finds hold {@code f} -- of its parameters and literals alone, an enumeration's value among them (a
+         *  default: W5, 2026-11-06; a window of every observation, timeseries::Scope.all, gs-quant's: 2026-11-08); else
          *  null. */
         private static @com.legend.base.Nullable List<ValueSpecification> delegate(ModelContext model,
                 com.legend.compiler.element.TypedFunction f, List<ValueSpecification> body) {
@@ -388,7 +389,7 @@ public final class TsIslands {
             for (ValueSpecification p : a.parameters()) {
                 if (!(p instanceof com.legend.protocol.spec.Variable || p instanceof com.legend.protocol.spec.CInteger
                         || p instanceof com.legend.protocol.spec.CFloat || p instanceof com.legend.protocol.spec.CString
-                        || p instanceof com.legend.protocol.spec.CBoolean)) {
+                        || p instanceof com.legend.protocol.spec.CBoolean || p instanceof com.legend.protocol.spec.EnumValue)) {
                     return null;
                 }
             }

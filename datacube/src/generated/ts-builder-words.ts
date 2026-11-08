@@ -286,10 +286,10 @@ export function macd(x: Line, ...args: Args<[m: number, n: number, s: number], {
   return word(MACD_SHAPE, [x], args);
 }
 
-const SMOOTHED_MOVING_AVERAGE_SHAPE: WordShape = { word: 'smoothed_moving_average', gsFunction: 'technicals.smoothed_moving_average', lines: ['x'], gs: [{ name: 'w' }], extra: [] };
+const SMOOTHED_MOVING_AVERAGE_SHAPE: WordShape = { word: 'smoothed_moving_average', gsFunction: 'technicals.smoothed_moving_average', lines: ['x'], gs: [{ name: 'w', default: 14 }], extra: [] };
 /** Smoothed moving average: Wilder's: from the mean of w observations, each value (w - 1) parts the one before and one part the series. (gs-quant's technicals.smoothed_moving_average.) */
-export function smoothed_moving_average(x: Line, w: WindowLike): Term {
-  return word(SMOOTHED_MOVING_AVERAGE_SHAPE, [x], [w]);
+export function smoothed_moving_average(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+  return word(SMOOTHED_MOVING_AVERAGE_SHAPE, [x], args);
 }
 
 const PERCENTILES_SHAPE: WordShape = { word: 'percentiles', gsFunction: 'statistics.percentiles', lines: ['x'], gs: [{ name: 'y', only: true, default: null }, { name: 'w', default: { window: [null, 0] } }], extra: [] };

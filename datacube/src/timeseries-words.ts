@@ -44,6 +44,9 @@ export interface TsParamShape {
   readonly max?: number;
   /** Every call gives it (each of the word's overloads takes it). */
   readonly required: boolean;
+  /** What a picked word begins it with, where every call gives it, the language has no default for it and gs-quant
+   *  none either (the library's `timeseries::Words.begun`: a percentile's n 50). */
+  readonly begin?: number | string;
   /** gs-quant's default of the parameter it names alike (gs-quant 2.2.3's, read from gs-quant itself): what a word is
    *  begun with where the language has none (the builders' rule, docs/TS_DECISIONS_2026_11_07.md §4). */
   readonly gsQuant?: number | string;
