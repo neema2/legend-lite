@@ -47,6 +47,8 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         MAPPING_RESOLUTION("com.legend.error.MappingResolutionException"),
         ISLAND_SYNTAX("com.legend.error.IslandSyntaxException"),
         TYPE_INFERENCE("com.legend.compiler.spec.TypeInferenceException"),
+        /** a schema invariant a typed side broke (a TypeInferenceException of its own class; the slice 1 audit) */
+        SCHEMA_INVARIANT("com.legend.compiler.spec.SchemaInvariantException"),
         DATA("com.legend.error.DataError"),
         ASSERT_FAILED("com.legend.error.AssertFailed"),
         DIALECT_CAPABILITY("com.legend.sql.dialect.DialectCapability"),
@@ -60,7 +62,11 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         NUMBER_FORMAT("java.lang.NumberFormatException"),
         NULL_POINTER("java.lang.NullPointerException"),
         CLASS_CAST("java.lang.ClassCastException"),
-        INDEX_OUT_OF_BOUNDS("java.lang.IndexOutOfBoundsException");
+        INDEX_OUT_OF_BOUNDS("java.lang.IndexOutOfBoundsException"),
+        // the slice 1 audit (2026-11-08): raisable by planning's folds and reads, raised as they were
+        NO_SUCH_ELEMENT("java.util.NoSuchElementException"),
+        DATE_TIME("java.time.DateTimeException"),
+        UNCHECKED_IO("java.io.UncheckedIOException");
 
         private final String className;
 

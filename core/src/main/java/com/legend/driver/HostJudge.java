@@ -565,10 +565,10 @@ final class HostJudge {
             if (e.unjudgedReason() != null) {
                 throw e;
             }
-            com.legend.testexecutionplan.Failure unplanned = m.unplanned();
+            String unplanned = m.unplanned();
             if (unplanned != null) {
                 throw new com.legend.error.AssertFailed(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(unplanned.message()));
+                        com.legend.compiler.spec.AssertMessages.unevaluated(unplanned));
             }
             // read now, the assert having failed: through the verdict's reader, or the side after the inner ones
             TypedSide read = message != null ? message.get() : sides.get(m.innerSides());

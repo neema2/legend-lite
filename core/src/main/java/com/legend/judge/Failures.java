@@ -54,6 +54,7 @@ public final class Failures {
             case MAPPING_RESOLUTION -> new com.legend.error.MappingResolutionException(m, f.element());
             case ISLAND_SYNTAX -> new com.legend.error.IslandSyntaxException(text(f));
             case TYPE_INFERENCE -> new com.legend.compiler.spec.TypeInferenceException(text(f));
+            case SCHEMA_INVARIANT -> new com.legend.compiler.spec.SchemaInvariantException(text(f));
             case DATA -> new com.legend.error.DataError(text(f));
             case ASSERT_FAILED -> {
                 String unjudged = f.unjudgedReason();
@@ -70,16 +71,20 @@ public final class Failures {
             case NULL_POINTER -> new NullPointerException(m);
             case CLASS_CAST -> new ClassCastException(m);
             case INDEX_OUT_OF_BOUNDS -> new IndexOutOfBoundsException(m);
+            case NO_SUCH_ELEMENT -> new java.util.NoSuchElementException(m);
+            case DATE_TIME -> new java.time.DateTimeException(text(f));
+            // the message as planned; the I/O cause it wrapped is lost with the planning's stack (2.4)
+            case UNCHECKED_IO -> new java.io.UncheckedIOException(m, new java.io.IOException(m));
         };
     }
 
     /** The kinds whose constructor takes a message that is not null. */
     private static boolean needsMessage(Failure.Kind kind) {
         return switch (kind) {
-            case NOT_IMPLEMENTED, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, DATA, ASSERT_FAILED,
-                    DIALECT_CAPABILITY, NOT_A_CONSTANT -> true;
+            case NOT_IMPLEMENTED, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, SCHEMA_INVARIANT, DATA,
+                    ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT, DATE_TIME -> true;
             case MODEL, MAPPING_RESOLUTION, ILLEGAL_STATE, ILLEGAL_ARGUMENT, UNSUPPORTED_OPERATION, ARITHMETIC,
-                    NUMBER_FORMAT, NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS -> false;
+                    NUMBER_FORMAT, NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS, NO_SUCH_ELEMENT, UNCHECKED_IO -> false;
         };
     }
 

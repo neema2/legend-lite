@@ -217,14 +217,20 @@ public final class BodyRouter {
                     options.resources());
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned.plan());
+        TestDoor.Planned ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")
+                // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
+                ? new TestDoor.Planned(com.legend.testexecutionplan.TestPlanJson.read(
+                        com.legend.testexecutionplan.TestPlanJson.write(planned.plan())), planned.effects(),
+                        planned.seeds())
+                : planned;
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     system -> SystemDatabase.of(typed.context()).sessionFor(system.type(), options.systemConnections());
-            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null,
+            Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.recorder(), null, null,
                     null, null, null, null, sessionsByTarget(target, systemSessions));
             try {
-                TestRun.run(planned.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
+                TestRun.run(ahead.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
                         moved::textOrigin, moved, moved);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

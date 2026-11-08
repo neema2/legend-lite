@@ -303,7 +303,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
      *  message is no side -- its planning raised that (a message reading what the planner cannot plan), named in the
      *  failure where {@code inner} fails ({@code AssertMessages.unevaluated}), as upstream evaluates the message only
      *  there (2026-11-04, the assert bar). */
-    record Messaged(HostJudgment inner, int innerSides, com.legend.testexecutionplan.@Nullable Failure unplanned)
+    record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned)
             implements HostJudgment {
         /** The message a side the plan reads. */
         Messaged(HostJudgment inner, int innerSides) {

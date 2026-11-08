@@ -197,12 +197,13 @@ final class ProgramRunnerTest {
                         target), null), null),
                 new ProgramRunner.Callback(1, List.of(good, bad), null))), Map.of(), sessions(), (id, o) -> {
                     assertTrue(o.insideATransaction(), "a program that writes runs in one transaction");
-                    o.guarded(sp, () -> o.read(good, null, Map.of()));
-                    try {
-                        o.guarded(sp, () -> o.read(bad, null, Map.of()));
-                    } catch (com.legend.error.DataError e) {
-                        raised.add("raised");
-                    }
+                    o.guarded(sp, () -> o.read(good, null, Map.of()), e -> {
+                        throw new AssertionError(e);
+                    });
+                    o.guarded(sp, () -> o.read(bad, null, Map.of()), e -> {
+                        raised.add(e instanceof com.legend.error.DataError ? "raised" : "other: " + e);
+                        return null;
+                    });
                 }, new Recording());
         assertEquals(List.of("raised"), raised);
         assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3c_sp"));

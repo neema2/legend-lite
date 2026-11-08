@@ -158,17 +158,16 @@ final class TestRun {
                     if (!hostAll && (each.wrapper() != null || each.base().isEmpty())) {
                         continue;
                     }
-                    List<PlanRunner.Rows> sides;
-                    try {
-                        sides = open.guarded(guard, () -> hostSides(each, open));
-                    } catch (RuntimeException e) {
-                        judges.sidesFailed(each, e);
-                        continue;
-                    } catch (IOException e) {
-                        judges.sidesFailed(each, new UncheckedIOException(e));
-                        continue;
+                    // the read's own failure is the verdict's (its sides could not be read); a savepoint statement's
+                    // is the program's
+                    List<PlanRunner.Rows> sides = open.guarded(guard, () -> hostSides(each, open), e -> {
+                        judges.sidesFailed(each, e instanceof IOException io ? new UncheckedIOException(io)
+                                : (RuntimeException) e);
+                        return null;
+                    });
+                    if (sides != null) {
+                        judges.sides(each, sides);
                     }
-                    judges.sides(each, sides);
                 }
             }
             if (judge == TestPlan.Judge.DATABASE || judge == TestPlan.Judge.AGREEMENT) {
@@ -189,14 +188,19 @@ final class TestRun {
                         + " own base raised");
             }
             TestPlan.Verdict each = group.verdicts().get(0);
-            List<PlanRunner.Rows> sides = null;
-            RuntimeException raised = null;
-            try {
-                sides = open.guarded(guard(group, open), () -> hostSides(each, open));
-            } catch (DataError | com.legend.error.ModelException e) {
-                // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
-                raised = e;
-            }
+            RuntimeException[] caught = new RuntimeException[1];
+            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, open), e -> {
+                if (e instanceof DataError || e instanceof com.legend.error.ModelException) {
+                    // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
+                    caught[0] = (RuntimeException) e;
+                    return null;
+                }
+                if (e instanceof IOException io) {
+                    throw io;
+                }
+                throw (RuntimeException) e;
+            });
+            RuntimeException raised = caught[0];
             TestPlan.Judge judge = plan.judge();
             if (judge == TestPlan.Judge.HOST || judge == TestPlan.Judge.AGREEMENT) {
                 if (raised != null) {

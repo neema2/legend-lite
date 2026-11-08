@@ -109,7 +109,9 @@ final class AgreementAsserts implements TestDoor.Asserts {
 
         /** Whether {@code v} is the step's last verdict: both judges have read what they read once it is in. */
         boolean closes(TestPlan.Verdict v) {
-            return step.verdicts().get(step.verdicts().size() - 1) == v;
+            // by id: the plan read back from its JSON holds equal verdicts, never the planner's objects (the slice 1
+            // audit, 2026-11-08)
+            return step.verdicts().get(step.verdicts().size() - 1).id() == v.id();
         }
     }
 
@@ -237,6 +239,12 @@ final class AgreementAsserts implements TestDoor.Asserts {
         return one;
     }
 
+    /** Whether {@code verdict} is {@code planned}: one verdict of the plan by its id (the plan the run reads may be
+     *  the planner's read back from its JSON: guard 3, the slice 1 audit, 2026-11-08). */
+    private static boolean same(TestPlan.Verdict verdict, TestPlan.@Nullable Verdict planned) {
+        return planned != null && planned.id() == verdict.id();
+    }
+
     /** The host half's sides for {@code verdict} as the runner read them ({@code rows}: their rows, or the error
      *  reading them raised, the judgment deciding it), judged and HELD ({@link AssertVerdicts#heldAtItsStep}): the
      *  verdict of record is decided once the database half's rows are in ({@link #received}); a database member's
@@ -246,8 +254,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
             java.util.function.@Nullable Supplier<com.legend.exec.PlanRunner.Rows> message,
             @Nullable AssertListener listener, TestPlan.JudgingRules rules) {
         One one = of(verdict);
-        if (verdict != one.hostVerdict) {
-            if (verdict != one.raisingVerdict) {
+        if (!same(verdict, one.hostVerdict)) {
+            if (!same(verdict, one.raisingVerdict)) {
                 rows.get();
             }
             // the database's raising step is read for the database half: what it raised is its statement's, bound
@@ -266,7 +274,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             @Nullable AssertListener listener, com.legend.judge.@Nullable SideReader reader) {
         One one = of(verdict);
         if (one.raising) {
-            if (verdict != one.raisingVerdict) {
+            if (!same(verdict, one.raisingVerdict)) {
                 return null;   // the host's own step: its rows are the host's, read at hostSides
             }
             one.raisingRow = row;

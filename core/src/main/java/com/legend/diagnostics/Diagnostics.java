@@ -51,7 +51,10 @@ public final class Diagnostics {
             // (testplan/BodyClass, which reads the switch by name: the test-planning library depends on no switchboard)
             "body-class",
             // the plan-as-data design (2026-11-07): each test body's plan printed as its JSON (BodyRouter)
-            "plan-json");
+            "plan-json",
+            // guard 3 in report mode (the plan-as-data design's step 3, 2026-11-08): every test body run on its plan
+            // READ BACK from its JSON, never the planner's objects (BodyRouter)
+            "decoded-plan");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 

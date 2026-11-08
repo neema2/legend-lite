@@ -20923,3 +20923,29 @@ with no assert's verdict where the split rung used to record each assert): four 
 - **Checks**: the DuckDB corpus on both judges unchanged after each change (host 2436, database 2429, failure lines
   identical, every roster and register exact); core driver, judge and integration under the three judges, exec,
   census, guardrails and architecture green; `//spec:all` and `//pct:all` build.
+
+## 2026-11-08 — The plan as data, slice 1 (steps 1-3, docs/PLAN_AS_DATA_2026_11_07.md): every lane, an audit, guard 3
+
+- **Step 1** (`0a1edf63`): the judges' value model reads the plan's type names, never the compiler's types. Checks: the
+  DuckDB corpus on both judges unchanged; core's driver, judge and integration suites under the three judges; then
+  every other lane on step 1 alone (Postgres, the H2 corpus, PCT, stress): green.
+- **Step 2** (`07eeaacc`): a failure known at planning is the test plan's `Failure` record (closed class list, message,
+  phase, element, unjudged reason, the planning site), raised from it at its turn. The first corpus run named one class
+  the list lacked (`TypeInferenceException`, 12 tests, by the list's own loud refusal); listed, the corpus was
+  identical.
+- **Step 3** (`b33aecb0`): two plan types (`TestPlan` around `ExecutionPlan`); exec the one walker, a callback at a
+  test step (`ProgramRunner`, its own target `//core:exec_program`); the verdict running in `driver/TestRun`; guard 1
+  introduced with dated pins; guard 3 in report mode.
+- **Slice 1's lanes at `b33aecb0`**: core (the product format's version test alone failing, fixed below), Postgres,
+  the DuckDB and H2 corpus, PCT and stress green.
+- **Slice 1's independent audit** (read-only, `6fdafffc..b33aecb0`), every finding fixed and recorded in the design's
+  section 10: verdicts still compared by object identity in three places (normal runs held; the decoded plan would not)
+  -- by id now, which surfaced the agreement judge's `assertError`-over-an-assert holding two verdicts with one id (its
+  database copy takes an id of its own); a failing savepoint statement judged as the guarded read's failure (Postgres
+  alone) -- the program's again; the closed failure list widened by the classes the audit named; the referee's enum
+  precheck back in place; guard 1 tightened on enums (pinning the product plan's model `DatabaseType`, step 7's);
+  guard 3 on the planned-ahead programs too.
+- **After the fixes**: core's suites (the root package, driver, judge, integration, exec, planner, testplan under the
+  three judges), architecture, guardrails, census and layering green; the DuckDB corpus on both judges identical
+  (host 2436, database 2429, failure lines and registers); **guard 3's report**: the DuckDB corpus run on every body's
+  plan READ BACK from its JSON (`-Dlegend.diagnostics=decoded-plan`), identical on both judges; the Postgres lane green.

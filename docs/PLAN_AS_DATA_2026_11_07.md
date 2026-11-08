@@ -592,3 +592,32 @@ independently of the rules).
   question.
 - **Guard 3 in report mode (step 3)**: `-Dlegend.diagnostics=decoded-plan` runs every body on the plan read back from
   its JSON; the DuckDB corpus under it is step 3's report, hard from step 9.
+- **Slice 1's independent audit (2026-11-08, read-only, over `6fdafffc..b33aecb0`) and what it changed:**
+  - *Must-fix, fixed:* three places still compared verdicts by object identity (the database judge's segment end, the
+    agreement judge's step end and its host/raising halves). Normal runs held (the plan's verdicts were the planner's
+    objects); under guard 3's decoded plan a database-judged assert would have passed silently. They compare ids now.
+  - *Should-fix, fixed:* a savepoint statement that fails (set, release, rollback to) is again the program's failure,
+    never judged as the guarded read's: `OpenProgram.guarded` takes the caller's handling of the WORK's failure, as
+    the runner sent its savepoint statements outside the read before the split. Postgres alone carries a verdict
+    savepoint, so the DuckDB corpus could not see it.
+  - *Should-fix, fixed:* the closed list gains the classes the audit named as raisable by planning
+    (`SchemaInvariantException`, `NoSuchElementException`, `DateTimeException`, `UncheckedIOException`); a caller's
+    message whose planning failed carries its TEXT alone (only its text is read, `AssertMessages.unevaluated`), so no
+    class need be listed there. `ParseException` and the SQL translator's errors are not planning's (a body is parsed
+    before it is planned) and stay off the list; `Resolvers.UnfoldableRef` is the lowering's own, never meant to escape.
+  - *Found by the id fix, fixed:* under the agreement judge an `assertError` over an assert placed two verdicts with
+    ONE id in one plan -- the host's own step and the database's raising copy, built "the same verdict, so the same
+    id" for the database judge, where the copy replaces the host's step. Identity had told them apart. The agreement
+    judge's copy takes an id of its own (`DatabaseAsserts.errorVerdictFor`); `VerdictIdsTest` pins it.
+  - *Notes, fixed:* the referee's enum precheck back where it ran (its census label and order as before step 1); guard
+    1 admits an enum only from the plans' libraries, the SQL tree's or the error vocabulary's; guard 3 decodes the
+    programs planned ahead too; the product format's version test reads 27.
+  - *Deviations the audit found unrecorded, recorded here:* `ExecuteOptions` still carries the test's judge mode,
+    judging rules (now `TestPlan.JudgingRules`) and recorder -- the options split with the front doors at step 10; the
+    constants-alone path is still a branch of `ProgramRunner` (no session opened), its reader gone as 2.8 said;
+    `server_lib` reaches `exec_program` through the driver until the front doors split (step 10); `Failure.Kind` names
+    its classes by their binary names (data), the run building each.
+  - *Confirmed equivalent by the audit:* step 1's type-name decisions, step 2's failure fidelity (class, message,
+    phase, element, unjudged reason), step 3's origins, shape, raising bindings, routing and the constants path.
+- **Slice 1's lanes (2026-11-08, at `b33aecb0`)**: core (the root package's version test alone failing, fixed above),
+  Postgres, the DuckDB and H2 corpus, PCT and stress green.

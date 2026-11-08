@@ -98,6 +98,13 @@ public final class ProgramRunner {
         T run() throws IOException;
     }
 
+    /** What the caller makes of the guarded work's failure ({@code e}: the work's own exception, a runtime one or an
+     *  I/O one), once its savepoint is rolled back to: its answer, or a raise. */
+    @FunctionalInterface
+    public interface Failed<T> {
+        @Nullable T failed(Exception e) throws IOException;
+    }
+
     /** The open program, handed to every callback: one per program, valid until it ends. */
     public interface OpenProgram {
         /** {@code read}'s typed rows -- a statement some callback of the program declared -- on the session its
@@ -109,9 +116,10 @@ public final class ProgramRunner {
         /** Whether the program's session is inside a transaction now (its own, or a caller's it joined). */
         boolean insideATransaction();
 
-        /** {@code work} under {@code savepoint} (none: run as it is): set before, released after; rolled back to where
-         *  the work fails, the failure then raised as it was. */
-        <T> T guarded(@Nullable Savepoint savepoint, Work<T> work) throws IOException;
+        /** {@code work} under {@code savepoint} (none: run as it is): set before, released after; where the WORK fails,
+         *  rolled back to and its failure handed to {@code failed}. A savepoint statement that fails is the program's
+         *  failure, never the work's (the slice 1 audit, 2026-11-08: as the runner sent them before the split). */
+        <T> @Nullable T guarded(@Nullable Savepoint savepoint, Work<T> work, Failed<T> failed) throws IOException;
     }
 
     /** Where a program's steps deliver: its answer, as any typed result's, and what the steps did. */
@@ -283,20 +291,27 @@ public final class ProgramRunner {
         }
 
         @Override
-        public <T> T guarded(@Nullable Savepoint savepoint, Work<T> work) throws IOException {
+        public <T> @Nullable T guarded(@Nullable Savepoint savepoint, Work<T> work, Failed<T> failed)
+                throws IOException {
             Routes rt = routes;
             if (savepoint == null || rt == null) {
-                return work.run();
+                try {
+                    return work.run();
+                } catch (RuntimeException | IOException e) {
+                    return failed.failed(e);
+                }
             }
-            PlanRunner.sendStatement(savepoint.set(), rt.home());
-            boolean done = false;
+            Statements home = rt.home();
+            PlanRunner.sendStatement(savepoint.set(), home);
+            T out;
             try {
-                T out = work.run();
-                done = true;
-                return out;
-            } finally {
-                PlanRunner.sendStatement(done ? savepoint.release() : savepoint.rollbackTo(), rt.home());
+                out = work.run();
+            } catch (RuntimeException | IOException e) {
+                PlanRunner.sendStatement(savepoint.rollbackTo(), home);
+                return failed.failed(e);
             }
+            PlanRunner.sendStatement(savepoint.release(), home);
+            return out;
         }
     }
 

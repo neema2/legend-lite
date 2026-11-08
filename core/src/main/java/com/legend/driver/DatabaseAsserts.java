@@ -56,7 +56,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         /** Whether {@code verdict} is the last verdict of the segment's last step: the segment is judged after it. */
         boolean closes(TestPlan.Verdict verdict) {
             TestPlan.Verdicts last = steps.get(steps.size() - 1);
-            return last.verdicts().get(last.verdicts().size() - 1) == verdict;
+            // by id: the plan read back from its JSON holds equal verdicts, never the planner's objects (the slice 1
+            // audit, 2026-11-08)
+            return last.verdicts().get(last.verdicts().size() - 1).id() == verdict.id();
         }
     }
 
@@ -417,7 +419,17 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  the host planner planned as {@code step}, as the database judges it; null where it holds no comparison. */
     static TestPlan.@Nullable Verdicts errorVerdictFor(HostAsserts.Planned step, TypedSpec statement,
             List<TypedSpec> lets, SpecCompiler specs, BodyDriver.ExecEnv env) {
-        return errorVerdict(step, env, () -> innerSole(statement, lets, Map.of(), specs, env));
+        TestPlan.Verdicts raising = errorVerdict(step, env, () -> innerSole(statement, lets, Map.of(), specs, env));
+        if (raising == null) {
+            return null;
+        }
+        // both halves are steps of one plan under the agreement judge (the host's own step where the function is an
+        // assert, then this one): the raising verdict is a verdict of its own, its own id -- the database judge's
+        // alone keeps the host's, the step it replaces (the slice 1 audit's id fix, 2026-11-08: identity had told
+        // the two apart)
+        TestPlan.Verdict r = raising.verdicts().get(0);
+        return new TestPlan.Verdicts(List.of(new TestPlan.Verdict(env.verdictIds().next(), r.name(), r.arm(), r.base(),
+                r.wrapper(), r.message(), r.raises())), raising.fused(), raising.savepoint(), raising.rules());
     }
 
     /** The assert {@code statement}'s assertError holds as its function ({@code assertError(|assertEquals(...), m)}),

@@ -41,6 +41,9 @@ class PlanTypesAreDataTest {
             // the model's connection definition inside the product plan's database: the plan's own faithful connection
             // description replaces it (the design's step 7, 2.6)
             "com.legend.model.ConnectionDefinition at Declared.connection",
+            // the model's database type inside the product plan's platform database: the same description replaces it
+            // (step 7; found when the guard admitted an enum only from the plans' libraries, the slice 1 audit)
+            "enum com.legend.model.ConnectionDefinition$DatabaseType at Platform.type",
             // a window frame's bound in the SQL tree: an abstract Number (an Integer or a Long, as the frame was
             // written); a concrete type is the tree's to choose (pinned 2026-11-08, step 3)
             "java.lang.Number at Preceding.n");
@@ -82,7 +85,16 @@ class PlanTypesAreDataTest {
                 case WildcardType w -> violations.add("wildcard " + w.getTypeName() + " at " + path);
                 case TypeVariable<?> v -> violations.add("type variable " + v.getName() + " at " + path);
                 case Class<?> c -> {
-                    if (c.isPrimitive() || LEAVES.contains(c) || c.isEnum()) {
+                    if (c.isPrimitive() || LEAVES.contains(c)) {
+                        continue;
+                    }
+                    if (c.isEnum()) {
+                        // an enum carries no state of a type the walk would see (fields, constant bodies): one of the
+                        // plans' own libraries, the SQL tree's or the error vocabulary's (a failure's phase) alone
+                        // (the slice 1 audit, 2026-11-08)
+                        if (!DATA_PACKAGES.contains(c.getPackageName()) && !c.getPackageName().equals("com.legend.error")) {
+                            violations.add("enum " + c.getName() + " at " + path);
+                        }
                         continue;
                     }
                     if (!DATA_PACKAGES.contains(c.getPackageName())) {

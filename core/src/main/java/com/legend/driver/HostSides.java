@@ -84,8 +84,10 @@ final class HostSides {
                 || m.innerSides() != check.asks().size() - 1) {
             return null;
         }
+        // the message's planning failure is read for its text alone (AssertMessages.unevaluated), never raised: its
+        // text, not a failure record (the slice 1 audit, 2026-11-08: a class off the closed list must not fail here)
         return new Check(check.asks().subList(0, m.innerSides()), new HostJudgment.Messaged(m.inner(), m.innerSides(),
-                com.legend.judge.Failures.of(failure, "HostSides.planChecked: the caller's message")));
+                String.valueOf(failure.getMessage())));
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}

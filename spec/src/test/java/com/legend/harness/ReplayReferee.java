@@ -261,12 +261,14 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             String goldenSql,
             TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.Set<Integer> enumColumns,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         if (!RefereeVerify.ready()) {
             throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
         }
+        RefereeVerify.enumPrecheck(enumColumns, enumDecode);
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             // INCREMENTAL path: extras run OUTSIDE the cursor (§9a) —
@@ -311,13 +313,14 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.Set<Integer> enumColumns,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         return com.legend.testbackend.TestBackends.of(session) == com.legend.testbackend.TestBackends.referee()
-                ? verifyOnSession(session, goldenSql, ours, enumDecode,
+                ? verifyOnSession(session, goldenSql, ours, enumDecode, enumColumns,
                         graphEnumProp, facts)
-                : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
+                : verify(seeds, extraSeeds, goldenSql, ours, enumDecode, enumColumns,
                         graphEnumProp, facts);
     }
 
@@ -329,8 +332,10 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
     public static @com.legend.base.Nullable String verifyOnSession(
             Connection session, String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.Set<Integer> enumColumns,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
+        RefereeVerify.enumPrecheck(enumColumns, enumDecode);
         try (Statement st = session.createStatement()) {
             return RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                     graphEnumProp, facts);
@@ -736,7 +741,6 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
                 }
             }
         }
-        RefereeVerify.enumPrecheck(enumColumns, enumDecode);
         java.util.function.Function<String,
                 java.util.Map<String, String>> enumProp = key -> {
             if (mappingFqn == null || rootClassFqn == null) {
@@ -754,7 +758,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
         try {
             String r = verifyAuto(session,
                     recorder.seeds(),
-                    extraSeeds, goldenSql, ours, enumDecode, enumProp, facts);
+                    extraSeeds, goldenSql, ours, enumDecode, enumColumns, enumProp, facts);
             return r == null
                     ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
                     : com.legend.judge.SqlReplayReferee.RowVerdict

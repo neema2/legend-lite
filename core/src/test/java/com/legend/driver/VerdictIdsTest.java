@@ -33,8 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class VerdictIdsTest {
 
+    // an assertError over an assert too: under the agreement judge both its halves are steps of one plan (the slice 1
+    // audit, 2026-11-08: they shared an id)
     private static final String BODY = "{| assertEquals(1, 1); assertSize([1, 2], 2); assertEquals('a', 'a');"
-            + " assertSize([3], 1); assert(1 < 2);}";
+            + " assertSize([3], 1); assert(1 < 2); assertError(|assertEquals(1, 2), 'x');}";
 
     @Test
     void everyVerdictOfABodysPlanHasItsOwnIdUnderEachJudge() {
