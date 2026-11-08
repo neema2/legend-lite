@@ -124,7 +124,16 @@ public final class RootLoops {
                             }
                             case RootLoop.Decided d -> {
                                 reported = d.reported();
-                                throw Failures.raised(d.failure());
+                                RuntimeException raised = Failures.raised(d.failure());
+                                // the verdict census at the root's turn, from the plan's data, before the decided
+                                // outcome raises -- a wall raises past this loop's catch, so it is counted here: an
+                                // UNJUDGED failure as such, a raise no row of the root judged on the root's family
+                                if (raised instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                                    CanonicalDivergence.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
+                                } else if (!spoke) {
+                                    CanonicalDivergence.sqlRaisedAt(family(r.listenerName()));
+                                }
+                                throw raised;
                             }
                         }
                     } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
@@ -142,13 +151,6 @@ public final class RootLoops {
                 if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
                         && af.unjudgedReason() == null) {
                     failure = messaged(r.listenerName(), message, reader);
-                }
-                // the verdict census at the root's turn, from the plan's data: an UNJUDGED failure counted as such (its
-                // planning counted nothing), a raise no row of the root judged counted on the root's own family
-                if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                    CanonicalDivergence.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
-                } else if (!spoke) {
-                    CanonicalDivergence.sqlRaisedAt(family(r.listenerName()));
                 }
                 if (l != null && reported) {
                     if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
