@@ -8,7 +8,7 @@
 // order, a value of its type wherever the store's class has one (DuckDB's own reader types them), none where the class
 // has none. Deterministic: the same call, the same text.
 
-import { macroCsv, marketBars, ratesCsv, type MarketBar } from './samples.ts';
+import { cashCsv, macroCsv, marketBars, ratesCsv, type MarketBar } from './samples.ts';
 
 /** Each table's columns, in the order the store declares them (core/src/test/resources/stress/30-store.pure). */
 export const STRESS_MARKET_COLUMNS = {
@@ -33,12 +33,17 @@ export const STRESS_MARKET_COLUMNS = {
   RATE_CURVE_POINT: ['CURVE_ID', 'COB_DATE', 'TENOR_LABEL', 'TENOR_DAYS', 'ZERO_RATE', 'DISCOUNT_FACTOR', 'IS_INTERPOLATED',
     'SOURCE_SERIES_ID', 'CURVE_NAME', 'CURVE_CURRENCY', 'CURVE_TYPE', 'CURVE_BENCHMARK_ID'],
   MACRO_SERIES: ['SERIES', 'OBS_DATE', 'VALUE'],
+  // the cash sample's overnight rates and cash indices (markets::CashRate, the risk-free data model, item 13b)
+  CASH_RATE: ['CURRENCY', 'OBS_DATE', 'RATE', 'CASH_INDEX'],
 } as const;
 
 /** The tables, in the order a page reads them in (each one's references before it). */
 export type StressMarketTable = keyof typeof STRESS_MARKET_COLUMNS;
 export const STRESS_MARKET_TABLES: readonly StressMarketTable[] = ['EXCHANGE', 'SECTOR', 'CURRENCY', 'INSTRUMENT', 'MARKET_QUOTE', 'TRADE',
-  'RATE_CURVE_POINT', 'MACRO_SERIES'];
+  'RATE_CURVE_POINT', 'MACRO_SERIES', 'CASH_RATE'];
+
+/** The project's own tables (markets-model.pure's markets::DB), the rest the trading model's store's. */
+export const OWN_MARKET_TABLES: readonly StressMarketTable[] = ['MACRO_SERIES', 'CASH_RATE'];
 
 /** A row: each column's value as the CSV writes it, none for a column not named. */
 type Row = Readonly<Record<string, string | number | boolean>>;
@@ -176,6 +181,11 @@ function macroObservations(): Row[] {
   return sampleRows(macroCsv()).map((r) => ({ SERIES: r['series']!, OBS_DATE: r['date']!, VALUE: r['value']! }));
 }
 
+/** The cash sample's rates and indices, value for value. */
+function cashRates(): Row[] {
+  return sampleRows(cashCsv()).map((r) => ({ CURRENCY: r['currency']!, OBS_DATE: r['date']!, RATE: r['rate']!, CASH_INDEX: r['index']! }));
+}
+
 /** The markets sample's days (`rows`, `seed`: marketBars's) as the trading model's tables: each table's CSV text. */
 export function stressMarketCsvs(rows = 13_050, seed = 20261058): Readonly<Record<StressMarketTable, string>> {
   const bars = marketBars(rows, seed);
@@ -199,6 +209,7 @@ export function stressMarketCsvs(rows = 13_050, seed = 20261058): Readonly<Recor
     TRADE: csv('TRADE', trades(bars, seed + 1)),
     RATE_CURVE_POINT: csv('RATE_CURVE_POINT', curvePoints()),
     MACRO_SERIES: csv('MACRO_SERIES', macroObservations()),
+    CASH_RATE: csv('CASH_RATE', cashRates()),
   };
 }
 

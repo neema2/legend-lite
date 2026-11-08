@@ -93,7 +93,23 @@ export const MACRO_ON_CLASSES: ClassGrid = {
   configuration: { value: { aggregateFn: 'average' } },
 };
 
-export const CLASS_GRIDS: readonly ClassGrid[] = [PRICES_ON_CLASSES, RATES_ON_CLASSES, MACRO_ON_CLASSES];
+/** The cash as the cash sample's row: a currency's overnight rate and cash index a day (the risk-free data model). */
+export const CASH_ON_CLASSES: ClassGrid = {
+  id: 'cash',
+  title: 'Cash, overnight (CashRate)',
+  className: 'markets::CashRate',
+  text: '|markets::CashRate.all()->project(~[currency: x|$x.currency, date: x|$x.date, rate: x|$x.rate, index: x|$x.index])',
+  columns: [
+    { name: 'currency', type: 'String', value: at('currency') },
+    { name: 'date', type: 'StrictDate', value: at('date') },
+    { name: 'rate', type: 'Float', kind: 'measure', value: at('rate') },
+    { name: 'index', type: 'Float', kind: 'measure', value: at('index') },
+  ],
+  rows: ['currency'],
+  configuration: { rate: { aggregateFn: 'average' }, index: { aggregateFn: 'average' } },
+};
+
+export const CLASS_GRIDS: readonly ClassGrid[] = [PRICES_ON_CLASSES, RATES_ON_CLASSES, MACRO_ON_CLASSES, CASH_ON_CLASSES];
 
 /** The grid's query as the protocol tree a cube's snapshot reads (the test holds it to the text parsed). */
 export function classQueryTree(g: ClassGrid): ValueSpecification {
@@ -128,5 +144,5 @@ export async function marketsOnClassesPage(): Promise<PageDocument> {
 
 /** The timeseries gallery over the classes. */
 export async function galleryOnClassesPage(): Promise<PageDocument> {
-  return timeseriesGalleryPage({ name: 'Timeseries gallery on classes', cubes: cubes(['prices', 'rates', 'macro']) });
+  return timeseriesGalleryPage({ name: 'Timeseries gallery on classes', cubes: cubes(['prices', 'rates', 'macro', 'cash']) });
 }

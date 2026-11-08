@@ -95,6 +95,17 @@ Bollinger bands of x: its mean over a window less and plus k (2 unless given) sa
 
 Forms: `bollinger_bands(x: Line, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional))`, `bollinger_bands(x: Line, w: Scope, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional), r: Integer)`, `bollinger_bands(x: Line, w: Scope, k: Float (optional), r: Integer)`.
 
+## `cash_index`
+
+The cash index of an overnight rate in percent a year (5.3 for 5.3%): from 100 at its first date, each the one before grown by the rate before over the days between, actual/360 unless given (actual_365f: SONIA's, TONA's, AONIA's) -- the cash a currency's excess returns are over: excess_returns(x, cash_index(rate)).
+
+| Parameter | Kind | Takes | Required |
+|---|---|---|---|
+| `rate` | line |  | yes |
+| `day_count` | word | actual_360, actual_365f | no |
+
+Forms: `cash_index(rate: Line, day_count: DayCount (optional))`.
+
 ## `ceil`
 
 Each of x's values held at value or below (gs-quant's ceil): value where x is above it, nothing where x has none.

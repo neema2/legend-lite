@@ -356,6 +356,14 @@ class Second(Evaluator):
     def w_drawdown(self, a, kw):
         return "pandas", over(a[0], kw.get("w", 0), lambda s: s.iloc[-1] / s.max() - 1)
 
+    def w_cash_index(self, a, kw):
+        # an overnight rate's cash account: 100 at its first date, grown by the rate before over the days between
+        r = a[0]
+        basis = 365 if kw.get("day_count", "actual_360") == "actual_365f" else 360
+        days = pd.Series(r.index, index=r.index).diff().dt.days
+        growth = (1 + r.shift(1) / 100 * days / basis).fillna(1.0)
+        return "pandas", 100 * growth.cumprod()
+
     def w_total_return(self, a, kw):
         x = a[0]
         if isinstance(a[1], pd.Series):

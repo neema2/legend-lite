@@ -91,8 +91,8 @@ function difference(tile: Map<string, (number | null)[]>, ts: Map<string, (numbe
 }
 
 it('every gallery series answers the same written in #TS as the tile\'s writer answers it', async () => {
-  const { MACRO_SPECS, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
-  const { macroCsv, marketsCsv, ratesCsv } = await import('../src/samples.ts');
+  const { CASH_SPECS, MACRO_SPECS, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
+  const { cashCsv, macroCsv, marketsCsv, ratesCsv } = await import('../src/samples.ts');
   const pages = [
     ['markets', async () => (await import('../src/examples/markets.ts')).marketsPage()],
     ['gallery', async () => (await import('../src/examples/timeseries-gallery.ts')).timeseriesGalleryPage()],
@@ -124,7 +124,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
       // its series' texts read by core first: the pages hold #TS text, which core alone reads (A3 step 3)
       const page = await readPageTexts(await build());
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
-      const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS]] as const)
+      const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS],
+        ['cash', cashCsv(), CASH_SPECS]] as const)
         .filter(([cube]) => page.cubes.some((c) => c.id === cube));
       for (const [cube, csv] of samples) {
         const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `${what}_${cube}` });
@@ -235,9 +236,9 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   holdFrozen('TS_ANSWERS', frozen, 'gallery-answers');
   const outputs = process.env['TEST_UNDECLARED_OUTPUTS_DIR'];
   if (outputs) {
-    const { macroCsv: m, marketsCsv: k, ratesCsv: r } = await import('../src/samples.ts');
+    const { cashCsv: c, macroCsv: m, marketsCsv: k, ratesCsv: r } = await import('../src/samples.ts');
     writeFileSync(join(outputs, 'oracle-input.json'), JSON.stringify({ series: oracle,
-      samples: { prices: k(), rates: r(), macro: m() } }));
+      samples: { prices: k(), rates: r(), macro: m(), cash: c() } }));
   }
   console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
   if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));

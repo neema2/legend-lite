@@ -273,7 +273,9 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
     assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
     assert.equal(count('src/examples/markets-classes.ts'), 2, 'markets-classes.ts: its two saved queries');
-    assert.equal(count('src/examples/on-classes.ts'), 3, 'on-classes.ts: its three saved queries');
+    // 3 -> 4 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b): the cash's (markets::CashRate), the gallery's Sharpe
+    // ratios over dollar cash
+    assert.equal(count('src/examples/on-classes.ts'), 4, 'on-classes.ts: its four saved queries');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

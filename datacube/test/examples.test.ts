@@ -11,9 +11,9 @@ import { CHART_MARKS, chartProblems } from '../src/chart-spec.ts';
 import { chartsGalleryPage } from '../src/examples/charts-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
-import { COUNTRY_COLUMNS, countriesCsv, MACRO_COLUMNS, macroCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
+import { CASH_COLUMNS, cashCsv, COUNTRY_COLUMNS, countriesCsv, MACRO_COLUMNS, macroCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
-import { MACRO_SPECS, MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
+import { CASH_SPECS, MACRO_SPECS, MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
 import { MARKETS_PROJECT, marketsClassesPage, SAVED_GRIDS } from '../src/examples/markets-classes.ts';
 import { timeseriesProblems, TS_FUNCTIONS } from '../src/timeseries-expr.ts';
@@ -30,6 +30,32 @@ import { treeOf } from '../src/timeseries-text.ts';
 
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
+
+// the risk-free data model (item 13b, 2026-11-08): gs-quant's seven currencies' overnight rates and their cash indices
+describe('the cash sample', () => {
+  it('seven currencies a business day, each index 100 at its first date grown by the rate before over the days between', () => {
+    const lines = cashCsv().trim().split('\n');
+    assert.equal(lines[0], CASH_COLUMNS.join(','));
+    const rows = lines.slice(1).map((l) => l.split(','));
+    assert.deepEqual([...new Set(rows.map((r) => r[0]))], ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'SEK']);
+    const basis: Readonly<Record<string, number>> = { USD: 360, EUR: 360, GBP: 365, JPY: 365, CHF: 360, AUD: 365, SEK: 360 };
+    for (const ccy of Object.keys(basis)) {
+      const own = rows.filter((r) => r[0] === ccy);
+      assert.equal(own[0]![1], '2020-01-02');
+      assert.equal(own.at(-1)![1], '2024-12-31');
+      let index = 100;
+      own.forEach((r, i) => {
+        if (i > 0) {
+          const days = (Date.parse(`${r[1]}T00:00:00Z`) - Date.parse(`${own[i - 1]![1]}T00:00:00Z`)) / 86_400_000;
+          index *= 1 + Number(own[i - 1]![2]) / 100 * days / basis[ccy]!;
+        }
+        assert.ok(Math.abs(Number(r[3]) - index) < 1e-6, `${ccy} ${r[1]}: ${r[3]}, not ${index}`);
+      });
+    }
+    const usd = (day: string): number => Number(rows.find((r) => r[0] === 'USD' && r[1] === day)![2]);
+    assert.ok(usd('2021-06-01') < 0.2 && usd('2023-10-02') > 5, 'near zero in 2021, above 5% in late 2023');
+  });
+});
 
 // the next phases' 1 (2026-10-26): a monthly grid beside the daily prices, its months ends, a season in its sales
 describe('the macro sample', () => {
@@ -220,11 +246,11 @@ describe('the example pages', () => {
     }
     // every tile drawable over its grids' columns; the ways to view read a split, a frequency, a log scale, a compare
     // and two grids at once
-    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS], ['macro', MACRO_SPECS]] as const);
+    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS], ['macro', MACRO_SPECS], ['cash', CASH_SPECS]] as const);
     const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
     assert.ok(all.length >= 30, `${all.length} tiles`);
     for (const v of all) {
-      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates' | 'macro')!.map((c) => ({ name: c.name, type: c.type }))] as const));
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates' | 'macro' | 'cash')!.map((c) => ({ name: c.name, type: c.type }))] as const));
       assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
     }
     const ways = specsOn('Ways to view');
@@ -239,8 +265,8 @@ describe('the example pages', () => {
     // on the chart (Phase 5): a projection, and a person's own line and note
     assert.deepEqual([...new Set(specsOn('On the chart').flatMap((ts) => (ts.annotations ?? []).map((a) => a.kind)))].sort(), ['line', 'note', 'period', 'projection']);
     // the data sheet: the grids the tiles read, each its sample rebuilt on opening -- the monthly one the Dates sheet's
-    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates', 'macro']);
-    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates'], ['macro', 'macro']] as const) {
+    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates', 'macro', 'cash']);
+    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates'], ['macro', 'macro'], ['cash', 'cash']] as const) {
       const source = page.cubes.find((c) => c.id === id)!.cube.source;
       assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
     }

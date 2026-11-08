@@ -44,6 +44,14 @@ export const MACRO_SPECS: readonly ColumnSpec[] = [
   { name: 'value', type: 'Float', kind: 'measure' },
 ];
 
+/** The cash sample's columns as the compiler types them: an overnight rate and its cash index, by currency. */
+export const CASH_SPECS: readonly ColumnSpec[] = [
+  { name: 'currency', type: 'String' },
+  { name: 'date', type: 'StrictDate' },
+  { name: 'rate', type: 'Float', kind: 'measure' },
+  { name: 'index', type: 'Float', kind: 'measure' },
+];
+
 /** A sample's file as a cube records it, built here and hashed, so the page reopens over the same rows rebuilt. */
 export async function sampleSource(id: string, columns: readonly ColumnSpec[]): Promise<FileSource> {
   const sample = sampleById(id);
@@ -67,6 +75,8 @@ function cubeOf(name: string, source: CubeDocument['source'], snapshot: CubeSnap
 export const PRICES: TsSource = { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' };
 export const MACRO: TsSource = { alias: 'macro', cube: 'macro', date: 'date', key: 'series' };
 export const RATES: TsSource = { alias: 'rates', cube: 'rates', date: 'date', key: 'tenor' };
+/** The risk-free cash (item 13b): a currency's overnight rate and cash index, `cash.index['USD']`. */
+export const CASH: TsSource = { alias: 'cash', cube: 'cash', date: 'date', key: 'currency' };
 
 /** A series as a person writes it: its id, its #TS text, and the rest of its slots. */
 export const s = (id: string, text: string, rest: Omit<TsSeries, 'id' | 'text'> = {}): TsSeries => ({ id, text, ...rest });
@@ -112,6 +122,16 @@ export async function macroCube(): Promise<{ readonly id: string; readonly cube:
   const file = await sampleSource('macro', MACRO_SPECS);
   return { id: 'macro', cube: cubeOf('Macro', file, grouped('macro', MACRO_SPECS, ['series']),
     { ...DEFAULT_CONFIGURATION, reportTitle: 'Macro', columns: { value: { aggregateFn: 'average' } } }) };
+}
+
+/** The cash sample's grid (the timeseries gallery's data sheet): by currency, a rate and an index their days' average. */
+export const CASH_GRID: PageView = { id: 'cash', kind: 'grid', cube: 'cash', title: 'Cash, overnight' };
+
+/** The cube of CASH_GRID, over its sample rebuilt on opening. */
+export async function cashCube(): Promise<{ readonly id: string; readonly cube: CubeDocument }> {
+  const file = await sampleSource('cash', CASH_SPECS);
+  return { id: 'cash', cube: cubeOf('Cash', file, grouped('cash', CASH_SPECS, ['currency']),
+    { ...DEFAULT_CONFIGURATION, reportTitle: 'Cash', columns: { rate: { aggregateFn: 'average' }, index: { aggregateFn: 'average' } } }) };
 }
 
 /** A page's grids given: its name and its cubes by the ids its views read (src/examples/on-classes.ts: the same page

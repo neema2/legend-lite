@@ -21,6 +21,7 @@ export const WORD_SIGNATURES: Readonly<Record<string, TsSignature>> = {
   basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: ['daily', 'weekly', 'monthly'], required: false }] },
   beta: { series: 2, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false, gsQuant: 0 }, { name: 'r', kind: 'whole', required: false }] },
   bollinger_bands: { series: 1, params: [{ name: 'w', kind: 'span', default: 0, min: 0, required: false, gsQuant: 0 }, { name: 'k', kind: 'number', default: 2, min: 0, required: false, gsQuant: 2 }, { name: 'r', kind: 'whole', required: false }] },
+  cash_index: { series: 1, reads: ['rate'], params: [{ name: 'day_count', kind: 'word', default: 'actual_360', words: ['actual_360', 'actual_365f'], required: false }] },
   ceil: { series: 1, params: [{ name: 'value', kind: 'number', required: true, gsQuant: 0 }] },
   change: { series: 1, params: [] },
   compare: { series: 2, params: [{ name: 'method', kind: 'word', words: ['intersect', 'nan', 'zero', 'step'], required: false, gsQuant: 'step' }] },

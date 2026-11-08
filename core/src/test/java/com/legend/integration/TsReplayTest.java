@@ -57,6 +57,8 @@ class TsReplayTest {
                 number("high"), number("low"), number("close"), whole("volume")));
         SAMPLES.put("rates", List.of(text("tenor"), number("years"), date("date"), number("yield")));
         SAMPLES.put("macro", List.of(text("series"), date("date"), number("value")));
+        // the risk-free data model's cash (item 13b, 2026-11-08): the gallery's Sharpe ratios read it
+        SAMPLES.put("cash", List.of(text("currency"), date("date"), number("rate"), number("index")));
     }
 
     private static final List<String> PAGES = List.of("gallery", "markets");

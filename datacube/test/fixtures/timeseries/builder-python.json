@@ -255,6 +255,11 @@
   "text": "excess_returns(close, open)"
  },
  {
+  "series": "word cash_index",
+  "python": "cash_index(column('close'), day_count='actual_360')",
+  "text": "cash_index(close, day_count => 'actual_360')"
+ },
+ {
   "series": "word vol_swap_volatility",
   "python": "vol_swap_volatility(column('close'), n_days=0)",
   "text": "vol_swap_volatility(close, w => all)"
@@ -473,6 +478,11 @@
   "series": "excess C",
   "python": "excess_returns(column('close', 'SPX'), column('close', 'TLT'))",
   "text": "excess_returns(close['SPX'], close['TLT'])"
+ },
+ {
+  "series": "excess D",
+  "python": "excess_returns(column('close', 'SPX'), cash_index(column('cash.rate', 'USD'), day_count='actual_360'))",
+  "text": "excess_returns(close['SPX'], cash_index(cash.rate['USD'], day_count => 'actual_360'))"
  },
  {
   "series": "compounded-to-date A",
@@ -716,18 +726,18 @@
  },
  {
   "series": "sharpe A",
-  "python": "sharpe_ratio(column('close', 'SPX'), w=252)",
-  "text": "sharpe_ratio(close['SPX'], w => 252)"
+  "python": "sharpe_ratio(excess_returns(column('close', 'SPX'), column('cash.index', 'USD')), w=252)",
+  "text": "sharpe_ratio(excess_returns(close['SPX'], cash.index['USD']), w => 252)"
  },
  {
   "series": "sharpe B",
-  "python": "sharpe_ratio(column('close', 'GLD'), w=252)",
-  "text": "sharpe_ratio(close['GLD'], w => 252)"
+  "python": "sharpe_ratio(excess_returns(column('close', 'GLD'), column('cash.index', 'USD')), w=252)",
+  "text": "sharpe_ratio(excess_returns(close['GLD'], cash.index['USD']), w => 252)"
  },
  {
   "series": "sharpe C",
-  "python": "sharpe_ratio(column('close', 'TLT'), w=252)",
-  "text": "sharpe_ratio(close['TLT'], w => 252)"
+  "python": "sharpe_ratio(excess_returns(column('close', 'TLT'), column('cash.index', 'USD')), w=252)",
+  "text": "sharpe_ratio(excess_returns(close['TLT'], cash.index['USD']), w => 252)"
  },
  {
   "series": "max-drawdown-year A",

@@ -1209,6 +1209,36 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * THE RISK-FREE DATA MODEL'S CASH INDEX (item 13b): from 100 at the first date, each the one before grown by the rate
+     * before (in percent a year) over the days between, actual/360 unless actual_365f is said.
+     */
+    @Test
+    void aCashIndexCompoundsItsOvernightRate() throws Exception {
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT cash_index(CLOSE / 50) AS a,"
+                    + " cash_index(CLOSE / 50, 'actual_365f') AS b FROM PRICES ON DAY BY SYMBOL}#");
+            List<Map<String, String>> aaa = got.stream().filter(r -> "AAA".equals(r.get("SYMBOL"))).toList();
+            assertEquals(AAA.length, aaa.size(), backend + ": a level every date");
+            double a = 100;
+            double b = 100;
+            List<String> wrong = new ArrayList<>();
+            for (int j = 0; j < aaa.size(); j++) {
+                if (j > 0) {
+                    long days = java.time.temporal.ChronoUnit.DAYS.between(
+                            java.time.LocalDate.parse(aaa.get(j - 1).get("DAY").substring(0, 10)),
+                            java.time.LocalDate.parse(aaa.get(j).get("DAY").substring(0, 10)));
+                    a *= 1 + AAA[j - 1] / 50 / 100 * days / 360;
+                    b *= 1 + AAA[j - 1] / 50 / 100 * days / 365;
+                }
+                if (!near(aaa.get(j).get("a"), String.valueOf(a)) || !near(aaa.get(j).get("b"), String.valueOf(b))) {
+                    wrong.add(j + ": " + aaa.get(j).get("a") + ", " + aaa.get(j).get("b") + " not " + a + ", " + b);
+                }
+            }
+            assertEquals(List.of(), wrong, backend + ": cash_index");
+        }
+    }
+
     private static boolean near(String said, String want) {
         return want == null ? said == null : said != null && Math.abs(Double.parseDouble(said) - Double.parseDouble(want))
                 <= 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)));
@@ -2237,8 +2267,9 @@ class TsIslandTest {
         words.forEach(w -> byName.put(w.name(), w));
         // 81 -> 82 (2026-11-03, A9): rank, each date's place among its instruments (the spec's §6); 82 -> 84
         // (2026-11-06, A4): round_down and round_up, SQL's rounding, which D2's refusal of floor and ceil names;
-        // 84 -> 86 (2026-11-08, S161): floor and ceil of two arguments, gs-quant's bound
-        assertEquals(86, words.size(), "the words: " + byName.keySet());
+        // 84 -> 86 (2026-11-08, S161): floor and ceil of two arguments, gs-quant's bound; 86 -> 87 (2026-11-08, item
+        // 13b, the risk-free data model): cash_index, an overnight rate's cash account
+        assertEquals(87, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         // a word's other spellings are the library's (timeseries::Words.alias, R15): mean's avg, Postgres's stddev and
         // variance; no word is named by one

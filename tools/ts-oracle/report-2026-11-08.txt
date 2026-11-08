@@ -70,6 +70,7 @@ AGREE       gs-quant    drawn A                      close['SPX']               
 AGREE       gs-quant    excess A                     close['SPX']                                                           1304 points
 AGREE       gs-quant    excess B                     excess_returns(close['SPX'], 0.05)                                     1304 points
 AGREE       gs-quant    excess C                     excess_returns(close['SPX'], close['TLT'])                             1304 points
+AGREE       gs-quant+pandas excess D                     excess_returns(close['SPX'], cash_index(cash.rate['USD'], day_count => 1304 points
 AGREE       gs-quant    exponential A                close['SPX']                                                           1304 points
 AGREE       gs-quant    exponential B                exponential_moving_average(close['SPX'], beta => 0.9)                  1304 points
 AGREE       gs-quant    exponential C                smoothed_moving_average(close['SPX'], w => 20)                         1284 points
@@ -157,9 +158,9 @@ AGREE       statsmodels reversion B                  dickey_fuller(close['AAPL']
 AGREE       statsmodels reversion C                  half_life(close['AAPL'] / close['MSFT'], w => 252)                     1052 points
 AGREE       gs-quant    rsi A                        close['NVDA']                                                          1304 points
 AGREE       gs-quant    rsi B                        rsi(close['NVDA'], w => 14)                                            1289 points
-AGREE       pandas      sharpe A                     sharpe_ratio(close['SPX'], w => 252)                                   1052 points
-AGREE       pandas      sharpe B                     sharpe_ratio(close['GLD'], w => 252)                                   1052 points
-AGREE       pandas      sharpe C                     sharpe_ratio(close['TLT'], w => 252)                                   1052 points
+AGREE       gs-quant    sharpe A                     sharpe_ratio(excess_returns(close['SPX'], cash.index['USD']), w => 252 1051 points
+AGREE       gs-quant    sharpe B                     sharpe_ratio(excess_returns(close['GLD'], cash.index['USD']), w => 252 1051 points
+AGREE       gs-quant    sharpe C                     sharpe_ratio(excess_returns(close['TLT'], cash.index['USD']), w => 252 1051 points
 AGREE       gs-quant    splice A                     append(filter(if(year(close['GLD']) < 2023, close['GLD'], 0), operator 1304 points
 AGREE       gs-quant    splice B                     prepend(close['GLD'], filter(if(year(close['TLT']) >= 2023, close['TLT 1304 points
 AGREE       gs-quant    splice C                     union(filter(close['GLD'], operator => 'greater_than', value => 190),  1304 points
@@ -209,5 +210,5 @@ DEPARTS     gs-quant    winsorize A                  winsorize(returns(close['EU
 AGREE       gs-quant    winsorize B                  returns(close['EURUSD'], 1, 'simple')                                  1303 points
 AGREE       gs-quant    zscores A                    zscores(close['NVDA'], w => 63)                                        1241 points
 
-AGREE 183, DEPARTS 2, NOT-CHECKED 25
-by oracle: - 25, TA-Lib 5, gs-quant 147, gs-quant+pandas 1, pandas 26, statsmodels 6
+AGREE 184, DEPARTS 2, NOT-CHECKED 25
+by oracle: - 25, TA-Lib 5, gs-quant 150, gs-quant+pandas 2, pandas 23, statsmodels 6

@@ -12,10 +12,21 @@ Class markets::MacroObservation
   value: Float[1];
 }
 
+// the risk-free data model (docs/TS_DECISIONS_2026_11_07.md item 13b): a currency's overnight rate (percent a year) and
+// its cash index, a day
+Class markets::CashRate
+{
+  currency: String[1];
+  date: StrictDate[1];
+  rate: Float[1];
+  index: Float[1];
+}
+
 ###Relational
 Database markets::DB
 (
   Table MACRO_SERIES (SERIES VARCHAR(40) PRIMARY KEY, OBS_DATE DATE PRIMARY KEY, VALUE DOUBLE)
+  Table CASH_RATE (CURRENCY VARCHAR(3) PRIMARY KEY, OBS_DATE DATE PRIMARY KEY, RATE DOUBLE, CASH_INDEX DOUBLE)
 )
 
 ###Mapping
@@ -30,6 +41,16 @@ Mapping markets::Mapping
     series: [markets::DB]MACRO_SERIES.SERIES,
     date: [markets::DB]MACRO_SERIES.OBS_DATE,
     value: [markets::DB]MACRO_SERIES.VALUE
+  }
+
+  markets::CashRate: Relational
+  {
+    ~primaryKey ( [markets::DB]CASH_RATE.CURRENCY, [markets::DB]CASH_RATE.OBS_DATE )
+    ~mainTable [markets::DB]CASH_RATE
+    currency: [markets::DB]CASH_RATE.CURRENCY,
+    date: [markets::DB]CASH_RATE.OBS_DATE,
+    rate: [markets::DB]CASH_RATE.RATE,
+    index: [markets::DB]CASH_RATE.CASH_INDEX
   }
 )
 

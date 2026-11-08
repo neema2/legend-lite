@@ -24,7 +24,7 @@ import { savedQueryOpened } from '../src/saved-queries.ts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { sourceColumns } from '../src/source-columns.ts';
-import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
+import { OWN_MARKET_TABLES, STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
 import { wholeOf } from '../src/timeseries-expr.ts';
 import { marksQuery, seriesQuery, seriesSources, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { readsBase, tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
@@ -214,7 +214,7 @@ describe('the trading model\'s tables, as its store declares them', () => {
       return undefined;
     };
     for (const t of STRESS_MARKET_TABLES) {
-      const declared = declaredIn(t === 'MACRO_SERIES' ? own : store, t);
+      const declared = declaredIn(OWN_MARKET_TABLES.includes(t) ? own : store, t);
       assert.ok(declared !== undefined, `the store declares ${t}`);
       const names = declared.split(/,(?![^(]*\))/).map((c) => c.trim().split(/\s+/)[0]);
       assert.deepEqual([...STRESS_MARKET_COLUMNS[t]], names, `${t}'s columns`);

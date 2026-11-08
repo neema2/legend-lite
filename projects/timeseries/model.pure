@@ -31,6 +31,13 @@ Enum timeseries::LagMode
   extend, truncate
 }
 
+// gs-quant's DayCountConvention (gs_quant.datetime.date), the two an overnight rate accrues by: actual/360 (SOFR's,
+// €STR's, SARON's, SWESTR's) and actual/365 fixed (SONIA's, TONA's, AONIA's).
+Enum timeseries::DayCount
+{
+  actual_360, actual_365f
+}
+
 Enum timeseries::FilterOperator
 {
   empty, less_than, greater_than, l_equals, g_equals, equals, not_equals
@@ -4445,6 +4452,19 @@ function {meta::pure::profiles::doc.doc = 'The excess returns of x over a cash i
 function timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::excessReturns(~key, ~date, ~value, ~time, meta::pure::functions::date::DurationUnit.SECONDS, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+}
+
+// THE RISK-FREE DATA MODEL (item 13b, 2026-11-08): an overnight rate's cash index, the level a cash account holds -- the
+// benchmark gs-quant's excess_returns and sharpe_ratio read for a currency (its Marquee cash assets' spot), here made
+// from the rate itself: each date's level the one before grown by the rate before over the days between.
+function {meta::pure::profiles::doc.doc = 'The cash index of an overnight rate in percent a year (5.3 for 5.3%): from 100 at its first date, each the one before grown by the rate before over the days between, actual/360 unless given (actual_365f: SONIA\'s, TONA\'s, AONIA\'s) -- the cash a currency\'s excess returns are over: excess_returns(x, cash_index(rate)).', timeseries::Words.label = 'Cash index', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (a cash index of an overnight rate)', timeseries::Words.about = 'A cash account\'s level from an overnight rate: 100 at the first date, then grown each day by the rate before over the days since (actual/360, or actual/365 fixed).', timeseries::Words.param = 'day_count: actual_360 (SOFR\'s, €STR\'s, SARON\'s, SWESTR\'s) or actual_365f (SONIA\'s, TONA\'s, AONIA\'s)', timeseries::Words.given = 'day_count: actual_360', timeseries::Words.search = 'risk free'} timeseries::line::cash_index<K,D>(rate: Relation<(key:K, date:D, value:Number)>[1], day_count: timeseries::DayCount[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $rate->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->toOne()->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
+    ->extend(over(~[key], [~date->ascending()]), ~line_g:{p,f,row|1 + (($p->lag($row).value->toOne() / 100) * (($row.line_dn->toOne() - $p->lag($row).line_dn->toOne())
+      / if($day_count->isNotEmpty() && ($day_count->toOne() == timeseries::DayCount.actual_365f), |365.0, |360.0)))})
+    ->timeseries::windowProduct(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~line_g, ~line_p)
+    ->extend(~line_v:row|100 * $row.line_p->toOne())
+    ->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
 function <<timeseries::Words.candles>> {meta::pure::profiles::doc.doc = 'A candle (R10): its open, high, low and close lines on the dates all have (under FILL, filled) -- under SAMPLE BY each its period\'s own: ohlc(first(open), max(high), min(low), last(close)).', timeseries::Words.label = 'Candles (open, high, low, close)', timeseries::Words.family = 'Technicals', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (PlotTool Pro\'s candlesticks)', timeseries::Words.about = 'A candle per period: its first open, its highest high, its lowest low and its last close (each a column of the grid, taken so by the period unless its expression says how), green when it closed above its open, red below.', timeseries::Words.search = 'candles', timeseries::Words.search = 'candlestick'} timeseries::line::ohlc<K,D>(open: Relation<(key:K, date:D, value:Number)>[1], high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]

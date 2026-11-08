@@ -15,7 +15,7 @@ export const TS_FUNCTION_NAMES = [
   'smoothed_moving_average', 'percentiles', 'median', 'percentile',
   'log', 'exp', 'sqrt', 'abs', 'power', 'floor', 'ceil',
   'if', 'not', 'compare', 'filter', 'product', 'geometrically_aggregate', 'weighted_sum', 'smooth_spikes',
-  'excess_returns', 'vol_swap_volatility', 'consecutive', 'trend', 'seasonally_adjusted',
+  'excess_returns', 'cash_index', 'vol_swap_volatility', 'consecutive', 'trend', 'seasonally_adjusted',
   'interpolate', 'union', 'append', 'prepend', 'first', 'last', 'count', 'day', 'month', 'year', 'quarter', 'weekday',
   'atr', 'stochastic', 'keltner_channels', 'donchian_channels', 'obv', 'vwap',
   'tracking_error', 'information_ratio', 'up_capture', 'down_capture', 'total_return', 'basket',

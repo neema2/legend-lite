@@ -8,7 +8,7 @@
 
 import type { Band, Node } from '../layout/bands.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
-import { MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile, type PageOver } from './markets.ts';
+import { CASH, CASH_GRID, cashCube, MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile, type PageOver } from './markets.ts';
 
 const ON_PRICES = [PRICES];
 const PRICES_AND_MACRO = [PRICES, MACRO];
@@ -61,12 +61,14 @@ const RETURNS: GallerySheet = {
       annotations: [...MARKS],
     }),
   ], [
-    tile('excess', 'Excess returns: the S&P 500 over 5% cash accrued day by day, and over the bond fund', {
-      sources: ON_PRICES,
+    tile('excess', 'Excess returns: the S&P 500 over 5% cash accrued day by day, over the bond fund, and over dollar cash', {
+      sources: [PRICES, CASH],
       series: [
         s('A', "close['SPX']", { name: 'S&P 500', style: { width: 1, dash: 'dashed' } }),
         s('B', "excess_returns(close['SPX'], 0.05)", { name: 'Over 5% cash' }),
         s('C', "excess_returns(close['SPX'], close['TLT'])", { name: 'Over the bond fund' }),
+        // the risk-free data model (item 13b): the dollar's cash index made from its overnight rate
+        s('D', "excess_returns(close['SPX'], cash_index(cash.rate['USD'], day_count => 'actual_360'))", { name: 'Over dollar cash' }),
       ],
     }),
     tile('compounded-to-date', 'Compounded to date: Microsoft\'s daily returns, their product less 1', {
@@ -250,11 +252,14 @@ const RISK: GallerySheet = {
       annotations: [...MARKS],
     }),
   ], [
-    tile('sharpe', 'Sharpe ratio: a year\'s, stocks against gold and long bonds', {
-      sources: ON_PRICES,
+    // gs-quant's: each price's excess returns over the dollar's cash (the risk-free data model, item 13b), their
+    // compounded return over their volatility
+    tile('sharpe', 'Sharpe ratio: a year\'s over dollar cash, stocks against gold and long bonds', {
+      sources: [PRICES, CASH],
       series: [
-        s('A', "sharpe_ratio(close['SPX'], w => 252)", { name: 'S&P 500' }), s('B', "sharpe_ratio(close['GLD'], w => 252)", { name: 'Gold' }),
-        s('C', "sharpe_ratio(close['TLT'], w => 252)", { name: 'Long bonds' }),
+        s('A', "sharpe_ratio(excess_returns(close['SPX'], cash.index['USD']), w => 252)", { name: 'S&P 500' }),
+        s('B', "sharpe_ratio(excess_returns(close['GLD'], cash.index['USD']), w => 252)", { name: 'Gold' }),
+        s('C', "sharpe_ratio(excess_returns(close['TLT'], cash.index['USD']), w => 252)", { name: 'Long bonds' }),
       ],
       annotations: [{ kind: 'level', value: 0 }],
     }),
@@ -725,12 +730,13 @@ export async function timeseriesGalleryPage(over?: PageOver): Promise<PageDocume
   }));
   sheets.push({
     id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{
-      height: 1, node: { split: 'row', parts: [{ size: 0.5, node: { tile: 'prices' } }, { size: 0.3, node: { tile: 'rates' } }, { size: 0.2, node: { tile: 'macro' } }] },
+      height: 1, node: { split: 'row', parts: [{ size: 0.4, node: { tile: 'prices' } }, { size: 0.25, node: { tile: 'rates' } },
+        { size: 0.15, node: { tile: 'macro' } }, { size: 0.2, node: { tile: 'cash' } }] },
     }] },
   });
   return writePageOf({
     name: over?.name ?? 'Timeseries gallery',
-    cubes: over?.cubes ?? [...await marketCubes(), await macroCube()],
-    views: { views: [...MARKET_GRIDS, MACRO_GRID, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
+    cubes: over?.cubes ?? [...await marketCubes(), await macroCube(), await cashCube()],
+    views: { views: [...MARKET_GRIDS, MACRO_GRID, CASH_GRID, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
   });
 }

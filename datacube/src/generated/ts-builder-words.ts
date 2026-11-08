@@ -370,6 +370,12 @@ export function excess_returns(price_series: Line, benchmark_or_rate: Line | num
   return word(EXCESS_RETURNS_SHAPE, [price_series, benchmark_or_rate], args);
 }
 
+const CASH_INDEX_SHAPE: WordShape = { word: 'cash_index', gsFunction: null, lines: ['rate'], gs: [{ name: 'day_count', default: 'actual_360' }], extra: [] };
+/** Cash index: A cash account's level from an overnight rate: 100 at the first date, then grown each day by the rate before over the days since (actual/360, or actual/365 fixed). (DataCube's own: gs-quant has none.) */
+export function cash_index(rate: Line, ...args: Args<[day_count: 'actual_360' | 'actual_365f'], { day_count?: 'actual_360' | 'actual_365f' }>): Term {
+  return word(CASH_INDEX_SHAPE, [rate], args);
+}
+
 const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w', default: null }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: ['r'] };
 /** Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.) */
 export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowLike | null, annualization_factor: 252, assume_zero_mean: true], { n_days?: WindowLike | null; annualization_factor?: 252; assume_zero_mean?: true; r?: number | null }>): Term {
@@ -609,6 +615,7 @@ export const BUILDER_WORDS: Readonly<Record<string, WordShape>> = {
   weighted_sum: WEIGHTED_SUM_SHAPE,
   smooth_spikes: SMOOTH_SPIKES_SHAPE,
   excess_returns: EXCESS_RETURNS_SHAPE,
+  cash_index: CASH_INDEX_SHAPE,
   vol_swap_volatility: VOL_SWAP_VOLATILITY_SHAPE,
   consecutive: CONSECUTIVE_SHAPE,
   trend: TREND_SHAPE,

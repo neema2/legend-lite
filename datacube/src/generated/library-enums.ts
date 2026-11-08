@@ -9,6 +9,7 @@ export const LIBRARY_ENUMS = {
   Compare: ['none', 'rebase', 'percent'],
   Cycle: ['week', 'month', 'quarter', 'year'],
   Dated: ['last', 'start', 'end'],
+  DayCount: ['actual_360', 'actual_365f'],
   Direction: ['positive', 'negative'],
   Fill: ['prev', 'linear', 'zero', 'none', 'step'],
   FilterOperator: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'],

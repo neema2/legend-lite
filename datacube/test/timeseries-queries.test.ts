@@ -3080,8 +3080,9 @@ describe('a series combining two grids, planned over one model of their tables (
  *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
  *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31; 149, the other
  *  views' sheet, five: the next phases' 3; 171, an analyst's packs, 22: the next phases' 4; 173, the On the chart
- *  sheet's two: Phase 5). */
-const GALLERY_SERIES = 173;
+ *  sheet's two: Phase 5; 174, excess returns over dollar cash, its index made from its overnight rate: the risk-free
+ *  data model, item 13b, 2026-11-08). */
+const GALLERY_SERIES = 174;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [
@@ -3089,15 +3090,16 @@ describe('the timeseries examples: every series of every tile, on its own sample
     ['the timeseries gallery', GALLERY_SERIES, async () => (await import('../src/examples/timeseries-gallery.ts')).timeseriesGalleryPage()],
   ] as const;
   for (const [what, count, build] of pages) it(`${what}: the samples read as the page declares them, and every query plans and answers`, async () => {
-    const { MACRO_SPECS, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
-    const { macroCsv, marketsCsv, ratesCsv } = await import('../src/samples.ts');
+    const { CASH_SPECS, MACRO_SPECS, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
+    const { cashCsv, macroCsv, marketsCsv, ratesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
     try {
       const page = await readPageTexts(await build());
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
       // each grid the page holds, its sample read in
-      const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS]] as const)
+      const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS],
+        ['cash', cashCsv(), CASH_SPECS]] as const)
         .filter(([cube]) => page.cubes.some((c) => c.id === cube));
       for (const [cube, csv, specs] of samples) {
         const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `ex_${cube}` });

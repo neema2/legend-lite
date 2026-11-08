@@ -520,8 +520,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  call gives it, gs-quant's own default beside it -- in place of the tile's hand-kept table
  *  (src/generated/ts-signatures.ts, read at a page's start to judge a saved series); the words' facts a module of their
  *  own, fetched with a tile (src/generated/ts-facts.ts); a cube alone's board given its host's #TS reader (app.ts
- *  readText). Measured 432,159. */
-const BUDGET = 432_400;
+ *  readText). Measured 432,159.
+ *  432,400 -> 433,400 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
+ *  going in order"): the cash sample's generator beside the others (samples.ts cashCsv, seven currencies' policy steps),
+ *  as the macro sample's was. Measured 433,196. */
+const BUDGET = 433_400;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -737,8 +740,10 @@ const BUDGET = 432_400;
  *  419,400 -> 419,700 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
  *  date). Measured 419,439.
  *  419,700 -> 420,300 (2026-11-07, the order's step 1, the words' signatures generated -- the grid-only page's note of
- *  the same date). Measured 420,094. */
-const ENGINE_BUDGET = 420_300;
+ *  the same date). Measured 420,094.
+ *  420,300 -> 421,300 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
+ *  Measured 421,116. */
+const ENGINE_BUDGET = 421_300;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -929,8 +934,10 @@ const CHART_BUDGET = 303_500;
  *  139,800 -> 141,100 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
  *  going in order", then "As of, and a register row" for the calendar form, S162): the library's text with gs-quant's
  *  Sharpe ratio (helpers::sharpe, annualizedReturn of a count, to date and of a period, the Window(w, r) form's own
- *  stitch) and its sentences, less S155's two helpers. Measured 140,814. */
-const TIMESERIES_BUDGET = 141_100;
+ *  stitch) and its sentences, less S155's two helpers. Measured 140,814.
+ *  141,100 -> 141,900 (2026-11-08, item 13b, the same): the library's text with cash_index, an overnight rate's cash
+ *  account, and its day count (timeseries::DayCount, gs-quant's names). Measured 141,677. */
+const TIMESERIES_BUDGET = 141_900;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1188,8 +1195,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 447,678.
  *  447,900 -> 448,700 (2026-11-07, the order's step 1, the words' signatures generated, and the library's text with
  *  its lines named by role (price and dividends, benchmark) and compare's method said -- the grid-only page's note of
- *  the same date). Measured 448,472. */
-const WIDGET_BUDGET = 448_700;
+ *  the same date). Measured 448,472.
+ *  448,700 -> 449,700 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
+ *  Measured 449,486. */
+const WIDGET_BUDGET = 449_700;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

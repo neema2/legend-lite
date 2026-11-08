@@ -116,6 +116,17 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     facts: { label: ['Bollinger bands'], family: ['Technicals'], unit: ['same'], level: ['keeps'], gsQuant: ['technicals.bollinger_bands'], about: ['A band k standard deviations either side of the moving average over the last w observations.'], differs: ['w defaults to 20 observations (gs-quant: every observation)'], param: ['k: standard deviations either side'], search: ['bollinger'], given: ['w: all', 'k: 2'], limit: ['w: >= 0', 'k: >= 0'] },
     marks: ['band'],
   },
+  cash_index: {
+    params: [
+      { name: 'rate', kind: 'line', takes: [], words: [], required: true },
+      { name: 'day_count', kind: 'word', takes: [], words: ['actual_360', 'actual_365f'], required: false },
+    ],
+    forms: ['cash_index(rate: Line, day_count: DayCount (optional))'],
+    doc: 'The cash index of an overnight rate in percent a year (5.3 for 5.3%): from 100 at its first date, each the one before grown by the rate before over the days between, actual/360 unless given (actual_365f: SONIA\'s, TONA\'s, AONIA\'s) -- the cash a currency\'s excess returns are over: excess_returns(x, cash_index(rate)).',
+    aliases: [],
+    facts: { label: ['Cash index'], family: ['Returns'], unit: ['number'], gsQuant: ['DataCube (a cash index of an overnight rate)'], about: ['A cash account\'s level from an overnight rate: 100 at the first date, then grown each day by the rate before over the days since (actual/360, or actual/365 fixed).'], param: ['day_count: actual_360 (SOFR\'s, €STR\'s, SARON\'s, SWESTR\'s) or actual_365f (SONIA\'s, TONA\'s, AONIA\'s)'], given: ['day_count: actual_360'], search: ['risk free'] },
+    marks: [],
+  },
   ceil: {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },

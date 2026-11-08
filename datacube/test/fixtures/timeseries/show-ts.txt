@@ -36,6 +36,7 @@ annualize B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT std(retu
 excess A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
 excess B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT excess_returns(close[symbol = 'SPX'], 0.05) AS ts_value FROM px ON date
 excess C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT excess_returns(close[symbol = 'SPX'], close[symbol = 'TLT']) AS ts_value FROM px ON date
+excess D: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT excess_returns(px.close[symbol = 'SPX'], cash_index(cash.rate[currency = 'USD'], day_count => 'actual_360')) AS ts_value FROM px ON date, cash ON date
 compounded-to-date A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT geometrically_aggregate(returns(close[symbol = 'MSFT'], 1, 'simple')) AS ts_value FROM px ON date
 compounded-to-date B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'MSFT'], 1, 'simple') AS ts_value FROM px ON date
 total-return A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
@@ -95,9 +96,9 @@ volatility B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatil
 volatility C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 252, type => 'simple') AS ts_value FROM px ON date
 drawdown A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT drawdown(close[symbol = 'NVDA'], w => all) AS ts_value FROM px ON date
 drawdown B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'NVDA'], w => all) AS ts_value FROM px ON date
-sharpe A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sharpe_ratio(close[symbol = 'SPX'], w => 252) AS ts_value FROM px ON date
-sharpe B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sharpe_ratio(close[symbol = 'GLD'], w => 252) AS ts_value FROM px ON date
-sharpe C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sharpe_ratio(close[symbol = 'TLT'], w => 252) AS ts_value FROM px ON date
+sharpe A: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'SPX'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
+sharpe B: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'GLD'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
+sharpe C: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'TLT'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
 max-drawdown-year A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'SPX'], w => 252) AS ts_value FROM px ON date
 max-drawdown-year B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'NDX'], w => 252) AS ts_value FROM px ON date
 exponential-volatility A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exponential_volatility(close[symbol = 'SPX'], beta => 0.94) AS ts_value FROM px ON date
