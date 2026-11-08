@@ -30,7 +30,8 @@ import java.util.Map;
  * statement-root assert of an assert program ({@code BodyClass.ASSERT_PROGRAM}) planned as the walk plans it --
  * classified ({@link AssertVerdicts#planHost}), its sides planned on the body's environment with the lets before it
  * ({@link HostSides#plan}) -- as one verdict step the test door places at the assert's turn, its judgment beside it
- * here, never in the plan. Planning sends nothing and counts nothing; a body holding an assert of a shape the host
+ * here, never in the plan. Planning sends nothing and counts no verdict's outcome (its census of the families and routes
+ * it planned is planning's own measurement, which the run never reads); a body holding an assert of a shape the host
  * checks do not plan yet has none ({@link #plan} answers null) and stays on the walk.
  *
  * <p>Where the walk would raise at a statement's turn, the assert is planned as that raise at its turn, after the

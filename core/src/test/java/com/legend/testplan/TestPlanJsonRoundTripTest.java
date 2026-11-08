@@ -78,7 +78,8 @@ class TestPlanJsonRoundTripTest {
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
                 new Appeal.Batched("golden", null, false)), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null)));
-        TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict);
+        TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
+                true);
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }

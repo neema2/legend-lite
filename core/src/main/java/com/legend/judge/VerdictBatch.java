@@ -663,10 +663,10 @@ public final class VerdictBatch {
             com.legend.sql.dialect.@com.legend.base.Nullable DialectCapability refused) {
     }
 
-    /** An assert the database judge cannot judge, named {@code why} at planning: counted UNJUDGED, the assert's own
-     *  failure, which the root loop reports to the listener at its place. */
+    /** An assert the database judge cannot judge, named {@code why} at planning: the assert's own failure, which the
+     *  root loop reports to the listener, and counts UNJUDGED, at its place (planning counts nothing: the slice 3
+     *  invariant audit, 2026-11-08). */
     private static com.legend.error.AssertFailed unjudged(String name, String why) {
-        CanonicalDivergence.sqlUnjudged(name, why);
         return com.legend.error.AssertFailed.unjudged(why, name + ": UNJUDGED in database mode -- " + why);
     }
 

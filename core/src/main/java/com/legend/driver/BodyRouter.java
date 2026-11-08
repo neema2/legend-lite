@@ -323,6 +323,13 @@ public final class BodyRouter {
         Moved(TestPlan planned, com.legend.testexecutionplan.@Nullable Edge edge,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+            if (edge == null && !planned.extensionsByStep().isEmpty()) {
+                // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
+                // plan was made for another run, refused by name, never run with its records dropped (the slice 3
+                // invariant audit, 2026-11-08)
+                throw new IllegalStateException("a test plan carrying the edge's records at steps "
+                        + planned.extensionsByStep().keySet() + " run with no edge");
+            }
             this.planned = planned;
             this.sessions = sessions;
             this.edge = edge;

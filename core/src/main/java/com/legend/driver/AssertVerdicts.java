@@ -80,7 +80,6 @@ final class AssertVerdicts {
         // side of the verdict row (SqlTextVerdicts.BatchTexts) -- nothing read at planning
         SqlTextVerdicts.BatchTexts texts = gate == DatabaseGate.ENGINE_TEXT_READ ? new SqlTextVerdicts.BatchTexts() : null;
         BodyDriver.ExecEnv at = texts != null ? texts.under(env) : env;
-        com.legend.judge.CanonicalDivergence.sqlEnter();
         batch.open(listenerName(bare));
         TypedSide v;
         try {
@@ -90,8 +89,8 @@ final class AssertVerdicts {
             batch.close();
             return DatabasePlan.PLANNED;
         } catch (RuntimeException e) {
-            // counted as batched counts the exit, at the arm, under the wall's own family
-            com.legend.judge.CanonicalDivergence.sqlRaised();
+            // the wall's raise is counted at the root's turn (RootLoops), from the plan's data: planning counts no
+            // verdict outcome (the slice 3 invariant audit, 2026-11-08)
             batch.wall(com.legend.judge.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;

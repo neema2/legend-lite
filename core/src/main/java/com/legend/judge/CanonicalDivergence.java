@@ -324,6 +324,17 @@ public final class CanonicalDivergence {
         CHANNEL_SEEN.set(true);   // a nested entry's raise is one raise
     }
 
+    /** A root of a database judge's plan RAISED at its turn with no row of it judged (a failure decided at planning,
+     *  a wall its arm left through): counted on {@code family}, the root's own, read from the plan's data -- the run
+     *  reads no attribution state planning wrote (the slice 3 invariant audit, 2026-11-08: {@link #sqlRaised} read the
+     *  family the LAST planned assert left). */
+    public static void sqlRaisedAt(String family) {
+        if (MUTED.get()) {
+            return;
+        }
+        SQL_CENSUS.merge("not-attempted " + family + " raised", 1L, Long::sum);
+    }
+
     /** The current assert's switch arm yielded null (not this arm's
      * shape; the generic path continues): counted, so "adjudicated"
      * minus the channels is explained. */

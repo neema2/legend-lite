@@ -172,7 +172,10 @@ public final class Execution {
      * production passes neither), nothing materialized returned: the last statement's answer, where a caller wants
      * it, streams to the sink the caller hands for its shape ({@link Answer}; the doors, 2026-10-29: until then the
      * last side came back materialized, {@code ProgramReport.last}). The session is closed when the program ends
-     * (the source's lease: nothing for a caller's own, {@link Source#given}).
+     * (the source's lease: nothing for a caller's own, {@link Source#given}). It is exactly {@link #runBody} of
+     * {@link #planBody}, nothing between them: it provides no fixture for the stores the plan's appeals name
+     * ({@code PlannedAppeals.stores}) -- a caller whose appeals read another package's store plans and runs the two
+     * halves itself, providing them between (the test runner does).
      */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
@@ -233,6 +236,9 @@ public final class Execution {
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
+        // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3
+        // invariant audit, 2026-11-08: the planning door checked it, a plan handed in did not)
+        com.legend.testexecutionplan.PlannedAppeals.requireCarried(planned.plan());
         BodyRouter.run(planned.plan(), session, ctx, listener, referee, options, answer);
     }
 

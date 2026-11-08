@@ -514,7 +514,8 @@ final class DatabaseJudge {
     }
 
     static TypedSide unjudged(String name, String why, String detail) {
-        com.legend.judge.CanonicalDivergence.sqlUnjudged(name, why);
+        // counted UNJUDGED at the root's turn, where the plan's failure is raised (RootLoops); planning counts nothing
+        // (the slice 3 invariant audit, 2026-11-08)
         throw com.legend.error.AssertFailed.unjudged(why,
                 name + ": UNJUDGED in database mode — " + why + detail);
     }

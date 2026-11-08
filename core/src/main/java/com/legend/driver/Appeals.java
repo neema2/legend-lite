@@ -218,7 +218,8 @@ final class Appeals {
             throw new IllegalStateException(h.name() + " (sql-text): the appeal failed on an assert with a caller's"
                     + " message, which is read inside the body's run and not after it: " + e.getMessage(), e);
         }
-        com.legend.judge.CanonicalDivergence.sqlRaised();
+        // (2026-11-08, the slice 3 invariant audit: no "not-attempted ... raised" count here -- the text row was judged,
+        // so the assert was attempted, and the count read the family the last planned assert left)
         if (listener == null) {
             return;
         }

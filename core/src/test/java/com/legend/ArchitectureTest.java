@@ -1162,12 +1162,19 @@ final class ArchitectureTest {
     void thePlanRunSplitInReportMode() {
         java.util.Set<String> planningPackages = java.util.Set.of("com.legend.planner", "com.legend.testplan",
                 "com.legend.lowering", "com.legend.resolver", "com.legend.testdatagen");
+        // R1's planning targets beyond those (the slice 3 invariant audit, 2026-11-08): the frontend and the plan
+        // side's database owner, and the root package's planning doors
+        java.util.Set<String> frontendPackages = java.util.Set.of("com.legend.builtin", "com.legend.parser",
+                "com.legend.normalizer", "com.legend.lineage", "com.legend.database");
+        java.util.Set<String> planningDoors = java.util.Set.of("com.legend.Compiler", "com.legend.TypedQuery",
+                "com.legend.HeldModels");
         java.util.Set<String> drivePlanning = PLANNING_ONLY;
         java.util.Set<String> measuredPackages = java.util.Set.of("com.legend.driver", "com.legend.judge",
                 "com.legend.edge");
         java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaClass> planningTarget = t ->
                 planningPackages.contains(t.getPackageName()) || t.getPackageName().startsWith("com.legend.compiler")
-                        || drivePlanning.contains(topLevel(t));
+                        || drivePlanning.contains(topLevel(t)) || frontendPackages.contains(t.getPackageName())
+                        || planningDoors.contains(topLevel(t));
         java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaClass> measured = c ->
                 measuredPackages.contains(c.getPackageName()) && !drivePlanning.contains(topLevel(c));
         // the mixed classes: measured, and reaching planning directly
@@ -1193,8 +1200,12 @@ final class ArchitectureTest {
                 com.tngtech.archunit.core.domain.JavaClass t = d.getTargetClass().getBaseComponentType();
                 String tName = t.getName();
                 String tTop = topLevel(t);
-                if (run && !tTop.equals(top) && (planningTarget.test(t) || mixed.contains(tTop))) {
-                    r1.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tTop);
+                // a run-only nested class keyed by its own name (the slice 3 invariant audit: Moved hid under
+                // BodyRouter's planning pins)
+                String key = runKey(c);
+                String tKey = runKey(t);
+                if (run && !tKey.equals(key) && (planningTarget.test(t) || tKey.equals(tTop) && mixed.contains(tTop))) {
+                    r1.computeIfAbsent(key, k -> new java.util.TreeSet<>()).add(tKey);
                 }
                 if (planning && sessionTypes.contains(tName)) {
                     r2.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tName);
@@ -1229,8 +1240,10 @@ final class ArchitectureTest {
             "com.legend.driver.AppealsByVerdict", "com.legend.driver.JudgmentFacts", "com.legend.judge.VerdictIds");
 
     /** R1's pinned crossings, by source (the first measure of every class, 2026-11-08, the plan-as-data design's slice
-     *  3: 14 mixed classes, 266 crossings), shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the
-     *  user's rule of 2026-11-08: every pin goes to zero). A source line, then the planning classes it reaches. */
+     *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
+     *  {@code Moved} by its own name and counted the frontend, the database owner and the root's planning doors as
+     *  planning), shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the user's rule of 2026-11-08:
+     *  every pin goes to zero). A source line, then the planning classes it reaches. */
     private static final String R1_CROSSINGS = """
             driver.AgreementRuns ->
                 driver.AssertVerdicts driver.DatabaseJudge driver.HostSides judge.VerdictBatch
@@ -1241,17 +1254,17 @@ final class ArchitectureTest {
                 compiler.spec.typed.TypedCollection compiler.spec.typed.TypedLambda compiler.spec.typed.TypedNativeCall
                 compiler.spec.typed.TypedSpec driver.HostJudge judge.Failures
             driver.AssertVerdicts ->
-                compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.TypedFunction
-                compiler.element.type.ExprType compiler.element.type.Multiplicity compiler.element.type.PlatformTypes
-                compiler.element.type.Type compiler.spec.AssertMessages compiler.spec.ExecuteChainAssembly
-                compiler.spec.LineageTreeLines compiler.spec.OrderView compiler.spec.SpecCompiler
-                compiler.spec.StatementEffects compiler.spec.UserCallInliner compiler.spec.VerdictQueries
-                compiler.spec.typed.Calls compiler.spec.typed.Lets compiler.spec.typed.TypedCInteger
-                compiler.spec.typed.TypedCString compiler.spec.typed.TypedCast compiler.spec.typed.TypedCollection
-                compiler.spec.typed.TypedDistinct compiler.spec.typed.TypedDrop compiler.spec.typed.TypedFilter
-                compiler.spec.typed.TypedFrom compiler.spec.typed.TypedIf compiler.spec.typed.TypedLambda
-                compiler.spec.typed.TypedLet compiler.spec.typed.TypedLimit compiler.spec.typed.TypedMap
-                compiler.spec.typed.TypedMilestonedAccess compiler.spec.typed.TypedNativeCall
+                builtin.NativeFn builtin.Pure compiler.element.EqualityKeys compiler.element.ModelContext
+                compiler.element.TypedFunction compiler.element.type.ExprType compiler.element.type.Multiplicity
+                compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.AssertMessages
+                compiler.spec.ExecuteChainAssembly compiler.spec.LineageTreeLines compiler.spec.OrderView
+                compiler.spec.SpecCompiler compiler.spec.StatementEffects compiler.spec.UserCallInliner
+                compiler.spec.VerdictQueries compiler.spec.typed.Calls compiler.spec.typed.Lets
+                compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString compiler.spec.typed.TypedCast
+                compiler.spec.typed.TypedCollection compiler.spec.typed.TypedDistinct compiler.spec.typed.TypedDrop
+                compiler.spec.typed.TypedFilter compiler.spec.typed.TypedFrom compiler.spec.typed.TypedIf
+                compiler.spec.typed.TypedLambda compiler.spec.typed.TypedLet compiler.spec.typed.TypedLimit
+                compiler.spec.typed.TypedMap compiler.spec.typed.TypedMilestonedAccess compiler.spec.typed.TypedNativeCall
                 compiler.spec.typed.TypedNavigate compiler.spec.typed.TypedNewInstance
                 compiler.spec.typed.TypedPackageableRef compiler.spec.typed.TypedProject
                 compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedRename compiler.spec.typed.TypedSelect
@@ -1261,27 +1274,29 @@ final class ArchitectureTest {
                 driver.JudgmentFacts driver.SqlTextVerdicts driver.VerdictArm judge.Failures judge.SqlReplayReferee
                 judge.VerdictBatch lowering.CanonRider lowering.VerdictSql
             driver.BodyDriver ->
-                compiler.element.ModelContext compiler.element.TypedFunction compiler.element.type.ExprType
-                compiler.element.type.Type compiler.spec.AssertMessages compiler.spec.CompiledFunction
-                compiler.spec.NativeDispatch compiler.spec.ResultEnvelopeSplice compiler.spec.SpecCompiler
-                compiler.spec.StatementEffects compiler.spec.UserCallInliner compiler.spec.VerdictRoutes
-                compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets compiler.spec.typed.Literals
-                compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedFrom compiler.spec.typed.TypedJsonAccess
-                compiler.spec.typed.TypedJsonResult compiler.spec.typed.TypedLet compiler.spec.typed.TypedNativeCall
-                compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedSpec compiler.spec.typed.TypedUserCall
-                driver.EngineTextAppeals driver.JudgePlans driver.LiteralFold driver.SeedSqlForms driver.SqlTextVerdicts
-                judge.VerdictBatch judge.VerdictIds lowering.CanonRider lowering.VerdictSql planner.BodyPlanner
-                planner.ConnectionPlans planner.EnginePlans planner.EngineText planner.FramePlanner planner.PlanAllocations
-                planner.PlanEnv planner.Prepared planner.SidePlanner planner.SystemRoutes resolver.StagedRows
-                testdatagen.TestDataGenerationNatives
+                Compiler TypedQuery builtin.NativeFn compiler.element.ModelContext compiler.element.TypedFunction
+                compiler.element.type.ExprType compiler.element.type.Type compiler.spec.AssertMessages
+                compiler.spec.CompiledFunction compiler.spec.NativeDispatch compiler.spec.ResultEnvelopeSplice
+                compiler.spec.SpecCompiler compiler.spec.StatementEffects compiler.spec.UserCallInliner
+                compiler.spec.VerdictRoutes compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets
+                compiler.spec.typed.Literals compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedFrom
+                compiler.spec.typed.TypedJsonAccess compiler.spec.typed.TypedJsonResult compiler.spec.typed.TypedLet
+                compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedSpec
+                compiler.spec.typed.TypedUserCall database.Target driver.EngineTextAppeals driver.JudgePlans
+                driver.LiteralFold driver.SeedSqlForms driver.SqlTextVerdicts judge.VerdictBatch judge.VerdictIds
+                lowering.CanonRider lowering.VerdictSql planner.BodyPlanner planner.ConnectionPlans planner.EnginePlans
+                planner.EngineText planner.FramePlanner planner.PlanAllocations planner.PlanEnv planner.Prepared
+                planner.SidePlanner planner.SystemRoutes resolver.StagedRows testdatagen.TestDataGenerationNatives
             driver.BodyRouter ->
-                compiler.element.ModelContext compiler.element.type.Multiplicity compiler.spec.AssertLift
-                compiler.spec.RelationCountAsserts driver.AgreementAsserts driver.AppealsByVerdict driver.AssertVerdicts
-                driver.BodyDriver driver.DatabaseAsserts driver.DatabaseJudge driver.HostAsserts driver.HostSides
-                driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase judge.SqlReplayReferee judge.VerdictBatch
-                testplan.BodyClass testplan.BodyKinds testplan.TestDoor
+                TypedQuery compiler.element.ModelContext compiler.spec.AssertLift compiler.spec.RelationCountAsserts
+                driver.AgreementAsserts driver.AppealsByVerdict driver.BodyDriver driver.DatabaseAsserts driver.HostAsserts
+                driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase judge.SqlReplayReferee testplan.BodyClass
+                testplan.BodyKinds testplan.TestDoor
+            driver.BodyRouter$Moved ->
+                compiler.element.type.Multiplicity driver.AssertVerdicts driver.DatabaseJudge driver.HostSides
+                driver.JudgePlans driver.SqlTextVerdicts judge.VerdictBatch
             driver.DatabaseJudge ->
-                compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.type.ExprType
+                builtin.NativeFn compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.type.ExprType
                 compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.OrderView
                 compiler.spec.SpecCompiler compiler.spec.VerdictQueries compiler.spec.typed.Calls
                 compiler.spec.typed.Literals compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedCDate
@@ -1289,7 +1304,7 @@ final class ArchitectureTest {
                 driver.VerdictArm judge.VerdictBatch lowering.CanonRider lowering.CanonicalRenderSql lowering.VerdictSql
                 resolver.ChainNormalizer
             driver.HostJudge ->
-                compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.TypedFunction
+                builtin.NativeFn compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.TypedFunction
                 compiler.element.type.ExprType compiler.spec.AssertMessages compiler.spec.OrderView
                 compiler.spec.SpecCompiler compiler.spec.typed.Calls compiler.spec.typed.Lets
                 compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedCFloat compiler.spec.typed.TypedCInteger
@@ -1304,19 +1319,20 @@ final class ArchitectureTest {
                 compiler.element.TypedFunction compiler.element.type.ExprType compiler.element.type.Multiplicity
                 compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.SpecCompiler
                 compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedSpec compiler.spec.typed.TypedUserCall
-                driver.AssertVerdicts driver.BodyDriver driver.SqlTextVerdicts judge.VerdictBatch lowering.KeyedPivot
-                lowering.TypedRows lowering.VerdictSql planner.ConnectionPlans planner.PlanMaker
+                database.Target driver.AssertVerdicts driver.BodyDriver driver.SqlTextVerdicts judge.VerdictBatch
+                lowering.KeyedPivot lowering.TypedRows lowering.VerdictSql planner.ConnectionPlans planner.PlanMaker
             driver.SqlTextVerdicts ->
-                compiler.element.ModelContext compiler.element.TypedFunction compiler.element.type.ExprType
-                compiler.element.type.Multiplicity compiler.element.type.PlatformTypes compiler.element.type.Type
-                compiler.spec.ExecuteChainAssembly compiler.spec.NativeDispatch compiler.spec.SpecCompiler
-                compiler.spec.UserCallInliner compiler.spec.VerdictQueries compiler.spec.typed.Calls
-                compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets compiler.spec.typed.TypedCDate
-                compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString compiler.spec.typed.TypedCollection
-                compiler.spec.typed.TypedEnumValue compiler.spec.typed.TypedFrom compiler.spec.typed.TypedLambda
-                compiler.spec.typed.TypedLet compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedPackageableRef
-                compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTestDataGen
-                compiler.spec.typed.TypedUserCall compiler.spec.typed.TypedVariable driver.AssertVerdicts driver.BodyDriver
+                builtin.NativeFn builtin.Pure compiler.element.ModelContext compiler.element.TypedFunction
+                compiler.element.type.ExprType compiler.element.type.Multiplicity compiler.element.type.PlatformTypes
+                compiler.element.type.Type compiler.spec.ExecuteChainAssembly compiler.spec.NativeDispatch
+                compiler.spec.SpecCompiler compiler.spec.UserCallInliner compiler.spec.VerdictQueries
+                compiler.spec.typed.Calls compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets
+                compiler.spec.typed.TypedCDate compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString
+                compiler.spec.typed.TypedCollection compiler.spec.typed.TypedEnumValue compiler.spec.typed.TypedFrom
+                compiler.spec.typed.TypedLambda compiler.spec.typed.TypedLet compiler.spec.typed.TypedNativeCall
+                compiler.spec.typed.TypedPackageableRef compiler.spec.typed.TypedPropertyAccess
+                compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTestDataGen compiler.spec.typed.TypedUserCall
+                compiler.spec.typed.TypedVariable database.Databases driver.AssertVerdicts driver.BodyDriver
                 driver.DatabaseJudge driver.EngineTextAppeals driver.HostSides driver.JudgePlans judge.Failures
                 judge.SqlReplayReferee judge.VerdictBatch lowering.LiteralSpelling lowering.VerdictSql planner.BodyPlanner
                 planner.SqlTextInputs
@@ -1367,47 +1383,38 @@ final class ArchitectureTest {
     /**
      * <strong>NO COMPILED MODEL REACHES THE RUN (the plan-as-data design's slice 3, docs/PLAN_AS_DATA_2026_11_07.md
      * §11, 2026-11-08; a ratchet, ZERO AT SLICE 4).</strong> The run reads its plan and the database's rows, never the
-     * model it was planned over: no code unit of the run takes a {@code ModelContext} or a {@code TypedQuery}, calls a
-     * method that takes one or calls one, or reads or holds a field of either type. The run's code units: the run-only
-     * classes whole ({@link #RUN_ONLY}) and the run methods of the classes not yet split ({@link #RUN_METHODS}, their
-     * lambdas with them). Today's sites are holes 1, 2 and 7 (the appeal's enum decode and the referee, the system
-     * database found by the model, the sessions opened from it), each pinned by name in {@link #MODEL_SITES}.
+     * model it was planned over: no code unit the run REACHES ({@link #reachable} from {@link #RUN_ENTRIES}: by calls,
+     * a virtual call reaching every override, a lambda's calls its enclosing unit's) takes a {@code ModelContext} or a
+     * {@code TypedQuery}, calls a method that takes, returns or belongs to one, or reads a field of either type.
+     * Reachability, not a list of run classes (the slice 3 invariant audit, 2026-11-08: the first version scanned named
+     * classes and methods and missed the run methods of the classes not yet split). Today's sites are holes 1, 2 and 7
+     * (the appeal's enum decode and the referee, the system database found by the model, the sessions opened from it),
+     * each pinned by name in {@link #MODEL_SITES}.
      */
     @Test
     void noCompiledModelReachesTheRun() {
         java.util.Set<String> modelTypes = java.util.Set.of("com.legend.compiler.element.ModelContext",
                 "com.legend.TypedQuery");
         java.util.Set<String> sites = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
-            boolean runClass = runOnly(c);
-            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
-                if (!runClass && !runMethod(c, u.getName())) {
-                    continue;
-                }
-                String at = c.getName() + "#" + u.getName();
-                for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
-                    if (modelTypes.contains(p.getName())) {
-                        sites.add("takes " + at + "(" + p.getSimpleName() + ")");
-                    }
-                }
-                for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
-                    var t = call.getTarget();
-                    if (modelTypes.contains(t.getOwner().getName()) || t.getRawParameterTypes().stream()
-                            .anyMatch(p -> modelTypes.contains(p.getName()))) {
-                        sites.add("calls " + at + " -> " + t.getOwner().getName() + "#" + t.getName());
-                    }
-                }
-                for (com.tngtech.archunit.core.domain.JavaFieldAccess f : u.getFieldAccesses()) {
-                    if (modelTypes.contains(f.getTarget().getRawType().getName())) {
-                        sites.add("reads " + at + " -> " + f.getTarget().getFullName());
-                    }
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
+            String at = u.getOwner().getName() + "#" + u.getName();
+            for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
+                if (modelTypes.contains(p.getName())) {
+                    sites.add("takes " + at + "(" + p.getSimpleName() + ")");
                 }
             }
-            if (runClass) {
-                for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
-                    if (modelTypes.contains(f.getRawType().getName())) {
-                        sites.add("holds " + c.getName() + "." + f.getName());
-                    }
+            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                var t = call.getTarget();
+                boolean returns = t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget m
+                        && modelTypes.contains(m.getRawReturnType().getName());
+                if (returns || modelTypes.contains(t.getOwner().getName()) || t.getRawParameterTypes().stream()
+                        .anyMatch(p -> modelTypes.contains(p.getName()))) {
+                    sites.add("calls " + at + " -> " + t.getOwner().getName() + "#" + t.getName());
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess f : u.getFieldAccesses()) {
+                if (modelTypes.contains(f.getTarget().getRawType().getName())) {
+                    sites.add("reads " + at + " -> " + f.getTarget().getFullName());
                 }
             }
         }
@@ -1420,42 +1427,96 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertTrue(gone.isEmpty(), "a site is gone: shrink MODEL_SITES, dated: " + gone);
     }
 
-    /** The run's own classes, whole (with their nested classes): what the run alone executes. */
-    private static final java.util.Set<String> RUN_ONLY = java.util.Set.of("com.legend.driver.RunReader",
-            "com.legend.driver.Appeals", "com.legend.driver.AgreementRuns", "com.legend.judge.RootLoops",
-            "com.legend.driver.TestRun", "com.legend.driver.SystemDatabase", "com.legend.judge.CallerMessage",
-            "com.legend.judge.SideReader", "com.legend.judge.SqlReplayReferee", "com.legend.driver.BodyRouter$Moved",
-            "com.legend.Execution$Source", "com.legend.Execution$Answer");
-
-    /** The run methods of the classes not yet split into their halves (step 10): {@code Class#method}. */
-    private static final java.util.Set<String> RUN_METHODS = java.util.Set.of("com.legend.driver.BodyRouter#run",
-            "com.legend.Execution#runBody", "com.legend.driver.SqlTextVerdicts#decideAppeal");
-
-    private static boolean runOnly(com.tngtech.archunit.core.domain.JavaClass c) {
-        String name = c.getName();
-        for (String r : RUN_ONLY) {
+    /** {@code c}'s name in R1: a run-only nested class's own (with its own nested classes), else its top level's. */
+    private static String runKey(com.tngtech.archunit.core.domain.JavaClass c) {
+        String name = c.getBaseComponentType().getName();
+        for (String r : RUN_ONLY_NESTED) {
             if (name.equals(r) || name.startsWith(r + "$")) {
-                return true;
+                return r;
             }
         }
-        return false;
+        return topLevel(c);
     }
 
-    private static boolean runMethod(com.tngtech.archunit.core.domain.JavaClass c, String unit) {
-        for (String m : RUN_METHODS) {
-            int hash = m.indexOf('#');
-            String method = m.substring(hash + 1);
-            if (c.getName().equals(m.substring(0, hash))
-                    && (unit.equals(method) || unit.startsWith("lambda$" + method + "$"))) {
-                return true;
+    /** Where the run begins: the router's run half, the door's, and the session source a door opens the run's session
+     *  from (hole 7: it is handed the model). */
+    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#run",
+            "com.legend.Execution#runBody", "com.legend.Execution$Source#open");
+
+    /** Where planning begins: the router's planning halves and the doors'. */
+    private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#plan",
+            "com.legend.driver.BodyRouter#planned", "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
+
+    /** The run's own classes, whole: R1 keys a crossing from one of these by its own name, never folded into its
+     *  enclosing class's (the slice 3 invariant audit, 2026-11-08: {@code Moved} hid under {@code BodyRouter}'s
+     *  planning pins). */
+    private static final java.util.Set<String> RUN_ONLY_NESTED = java.util.Set.of("com.legend.driver.BodyRouter$Moved");
+
+    /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls: a
+     *  call's resolved target, and -- the call being virtual -- every override among the product's classes; a lambda's
+     *  calls count as its enclosing unit's (ArchUnit's reading). Only the product's own code is followed. */
+    private static java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> reachable(java.util.Set<String> entries) {
+        java.util.Map<String, java.util.List<com.tngtech.archunit.core.domain.JavaMethod>> bySignature =
+                new java.util.HashMap<>();
+        java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> seen = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<com.tngtech.archunit.core.domain.JavaCodeUnit> todo = new java.util.ArrayDeque<>();
+        java.util.Set<String> found = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
+                bySignature.computeIfAbsent(signature(m.getName(), m.getRawParameterTypes()),
+                        k -> new java.util.ArrayList<>()).add(m);
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (entries.contains(c.getName() + "#" + u.getName())) {
+                    found.add(c.getName() + "#" + u.getName());
+                    if (seen.add(u)) {
+                        todo.add(u);
+                    }
+                }
             }
         }
-        return false;
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(entries), found,
+                "an entry the reachability walk was given is no code unit of the product");
+        while (!todo.isEmpty()) {
+            com.tngtech.archunit.core.domain.JavaCodeUnit u = todo.poll();
+            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                var t = call.getTarget();
+                if (!t.getOwner().getName().startsWith("com.legend.")
+                        && !t.getOwner().getPackageName().equals("com.legend")) {
+                    continue;
+                }
+                java.util.List<com.tngtech.archunit.core.domain.JavaCodeUnit> next = new java.util.ArrayList<>();
+                t.resolveMember().ifPresent(next::add);
+                if (t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget) {
+                    for (com.tngtech.archunit.core.domain.JavaMethod m : bySignature.getOrDefault(
+                            signature(t.getName(), t.getRawParameterTypes()), java.util.List.of())) {
+                        if (m.getOwner().isAssignableTo(t.getOwner().getName())) {
+                            next.add(m);
+                        }
+                    }
+                }
+                for (com.tngtech.archunit.core.domain.JavaCodeUnit n : next) {
+                    if (seen.add(n)) {
+                        todo.add(n);
+                    }
+                }
+            }
+        }
+        return seen;
     }
 
-    /** {@link #noCompiledModelReachesTheRun}'s sites (the first measure, 2026-11-08, slice 3), shrink-only with a dated
-     *  note, ZERO AT SLICE 4: hole 1 (the appeal decision's enum decode and the referee's SPI), hole 2 (the system
-     *  database found through the model) and hole 7 (sessions opened from the model, the product's door included). */
+    private static String signature(String name, java.util.List<com.tngtech.archunit.core.domain.JavaClass> params) {
+        StringBuilder b = new StringBuilder(name).append('(');
+        for (com.tngtech.archunit.core.domain.JavaClass p : params) {
+            b.append(p.getName()).append(',');
+        }
+        return b.append(')').toString();
+    }
+
+    /** {@link #noCompiledModelReachesTheRun}'s sites (the reachability measure, 2026-11-08, the slice 3 invariant
+     *  audit's fix), shrink-only with a dated note, ZERO AT SLICE 4: hole 1 (the appeal decision's enum decode and the
+     *  referee's SPI), hole 2 (the system database found through the model) and hole 7 (sessions opened from the
+     *  model, the product's door included). */
     private static final java.util.Set<String> MODEL_SITES = java.util.Set.of(
             // hole 7: the run is handed the model, and a session source opens a session from it (test road and product)
             "takes com.legend.Execution#runBody(ModelContext)",
@@ -1470,52 +1531,71 @@ final class ArchitectureTest {
             "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SqlTextVerdicts#decideAppeal",
             "takes com.legend.driver.SqlTextVerdicts#decideAppeal(ModelContext)",
             "calls com.legend.driver.SqlTextVerdicts#decideAppeal -> com.legend.driver.SqlTextVerdicts#rowsLegNow",
+            "takes com.legend.driver.SqlTextVerdicts#rowsLegNow(ModelContext)",
+            "calls com.legend.driver.SqlTextVerdicts#rowsLegNow -> com.legend.judge.SqlReplayReferee#verify",
+            "calls com.legend.driver.SqlTextVerdicts#rowsLegNow -> com.legend.judge.SqlReplayReferee#verifyPlan",
             "takes com.legend.judge.SqlReplayReferee#verify(ModelContext)",
             "calls com.legend.judge.SqlReplayReferee#verify -> com.legend.judge.SqlReplayReferee#verify",
             "takes com.legend.judge.SqlReplayReferee#verifyPlan(ModelContext)");
 
     /**
-     * <strong>THE LISTENER IS OUTPUT ONLY (the plan-as-data design's slice 3, hole 4, 2026-11-08; hard).</strong> The
-     * run tells the caller's {@code AssertListener} what happened and asks it for nothing: no method of it answers a
-     * value (its fixture hooks, which made the harness plan and run fixtures mid-door, are deleted). And planning is
-     * handed neither a listener nor a referee (hole 5): no code unit of a planning class -- a planning package, the
-     * compiler, a planning-only class of the driver or the judges -- and no planning entry of the doors takes one, and
-     * no planning environment holds one.
+     * <strong>THE RUN RE-READS NO RULE (the plan-as-data design's slice 3, hole 8, 2026-11-08; hard).</strong> The plan
+     * carries the rules it was planned under -- each verdict step's judging rules, its judge, its features; nothing the
+     * run reaches asks the caller's options for them again ({@code ExecuteOptions}' judging rules, judge mode, features
+     * or resources). The slice 3 invariant audit: hole 8's code held, and nothing kept it.
+     */
+    @Test
+    void theRunRereadsNoRule() {
+        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources");
+        java.util.Set<String> reads = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
+            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                var t = call.getTarget();
+                if (t.getOwner().getName().equals("com.legend.ExecuteOptions") && planningFacts.contains(t.getName())) {
+                    reads.add(u.getOwner().getName() + "#" + u.getName() + " -> ExecuteOptions#" + t.getName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(reads.isEmpty(), "the run asks the caller's options for a fact the"
+                + " plan carries (read it from the plan): " + reads);
+    }
+
+    /**
+     * <strong>THE LISTENER IS OUTPUT ONLY, AND PLANNING TELLS NO ONE (the plan-as-data design's slice 3, holes 4 and 5,
+     * 2026-11-08; hard).</strong> The run tells the caller's {@code AssertListener} what happened and asks it for
+     * nothing: its methods are exactly the four reports, each void, each taking texts and flags alone (a pinned set:
+     * the slice 3 invariant audit found the first version would have let the deleted {@code beforeRun} back in). And
+     * planning tells no one anything: no code unit planning REACHES ({@link #reachable} from
+     * {@link #PLANNING_ENTRIES}) calls the listener, the held appeals' thread-local listener or hold, the engine-text
+     * arms' decline reporters, the edge's run half (a ledger written), the referee, or the verdict census's outcome
+     * counters (a verdict's outcome is counted at its turn in the run); no planning entry takes a listener or a
+     * referee, and no planning environment holds one.
      */
     @Test
     void theListenerIsOutputOnly() {
         java.util.Set<String> found = new java.util.TreeSet<>();
+        java.util.Set<String> reports = java.util.Set.of(
+                "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
+                "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
         java.util.Set<String> handed = java.util.Set.of("com.legend.judge.AssertListener",
                 "com.legend.judge.SqlReplayReferee");
-        java.util.Set<String> planningPackages = java.util.Set.of("com.legend.planner", "com.legend.testplan",
-                "com.legend.lowering", "com.legend.resolver", "com.legend.testdatagen");
-        java.util.Set<String> planningEntries = java.util.Set.of("com.legend.driver.BodyRouter#plan",
-                "com.legend.driver.BodyRouter#planned", "com.legend.Execution#planBody",
-                "com.legend.Execution#planProgram", "com.legend.driver.BodyDriver#bodyEnv");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.driver.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
             if (c.getName().equals("com.legend.judge.AssertListener")) {
+                java.util.Set<String> methods = new java.util.TreeSet<>();
                 for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
+                    methods.add(m.getName() + "(" + String.join(",", m.getRawParameterTypes().stream()
+                            .map(com.tngtech.archunit.core.domain.JavaClass::getName).toList()) + ")");
                     if (!m.getRawReturnType().getName().equals("void")) {
                         found.add("answers " + m.getFullName());
                     }
                 }
-            }
-            String pkg = c.getPackageName();
-            boolean planningClass = planningPackages.contains(pkg) || pkg.startsWith("com.legend.compiler")
-                    || PLANNING_ONLY.contains(topLevel(c));
-            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
-                if (!planningClass && !planningEntries.contains(c.getName() + "#" + u.getName())) {
-                    continue;
-                }
-                for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
-                    if (handed.contains(p.getName())) {
-                        found.add("planning takes " + u.getFullName());
-                    }
+                if (!methods.equals(new java.util.TreeSet<>(reports))) {
+                    found.add("the listener's methods are " + methods + ", not the four reports");
                 }
             }
-            if (planningClass || planningEnvironments.contains(c.getName())) {
+            if (planningEnvironments.contains(c.getName())) {
                 for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
                     if (handed.contains(f.getRawType().getName())) {
                         found.add("planning holds " + f.getFullName());
@@ -1523,8 +1603,30 @@ final class ArchitectureTest {
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning is handed a"
-                + " listener or a referee (the run tells, planning tells no one): " + found);
+        java.util.Set<String> told = java.util.Set.of("com.legend.judge.AssertListener",
+                "com.legend.judge.SqlReplayReferee", "com.legend.driver.Appeals#listenerNow", "com.legend.driver.Appeals#hold",
+                "com.legend.driver.SqlTextVerdicts#declinedNow", "com.legend.driver.SqlTextVerdicts#declinedTo",
+                "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
+                "com.legend.judge.CanonicalDivergence#sqlUnjudged", "com.legend.judge.CanonicalDivergence#sqlRaised",
+                "com.legend.judge.CanonicalDivergence#sqlRaisedAt", "com.legend.judge.CanonicalDivergence#sqlEnter");
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
+            String at = u.getOwner().getName() + "#" + u.getName();
+            if (PLANNING_ENTRIES.contains(at)) {
+                for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
+                    if (handed.contains(p.getName())) {
+                        found.add("planning takes " + u.getFullName());
+                    }
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                String owner = call.getTarget().getOwner().getName();
+                if (told.contains(owner) || told.contains(owner + "#" + call.getTarget().getName())) {
+                    found.add("planning tells: " + at + " -> " + owner + "#" + call.getTarget().getName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning tells someone"
+                + " (the run tells, at each verdict's turn; planning tells no one): " + found);
     }
 
     @Test

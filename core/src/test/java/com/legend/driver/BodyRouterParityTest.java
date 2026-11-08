@@ -1214,8 +1214,7 @@ class BodyRouterParityTest {
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(declinedFails.outcome.startsWith("AssertFailed")
                     && declinedFails.outcome.contains("text is the contract"), declinedFails.outcome);
-            assertTrue(declinedFails.verdicts.toString().contains("declined foreign-dialect:DB2"),
-                    declinedFails.verdicts.toString());
+            assertEquals(1, declinedOnce(declinedFails), declinedFails.verdicts.toString());
             // a dialect the engine-text renderer does not spell: the routine RAISES when the text is planned, and
             // the body moves under either judge -- the host plans the raise at the assert's turn; the database judge
             // closes a segment of walls alone as a decided step of its own (2026-11-03, the database judge on par
@@ -1224,6 +1223,18 @@ class BodyRouterParityTest {
                     + ");}";
             assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
         }
+        // the decline under BOTH judges at once (the slice 3 invariant audit, 2026-11-08): told exactly once -- by the
+        // host's half (its database half tells no listener), before the text decides
+        Run agreed = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', "
+                + producer.replace("DatabaseType.H2", "DatabaseType.DB2") + ");}", "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.BOTH);
+        assertTrue(agreed.outcome.startsWith("AssertFailed"), agreed.outcome);
+        assertEquals(1, declinedOnce(agreed), agreed.verdicts.toString());
+    }
+
+    /** How many times a run told the DB2 decline of its one engine-text assert. */
+    private static long declinedOnce(Run run) {
+        return run.verdicts.stream().filter(v -> v.contains("declined foreign-dialect:DB2")).count();
     }
 
     /** M10c item 12: a GRAPH FRAME -- a frame whose query is a graph fetch and its serialize -- planned on the program

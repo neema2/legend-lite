@@ -46,16 +46,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         extensionsByVerdict = copied(extensionsByVerdict);
     }
 
-    /** A plan with nothing planned for the edge (lite's own rules), whose last statement answers no verdict. */
-    public TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge) {
-        this(parameters, steps, judge, Map.of(), Map.of(), false);
-    }
-
-    /** A plan whose last statement answers no verdict. */
-    public TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
-            Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict) {
-        this(parameters, steps, judge, extensionsByStep, extensionsByVerdict, false);
-    }
+    // (2026-11-08, the slice 3 invariant audit: the two shorter constructors went -- each defaulted answersLastVerdict
+    // to false, a latent default that would drop hole 3's fact; every plan states it)
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {

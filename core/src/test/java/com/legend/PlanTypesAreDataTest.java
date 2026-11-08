@@ -112,6 +112,23 @@ class PlanTypesAreDataTest {
                         if (!DATA_PACKAGES.contains(c.getPackageName()) && !c.getPackageName().equals("com.legend.error")) {
                             violations.add("enum " + c.getName() + " at " + path);
                         }
+                        // its own state and its constants walked too (the slice 3 invariant audit, 2026-11-08: an enum
+                        // was taken on trust, so a field holding a lambda would have passed): every instance field
+                        // judged as a component, and a constant with a body -- a class of its own, code -- refused
+                        if (seen.add(c)) {
+                            for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                                if (!f.isEnumConstant() && !f.isSynthetic()
+                                        && !java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                                    todo.add(new Object[] {f.getGenericType(), c.getSimpleName() + "." + f.getName()});
+                                }
+                            }
+                            for (Object constant : c.getEnumConstants()) {
+                                if (constant.getClass() != c) {
+                                    violations.add("enum constant with a body " + c.getName() + "." + constant + " at "
+                                            + path);
+                                }
+                            }
+                        }
                         continue;
                     }
                     if (!seen.add(c) && DATA_PACKAGES.contains(c.getPackageName())) {

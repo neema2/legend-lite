@@ -104,6 +104,9 @@ public final class RootLoops {
             for (RootLoop.Root r : loop.roots()) {
                 RuntimeException failure = null;
                 boolean reported = true;
+                // whether a row of this root was judged (or its refusal counted): the verdict census's own fact for
+                // this root, at its turn (the slice 3 invariant audit, 2026-11-08: the census read state planning wrote)
+                boolean spoke = false;
                 if (r.steps().stream().noneMatch(s -> s instanceof RootLoop.Row)) {
                     Census.inc(Census.Key.VERDICT_HOST_DECIDED);
                 }
@@ -116,6 +119,7 @@ public final class RootLoops {
                                 if (l != null && p.decline() != null) {
                                     l.declined(p.name(), p.decline());
                                 }
+                                spoke = true;
                                 row(p, r, judge, appeals);
                             }
                             case RootLoop.Decided d -> {
@@ -139,7 +143,13 @@ public final class RootLoops {
                         && af.unjudgedReason() == null) {
                     failure = messaged(r.listenerName(), message, reader);
                 }
-                CanonicalDivergence.sqlRaised();
+                // the verdict census at the root's turn, from the plan's data: an UNJUDGED failure counted as such (its
+                // planning counted nothing), a raise no row of the root judged counted on the root's own family
+                if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                    CanonicalDivergence.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
+                } else if (!spoke) {
+                    CanonicalDivergence.sqlRaisedAt(family(r.listenerName()));
+                }
                 if (l != null && reported) {
                     if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
                         l.unjudged(r.listenerName(), af.unjudgedReason());
@@ -196,6 +206,12 @@ public final class RootLoops {
                 }
             }
         }
+    }
+
+    /** A root's assert family, as the verdict census names it: the bare name of the function it calls. */
+    private static String family(String listenerName) {
+        int at = listenerName.lastIndexOf("::");
+        return at < 0 ? listenerName : listenerName.substring(at + 2);
     }
 
     /** A refusal decided at planning raised at its place: counted UNJUDGED, raised as itself. */

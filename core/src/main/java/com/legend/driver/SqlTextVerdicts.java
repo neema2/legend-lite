@@ -360,6 +360,12 @@ final class SqlTextVerdicts {
         if (e.golden() != null && !e.golden().equals(golden) || e.ours() != null && !e.ours().equals(ours)) {
             throw new IllegalStateException(e.name() + ": the verdict step's texts are not the texts the arm planned");
         }
+        // the decline decided before the texts were compared: reported first, whatever the texts then decide -- once,
+        // by the host's half under the agreement judge (its database half reports to no listener); until the slice 3
+        // invariant audit (2026-11-08) a golden read at the step that differed from ours reported none
+        if (e.decline() != null) {
+            declinedNow(e.name(), e.decline());
+        }
         if (e.golden() == null) {
             // a golden the plan read (2026-11-04, the core program): the two texts compare first, as any equality;
             // only a failed comparison re-runs the arm over them -- its golden processing and its appeal
@@ -368,9 +374,6 @@ final class SqlTextVerdicts {
                         + " side, a String to one, read no string at the verdict step");
             }
             if (golden.equals(ours)) {
-                if (e.decline() != null) {
-                    declinedNow(e.name(), e.decline());
-                }
                 return ok();
             }
             if (!compat) {
@@ -399,10 +402,7 @@ final class SqlTextVerdicts {
             textEqual = e.golden().equals(ours);
         }
         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert); the
-        // decline reported, the text decides -- equal holds, else the appeal heard, or the texts' failure
-        if (e.decline() != null) {
-            declinedNow(e.name(), e.decline());
-        }
+        // decline reported above, the text decides -- equal holds, else the appeal heard, or the texts' failure
         String o = java.util.Objects.requireNonNull(ours);
         return textEqual ? ok() : compat ? Appeals.hold(e.name(), e.appeal(), e.golden(), o, textEqual)
                 : textsDiffer(e.name(), e.golden(), o, e.decline());
