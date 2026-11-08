@@ -1440,11 +1440,13 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : 50)), 5), 'all equal', 1e-12);
   });
 
-  it('median and percentile: pandas\' quantile over each window, a percentile of the whole series a line', async () => {
+  it('median and percentile: pandas\' quantile over each window, to date, and of the whole series a line', async () => {
     close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 5), 'median of 5', 1e-12);
     close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, ramp(AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 4), 'median of 4: the two middle ones\' mean', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, ramp(AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), 10), '90th of 10', 1e-12);
-    close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
+    // no window: to date (the user, 2026-11-08); the whole series' only where said, whole -- gs-quant's one number
+    close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map((_, i) => quantile(AAA.slice(0, i + 1), 0.25)), 'the 25th to date', 1e-12);
+    close((await line(spec({ A: 'percentile(close[AAA], 25, whole)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
     // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
     // other (the E9 review's 5)
     // (the builder's call of it is the platform's: core's TsFunctions writes quantileOfLine for a whole line)

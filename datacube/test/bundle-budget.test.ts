@@ -920,8 +920,10 @@ const CHART_BUDGET = 303_500;
  *  page). Measured 137,512.
  *  137,800 -> 138,900 (2026-11-08, the user: "Yes extend default to align with truncate option"): the library's text,
  *  which the tile carries, with lag's extend -- gs-quant's LagMode, its tail past the line's end per date type, its rows
- *  form's when -- and their sentences. Measured 138,684. */
-const TIMESERIES_BUDGET = 138_900;
+ *  form's when -- and their sentences. Measured 138,684.
+ *  138,900 -> 139,300 (2026-11-08, the user: "Go", percentile to date unless the whole line is said): the library's
+ *  text with percentile's whole form and gsWhole, and the tile's whole window (TsParamShape.whole). Measured 138,999. */
+const TIMESERIES_BUDGET = 139_300;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

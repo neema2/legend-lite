@@ -679,6 +679,8 @@ export function parseExpr(text: string): TsExpr {
     // a span's calendar period: `3m`, `1y` (the lexer reads a number run into letters as one word)
     if (param.kind === 'span' && t.t === 'id' && !t.quoted) {
       const v = t.v.toLowerCase();
+      // the whole line, where the word takes it (a z-score's, a percentile's)
+      if (v === 'whole' && param.whole === true) return v;
       if (tenorOf(v) === undefined) throw new TsSyntaxError(`${param.name} is a whole number of observations or a calendar period (3m, 1y)`, t.at);
       return v;
     }
