@@ -110,7 +110,14 @@ public final class RootLoops {
                 for (RootLoop.Step s : r.steps()) {
                     try {
                         switch (s) {
-                            case RootLoop.Row p -> row(p, r, judge, appeals);
+                            case RootLoop.Row p -> {
+                                // the decline the arm decided before its texts were compared, the row's data: reported
+                                // at the row's turn, before it is judged (hole 5, 2026-11-08)
+                                if (l != null && p.decline() != null) {
+                                    l.declined(p.name(), p.decline());
+                                }
+                                row(p, r, judge, appeals);
+                            }
                             case RootLoop.Decided d -> {
                                 reported = d.reported();
                                 throw Failures.raised(d.failure());

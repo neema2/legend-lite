@@ -10,6 +10,9 @@ package com.legend.judge;
  * without re-implementing assert semantics. One event per adjudicated
  * assert, in statement order; {@code pass=false} carries the raised
  * detail and precedes the run's failure (first-failure sequencing).
+ * OUTPUT ONLY (hole 4, 2026-11-08): the run tells it what happened and
+ * asks it for nothing -- no method answers a value, and planning is
+ * never handed one.
  */
 public interface AssertListener {
 
@@ -37,24 +40,5 @@ public interface AssertListener {
      * is the row verdict's name (MATCH / DIVERGED / DECLINED / FAULT). A
      * MATCH is the differential witness — the strength census reads it. */
     default void refereed(String assertName, String outcome) {
-    }
-
-    /** A fixture PLANNED AHEAD (zero exemptions, the owner, 2026-11-05; the run-now provision, provideStore, deleted
-     *  with the walk, 2026-11-07): the engine's suite runs a package's BeforePackage setups only for that package's
-     *  tests, so a golden whose mapping reads another package's store needs that store seeded. The stores an
-     *  engine-text assert's rows leg reads are NAMED by its appeal in the test plan (the plan-as-data design's step 8c,
-     *  2026-11-08); the harness is asked for each before the body's run ({@link #beforeRun}), and the provision it
-     *  answers -- the one setup's program planned then -- runs where the rows leg reads, after the run; true where it
-     *  seeded the store. Asked again by name there, it answers the same provision. Null: no fixture to provide, or none
-     *  that can be planned ahead. Default: none. */
-    default java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn) {
-        return null;
-    }
-
-    /** The body is planned and its run is next (the walk deletion's step 3, 2026-11-06): the fixtures of the
-     *  {@code stores} its plan's appeals name (step 8c, 2026-11-08) are provided HERE ({@link #fixtureAhead}), each a
-     *  run of its own before the body's -- never a run inside it (THE WALL's rule 4) -- and the appeal's own provision
-     *  is then a no-op. Default: nothing. */
-    default void beforeRun(java.util.Set<String> stores) {
     }
 }

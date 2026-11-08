@@ -82,9 +82,12 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      *                planning raised), raised where the generic row fails; null where none
      * @param appeal  the number of the appeal a failed row is heard by (compatibility mode's rows), {@link #NO_APPEAL}
      *                where the row's failure is the assert's
+     * @param decline the reason the arm decided before its texts were compared (a foreign dialect, unbindable plan
+     *                parameters), reported to the listener at the row's turn, before the row is judged; null where
+     *                none (hole 5, 2026-11-08: until then it was reported while the assert was planned)
      */
-    public record Row(String name, int verdict, @Nullable Failure refusal, @Nullable Failure orElse, int appeal)
-            implements Step {
+    public record Row(String name, int verdict, @Nullable Failure refusal, @Nullable Failure orElse, int appeal,
+            @Nullable String decline) implements Step {
         public Row {
             Objects.requireNonNull(name, "name");
             if ((verdict == NO_VERDICT) != (refusal != null)) {

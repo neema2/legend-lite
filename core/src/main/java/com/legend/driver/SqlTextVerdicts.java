@@ -427,9 +427,8 @@ final class SqlTextVerdicts {
             collector.collect(name, golden, ours, textEqual, decline, appeal, env);
             return ok();
         }
-        if (decline != null) {
-            declined(env, name, decline);
-        }
+        // the decline is the row's data, reported at its turn (hole 5, 2026-11-08: until then it was told to the
+        // listener here, while the assert was planned -- before any verdict, so attributed to none)
         boolean appeals = appeals(env);
         com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active() && !appeals) {
@@ -437,7 +436,8 @@ final class SqlTextVerdicts {
             batch.defer(name, true, collector instanceof BatchTexts bt && ours == bt.token
                     ? com.legend.lowering.VerdictSql.textEquals(golden,
                             java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
-                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target());
+                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
+                    com.legend.testexecutionplan.RootLoop.NO_APPEAL, decline);
             return ok();
         }
         if (batch != null && batch.active()) {
@@ -446,12 +446,20 @@ final class SqlTextVerdicts {
                 // equality in the verdict row, and a failed row hands the text it read to the appeal
                 batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden,
                         java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), env.target(),
-                        env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, null, false))));
+                        env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, null, false))),
+                        decline);
                 return ok();
             }
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
-                    env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, ours, textEqual))));
+                    env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, ours, textEqual))),
+                    decline);
             return ok();
+        }
+        if (decline != null) {
+            // no collector and no verdict row: nothing of a plan carries the decline to its turn -- refused by name,
+            // never told to a listener at planning (hole 5, 2026-11-08)
+            throw new IllegalStateException(name + " (sql-text): a decline (" + decline + ") decided outside a plan"
+                    + " that carries it");
         }
         if (textEqual) {
             return ok();
@@ -657,14 +665,6 @@ final class SqlTextVerdicts {
         // the dual-channel probe bucket walk-vs-arm outcomes as the
         // DESIGNED text-vs-rows divergence, never pinned disagreement
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            // §2: no referee registered = no goldens exist here — WALL
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         if (!com.legend.database.Databases.REPLAY_REFEREE.name().equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no referee database for this
             // dialect — text stays the contract, counted forever
@@ -695,7 +695,7 @@ final class SqlTextVerdicts {
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
             return rowsLegAndVerdict(
-                    name, goldenF, ours, textEqual, referee,
+                    name, goldenF, ours, textEqual,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls,
@@ -708,7 +708,7 @@ final class SqlTextVerdicts {
         // OUR ROWS (§3.5c): the referee executes the producer's own
         // query — mapping from the producer, runtime from the env
         return rowsLegAndVerdict(
-                name, goldenF, ours, textEqual, referee,
+                name, goldenF, ours, textEqual,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
@@ -789,16 +789,9 @@ final class SqlTextVerdicts {
                             + " did not evaluate to a string");
         }
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook, specs);
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
-                referee, com.legend.compiler.spec.VerdictQueries
+                com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
                 specs, env, hook, fm.query());
@@ -907,13 +900,6 @@ final class SqlTextVerdicts {
         // in lite's own runs the two texts are the verdict as they are (the deep audit, 2026-11-05)
         golden = appeals(env) ? stripChainedPlanWarning(golden) : golden;
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook, specs);
         // the engine's statement-per-let plan (batch 69a): golden(k) may
         // be a statement LET's own rows — same routing as the exec-read arm
@@ -926,7 +912,7 @@ final class SqlTextVerdicts {
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
             return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
-                    textEqual, referee,
+                    textEqual,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
@@ -936,7 +922,7 @@ final class SqlTextVerdicts {
                     letPrefix, specs, env, hook, fm.query());
         }
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
-                textEqual, referee, com.legend.compiler.spec.VerdictQueries
+                textEqual, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
                 specs, env, hook, fm.query());
@@ -1041,18 +1027,11 @@ final class SqlTextVerdicts {
         // in lite's own runs the two texts are the verdict as they are (the deep audit, 2026-11-05)
         golden = appeals(env) ? stripChainedPlanWarning(golden) : golden;
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         if (letStatement != null && fm.mappingRef() != null) {
             String letCls = letStatement.value().info().type()
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
-            return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
+            return rowsLegAndVerdict(name, golden, ours, textEqual,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
@@ -1071,7 +1050,7 @@ final class SqlTextVerdicts {
         if (pop != null && pop.rowsRead() != null && fm.mappingRef() != null) {
             // the let's expression runs through the one router, wrapped
             // in the frame's own mapping like every rows leg
-            return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
+            return rowsLegAndVerdict(name, golden, ours, textEqual,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null,
@@ -1080,7 +1059,7 @@ final class SqlTextVerdicts {
                             pop.rowsRead(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
-        return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
+        return rowsLegAndVerdict(name, golden, ours, textEqual,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
@@ -1323,13 +1302,6 @@ final class SqlTextVerdicts {
             return null;
         }
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         com.legend.compiler.spec.VerdictQueries.PlanBindings bindings =
                 com.legend.compiler.spec.VerdictQueries
                         .refereeBindings(lam);
@@ -1364,7 +1336,7 @@ final class SqlTextVerdicts {
         TypedSpec last = lam.body().get(lam.body().size() - 1);
         TypedSpec read = mapping == null ? last
                 : com.legend.compiler.spec.VerdictQueries.fromWrapped(last, mapping, planCtx);
-        return rowsLegAndVerdict(name, golden, ours, textEqual, referee, read,
+        return rowsLegAndVerdict(name, golden, ours, textEqual, read,
                 replay, mapping == null ? null : mapping.fullPath(), rootClassFqn(lam),
                 AssertVerdicts.replayFacts(last, bound),
                 AssertVerdicts.unpagedRead(read), bound,
@@ -1502,13 +1474,6 @@ final class SqlTextVerdicts {
             return null;
         }
         boolean textEqual = golden.equals(ours);
-        SqlReplayReferee referee = env.replayReferee();
-        if (referee == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "sql-text assert verdict needs a replay oracle and"
-                            + " none is registered on this env (correct"
-                            + " outside tests: there are no goldens)");
-        }
         // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert's verdict is the golden fetch text against ours,
         // string equality; the referee (the fetch replayed on the referee, rows compared) is its APPEAL on a failed
         // text (decide: a row of the body's statement under the batch, the step's on the program road, now on the walk)
@@ -1655,7 +1620,7 @@ final class SqlTextVerdicts {
      * counted. */
     private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
-            SqlReplayReferee referee, TypedSpec rowsRead,
+            TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
@@ -1664,7 +1629,7 @@ final class SqlTextVerdicts {
             BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             @com.legend.base.Nullable TypedSpec query) {
-        return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
+        return rowsLegAndVerdict(name, golden, ours, textEqual,
                 rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                 letPrefix, specs, env, hook, query, null, java.util.Map.of());
     }
@@ -1674,7 +1639,7 @@ final class SqlTextVerdicts {
      * {@code planBindings} = the referee's parameter values). */
     private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
-            SqlReplayReferee referee, TypedSpec rowsRead,
+            TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
@@ -1685,7 +1650,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings) {
-        return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
+        return rowsLegAndVerdict(name, golden, ours, textEqual,
                 rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                 letPrefix, specs, env, hook, query, goldenPlan, planBindings,
                 List.of());
@@ -1695,7 +1660,7 @@ final class SqlTextVerdicts {
      * ({@code temps} — beside the inline in-list temp the arm derives). */
     private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
-            SqlReplayReferee referee, TypedSpec rowsRead,
+            TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
@@ -1714,7 +1679,8 @@ final class SqlTextVerdicts {
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
         RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
         // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its stores are provided before the
-        // body's run (AssertListener.beforeRun) and its rows read as plans of their own on the body's sessions
+        // body's run, by the caller, from the plan's data (PlannedAppeals.stores), and its rows read as plans of their
+        // own on the body's sessions
         // the referee's in-list temp table, planned: its rows read off the typed query in the frame's own zone (the
         // envelope spliced where a let-bound Result stood); its name, the one the golden reads, at the appeal
         InListSeed seed = ahead != null && temps.isEmpty()
@@ -1736,7 +1702,8 @@ final class SqlTextVerdicts {
      *  rows planned with the assert; an arm reached outside any run (planned for the program
      *  road under either judge, or walked) under the compatibility rules, whose text may fail -- not byte-equal, or a
      *  text the step reads -- plans them now, naming each store they read for the harness to provide before the
-     *  body's run ({@link com.legend.judge.AssertListener#beforeRun}, step 8c); else none -- inside a run nothing is planned, and an
+     *  body's run (the plan's data, {@code PlannedAppeals.stores}: step 8c and hole 4); else none -- inside a run
+     *  nothing is planned, and an
      *  appeal with no rows planned is refused there by the runtime wall, by name. */
     private static @com.legend.base.Nullable RowsAhead rowsAhead(BodyDriver.ExecEnv env, boolean textEqual,
             TypedSpec rowsRead, @com.legend.base.Nullable TypedSpec populationRead,
@@ -1860,15 +1827,8 @@ final class SqlTextVerdicts {
         if (referee == null) {
             throw new IllegalStateException(name + " (sql-text): an appeal decided with no replay referee");
         }
-        // the stores' fixtures, provided by the harness before the rows are read (asked by name: it planned them ahead)
-        if (listener != null) {
-            for (String store : r.stores()) {
-                java.util.function.BooleanSupplier f = listener.fixtureAhead(store);
-                if (f != null) {
-                    f.getAsBoolean();
-                }
-            }
-        }
+        // the stores' fixtures were the caller's to provide before the body's run, from the plan's data
+        // (PlannedAppeals.stores; hole 4, 2026-11-08: until then the listener was asked again here, by name)
         com.legend.testexecutionplan.Appeal.Unlisted unlisted = r.rows().unlisted();
         if (unlisted != null) {
             // our rows' planning failed with a class off the closed list: the same decline, in its words
@@ -2146,17 +2106,6 @@ final class SqlTextVerdicts {
                 && s.value() instanceof String str ? str : null;
     }
 
-    /** A text-decided arm reports its NAMED decline to the runner before
-     * the text decides (Phase 0.6, audit §10 item 7 — no path returns
-     * {@code textEqual ? ok() : fail(...)} uncounted). */
-    private static void declined(BodyDriver.ExecEnv env, String name,
-            String reason) {
-        com.legend.judge.AssertListener l = env.assertListener();
-        if (l != null) {
-            l.declined(name, reason);
-        }
-    }
-
     private static java.util.Set<String> storesOf(com.legend.compiler.element.ModelContext ctx,
             String mappingFqn, java.util.Set<String> visited) {
         java.util.Set<String> stores = new java.util.LinkedHashSet<>();
@@ -2176,17 +2125,6 @@ final class SqlTextVerdicts {
             }
         });
         return stores;
-    }
-
-    /** The referee's row verdict for this assert, reported to the runner
-     * (Phase 0.7): the strength census reads a MATCH as the differential
-     * witness. */
-    private static void refereed(BodyDriver.ExecEnv env, String name,
-            SqlReplayReferee.RowVerdict rv) {
-        com.legend.judge.AssertListener l = env.assertListener();
-        if (l != null) {
-            l.refereed(name, rv.outcome().name());
-        }
     }
 
     private static TypedSide ok() {

@@ -45,15 +45,15 @@ public final class BodyRouter {
     private BodyRouter() {
     }
 
-    /** {@code typed} run on {@code session}: moved or walked ({@link BodyDriver#execute}'s contract either way). */
-    public static void execute(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
-            Sessions.Session session, @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            ExecuteOptions options, Execution.@Nullable Answer answer) {
+    /**
+     * {@code given} PLANNED WHOLE by the test door, its asserts by its judge's planner: lifted, classed, its environment
+     * made -- with no run started, no session opened, no statement sent, and nothing told to anyone (hole 4,
+     * 2026-11-08: planning is handed no listener and no referee, so what it decides reaches the caller only as the
+     * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
+     */
+    public static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
+            ExecuteOptions options) {
         ExecuteOptions.JudgeMode mode = options.judgeMode();
-        // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
-        // judges tell the caller's listener through it, its reports kept back while an appeal is held
-        Appeals appeals = new Appeals(callers);
-        AssertListener listener = appeals.listener();
         TypedQuery typed;
         BodyClass bodyClass;
         boolean systemRouted;
@@ -82,7 +82,7 @@ public final class BodyRouter {
             systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
                     && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
             BodyDriver.ExecEnv bodyEnv = runtimeFqn == null ? null
-                    : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, listener, referee, options);
+                    : BodyDriver.bodyEnv(typed, runtimeFqn, dialect, options);
             BodyDriver.ExecEnv env = bodyEnv;
             textAppeals = bodyEnv == null ? null : bodyEnv.appeals();
             if (systemRouted) {
@@ -126,6 +126,7 @@ public final class BodyRouter {
             // the walk is deleted (2026-11-06): a body the program road does not plan is refused by name
             throw new com.legend.error.NotImplementedException("the program road does not plan this body: " + why);
         }
+        // the census of the bodies the test door plans whole (a measurement: counted where the class admits the body)
         Census.inc(Census.Key.BODIES_MOVED);
         TestPlan plan;
         try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
@@ -155,6 +156,24 @@ public final class BodyRouter {
             // the plan as data, printed whole (the plan-as-data design, 2026-11-07: what the run reads)
             System.out.println("[plan-json] " + com.legend.testexecutionplan.TestPlanJson.write(plan));
         }
+        return plan;
+    }
+
+    /**
+     * A body's plan ({@link #plan}, or a program planned ahead, {@link #planned}) RUN on {@code session}: the plan's
+     * data alone decides what is sent and judged, each verdict told to {@code callers} at its turn (the listener is the
+     * run's output, never asked for anything: hole 4, 2026-11-08 -- the fixtures the plan's appeals name are the
+     * caller's to provide before this, {@code PlannedAppeals.stores}); the appeals held are decided after the run by
+     * the {@code referee}. {@code ctx} is the compiled model the plan was planned over: the run still reads it for the
+     * system database's sessions and an appeal's enum decode (holes 1 and 2, slice 4, take it away).
+     */
+    public static void run(TestPlan plan, Sessions.Session session, com.legend.compiler.element.ModelContext ctx,
+            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, ExecuteOptions options,
+            Execution.@Nullable Answer answer) {
+        // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
+        // judges tell the caller's listener through it, its reports kept back while an appeal is held
+        Appeals appeals = new Appeals(callers);
+        AssertListener listener = appeals.listener();
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
         try {
@@ -163,18 +182,13 @@ public final class BodyRouter {
             // (per-statement routing, 2026-11-03) -- one session per graph and engine (SystemDatabase), opened when a
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    target -> SystemDatabase.of(typed.context()).sessionFor(target, options.systemConnections());
+                    target -> SystemDatabase.of(ctx).sessionFor(target, options.systemConnections());
             Moved moved = new Moved(plan, options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
-            if (listener != null) {
-                // the fixtures of the stores the plan's appeals name, provided before the body's run (each a run of its
-                // own; step 8c)
-                listener.beforeRun(com.legend.testexecutionplan.PlannedAppeals.stores(plan));
-            }
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
             Appeals.Decider decider = (n, golden, ours, textEqual, l) -> SqlTextVerdicts.decideAppeal(
-                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, typed.context(), l);
+                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, ctx, l);
             try (var open = appeals.open()) {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);
@@ -215,7 +229,7 @@ public final class BodyRouter {
      * {@code given} PLANNED NOW, to run later on a session of the same database (zero exemptions, the owner,
      * 2026-11-05): a runner's fixture program planned with the assert whose compatibility appeal provides it, and run
      * where the appeal provides it -- inside the body's run, which plans nothing. A body that judges nothing (an effect
-     * or query program, no assert) planned whole by the test door as {@link #execute} plans it; null for any other
+     * or query program, no assert) planned whole by the test door as {@link #plan} plans it; null for any other
      * (the walk's, an assert's, a system-routed body's), which the caller cannot plan ahead.
      */
     public static @Nullable Execution.PlannedProgram planned(TypedQuery given, @Nullable String runtimeFqn,
@@ -226,6 +240,8 @@ public final class BodyRouter {
                 || BodyClass.anAssert(typed, runtimeFqn)) {
             return null;
         }
+        // counted where it is planned, as a body is (plan; until hole 4 a program planned ahead counted when it ran)
+        Census.inc(Census.Key.BODIES_MOVED);
         TestPlan planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
@@ -237,22 +253,6 @@ public final class BodyRouter {
                 ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
                 : planned;
         return new Execution.PlannedProgram(ahead);
-    }
-
-    /** A program planned ahead ({@link #planned}) run on {@code target}: its plan, data, alone (step 8c, 2026-11-08). */
-    public static void runPlanned(TestPlan ahead, Sessions.Session target, com.legend.compiler.element.ModelContext ctx,
-            ExecuteOptions options) {
-        Census.inc(Census.Key.BODIES_MOVED);
-        java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                system -> SystemDatabase.of(ctx).sessionFor(system, options.systemConnections());
-        Moved moved = new Moved(ahead, options.edge(), null, null,
-                null, sessionsByTarget(target, systemSessions));
-        try {
-            TestRun.run(ahead, Map.of(), PlanSessions.of(target, null, systemSessions),
-                    moved::textOrigin, moved, moved);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed

@@ -37,17 +37,14 @@ public final class BodyDriver {
     private BodyDriver() {
     }
 
-    /** A body's environment at its start, as the walk makes it: the execution OPTIONS (the per-call ones ride each
-     *  execute call's own from -- the engine's exeCtx overload binds them onto its bound context; the caller's ride
-     *  the environment), the listeners, the query's protocol statements. The body router plans an assert program's
-     *  asserts on it (the test-is-the-product plan's M6). */
+    /** A body's environment at its start: the execution OPTIONS (the per-call ones ride each execute call's own from
+     *  -- the engine's exeCtx overload binds them onto its bound context; the caller's ride the environment) and the
+     *  query's protocol statements. The body router plans an assert program's asserts on it (the test-is-the-product
+     *  plan's M6). No listener and no referee: planning tells no one anything and depends on no run-time service
+     *  (holes 4 and 5, 2026-11-08). */
     static ExecEnv bodyEnv(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee, ExecuteOptions options) {
-        ExecEnv env0 = ExecEnv.of(typed.context(), runtimeFqn, dialect, options);
-        ExecEnv env = assertListener == null && replayReferee == null ? env0
-                : env0.withListeners(assertListener, replayReferee);
+            com.legend.sql.dialect.SqlDialect dialect, ExecuteOptions options) {
+        ExecEnv env = ExecEnv.of(typed.context(), runtimeFqn, dialect, options);
         if (typed.resolved() instanceof com.legend.protocol.spec.LambdaFunction rlf
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
@@ -63,12 +60,9 @@ public final class BodyDriver {
      * the runtime, the ONE dialect -- audit 17: recomputing it per arm invited a future mixed-dialect bug -- the
      * query's lets, the renames, the frame, the features, the site ids) and WHERE its statements run: the TARGET,
      * never a session (I3, 2026-11-07: planning names a target, the run opens its session -- the runner's
-     * PlanSessions.Source maps one to the other), the trace, the verdict batch, the listeners and the caller's execute
-     * options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
+     * PlanSessions.Source maps one to the other), the trace, the verdict batch and the caller's execute options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
     record ExecEnv(com.legend.planner.PlanEnv plan,
             com.legend.executionplan.ExecutionPlan.Target target,
-            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options,
             com.legend.exec.ExecutionTrace trace,
             com.legend.judge.@com.legend.base.Nullable VerdictBatch verdictBatch,
@@ -83,7 +77,7 @@ public final class BodyDriver {
             EngineTextAppeals appeals) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
-         *  options' features), no listeners, a fresh trace, no batch. */
+         *  options' features), a fresh trace, no batch. */
         static ExecEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect, ExecuteOptions options) {
             return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
@@ -92,7 +86,7 @@ public final class BodyDriver {
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
-                    null, null, options, new com.legend.exec.ExecutionTrace(), null, null, null, null,
+                    options, new com.legend.exec.ExecutionTrace(), null, null, null, null,
                     new com.legend.judge.VerdictIds(), new EngineTextAppeals());
         }
 
@@ -131,17 +125,17 @@ public final class BodyDriver {
         /** The same environment over another planning half. */
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
-                    : new ExecEnv(p, target, assertListener, replayReferee, options, trace, verdictBatch,
+                    : new ExecEnv(p, target, options, trace, verdictBatch,
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.judge.VerdictBatch b) {
-            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, b, engineText,
+            return new ExecEnv(plan, target, options, trace, b, engineText,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(ExecuteOptions o) {
-            return new ExecEnv(plan.withFeatures(o.features()), target, assertListener, replayReferee, o, trace,
+            return new ExecEnv(plan.withFeatures(o.features()), target, o, trace,
                     verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** The executing frame's bound context (post-processors, time zone,
@@ -152,21 +146,17 @@ public final class BodyDriver {
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
             return withPlan(plan.withTableReplace(tr));
         }
-        ExecEnv withListeners(com.legend.judge.@com.legend.base.Nullable AssertListener l,
-                com.legend.judge.@com.legend.base.Nullable SqlReplayReferee o) {
-            return new ExecEnv(plan, target, l, o, options, trace, verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
-        }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
-            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch, c,
+            return new ExecEnv(plan, target, options, trace, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
-            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, options, trace, verdictBatch,
                     engineText, m, appealOn, verdictIds, appeals);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
@@ -174,7 +164,7 @@ public final class BodyDriver {
          *  body's own environment while its verdict row runs on the program's; the walk deletion's step 3,
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
-            return new ExecEnv(plan, target, assertListener, replayReferee, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, options, trace, verdictBatch,
                     engineText, failureMessage, on, verdictIds, appeals);
         }
 
@@ -182,7 +172,7 @@ public final class BodyDriver {
          *  metamodel (targets compare by value: two sides on one database name one target). */
         ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
             return other.equals(target) ? this
-                    : new ExecEnv(plan, other, assertListener, replayReferee, options, trace, verdictBatch,
+                    : new ExecEnv(plan, other, options, trace, verdictBatch,
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
 

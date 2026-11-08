@@ -179,8 +179,10 @@ public final class Execution {
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
+        // planned before any session is opened: planning names targets, never sessions
+        PlannedProgram planned = planBody(typed, runtimeFqn, options);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            runProgram(typed, runtimeFqn, session, listener, referee, options, answer);
+            runBody(planned, session, ctx, listener, referee, options, answer);
         }
     }
 
@@ -193,25 +195,50 @@ public final class Execution {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
-    /** A program PLANNED before it runs ({@link #planProgram}): its test plan, data (the plan-as-data design's step 8c,
-     *  2026-11-08: until then a closure); run once by {@link #runPlanned}, on a session of the database it was planned
-     *  for, which plans nothing. */
+    /** A test body or program PLANNED before it runs ({@link #planBody}, {@link #planProgram}): its test plan, data
+     *  (the plan-as-data design's step 8c, 2026-11-08: until then a closure); run by {@link #runBody}, on a session of
+     *  the database it was planned for, which plans nothing. */
     public record PlannedProgram(com.legend.testexecutionplan.TestPlan plan) {
         public PlannedProgram {
             java.util.Objects.requireNonNull(plan, "plan");
         }
     }
 
-    /** {@code planned} run on {@code session} under {@code options}, the graph {@code ctx} it was planned over holding
-     *  its system store's sessions. */
-    public static void runPlanned(PlannedProgram planned, com.legend.exec.Sessions.Session session, ModelContext ctx,
+    /**
+     * A test body PLANNED WHOLE, with no session and nothing told to anyone (hole 4, 2026-11-08: the planning half of
+     * {@link #runProgram}): its unread lets made statements, its asserts planned by its judge's planner, the whole
+     * planned by the test door; a body the program road does not plan is refused by name. Run by {@link #runBody}.
+     */
+    public static PlannedProgram planBody(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             ExecuteOptions options) {
-        BodyRouter.runPlanned(planned.plan(), session, ctx, options);
+        ModelContext ctx = typed.context();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
+        // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
+                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
+        return new PlannedProgram(BodyRouter.plan(program != body ? typed.withBody(program) : typed, runtimeFqn,
+                dialect, options));
+    }
+
+    /**
+     * {@code planned} RUN on {@code session} (the run half of {@link #runProgram}): its plan's data alone decides what
+     * is sent and judged; each verdict is told to {@code listener} at its turn -- the listener is the run's output and
+     * is asked for nothing (hole 4, 2026-11-08: the fixtures a plan's appeals name, {@code PlannedAppeals.stores}, are
+     * the caller's to provide before this); a held appeal is decided after the run by the {@code referee}; the last
+     * statement's answer, where wanted, streams to {@code answer}'s sink. {@code ctx} is the graph it was planned
+     * over: the run still reads it for the system store's sessions and an appeal's enum decode, until slice 4.
+     */
+    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session, ModelContext ctx,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            @com.legend.base.Nullable Answer answer) {
+        BodyRouter.run(planned.plan(), session, ctx, listener, referee, options, answer);
     }
 
     /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the
-     *  owner, 2026-11-05: a test runner's fixture program planned with the assert whose compatibility appeal provides
-     *  it, run where the appeal provides it, inside a run that plans nothing): as {@link #runProgram} plans it, with
+     *  owner, 2026-11-05: a test runner's fixture program, planned and run before the body whose compatibility appeal
+     *  names its store, {@link #runBody}): as {@link #runProgram} plans it, with
      *  no session at all (THE WALL, 2026-11-06: until then a session was opened and checked to plan it); null for a
      *  body that cannot be planned ahead -- one holding an assert, or of no moved class (the walk's). */
     public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
@@ -232,29 +259,5 @@ public final class Execution {
     @FunctionalInterface
     public interface Answer {
         com.legend.result.ResultSink of(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape);
-    }
-
-    /** {@link #runProgram(TypedQuery, String, Source, com.legend.judge.AssertListener,
-     *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} on a session the caller holds and keeps (the old
-     *  door's connection): checked, its dialect decided, the body driver run on it; the one place a program's
-     *  session meets its JDBC connection. A program leaves nothing behind: its verdicts are the listener's, one
-     *  event each, its last statement's answer the sink's ({@code ProgramReport}, the one materialized side a public
-     *  entry returned, went 2026-10-29 with the doors). */
-    static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Session session, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @com.legend.base.Nullable Answer answer) {
-        ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
-        // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
-                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
-        if (program != body) {
-            typed = typed.withBody(program);
-        }
-        // the test door's router (the test-is-the-product plan's M5, R16): a body of a moved class runs whole as one plan,
-        // every other is walked
-        BodyRouter.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
     }
 }

@@ -277,24 +277,36 @@ public final class PureTestRunner implements AutoCloseable {
         return out;
     }
 
-    /** {@link #provideFixture} PLANNED AHEAD ({@link AssertListener#fixtureAhead}; zero exemptions, the owner,
-     *  2026-11-05): the one setup that seeds {@code storeFqn} planned now, while the assert that asks is planned, and
-     *  provided -- by {@link #provideFixture}'s rules, read when it runs -- where the rows leg reads, inside the body's
-     *  run, which plans nothing. Null where no one setup seeds the store, or its program cannot be planned ahead. */
-    private java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn,
-            com.legend.exec.Sessions.Session conn, java.util.Collection<String> ran, boolean shared,
-            ExecuteOptions options) {
-        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1) {
-            return null;
+    /** The fixtures of the {@code stores} a body's planned appeals name ({@code PlannedAppeals.stores}; zero
+     *  exemptions, the owner, 2026-11-05; the plan-as-data design's step 8c), provided after the body is planned and
+     *  before it runs -- each the one setup that seeds the store, planned as a program of its own and run by
+     *  {@link #provideFixture}'s rules, never a run inside the body's (THE WALL's rule 4). A store no one setup seeds,
+     *  or whose setup cannot be planned ahead, or that a setup the body calls itself seeds (where the body seeds it:
+     *  2026-11-06, a fixture set aside before the body's own setup puts its tables where that setup's drops resolve),
+     *  gets none. The caller does this between the two halves (hole 4, 2026-11-08: until then the run asked the body's
+     *  listener for each fixture, mid-run). */
+    private void provideFixtures(PureTests.TestCase t, ProgramFacts facts, com.legend.exec.Sessions.Session conn,
+            ExecuteOptions options, Set<String> stores) {
+        if (stores.isEmpty()) {
+            return;
         }
-        Execution.PlannedProgram planned = Execution.planProgram(
-                Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
-        if (planned == null) {
-            return null;
+        boolean shared = !facts.seedsInlineCsv();
+        java.util.Collection<String> ran = shared ? setupsDone : setupCandidates(t.pkg());
+        Set<String> called = setupsCalled(t);
+        for (String store : stores) {
+            // a fixture is planned only where it may be provided now ({@link #mayProvide}, read again when it runs):
+            // a setup already run, or one whose tables clash, is never planned
+            List<String> setups = fixturesByStore().getOrDefault(store, List.of());
+            if (called.containsAll(setups) || !mayProvide(store, ran)) {
+                continue;
+            }
+            Execution.PlannedProgram fixture = Execution.planProgram(
+                    Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
+            if (fixture != null) {
+                provideFixture(store, conn, ran, shared,
+                        (fqn, target) -> Execution.runBody(fixture, target, ctx, null, null, options, null));
+            }
         }
-        return () -> provideFixture(storeFqn, conn, ran, shared,
-                (fqn, target) -> Execution.runPlanned(planned, target, ctx, options));
     }
 
     /** The setups {@code body} calls at its top level (testGroupByWithWindowSubset runs
@@ -327,22 +339,17 @@ public final class PureTestRunner implements AutoCloseable {
      * rows on the first measurement. A setup that fails raises: a fixture
      * the platform named but could not seed is a fault of ours, never a
      * quiet decline. */
-    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
-            java.util.Collection<String> ran, boolean shared,
-            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
+    /** Whether THE setup that seeds {@code storeFqn} may be provided now ({@link #provideFixture}'s rules, which read
+     *  them again when it runs): exactly one setup seeds it, no setup run in this session ({@code ran}) is it, and no
+     *  such setup's store declares a table it declares -- a fixture whose DECLARED footprint clashes with a seeded
+     *  store is refused (the engine judges such goldens by text too); the ones that pass still run in an aside,
+     *  because the footprint a fixture reaches through a runtime's connection value is not a static fact
+     *  (objectReferenceIn::setUp, 2026-09-17). */
+    private boolean mayProvide(String storeFqn, java.util.Collection<String> ran) {
         List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1) {
+        if (setups.size() != 1 || ran.contains(setups.get(0))) {
             return false;
         }
-        String fqn = setups.get(0);
-        if (ran.contains(fqn)) {
-            return false;
-        }
-        // a fixture whose DECLARED footprint clashes with a seeded store is
-        // refused (the engine judges such goldens by text too); the ones
-        // that pass this check still run in an aside, because the
-        // footprint a fixture reaches through a runtime's connection value
-        // is not a static fact (objectReferenceIn::setUp, 2026-09-17)
         Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
         for (String done : ran) {
             for (String store : setupStores.getOrDefault(done, Set.of())) {
@@ -351,6 +358,16 @@ public final class PureTestRunner implements AutoCloseable {
                 }
             }
         }
+        return true;
+    }
+
+    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
+            java.util.Collection<String> ran, boolean shared,
+            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
+        if (!mayProvide(storeFqn, ran)) {
+            return false;
+        }
+        String fqn = fixturesByStore().getOrDefault(storeFqn, List.of()).get(0);   // mayProvide: exactly one
         if (!runFixture(fqn, target -> program.accept(fqn, target), conn, true)) {
             return false;   // a clashing fixture the caller cannot isolate
         }
@@ -512,16 +529,19 @@ public final class PureTestRunner implements AutoCloseable {
         Map<Integer, String> refereedAhead = new HashMap<>();
         Map<Integer, String> unjudgedAhead = new HashMap<>();
         boolean[] refereeMatched = {false};
-        // the fixtures the body's planned appeals ask for, provided before its run (AssertListener.beforeRun)
-        List<java.util.function.BooleanSupplier> pendingFixtures = new ArrayList<>();
-        Map<String, java.util.function.@com.legend.base.Nullable BooleanSupplier> fixturesAhead = new HashMap<>();
         observer.bodyStarting(conn, effectful);
         boolean passed = false;
         try {
             String failure = null;
             try {
-                Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
-                        com.legend.Execution.Source.given(conn),
+                // the body planned whole, nothing told to anyone; the fixtures its appeals name provided; then run,
+                // its listener told each verdict at its turn (hole 4, 2026-11-08: the two halves, the fixtures
+                // between them -- until then the run asked the listener for them)
+                Execution.PlannedProgram planned = Execution.planBody(Compiler.queryResolved(ctx, resolved),
+                        runtimeFqn, options);
+                provideFixtures(t, facts, conn, options,
+                        com.legend.testexecutionplan.PlannedAppeals.stores(planned.plan()));
+                Execution.runBody(planned, conn, ctx,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {
@@ -556,54 +576,8 @@ public final class PureTestRunner implements AutoCloseable {
                                 observer.refereed(name, outcome);
                             }
 
-                            @Override
-                            public java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(
-                                    String storeFqn) {
-                                // one provision per store, however many appeals ask for it
-                                if (fixturesAhead.containsKey(storeFqn)) {
-                                    return fixturesAhead.get(storeFqn);
-                                }
-                                boolean shared = !facts.seedsInlineCsv();
-                                java.util.Collection<String> ran = shared ? setupsDone : setupCandidates(t.pkg());
-                                // a setup the body calls itself seeds its own stores, where the body seeds them:
-                                // never a fixture's to provide ahead of the body's run
-                                java.util.function.BooleanSupplier provision = setupsCalled(t).containsAll(
-                                        fixturesByStore().getOrDefault(storeFqn, List.of())) ? null
-                                        : PureTestRunner.this.fixtureAhead(storeFqn, conn, ran, shared, options);
-                                java.util.function.BooleanSupplier once = null;
-                                if (provision != null) {
-                                    // provided once: before the body's run (beforeRun), and the appeal's own ask
-                                    // then answers what that provision answered
-                                    java.util.concurrent.atomic.AtomicReference<Boolean> provided =
-                                            new java.util.concurrent.atomic.AtomicReference<>();
-                                    once = () -> {
-                                        Boolean done = provided.get();
-                                        if (done == null) {
-                                            done = provision.getAsBoolean();
-                                            provided.set(done);
-                                        }
-                                        return done;
-                                    };
-                                    pendingFixtures.add(once);
-                                }
-                                fixturesAhead.put(storeFqn, once);
-                                return once;
-                            }
-
-                            @Override
-                            public void beforeRun(java.util.Set<String> stores) {
-                                // the fixtures of the stores the plan's appeals name (step 8c, 2026-11-08), each a run
-                                // of its own before the body's
-                                for (String store : stores) {
-                                    fixtureAhead(store);
-                                }
-                                for (java.util.function.BooleanSupplier f : pendingFixtures) {
-                                    f.getAsBoolean();
-                                }
-                                pendingFixtures.clear();
-                            }
                         },
-                        referee, options);
+                        referee, options, null);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();

@@ -134,6 +134,9 @@ driver	base builtin cache compiler compiler_element_type database diagnostics er
 # (Hash).
 testplan	base builtin cache compiler compiler_element_type database error execution_plan model planner platform setup sql sql_dialect test_plan
 ide	base door lexer model parser
-test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
+# 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): `test` reaches `test_plan` -- the test runner reads
+# the stores a body's planned appeals name from the plan's data (PlannedAppeals.stores) and provides their fixtures
+# between the body's plan and its run, where the run used to ask its listener for them.
+test	base compiler driver error exec execution_plan json judge model planner protocol result sql test_plan values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

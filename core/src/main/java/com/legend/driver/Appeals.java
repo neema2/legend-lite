@@ -296,15 +296,5 @@ final class Appeals {
                 to.refereed(assertName, outcome);
             }
         }
-
-        @Override
-        public java.util.function.@Nullable BooleanSupplier fixtureAhead(String storeFqn) {
-            return to.fixtureAhead(storeFqn);
-        }
-
-        @Override
-        public void beforeRun(java.util.Set<String> stores) {
-            to.beforeRun(stores);
-        }
     }
 }

@@ -26,8 +26,9 @@ public final class TestPlanJson {
      *  steps of their own, the judge the plan's; 2 the same day (step 4): a verdict's host facts -- its assertion, its
      *  judgment, its sides' shapes; 3 the same day (step 5): the database judge's root loop on a segment's last group;
      *  4 the same day (step 6): the agreement judge's pairing on an assert's last group; 5 the same day (step 8): the
-     *  edge's records by step and by verdict, each through its codec. */
-    public static final int VERSION = 6;
+     *  edge's records by step and by verdict, each through its codec; 6 (slice 3): whether the body's last statement
+     *  answers a verdict; 7 (slice 3, hole 5): a root loop's row carries the decline its arm decided. */
+    public static final int VERSION = 7;
 
     private TestPlanJson() {
     }

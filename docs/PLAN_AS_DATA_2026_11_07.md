@@ -866,3 +866,35 @@ later slice to close one; that is a question for the user.
   the package split. Every pin at zero, every guard hard.
 
 Each slice closes with every lane and an invariant audit, briefed with the rule, not the step list.
+
+### Slice 3's progress
+
+- **Batch 1 (`99f4058c`):** step 9 (a window frame's offset a closed type), so guard 1 is at zero, judged per
+  (type, path) (D1); guard 3 hard on the DuckDB corpus lane; hole 3 (the plan says whether its last statement answers
+  a verdict: `TestPlan.answersLastVerdict`); hole 8 (the run's rules re-check deleted); D2 (the test door returns the
+  whole plan, its appeals included, and a plan naming an appeal it does not carry is refused: `PlannedAppeals`).
+- **Batch 2: holes 4 and 5, and the three guards.**
+  - *Hole 5:* an arm's decline is its verdict row's data (`RootLoop.Row.decline`, the test plan's JSON version 7),
+    reported by the root loop at the row's turn, before the row is judged. Until then the database judge told it to
+    the listener while the assert was planned, so it was attributed to no verdict. A decline no plan carries is
+    refused by name. Planning's environment holds no listener and no referee (`ExecEnv`'s two components deleted);
+    the six "needs a replay oracle" walls are deleted, so planning depends on the judging rules alone, and the appeal
+    decision refuses a missing referee (`rowsLegNow`).
+  - *Hole 4:* the listener is output only. `AssertListener.fixtureAhead` and `beforeRun` are deleted. The test door
+    has two halves, `Execution.planBody` (no session, nothing told to anyone) and `Execution.runBody`, and
+    `runProgram` is the one composed of them. `PureTestRunner` plans the body, provides the fixtures of the stores its
+    plan's appeals name (`PlannedAppeals.stores`, each planned only where it may be provided), then runs it.
+    `Execution.runPlanned` is gone (a fixture program runs through `runBody`). The test runner's library reaches the
+    test plan's (`tools/deps/core-layers.txt`).
+  - *The guards* (`ArchitectureTest`, in `//core:guardrails`):
+    - R1 measures every class of the driver, the judges and the edge but the planning-only ones named in
+      `PLANNING_ONLY`. A measured class that reaches planning directly is MIXED and is itself a target. The first
+      measure: 14 mixed classes, 266 crossings, pinned by source in `R1_CROSSINGS`, zero at slice 5.
+    - `noCompiledModelReachesTheRun`: 13 sites (holes 1, 2 and 7), pinned in `MODEL_SITES`, zero at slice 4.
+    - `theListenerIsOutputOnly`: hard, at zero. No listener method answers a value, and no planning class, planning
+      entry or planning environment takes or holds a listener or a referee.
+  - *Verified:* the DuckDB corpus on both judges equals the baseline (host 2436/108/7, database 2429/108/7, no line
+    differs, the decline tallies equal).
+  - *Found, not changed:* `BodyRouterParityTest.queryPrograms` checks only that the router planned each body. On H2,
+    `[1, 2, 3]->map(x|$x * 2)` is refused at planning (`UNNEST reached a dialect without an unnest placement`), and
+    the test does not notice. This predates the batch.

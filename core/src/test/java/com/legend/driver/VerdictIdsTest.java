@@ -45,8 +45,7 @@ class VerdictIdsTest {
         String rt = StorelessRuntime.RUNTIME;
         for (ExecuteOptions.JudgeMode mode : ExecuteOptions.JudgeMode.values()) {
             ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
-            BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), null, null,
-                    options);
+            BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options);
             TestDoor.Asserts asserts = switch (mode) {
                 case HOST -> HostAsserts.plan(typed, rt, env);
                 case DATABASE -> DatabaseAsserts.plan(typed, rt, env);

@@ -63,8 +63,8 @@ class TestPlanJsonRoundTripTest {
             id++;
         }
         RootLoop roots = new RootLoop(List.of(
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null, FAILURE, 1),
-                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE, null, RootLoop.NO_APPEAL)),
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null, FAILURE, 1, "foreign-dialect:DB2"),
+                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE, null, RootLoop.NO_APPEAL, null)),
                         new RootLoop.Message(constant(), null, true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Decided(FAILURE, true)),
                         new RootLoop.Message(null, FAILURE, false))),
