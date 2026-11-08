@@ -103,6 +103,10 @@ exec	base cache diagnostics error execution_plan json result sql values
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 3, the user's ruling): `exec_program`, the program runner -- the exec
 # package's program half, its own target; the driver reaches it.
 exec_program	base error exec execution_plan result
+# 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8): `edge`, the compatibility edge --
+# its records in a test plan (the referee's ledger texts), their codec and the edge a harness hands a run; the product
+# reaches it not at all (G5), the harnesses do.
+edge	base json sql_dialect test_plan
 judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect test_plan values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches

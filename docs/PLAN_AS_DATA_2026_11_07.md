@@ -687,3 +687,17 @@ independently of the rules).
   with an explicit lifetime, two graphs of equal content sharing one store, change every caller that runs a body (a
   holder each caller opens and closes) and need the concurrency check 2.6 names -- they go with step 8's removal of the
   out-of-plan channels (2.10.4 names this one). The product plan's JSON is version 28.
+- **Step 8a (2026-11-08): the ledger texts are the edge's records in the test plan.** `test_plan` declares `Extension`
+  (a record of the edge's) and `ExtensionCodec` (its JSON, found through the `ServiceLoader` seam); the test plan holds
+  the edge's records by step (`extensionsByStep`) and by verdict (`extensionsByVerdict`, filled at 8b). The edge is a
+  library of its own, `//core:edge` (`com.legend.edge`): its ledger records (`EffectTexts`, `SeedTexts`), its codec,
+  and `CompatEdge`, which a harness hands a run in place of the bare ledger (`ExecuteOptions.recording(edge, ...)`).
+  The test door plans each effect's and seed's ledger texts through the edge it is handed, by the step's index; the
+  run tells the edge what each step did, and the edge records the referee's ledger. `TestDoor.Planned` and its maps
+  beside the plan are gone: the test door's answer is the test plan.
+- **Step 8a: the hooks the edge implements are `test_plan`'s (`Edge`)**, not the test planner's and the runner's apart
+  (2.7 puts the planning hook in `testplan` and the run's in `testexec`): one object is handed for both, and the two
+  libraries that call it share `test_plan` alone -- after the step 10 split neither may depend on the other.
+- **Step 8a: an edge implies the compatibility rules** (ruled, 3a.3): `ExecuteOptions` refuses an edge under lite's
+  own rules. `BodyRouterParityTest` hands the edge to its compatibility runs only. The census of an effect's
+  statements is read from the plan's own effect step (its script), whatever the rules.

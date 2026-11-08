@@ -412,6 +412,19 @@ legend_java_library(
     ],
 )
 
+# THE COMPATIBILITY EDGE (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8, 2026-11-08): the
+# records a run under the compatibility rules plans into a test plan (the referee's ledger texts) and the edge a harness
+# hands the run; its codec registered for the test plan's format through META-INF/services. The product depends on no
+# edge (G5): only the harnesses that run under the compatibility rules do.
+legend_java_library(
+    name = "edge",
+    srcs = glob(["src/main/java/com/legend/edge/*.java"]),
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    resources = glob(["src/main/edge/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge",
+    deps = ["//base", "//json", ":sql_dialect", ":test_plan"],
+)
+
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
 # the statements that run the pipelines the MongoDb dialect writes, behind core's DatabaseConnector seam, found by
 # ServiceLoader as the bulk loader is. The one source set that compiles against the MongoDB driver: core compiles
@@ -570,6 +583,7 @@ legend_java_library(
         ":shadow_binding",
     ],
     deps = [
+        ":edge",
         ":core",
         ":test_backends",
         ":test_cases",

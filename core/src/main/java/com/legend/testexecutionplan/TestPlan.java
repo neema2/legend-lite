@@ -10,6 +10,7 @@ import com.legend.executionplan.ExecutionPlan.Node;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -23,8 +24,12 @@ import java.util.Objects;
  * @param parameters the body's declared parameters, the product plan's own
  * @param steps      the program's steps, in order
  * @param judge      the judge the body's asserts were planned for
+ * @param extensionsByStep    the compatibility edge's records planned at a step, by the step's index (an effect's or a
+ *                            seed's ledger texts: the plan-as-data design's step 8, 2.7); empty under lite's own rules
+ * @param extensionsByVerdict the edge's records planned for a verdict, by its id; empty under lite's own rules
  */
-public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge) {
+public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
+        Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict) {
 
     public TestPlan {
         parameters = List.copyOf(parameters);
@@ -33,6 +38,19 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         if (steps.isEmpty()) {
             throw new IllegalArgumentException("a test plan has at least one step");
         }
+        extensionsByStep = copied(extensionsByStep);
+        extensionsByVerdict = copied(extensionsByVerdict);
+    }
+
+    /** A plan with nothing planned for the edge (lite's own rules). */
+    public TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge) {
+        this(parameters, steps, judge, Map.of(), Map.of());
+    }
+
+    private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
+        java.util.TreeMap<Integer, List<Extension>> out = new java.util.TreeMap<>();
+        m.forEach((k, v) -> out.put(k, List.copyOf(v)));
+        return java.util.Collections.unmodifiableMap(out);
     }
 
     /** Which judge a body's verdict steps were planned for: the DATABASE judge (each group's fused statement, or each

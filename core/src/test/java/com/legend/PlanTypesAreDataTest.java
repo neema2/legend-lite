@@ -46,13 +46,30 @@ class PlanTypesAreDataTest {
             "java.lang.Number at Preceding.n");
 
     private static final Set<String> DATA_PACKAGES = Set.of("com.legend.executionplan", "com.legend.testexecutionplan",
-            "com.legend.sql");
+            "com.legend.sql",
+            // 2026-11-08, the plan-as-data design's step 8 (2.10's guard 1 names them): the edge's extension records,
+            // reached only through the test plan's Extension -- every implementation on the classpath, walked as data
+            "com.legend.edge");
 
     private static final Set<Class<?>> LEAVES = Set.of(String.class, Boolean.class, Byte.class, Short.class,
             Integer.class, Long.class, Float.class, Double.class, Character.class, java.math.BigDecimal.class,
             java.math.BigInteger.class, java.time.LocalDate.class, java.time.LocalDateTime.class,
             java.time.LocalTime.class, java.time.Instant.class, java.time.OffsetDateTime.class,
             java.time.ZonedDateTime.class);
+
+    /** Every class on the classpath that implements the test plan's {@code Extension} (the edge's records). */
+    private static List<Class<?>> extensionImplementations() {
+        List<Class<?>> out = new java.util.ArrayList<>();
+        for (var c : new com.tngtech.archunit.core.importer.ClassFileImporter().importPackages("com.legend")) {
+            if (!c.isInterface() && c.isAssignableTo(com.legend.testexecutionplan.Extension.class)) {
+                out.add(c.reflect());
+            }
+        }
+        if (out.isEmpty()) {
+            throw new IllegalStateException("no implementation of the test plan's Extension on the classpath to check");
+        }
+        return out;
+    }
 
     @Test
     void everyTypeAPlanHoldsIsData() {
@@ -91,6 +108,14 @@ class PlanTypesAreDataTest {
                         // (the slice 1 audit, 2026-11-08)
                         if (!DATA_PACKAGES.contains(c.getPackageName()) && !c.getPackageName().equals("com.legend.error")) {
                             violations.add("enum " + c.getName() + " at " + path);
+                        }
+                        continue;
+                    }
+                    if (c == com.legend.testexecutionplan.Extension.class) {
+                        // the edge's records (2.10, guard 1): every implementation on the classpath, each walked as
+                        // the plan's data -- an extension point implemented by anything but data fails here
+                        for (Class<?> impl : extensionImplementations()) {
+                            todo.add(new Object[] {impl, "Extension implemented by"});
                         }
                         continue;
                     }

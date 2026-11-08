@@ -126,15 +126,15 @@ public final class BodyRouter {
             throw new com.legend.error.NotImplementedException("the program road does not plan this body: " + why);
         }
         Census.inc(Census.Key.BODIES_MOVED);
-        TestDoor.Planned planned;
+        TestPlan plan;
         try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(),
-                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.resources());
+            plan = TestDoor.planned(typed, runtimeFqn, options.features(),
+                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.resources(),
+                    options.edge());
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
-        TestPlan plan = planned.plan();
         // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
         if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {
@@ -142,7 +142,6 @@ public final class BodyRouter {
             // from step 9): the run reads the plan READ BACK from its JSON, never the planner's objects -- a lookup by
             // a planned object's identity, not its data, shows as a verdict that changes on the lane run so
             plan = com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(plan));
-            planned = new TestDoor.Planned(plan, planned.effects(), planned.seeds());
         }
         if (com.legend.diagnostics.Diagnostics.on("plan-json")) {
             // the plan as data, printed whole (the plan-as-data design, 2026-11-07: what the run reads)
@@ -157,7 +156,7 @@ public final class BodyRouter {
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     target -> SystemDatabase.of(typed.context()).sessionFor(target, options.systemConnections());
-            Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), answer, early,
+            Moved moved = new Moved(plan, options.judgingRules(), dialect, options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
@@ -215,26 +214,24 @@ public final class BodyRouter {
                 || BodyClass.anAssert(typed, runtimeFqn)) {
             return null;
         }
-        TestDoor.Planned planned;
+        TestPlan planned;
         try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
-                    options.resources());
+                    options.resources(), options.edge());
         }
-        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned.plan());
-        TestDoor.Planned ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")
+        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned);
+        TestPlan ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")
                 // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
-                ? new TestDoor.Planned(com.legend.testexecutionplan.TestPlanJson.read(
-                        com.legend.testexecutionplan.TestPlanJson.write(planned.plan())), planned.effects(),
-                        planned.seeds())
+                ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
                 : planned;
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     system -> SystemDatabase.of(typed.context()).sessionFor(system, options.systemConnections());
-            Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.recorder(), null, null,
+            Moved moved = new Moved(ahead, options.judgingRules(), dialect, options.edge(), null, null,
                     null, sessionsByTarget(target, systemSessions));
             try {
-                TestRun.run(ahead.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
+                TestRun.run(ahead, Map.of(), PlanSessions.of(target, null, systemSessions),
                         moved::textOrigin, moved, moved);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -258,9 +255,10 @@ public final class BodyRouter {
     }
 
     private static final class Moved implements com.legend.exec.ProgramRunner.ProgramSink, TestRun.Judges {
-        private final TestDoor.Planned planned;
+        private final TestPlan planned;
         private final SqlDialect dialect;
-        private final RawSqlBoundary.@Nullable Recorder recorder;
+        /** The compatibility edge the run was handed, which records the referee's ledger, or null (lite's rules). */
+        private final com.legend.testexecutionplan.@Nullable Edge edge;
         private final Execution.@Nullable Answer answer;
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
@@ -308,26 +306,26 @@ public final class BodyRouter {
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
         private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
-        Moved(TestDoor.Planned planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules, SqlDialect dialect,
-                RawSqlBoundary.@Nullable Recorder recorder,
+        Moved(TestPlan planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules, SqlDialect dialect,
+                com.legend.testexecutionplan.@Nullable Edge edge,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
             this.planned = planned;
             this.sessions = sessions;
             this.dialect = dialect;
-            this.recorder = recorder;
+            this.edge = edge;
             this.answer = answer;
             this.early = early;
             this.listener = listener;
             // each judge's run read from the plan: its judge, and the segments or pairings its verdict groups carry
             // (the plan-as-data design's steps 5 and 6, 2026-11-08)
-            TestPlan.Judge judge = planned.plan().judge();
+            TestPlan.Judge judge = planned.judge();
             this.databaseRuns = judge == TestPlan.Judge.DATABASE
-                    ? new com.legend.judge.RootLoops.Runs(planned.plan().steps()) : null;
-            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.plan().steps()) : null;
-            planned.plan().steps().forEach(step -> rulesOf(step, runRules));
+                    ? new com.legend.judge.RootLoops.Runs(planned.steps()) : null;
+            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps()) : null;
+            planned.steps().forEach(step -> rulesOf(step, runRules));
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
-            List<TestPlan.TestStep> steps = planned.plan().steps();
+            List<TestPlan.TestStep> steps = planned.steps();
             for (int i = 0; i < steps.size(); i++) {
                 // a verdict group's or a branch's statements under the database judge go under BODY, as the walk's
                 // flush sent them (M7): the plan's judge says so (TestRun.program)
@@ -516,14 +514,14 @@ public final class BodyRouter {
 
         /** Whether the program's step {@code step} is the graph's system store's seed step (the planner's). */
         private boolean systemStore(int step) {
-            return planned.plan().steps().get(step) instanceof TestPlan.Run r
+            return planned.steps().get(step) instanceof TestPlan.Run r
                     && r.node() instanceof ExecutionPlan.Setup u && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
         }
 
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws IOException {
             if (answer != null) {
-                ResultSink asked = early != null ? early : answer.of(planned.plan().answerShape());
+                ResultSink asked = early != null ? early : answer.of(planned.answerShape());
                 ResultSink sink = holdingTheWalksContract(asked, columns);
                 opened = sink;
                 sink.columns(columns);
@@ -534,10 +532,10 @@ public final class BodyRouter {
          *  value of at most one row answers no more, a required one at least one, a to-one reader exactly one; a
          *  constant the walk folds and answers as it is. */
         private ResultSink holdingTheWalksContract(ResultSink sink, List<ExecutionPlan.Column> columns) {
-            if (!planned.plan().sendsTheAnswer()) {
+            if (!planned.sendsTheAnswer()) {
                 return sink;
             }
-            return switch (planned.plan().answerShape()) {
+            return switch (planned.answerShape()) {
                 case VALUE -> {
                     ExecutionPlan.Multiplicity m = columns.get(0).multiplicity();
                     Integer upper = m.upper();
@@ -568,19 +566,20 @@ public final class BodyRouter {
 
         @Override
         public void seeded(int step, List<Boolean> answeredRows) {
-            List<String> texts = planned.seeds().get(step);
+            com.legend.testexecutionplan.Edge e = edge;
+            if (e == null) {
+                return;   // lite's own rules: nothing planned for the edge, no ledger
+            }
+            List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
             if (texts == null && systemStore(step)) {
                 // the graph's system store's seeds are no body's: the walk's ledger recorded none of them
                 return;
             }
-            if (texts == null || answeredRows.size() > texts.size()) {
-                throw new IllegalStateException("seed step " + step + " of a moved body ran "
-                        + answeredRows.size() + " statement(s) with " + (texts == null ? "no" : texts.size())
-                        + " ledger text(s) beside it");
+            if (texts == null) {
+                throw new IllegalStateException("seed step " + step + " of a moved body ran " + answeredRows.size()
+                        + " statement(s) with no ledger texts planned at it");
             }
-            for (int i = 0; i < answeredRows.size(); i++) {
-                record(texts.get(i), answeredRows.get(i));
-            }
+            e.seeded(texts, answeredRows);
         }
 
         @Override
@@ -590,24 +589,23 @@ public final class BodyRouter {
 
         @Override
         public void effectRan(int step) {
-            for (TestDoor.Recorded r : effect(step).statements()) {
+            // the census counts the effect's statements from the plan's own step (its script), whatever the rules
+            if (!(planned.steps().get(step) instanceof TestPlan.Run r
+                    && r.node() instanceof ExecutionPlan.Effect effect && effect.script() != null)) {
+                throw new IllegalStateException("effect step " + step + " of a moved body is no scripted effect of the"
+                        + " plan");
+            }
+            for (int i = 0; i < effect.script().statements().size(); i++) {
                 Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
-                record(r.text(), r.query());
             }
-        }
-
-        private TestDoor.Effect effect(int step) {
-            TestDoor.Effect effect = planned.effects().get(step);
-            if (effect == null) {
-                throw new IllegalStateException("effect step " + step + " of a moved body ran with no ledger texts"
-                        + " beside it");
-            }
-            return effect;
-        }
-
-        private void record(String text, boolean query) {
-            if (recorder != null) {
-                recorder.recordExecuted(text, query);
+            com.legend.testexecutionplan.Edge e = edge;
+            if (e != null) {
+                List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
+                if (texts == null) {
+                    throw new IllegalStateException("effect step " + step + " of a moved body ran with no ledger texts"
+                            + " planned at it");
+                }
+                e.effectRan(texts);
             }
         }
     }

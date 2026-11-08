@@ -1186,7 +1186,8 @@ final class ArchitectureTest {
             // and holds no planner's asserts: Moved -> AgreementAsserts, DatabaseAsserts, HostAsserts)
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostSides",
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.JudgePlans",
-            "R1 com.legend.driver.BodyRouter$Moved -> com.legend.testplan.TestDoor",
+            // (gone 2026-11-08, the plan-as-data design's step 8: the test door's answer is the test plan, its ledger
+            // texts the edge's records in it -- Moved -> TestDoor)
             // R2: the test-data generator's own run (generate(), kept for its one test and the generator's redesign,
             // S143) runs plans while it plans
             "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanRunner",

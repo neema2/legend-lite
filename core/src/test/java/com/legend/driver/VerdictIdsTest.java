@@ -53,7 +53,7 @@ class VerdictIdsTest {
                 case BOTH -> AgreementAsserts.plan(typed, rt, env, null, false);
             };
             assertNotNull(asserts, mode + ": the body's asserts planned");
-            TestPlan plan = TestDoor.planned(typed, rt, options.features(), asserts).plan();
+            TestPlan plan = TestDoor.planned(typed, rt, options.features(), asserts);
             List<TestPlan.Verdict> verdicts = new ArrayList<>();
             plan.steps().forEach(step -> collect(step, verdicts));
             assertFalse(verdicts.isEmpty(), mode + ": the plan holds verdicts");

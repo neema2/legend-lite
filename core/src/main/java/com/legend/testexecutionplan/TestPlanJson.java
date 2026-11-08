@@ -25,8 +25,9 @@ public final class TestPlanJson {
     /** 1 (2026-11-08): the verdict groups and branches out of the product's format (its version 27), the frame runs
      *  steps of their own, the judge the plan's; 2 the same day (step 4): a verdict's host facts -- its assertion, its
      *  judgment, its sides' shapes; 3 the same day (step 5): the database judge's root loop on a segment's last group;
-     *  4 the same day (step 6): the agreement judge's pairing on an assert's last group. */
-    public static final int VERSION = 4;
+     *  4 the same day (step 6): the agreement judge's pairing on an assert's last group; 5 the same day (step 8): the
+     *  edge's records by step and by verdict, each through its codec. */
+    public static final int VERSION = 5;
 
     private TestPlanJson() {
     }
@@ -75,6 +76,12 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
+        if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
+            Map<String, Object> ext = new LinkedHashMap<>();
+            ext.put("byStep", extensions(plan.extensionsByStep()));
+            ext.put("byVerdict", extensions(plan.extensionsByVerdict()));
+            out.put("extensions", ext);
+        }
         return Json.toCompact(out);
     }
 
@@ -202,7 +209,71 @@ public final class TestPlanJson {
         if (j == null) {
             throw new IllegalArgumentException("a test plan's judge '" + judge + "'");
         }
-        return new TestPlan(parameters, readSteps(o.getArr("steps")), j);
+        Json.Obj ext = o.getObjOr("extensions", null);
+        return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
+                ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
+                ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")));
+    }
+
+    // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------
+
+    /** The codecs the classpath registers (the edge's, through the {@code ServiceLoader} seam): none under a run that
+     *  hands no edge, whose plan holds no record of the edge's. */
+    private static List<ExtensionCodec> codecs() {
+        List<ExtensionCodec> out = new ArrayList<>();
+        for (ExtensionCodec c : java.util.ServiceLoader.load(ExtensionCodec.class, ExtensionCodec.class.getClassLoader())) {
+            out.add(c);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {
+        List<ExtensionCodec> codecs = codecs();
+        Map<String, Object> out = new LinkedHashMap<>();
+        byKey.forEach((key, records) -> {
+            List<Object> written = new ArrayList<>(records.size());
+            for (Extension e : records) {
+                Map<String, Object> o = null;
+                for (ExtensionCodec c : codecs) {
+                    o = c.write(e);
+                    if (o != null) {
+                        break;
+                    }
+                }
+                if (o == null) {
+                    throw new IllegalStateException("a test plan's extension no codec writes: "
+                            + e.getClass().getSimpleName());
+                }
+                written.add(o);
+            }
+            out.put(Integer.toString(key), written);
+        });
+        return out;
+    }
+
+    private static Map<Integer, List<Extension>> readExtensions(Json.Obj byKey) {
+        List<ExtensionCodec> codecs = codecs();
+        Map<Integer, List<Extension>> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Json.Node> e : byKey.fields().entrySet()) {
+            List<Extension> records = new ArrayList<>();
+            for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
+                Json.Obj o = (Json.Obj) n;
+                String tag = o.getString("_type");
+                Extension read = null;
+                for (ExtensionCodec c : codecs) {
+                    read = c.read(tag, o);
+                    if (read != null) {
+                        break;
+                    }
+                }
+                if (read == null) {
+                    throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
+                }
+                records.add(read);
+            }
+            out.put(Integer.parseInt(e.getKey()), records);
+        }
+        return out;
     }
 
     private static List<TestPlan.TestStep> readSteps(Json.Arr steps) {

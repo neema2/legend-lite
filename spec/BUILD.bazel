@@ -121,6 +121,8 @@ legend_java_library(
         ":imports_generator",
         ":source_tree",
         "//core",
+        # the compatibility edge the corpus's runs are handed (the plan-as-data design's step 8, 2026-11-08)
+        "//core:edge",
         # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
         "//core:test_backends",
         "//testing",
