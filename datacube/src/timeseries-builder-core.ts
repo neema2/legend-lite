@@ -325,6 +325,40 @@ function libValue(fn: string, gsName: string, p: TsParamShape, g: GsParam | unde
 }
 
 /**
+ * GS-QUANT'S RISK-FREE CASH (item 13b, the risk-free data model): a word that takes gs-quant's `currency` and
+ * `curve_type` (sharpe_ratio) reads, with gs-quant's PRICES (its default), its line's excess returns over that currency's
+ * cash -- here the page's cash line, `cash.index['USD']`: the source aliased `cash`, its column `index` (the cash
+ * sample's, markets::CashRate's) -- and with EXCESS_RETURNS its line as excess returns already.
+ */
+export const CASH_INDEX = 'cash.index';
+
+/** Whether `shape` takes gs-quant's risk-free currency and curve type. */
+export function takesCash(shape: WordShape): boolean {
+  return shape.gs.some((g) => g.name === 'currency') && shape.gs.some((g) => g.name === 'curve_type');
+}
+
+/** `e` as a line's excess returns over a currency's cash (`excess_returns(x, cash.index['USD'])`): the line and the
+ *  currency, or nothing where it is no such call. */
+export function cashOver(e: TsExpr): { readonly x: TsExpr; readonly currency: string } | undefined {
+  if (e.kind !== 'call' || e.fn !== 'excess_returns' || e.args.length !== 2) return undefined;
+  const c = e.args[1]!;
+  const at = c.kind === 'column' && c.source === 'cash' && c.column === 'index' && c.fn === undefined ? c.where ?? [] : [];
+  return at.length === 1 && at[0]!.column === undefined && typeof at[0]!.value === 'string' ? { x: e.args[0]!, currency: at[0]!.value } : undefined;
+}
+
+/** The currency's cash a word's line is over (gs-quant's PRICES), or null where the line is excess returns already. */
+function cashOf(fn: string, told: ReadonlyMap<string, unknown>): string | null {
+  const curve = told.get('curve_type') ?? 'prices';
+  if (curve === 'excess_returns') return null;
+  if (curve !== 'prices') throw new BuilderRefusal(`${fn}'s curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS, not ${JSON.stringify(curve)}`);
+  const currency = told.get('currency') ?? 'USD';
+  if (typeof currency !== 'string' || !/^[A-Za-z]{3}$/.test(currency)) {
+    throw new BuilderRefusal(`${fn}'s currency is a RiskFreeRateCurrency (USD, EUR, ...), not ${JSON.stringify(currency)}`);
+  }
+  return currency.toUpperCase();
+}
+
+/**
  * A WORD CALLED as gs-quant calls it: its lines, then `args` -- its parameters by place, any after by name in a
  * trailing object -- each gs-quant's default where not given, written explicitly (the builders' rule); one of none
  * left out, the language's own where it has one (an annualization factor: the frequency's).
@@ -347,7 +381,10 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
   }
   const params: Record<string, number | string> = {};
   let weights: unknown;
+  // gs-quant's risk-free cash: the currency's cash line the word's line is over, or none (its excess returns already)
+  const cash = takesCash(shape) ? cashOf(fn, told) : undefined;
   for (const g of shape.gs) {
+    if (cash !== undefined && (g.name === 'currency' || g.name === 'curve_type')) continue;
     const v = told.has(g.name) ? told.get(g.name) : defaultOf(g);
     if (g.weights) {
       weights = v;
@@ -402,6 +439,7 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     if (Array.isArray(l)) throw new BuilderRefusal(`${fn} reads a series, not a list`);
     return termOf(l as Term | number);
   });
+  if (typeof cash === 'string') exprs[0] = { kind: 'call', fn: 'excess_returns', args: [exprs[0]!, column(CASH_INDEX, cash).expr] };
   return new Term({ kind: 'call', fn, args: exprs, ...(Object.keys(params).length > 0 ? { params } : {}) });
 }
 

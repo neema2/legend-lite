@@ -159,6 +159,11 @@ class Plotted(unittest.TestCase):
         self.assertEqual(wrong, [])
         self.assertEqual(ts.text(ts.mean(ts.column('close'), ts.Window(50, 10))), 'mean(close, 50, 10)')
         self.assertEqual(ts.text(ts.winsorize(ts.column('close'), 2.5, 22)), 'winsorize(close, limit => 2.5, w => whole, r => 22)')
+        # gs-quant's Sharpe ratio over a currency's cash, the page's cash line, or of excess returns already (item 13b)
+        self.assertEqual(ts.text(ts.sharpe_ratio(ts.column('close'), ts.RiskFreeRateCurrency.EUR, 252)),
+                         "sharpe_ratio(excess_returns(close, cash.index['EUR']), w => 252)")
+        self.assertEqual(ts.text(ts.sharpe_ratio(ts.column('close'), w=252, curve_type=ts.CurveType.EXCESS_RETURNS)),
+                         'sharpe_ratio(close, w => 252)')
         with self.assertRaisesRegex(ValueError, 'smoothed_moving_average takes no ramp'):
             ts.text(ts.smoothed_moving_average(ts.column('close'), ts.Window(20, 5)))
         self.assertGreater(sum(1 for r in rows if 'python' in r), 200)

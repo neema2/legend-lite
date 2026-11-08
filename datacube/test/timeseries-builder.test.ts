@@ -9,7 +9,8 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import * as builder from '../src/timeseries-builder.ts';
 import {
-  basket_series, BUILDER_WORDS, column, Interpolate, LagMode, not_, percentile, power, RebalFreq, Returns, series, union, volatility, Window, zscores,
+  basket_series, BUILDER_WORDS, column, CurveType, Interpolate, LagMode, not_, percentile, power, RebalFreq, Returns, RiskFreeRateCurrency, series,
+  union, volatility, Window, zscores,
   type Term, type WordShape,
 } from '../src/timeseries-builder.ts';
 import { termOf } from '../src/timeseries-builder-wire.ts';
@@ -42,8 +43,8 @@ const LEDGER: Readonly<Record<string, string>> = {
   'var_ spelled': 'TypeScript reserves var: gs-quant\'s own way with Python\'s keywords (sum_, if_), a trailing underscore',
   'mean.mean_type only': 'an arithmetic mean alone: the language has no quadratic one',
   'volatility.assume_zero_mean only': 'deviations about the mean alone (the language has no zero-mean form)',
-  'sharpe_ratio.currency only': 'no risk-free rate: the language\'s Sharpe ratio is its mean over its volatility (register S155)',
-  'sharpe_ratio.curve_type only': 'a series of prices alone',
+  'sharpe_ratio.currency only': 'the page\'s cash line, cash.index[currency] (the risk-free data model, item 13b; S155 retired): the line\'s excess returns over it, written as the language\'s excess_returns',
+  'sharpe_ratio.curve_type only': 'PRICES writes the line\'s excess returns over the currency\'s cash; EXCESS_RETURNS the line itself (the language\'s sharpe_ratio reads excess-return levels)',
   'sharpe_ratio.method only': 'no risk-free curve to align',
   'correlation.type_ only': 'prices alone: their returns taken first, as gs-quant\'s PRICES',
   'correlation.returns_type only': 'simple returns alone, as the language\'s correlation reads them',
@@ -167,7 +168,15 @@ describe('a builder term is its #TS text', () => {
     assert.equal(smooth_spikes!(spx, 0.3).text(), "smooth_spikes(close['SPX'], threshold => 0.3, type => 'percentage')");
     assert.equal(lag!(spx, 2, LagMode.TRUNCATE).text(), "lag(close['SPX'], 2, 'truncate')");
     assert.equal(lag!(spx).text(), "lag(close['SPX'], 1, 'extend')");
-    assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(close['SPX'], w => all)");
+    // gs-quant's PRICES over a currency's cash: the page's cash line (the risk-free data model, item 13b)
+    assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(excess_returns(close['SPX'], cash.index['USD']), w => all)");
+    assert.equal(sharpe_ratio!(spx, RiskFreeRateCurrency.EUR, 252).text(), "sharpe_ratio(excess_returns(close['SPX'], cash.index['EUR']), w => 252)");
+    assert.equal(sharpe_ratio!(spx, { w: 252, curve_type: CurveType.EXCESS_RETURNS }).text(), "sharpe_ratio(close['SPX'], w => 252)");
+    assert.equal(builderSource(sharpe_ratio!(spx, RiskFreeRateCurrency.EUR, 252).expr, 'python'),
+      "sharpe_ratio(column('close', 'SPX'), RiskFreeRateCurrency.EUR, w=252)");
+    assert.equal(builderSource(sharpe_ratio!(spx, { w: 252, curve_type: CurveType.EXCESS_RETURNS }).expr, 'python'),
+      "sharpe_ratio(column('close', 'SPX'), w=252, curve_type=CurveType.EXCESS_RETURNS)");
+    assert.throws(() => sharpe_ratio!(spx, { curve_type: 'levels' as never }), /curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS/);
     assert.equal(append!([spx, ndx]).text(), "append(close['SPX'], close['NDX'])");
     // gs-quant's whole-series figures written whole, the future read seen (the user, 2026-11-08)
     assert.equal(functions['zscores']!(spx).text(), "zscores(close['SPX'], w => whole)");

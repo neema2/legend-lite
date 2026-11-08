@@ -209,6 +209,13 @@ for (const name of TS_FUNCTION_NAMES) {
         entry.push('only: true');
         entry.push(`default: ${d.has ? d.text : 'null'}`);
         type = onlyType(p.default);
+        // gs-quant's risk-free cash (item 13b, the builder's takesCash): its currency the page's cash line, its curve
+        // type whether the line is a price -- each any member of its enumeration, not the default alone
+        const cashed = params.some((x) => x.name === 'currency') && params.some((x) => x.name === 'curve_type');
+        if (cashed && (p.name === 'currency' || p.name === 'curve_type') && p.default !== null && 'enum' in p.default) {
+          enumsUsed.add(p.default.enum);
+          type = p.default.enum;
+        }
         // a value beside gs-quant's default the word computes (the library's gsAlso: lag's truncate)
         const also = tagged(cat, 'gsAlso').get(p.name);
         if (also !== undefined) {

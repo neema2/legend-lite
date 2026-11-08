@@ -9,7 +9,7 @@
 import type { TsComparison, TsExpr, TsOperator } from './timeseries-spec.ts';
 import * as generated from './generated/ts-builder-words.ts';
 import { BUILDER_WORDS } from './generated/ts-builder-words.ts';
-import type { GsParam } from './timeseries-builder-core.ts';
+import { cashOver, takesCash, type GsParam } from './timeseries-builder-core.ts';
 import { told as filled } from './timeseries-text.ts';
 
 /** The languages a series is written in as the builder's code. */
@@ -149,6 +149,19 @@ class Printer {
     const lines: string[] = [];
     const kw: string[] = [];
     const placed: string[] = [];
+    // gs-quant's risk-free cash (item 13b): a line's excess returns over a currency's cash is gs-quant's PRICES of that
+    // currency; any other line, its EXCESS_RETURNS
+    let args = e.args;
+    let excess = false;
+    if (takesCash(shape)) {
+      const over = e.args.length > 0 ? cashOver(e.args[0]!) : undefined;
+      if (over === undefined) {
+        excess = true;
+      } else {
+        args = [over.x, ...e.args.slice(1)];
+        placed.push(`RiskFreeRateCurrency.${over.currency}`);
+      }
+    }
     if (shape.members !== undefined) {
       // series and their weights: gs-quant's two lists
       const series = e.args.filter((_, i) => i % 2 === 0).map(arg);
@@ -160,7 +173,7 @@ class Printer {
     } else if (shape.listOf !== undefined) {
       lines.push(`[${e.args.map(arg).join(', ')}]`);
     } else {
-      lines.push(...e.args.map(arg));
+      lines.push(...args.map(arg));
     }
     const told = { ...(e.params ?? {}) };
     for (const g of shape.gs) {
@@ -197,6 +210,7 @@ class Printer {
       else kw.push(this.named(g.name, value));
     }
     for (const [lib, v] of Object.entries(told)) kw.push(this.named(lib, typeof v === 'string' && /^[1-9][0-9]*[dwmy]$/.test(v) ? quote(v) : this.literal(v)));
+    if (excess) kw.push(this.named('curve_type', 'CurveType.EXCESS_RETURNS'));
     return { text: this.call(name, [...lines, ...placed], kw), at: PY_ATOM };
   }
 
