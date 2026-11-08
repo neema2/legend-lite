@@ -135,4 +135,92 @@ final class JudgmentFacts {
         out.addAll(ctx.subtree(declared));
         return out;
     }
+
+    /**
+     * The enumerations an engine-text appeal's referee decodes, read from the model now, at planning (the plan-as-data
+     * design's slice 4, hole 1, 2026-11-08: the referee read them from the compiled model at the appeal's decision):
+     * every enumeration among our rows' column types ({@code rows}' shape, the plan's spelling; none where the side's
+     * planning failed) and among the properties of
+     * {@code classFqn} (inherited ones too, the most derived winning), each decoded under {@code mappingFqn} where there
+     * is one -- the mapping's enumeration mapping (its own, then its includes'), a source value to the value's name; a
+     * mapping that maps none decodes BY NAME, the identity over the enumeration's values (real pure's); a source value
+     * naming another enumeration's value decodes nothing (no entry).
+     */
+    static com.legend.testexecutionplan.Appeal.Enums enumsOf(ModelContext ctx, @Nullable String mappingFqn,
+            @Nullable String classFqn, com.legend.testexecutionplan.Appeal.Read rows) {
+        java.util.Set<String> enums = new java.util.LinkedHashSet<>();
+        com.legend.testexecutionplan.SideShape shape = rows.shape();
+        for (com.legend.testexecutionplan.SideShape.Column column : shape == null
+                ? java.util.List.<com.legend.testexecutionplan.SideShape.Column>of() : shape.columns()) {
+            if (ctx.findEnum(column.type()).isPresent()) {
+                enums.add(column.type());
+            }
+        }
+        Map<String, String> properties = new LinkedHashMap<>();
+        if (mappingFqn != null && classFqn != null) {
+            enumProperties(ctx, classFqn, properties, new java.util.HashSet<>());
+            enums.addAll(properties.values());
+        }
+        Map<String, Map<String, String>> decodes = new LinkedHashMap<>();
+        if (mappingFqn != null) {
+            for (String e : enums) {
+                Map<String, String> decode = decodeOf(ctx, mappingFqn, e);
+                if (decode != null) {
+                    decodes.put(e, decode);
+                }
+            }
+        }
+        return new com.legend.testexecutionplan.Appeal.Enums(java.util.List.copyOf(enums), decodes, properties);
+    }
+
+    /** {@code classFqn}'s properties of an enumeration type into {@code out} (a name already there is a more derived
+     *  class's), then its superclasses'. */
+    private static void enumProperties(ModelContext ctx, String classFqn, Map<String, String> out,
+            java.util.Set<String> visited) {
+        if (!visited.add(classFqn)) {
+            return;
+        }
+        ctx.findClass(classFqn).ifPresent(c -> {
+            for (com.legend.compiler.element.Property p : c.properties()) {
+                if (p.type() instanceof Type.EnumType et) {
+                    out.putIfAbsent(p.name(), et.fqn());
+                }
+            }
+            for (String superFqn : c.superClassFqns()) {
+                enumProperties(ctx, superFqn, out, visited);
+            }
+        });
+    }
+
+    /** {@code enumFqn} decoded under {@code mappingFqn}: a source value to the value's name; null where the mapping's
+     *  enumeration mapping reads another enumeration's value, or the enumeration is unknown. */
+    private static @Nullable Map<String, String> decodeOf(ModelContext ctx, String mappingFqn, String enumFqn) {
+        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn, enumFqn);
+        if (em == null) {
+            var en = ctx.findEnum(enumFqn).orElse(null);
+            if (en == null) {
+                return null;
+            }
+            Map<String, String> id = new LinkedHashMap<>();
+            for (String v : en.values()) {
+                id.put(v, v);
+            }
+            return id;
+        }
+        Map<String, String> dec = new LinkedHashMap<>();
+        for (var vm : em.valueMappings()) {
+            for (var sv : vm.sourceValues()) {
+                switch (sv) {
+                    case com.legend.model.EnumerationMapping.SourceValue.StringValue str ->
+                            dec.put(str.value(), vm.enumValue());
+                    case com.legend.model.EnumerationMapping.SourceValue.IntegerValue n ->
+                            dec.put(String.valueOf(n.value()), vm.enumValue());
+                    case com.legend.model.EnumerationMapping.SourceValue.EnumRef ignored -> {
+                        return null;
+                    }
+                }
+            }
+        }
+        return dec;
+    }
 }

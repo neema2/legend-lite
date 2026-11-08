@@ -881,7 +881,24 @@ final class HostJson {
         o.put("seed", x.seed() == null ? null : wAppealSeed(x.seed()));
         o.put("stores", list(x.stores(), e0 -> e0));
         o.put("on", com.legend.executionplan.PlanJson.targetJson(x.on()));
+        o.put("enums", wAppealEnums(x.enums()));
         return o;
+    }
+
+    static Map<String, Object> wAppealEnums(Appeal.Enums x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("enums", list(x.enums(), e0 -> e0));
+        o.put("decodes", map(x.decodes(), e0 -> map(e0, e1 -> e1)));
+        o.put("properties", map(x.properties(), e0 -> e0));
+        return o;
+    }
+
+    static Appeal.Enums rAppealEnums(Json.Obj o) {
+        List<String> v_enums = readList(field(o, "enums", "Enums"), n0 -> str(n0));
+        Map<String, Map<String, String>> v_decodes = readMap(field(o, "decodes", "Enums"),
+                n0 -> readMap(n0, n1 -> str(n1)));
+        Map<String, String> v_properties = readMap(field(o, "properties", "Enums"), n0 -> str(n0));
+        return new Appeal.Enums(v_enums, v_decodes, v_properties);
     }
 
     static Appeal.Rows rAppealRows(Json.Obj o) {
@@ -899,7 +916,8 @@ final class HostJson {
         Appeal.@Nullable InListSeed v_seed = absent(o, "seed", "Rows") ? null : rAppealSeed(obj(o.get("seed")));
         List<String> v_stores = readList(field(o, "stores", "Rows"), n0 -> str(n0));
         ExecutionPlan.Target v_on = com.legend.executionplan.PlanJson.targetOf(obj(field(o, "on", "Rows")));
-        return new Appeal.Rows(v_rows, v_population, v_replaySql, v_mappingFqn, v_classFqn, v_extentSubset, v_ordered, v_sortKeys, v_goldenPlan, v_planBindings, v_temps, v_seed, v_stores, v_on);
+        Appeal.Enums v_enums = rAppealEnums(obj(field(o, "enums", "Rows")));
+        return new Appeal.Rows(v_rows, v_population, v_replaySql, v_mappingFqn, v_classFqn, v_extentSubset, v_ordered, v_sortKeys, v_goldenPlan, v_planBindings, v_temps, v_seed, v_stores, v_on, v_enums);
     }
 
     static Map<String, Object> wAppealRead(Appeal.Read x) {

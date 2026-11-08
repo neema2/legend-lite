@@ -49,9 +49,10 @@ public interface SqlReplayReferee {
      * §2 puts comparison policy on the testing side; the platform arm
      * consumes the OUTCOME and owns the assert's judgment).
      * {@code session} is the executing connection (an H2 session
-     * verifies directly); {@code mappingFqn}/{@code rootClassFqn}
-     * drive the enum source-code→name decode where the query selects
-     * raw codes. Never throws for a comparison problem — every
+     * verifies directly); {@code enums} -- planned under
+     * {@code mappingFqn}/{@code rootClassFqn} -- drive the enum
+     * source-code→name decode where the query selects raw codes (the
+     * plan's data: the referee is handed no model, hole 1, 2026-11-08). Never throws for a comparison problem — every
      * non-answer is a DECLINED outcome with its counted reason.
      */
     RowVerdict verify(Sessions.Session session, String goldenSql,
@@ -59,7 +60,7 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx);
+            com.legend.testexecutionplan.Appeal.Enums enums);
 
     /** The verdict arm's STATIC facts about the verified chain, the
      * referee's comparison gates (Phase 0.5 — they rode thread-locals
@@ -118,10 +119,10 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx,
+            com.legend.testexecutionplan.Appeal.Enums enums,
             java.util.List<TempTable> temps) {
         return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
-                facts, ctx);
+                facts, enums);
     }
 
     /** A golden PLAN's replay (batch 66): the plan text's nodes run in
@@ -138,7 +139,7 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx) {
+            com.legend.testexecutionplan.Appeal.Enums enums) {
         return RowVerdict.declined("plan replay not supported by this oracle");
     }
 

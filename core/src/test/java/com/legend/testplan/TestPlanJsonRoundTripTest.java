@@ -133,7 +133,8 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.InListSeed("String", List.of("a")), List.of("my::Store"),
                 // any database: the round trip does not depend on which
                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0]), List.of(),
-                        List.of()));
+                        List.of()),
+                new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
         return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null);
     }
 

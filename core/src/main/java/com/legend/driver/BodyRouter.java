@@ -188,7 +188,7 @@ public final class BodyRouter {
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
             Appeals.Decider decider = (n, golden, ours, textEqual, l) -> SqlTextVerdicts.decideAppeal(
-                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, ctx, l);
+                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, l);
             try (var open = appeals.open()) {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);

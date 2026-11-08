@@ -78,7 +78,7 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
     public record Rows(Read rows, Read population, @Nullable String replaySql, @Nullable String mappingFqn,
             @Nullable String classFqn, boolean extentSubset, boolean ordered, @Nullable List<String> sortKeys,
             @Nullable String goldenPlan, Map<String, List<String>> planBindings, List<TempTable> temps,
-            @Nullable InListSeed seed, List<String> stores, ExecutionPlan.Target on) {
+            @Nullable InListSeed seed, List<String> stores, ExecutionPlan.Target on, Enums enums) {
         public Rows {
             Objects.requireNonNull(rows, "rows");
             Objects.requireNonNull(population, "population");
@@ -89,6 +89,31 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
             temps = List.copyOf(temps);
             stores = List.copyOf(stores);
             Objects.requireNonNull(on, "on");
+            Objects.requireNonNull(enums, "enums");
+        }
+    }
+
+    /**
+     * The enumerations the referee decodes, read from the model at planning (the plan-as-data design's slice 4, hole 1,
+     * 2026-11-08: until then the referee was handed the compiled model and read them at the appeal's decision).
+     *
+     * @param enums      the enumeration types among our rows' column types and the root class's properties: a column
+     *                   of one of these types is an enumeration's
+     * @param decodes    each enumeration's decode under the appeal's mapping, a source value to the value's name (the
+     *                   identity where the mapping maps none); absent where the mapping cannot decode it, and empty
+     *                   where there is no mapping
+     * @param properties the root class's properties of an enumeration type (inherited ones too, the most derived
+     *                   winning), each to its enumeration
+     */
+    public record Enums(List<String> enums, Map<String, Map<String, String>> decodes, Map<String, String> properties) {
+        public static final Enums NONE = new Enums(List.of(), Map.of(), Map.of());
+
+        public Enums {
+            enums = List.copyOf(enums);
+            Map<String, Map<String, String>> d = new LinkedHashMap<>();
+            decodes.forEach((k, v) -> d.put(k, Collections.unmodifiableMap(new LinkedHashMap<>(v))));
+            decodes = Collections.unmodifiableMap(d);
+            properties = Collections.unmodifiableMap(new LinkedHashMap<>(properties));
         }
     }
 

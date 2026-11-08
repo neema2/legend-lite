@@ -1242,7 +1242,9 @@ final class ArchitectureTest {
     /** R1's pinned crossings, by source (the first measure of every class, 2026-11-08, the plan-as-data design's slice
      *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
      *  {@code Moved} by its own name and counted the frontend, the database owner and the root's planning doors as
-     *  planning), shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the user's rule of 2026-11-08:
+     *  planning; 278, 13 mixed, once slice 4's hole 1 handed the referee the plan's enumerations, not the model --
+     *  the referee left the mixed classes, and the engine-text arms reach the planning facts that read them),
+     *  shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the user's rule of 2026-11-08:
      *  every pin goes to zero). A source line, then the planning classes it reaches. */
     private static final String R1_CROSSINGS = """
             driver.AgreementRuns ->
@@ -1271,8 +1273,8 @@ final class ArchitectureTest {
                 compiler.spec.typed.TypedSlice compiler.spec.typed.TypedSort compiler.spec.typed.TypedSortBy
                 compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTypeRef compiler.spec.typed.TypedUserCall
                 compiler.spec.typed.TypedVariable driver.BodyDriver driver.DatabaseJudge driver.HostJudge driver.HostSides
-                driver.JudgmentFacts driver.SqlTextVerdicts driver.VerdictArm judge.Failures judge.SqlReplayReferee
-                judge.VerdictBatch lowering.CanonRider lowering.VerdictSql
+                driver.JudgmentFacts driver.SqlTextVerdicts driver.VerdictArm judge.Failures judge.VerdictBatch
+                lowering.CanonRider lowering.VerdictSql
             driver.BodyDriver ->
                 Compiler TypedQuery builtin.NativeFn compiler.element.ModelContext compiler.element.TypedFunction
                 compiler.element.type.ExprType compiler.element.type.Type compiler.spec.AssertMessages
@@ -1290,8 +1292,8 @@ final class ArchitectureTest {
             driver.BodyRouter ->
                 TypedQuery compiler.element.ModelContext compiler.spec.AssertLift compiler.spec.RelationCountAsserts
                 driver.AgreementAsserts driver.AppealsByVerdict driver.BodyDriver driver.DatabaseAsserts driver.HostAsserts
-                driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase judge.SqlReplayReferee testplan.BodyClass
-                testplan.BodyKinds testplan.TestDoor
+                driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase testplan.BodyClass testplan.BodyKinds
+                testplan.TestDoor
             driver.BodyRouter$Moved ->
                 compiler.element.type.Multiplicity driver.AssertVerdicts driver.DatabaseJudge driver.HostSides
                 driver.JudgePlans driver.SqlTextVerdicts judge.VerdictBatch
@@ -1333,8 +1335,8 @@ final class ArchitectureTest {
                 compiler.spec.typed.TypedPackageableRef compiler.spec.typed.TypedPropertyAccess
                 compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTestDataGen compiler.spec.typed.TypedUserCall
                 compiler.spec.typed.TypedVariable database.Databases driver.AssertVerdicts driver.BodyDriver
-                driver.DatabaseJudge driver.EngineTextAppeals driver.HostSides driver.JudgePlans judge.Failures
-                judge.SqlReplayReferee judge.VerdictBatch lowering.LiteralSpelling lowering.VerdictSql planner.BodyPlanner
+                driver.DatabaseJudge driver.EngineTextAppeals driver.HostSides driver.JudgePlans driver.JudgmentFacts
+                judge.Failures judge.VerdictBatch lowering.LiteralSpelling lowering.VerdictSql planner.BodyPlanner
                 planner.SqlTextInputs
             driver.SystemDatabase ->
                 compiler.element.ModelContext planner.ConnectionPlans
@@ -1345,8 +1347,6 @@ final class ArchitectureTest {
                 compiler.spec.SchemaInvariantException compiler.spec.TypeInferenceException
             judge.RootLoops ->
                 judge.Failures judge.VerdictBatch
-            judge.SqlReplayReferee ->
-                compiler.element.ModelContext
             judge.VerdictBatch ->
                 judge.Failures judge.VerdictIds
             """;
@@ -1568,18 +1568,11 @@ final class ArchitectureTest {
             "takes com.legend.setup.ProjectData#rowsKey(ModelContext)",
             // hole 2: the system database's sessions found through the model, cached in it
             "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SystemDatabase#of",
-            "takes com.legend.driver.SystemDatabase#of(ModelContext)",
             "calls com.legend.driver.SystemDatabase#of -> com.legend.compiler.element.ModelContext#derived",
-            // hole 1: the appeal decided with the model (the referee's enum decode by mapping)
-            "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SqlTextVerdicts#decideAppeal",
-            "takes com.legend.driver.SqlTextVerdicts#decideAppeal(ModelContext)",
-            "calls com.legend.driver.SqlTextVerdicts#decideAppeal -> com.legend.driver.SqlTextVerdicts#rowsLegNow",
-            "takes com.legend.driver.SqlTextVerdicts#rowsLegNow(ModelContext)",
-            "calls com.legend.driver.SqlTextVerdicts#rowsLegNow -> com.legend.judge.SqlReplayReferee#verify",
-            "calls com.legend.driver.SqlTextVerdicts#rowsLegNow -> com.legend.judge.SqlReplayReferee#verifyPlan",
-            "takes com.legend.judge.SqlReplayReferee#verify(ModelContext)",
-            "calls com.legend.judge.SqlReplayReferee#verify -> com.legend.judge.SqlReplayReferee#verify",
-            "takes com.legend.judge.SqlReplayReferee#verifyPlan(ModelContext)");
+            // (gone 2026-11-08, slice 4's hole 1: the appeal is decided from the plan's data -- the enumerations the
+            // referee decodes planned into Appeal.Rows.enums, the referee's SPI handed them, never the model: decideAppeal
+            // and rowsLegNow take no model, and verify and verifyPlan take Appeal.Enums -- nine sites)
+            "takes com.legend.driver.SystemDatabase#of(ModelContext)");
 
     /**
      * <strong>THE RUN RE-READS NO RULE (the plan-as-data design's slice 3, hole 8, 2026-11-08; hard).</strong> The plan

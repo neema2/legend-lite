@@ -1693,7 +1693,9 @@ final class SqlTextVerdicts {
                 replaySqlOrNull, mappingFqn, classFqn, facts.extentSubset(), facts.ordered(), facts.sortKeys(), goldenPlan,
                 planBindings, temps.stream().map(t -> new com.legend.testexecutionplan.Appeal.TempTable(t.name(), t.kind(), t.values())).toList(),
                 seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()), ahead.stores(),
-                (env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env).target());
+                (env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env).target(),
+                // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
+                JudgmentFacts.enumsOf(env.ctx(), mappingFqn, classFqn, ahead.rows().data()));
         return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.ROWS, null, rows,
                 null));
     }
@@ -1780,11 +1782,11 @@ final class SqlTextVerdicts {
      * AN APPEAL DECIDED AFTER THE BODY'S RUN, FROM THE PLAN'S DATA (the plan-as-data design's step 8b, 2026-11-08):
      * {@code a} heard over the texts the run recorded -- a contract's failure, the generator's refusal (S143), or the
      * rows leg: the stores' fixtures provided by the harness, our rows read through the edge's reader (each a plan of
-     * its own on the body's sessions, Appeals), the golden replayed by the {@code referee} over the model, its verdict
+     * its own on the body's sessions, Appeals), the golden replayed by the {@code referee} with the plan's enumerations (no model: hole 1), its verdict
      * the appeal's. Reports go to {@code listener}. Inside a judging scope that plans nothing.
      */
     static TypedSide decideAppeal(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
-            @com.legend.base.Nullable SqlReplayReferee referee, com.legend.compiler.element.ModelContext ctx,
+            @com.legend.base.Nullable SqlReplayReferee referee,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
         String name = a.name();
         return switch (a.kind()) {
@@ -1797,7 +1799,7 @@ final class SqlTextVerdicts {
                 com.legend.base.RunScope.planning("the test-data generator's rows leg");
                 throw new IllegalStateException(name + ": the test-data generator's rows leg is not offered (S143)");
             }
-            case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, ctx, listener);
+            case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, listener);
         };
     }
 
@@ -1816,7 +1818,7 @@ final class SqlTextVerdicts {
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
     private static TypedSide rowsLegNow(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
-            @com.legend.base.Nullable SqlReplayReferee referee, com.legend.compiler.element.ModelContext ctx,
+            @com.legend.base.Nullable SqlReplayReferee referee,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
         String name = a.name();
         com.legend.testexecutionplan.Appeal.Rows r = a.rows();
@@ -1883,10 +1885,10 @@ final class SqlTextVerdicts {
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = r.goldenPlan() != null
                 ? referee.verifyPlan(RunReader.session(r.on()), r.goldenPlan(), r.planBindings(),
-                        rows, r.mappingFqn(), r.classFqn(), facts, ctx)
+                        rows, r.mappingFqn(), r.classFqn(), facts, r.enums())
                 : referee.verify(RunReader.session(r.on()),
                         r.replaySql() != null ? r.replaySql() : golden,
-                        rows, r.mappingFqn(), r.classFqn(), facts, ctx,
+                        rows, r.mappingFqn(), r.classFqn(), facts, r.enums(),
                         temps.isEmpty() ? (seed == null ? List.of()
                                 : new InListSeed(seed.kind(), seed.values()).temps(golden)) : temps);
         }

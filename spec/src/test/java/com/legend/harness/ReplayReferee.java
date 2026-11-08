@@ -498,8 +498,8 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx) {
-        com.legend.judge.SqlReplayReferee.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx);
+            com.legend.testexecutionplan.Appeal.Enums enums) {
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, enums);
         OUTCOMES.computeIfAbsent("verify " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
@@ -510,13 +510,13 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx) {
+            com.legend.testexecutionplan.Appeal.Enums enums) {
         // the STATIC extent-subset fact of the verified chain (computed on
         // the platform's typed chain — a class extent through subset-
         // preserving ops) arms the graph compare's pk-collapse exactly as
         // the old runner's walk lane armed it (deleted in batch 115)
         return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
-                facts, ctx, List.of());
+                facts, enums, List.of());
     }
 
     /** The engine-session temp tables of a golden, materialized on the
@@ -530,9 +530,9 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx,
+            com.legend.testexecutionplan.Appeal.Enums enums,
             List<com.legend.judge.SqlReplayReferee.TempTable> temps) {
-        com.legend.judge.SqlReplayReferee.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx, temps);
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, enums, temps);
         OUTCOMES.computeIfAbsent("verify8 " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
@@ -543,7 +543,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx,
+            com.legend.testexecutionplan.Appeal.Enums enums,
             List<com.legend.judge.SqlReplayReferee.TempTable> temps) {
         try {
             List<String> seeds = tempSeeds(temps);
@@ -577,7 +577,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             }
             ATTEMPT_SQL_GOLDENS.add(goldenSql);
             return verifyArmed(connectionOf(session), goldenSql, ours, mappingFqn,
-                    rootClassFqn, ctx, seeds, facts);
+                    rootClassFqn, enums, seeds, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
         } finally {
@@ -618,8 +618,8 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx) {
-        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, ctx);
+            com.legend.testexecutionplan.Appeal.Enums enums) {
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, enums);
         OUTCOMES.computeIfAbsent("verifyPlan " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
@@ -631,7 +631,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.compiler.element.ModelContext ctx) {
+            com.legend.testexecutionplan.Appeal.Enums enums) {
         // allocation tables materialized on the referee for THIS replay —
         // dropped after the verdict (the family mirror is shared state)
         List<String> allocTables = new java.util.ArrayList<>();
@@ -663,7 +663,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
                 return "select * from " + name;
             });
             return verifyArmed(connectionOf(session), sql, ours, mappingFqn, rootClassFqn,
-                    ctx, null, facts);
+                    enums, null, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-plan: ", u);
         } finally {
@@ -718,7 +718,7 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.compiler.element.ModelContext ctx,
+            com.legend.testexecutionplan.Appeal.Enums enums,
             @com.legend.base.Nullable List<String> extraSeeds,
             com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
@@ -726,15 +726,17 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
         // a column is an enumeration's where its type -- the plan's spelling, an FQN -- names one in the model (the
         // plan-as-data design's step 1, 2026-11-08: the judged side carries a type name, no compiler type)
         java.util.Set<Integer> enumColumns = new java.util.LinkedHashSet<>();
+        // the enumerations are the plan's data, read from the model at planning (hole 1, 2026-11-08): the referee is
+        // handed no model
         if (!(ours instanceof TypedSide.Graph)) {
             for (int i = 0; i < ours.columns().size(); i++) {
                 String type = ours.columns().get(i).pureType();
-                if (ctx.findEnum(type).isEmpty()) {
+                if (!enums.enums().contains(type)) {
                     continue;
                 }
                 enumColumns.add(i);
                 if (mappingFqn != null) {
-                    var dec = RefereeVerify.decodeOf(ctx, mappingFqn, type);
+                    var dec = enums.decodes().get(type);
                     if (dec != null) {
                         enumDecode.put(i, dec);
                     }
@@ -746,14 +748,11 @@ public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
             if (mappingFqn == null || rootClassFqn == null) {
                 return null;
             }
-            var prop = ctx.findProperty(rootClassFqn, key);
-            if (prop.isEmpty() || !(prop.get().type()
-                    instanceof com.legend.compiler.element.type.Type
-                            .EnumType et)) {
+            String enumFqn = enums.properties().get(key);
+            if (enumFqn == null) {
                 return null;
             }
-            var dec = RefereeVerify.decodeOf(ctx, mappingFqn, et.fqn());
-            return dec == null ? java.util.Map.of() : dec;
+            return enums.decodes().getOrDefault(enumFqn, java.util.Map.of());
         };
         try {
             String r = verifyAuto(session,

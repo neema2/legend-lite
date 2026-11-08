@@ -1852,7 +1852,7 @@ class BodyRouterParityTest {
         @Override
         public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.judge.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
-                ReplayFacts facts, ModelContext ctx) {
+                ReplayFacts facts, com.legend.testexecutionplan.Appeal.Enums enums) {
             List<String> golden = new ArrayList<>();
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(goldenSql)) {
                 int n = rs.getMetaData().getColumnCount();
