@@ -7,6 +7,17 @@ in its own plan (plan rule 0b.16).
 **the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
 A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).
 
+**The adversarial markets fixture, 2026-11-07** (branch `abs/ts-adversarial-fixture`, on `claude/timeseries-language`;
+`docs/TS_ADVERSARIAL_FIXTURE_2026_11_07.md`): `projects/timeseries/fixtures/adversarial/` (generate.py and its four
+files) with `//projects:timeseries_adversarial_fixture_test`, and `//core:ts_adversarial_test` with its ledger
+(`core/src/test/resources/ts-adversarial/`). Beyond them: `core/BUILD.bazel` (the target; its source and ledger left
+out of `core_tests_lib`), `gates/BUILD.bazel` (the core lane), `projects/BUILD.bazel` (the fixture's exports and its
+test), the parser-equivalence ratchet (`own_corpus.matched` 3117 -> 3119: this PR's +1, the test's model; the other +1
+the base's own drift, 3118 on the bare base). The register file untouched (a contributor never edits it): the
+last-print-wins proposal's full row is in PR #90, for the owner to rule and land. The gs-quant oracle (`tools/gs-quant-oracle`) is the companion PR's and reads the same files:
+prices.csv is in file order on purpose, and the consumer sorts by (symbol, date); the oracle's PR leaves the ratchet
+alone, so this one merges first.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:

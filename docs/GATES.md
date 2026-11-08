@@ -20606,3 +20606,44 @@ Run 42200094861 (`16eb248ef`, the fix of finding 3 and W2) found:
 
 Run 42207084841 (`f4fa15e81`): **every lane green on every OS** ("gates green"), the corpus lanes on Linux, Windows
 and macOS among them.
+
+## 2026-11-07 — The adversarial markets fixture and `//core:ts_adversarial_test`
+
+Branch `abs/ts-adversarial-fixture` on `claude/timeseries-language` (`aad8e762a`), PR #90; the design and the findings are
+`docs/TS_ADVERSARIAL_FIXTURE_2026_11_07.md`.
+
+1. **The fixture**, `projects/timeseries/fixtures/adversarial/` (generate.py, seed 20261107, standard library only,
+   every float sum `math.fsum`; prices.csv in file order with `seq`, its ingest sequence, the last column;
+   prices_adjusted.csv; calendar.csv; manifest.yaml; 385,451 bytes): nine traps, each with the naive SQL's answer and
+   the correct one, both worked by the generator over the file's own numbers. Its files are held to the generator by
+   `//projects:timeseries_adversarial_fixture_test` (`generate.py --check`, in the core lane). `--check` is sensitive
+   to Python's float summation (`sum()` over floats compensates since 3.12): that test failed under Bazel's Python
+   3.12.13 against files written by 3.9.6, the plain mean's last digit apart. Every float sum is `math.fsum` now,
+   correctly rounded; `--check` passes on Python 3.9.6 and 3.12.13, the two versions verified.
+2. **`//core:ts_adversarial_test`** (in the `core` lane): per trap a query on DuckDB (`#TS`, or Pure handing `#TS` a
+   relation) judged against the correct answer; each case's status, value and whether it faces its trap held by
+   `core/src/test/resources/ts-adversarial/ledger.tsv` (the parity lanes' ratchet's problems, VALUE MOVED, a case
+   twice). Every manifest naive SQL answers one row, dated: its answer the manifest's, never the correct one; the
+   holiday's and the weekly trap's controls (the same SQL on a neighbouring date) answer a value; the holiday's
+   calendar is read. **6 of the 9 traps face the trap: 5 PASS, 1 DIFF** (`duplicate_row`: SAMPLE BY's sum counts the
+   print and its correction, 226,756 against last print wins' 193,862 -- the last-print-wins proposal, for the
+   owner's ruling: its full proposed row in PR #90, the register file untouched). The other four cases (stale_price_5d, split_2_for_1, vwap_zero_volume,
+   duplicate_row/last_print_source) PASS as evidence of the word, not of the trap. A second test measures a tie: SAMPLE
+   BY's `last()`, the fix S149's refusal names, picks among a date's two rows by the order they were loaded:
+   `last(CLOSE['BTCUSD'])` on 2025-02-05 is 63009.14 (the original print) over the rows in file order and 63387.19
+   (the correction) over the same rows reversed -- a defect report of its own. Measured: a ledger status or value moved, a case twice, a naive answer's date changed, a
+   control answer changed -- each turns the target red, the problem named.
+3. **What the first local gate found, fixed**: `//core:census` (`DialectLeakRatchetTest`: the test named its database;
+   now the BUILD file does, `-Dts.backend=duckdb`); `//parser-equivalence:update_ratchets_test`: `own_corpus.matched`
+   3117 -> 3119, of which **this PR's is +1** (the test's model joins the own corpus and matches the referee). The other
+   +1 is the base's own drift: the bare base computes 3118 against its committed 3117 (measured in a scratch worktree
+   on `9968907a7`, `fa016715d` and `aad8e762a`; the oracle session saw it on `c047d41b0`). Re-blessed with `bazel run
+   //parser-equivalence:update_ratchets`. The reason cannot sit in `ratchets.tsv` itself: the file is generated, its
+   one comment line the generator's, and `//parser-equivalence:update_ratchets_test` diff-tests it against the
+   generator's output, so a comment of ours would fail it; the reason is here and in the commit. The oracle's PR
+   leaves the ratchet alone, so this one merges first. That run's third failure, `//datacube:chart_tiles_test`, was
+   the base's (it failed alike on the bare `8e31b504a`) and passes since `9968907a7`.
+4. **`//gates:local` at the final tree (on `aad8e762a`): green** -- 514 tests pass, 2 skipped
+   (`//tools/guards:classpath_test` and `//tools/guards:markdown_inputs_test`, whose reports `guards_package` limits to
+   the platforms it lists: skipped on darwin-arm64), Bazel's exit 0. Edited after the run: Markdown alone (PR #90's
+   number, this line).

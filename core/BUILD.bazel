@@ -502,6 +502,9 @@ legend_java_library(
             # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
             # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
             "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the adversarial markets fixture on DuckDB is :ts_adversarial_test's alone: it reads the fixture's files,
+            # the timeseries project's file and its ledger (2026-11-07)
+            "src/test/java/com/legend/integration/TsAdversarialTest.java",
             # the documents' examples are :ts_documents_test's alone: they read the timeseries project's file and the
             # examples (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A9)
             "src/test/java/com/legend/integration/TsDocumentsTest.java",
@@ -564,6 +567,8 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the adversarial markets fixture's ledger: :ts_adversarial_test's, read as a file
+            "src/test/resources/ts-adversarial/**",
             # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
             # :cypher_parity_postgres_test's data, read as files
             "src/test/resources/cypher-parity/**",
@@ -1158,6 +1163,44 @@ junit_test(
     data = ["//projects:timeseries/model.pure"],
     jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
     select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE ADVERSARIAL MARKETS FIXTURE (projects/timeseries/fixtures/adversarial, 2026-11-07): per trap, a #TS query on
+# DuckDB judged against the fixture's correct answer, each case's status held by ts-adversarial/ledger.tsv, and the
+# manifest's naive SQL run as written, which must give its naive answer and not the correct one (the trap bites)
+junit_test(
+    name = "ts_adversarial_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsAdversarialTest.java"],
+    data = [
+        "src/test/resources/ts-adversarial/ledger.tsv",
+        "//projects:timeseries/fixtures/adversarial/calendar.csv",
+        "//projects:timeseries/fixtures/adversarial/manifest.yaml",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.adversarial.calendar=$(rlocationpath //projects:timeseries/fixtures/adversarial/calendar.csv)",
+        "-Dts.adversarial.manifest=$(rlocationpath //projects:timeseries/fixtures/adversarial/manifest.yaml)",
+        "-Dts.adversarial.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.adversarial.prices_adjusted=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.adversarial.ledger=$(rlocationpath src/test/resources/ts-adversarial/ledger.tsv)",
+        # the database the manifest's naive SQL is written for
+        "-Dts.backend=duckdb",
+    ],
+    select = ["--select-class=com.legend.integration.TsAdversarialTest"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",

@@ -55,6 +55,11 @@ test_suite(
         "//core:timeseries_library_test",
         # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
         "//core:ts_island_test",
+        # the adversarial markets fixture's traps on DuckDB, each case's status held by ts-adversarial/ledger.tsv; the
+        # fixture's naive SQL must bite (2026-11-07)
+        "//core:ts_adversarial_test",
+        # ... and its fixture's files held to their generator (generate.py --check)
+        "//projects:timeseries_adversarial_fixture_test",
         # every example of the #TS spec and the guide for quants runs, or is listed with why (A9, 2026-11-03)
         "//core:ts_documents_test",
         # the #TS{...}# island's cases on the embedded Postgres 16 (docs/TS_V1_PROGRAM_2026_11_01.md B1)

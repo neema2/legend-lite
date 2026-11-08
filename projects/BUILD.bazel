@@ -19,6 +19,18 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
+# the adversarial markets fixture (timeseries/fixtures/adversarial, made by its generate.py): core's
+# //core:ts_adversarial_test reads it as it is, and so does the gs-quant oracle (2026-11-07)
+exports_files(
+    ["timeseries/fixtures/adversarial/" + f for f in [
+        "calendar.csv",
+        "manifest.yaml",
+        "prices.csv",
+        "prices_adjusted.csv",
+    ]],
+    visibility = ["//core:__pkg__"],
+)
+
 PROJECT_DEPS = {
     # layer 0
     "core-account": [],
@@ -128,6 +140,24 @@ py_test(
     },
     main = "contract_test.py",
     deps = ["@rules_python//python/runfiles"],
+)
+
+# the adversarial fixture's files are its generator's: generate.py --check regenerates them in memory and compares
+# them byte for byte with the committed ones (the fixture's own diff test, in the core lane beside
+# //core:ts_adversarial_test; 2026-11-08)
+py_test(
+    name = "timeseries_adversarial_fixture_test",
+    size = "small",
+    srcs = ["timeseries/fixtures/adversarial/generate.py"],
+    args = ["--check"],
+    data = ["timeseries/fixtures/adversarial/" + f for f in [
+        "calendar.csv",
+        "manifest.yaml",
+        "prices.csv",
+        "prices_adjusted.csv",
+    ]],
+    main = "timeseries/fixtures/adversarial/generate.py",
+    visibility = ["//gates:__pkg__"],
 )
 
 # every check of the projects: each compiled alone, the graph, the contract's file checks (//gates:local, CI's checks)
