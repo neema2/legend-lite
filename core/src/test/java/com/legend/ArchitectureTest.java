@@ -1446,7 +1446,7 @@ final class ArchitectureTest {
      *  2026-11-08). */
     private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#run",
             "com.legend.Execution#runBody", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
-            "com.legend.server.ConnectionResolver#open");
+            "com.legend.exec.PlanSessions#projectDatabase");
 
     /** Where planning begins: the router's planning halves and the doors'. */
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#plan",
@@ -1537,35 +1537,11 @@ final class ArchitectureTest {
             // hole 7: the run is handed the model, and a session source opens a session from it (test road and product)
             "takes com.legend.Execution#runBody(ModelContext)",
             "calls com.legend.Execution#runBody -> com.legend.driver.BodyRouter#run",
-            "takes com.legend.Execution$Source#open(ModelContext)",
             "takes com.legend.driver.BodyRouter#run(ModelContext)",
-            // hole 7 on the product's door (the slice 3 follow-up audit, 2026-11-08: the server's session source made a
-            // run entry): the server opens a query's session from the model -- the stores' content key, and the model's
-            // Data rows filled into a session it makes (ProjectData, CsvSeed)
-            "calls com.legend.server.ConnectionResolver#connect -> com.legend.server.ConnectionResolver#filled",
-            "calls com.legend.server.ConnectionResolver#connect -> com.legend.setup.ProjectData#rowsKey",
-            "calls com.legend.server.ConnectionResolver#filled -> com.legend.setup.ProjectData#fill",
-            "calls com.legend.server.ConnectionResolver#open -> com.legend.server.ConnectionResolver#connect",
-            "calls com.legend.server.ConnectionResolver#open -> com.legend.server.ConnectionResolver#storesKey",
-            "calls com.legend.server.ConnectionResolver#storesKey -> com.legend.compiler.element.ModelContext#databases",
-            "calls com.legend.setup.CsvSeed#blockSqls -> com.legend.compiler.element.ModelContext#findTableDefinition",
-            "calls com.legend.setup.CsvSeed#sqls -> com.legend.setup.CsvSeed#steps",
-            "calls com.legend.setup.CsvSeed#steps -> com.legend.setup.CsvSeed#blockSqls",
-            "calls com.legend.setup.ProjectData#declaring -> com.legend.compiler.element.ModelContext#databases",
-            "calls com.legend.setup.ProjectData#fill -> com.legend.compiler.element.ModelContext#dataElements",
-            "calls com.legend.setup.ProjectData#fill -> com.legend.setup.CsvSeed#sqls",
-            "calls com.legend.setup.ProjectData#fill -> com.legend.setup.ProjectData#declaring",
-            "calls com.legend.setup.ProjectData#rowsKey -> com.legend.compiler.element.ModelContext#dataElements",
-            "takes com.legend.server.ConnectionResolver#connect(ModelContext)",
-            "takes com.legend.server.ConnectionResolver#filled(ModelContext)",
-            "takes com.legend.server.ConnectionResolver#open(ModelContext)",
-            "takes com.legend.server.ConnectionResolver#storesKey(ModelContext)",
-            "takes com.legend.setup.CsvSeed#blockSqls(ModelContext)",
-            "takes com.legend.setup.CsvSeed#sqls(ModelContext)",
-            "takes com.legend.setup.CsvSeed#steps(ModelContext)",
-            "takes com.legend.setup.ProjectData#declaring(ModelContext)",
-            "takes com.legend.setup.ProjectData#fill(ModelContext)",
-            "takes com.legend.setup.ProjectData#rowsKey(ModelContext)",
+            // (gone 2026-11-08, hole 7 v1, the user's go: the server's session opened from the plan's target alone --
+            // the project database's identity and its Data fill planned into the target (ExecutionPlan.Project), the
+            // runner's PlanSessions.projectDatabase finding or making it; ConnectionResolver's keys and fill deleted,
+            // and the session contract takes no model: 25 sites)
             // hole 2: the system database's sessions found through the model, cached in it
             "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SystemDatabase#of",
             "calls com.legend.driver.SystemDatabase#of -> com.legend.compiler.element.ModelContext#derived",

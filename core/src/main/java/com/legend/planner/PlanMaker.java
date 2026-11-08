@@ -325,7 +325,7 @@ public final class PlanMaker {
                 ? new ExecutionPlan.Target(systemRouted
                         ? new ExecutionPlan.Database.System(ConnectionPlans.type(decided.target().type()),
                                 SystemRoutes.graphKey(query.context()))
-                        : database(decided.target()),
+                        : database(decided.target(), null),
                         decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
                         Metamodel.NONE);
@@ -395,6 +395,14 @@ public final class PlanMaker {
 
     /** Where a plan runs: the runtime's database ({@code Compiler.executesOn}: a null runtime refused there, by name)
      *  and its dialect. */
+    /** The product's target for {@code runtime} of {@code ctx}: the database it decides, the project's own where it is
+     *  one (hole 7), its session statements and its declared setup -- what a query's plan names, for a door that opens
+     *  a session before a query of its own exists (a program's, a test's seeding). Planning: no session is opened. */
+    public static ExecutionPlan.Target runtimeTarget(ModelContext ctx, String runtime) {
+        Decided decided = decide(ctx, runtime);
+        return target(decided.target(), runtime, ctx, decided.dialect(), Metamodel.NONE);
+    }
+
     private record Decided(Target target, SqlDialect dialect) {
     }
 
@@ -832,7 +840,7 @@ public final class PlanMaker {
     private static ExecutionPlan.Target target(Target decided, String runtime,
             ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel) {
-        ExecutionPlan.Database database = database(decided);
+        ExecutionPlan.Database database = database(decided, project(decided, ctx, dialect));
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
         steps.addAll(metamodel.setup());
@@ -841,12 +849,43 @@ public final class PlanMaker {
         return new ExecutionPlan.Target(database, session, steps);
     }
 
-    /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */
-    private static ExecutionPlan.Database database(Target decided) {
+    /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's, a
+     *  project's own where {@code project} is given (a product plan's; the test door names none). */
+    private static ExecutionPlan.Database database(Target decided, ExecutionPlan.@Nullable Project project) {
         return switch (decided) {
-            case Target.Platform p -> new ExecutionPlan.Database.Platform(ConnectionPlans.type(p.type()), null);
-            case Target.Declared d -> new ExecutionPlan.Database.Declared(ConnectionPlans.of(oneDefinition(d)), null);
+            case Target.Platform p -> new ExecutionPlan.Database.Platform(ConnectionPlans.type(p.type()), project);
+            case Target.Declared d -> new ExecutionPlan.Database.Declared(ConnectionPlans.of(oneDefinition(d)),
+                    project);
         };
+    }
+
+    /**
+     * The project's own database a product plan's target names (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the
+     * plan-as-data design's hole 7, the user's go of 2026-11-08): named by what it holds -- the model's Databases and
+     * Data rows, hashed ({@code ProjectData.contentKey}) -- and, on a declared database, the statements that make and
+     * fill its tables from the Data rows ({@code ProjectData.fill}), which the runner runs once where it makes the
+     * database itself. The platform's database is keyed by the stores alone and filled with nothing, as the server
+     * kept it. Knowledge, derived once per model and dialect: the run never reads the model for it.
+     */
+    private static ExecutionPlan.Project project(Target decided, ModelContext ctx, SqlDialect dialect) {
+        boolean platform = decided instanceof Target.Platform;
+        return ctx.derived(Projects.class, c -> new Projects()).byKind.computeIfAbsent(
+                (platform ? "platform/" : "declared/") + dialect.getClass().getName(), k -> {
+                    String key = com.legend.cache.Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex();
+                    List<ExecutionPlan.SetupStep> made = new ArrayList<>();
+                    if (!platform) {
+                        for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
+                            made.add(new ExecutionPlan.SetupStep.Statement(sql));
+                        }
+                    }
+                    return new ExecutionPlan.Project(key, made);
+                });
+    }
+
+    /** {@link #project}'s memo on the compiled model, by database kind and dialect. */
+    private static final class Projects {
+        private final java.util.concurrent.ConcurrentHashMap<String, ExecutionPlan.Project> byKind =
+                new java.util.concurrent.ConcurrentHashMap<>();
     }
 
     /**

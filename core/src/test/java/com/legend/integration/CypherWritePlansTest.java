@@ -100,7 +100,7 @@ class CypherWritePlansTest {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
                         com.legend.Compiler.parseQuery(island(detach)));
                 com.legend.executionplan.ExecutionPlan ran = com.legend.Execution.run(typed, CypherGraph.RUNTIME,
-                        (target, ctx) -> {
+                        target -> {
                             throw new AssertionError("a program that writes opens no query session");
                         }, PlanSessions.of(com.legend.testbackend.TestSessions.over(session)), com.legend.Execution.Establish.DECLARED_SETUP,
                         plan -> new com.legend.result.JsonRowsWriter(answer, plan.answerShape()));

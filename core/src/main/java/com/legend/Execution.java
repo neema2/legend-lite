@@ -29,7 +29,7 @@ public final class Execution {
      *  never the runtime's. */
     @FunctionalInterface
     public interface Source {
-        com.legend.exec.Sessions.Session open(com.legend.database.Target target, ModelContext ctx);
+        com.legend.exec.Sessions.Session open(com.legend.executionplan.ExecutionPlan.Target target);
 
         /** A source of {@code session} as the caller holds it: a non-closing view of it for every target (D68,
          *  2026-10-30: the test runners hold sessions, not connections). It checks nothing at open: its callers are
@@ -37,7 +37,7 @@ public final class Execution {
          *  and the query entry, whose runner checks each statement's target (D70's audit: a check here was a second
          *  metadata read per body). */
         static Source given(com.legend.exec.Sessions.Session session) {
-            return (target, ctx) -> com.legend.exec.Sessions.view(session);
+            return target -> com.legend.exec.Sessions.view(session);
         }
     }
 
@@ -87,15 +87,19 @@ public final class Execution {
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
             return plan;
         }
-        ModelContext ctx = typed.context();
-        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
-        try (com.legend.exec.Sessions.Session session = sessions.open(decided, ctx)) {
-            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
-            com.legend.result.ResultSink sink = sinkOf.apply(plan);
+        // planned first, then run: the session is opened from the plan's own target, never from the model (the
+        // plan-as-data design's hole 7, the user's go of 2026-11-08: until then the door opened it from the compiled
+        // model before planning, and the server's source read the model to find and fill it)
+        com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
+        com.legend.result.ResultSink sink = sinkOf.apply(plan);
+        com.legend.executionplan.ExecutionPlan.Target target = plan.sendsTheAnswer() ? plan.answerSql().target()
+                : com.legend.planner.PlanMaker.runtimeTarget(typed.context(), java.util.Objects.requireNonNull(
+                        runtimeFqn, "a query's runtime"));
+        try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
             com.legend.exec.PlanSessions.Source on = switch (establish) {
                 // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
                 case DECLARED_SETUP -> plan.sendsTheAnswer()
-                        ? com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target())
+                        ? com.legend.exec.PlanSessions.setUp(session, target)
                         : com.legend.exec.PlanSessions.of(session);
                 case AS_GIVEN -> com.legend.exec.PlanSessions.of(session);
             };
@@ -184,7 +188,10 @@ public final class Execution {
         ModelContext ctx = typed.context();
         // planned before any session is opened: planning names targets, never sessions
         PlannedProgram planned = planBody(typed, runtimeFqn, options);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
+        // the runtime's target, planned: the session is opened from it, never from the model (hole 7)
+        com.legend.executionplan.ExecutionPlan.Target target = com.legend.planner.PlanMaker.runtimeTarget(ctx,
+                java.util.Objects.requireNonNull(runtimeFqn, "a program's runtime"));
+        try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
             runBody(planned, session, ctx, listener, referee, options, answer);
         }
     }

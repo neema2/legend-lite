@@ -197,9 +197,72 @@ public final class PlanSessions {
 
     /** {@code session} with {@code target}'s setup run on it; a setup that fails closes the session it was opened
      *  for, the setup's failure the one told. */
+    /** The projects' own databases (C5), kept by their identity: made once, then reused. */
+    private static final HandleStore<Sessions.Session> PROJECTS = new HandleStore<>();
+
+    /**
+     * A PROJECT'S OWN DATABASE for {@code target} (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's
+     * hole 7, the user's go of 2026-11-08): found or made from the plan's target alone, never the model -- kept by the
+     * database's identity (its connection and its project: named by what it holds, so an edited row is a fresh database
+     * and two models whose stores differ never share one, type audit D100), made ONCE with the project's
+     * {@code made} steps where this makes the database itself (a held in-memory one), kept for the process. An
+     * unnamed in-memory database and the platform's are keyed apart by the project and filled with nothing (as the
+     * server kept them); a URL's or a user-named database is the user's own and opens as it is. The per-query setup
+     * is not run here: the door runs the target's setup on each query ({@code Execution.Establish}), as legend-engine
+     * establishes a connection on every acquisition.
+     */
+    public static Sessions.Session projectDatabase(ExecutionPlan.Target target) {
+        ExecutionPlan.Target identity = new ExecutionPlan.Target(target.database(), java.util.List.of(),
+                java.util.List.of());
+        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(identity));
+        return switch (target.database()) {
+            case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
+                    + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
+            case ExecutionPlan.Database.Platform p -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                    () -> Sessions.openPrivate(p.type())));
+            case ExecutionPlan.Database.Declared d -> {
+                DatabaseConnector connector = Connectors.of(d.connection().databaseType());
+                if (connector.ownSessions()) {
+                    yield connector.open(d.connection());
+                }
+                yield switch (Sessions.openingFor(d.connection())) {
+                    case Sessions.Opening.Url u -> Sessions.open(u);
+                    // a named in-memory database is kept alive by its name: the user's, else one per project and
+                    // connection (D5); each use opens a connection the caller closes
+                    case Sessions.Opening.Named n -> Sessions.openNamed(n, n.name() != null ? n.name()
+                            : "c_" + key.hex().substring(0, 16));
+                    case Sessions.Opening.Held h -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                            () -> made(Sessions.openHeld(h), target, d.project())));
+                };
+            }
+        };
+    }
+
+    /** {@code session} made into the project's database: the project's {@code made} steps run on it once (the
+     *  statements that make and fill its tables from the Data rows) as a run of their own (THE WALL: a statement is
+     *  sent only inside a plan's run), under the SEED mark; a failure closes it. */
+    private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target,
+            ExecutionPlan.@com.legend.base.Nullable Project project) {
+        if (project == null || project.made().isEmpty()) {
+            return session;
+        }
+        return closedOnFailure(session, () -> {
+            ExecutionPlan.Target filling = new ExecutionPlan.Target(target.database(), target.session(),
+                    project.made());
+            try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
+                PlanRunner.setUp(filling.setup(), filling, of(session), null);
+            }
+        });
+    }
+
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
+        return closedOnFailure(session, () -> establish(session, target));
+    }
+
+    /** {@code session} after {@code work} ran on it; closed, and the failure raised, where {@code work} fails. */
+    private static Sessions.Session closedOnFailure(Sessions.Session session, Runnable work) {
         try {
-            establish(session, target);
+            work.run();
             return session;
         } catch (RuntimeException | Error e) {
             try {

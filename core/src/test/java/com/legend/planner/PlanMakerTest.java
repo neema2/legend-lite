@@ -205,7 +205,11 @@ class PlanMakerTest {
         String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("m::RT");
         ExecutionPlan.Target t = target(plan);
-        assertEquals(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), t.database());
+        // the platform's own engine, a project's database (hole 7, 2026-11-08): keyed by the model's stores, filled
+        // with nothing -- the run finds it from the plan alone
+        assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
+                && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
+                && p.project() != null && p.project().made().isEmpty(), String.valueOf(t.database()));
         assertEquals(List.of(), t.setup());
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {

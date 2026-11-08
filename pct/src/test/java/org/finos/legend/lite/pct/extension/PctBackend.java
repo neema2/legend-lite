@@ -157,17 +157,17 @@ public final class PctBackend {
             java.util.function.Supplier<com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target> planned) {
         TestBackend backend = backend();
         if (ownSessions(backend)) {
-            return (target, ctx) -> {
-                if (!(target instanceof com.legend.database.Target.Declared d) || d.connections().size() != 1) {
-                    throw new IllegalStateException("the " + name() + " lane's query names no one declared connection: "
-                            + target);
+            return target -> {
+                if (!(target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.Declared d)) {
+                    throw new IllegalStateException("the " + name() + " lane's query names no declared connection: "
+                            + target.database());
                 }
                 return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type()))
-                        .open(com.legend.planner.ConnectionPlans.of(d.connections().get(0)));
+                        .open(d.connection());
             };
         }
         if (backend.inProcess()) {
-            return (target, ctx) -> {
+            return target -> {
                 try {
                     return com.legend.testbackend.TestSessions.owning(backend.open());
                 } catch (SQLException e) {
@@ -176,7 +176,7 @@ public final class PctBackend {
                 }
             };
         }
-        return (target, ctx) -> {
+        return target -> {
             try {
                 Connection held = backend.held();
                 if (held != null) {
