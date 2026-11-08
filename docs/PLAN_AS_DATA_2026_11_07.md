@@ -296,7 +296,69 @@ trip and the walls, one checking lane on the decoded plan; a planner-free runner
 5. **Two plan types** (4.0): the product's `ExecutionPlan` loses every test node; a `TestPlan` composes product steps
    with the test's; `testexec` runs it through `exec`.
 
-## 6. Order of work (each step compiles and keeps the fast loop green)
+## 5a. The independent audit (2026-11-08): three blockers; decision 1 reopened
+
+A reviewer read this design against the code at `abfccc5c` (read-only, with file:line evidence; two blockers
+spot-checked by the author and confirmed). The design's direction stands; it is NOT executable as written.
+
+**Blockers**
+1. **The edge cannot be a pure renderer of the test plan (decision 1).** The appeal's rows are not a step of the body:
+   they are a SEPARATE read planned only for the appeal, from the typed body -- the toSQLString producer's query under
+   the producer's own context (`SqlTextVerdicts.java:713-719`, confirmed), the plan-text arm's last statement with
+   its bindings (`:1323-1369`), a let chosen by matching the golden's text (`:1066-1080`), planned with their own
+   scan order. The referee needs the compiled model for enum decoding (`SqlReplayReferee.java:56-62`). The in-list
+   seed is derived from the typed query and every let (`:1574`). A renderer of the plan cannot do these: the edge must
+   PLAN, from the typed body, at planning time.
+2. **The ledger texts cannot be rendered from the plan.** Effect steps carry no tree (`TestKinds.java:482`,
+   confirmed); a raw-SQL ledger text is the AUTHORED text before translation; DDL and CSV-load texts are rendered in
+   the referee's dialect; seed texts are authored or the INSERT text where the plan holds a bulk load
+   (`EffectPlanner.java`, `CsvSeed.java:85-95`).
+3. **The runner split as sketched breaks things it does not name.** The program's shape needs the verdict and branch
+   statements (one target, the system session, the snapshot, the constants-alone path); the transaction bracket wraps
+   verdict steps; values flow from product steps into verdict statements (trace stamps, write counts); savepoints and
+   the raising verdict use exec's internal statements and routing; the reader's guard is built from verdict sides
+   (`PlanRunner.java:240-266, 422-590, 678-923, 1393-1403, 1578-1583`). And "a test body with no assert IS a product
+   plan" is false: the product path refuses seed steps, the test sink holds the answer's cardinality, feeds the
+   ledger and the LET origin. The reviewer's recommendation: exec stays the ONE walker (G1) and calls back for the
+   steps it does not know, handing over an open-program handle.
+
+**Should-fix** (folded into the steps they touch)
+- `Check` is a product node (write programs make one per statement before the last, `PlanMaker.java:317, 531-533`).
+- `Failure` needs the exact class (a closed list of classes, not categories: messages print the simple class name),
+  the cause's source position (`assertError` reads line and column), a `ModelException`'s phase, and the
+  "before the arm" flag (no census, no listener).
+- Layering: code moving to `testplan` uses `exec`'s `StatementOrigin`, `Census`, `PlanRunner.Rows`/`SideReader`,
+  `RaisedErrors`, `Sessions`; builds `TypedSide`s at planning; calls `AssertListener.fixtureAhead` at planning;
+  `VerdictBatch.Planned` is an inner class of the planning half; the mixed classes' run halves are unnamed;
+  `SystemDatabase` is keyed by `ModelContext` (cannot go to exec); the root doors share the `driver` target with
+  `server_lib`, so a front door holding `runProgram` would pull test code into the server unless the target splits.
+- The system store's identity is not in the plan: `Database.System` needs the graph's content key.
+- More run-time type decisions than 4.6 lists: dynamic-pivot column types from names read at run, the list-carrier
+  check, the fine numeric kind per side and column, `Keys.byClass` for an `Any` slot (every keyed class in the model),
+  Float row literals; step 1 also changes the referee's interface and the spec harness.
+- Order: `driver` cannot be deleted before the edge exists (the referee names `ModelContext`); the decoded-plan check
+  belongs in report mode from step 3.
+- Decision 4: options A-C cannot see state outside the plan -- the `ctx`-keyed system sessions, the harness listener's
+  fixture registry (filled at planning, run in `beforeRun`), the `Execution.PlannedProgram` closures, the environment
+  inside `Collected`; each must be removed by name, or D brought forward.
+
+**Notes**: `HostJudgment` permits 23 kinds, not 26; `KindClass` also has `Enum(fqn)`; `Eq`'s facts are never read
+at run; `ExecuteOptions.recorder` should leave the options too; `PlanMaker.program`'s `Door.TEST` branches stay in the
+product planner after `testProgram` moves; carrying referee-only facts under the LITE rules plans work nobody reads
+(against E3).
+
+**What it changes** (proposed, for the user's ruling):
+- **Decision 1, reopened.** The edge PLANS as well as renders: under the compatibility rules alone, `testplan` calls
+  an edge hook (the edge implements it, given the typed body) that plans the appeal's reads and the ledger texts as
+  DATA, held in one generic section of the test plan keyed by verdict (reads as product nodes, texts as strings,
+  facts as strings and booleans; no edge type in `test_plan`, so G5's direction holds); under the LITE rules nothing
+  is planned for the edge (E3). The plan-types-are-data test covers the section like the rest.
+- **The runner: exec stays the one walker** (the reviewer's recommendation), with a callback for test steps and an
+  open-program handle, instead of `testexec` walking.
+- **The edge (P2) comes into this step** as far as the appeal and the ledgers need it, or `driver` keeps that remnant
+  until P2.
+
+ (each step compiles and keeps the fast loop green)
 
 1. The judges' types the exec way (4.6): `TypedSide`, `Equality`, `PureAsserts`, `TdsCompare` off the compiler's
    `Type`, onto the plan's type names and planning-time facts.
