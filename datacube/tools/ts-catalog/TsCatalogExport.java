@@ -140,6 +140,9 @@ public final class TsCatalogExport {
                 if (begun != null) {
                     b.append(", begin: ").append(literal(p.kind(), begun));
                 }
+                if (p.kind().equals("span") && p.takes().contains("whole")) {
+                    b.append(", whole: true");
+                }
                 b.append(", required: ").append(p.required());
                 Object g = gs.get(p.name());
                 String gl = g == null ? "" : gsLiteral(p, g);

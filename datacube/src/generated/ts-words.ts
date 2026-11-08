@@ -579,12 +579,12 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     params: [
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
       { name: 'n', kind: 'number', takes: [], words: [], required: true },
-      { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
+      { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'whole'], words: [], required: false },
     ],
-    forms: ['percentile(x: Line, n: Float)', 'percentile(x: Line, n: Float, w: Integer)', 'percentile(x: Line, n: Float, w: Scope)', 'percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)'],
-    doc: 'The n-th percentile of x\'s values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).',
+    forms: ['percentile(x: Line, n: Float)', 'percentile(x: Line, n: Float, w: Integer)', 'percentile(x: Line, n: Float, w: Scope)', 'percentile(x: Line, n: Float, w: Whole)', 'percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)'],
+    doc: 'The n-th percentile of x\'s values over a window -- w observations to date, a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole: gs-quant\'s one number of no window, on every date).',
     aliases: [],
-    facts: { label: ['Rolling percentile'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.percentile'], about: ['The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 the whole series\'.'], param: ['n: the percentile, 0 to 100', 'w: observations in the window, or a calendar period (3m, 1y); 0 every observation'], search: ['quantile'], given: ['w: all'], limit: ['n: >= 0, <= 100', 'w: >= 0'], begun: ['n: 50'] },
+    facts: { label: ['Rolling percentile'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.percentile'], about: ['The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 (all) every one to date, whole the whole series\''], param: ['n: the percentile, 0 to 100', 'w: observations in the window, a calendar period (3m, 1y), all to date, or whole'], search: ['quantile'], given: ['w: all'], limit: ['n: >= 0, <= 100', 'w: >= 0'], begun: ['n: 50'], differs: ['no window: to date (gs-quant: one number of the whole series; whole is gs-quant\'s)'], gsWhole: ['w: default'] },
     marks: [],
   },
   percentiles: {
@@ -971,7 +971,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['winsorize(x: Line, limit: Float (optional))', 'winsorize(x: Line, limit: Float (optional), w: Whole)'],
     doc: 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the mean to date, or of the whole line\'s (whole).',
     aliases: [],
-    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean to date.'], differs: ['to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['limit: standard deviations from the mean it is held within'], given: ['limit: 2.5'], limit: ['limit: >= 0'] },
+    facts: { label: ['Winsorize'], family: ['Rolling statistics'], unit: ['same'], level: ['keeps'], gsQuant: ['statistics.winsorize'], about: ['Held within limit standard deviations of its mean to date.'], differs: ['to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['limit: standard deviations from the mean it is held within'], given: ['limit: 2.5'], limit: ['limit: >= 0'], gsWhole: ['w: always'] },
     marks: [],
   },
   year: {
@@ -992,7 +992,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     forms: ['zscores(x: Line)', 'zscores(x: Line, w: Whole)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), or the whole line (whole).',
     aliases: [],
-    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, or whole'], search: ['zscore', 'z'], given: ['w: all'], limit: ['w: >= 0'] },
+    facts: { label: ['Z-score'], family: ['Rolling statistics'], unit: ['number'], gsQuant: ['statistics.zscores'], about: ['How many standard deviations from the mean: over the last w observations, or every one to date.'], differs: ['no window: to date (gs-quant: the whole series; whole is gs-quant\'s)'], param: ['w: observations in the window, all, or whole'], search: ['zscore', 'z'], given: ['w: all'], limit: ['w: >= 0'], gsWhole: ['w: default'] },
     marks: [],
   },
 };

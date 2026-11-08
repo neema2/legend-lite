@@ -111,6 +111,8 @@ function literal(v: string | number | boolean): string {
 /** A window or a lag as the language writes it: observations, `all` for the tile's 0, a span (`3mo` for its `3m`). */
 function span(v: number | string): string {
   if (typeof v === 'number') return v === 0 ? 'all' : String(v);
+  // the whole line, its future read (a z-score's, a percentile's: said so, never a default)
+  if (v === 'whole') return 'whole';
   const m = /^([1-9][0-9]*)([dwmy])$/.exec(v);
   if (!m) throw new CubeRefusal(`a span the tile writes is n then d, w, m or y: ${v}`);
   return `${m[1]}${m[2] === 'm' ? 'mo' : m[2]}`;

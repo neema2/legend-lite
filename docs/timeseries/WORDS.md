@@ -558,15 +558,15 @@ Forms: `percent_change(x: Line)`, `percent_change(x: Line, from: StrictDate)`.
 
 ## `percentile`
 
-The n-th percentile of x's values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).
+The n-th percentile of x's values over a window -- w observations to date, a calendar period back, the line's start to date (its default, and all), or the whole line (whole: gs-quant's one number of no window, on every date).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
 | `n` | number |  | yes |
-| `w` | span | observations, period, all | no |
+| `w` | span | observations, period, all, whole | no |
 
-Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`.
+Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Whole)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`.
 
 ## `percentiles`
 

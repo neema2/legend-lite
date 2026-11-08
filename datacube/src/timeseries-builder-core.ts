@@ -231,6 +231,9 @@ export interface GsParam {
   readonly weights?: true;
   /** Given by name alone (gs-quant's keyword-only: excess_returns' day_count_convention). */
   readonly kwOnly?: true;
+  /** A window gs-quant takes as the whole line (the library's gsWhole): its default (zscores', percentile's: written
+   *  `whole`, the look-ahead seen), or whatever it is told (winsorize's, its window only a ramp: another refused). */
+  readonly whole?: 'default' | 'always';
 }
 
 function isKeywords(v: unknown): v is Readonly<Record<string, unknown>> {
@@ -296,6 +299,16 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     if (g.weights) {
       weights = v;
       continue;
+    }
+    if (g.whole !== undefined) {
+      const told = v !== undefined && v !== null && !same(v, defaultOf(g));
+      if (told && g.whole === 'always') {
+        throw new BuilderRefusal(`${fn}: gs-quant's clips by the whole series' mean and deviation whatever ${g.name} is -- its ${g.name} blanks the first points alone, a ramp (item 13)`);
+      }
+      if (!told) {
+        params[g.lib ?? g.name] = 'whole';
+        continue;
+      }
     }
     if (g.only) {
       if (!same(v, defaultOf(g)) && !(g.also ?? []).some((a) => a === v)) {

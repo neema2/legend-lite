@@ -842,6 +842,31 @@ class TsIslandTest {
     }
 
     @Test
+    void aPercentileIsToDateUnlessTheWholeLineIsSaid() throws Exception {
+        // the user, 2026-11-08 (kdb's discipline: whole and to date are spelled, never a default): percentile(x, n) and
+        // percentile(x, n, all) each date's percentile of the line to it; percentile(x, n, whole) the whole line's on
+        // every date, gs-quant's percentile of no window (one number of the whole series), the future read
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT percentile(CLOSE['AAA'], 50) AS d,"
+                    + " percentile(CLOSE['AAA'], 50, all) AS a, percentile(CLOSE['AAA'], 50, whole) AS w FROM PRICES ON DAY"
+                    + " BY SYMBOL}#");
+            Double[] toDate = each(AAA.length, i -> median(java.util.Arrays.copyOfRange(AAA, 0, i + 1)));
+            assertClose(toDate, column(got, null, null, "d"), backend + ": no window, to date");
+            assertClose(toDate, column(got, null, null, "a"), backend + ": all, to date");
+            assertClose(each(AAA.length, i -> median(AAA)), column(got, null, null, "w"), backend + ": whole, the line's");
+        }
+    }
+
+    /** The median of {@code xs}, between the two nearest (pandas' quantile). */
+    private static double median(double[] xs) {
+        double[] s = xs.clone();
+        java.util.Arrays.sort(s);
+        double at = 0.5 * (s.length - 1);
+        int lo = (int) Math.floor(at);
+        return s[lo] + (at - lo) * (s[Math.min(lo + 1, s.length - 1)] - s[lo]);
+    }
+
+    @Test
     void anOptionByPlaceOrByName() throws Exception {
         // R10: returns' type, by place or by name
         for (TestBackend backend : backends()) {

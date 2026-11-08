@@ -54,6 +54,9 @@ const LEDGER: Readonly<Record<string, string>> = {
   'sharpe_ratio +annualization_factor': 'the periods a year told, where gs-quant infers them alone',
   'exponential_volatility +annualization_factor': 'the periods a year told, where gs-quant infers them alone',
   'exponential_spread_volatility +annualization_factor': 'the periods a year told, where gs-quant infers them alone',
+  'zscores.w whole': 'gs-quant\'s default is its two-sided z-score of the whole series: written whole, the future read in the text, where the language\'s default is to date (S150; the user, 2026-11-08, kdb\'s discipline)',
+  'percentile.w whole': 'gs-quant\'s default is one number of the whole series: written whole, that number on every date, where the language\'s default is to date (S150; the user, 2026-11-08)',
+  'winsorize.w whole': 'gs-quant\'s clips by the whole series\' mean and deviation whatever its window, which only blanks the first points: written whole; another window refused until item 13\'s ramp',
   'union list': 'two series: the language\'s union reads two lines',
   'append list': 'two series: the language\'s append reads two lines',
   'prepend list': 'two series: the language\'s prepend reads two lines',
@@ -68,6 +71,7 @@ function differences(): string[] {
     const gsName = s.gsFunction.slice(s.gsFunction.lastIndexOf('.') + 1);
     if (fn !== gsName) out.push(`${fn} spelled`);
     for (const g of s.gs) if (g.only) out.push(`${fn}.${g.name} only`);
+    for (const g of s.gs) if (g.whole !== undefined) out.push(`${fn}.${g.name} whole`);
     // a parameter told where gs-quant's has a default, or defaulted otherwise
     const gs = GS.words[s.word]?.[0];
     for (const g of s.gs) {
@@ -158,6 +162,12 @@ describe('a builder term is its #TS text', () => {
     assert.equal(lag!(spx).text(), "lag(close['SPX'], 1, 'extend')");
     assert.equal(sharpe_ratio!(spx).text(), "sharpe_ratio(close['SPX'], w => all)");
     assert.equal(append!([spx, ndx]).text(), "append(close['SPX'], close['NDX'])");
+    // gs-quant's whole-series figures written whole, the future read seen (the user, 2026-11-08)
+    assert.equal(functions['zscores']!(spx).text(), "zscores(close['SPX'], w => whole)");
+    assert.equal(functions['zscores']!(spx, 22).text(), "zscores(close['SPX'], w => 22)");
+    assert.equal(functions['percentile']!(spx, 90).text(), "percentile(close['SPX'], n => 90, w => whole)");
+    assert.equal(functions['winsorize']!(spx).text(), "winsorize(close['SPX'], limit => 2.5, w => whole)");
+    assert.throws(() => functions['winsorize']!(spx, 2.5, 22), /blanks the first points alone, a ramp \(item 13\)/);
   });
 
   it('arithmetic as pandas\' methods; columns, series and SQL\'s words per point', () => {

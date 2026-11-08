@@ -160,6 +160,9 @@ for (const name of TS_FUNCTION_NAMES) {
         mapped.add(libName);
         if (libName !== p.name) entry.push(`lib: ${q(libName)}`);
         if (d.has) entry.push(`default: ${d.text}`);
+        // a window gs-quant takes as the whole line (the library's gsWhole: zscores', percentile's default; winsorize's)
+        const whole = tagged(cat, 'gsWhole').get(libName);
+        if (whole !== undefined) entry.push(`whole: ${q(whole)}`);
         const v = values.get(libName);
         if (v !== undefined) {
           const [gsValue, libWord] = v.split(' ');

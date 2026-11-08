@@ -167,6 +167,7 @@ Each phase ends green; the status column is updated in the commit that does the 
 | 12 | B5: a second oracle for the words gs-quant lacks | -- | |
 | 13 | B3: the builders -- Python's DSL and TypeScript's, `#TS` and the chart together, from one catalog (§4, ruled 2026-11-07) | -- | |
 | 13b | The risk-free data model: a cash index per currency (overnight rates compounded actual/360), `sharpe_ratio` and `excess_returns` reading it as a line, the builders' `currency` the page's source, gs-quant's 365.25-day annualized return (S155 retired), its sample data, the oracle on gs-quant's own functions | -- | added 2026-11-08 (the user) |
+| 13c | Words across a date's instruments (kdb's `by date`, as `rank` is): `zscores`, `winsorize` and `percentile` of each date's cross-section, the factor researcher's normalization -- no look-ahead, another question than a line's history | -- | added 2026-11-08 (the user: "Go" on the recommendation) |
 | 14 | B4: Show Python and Show TypeScript, each the builder's code | -- | |
 | 15 | B7: the page as a dashboard (option D) | 15 | |
 | 16 | B8: the tile kinds | -- | |
@@ -304,8 +305,14 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
   - *Kept as they are, rows of the register*: one-argument `sum`/`mean`/`max`/... without SAMPLE BY refused, not
     gs-quant's to date (S158: one meaning per spelling); `smoothed_moving_average` 14, gs-quant's default reading the
     future (S159).
-  - *percentile with no window*: put to the user again -- it is the whole line's percentile on every date today
-    (gs-quant's one number, drawn flat), not to date as first said.
+  - *percentile, zscores and winsorize: the expert way* (asked "What is the EXPERT way to do this and zscore and
+    winsorize?", then "Did you look at kdb before answering" -- kdb spells a whole group's statistic (`avg`, broadcast
+    by `update ... by`), a running one (`avgs`) and a moving one (`mavg`), never leaving it to a default -- then "Go"):
+    to date unless the whole line is said, for all three (`percentile(x, n)` and `all` to date since 2026-11-08, where
+    it had been the whole line's); `whole` the whole line's, the future read (`percentile(x, n, whole)` new); the
+    builders write gs-quant's whole-series calls as `whole`, visibly (S150's builder half, reversed); the tile holds
+    `whole` as a window (`TsParamShape.whole`). Cross-sectional versions -- across a date's instruments, kdb's `by date`
+    -- a roadmap item (13c).
   - *A risk-free data model*: a roadmap item after B3 (13b) -- a cash index per currency from overnight rates, the
     words reading it as a line, the builders' `currency` mapped to the page's source, gs-quant's arithmetic checked by
     the oracle (the user: "We should have a risk free data model with data to implement those").

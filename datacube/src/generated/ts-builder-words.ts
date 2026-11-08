@@ -160,13 +160,13 @@ export function var_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>
   return word(VAR_SHAPE, [x], args);
 }
 
-const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] }, whole: 'default' }], extra: [] };
 /** Z-score: How many standard deviations from the mean: over the last w observations, or every one to date. (gs-quant's statistics.zscores.) */
 export function zscores(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
   return word(ZSCORES_SHAPE, [x], args);
 }
 
-const WINSORIZE_SHAPE: WordShape = { word: 'winsorize', gsFunction: 'statistics.winsorize', lines: ['x'], gs: [{ name: 'limit', default: 2.5 }, { name: 'w', default: { window: [null, 0] } }], extra: [] };
+const WINSORIZE_SHAPE: WordShape = { word: 'winsorize', gsFunction: 'statistics.winsorize', lines: ['x'], gs: [{ name: 'limit', default: 2.5 }, { name: 'w', default: { window: [null, 0] }, whole: 'always' }], extra: [] };
 /** Winsorize: Held within limit standard deviations of its mean to date. (gs-quant's statistics.winsorize.) */
 export function winsorize(x: Line, ...args: Args<[limit: number, w: WindowLike], { limit?: number; w?: WindowLike }>): Term {
   return word(WINSORIZE_SHAPE, [x], args);
@@ -304,8 +304,8 @@ export function median(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike 
   return word(MEDIAN_SHAPE, [x], args);
 }
 
-const PERCENTILE_SHAPE: WordShape = { word: 'percentile', gsFunction: 'statistics.percentile', lines: ['x'], gs: [{ name: 'n' }, { name: 'w', default: null }], extra: [] };
-/** Rolling percentile: The n-th percentile of the values over the last w observations, between the two nearest (pandas' quantile); 0 the whole series'. (gs-quant's statistics.percentile.) */
+const PERCENTILE_SHAPE: WordShape = { word: 'percentile', gsFunction: 'statistics.percentile', lines: ['x'], gs: [{ name: 'n' }, { name: 'w', default: null, whole: 'default' }], extra: [] };
+/** Rolling percentile: The n-th percentile of the values over the last w observations, between the two nearest (pandas' quantile); 0 (all) every one to date, whole the whole series' (gs-quant's statistics.percentile.) */
 export function percentile(x: Line, n: number, ...args: Args<[w: WindowLike | null], { w?: WindowLike | null }>): Term {
   return word(PERCENTILE_SHAPE, [x], [n, ...args]);
 }

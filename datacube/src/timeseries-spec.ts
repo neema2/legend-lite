@@ -607,6 +607,8 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           if (!q) return `${fn} has no parameter ${JSON.stringify(name)} (it has ${f.params.map((x) => x.name).join(', ') || 'none'})`;
           if (q.kind === 'word') {
             if (!q.words!.includes(v as string)) return `${fn}'s ${name} ${JSON.stringify(v)} is not one of ${q.words!.join(', ')}`;
+          } else if (q.kind === 'span' && v === 'whole') {
+            if (q.whole !== true) return `${fn}'s ${name} takes no whole line`;
           } else if (q.kind === 'span' && typeof v === 'string') {
             if (tenorOf(v) === undefined) return `${fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`;
           } else {

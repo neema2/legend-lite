@@ -44,6 +44,9 @@ export interface TsParamShape {
   readonly max?: number;
   /** Every call gives it (each of the word's overloads takes it). */
   readonly required: boolean;
+  /** A window that takes the whole line, `whole` (a z-score's, a percentile's: the future read, said so), as the tile
+   *  holds it: 'whole'. */
+  readonly whole?: true;
   /** What a picked word begins it with, where every call gives it, the language has no default for it and gs-quant
    *  none either (the library's `timeseries::Words.begun`: a percentile's n 50). */
   readonly begin?: number | string;
