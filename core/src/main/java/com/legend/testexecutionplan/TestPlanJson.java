@@ -27,7 +27,7 @@ public final class TestPlanJson {
      *  judgment, its sides' shapes; 3 the same day (step 5): the database judge's root loop on a segment's last group;
      *  4 the same day (step 6): the agreement judge's pairing on an assert's last group; 5 the same day (step 8): the
      *  edge's records by step and by verdict, each through its codec. */
-    public static final int VERSION = 5;
+    public static final int VERSION = 6;
 
     private TestPlanJson() {
     }
@@ -60,6 +60,8 @@ public final class TestPlanJson {
 
     /** G11's guard for a test body's plan: it survives its JSON, or it is refused by name, never run. */
     public static void requireRoundTrip(TestPlan plan) {
+        // the plan is self-contained: every appeal its verdicts name, it carries (the slice 2 invariant audit's D2)
+        PlannedAppeals.requireCarried(plan);
         String why = roundTripDifference(plan);
         if (why != null) {
             throw new IllegalStateException("a test plan that is not portable data (G11): " + why);
@@ -74,6 +76,7 @@ public final class TestPlanJson {
         out.put("version", VERSION);
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
+        out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -212,7 +215,7 @@ public final class TestPlanJson {
         Json.Obj ext = o.getObjOr("extensions", null);
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
-                ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")));
+                ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

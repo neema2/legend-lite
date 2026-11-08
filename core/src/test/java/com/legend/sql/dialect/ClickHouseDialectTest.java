@@ -96,8 +96,8 @@ class ClickHouseDialectTest {
         SqlExpr w = new SqlExpr.WindowCall(new SqlAgg.Reducer(fn, List.of(v), false, List.of()), List.of(),
                 List.of(new SqlSelect.SortKey(k, true, null, null)),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.RANGE,
-                        new SqlExpr.WindowCall.Frame.Bound.Preceding(0.5),
-                        new SqlExpr.WindowCall.Frame.Bound.Following(0.5)));
+                        SqlExpr.WindowCall.Frame.Bound.Preceding.of(0.5),
+                        SqlExpr.WindowCall.Frame.Bound.Following.of(0.5)));
         return render(select(table("t", "t0", "k", SqlType.Scalar.DOUBLE), null, w));
     }
 

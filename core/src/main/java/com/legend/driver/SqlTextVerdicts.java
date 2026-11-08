@@ -304,7 +304,9 @@ final class SqlTextVerdicts {
                 : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
         // the comparison the plan's data, its appeal too: numbered in the body, carried by the verdict that judges it
         // (TestPlan.extensionsByVerdict; the plan-as-data design's step 8b, 2026-11-08)
-        int appeal = env.appeals().add(c.appeal());
+        // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
+        // names none -- the slice 2 invariant audit's D2, 2026-11-08)
+        int appeal = appeals(env) ? env.appeals().add(c.appeal()) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
         return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
                 c.textEqual(), c.decline(), c.oursOrigin() == null ? null : c.oursOrigin().name(), appeal, routed));
     }

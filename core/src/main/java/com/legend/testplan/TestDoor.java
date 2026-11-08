@@ -144,7 +144,10 @@ public final class TestDoor {
                     e.statements().stream().map(Recorded::query).toList())));
             seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts)));
         }
-        return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of());
+        // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
+        // (the slice 2 invariant audit's hole 3, 2026-11-08)
+        boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
+        return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict);
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

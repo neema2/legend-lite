@@ -37,13 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PlanTypesAreDataTest {
 
     /** The violations at the guard's introduction (2026-11-08), each the offending type and the first path to it. */
-    private static final Set<String> PINNED = Set.of(
+    private static final Set<String> PINNED = Set.<String>of(
             // (2026-11-08, the plan-as-data design's step 7: the model's ConnectionDefinition at Declared.connection and
             // its DatabaseType enum at Platform.type left the pins -- the plan holds its own faithful copy of the
             // connection description, executionplan.Connection and the records it names)
-            // a window frame's bound in the SQL tree: an abstract Number (an Integer or a Long, as the frame was
-            // written); a concrete type is the tree's to choose (pinned 2026-11-08, step 3)
-            "java.lang.Number at Preceding.n");
+            // (2026-11-08, the plan-as-data design's step 9: the window frame bound's abstract Number left the pins --
+            // the SQL tree's offset is a closed data type, Frame.Offset: an integer, a float or a decimal. Guard 1 is at
+            // zero: a new violation fails, nothing is pinned)
+            );
 
     private static final Set<String> DATA_PACKAGES = Set.of("com.legend.executionplan", "com.legend.testexecutionplan",
             "com.legend.sql",
@@ -82,15 +83,17 @@ class PlanTypesAreDataTest {
             Object[] next = todo.poll();
             Type type = (Type) next[0];
             String path = (String) next[1];
-            if (!seen.add(type)) {
-                continue;
-            }
+            // every (type, path) is judged; only the walk INTO a type is done once (the slice 2 invariant audit,
+            // 2026-11-08: the seen-check stood before the judgment, so a second field of an already-seen bad type --
+            // Following.n beside Preceding.n -- was never reported)
             switch (type) {
                 case ParameterizedType p -> {
                     Class<?> raw = (Class<?>) p.getRawType();
                     if (raw == List.class || raw == Set.class || raw == Map.class) {
-                        for (Type arg : p.getActualTypeArguments()) {
-                            todo.add(new Object[] {arg, path + "<>"});
+                        if (seen.add(type)) {
+                            for (Type arg : p.getActualTypeArguments()) {
+                                todo.add(new Object[] {arg, path + "<>"});
+                            }
                         }
                     } else {
                         violations.add(p.getTypeName() + " at " + path);
@@ -109,6 +112,10 @@ class PlanTypesAreDataTest {
                         if (!DATA_PACKAGES.contains(c.getPackageName()) && !c.getPackageName().equals("com.legend.error")) {
                             violations.add("enum " + c.getName() + " at " + path);
                         }
+                        continue;
+                    }
+                    if (!seen.add(c) && DATA_PACKAGES.contains(c.getPackageName())) {
+                        // a data type already walked: its components were judged on its first path
                         continue;
                     }
                     if (c == com.legend.testexecutionplan.Extension.class) {

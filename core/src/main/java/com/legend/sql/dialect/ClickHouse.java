@@ -2605,9 +2605,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
     private static SqlExpr.WindowCall.Frame.Bound millis(SqlExpr.WindowCall.Frame.Bound b) {
         return switch (b) {
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p ->
-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(Math.multiplyExact(p.n(), unitMillis(p.unit())));
+                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(Math.multiplyExact(p.n(), unitMillis(p.unit())));
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
-                    new SqlExpr.WindowCall.Frame.Bound.Following(Math.multiplyExact(f.n(), unitMillis(f.unit())));
+                    SqlExpr.WindowCall.Frame.Bound.Following.of(Math.multiplyExact(f.n(), unitMillis(f.unit())));
             case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> b;
             case SqlExpr.WindowCall.Frame.Bound.Preceding p -> b;
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> b;

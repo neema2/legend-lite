@@ -27,9 +27,13 @@ import java.util.Objects;
  * @param extensionsByStep    the compatibility edge's records planned at a step, by the step's index (an effect's or a
  *                            seed's ledger texts: the plan-as-data design's step 8, 2.7); empty under lite's own rules
  * @param extensionsByVerdict the edge's records planned for a verdict, by its id; empty under lite's own rules
+ * @param answersLastVerdict  the body's last statement is an assert: its verdict is the body's answer, written as host
+ *                            rows to the caller's sink (a fact the planner decides; the slice 2 invariant audit's hole
+ *                            3, 2026-11-08: the router decided it after the run from the planner's objects)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
-        Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict) {
+        Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
+        boolean answersLastVerdict) {
 
     public TestPlan {
         parameters = List.copyOf(parameters);
@@ -42,9 +46,20 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         extensionsByVerdict = copied(extensionsByVerdict);
     }
 
-    /** A plan with nothing planned for the edge (lite's own rules). */
+    /** A plan with nothing planned for the edge (lite's own rules), whose last statement answers no verdict. */
     public TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge) {
-        this(parameters, steps, judge, Map.of(), Map.of());
+        this(parameters, steps, judge, Map.of(), Map.of(), false);
+    }
+
+    /** A plan whose last statement answers no verdict. */
+    public TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
+            Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict) {
+        this(parameters, steps, judge, extensionsByStep, extensionsByVerdict, false);
+    }
+
+    /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
+    public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {

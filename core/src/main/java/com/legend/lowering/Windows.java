@@ -259,11 +259,11 @@ final class Windows {
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
+                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(p.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
-                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
+                    SqlExpr.WindowCall.Frame.Bound.Following.of(fo.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->

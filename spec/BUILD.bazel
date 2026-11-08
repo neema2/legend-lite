@@ -181,6 +181,10 @@ corpus_lane(
     name = "corpus_duckdb",
     memory_mb = 1024,
     data = _CORPUS_INPUTS,
+    # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
+    # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
+    # shows here as a verdict that moves, against the committed rosters
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )

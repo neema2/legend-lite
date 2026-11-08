@@ -137,11 +137,12 @@ public final class BodyRouter {
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
         // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
-        if (options.judgingRules() == TestPlan.JudgingRules.COMPILED_PURE_COMPAT && textAppeals != null) {
+        if (textAppeals != null) {
             // the appeals the plan's verdicts name, the plan's own data (the plan-as-data design's step 8b, 2026-11-08):
-            // heard at their verdicts' steps, decided after the run from these records; lite's rules hear none
-            plan = new TestPlan(plan.parameters(), plan.steps(), plan.judge(), plan.extensionsByStep(),
-                    AppealsByVerdict.of(plan, textAppeals));
+            // heard at their verdicts' steps, decided after the run from these records. Under lite's own rules the
+            // verdicts name none, so the plan carries none; whatever the rules, a plan naming an appeal it does not
+            // carry is refused (PlannedAppeals.requireCarried, the slice 2 invariant audit's D2)
+            plan = plan.withExtensionsByVerdict(AppealsByVerdict.of(plan, textAppeals));
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
         if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {
@@ -163,17 +164,17 @@ public final class BodyRouter {
             // step first asks
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     target -> SystemDatabase.of(typed.context()).sessionFor(target, options.systemConnections());
-            Moved moved = new Moved(plan, options.judgingRules(), options.edge(), answer, early,
+            Moved moved = new Moved(plan, options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
                 // the fixtures of the stores the plan's appeals name, provided before the body's run (each a run of its
                 // own; step 8c)
-                listener.beforeRun(AppealsByVerdict.stores(plan));
+                listener.beforeRun(com.legend.testexecutionplan.PlannedAppeals.stores(plan));
             }
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
-            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = AppealsByVerdict.byNumber(plan);
+            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
             Appeals.Decider decider = (n, golden, ours, textEqual, l) -> SqlTextVerdicts.decideAppeal(
-                    AppealsByVerdict.of(planned, n), golden, ours, textEqual, referee, typed.context(), l);
+                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, typed.context(), l);
             try (var open = appeals.open()) {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);
@@ -187,7 +188,7 @@ public final class BodyRouter {
             // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is the
             // body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the caller)
             appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
-            if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
+            if (answer != null && plan.answersLastVerdict()) {
                 // a body whose last statement is an assert answers its verdict as host rows, as the walk does
                 JudgePlans.host(moved.lastVerdict(), answer);
             }
@@ -244,7 +245,7 @@ public final class BodyRouter {
         Census.inc(Census.Key.BODIES_MOVED);
         java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                 system -> SystemDatabase.of(ctx).sessionFor(system, options.systemConnections());
-        Moved moved = new Moved(ahead, options.judgingRules(), options.edge(), null, null,
+        Moved moved = new Moved(ahead, options.edge(), null, null,
                 null, sessionsByTarget(target, systemSessions));
         try {
             TestRun.run(ahead, Map.of(), PlanSessions.of(target, null, systemSessions),
@@ -290,19 +291,16 @@ public final class BodyRouter {
         private final java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
-        /** {@code node}'s verdict steps' rules recorded by verdict, each checked against the run's: a planner that
-         *  stamped another run's rules is refused by name, never judged under them. */
-        private void rulesOf(TestPlan.TestStep node, com.legend.testexecutionplan.TestPlan.JudgingRules runRules) {
+        /** {@code node}'s verdict steps' rules recorded by verdict: the plan's rules stand, the run reads them and no
+         *  option of its own (the slice 2 invariant audit's hole 8, 2026-11-08: the run checked them against the
+         *  caller's options). */
+        private void rulesOf(TestPlan.TestStep node) {
             switch (node) {
                 case TestPlan.Branch b -> {
-                    b.then().forEach(step -> rulesOf(step, runRules));
-                    b.otherwise().forEach(step -> rulesOf(step, runRules));
+                    b.then().forEach(this::rulesOf);
+                    b.otherwise().forEach(this::rulesOf);
                 }
                 case TestPlan.Verdicts v -> {
-                    if (v.rules() != runRules) {
-                        throw new IllegalStateException("a verdict step planned under " + v.rules()
-                                + " in a run judging by " + runRules);
-                    }
                     v.verdicts().forEach(each -> rulesOf.put(each.id(), v.rules()));
                 }
                 default -> {
@@ -322,8 +320,7 @@ public final class BodyRouter {
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
         private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
-        Moved(TestPlan planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules,
-                com.legend.testexecutionplan.@Nullable Edge edge,
+        Moved(TestPlan planned, com.legend.testexecutionplan.@Nullable Edge edge,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
             this.planned = planned;
@@ -338,11 +335,11 @@ public final class BodyRouter {
             this.databaseRuns = judge == TestPlan.Judge.DATABASE
                     ? new com.legend.judge.RootLoops.Runs(planned.steps()) : null;
             // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
-            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = AppealsByVerdict.byNumber(planned);
-            this.rowAppeals = n -> row -> SqlTextVerdicts.rowAppealed(AppealsByVerdict.of(appealsPlanned, n), row);
+            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = com.legend.testexecutionplan.PlannedAppeals.byNumber(planned);
+            this.rowAppeals = n -> row -> SqlTextVerdicts.rowAppealed(com.legend.testexecutionplan.PlannedAppeals.of(appealsPlanned, n), row);
             this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps(), rowAppeals)
                     : null;
-            planned.steps().forEach(step -> rulesOf(step, runRules));
+            planned.steps().forEach(this::rulesOf);
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();
             for (int i = 0; i < steps.size(); i++) {
