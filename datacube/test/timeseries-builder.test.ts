@@ -14,6 +14,7 @@ import {
 import { TS_FUNCTION_NAMES, TS_SIGNATURES, type TsExpr } from '../src/timeseries-spec.ts';
 import { SCALARS } from '../src/timeseries-words.ts';
 import { seriesExpr, told } from '../src/timeseries-text.ts';
+import { builderSource } from '../src/timeseries-builder-source.ts';
 import { readText } from './catalog-builder.ts';
 
 type GsDefault = null | { value: unknown } | { window: [unknown, unknown] } | { enum: string; member: string };
@@ -225,4 +226,22 @@ it('every builder word\'s default call is text core reads back as the term\'s ow
     if (back !== canonical(told(term.expr))) wrong.push(`${fn}: ${own}\n    read back as ${back}`);
   }
   assert.deepEqual(wrong, []);
+});
+
+it('every series is the builder\'s code, which run builds the same tree (B4\'s Show TypeScript, begun)', () => {
+  const names = Object.keys(functions);
+  const run = (code: string): Term => new Function(...names, `return ${code};`)(...names.map((n) => functions[n])) as Term;
+  const { volatility, mean, compare, basket_series, percentile, zscores, append, if_, Returns: R } = functions as unknown as Record<string, (...a: unknown[]) => Term> & { Returns: typeof Returns };
+  const spx = column('close', 'SPX');
+  const ndx = column('px.close', { venue: 'NYSE' }, 'NDX');
+  const terms: Term[] = [
+    ...Object.entries(BUILDER_WORDS).map(([fn, s]) => sampleCall(fn, s)),
+    volatility!(spx, 22, R.LOGARITHMIC).div(ndx).sub(1), mean!(series('A'), '3m').rmul(100), spx.gt(mean!(spx, 50)).and(spx.lt(200)),
+    compare!(spx, ndx), basket_series!([spx, ndx], [0.6, 0.4], null, 'monthly'), percentile!(spx, 90), percentile!(spx, 90, 22),
+    zscores!(spx), zscores!(spx, '1y'), append!([spx, ndx]), if_!(spx.gt(1), spx, 0), column('volume', 'SPX').period('sum').rdiv(1),
+  ];
+  for (const t of terms) {
+    const code = builderSource(t.expr);
+    assert.equal(canonical(told(run(code).expr)), canonical(told(t.expr)), code);
+  }
 });
