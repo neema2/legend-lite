@@ -3,7 +3,7 @@
 # DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
 # holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
 # verdict moves only with the test's -Dts.gsquant.update, never by hand.
-# snapped with gs-quant GS_QUANT_VERSION=2.2.3 (pins.env)
+# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0
 case	gsquant	duckdb	register	digest	note	why
 mean w=20 @ALPHA	OK	PASS	-	52db3233ea58987f99e262d0c4c0e71709002aba931adf31049fe8a5d7f32ba7	-	482 points
 mean w=3mo @ALPHA	OK	PASS	-	dcf1f479a7de9015677e991516c1a2396dc5887b6cb4c36cc21511d8abda0399	-	440 points
@@ -128,6 +128,7 @@ union default @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lin
 interpolate default @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=nan @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=zero @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
+interpolate method=zero,dates=series @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=step @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 value_at date=2022-03-15 @ALPHA	OK	PASS	-	5c6aec2b1c444f8a5a3395557b2ed03d5f72e1b5ad93b10ff424e7600679e457	-	502 points
 value_at date=2022-03-13 @ALPHA	OK	PASS	-	5c6aec2b1c444f8a5a3395557b2ed03d5f72e1b5ad93b10ff424e7600679e457	-	502 points
@@ -304,6 +305,7 @@ union default @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lin
 interpolate default @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=nan @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=zero @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
+interpolate method=zero,dates=series @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=step @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 value_at date=2022-03-15 @NEWCO	OK	PASS	-	96a55821cf49a95f3d0089821c95ee633e9053b042a628a0a1fedd2fa0883563	-	211 points
 value_at date=2022-03-13 @NEWCO	OK	PASS	-	96a55821cf49a95f3d0089821c95ee633e9053b042a628a0a1fedd2fa0883563	-	211 points
@@ -480,6 +482,7 @@ union default @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lin
 interpolate default @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=nan @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=zero @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
+interpolate method=zero,dates=series @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=step @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 value_at date=2022-03-15 @BRAVO	OK	PASS	-	e0feee1e9a513cfa0b0ffca07eb5c387c6ccfe058e7b15d2cb6e844586ea703d	-	502 points
 value_at date=2022-03-13 @BRAVO	OK	PASS	-	e0feee1e9a513cfa0b0ffca07eb5c387c6ccfe058e7b15d2cb6e844586ea703d	-	502 points
@@ -567,7 +570,7 @@ percentile n=90,w=20 @BTCUSD	OK	REFUSED	-	fcfb4126952154b3afc4883765a554db27671a
 percentile n=90,w=3mo @BTCUSD	OK	DIFF	-	4fe781abbf6adaaeab0f74674fe924280848ca5195ad98869970640b7fd80d9e	dup-span	641 points, 2 values on 2025-02-05 | lite: 641 gs-quant points, 641 lite's; 1 dates apart (worst absolute 165.8880000000063), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant [62052.022, 62052.022], lite [62217.91, 62217.91]
 percentiles default @BTCUSD	OK	REFUSED	-	b12414fca2a55a979b05579e7b4d53b6ce9d5d70b1da5db85fb7b4eef0f0f9a4	dup-span	734 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 percentiles w=20 @BTCUSD	OK	REFUSED	-	ec121620c49e29e025a919628ebdc5c708594351230db70c9d1a53ccd2bd54e8	dup-span	714 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
-percentiles w=3mo @BTCUSD	OK	DIFF	-	79a93a0bdce4c9f88da26a005c0ea6326f2f60988f52a7bfdaf4f37b839b6a9b	dup-span	640 points | lite: 640 gs-quant points, 641 lite's; 1 dates apart (worst absolute 1.0752688172043037), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant 94.08602150537634, lite [93.01075268817203, 93.01075268817203]
+percentiles w=3mo @BTCUSD	OK	DIFF	-	79a93a0bdce4c9f88da26a005c0ea6326f2f60988f52a7bfdaf4f37b839b6a9b	dup-span	640 points, 1 values on 2025-02-05 | lite: 640 gs-quant points, 641 lite's; 1 dates apart (worst absolute 1.0752688172043037), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant 94.08602150537634, lite [93.01075268817203, 93.01075268817203]
 zscores default @BTCUSD	OK	REFUSED	S150	05ddd10c84d4d053a0d1a722ae9a829cee677be18c5dd571aab68eb4e77b57ad	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 zscores w=20 @BTCUSD	OK	REFUSED	-	bf7be8992cf2071a0165c2774b8db847bd04bb1795abeb7c552ad07084c84836	dup-span	712 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 zscores w=3mo @BTCUSD	OK	DIFF	-	8da3135bf9bfcdcc226c430b9bec6aa2cf69b233c903552803c1da9fee76dba1	dup-span	641 points, 2 values on 2025-02-05 | lite: 641 gs-quant points, 641 lite's; 1 dates apart (worst absolute 0.057711461341862114), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant [1.9867315897559428, 1.9867315897559428], lite [1.9290201284140807, 1.9867315897559443]
@@ -612,7 +615,7 @@ beta w=2 @BTCUSD	OK	REFUSED	S154	bcd51c42f70dd6002b3308503befd9c9a318309dd1fdf72
 max_drawdown default @BTCUSD	OK	REFUSED	-	56e2faac583d5bd54832cfa0c69c3ad70db06af5e23489c4487907d47ce8c56e	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 max_drawdown w=63 @BTCUSD	OK	REFUSED	-	7fb5a163799946094d44334b0cf62f2025dce342935660304d4fb0b1bab316df	dup-span	669 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 max_drawdown w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: The truth value of a Series is ambiguous. Use a.empty, a.item(), a.any() or a.all(). (econometrics.py:1090)
-vol_swap_volatility default @BTCUSD	OK	REFUSED	-	1faf605347ae438c94025ea826283f0183afc892d129bf6874ad30bae12198b8	dup-span	1 points | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+vol_swap_volatility default @BTCUSD	OK	REFUSED	-	1faf605347ae438c94025ea826283f0183afc892d129bf6874ad30bae12198b8	dup-span	1 points, 0 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 vol_swap_volatility w=20 @BTCUSD	OK	REFUSED	-	4c416306f3410f74e196ee4a8438918383cc9a7b198cf8bbe24320ea531b7638	dup-span	713 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 sharpe_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
 sharpe_ratio w=63 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
@@ -625,7 +628,7 @@ diff obs=1mo @BTCUSD	OK	REFUSED	-	4836cae00e80ed7949851811238afe85e0789d4ed8a775
 lag default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (analysis.py:489)
 lag obs=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (analysis.py:489)
 lag mode=truncate @BTCUSD	OK	REFUSED	-	2e654a90cb5e06df8ddbdf70b77ae341b3048ae6b94046793244276f4106566c	dup-span	727 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
-lag obs=1mo @BTCUSD	OK	REFUSED	-	9c25523d695ee6de04e73b2f6445cb8867e71bd10d4a742b4584dfaa374aaec7	dup-span	732 points, 2 values on 2025-03-07 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+lag obs=1mo @BTCUSD	OK	REFUSED	-	9c25523d695ee6de04e73b2f6445cb8867e71bd10d4a742b4584dfaa374aaec7	dup-span	732 points, 1 values on 2025-02-05, 2 values on 2025-03-07 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 first w=all @BTCUSD	OK	REFUSED	-	d5ca77dc73df1b5a0d960fd0a798dcdd41cc22092d4fbd24ec60f3ce0d897658	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 last w=whole @BTCUSD	OK	REFUSED	-	d6b26767d5585ca1314b7fdb3e62bb00bf02841a8212c4d9015653885a2712e0	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 count w=all @BTCUSD	OK	REFUSED	-	8d691acb65e742a64901a255a4882ea30e532aa8eae929404d1f742bd187313a	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
@@ -638,7 +641,7 @@ smooth_spikes threshold=0.5 @BTCUSD	OK	REFUSED	-	1e57df5843d48d6c64d611c1ecb0c6a
 smooth_spikes threshold=0.05 @BTCUSD	OK	REFUSED	-	708b605896690b6e928bb29d4eef5f5c9cbbe554847d40951297f31b6217dde8	dup-span	730 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 smooth_spikes threshold=5,type=absolute @BTCUSD	OK	REFUSED	-	b16deb0fdadd1a3e459d1dd9bc29de43790ffd090a29e051d6abc6c2cc35d2b4	dup-span	730 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 filter default @BTCUSD	OK	REFUSED	-	7b63b107d933677a91f00418bc63bf59c065423093e74d47e87c95aee0300e97	dup-span	731 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
-filter operator=greater_than,value=0 @BTCUSD	OK	REFUSED	-	19e69204ee37d9df9d4773019adc010ff8febbbcbe2dbbe1f83564cf20b0a4fb	dup-span	323 points | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+filter operator=greater_than,value=0 @BTCUSD	OK	REFUSED	-	19e69204ee37d9df9d4773019adc010ff8febbbcbe2dbbe1f83564cf20b0a4fb	dup-span	323 points, 0 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 if x=line,y=line @BTCUSD	OK	DIFF	-	289d0f6909e90f7ab11c0a5a5bdf6f31d21aa102dc3c7da7f03d4a12372dd175	dup-span	732 points, 2 values on 2025-02-05 | lite: 732 gs-quant points, 734 lite's; 1 dates apart (worst absolute 378.0500000000029), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant [63009.14, 63387.19], lite [63009.14, 63009.14, 63387.19, 63387.19]
 if x=1,y=-1 @BTCUSD	OK	PASS	-	6c77d1ee07b13d7637639f307241d4e8157460f2b2f2ec912d88794cf5a3918f	dup-span	732 points, 2 values on 2025-02-05
 floor value=100 @BTCUSD	OK	PASS	-	289d0f6909e90f7ab11c0a5a5bdf6f31d21aa102dc3c7da7f03d4a12372dd175	dup-span	732 points, 2 values on 2025-02-05
@@ -656,6 +659,7 @@ union default @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own li
 interpolate default @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=nan @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=zero @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
+interpolate method=zero,dates=series @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 interpolate method=step @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' own lines (NVDA, SPX, CPI): not run over the fixture
 value_at date=2022-03-15 @BTCUSD	OK	REFUSED	-	d5ca77dc73df1b5a0d960fd0a798dcdd41cc22092d4fbd24ec60f3ce0d897658	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 value_at date=2022-03-13 @BTCUSD	OK	REFUSED	-	d5ca77dc73df1b5a0d960fd0a798dcdd41cc22092d4fbd24ec60f3ce0d897658	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)

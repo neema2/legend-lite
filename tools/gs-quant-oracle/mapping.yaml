@@ -410,11 +410,12 @@ words:
   - word: interpolate
     gs: datetime.interpolate
     src: datetime.py:150
-    note: "CPI (monthly) onto SPX's dates. method=zero passes y's dates as a list: gs-quant's ZERO branch reads a Series' VALUES as the dates (datetime.py:212, pd.Series(0.0, dates)), against its own docstring (a series' index), and answers one point at 1970-01-01 -- a gs-quant defect, an Open finding; the list is its other documented form. S145 (step's backfill before x's first value) cannot show here: CPI starts in 2015, before every date of SPX"
+    note: "CPI (monthly) onto SPX's dates. method=zero passes y's dates as a list: gs-quant's ZERO branch reads a Series' VALUES as the dates (datetime.py:212, pd.Series(0.0, dates)), against its own docstring (a series' index), so its answer is indexed by SPX's closes, every one read as a date 1970-01-01 -- a gs-quant defect, an Open finding; the list is its other documented form; method=zero,dates=series asks the defective form itself, so the ledger records gs-quant's answer there. S145 (step's backfill before x's first value) cannot show here: CPI starts in 2015, before every date of SPX"
     cases:
       - [default, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX']) AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y)"]
       - [method=nan, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'nan') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y, Interpolate.NAN)"]
       - [method=zero, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'zero') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, list(y.index), Interpolate.ZERO)"]
+      - ["method=zero,dates=series", "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'zero') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y, Interpolate.ZERO)"]
       - [method=step, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'step') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y, Interpolate.STEP)"]
   - word: value_at
     gs: datetime.value
@@ -530,3 +531,12 @@ words:
   # ---------------------------------------------------------------- SKIP: ruled, not yet words (in neither WORDS.md nor the library)
   - {word: wavg,              ruled: "R15 (docs/TS_ONE_TREE_PLAN_2026_10_31.md §11)", skip: "ruled by R15 (kdb+'s wavg(x, weights): under SAMPLE BY each period's VWAP, wavg(price, volume, 20) a rolling one) but not yet a word of WORDS.md or the library -- not implemented here; gs-quant has no weighted mean (R15)"}
   - {word: wsum,              ruled: "R15 (docs/TS_ONE_TREE_PLAN_2026_10_31.md §11)", skip: "ruled by R15 (kdb+'s wsum(x, weights)) but not yet a word of WORDS.md or the library -- not implemented here; gs-quant has no weighted sum (R15)"}
+
+# THE FIXTURE'S TRAPS gs-quant answers (#90's "reproduce these four values"): each a trap of the fixture's manifest
+# and the case and symbol whose answer holds it. snap.py --fixture writes traps.tsv from each price file's answers on
+# the trap's date against the manifest's correct answer; --check holds the file to a fresh reading.
+traps:
+  holiday_gap: {case: returns default, symbol: ALPHA}
+  late_print: {case: returns default, symbol: BRAVO}
+  split_2_for_1: {case: returns default, symbol: BRAVO}
+  stale_price_5d: {case: "volatility w=10,annualization_factor=252", symbol: BRAVO}

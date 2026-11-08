@@ -51,29 +51,59 @@ LEDGER_HEADER = (
     "# DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check\n"
     "# holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A\n"
     "# verdict moves only with the test's -Dts.gsquant.update, never by hand.\n"
-    "# snapped with gs-quant GS_QUANT_VERSION={pin} (pins.env)\n"
+    "# snapped under pins.env: {pin}\n"
     "case\tgsquant\tduckdb\tregister\tdigest\tnote\twhy\n")
 COLUMNS = ("case", "gsquant", "duckdb", "register", "digest", "note", "why")
 # `why`'s second half, the parity test's account of a DIFF or a REFUSED; the first is gs-quant's, this tool's
 LITE = " | lite: "
-PIN_LINE = re.compile(r"# snapped with gs-quant GS_QUANT_VERSION=(\S+) \(pins.env\)$")
+PIN_LINE = re.compile(r"# snapped under pins.env: (\S+)$")
+# the stack an answer is computed on, each a distribution pins.env holds exactly (gs-quant declares only ranges:
+# numpy>1.17.0, pandas>=1.4, scipy>=1.2.0, statsmodels>=0.14.5), in requirements.txt's order; and Python's minor
+DISTRIBUTIONS = (("GS_QUANT_VERSION", "gs-quant"), ("PANDAS_VERSION", "pandas"), ("NUMPY_VERSION", "numpy"),
+                 ("SCIPY_VERSION", "scipy"), ("STATSMODELS_VERSION", "statsmodels"))
 
 
-def pin():
-    """The pin, pins.env's GS_QUANT_VERSION (KEY=VALUE, as tools/oracle-pins.env), and requirements.txt reading it."""
+def pins():
+    """pins.env (KEY=VALUE, as tools/oracle-pins.env): each distribution's release and PYTHON_VERSION, every one
+    required; and requirements.txt reading each, in order. No pin is defaulted."""
     values = {}
     for line in open(PINS, encoding="utf-8"):
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             values[k] = v
-    if "GS_QUANT_VERSION" not in values:
-        raise SystemExit("PIN: " + PINS + " has no GS_QUANT_VERSION")
+    keys = [k for k, _ in DISTRIBUTIONS] + ["PYTHON_VERSION"]
+    missing = [k for k in keys if k not in values]
+    if missing or set(values) != set(keys):
+        raise SystemExit("PIN: " + PINS + " must hold exactly " + ", ".join(keys) + " (missing " + repr(missing)
+                         + ", extra " + repr(sorted(set(values) - set(keys))) + ")")
     wanted = [l.strip() for l in open(REQUIREMENTS, encoding="utf-8") if l.strip() and not l.startswith("#")]
-    if wanted != ["gs-quant==${GS_QUANT_VERSION}"]:
-        raise SystemExit("PIN: " + REQUIREMENTS + " must be the one line gs-quant==${GS_QUANT_VERSION}, the pin's,"
-                         " not " + repr(wanted))
-    return values["GS_QUANT_VERSION"]
+    if wanted != [d + "==${" + k + "}" for k, d in DISTRIBUTIONS]:
+        raise SystemExit("PIN: " + REQUIREMENTS + " must read each pin, in order: "
+                         + ", ".join(d + "==${" + k + "}" for k, d in DISTRIBUTIONS) + "; not " + repr(wanted))
+    return values
+
+
+def stack(values):
+    """The pins as one text, every answer's hash and every ledger's header holding it: KEY=VALUE, sorted, `;`-joined
+    (TsGsquantParityTest.stack computes the same)."""
+    return ";".join(k + "=" + values[k] for k in sorted(values))
+
+
+def installed_problems(values):
+    """VERSION: an installed distribution, or Python's minor, that is not its pin. No fallback: an answer computed on
+    another stack is not this oracle's (snap.sh installs the pins)."""
+    import importlib.metadata
+    out = []
+    for key, dist in DISTRIBUTIONS:
+        have = importlib.metadata.version(dist)
+        if have != values[key]:
+            out.append("VERSION: " + dist + " " + have + " is installed, the pin is " + values[key] + " (pins.env " + key
+                       + "); tools/gs-quant-oracle/snap.sh installs it from requirements.txt")
+    minor = str(sys.version_info[0]) + "." + str(sys.version_info[1])
+    if minor != values["PYTHON_VERSION"]:
+        out.append("VERSION: Python " + minor + " runs this, the pin is " + values["PYTHON_VERSION"] + " (pins.env)")
+    return out
 
 
 # ------------------------------------------------------------------ the mapping
@@ -376,6 +406,20 @@ def raised_at(e):
     return (path[len("timeseries" + os.sep):] if path.startswith("timeseries" + os.sep) else path) + ":" + str(f.lineno)
 
 
+def value_counts(points, gs_text, env):
+    """gs-quant's count of values on each date worth saying, in date order: every date a line the case reads holds two
+    rows on (0, 1, 2 or 4 values there), and every other date gs-quant answers more than one value on (a calendar lag
+    moves a duplicate's date)."""
+    dates = set(repeated(points))
+    for n in ("x", "y"):
+        if re.search(r"\b" + n + r"\b", gs_text):
+            dates |= set(env["dups"].get(env[n].name, []))
+    counts = {}
+    for d, _ in points:
+        counts[d] = counts.get(d, 0) + 1
+    return {d: counts.get(d, 0) for d in sorted(dates)}
+
+
 def repeated(points):
     """The dates gs-quant answers more than one value on, each with its count, in date order."""
     counts = {}
@@ -436,9 +480,12 @@ def read_ledger(path):
             cells = line.split("\t")
             if names is None:
                 names = cells
+                if tuple(names) != COLUMNS:
+                    raise SystemExit("LEDGER: " + path + "'s columns are " + repr(names) + ", not " + repr(COLUMNS))
                 continue
-            by = dict(zip(names, cells))
-            out[cells[0]] = [by.get(c, "-" if c in ("digest", "note") else "") for c in COLUMNS]
+            if len(cells) != len(COLUMNS):
+                raise SystemExit("LEDGER: " + path + ": a row of " + str(len(cells)) + " cells: " + cells[0])
+            out[cells[0]] = cells
     return out, pinned
 
 
@@ -506,10 +553,13 @@ def snap(selected, env, data_sha, ns, version, at=None):
         case_sha = sha(ts_text, gs_text, column, data_sha + ("" if at is None else "@" + at), version)
         try:
             points = run_case(gs_text, column, env, ns)
-        except Exception as e:   # noqa: BLE001 -- gs-quant's error is the case's answer
+        except Exception as e:   # noqa: BLE001 -- gs-quant's error is the case's answer; any other is this tool's
             at_line = raised_at(e)
-            message = (type(e).__name__ + ": " + str(e)).split("\n")[0][:300] + ("" if at_line is None
-                                                                               else " (" + at_line + ")")
+            if at_line is None:
+                # raised by no frame of gs-quant: the mapping's text or this tool is wrong, never a GS_ERROR
+                raise SystemExit("HARNESS: " + key + ": " + type(e).__name__ + ": " + str(e).split("\n")[0]
+                                 + " -- raised outside gs-quant") from e
+            message = (type(e).__name__ + ": " + str(e)).split("\n")[0][:300] + " (" + at_line + ")"
             meta_cases[key] = {"sha": case_sha, "status": "GS_ERROR", "error": message}
             ledger[key] = [key, "GS_ERROR", "GS_ERROR", known(w, args), "-", "-", message]
             continue
@@ -517,12 +567,12 @@ def snap(selected, env, data_sha, ns, version, at=None):
         rows.append({"word": w["word"], "args": args, "symbol": symbol_of(gs_text, env), "dates": dates,
                      "values": values})
         meta_cases[key] = {"sha": case_sha, "status": "OK", "points": len(points)}
-        twice = repeated(points)
+        counted = value_counts(points, gs_text, env)
         ledger[key] = [key, "OK", "-", known(w, args), digest(dates, values), dup_span(gs_text, env, dates),
                        str(len(points)) + " points"
-                       + "".join(", " + str(n) + " values on " + d for d, n in twice.items())
+                       + "".join(", " + str(n) + " values on " + d for d, n in counted.items())
                        + ("" if len(dates) == 3 and isinstance(dates[2], int) else
-                          "" if twice else ", off its spine: its own dates")]
+                          "" if repeated(points) else ", off its spine: its own dates")]
     return rows, ledger, meta_cases
 
 
@@ -533,23 +583,27 @@ def main():
     ap.add_argument("--only", default=None, help="a glob over case keys, `<word> <args>` (over a fixture, ` @<symbol>`)")
     ap.add_argument("--samples", default=SAMPLES)
     ap.add_argument("--fixture", default=None, help="an adversarial fixture's directory (prices.csv, prices_adjusted.csv,"
-                    " manifest.yaml): each price file its own answers and ledger")
+                    " manifest.yaml): each price file its own answers and ledger, and traps.tsv")
+    ap.add_argument("--release-diff", default=None, metavar="PYTHON",
+                    help="an interpreter with another gs-quant: write release-diff.tsv, each mapped definition there"
+                         " against the pin's")
     args = ap.parse_args()
-    if not (args.write or args.check):
-        ap.error("--write or --check")
-    import gs_quant
-    version = pin()
-    if gs_quant.__version__ != version:
-        # no fallback: an answer snapped under another release is not this oracle's (snap.sh installs the pin)
-        raise SystemExit("VERSION: gs-quant " + gs_quant.__version__ + " is installed, the pin is " + version
-                         + " (pins.env); tools/gs-quant-oracle/snap.sh installs it from requirements.txt")
+    if not (args.write or args.check or args.release_diff):
+        ap.error("--write, --check or --release-diff")
+    values = pins()
+    wrong = installed_problems(values)
+    if wrong:
+        raise SystemExit("\n".join(wrong))
+    version = stack(values)
     m = mapping()
+    if args.release_diff:
+        return release_diff(m, args.release_diff, values)
     if args.fixture:
         datasets = []
         for name, file_name in FIXTURE_FILES:
             if not os.path.exists(os.path.join(args.fixture, file_name)):
-                print("MISSING: " + os.path.join(args.fixture, file_name) + " (" + name + " not snapped)")
-                continue
+                # never a dataset passed over: a --check that skipped one would say nothing of it
+                raise SystemExit("MISSING: " + os.path.join(args.fixture, file_name) + " (" + name + ")")
             data, data_sha, symbols = fixture_data(args.fixture, file_name)
             runs = [(s_, lines(data, x_symbol=s_, y_symbol=fixture_y(s_))) for s_ in symbols]
             where = os.path.relpath(os.path.abspath(os.path.join(args.fixture, file_name)), ROOT)
@@ -562,7 +616,128 @@ def main():
         if suffix:
             print("--", suffix[1:], "(" + where + ")")
         status |= one(m, args, suffix, data_sha, runs, where, version)
+    if args.fixture:
+        status |= traps(m, args.fixture, args.write)
     return status
+
+
+# ------------------------------------------------------------------ the fixture's traps gs-quant answers
+
+
+TRAPS = os.path.join(HERE, "traps.tsv")
+
+
+def traps(m, fixture_dir, write):
+    """traps.tsv: each trap of the fixture's manifest that mapping.yaml's `traps:` names a case for, read from each
+    price file's answers on the trap's date, against the manifest's correct answer. --write writes it; --check holds
+    the file to a fresh reading (TRAPS)."""
+    import yaml
+    manifest = {t["name"]: t for t in yaml.safe_load(open(os.path.join(fixture_dir, "manifest.yaml")))["traps"]}
+    lines = ["# THE TRAPS gs-quant answers (snap.py --fixture, from the answers and the fixture's manifest): each trap"
+             " mapping.yaml's traps: names, its case, each price file's value(s) on the trap's date, the manifest's"
+             " correct answer, and whether they agree (exactly, or within 1e-8 relative). GENERATED.",
+             "trap	case	file	date	gs-quant	correct	agree"]
+    for name, t in m["traps"].items():
+        if name not in manifest:
+            raise SystemExit("TRAPS: mapping.yaml names " + name + ", no trap of the manifest")
+        want = manifest[name]["correct_answer"]
+        key = t["case"] + " @" + t["symbol"]
+        for file_name in ("adversarial-raw", "adversarial-adjusted"):
+            _, rows = read_answers(os.path.join(HERE, "answers-" + file_name + ".jsonl.gz"), True)
+            if key not in rows:
+                raise SystemExit("TRAPS: " + name + ": no answer row " + key + " in " + file_name)
+            got = values_on(rows[key], fixture_dir, want["date"])
+            agree = "-" if want["value"] is None and not got else (
+                "yes" if len(got) == 1 and got[0] == want["value"] else
+                "within 1e-8" if len(got) == 1 and abs(got[0] - want["value"]) <= 1e-8 * abs(want["value"]) else "NO")
+            lines.append("\t".join([name, key, file_name, want["date"], ",".join(repr(v) for v in got) or "-",
+                                    repr(want["value"]), agree]))
+    text = "\n".join(lines) + "\n"
+    if write:
+        open(TRAPS, "w", encoding="utf-8").write(text)
+        print("wrote", os.path.relpath(TRAPS, ROOT))
+        return 0
+    if not os.path.exists(TRAPS) or open(TRAPS, encoding="utf-8").read() != text:
+        print("TRAPS: " + os.path.relpath(TRAPS, ROOT) + " is not a fresh reading of the answers (snap.sh --write --fixture)")
+        return 1
+    return 0
+
+
+def values_on(row, fixture_dir, date):
+    """A fixture row's values on one date: its spine from the price file it was snapped from (its symbol's lines'
+    dates), as the parity test reads it."""
+    import csv
+    if len(row["dates"]) == 3 and isinstance(row["dates"][2], int):
+        first, last, count = row["dates"]
+        if first is None:
+            return []
+        lines = row["symbol"].split(",")
+        spine = sorted({r["date"] for r in csv.DictReader(open(os.path.join(fixture_dir, "prices.csv")))
+                        if r["symbol"] in lines})
+        along = spine[spine.index(first):spine.index(last) + 1]
+        if len(along) != count:
+            raise SystemExit("TRAPS: a row's spine does not hold its count: " + row["word"] + " " + row["args"])
+    else:
+        along = row["dates"]
+    return [v for d, v in zip(along, row["values"]) if d == date and v is not None]
+
+
+# ------------------------------------------------------------------ release-diff.tsv: the mapped definitions, two releases
+
+
+RELEASE_DIFF = os.path.join(HERE, "release-diff.tsv")
+
+
+def definitions(root, fns):
+    """Each mapped module.function's definition in the gs_quant tree at root: its AST's sha256 and its line."""
+    import ast
+    out = {}
+    trees = {}
+    for f in fns:
+        mod, name = f.split(".")
+        if mod not in trees:
+            trees[mod] = ast.parse(open(os.path.join(root, "timeseries", mod + ".py"), encoding="utf-8").read())
+        node = next((n for n in trees[mod].body if isinstance(n, ast.FunctionDef) and n.name == name), None)
+        out[f] = None if node is None else (hashlib.sha256(ast.dump(node).encode("utf-8")).hexdigest(),
+                                            mod + ".py:" + str(node.lineno))
+    return out
+
+
+def release_diff(m, other_python, values):
+    """release-diff.tsv: each definition mapping.yaml calls, at the pin and at another release (another interpreter's
+    gs-quant), its AST's sha256 each side and whether they are one -- committed, so the claim that a release moved no
+    definition used here is a file, not a session's memory."""
+    import subprocess
+    import gs_quant
+    here_root = os.path.dirname(gs_quant.__file__)
+    probe = "import gs_quant, os; print(gs_quant.__version__); print(os.path.dirname(gs_quant.__file__))"
+    other_version, other_root = subprocess.run([other_python, "-I", "-c", probe], capture_output=True, text=True,
+                                               check=True).stdout.split("\n")[:2]
+    called = set()
+    for w in m["words"]:
+        for c in w.get("cases", []):
+            for f in re.findall(r"\bts\.(\w+)\(", c[2]):
+                called.add(f)
+    import gs_quant.timeseries as ts
+    fns = sorted({inspect_module(ts, f) + "." + f for f in called})
+    pin_defs, other_defs = definitions(here_root, fns), definitions(other_root, fns)
+    lines = ["# THE MAPPED DEFINITIONS AT TWO RELEASES (snap.py --release-diff): every gs_quant.timeseries function a"
+             " case of mapping.yaml calls, its AST's sha256 at the pin and at gs-quant " + other_version + ". GENERATED.",
+             "definition	at the pin (" + values["GS_QUANT_VERSION"] + ")	line	at " + other_version + "	same"]
+    for f in fns:
+        a, b = pin_defs[f], other_defs[f]
+        lines.append("\t".join([f, a[0] if a else "-", a[1] if a else "-", b[0] if b else "-",
+                                "yes" if a and b and a[0] == b[0] else "NO"]))
+    open(RELEASE_DIFF, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    moved = [l.split("\t")[0] for l in lines[2:] if l.endswith("\tNO")]
+    print("wrote", os.path.relpath(RELEASE_DIFF, ROOT), "-", len(fns), "definitions;", "changed:", moved or "none")
+    return 0
+
+
+def inspect_module(ts, name):
+    """The gs_quant.timeseries module a function is defined in (statistics, econometrics, ...)."""
+    import inspect
+    return inspect.getmodule(inspect.unwrap(getattr(ts, name))).__name__.rsplit(".", 1)[1]
 
 
 def one(m, args, suffix, data_sha, runs, where, version):
@@ -583,7 +758,7 @@ def one(m, args, suffix, data_sha, runs, where, version):
         ledger.update(l)
         meta_cases.update(mc)
         order += list(l)
-    meta = {"tool": "tools/gs-quant-oracle/snap.py", "format": FORMAT, "gs_quant": version, "data": data_sha,
+    meta = {"tool": "tools/gs-quant-oracle/snap.py", "format": FORMAT, "pins": version, "data": data_sha,
             "fixture": where, "cases": meta_cases}
     old_meta, old_points = read_answers(answers_file, fixture)
     old_ledger, ledger_pin = read_ledger(ledger_file)
@@ -624,12 +799,12 @@ def one(m, args, suffix, data_sha, runs, where, version):
     if old_meta is None:
         problems.append("UNSNAPPED: no " + os.path.relpath(answers_file, ROOT))
         old_meta = {"cases": {}}
-    if old_meta.get("gs_quant") != version:
-        problems.append("STALE: " + os.path.relpath(answers_file, ROOT) + " was snapped with gs-quant "
-                        + str(old_meta.get("gs_quant")) + ", the pin is " + version)
+    if old_meta.get("pins") != version:
+        problems.append("STALE: " + os.path.relpath(answers_file, ROOT) + " was snapped under " + str(old_meta.get("pins"))
+                        + ", the pins are " + version)
     if ledger_pin != version:
-        problems.append("STALE: " + os.path.relpath(ledger_file, ROOT) + "'s header names gs-quant " + str(ledger_pin)
-                        + ", the pin is " + version)
+        problems.append("STALE: " + os.path.relpath(ledger_file, ROOT) + "'s header names " + str(ledger_pin)
+                        + ", the pins are " + version)
     live = {row_key(r, fixture): digest(r["dates"], r["values"]) for r in rows}
     for key, entry in meta_cases.items():
         was = old_meta["cases"].get(key)

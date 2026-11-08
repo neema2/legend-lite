@@ -102,6 +102,9 @@ class TsGsquantParityTest {
         }
     }
 
+    /** The ledger's spelling of "no register row rules this case" (a case of mapping.yaml with no {@code known:}). */
+    static final String NO_REGISTER_ROW = "-";
+
     /** A word of the mapping: its cases, or none where it is SKIP; ruled, a row that is no word yet (R15's wavg). */
     record Word(String word, boolean skip, List<Case> cases, boolean ruled) {
     }
@@ -153,7 +156,8 @@ class TsGsquantParityTest {
     private static Word word(String word, String src, Map<String, String> known, List<String[]> rows) {
         List<Case> cases = new ArrayList<>();
         for (String[] r : rows) {
-            cases.add(new Case(word, r[0], r[1], r[2], r.length > 3 ? r[3] : null, known.getOrDefault(r[0], "-"),
+            cases.add(new Case(word, r[0], r[1], r[2], r.length > 3 ? r[3] : null,
+                    known.containsKey(r[0]) ? known.get(r[0]) : NO_REGISTER_ROW,
                     src));
         }
         return new Word(word, false, cases, false);
@@ -189,16 +193,24 @@ class TsGsquantParityTest {
         return out;
     }
 
-    /** The pin (tools/gs-quant-oracle/pins.env's GS_QUANT_VERSION, KEY=VALUE as tools/oracle-pins.env): the one place
-     *  the release is written; snap.py reads it, and refuses any other installed release. */
+    /** The pins (tools/gs-quant-oracle/pins.env, KEY=VALUE as tools/oracle-pins.env: gs-quant, pandas, numpy, scipy,
+     *  statsmodels and Python's minor) as one stack, snap.py's {@code stack}: KEY=VALUE sorted, {@code ;}-joined -- what
+     *  every answer's hash and every answers file's metadata hold. A pin missing is refused, never defaulted. */
     static String pin(Path file) throws IOException {
+        Map<String, String> pins = new TreeMap<>();
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             int eq = line.indexOf('=');
-            if (!line.startsWith("#") && eq > 0 && line.substring(0, eq).equals("GS_QUANT_VERSION")) {
-                return line.substring(eq + 1).strip();
+            if (!line.startsWith("#") && eq > 0) {
+                pins.put(line.substring(0, eq).strip(), line.substring(eq + 1).strip());
             }
         }
-        throw new IllegalStateException(file + " has no GS_QUANT_VERSION");
+        for (String key : List.of("GS_QUANT_VERSION", "PANDAS_VERSION", "NUMPY_VERSION", "SCIPY_VERSION",
+                "STATSMODELS_VERSION", "PYTHON_VERSION")) {
+            if (!pins.containsKey(key)) {
+                throw new IllegalStateException(file + " has no " + key);
+            }
+        }
+        return String.join(";", pins.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).toList());
     }
 
     /** What a case's answer is for (snap.py's sha): its two texts, its column, the data (over a fixture, with the
@@ -289,6 +301,11 @@ class TsGsquantParityTest {
                     }
                 } else {
                     along = dates.stream().map(d -> ((Json.Str) d).value()).toList();
+                    if (along.size() != values.size()) {
+                        problems.add("SPINE: " + key + ": " + along.size() + " dates of its own, " + values.size()
+                                + " values");
+                        continue;
+                    }
                 }
                 // a date's every value, in the row's order (a row of its own dates may name one date twice)
                 Map<String, List<Double>> series = new TreeMap<>();
@@ -316,9 +333,9 @@ class TsGsquantParityTest {
      *  snapped under another release than the pin is STALE whole. */
     static List<String> guards(Map<String, String> expected, Answers answers, String pin, String name) {
         List<String> out = new ArrayList<>();
-        if (!pin.equals(answers.meta().getString("gs_quant"))) {
-            out.add("STALE: " + name + "'s answers were snapped with gs-quant " + answers.meta().getString("gs_quant")
-                    + ", the pin is " + pin + " (tools/gs-quant-oracle/snap.sh --write)");
+        if (!pin.equals(answers.meta().getString("pins"))) {
+            out.add("STALE: " + name + "'s answers were snapped under " + answers.meta().getString("pins")
+                    + ", the pins are " + pin + " (tools/gs-quant-oracle/snap.sh --write)");
         }
         Json.Obj snapped = (Json.Obj) answers.meta().get("cases");
         expected.forEach((key, sha) -> {
@@ -530,7 +547,7 @@ class TsGsquantParityTest {
             # DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
             # holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
             # verdict moves only with the test's -Dts.gsquant.update, never by hand.
-            # snapped with gs-quant GS_QUANT_VERSION=%s (pins.env)
+            # snapped under pins.env: %s
             case\tgsquant\tduckdb\tregister\tdigest\tnote\twhy
             """;
 
@@ -648,10 +665,26 @@ class TsGsquantParityTest {
                             verdicts.remove(key);
                             continue;
                         }
-                        Json.Obj entry = snapped.has(key) ? (Json.Obj) snapped.get(key) : null;
-                        if (entry != null && "GS_ERROR".equals(entry.getString("status"))) {
+                        if (!snapped.has(key)) {
+                            continue;   // UNSNAPPED, reported by the guards
+                        }
+                        Json.Obj entry = (Json.Obj) snapped.get(key);
+                        if ("GS_ERROR".equals(entry.getString("status"))) {
                             verdicts.put(key, new Verdict("GS_ERROR", entry.getString("error")));
                             continue;
+                        }
+                        Map<String, List<Double>> gs = answers.points().get(key);
+                        if (gs == null) {
+                            // an OK case with no answer row: judging it against nothing would pass a lite that
+                            // answers nothing
+                            problems.add("NO ROW: " + d.name() + " " + key + ": OK in the metadata, no answer row");
+                            verdicts.put(key, new Verdict("NO ROW", "OK in the metadata, no answer row"));
+                            continue;
+                        }
+                        int points = gs.values().stream().mapToInt(List::size).sum();
+                        if (points != entry.getInt("points")) {
+                            problems.add("POINTS: " + d.name() + " " + key + ": its row holds " + points
+                                    + " points, the metadata " + entry.getInt("points"));
                         }
                         String x = at == null ? X : at;
                         String y = at == null ? Y : yOf(answers, key, x);
@@ -660,14 +693,17 @@ class TsGsquantParityTest {
                         try {
                             Lite lite = lite(ctx, c, k, x, y);
                             sql = lite.sql();
-                            v = judge(k, answers.points().getOrDefault(key, Map.of()), lite.points());
-                        } catch (Exception | AssertionError e) {
+                            v = judge(k, gs, lite.points());
+                        } catch (com.legend.error.DataError | com.legend.error.LegendCompileException e) {
+                            // lite's own refusal alone: a DataError at run time (S149's among them), a
+                            // LegendCompileException as the query compiles; any other exception is this test's fault
+                            // and fails it
                             v = new Verdict("REFUSED", String.valueOf(e.getMessage()).split("\n")[0]);
                         }
                         verdicts.put(key, v);
                         if (!v.status().equals("PASS")) {
                             findings.append("\n## ").append(d.name()).append(": ").append(key).append(" -- ")
-                                    .append(v.status()).append(k.register().equals("-") ? "" : " (" + k.register() + ")")
+                                    .append(v.status()).append(k.register().equals(NO_REGISTER_ROW) ? "" : " (" + k.register() + ")")
                                     .append("\n\n").append(v.detail()).append("\n\n- gs-quant: `").append(k.gs())
                                     .append("` (gs_quant/timeseries/").append(k.src()).append(")\n- #TS: `")
                                     .append(statement(k, x, y)).append("`\n");
@@ -711,7 +747,7 @@ class TsGsquantParityTest {
             for (Map.Entry<String, Verdict> e : verdicts.entrySet()) {
                 String[] row = ledger.getOrDefault(e.getKey(), new String[] {e.getKey(), "-", "-", "-", "-", "-", ""});
                 String status = e.getValue().status();
-                String register = status.equals("PASS") ? "-" : registerOf(words, e.getKey().split(" @")[0]);
+                String register = status.equals("PASS") || status.equals("SKIP") ? NO_REGISTER_ROW : registerOf(words, e.getKey().split(" @")[0]);
                 // `why` is two halves: gs-quant's (snap.py's, kept) and, for a DIFF or a REFUSED, lite's (this test's)
                 String gsHalf = row[6].contains(LITE) ? row[6].substring(0, row[6].indexOf(LITE)) : row[6];
                 String why = status.equals("DIFF") || status.equals("REFUSED") ? gsHalf + LITE + e.getValue().detail()
@@ -784,6 +820,6 @@ class TsGsquantParityTest {
 
     private static String registerOf(List<Word> words, String key) {
         return words.stream().flatMap(w -> w.cases().stream()).filter(c -> c.key().equals(key)).map(Case::register)
-                .findFirst().orElse("-");
+                .findFirst().orElseThrow(() -> new IllegalStateException("no case " + key + " in the mapping"));
     }
 }

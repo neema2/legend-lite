@@ -19,6 +19,7 @@ exports_files(
     [
         "mapping.yaml",
         "pins.env",
+        "traps.tsv",
         "answers.jsonl.gz",
         "ledger.tsv",
         "answers-adversarial-raw.jsonl.gz",
@@ -29,10 +30,11 @@ exports_files(
     visibility = ["//core:__pkg__"],
 )
 
-# THE TWO-ROWS TABLE (two_rows.py): what gs-quant answers over the fixture's line with two rows on one date, case by
-# case, read from the ledger alone. Its data, two-rows.tsv, is diff-tested (:update_generated_tests, in //:generated);
-# its page, TWO_ROWS.md, is written by the same rule and not diff-tested (prose is never a test input, G17, as
-# docs/timeseries/WORDS.md). Regenerate both: bazel run //tools/gs-quant-oracle:update_generated.
+# THE LEDGERS' REPORTS (two_rows.py), read from the three ledgers alone: two-rows.tsv (what gs-quant and lite answer
+# over the fixture's line with two rows on one date, case by case), summary.tsv (every count the PR and GATES quote)
+# and unruled.tsv (every DIFF no register row rules), diff-tested (:update_generated_tests, in //:generated); and the
+# two-rows page, TWO_ROWS.md, written by the same rule and not diff-tested (prose is never a test input, G17, as
+# docs/timeseries/WORDS.md). Regenerate: bazel run //tools/gs-quant-oracle:update_generated (and :update_two_rows_page).
 py_binary(
     name = "two_rows",
     srcs = ["two_rows.py"],
@@ -40,16 +42,30 @@ py_binary(
 
 run_binary(
     name = "gen_two_rows",
-    srcs = ["ledger-adversarial-raw.tsv"],
+    srcs = [
+        "ledger.tsv",
+        "ledger-adversarial-adjusted.tsv",
+        "ledger-adversarial-raw.tsv",
+    ],
     outs = [
         "generated/two-rows.tsv",
+        "generated/summary.tsv",
+        "generated/unruled.tsv",
         "generated/TWO_ROWS.md",
     ],
     args = [
-        "--ledger",
+        "--samples",
+        "$(execpath ledger.tsv)",
+        "--raw",
         "$(execpath ledger-adversarial-raw.tsv)",
-        "--tsv",
+        "--adjusted",
+        "$(execpath ledger-adversarial-adjusted.tsv)",
+        "--two-rows",
         "$(execpath generated/two-rows.tsv)",
+        "--summary",
+        "$(execpath generated/summary.tsv)",
+        "--unruled",
+        "$(execpath generated/unruled.tsv)",
         "--md",
         "$(execpath generated/TWO_ROWS.md)",
     ],
@@ -63,8 +79,12 @@ run_binary(
 write_source_files(
     name = "update_generated",
     testonly = True,
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe two-rows table moved with the fixture ledger -- regenerate: bazel run //tools/gs-quant-oracle:update_generated, and read the diff",
-    files = {"two-rows.tsv": ":generated/two-rows.tsv"},
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe ledgers' reports moved with the ledgers -- regenerate: bazel run //tools/gs-quant-oracle:update_generated, and read the diff",
+    files = {
+        "summary.tsv": ":generated/summary.tsv",
+        "two-rows.tsv": ":generated/two-rows.tsv",
+        "unruled.tsv": ":generated/unruled.tsv",
+    },
     visibility = ["//:__pkg__"],
 )
 

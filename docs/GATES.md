@@ -20650,32 +20650,33 @@ Branch `abs/ts-adversarial-fixture` on `claude/timeseries-language` (`aad8e762a`
 
 ## 2026-11-08 — The gs-quant oracle for #TS: every word against gs-quant's own function (`//core:ts_gsquant_parity_test`)
 
-Stacked on #90 (the adversarial markets fixture). A new lane member in `core`, a hand tool and a generated table in
+Stacked on #90 (the adversarial markets fixture). A new lane member in `core`, a hand tool and generated reports in
 `checks` (`tools/gs-quant-oracle/README.md`). `mapping.yaml` maps each of the 87 words of `docs/timeseries/WORDS.md`
 (the library's `timeseries::line::` functions, held to the mapping by WORDS) to its `gs_quant.timeseries` twin -- 62
-MAPPED, 149 cases; 25 SKIP, each with why; and `wavg`, `wsum`, ruled by R15 but no words yet. gs-quant is ONE pinned
-fact, `tools/gs-quant-oracle/pins.env` (`requirements.txt` reads it, `snap.sh` installs from it, `snap.py` refuses any
-other release, every ledger's header and answers file names it, so another release's snap is STALE). Every mapped
-definition is unchanged between the release the author's catalog names and the pin (the AST of each, compared).
+MAPPED, 150 cases; 25 SKIP, each with why; and `wavg`, `wsum`, ruled by R15 but no words yet. The stack is pinned
+whole, `tools/gs-quant-oracle/pins.env`: gs-quant, pandas, numpy, scipy, statsmodels and Python's minor, each exact
+(`requirements.txt` reads them, `snap.sh` installs from it, `snap.py` refuses any other, every answer's hash and every
+ledger's header names the set, so another stack's snap is STALE). `release-diff.tsv` holds each mapped definition at
+the release the author's catalog names against the pin's: none changed.
 
 `snap.py` runs each case over three datasets -- the gallery's samples (`//datacube:ts_replay_samples`) and #90's two
-price files, raw and adjusted, over the four trap symbols -- into gzipped answers (one row a series, `[first, last,
-count]` on its spine, every point kept: a date's two values where gs-quant answers two) and three ledgers, each
-series' sha256 in a `digest` column (`--check` reports DRIFT from it alone), a `note` column marking `dup-span` where
-a series covers BTCUSD's two rows on 2025-02-05. `//core:ts_gsquant_parity_test` runs each `#TS` item through the
+price files, raw and adjusted, over the four trap symbols -- into gzipped answers (one row a series, every point kept)
+and three ledgers (a `digest` column for DRIFT from the ledger alone, a `note` column for a `dup-span`), and
+`traps.tsv`, #90's four values read from the answers. `//core:ts_gsquant_parity_test` runs each `#TS` item through the
 library on DuckDB and judges it at 1e-9 absolute (1e-8 relative for a volatility, a correlation, a beta), a date's
-values compared as a bag (S149: the database's order among equal keys is undefined), each verdict held by its ledger.
+values compared as a bag (S149: the database's order among equal keys is undefined); REFUSED only for lite's own
+refusal, NO ROW, POINTS and SPINE failing it. Every count below is a row of `summary.tsv`, every unruled DIFF a row of
+`unruled.tsv`, generated from the ledgers by `two_rows.py` and diff-tested (`//tools/gs-quant-oracle:update_generated_tests`,
+in `//:generated`; the page `TWO_ROWS.md` written by the same rule, not diff-tested, G17).
 
-**The ledgers (2026-11-08, on #90's `0f76abe80`):** samples PASS 135, DIFF 12, GS_ERROR 2, SKIP 27; each fixture file
-PASS 386 (17 on a dup-span), DIFF 43 (7), REFUSED 92 (92), GS_ERROR 27, SKIP 156. Of the samples' 12 DIFFs, 5 are
-ruled (S145, S150 twice, S154, S162) and 7 are posted in the PR. On the two-row line lite's S149 refuses 92 cases of
-42 words and answers 24 over both rows (17 PASS: agreement, not correctness). `two-rows.tsv`, what gs-quant answers
-there case by case, is generated from the ledger by `two_rows.py` and diff-tested
-(`//tools/gs-quant-oracle:update_generated_tests`, in `//:generated`); its page `TWO_ROWS.md` is written by the same
-rule, not diff-tested (G17).
+**The ledgers (2026-11-08, on #90's `0f76abe80`):** samples PASS 135, DIFF 13, GS_ERROR 2, SKIP 27; each fixture
+file PASS 386 (17 on a dup-span), DIFF 43 (7), REFUSED 92 (92), GS_ERROR 27, SKIP 160. On the two-row line
+lite's S149 refuses 92 cases of 42 words and answers 24 cases of 21 words over both rows (17 PASS:
+agreement, not correctness). The unruled DIFFs (17 cases) are posted in the PR, each with its proposed register row.
 
-Checks: `snap.sh --check` (0 problems over 149, 548 and 548 cases), `//core:ts_gsquant_parity_test`,
+Checks: `snap.sh --check` and `--check --fixture` (0 problems over 150, 548 and 548 cases; `traps.tsv` fresh), the two
+ledger writers byte-identical on all three ledgers, `//core:ts_gsquant_parity_test`,
 `//tools/gs-quant-oracle:update_generated_tests`, `//core:ts_adversarial_test`, `//core:census`. `//gates:local`:
-**green** at the final tree (on #90's `0f76abe80`, `--lockfile_mode=error`): 517 tests pass, 2 skipped
+**green** at the final tree (on #90's `0f76abe80`, `--lockfile_mode=error`): 519 tests pass, 2 skipped
 (`//tools/guards:classpath_test` and `//tools/guards:markdown_inputs_test`, whose reports `guards_package` limits to the
 platforms it lists: skipped on darwin-arm64), Bazel's exit 0. Edited after the run: Markdown alone (this line).

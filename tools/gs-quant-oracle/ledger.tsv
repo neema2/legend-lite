@@ -3,7 +3,7 @@
 # DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
 # holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
 # verdict moves only with the test's -Dts.gsquant.update, never by hand.
-# snapped with gs-quant GS_QUANT_VERSION=2.2.3 (pins.env)
+# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0
 case	gsquant	duckdb	register	digest	note	why
 mean w=20	OK	PASS	-	fa9193532c670998a913f199d428bfa4c753fc41a516d058af09f1411a7d98a3	-	1284 points
 mean w=3mo	OK	PASS	-	312b4c0c2ec5c5f089f98682e00f2897d8b5c179cf76bf40c48ab43ca6e1ea6a	-	1239 points
@@ -128,6 +128,7 @@ union default	OK	PASS	-	ca716ded7a073e56364b3e8ab95513964f989573b5e7eb0770731c04
 interpolate default	OK	PASS	-	7752781ab7f9172db63e70a9948fdd6bcd145035d459c01d84d55c63f3c9b533	-	43 points
 interpolate method=nan	OK	PASS	-	7752781ab7f9172db63e70a9948fdd6bcd145035d459c01d84d55c63f3c9b533	-	43 points
 interpolate method=zero	OK	PASS	-	27c518b5d36221b514eb054702c8f5e64e7364d23e9a32ed8aff0f12e06c8a56	-	1304 points
+interpolate method=zero,dates=series	OK	DIFF	-	837ef52db31db3e7db0352a229de3ee815a4966d7274e6e5d8b8da9b013e45e1	-	1304 points, 1304 values on 1970-01-01 | lite: 1304 gs-quant points, 1304 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 1970-01-01, 1304 lite's alone from 2020-01-02
 interpolate method=step	OK	PASS	-	bde2f49a060dd961cc2925ab7a8233978970131575565b5f60c4be7550c67c3b	-	1304 points
 value_at date=2022-03-15	OK	PASS	-	80354344128b348f9e96a6706036b039d161b91c362857e5c0121a3b38b26db8	-	1304 points
 value_at date=2022-03-13	OK	PASS	-	cf2b0ddf38ce7cc4c7e6360e7a1faf356fab4afa1a59e138150d587461f7807d	-	1304 points
