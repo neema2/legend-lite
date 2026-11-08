@@ -150,7 +150,7 @@ def max_drawdown(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Ter
 
 
 def sharpe_ratio(series, currency=_Default('RiskFreeRateCurrency.USD'), w=_Default('None'), curve_type=_Default('CurveType.PRICES'), method=_Default('Interpolate.NAN'), *, annualization_factor=_Default('None'), r=_Default('None')) -> Term:
-    """Sharpe ratio: Its annualized mean return over its annualized volatility, over the last w observations. (gs-quant's econometrics.sharpe_ratio.)"""
+    """Sharpe ratio: Its annualized return -- the window's last level over its first, compounded over 365.25 days -- over its annualized volatility, over the last w observations (gs-quant's get_ratio_pure). (gs-quant's econometrics.sharpe_ratio.)"""
     return _word('sharpe_ratio', [series], **{'currency': currency, 'w': w, 'curve_type': curve_type, 'method': method, 'annualization_factor': annualization_factor, 'r': r})
 
 

@@ -1171,6 +1171,44 @@ class TsIslandTest {
         }
     }
 
+    /**
+     * GS-QUANT'S SHARPE RATIO (item 13b, 2026-11-08; register S155 retired): econometrics.get_ratio_pure of the line read
+     * as excess-return levels -- ((E_j / E_s)^(365.25 / their days) - 1) / volatility(E, w)_j * 100, s the window's first
+     * level (j - w + 1; the line's first to date), the volatility gs-quant's (lite's, which its oracle holds to it) less
+     * its first value: from the (w + 2)-th point; to date from the third; Window(w, r) to date before the w-th point, none
+     * of the first r + 1.
+     */
+    @Test
+    void theSharpeRatioIsGsQuants() throws Exception {
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE AS c, sharpe_ratio(CLOSE, 3) AS s,"
+                    + " volatility(CLOSE, w => 3, type => 'simple') AS v, sharpe_ratio(CLOSE, all) AS sa,"
+                    + " volatility(CLOSE, w => all, type => 'simple') AS va, sharpe_ratio(CLOSE, w => 4, r => 1) AS sr,"
+                    + " volatility(CLOSE, w => 4, type => 'simple', r => 0) AS vr FROM PRICES ON DAY BY SYMBOL}#");
+            List<Map<String, String>> aaa = got.stream().filter(r -> "AAA".equals(r.get("SYMBOL"))).toList();
+            assertEquals(AAA.length, aaa.size(), backend + ": a row every date");
+            java.time.LocalDate[] day = aaa.stream().map(r -> java.time.LocalDate.parse(r.get("DAY").substring(0, 10)))
+                    .toArray(java.time.LocalDate[]::new);
+            java.util.function.BiFunction<Integer, Integer, Double> annual = (s, j) -> Math.pow(AAA[j] / AAA[s],
+                    365.25 / java.time.temporal.ChronoUnit.DAYS.between(day[s], day[j])) - 1;
+            List<String> wrong = new ArrayList<>();
+            for (int j = 0; j < aaa.size(); j++) {
+                Map<String, String> row = aaa.get(j);
+                String w3 = j < 4 ? null : String.valueOf(annual.apply(j - 2, j) / Double.parseDouble(row.get("v")) * 100);
+                String all = j < 2 ? null : String.valueOf(annual.apply(0, j) / Double.parseDouble(row.get("va")) * 100);
+                // Window(4, 1): to date before the 4th point, the window's from it; none of the first two
+                String ramp = j < 2 ? null : String.valueOf((j < 4 ? annual.apply(0, j) : annual.apply(j - 3, j))
+                        / Double.parseDouble(row.get("vr")) * 100);
+                for (String[] f : new String[][] {{"s", w3}, {"sa", all}, {"sr", ramp}}) {
+                    if (!near(row.get(f[0]), f[1])) {
+                        wrong.add(j + " " + f[0] + ": " + row.get(f[0]) + " not " + f[1]);
+                    }
+                }
+            }
+            assertEquals(List.of(), wrong, backend + ": sharpe_ratio as gs-quant's get_ratio_pure");
+        }
+    }
+
     private static boolean near(String said, String want) {
         return want == null ? said == null : said != null && Math.abs(Double.parseDouble(said) - Double.parseDouble(want))
                 <= 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)));

@@ -783,7 +783,7 @@ Forms: `seasonally_adjusted(x: Line)`, `seasonally_adjusted(x: Line, method: Sea
 
 ## `sharpe_ratio`
 
-The annualized Sharpe ratio of x's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's -- by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
+gs-quant's Sharpe ratio of x read as excess-return levels (its curve_type EXCESS_RETURNS; over a currency's cash, sharpe_ratio(excess_returns(x, cash.index['USD']))): the annualized return of a window's levels, compounded over 365.25 days, over their annualized volatility -- w observations to date (a value from the line's (w + 2)-th), a calendar period back, the line's start to date; to date unless given, as gs-quant's -- the volatility by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

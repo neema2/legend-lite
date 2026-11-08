@@ -178,6 +178,12 @@ class Evaluator:
         if name == "interpolate":
             from gs_quant.timeseries.helper import Interpolate
             return ts.interpolate(x, a[1], Interpolate(arg(2, "method", "intersect")))
+        if name == "sharpe_ratio":
+            # the line read as excess-return levels: gs-quant's sharpe_ratio of curve_type EXCESS_RETURNS, whose pure
+            # core needs no session (econometrics.get_ratio_pure)
+            from gs_quant.timeseries.econometrics import get_ratio_pure
+            w = window(arg(1, "w", 0))
+            return get_ratio_pure(x, w if w is not None else None)
         if name == "excess_returns":
             # over a cash index, or a rate accrued actual/360 (gs-quant's own, offline)
             return ts.excess_returns_pure(x, a[1]) if isinstance(a[1], pd.Series) else ts.excess_returns(x, float(a[1]))
@@ -359,11 +365,6 @@ class Second(Evaluator):
         return "pandas", x.iloc[0] * growth.cumprod()
 
     # -- returns' statistics (gs-quant's window rule, pandas' arithmetic) ------------------------------------------
-    def w_sharpe_ratio(self, a, kw):
-        r = ts.returns(a[0]).dropna()
-        w = kw.get("w", 0)
-        return "pandas", over(r, w, lambda s: s.mean() / s.std() if len(s) > 1 else np.nan) * math.sqrt(annual(r))
-
     def w_tracking_error(self, a, kw):
         r = own_returns(a[0], a[1])
         active = r.iloc[:, 0] - r.iloc[:, 1]

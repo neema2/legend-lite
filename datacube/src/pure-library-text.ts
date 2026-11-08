@@ -414,15 +414,6 @@ function timeseries::maxDrawdown<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], v
     ->without(~[pk, dd, md, n])->rename(~o, $out)
 }
 
-// The annualized Sharpe ratio of a column of returns over the window: their mean over their sample deviation, times the
-// square root of the periods a year (a column), none until the window holds ramp of them or where the deviation is 0.
-function timeseries::sharpeRatio<T,V,Y,O>(t: Relation<T>[1], win: _Window<T>[1], returns: ColSpec<V⊆T>[1], ramp: Integer[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
-{
-  $t->extend($win, ~[m:{p,f,r|$r->read($returns)}:y|$y->average(), s:{p,f,r|$r->read($returns)}:y|$y->stdDevSample(), n:{p,f,r|$r->read($returns)}:y|$y->count()])
-    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.s->toOne() == 0), |[], |$x.m->toOne() / $x.s->toOne() * sqrt($x->read($perYear)->toOne())))
-    ->without(~[m, s, n])->rename(~o, $out)
-}
-
 // Bands k sample deviations either side of the window's mean, and their width (gs-quant's bollinger_bands): none until
 // the window holds ramp values, and two.
 function timeseries::bollingerBands<T,V,O1,O2,O3>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], k: Number[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
@@ -733,17 +724,6 @@ function timeseries::maxDrawdownPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSp
     ->timeseries::windowPeriod($line, $date, ~dd, $n, $unit, timeseries::Statistic.min, ~md)
     ->timeseries::rampPeriod($line, $date, $value, ~md, $n, $unit, $out)
     ->without(~[pk, dd, md])
-}
-
-// The annualized Sharpe ratio of a column of returns over a calendar period back of each date: their mean over their
-// sample deviation, times the square root of the periods a year -- none where the deviation is 0, or before the first
-// date of the series read (price) that period on.
-function timeseries::sharpeRatioPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], returns: ColSpec<R⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
-{
-  $t->timeseries::windowPeriod($line, $date, $returns, $n, $unit, timeseries::Statistic.mean, ~m)->timeseries::windowPeriod($line, $date, $returns, $n, $unit, timeseries::Statistic.std, ~s)
-    ->extend(~v:x|if($x.s->toOne() == 0, |[], |($x.m->toOne() / $x.s->toOne()) * sqrt($x->read($perYear)->toOne())))
-    ->timeseries::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
-    ->without(~[m, s, v])
 }
 
 // The volume-weighted average price over a calendar period back of each date: Σ price × volume (traded) over Σ volume
@@ -2318,6 +2298,50 @@ function timeseries::line::helpers::ramped<K,D>(x: Relation<(key:K, date:D, valu
     ->filter(r|if(timeseries::lines::once($r.lo), |$r.rn > $w, |false))->select(~[key, date, value])
 }
 
+// GS-QUANT'S SHARPE RATIO (econometrics.get_ratio_pure; item 13b, 2026-11-08, S155 retired): of a line of excess-return
+// levels, each date's annualized return over its annualized volatility -- the volatility in percent, so the ratio times
+// 100 -- on the dates both have; none where the volatility is 0.
+function timeseries::line::helpers::sharpe<K,D>(ret: Relation<(key:K, date:D, value:Number)>[1], vol: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::meet($ret, $vol, [])->filter(row|$row.y->isNotEmpty() && $row.x->isNotEmpty() && ($row.y->toOne() != 0))->extend(~line_v:row|($row.x->toOne() / $row.y->toOne()) * 100)
+    ->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// gs-quant's _annualized_return of a count: each level over the level \`back\` rows before, to the power 365.25 over the
+// days between them, less 1; none where the line has none so far back, or no day between.
+function timeseries::line::helpers::annualizedReturn<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], back: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
+    ->extend(over(~[key], [~date->ascending()]), ~line_e0:{p,f,row|$p->lag($row, $back).value})
+    ->extend(over(~[key], [~date->ascending()]), ~line_d0:{p,f,row|$p->lag($row, $back).line_dn})
+    ->filter(row|$row.value->isNotEmpty() && $row.line_e0->isNotEmpty() && ($row.line_dn->toOne() > $row.line_d0->toOne()))
+    ->extend(~line_v:row|pow($row.value->toOne() / $row.line_e0->toOne(), 365.25 / ($row.line_dn->toOne() - $row.line_d0->toOne())) - 1)
+    ->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// ... of the whole series to date: each level over the line's first (gs-quant's window of the series' length)
+function timeseries::line::helpers::annualizedReturnToDate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->extend(~line_dn:row|dateDiff(%1970-01-01, $row.date->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
+    ->timeseries::first(~key, ~date, ~value, ~line_e0)
+    ->extend(over(~[key]), ~line_d0:{p,f,row|$row.line_dn}:y|$y->min())
+    ->filter(row|$row.value->isNotEmpty() && $row.line_e0->isNotEmpty() && ($row.line_dn->toOne() > $row.line_d0->toOne()))
+    ->extend(~line_v:row|pow($row.value->toOne() / $row.line_e0->toOne(), 365.25 / ($row.line_dn->toOne() - $row.line_d0->toOne())) - 1)
+    ->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// ... of a calendar period: each level over the line's level as of that period before (its last at or before: register
+// S162, the user's ruling of 2026-11-08 -- gs-quant's levels.get reads that date exactly, none where the line has no
+// value on it), to the power 365.25 over the period's days (gs-quant's)
+function timeseries::line::helpers::annualizedReturnPeriod<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->timeseries::lagPeriod(~key, ~date, ~value, $n, $unit, ~line_e0)
+    ->extend(~line_days:row|dateDiff($row.date->toOne()->cast(@Date)->adjust(0 - $n, $unit), $row.date->toOne()->cast(@Date), meta::pure::functions::date::DurationUnit.DAYS))
+    ->filter(row|$row.value->isNotEmpty() && $row.line_e0->isNotEmpty() && ($row.line_days->toOne() > 0))
+    ->extend(~line_v:row|pow($row.value->toOne() / $row.line_e0->toOne(), 365.25 / $row.line_days->toOne()) - 1)
+    ->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
 // GS-QUANT'S WINDOW(w, r) (item 13, ruled 2026-11-07 "add it": \`w => 63, r => 10\`): gs-quant computes every windowed
 // figure over the window's points to date, a window not yet full taking those it has (\`rolling(w, 0)\`), then drops its
 // first r points (\`apply_ramp\`, \`x[r:]\`; statistics.py, econometrics.py). Before x's w-th point a window not yet full
@@ -3221,30 +3245,33 @@ function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number
   $x->timeseries::zscoresPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The annualized Sharpe ratio of x\\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; to date unless given, as gs-quant\\'s -- by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the line\\'s dates infer.', timeseries::Words.label = 'Sharpe ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.sharpe_ratio', timeseries::Words.about = 'Its annualized mean return over its annualized volatility, over the last w observations.', timeseries::Words.differs = 'w defaults to 252 observations (gs-quant: every observation); a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\\'s rate and compounds', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'gs-quant\\'s Sharpe ratio of x read as excess-return levels (its curve_type EXCESS_RETURNS; over a currency\\'s cash, sharpe_ratio(excess_returns(x, cash.index[\\'USD\\']))): the annualized return of a window\\'s levels, compounded over 365.25 days, over their annualized volatility -- w observations to date (a value from the line\\'s (w + 2)-th), a calendar period back, the line\\'s start to date; to date unless given, as gs-quant\\'s -- the volatility by the periods a year given (annualization_factor), SAMPLE BY\\'s, or the line\\'s dates infer.', timeseries::Words.label = 'Sharpe ratio', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'econometrics.sharpe_ratio', timeseries::Words.about = 'Its annualized return -- the window\\'s last level over its first, compounded over 365.25 days -- over its annualized volatility, over the last w observations (gs-quant\\'s get_ratio_pure).', timeseries::Words.differs = 'x is read as excess-return levels (gs-quant\\'s curve_type EXCESS_RETURNS), where gs-quant\\'s default takes a price\\'s excess returns over a currency\\'s cash: that is sharpe_ratio(excess_returns(x, cash.index[\\'USD\\']))', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::sharpe_ratio(timeseries::Scope.all, $annualization_factor, $sample)
 }
 
+// gs-quant's get_ratio_pure of w observations: the annualized return of each window's levels (its first the (w - 1)-th
+// before, as _annualized_return's starting) over volatility(x, w) less its first value (get_ratio_pure's .iloc[1:]): a
+// value from the line's (w + 2)-th
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
-    ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+  timeseries::line::helpers::sharpe($x->timeseries::line::helpers::annualizedReturn($w - 1),
+    $x->timeseries::line::volatility($w, timeseries::Returns.simple, $annualization_factor, $sample)->filter(row|$row.value->isNotEmpty())->timeseries::line::helpers::ramped(1))
 }
 
+// to date: each level against the line's first, over the volatility to date (gs-quant's window of the whole series)
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
-    ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-    ->timeseries::sharpeRatio(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~r, 2, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+  timeseries::line::helpers::sharpe($x->timeseries::line::helpers::annualizedReturnToDate(),
+    $x->timeseries::line::volatility(timeseries::Scope.all, timeseries::Returns.simple, $annualization_factor, $sample))
 }
 
+// a calendar period: each level against the line's level as of that period before (S162: gs-quant's reads that date
+// exactly), over the period's volatility less its first value
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
-    ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-    ->timeseries::sharpeRatioPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  timeseries::line::helpers::sharpe($x->timeseries::line::helpers::annualizedReturnPeriod($w, $unit),
+    $x->timeseries::line::volatility($w, $unit, timeseries::Returns.simple, $annualization_factor, $sample)->filter(row|$row.value->isNotEmpty())->timeseries::line::helpers::ramped(1))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -4666,9 +4693,20 @@ function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number
   timeseries::line::helpers::ramp($x, timeseries::line::zscores($x, $w), timeseries::line::zscores($x, $w), 0, $r)
 }
 
+// gs-quant's get_ratio_pure of Window(w, r): to date before the w-th point, the window's from it (its volatility not
+// less its first value: that is the ramp's), none of the first r + 1 (its volatility's .iloc[1:]) -- of a line exactly
+// w long, its volatility to date and none of the first r alone; nothing of a line shorter than w
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::ramp($x, timeseries::line::sharpe_ratio($x, timeseries::Scope.all, $annualization_factor, $sample), timeseries::line::sharpe_ratio($x, $w, $annualization_factor, $sample), $w, $r)
+  $x->extend(~line_src:row|0)
+    ->concatenate(timeseries::line::sharpe_ratio($x, timeseries::Scope.all, $annualization_factor, $sample)->extend(~line_src:row|1))
+    ->concatenate(timeseries::line::helpers::sharpe($x->timeseries::line::helpers::annualizedReturn($w - 1),
+        $x->timeseries::line::volatility($w, timeseries::Returns.simple, $annualization_factor, $sample))->extend(~line_src:row|2))
+    ->extend(over(~[key], [~date->ascending(), ~line_src->ascending()], rows(unbounded(), 0)), ~line_at:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
+    ->extend(over(~[key]), ~line_n:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
+    ->filter(row|($row.line_n >= $w) && ($row.line_at > if($row.line_n == $w, |$r, |$r + 1))
+      && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)))
+    ->select(~[key, date, value])
 }
 
 function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]

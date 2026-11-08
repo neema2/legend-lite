@@ -925,8 +925,12 @@ const CHART_BUDGET = 303_500;
  *  text with percentile's whole form and gsWhole, and the tile's whole window (TsParamShape.whole). Measured 138,999.
  *  139,300 -> 139,800 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13, gs-quant's Window(w, r), ruled "add it"
  *  2026-11-07; the user: "Carry on"): the library's text with each windowed word's r (helpers::ramp and two overloads a
- *  word, bollinger_bands' and winsorize's) and r's sentence (timeseries-expr.ts PARAM_ABOUT). Measured 139,546. */
-const TIMESERIES_BUDGET = 139_800;
+ *  word, bollinger_bands' and winsorize's) and r's sentence (timeseries-expr.ts PARAM_ABOUT). Measured 139,546.
+ *  139,800 -> 141,100 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
+ *  going in order", then "As of, and a register row" for the calendar form, S162): the library's text with gs-quant's
+ *  Sharpe ratio (helpers::sharpe, annualizedReturn of a count, to date and of a period, the Window(w, r) form's own
+ *  stitch) and its sentences, less S155's two helpers. Measured 140,814. */
+const TIMESERIES_BUDGET = 141_100;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

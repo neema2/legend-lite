@@ -488,7 +488,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ["percent_change(close['AAA'])", 'percentChangeFrom', '2024-01-15'],
       ["zscores(close['AAA'], w => 10)", 'zscores'], ["zscores(close['AAA'], w => 2w)", 'zscoresPeriod'], ["winsorize(close['AAA'], limit => 2)", 'winsorize'],
       ["drawdown(close['AAA'], w => 5)", 'drawdown'], ["drawdown(close['AAA'], w => 2w)", 'drawdownPeriod'], ["max_drawdown(close['AAA'], w => 5)", 'maxDrawdown'],
-      ["sharpe_ratio(close['AAA'], w => 10)", 'sharpeRatio'], ["bollinger_bands(close['AAA'], w => 5, k => 2)", 'bollingerBands'],
+      ["sharpe_ratio(close['AAA'], w => 10)", 'annualizedReturn'], ["bollinger_bands(close['AAA'], w => 5, k => 2)", 'bollingerBands'],
       ["bollinger_bands(close['AAA'], w => 2w, k => 2)", 'bollingerBandsPeriod'], ["percentiles(close['AAA'], w => 10)", 'percentiles'],
       ["percentiles(close['AAA'], w => 2w)", 'percentilesPeriod'], ["median(close['AAA'], w => 5)", 'quantile'], ["median(close['AAA'], w => 2w)", 'quantilePeriod'],
       ["percentile(close['AAA'], n => 90, w => 10)", 'quantile'], ["percentile(close['AAA'], n => 25, w => all)", 'quantileOfLine'],
@@ -497,7 +497,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ["macd(close['AAA'], m => 12, n => 26, s => 9)", 'macd'], ["rsi(close['AAA'], w => 14)", 'rsi'], ["smoothed_moving_average(close['AAA'], w => 5)", 'smoothedMean'],
       ["obv(close['AAA'], volume['AAA'])", 'obv'], ["vwap(close['AAA'], volume['AAA'], w => 10)", 'vwap'],
       ["vwap(close['AAA'], volume['AAA'], w => 2w)", 'vwapPeriod'], ["volatility(close['AAA'], w => 1mo, type => 'simple')", 'volatilityPeriod'],
-      ["max_drawdown(close['AAA'], w => 2w)", 'maxDrawdownPeriod'], ["sharpe_ratio(close['AAA'], w => 1mo)", 'sharpeRatioPeriod'],
+      ["max_drawdown(close['AAA'], w => 2w)", 'maxDrawdownPeriod'], ["sharpe_ratio(close['AAA'], w => 1mo)", 'atPeriod'],
       ["ln(close['AAA'])", 'log'], ["exp(close['AAA'] / 100)", 'exp'], ["sqrt(close['AAA'])", 'sqrt'], ["abs(close['AAA'] - 105)", 'abs'],
       ["power(close['AAA'], 2)", 'power'], ["floor(close['AAA'], 104)", 'floor'], ["ceil(close['AAA'], 104)", 'ceil'], ["NOT close['AAA'] > 101", 'not'],
       ["filter(close['AAA'], operator => 'greater_than', value => 102)", 'filterValues'], ["product(close['AAA'] / 100, w => 5)", 'product'],
@@ -795,6 +795,8 @@ function backBy(d: string, n: number, unit: 'd' | 'w' | 'm'): string {
 }
 /** A date a calendar period on. */
 const onBy = (d: string, n: number, unit: 'd' | 'w' | 'm'): string => backBy(d, -n, unit);
+/** The days from one ISO date to another. */
+const dayCount = (from: string, to: string): number => (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
 
 describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s tenors)', () => {
   it('mean over 2w: the dates after two weeks back, to this one; drawn from the first date two weeks on', async () => {
@@ -841,7 +843,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     close(b.upper!, band(2), 'upper 2w', 1e-7);
   });
 
-  it('winsorize and a Sharpe ratio over a count: within the limit of the mean to date; the mean return over its deviation, annualized', async () => {
+  it('winsorize and a Sharpe ratio over a count: within the limit of the mean to date; gs-quant\'s compounded return over its volatility', async () => {
     // to date (S150, 2026-11-06): each value held within the limit of the line's values to it, the first kept
     close((await line(await spec({ A: "winsorize(close['AAA'], limit => 1)" }))).values, AAA.map((v, i) => {
       if (i === 0) return v;
@@ -849,11 +851,14 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       const s = sd(AAA.slice(0, i + 1));
       return Math.min(Math.max(v, m - s), m + s);
     }), 'winsorize', 1e-9);
+    // gs-quant's get_ratio_pure (item 13b): the window's last level over its first (nine before), compounded over 365.25
+    // days, over the volatility of its ten returns (in percent) -- from the twelfth point, its volatility's first dropped
     const r = simple(AAA);
-    close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 10)" }))).values, DAYS.map((_, i) => {
-      const vals = r.slice(Math.max(0, i - 9), i + 1).filter((v) => v !== null) as number[];
-      return vals.length < 10 ? null : (avg(vals) / sd(vals)) * Math.sqrt(252);
-    }), 'sharpe 10', 1e-7);
+    close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 10)" }))).values, ramp(DAYS.map((d, i) => {
+      if (i < 11) return null;
+      const growth = (AAA[i]! / AAA[i - 9]!) ** (365.25 / dayCount(DAYS[i - 9]!, d)) - 1;
+      return growth / (sd(r.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100) * 100;
+    }), 11), 'sharpe 10', 1e-7);
   });
 
   // a figure whose ramp counts from the first date of the series it reads, not of the column it is over (the library's
@@ -894,12 +899,18 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
       return vals.length < 2 ? null : sd(vals) * Math.sqrt(252) * 100;
     }), 'volatility 1m', 1e-9);
-    // a Sharpe ratio over 1m too: the mean return over its deviation, annualized, from the first price a month on
-    close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 1mo)" }))).values, DAYS.map((d) => {
-      if (d < start) return null;
-      const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
-      return vals.length < 2 ? null : (avg(vals) / sd(vals)) * Math.sqrt(252);
-    }), 'sharpe 1m', 1e-9);
+    // a Sharpe ratio over 1m too, gs-quant's: the level against its level as of a month back (S162), compounded over the
+    // month's days, over that volatility -- its first value (the first date a month on) dropped
+    const first = DAYS.findIndex((d) => d >= start);
+    close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 1mo)" }))).values, ramp(DAYS.map((d, i) => {
+      if (i <= first) return null;
+      const back = backBy(d, 1, 'm');
+      const j = DAYS.findLastIndex((x) => x <= back);
+      const vals = r.filter((v, k) => v !== null && DAYS[k]! > back && DAYS[k]! <= d) as number[];
+      if (j < 0 || vals.length < 2) return null;
+      const growth = (AAA[i]! / AAA[j]!) ** (365.25 / dayCount(back, d)) - 1;
+      return growth / (sd(vals) * Math.sqrt(252) * 100) * 100;
+    }), first + 1), 'sharpe 1m', 1e-9);
   });
 
   it('correlation over 3w: two series\' returns over the dates both have, each three weeks back', async () => {
