@@ -1230,6 +1230,15 @@ class BodyRouterParityTest {
                 FIRM_ROWS, ExecuteOptions.JudgeMode.BOTH);
         assertTrue(agreed.outcome.startsWith("AssertFailed"), agreed.outcome);
         assertEquals(1, declinedOnce(agreed), agreed.verdicts.toString());
+        // the text differing, the rows agreeing, under BOTH judges (the slice 3 follow-up audit, 2026-11-08): the
+        // appeal holds. KNOWN DEFECT A1 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 4): each half holds an appeal of
+        // its own, so the referee replays twice and its report is told twice -- this pin moves to 1 with the fix
+        Run agreedMatch = assertParity(backend, ctx, "x::RT",
+                "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows) + "', " + producer + ");}",
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.BOTH);
+        assertEquals("ok", agreedMatch.outcome, "the rows agree under both judges: the appeal holds");
+        assertEquals(2, agreedMatch.verdicts.stream().filter(v -> v.contains("refereed MATCH")).count(),
+                agreedMatch.verdicts.toString());
     }
 
     /** How many times a run told the DB2 decline of its one engine-text assert. */

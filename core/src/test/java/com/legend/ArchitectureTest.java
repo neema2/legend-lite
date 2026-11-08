@@ -1403,10 +1403,11 @@ final class ArchitectureTest {
                     sites.add("takes " + at + "(" + p.getSimpleName() + ")");
                 }
             }
-            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
-                var t = call.getTarget();
+            for (var t : targetsOf(u)) {
                 boolean returns = t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget m
-                        && modelTypes.contains(m.getRawReturnType().getName());
+                        && modelTypes.contains(m.getRawReturnType().getName())
+                        || t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodReferenceTarget r
+                        && modelTypes.contains(r.getRawReturnType().getName());
                 if (returns || modelTypes.contains(t.getOwner().getName()) || t.getRawParameterTypes().stream()
                         .anyMatch(p -> modelTypes.contains(p.getName()))) {
                     sites.add("calls " + at + " -> " + t.getOwner().getName() + "#" + t.getName());
@@ -1438,10 +1439,14 @@ final class ArchitectureTest {
         return topLevel(c);
     }
 
-    /** Where the run begins: the router's run half, the door's, and the session source a door opens the run's session
-     *  from (hole 7: it is handed the model). */
+    /** Where the run begins: the router's run half, the door's, and the session sources a door opens the run's
+     *  session from (hole 7: each is handed the model) -- the contract's method and its implementations, the caller's
+     *  own session's ({@code Source.given}) and the server's ({@code ConnectionResolver.open}): the contract is
+     *  implemented by lambdas and method references, which no call site expands (the slice 3 follow-up audit,
+     *  2026-11-08). */
     private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#run",
-            "com.legend.Execution#runBody", "com.legend.Execution$Source#open");
+            "com.legend.Execution#runBody", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
+            "com.legend.server.ConnectionResolver#open");
 
     /** Where planning begins: the router's planning halves and the doors'. */
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#plan",
@@ -1452,9 +1457,10 @@ final class ArchitectureTest {
      *  planning pins). */
     private static final java.util.Set<String> RUN_ONLY_NESTED = java.util.Set.of("com.legend.driver.BodyRouter$Moved");
 
-    /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls: a
-     *  call's resolved target, and -- the call being virtual -- every override among the product's classes; a lambda's
-     *  calls count as its enclosing unit's (ArchUnit's reading). Only the product's own code is followed. */
+    /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
+     *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's
+     *  resolved unit, and -- the call being virtual -- every override among the product's classes; a lambda's calls
+     *  count as its enclosing unit's (ArchUnit's reading). Only the product's own code is followed. */
     private static java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> reachable(java.util.Set<String> entries) {
         java.util.Map<String, java.util.List<com.tngtech.archunit.core.domain.JavaMethod>> bySignature =
                 new java.util.HashMap<>();
@@ -1479,15 +1485,15 @@ final class ArchitectureTest {
                 "an entry the reachability walk was given is no code unit of the product");
         while (!todo.isEmpty()) {
             com.tngtech.archunit.core.domain.JavaCodeUnit u = todo.poll();
-            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
-                var t = call.getTarget();
+            for (var t : targetsOf(u)) {
                 if (!t.getOwner().getName().startsWith("com.legend.")
                         && !t.getOwner().getPackageName().equals("com.legend")) {
                     continue;
                 }
                 java.util.List<com.tngtech.archunit.core.domain.JavaCodeUnit> next = new java.util.ArrayList<>();
                 t.resolveMember().ifPresent(next::add);
-                if (t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget) {
+                if (t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget
+                        || t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodReferenceTarget) {
                     for (com.tngtech.archunit.core.domain.JavaMethod m : bySignature.getOrDefault(
                             signature(t.getName(), t.getRawParameterTypes()), java.util.List.of())) {
                         if (m.getOwner().isAssignableTo(t.getOwner().getName())) {
@@ -1503,6 +1509,16 @@ final class ArchitectureTest {
             }
         }
         return seen;
+    }
+
+    /** What {@code u} calls or references (a method reference is a call made later). */
+    private static java.util.List<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget> targetsOf(
+            com.tngtech.archunit.core.domain.JavaCodeUnit u) {
+        java.util.List<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget> targets =
+                new java.util.ArrayList<>();
+        u.getCallsFromSelf().forEach(c -> targets.add(c.getTarget()));
+        u.getCodeUnitReferencesFromSelf().forEach(r -> targets.add(r.getTarget()));
+        return targets;
     }
 
     private static String signature(String name, java.util.List<com.tngtech.archunit.core.domain.JavaClass> params) {
@@ -1523,6 +1539,33 @@ final class ArchitectureTest {
             "calls com.legend.Execution#runBody -> com.legend.driver.BodyRouter#run",
             "takes com.legend.Execution$Source#open(ModelContext)",
             "takes com.legend.driver.BodyRouter#run(ModelContext)",
+            // hole 7 on the product's door (the slice 3 follow-up audit, 2026-11-08: the server's session source made a
+            // run entry): the server opens a query's session from the model -- the stores' content key, and the model's
+            // Data rows filled into a session it makes (ProjectData, CsvSeed)
+            "calls com.legend.server.ConnectionResolver#connect -> com.legend.server.ConnectionResolver#filled",
+            "calls com.legend.server.ConnectionResolver#connect -> com.legend.setup.ProjectData#rowsKey",
+            "calls com.legend.server.ConnectionResolver#filled -> com.legend.setup.ProjectData#fill",
+            "calls com.legend.server.ConnectionResolver#open -> com.legend.server.ConnectionResolver#connect",
+            "calls com.legend.server.ConnectionResolver#open -> com.legend.server.ConnectionResolver#storesKey",
+            "calls com.legend.server.ConnectionResolver#storesKey -> com.legend.compiler.element.ModelContext#databases",
+            "calls com.legend.setup.CsvSeed#blockSqls -> com.legend.compiler.element.ModelContext#findTableDefinition",
+            "calls com.legend.setup.CsvSeed#sqls -> com.legend.setup.CsvSeed#steps",
+            "calls com.legend.setup.CsvSeed#steps -> com.legend.setup.CsvSeed#blockSqls",
+            "calls com.legend.setup.ProjectData#declaring -> com.legend.compiler.element.ModelContext#databases",
+            "calls com.legend.setup.ProjectData#fill -> com.legend.compiler.element.ModelContext#dataElements",
+            "calls com.legend.setup.ProjectData#fill -> com.legend.setup.CsvSeed#sqls",
+            "calls com.legend.setup.ProjectData#fill -> com.legend.setup.ProjectData#declaring",
+            "calls com.legend.setup.ProjectData#rowsKey -> com.legend.compiler.element.ModelContext#dataElements",
+            "takes com.legend.server.ConnectionResolver#connect(ModelContext)",
+            "takes com.legend.server.ConnectionResolver#filled(ModelContext)",
+            "takes com.legend.server.ConnectionResolver#open(ModelContext)",
+            "takes com.legend.server.ConnectionResolver#storesKey(ModelContext)",
+            "takes com.legend.setup.CsvSeed#blockSqls(ModelContext)",
+            "takes com.legend.setup.CsvSeed#sqls(ModelContext)",
+            "takes com.legend.setup.CsvSeed#steps(ModelContext)",
+            "takes com.legend.setup.ProjectData#declaring(ModelContext)",
+            "takes com.legend.setup.ProjectData#fill(ModelContext)",
+            "takes com.legend.setup.ProjectData#rowsKey(ModelContext)",
             // hole 2: the system database's sessions found through the model, cached in it
             "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SystemDatabase#of",
             "takes com.legend.driver.SystemDatabase#of(ModelContext)",
@@ -1546,11 +1589,12 @@ final class ArchitectureTest {
      */
     @Test
     void theRunRereadsNoRule() {
-        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources");
+        // engineCompat too: the judging rules are derived from it (the slice 3 follow-up audit, 2026-11-08)
+        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources",
+                "engineCompat");
         java.util.Set<String> reads = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
-            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
-                var t = call.getTarget();
+            for (var t : targetsOf(u)) {
                 if (t.getOwner().getName().equals("com.legend.ExecuteOptions") && planningFacts.contains(t.getName())) {
                     reads.add(u.getOwner().getName() + "#" + u.getName() + " -> ExecuteOptions#" + t.getName());
                 }
@@ -1618,10 +1662,10 @@ final class ArchitectureTest {
                     }
                 }
             }
-            for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
-                String owner = call.getTarget().getOwner().getName();
-                if (told.contains(owner) || told.contains(owner + "#" + call.getTarget().getName())) {
-                    found.add("planning tells: " + at + " -> " + owner + "#" + call.getTarget().getName());
+            for (var t : targetsOf(u)) {
+                String owner = t.getOwner().getName();
+                if (told.contains(owner) || told.contains(owner + "#" + t.getName())) {
+                    found.add("planning tells: " + at + " -> " + owner + "#" + t.getName());
                 }
             }
         }

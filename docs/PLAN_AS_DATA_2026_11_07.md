@@ -846,6 +846,7 @@ later slice to close one; that is a question for the user.
 | D1 | Guard 1 deduplicates by type, so its `Number` pin also hides `Following.n` | `PlanTypesAreDataTest` | report by (type, path); the frame offset a closed type (the step 9 draft) |
 | D2 | The plan is not self-contained: its appeal numbers point into a planner registry, and the router adds the appeals | `BodyRouter`, `TestDoor.planned` | test planning returns the whole test plan, appeals included. Under lite's own rules there are no dangling numbers |
 | D3 | A CSV load's local file path in the plan | `options.resources()` at planning | to be designed in slice 4. A portability matter (G11) |
+| A1 | Under the agreement judge with the compatibility rules, a failed text holds two appeals, one per half: the referee replays twice and its report is told twice (the outcome is right: both decide alike). Found by the slice 3 follow-up audit, pinned at 2 by `BodyRouterParityTest.engineTextPrograms` | `AgreementRuns` (the database half's `rowAppeals`), `SqlTextVerdicts.judge` | slice 4: one appeal per assert, heard by both halves |
 | E | No thin door: `BodyRouter` makes about ten decisions; the mixed classes; the planning environment carries run resources | `driver/*`, `judge.VerdictBatch` | slice 5: the run record, then step 10 as a spec. Each library's entry points, the thin door, and ArchUnit rules first |
 
 ### The guards (ratchets in slice 3, hard by slice 5)

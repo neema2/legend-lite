@@ -126,11 +126,15 @@ public final class RootLoops {
                                 reported = d.reported();
                                 RuntimeException raised = Failures.raised(d.failure());
                                 // the verdict census at the root's turn, from the plan's data, before the decided
-                                // outcome raises -- a wall raises past this loop's catch, so it is counted here: an
-                                // UNJUDGED failure as such, a raise no row of the root judged on the root's family
-                                if (raised instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                                // outcome raises (a wall raises past this loop's catch): an UNJUDGED failure as such,
+                                // a WALL no row of the root judged as a raise on the root's family -- a failure
+                                // decided at planning was judged there, never "not attempted". Counted by the judge of
+                                // record alone: under the agreement judge this is its database half, whose outcome the
+                                // agreement counts (the slice 3 follow-up audit, 2026-11-08: counted twice)
+                                if (messages && raised instanceof com.legend.error.AssertFailed af
+                                        && af.unjudgedReason() != null) {
                                     CanonicalDivergence.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
-                                } else if (!spoke) {
+                                } else if (messages && !spoke && !d.reported()) {
                                     CanonicalDivergence.sqlRaisedAt(family(r.listenerName()));
                                 }
                                 throw raised;

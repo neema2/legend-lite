@@ -435,6 +435,9 @@ final class DatabaseJudge {
         }
         Object unjudged = row.get(3);
         if (unjudged != null) {
+            // counted UNJUDGED here, at the row's turn: the run's own census (the slice 3 follow-up audit, 2026-11-08:
+            // moving the count off planning left the row's UNJUDGED uncounted)
+            com.legend.judge.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
             // the evidence columns ride the message (bounded): an accepted
             // divergence matches its witness here, and a row is diagnosable
             // without a re-run
