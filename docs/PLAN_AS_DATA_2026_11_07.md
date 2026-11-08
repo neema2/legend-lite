@@ -894,7 +894,8 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
     - `theListenerIsOutputOnly`: hard, at zero. No listener method answers a value, and no planning class, planning
       entry or planning environment takes or holds a listener or a referee.
   - *Verified:* the DuckDB corpus on both judges equals the baseline (host 2436/108/7, database 2429/108/7, no line
-    differs, the decline tallies equal).
+    differs). One tally moved, as hole 5 intends: under the database judge `foreign-dialect:Composite` went from 9 to
+    8, the host's count -- a decline planning had told for a row the run never reached is no longer counted.
   - *Found, not changed:* `BodyRouterParityTest.queryPrograms` checks only that the router planned each body. On H2,
     `[1, 2, 3]->map(x|$x * 2)` is refused at planning (`UNNEST reached a dialect without an unnest placement`), and
     the test does not notice. This predates the batch.
