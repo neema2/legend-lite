@@ -728,6 +728,14 @@ public final class TsParser {
             return new TsAst.Nested(q, pos);
         }
         if (tokens.get(from).is("select")) {
+            if (from + 1 < to && tokens.get(from + 1).is("distinct")) {
+                // the language's refusal, naming the fix, where the parser's was a bare syntax error (PR #90's finding
+                // 4, 2026-11-08): DISTINCT keeps no one row of a date's corrected prints either
+                throw unsupported("a source's subquery in #TS takes no DISTINCT: to keep one row of a date's several"
+                        + " (a corrected print), keep each date's last print before #TS -- in Pure, rowNumber over the"
+                        + " date's rows by its sequence, descending, the first kept -- or name each line with BY (D8)",
+                        tokens.get(from + 1).pos());
+            }
             int fromAt = depthZero(from + 1, to, t -> t.is("from"));
             if (fromAt < 0) {
                 throw invalid("a subquery reads FROM a source: (SELECT ... FROM MarketQuote)", tokens.get(from).pos());

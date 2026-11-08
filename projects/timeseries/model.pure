@@ -1934,8 +1934,15 @@ function timeseries::lines::sample<T,K,D,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], ke
 {
   let rows = $t->filter(r|$r->read($date)->isNotEmpty() && $r->read($value)->isNotEmpty())
     ->extend(~[sk:r|$r->read($key), sp:r|timeseries::lines::periodOf($r->read($date)->toOne()->datePart(), $sample), so:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.SECONDS), sa:r|$r->read($date)->toOne()->datePart(), sv:r|$r->read($value)]);
-  let grouped = if($taken == timeseries::Taken.last, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->maxBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
-    |if($taken == timeseries::Taken.first, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->minBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+  // a period's last or first row is its moment's one row: several rows at that moment (a corrected print, two
+  // observations of one date) have no order, and the database would pick among them -- refused, naming the fix
+  // (lines::onceTaken; #90's finding 3, two load orders answered two closes)
+  let grouped = if($taken == timeseries::Taken.last, |$rows->extend(over(~[sk, so]), ~st:{p,f,r|1}:y|$y->count())
+      ->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->maxBy(), gt:x|rowMapper($x.st, $x.so):y|$y->maxBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()])
+      ->filter(x|if(timeseries::lines::onceTaken($x.gt->toOne()), |true, |false))->select(~[sk, sp, gv, go, ga]),
+    |if($taken == timeseries::Taken.first, |$rows->extend(over(~[sk, so]), ~st:{p,f,r|1}:y|$y->count())
+      ->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->minBy(), gt:x|rowMapper($x.st, $x.so):y|$y->minBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()])
+      ->filter(x|if(timeseries::lines::onceTaken($x.gt->toOne()), |true, |false))->select(~[sk, sp, gv, go, ga]),
       |if($taken == timeseries::Taken.max, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->max(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
         |if($taken == timeseries::Taken.min, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->min(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
           |if($taken == timeseries::Taken.sum, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->sum(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
@@ -2514,6 +2521,15 @@ function timeseries::lines::untied<K,D>(x: Relation<(key:K, date:D, value:Number
 function timeseries::lines::once(n: Integer[1]): Boolean[1]
 {
   if($n > 1, |fail('a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)'), |true)
+}
+
+// A period's last or first row under SAMPLE BY (last(x), first(x)), the n rows at the moment it picks: true where one;
+// refused where several, naming the fix -- rows of one moment have no order, so "SAMPLE BY 1d with last(x)" is no fix
+// there (the adversarial fixture's finding 3, PR #90: two load orders answered two closes; the user's ruling of
+// 2026-11-08 on duplicate prints, "Last print wins, else refuse").
+function timeseries::lines::onceTaken(n: Integer[1]): Boolean[1]
+{
+  if($n > 1, |fail('last(x) or first(x) under SAMPLE BY met a line with several rows at one moment -- a corrected print, or two observations of one date -- which have no order: add BY or a subscript, or keep each date\'s last print before #TS (D8)'), |true)
 }
 
 // The rows forms of the words over w observations whose table functions read a window over another (R7 part 3,

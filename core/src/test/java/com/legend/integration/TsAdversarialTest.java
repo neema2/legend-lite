@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -174,13 +173,13 @@ class TsAdversarialTest {
     }
 
     @Test
-    void sampleByLastPicksAmongADatesTiedRowsByTheOrderTheyWereLoaded() throws Exception {
-        // A finding, measured: SAMPLE BY's last(x) -- the fix S149's refusal names, "SAMPLE BY 1d with last(x)"
-        // (timeseries::lines::once) -- takes a period's row by its number in time, its date's seconds
-        // (timeseries::lines::sample, Taken.last: rowMapper(value, seconds)->maxBy()), so a date's two rows tie and the
-        // database picks; seq is never read. The same rows loaded in two orders give two answers on the duplicate's
-        // date. This test turns red the day the pick reads an order of the data's (or the tie is refused): then the
-        // finding is closed, and this test goes with it.
+    void sampleByLastOfADatesTiedRowsIsRefusedWhateverTheirLoadOrder() throws Exception {
+        // The finding this fixture measured (PR #90, finding 3): SAMPLE BY's last(x) took a period's row by its number
+        // in time, its date's seconds, so a date's two rows tied and the database picked -- the same rows loaded in two
+        // orders answered two closes. Closed 2026-11-08 (the user's ruling on duplicate prints, "Last print wins, else
+        // refuse"): a tie at the moment last(x) or first(x) picks is refused while the query runs, naming the fix
+        // (timeseries::lines::onceTaken), in either load order; a source that names its sequence column is the
+        // ruling's other half, its spelling to design.
         Map<String, Trap> traps = manifest(Runfile.property("ts.adversarial.manifest"));
         String date = java.util.Objects.requireNonNull(traps.get("duplicate_row").duplicate(), "duplicate_row's date");
         TestBackend backend = TestBackends.named(backendName());
@@ -198,20 +197,19 @@ class TsAdversarialTest {
                 }
             }
             assertEquals(2, closes.size(), "the duplicate's date has two rows, the print and its correction");
-            Map<String, Double> picked = new LinkedHashMap<>();
             for (String table : List.of("PRICES", "PRICES_REVERSED")) {
-                List<Map<String, String>> on = on(rows(model, c, ts("SELECT last(CLOSE['BTCUSD']) AS v FROM " + table
-                        + " ON DATE BY SYMBOL SAMPLE BY 1d")), date);
-                assertEquals(1, on.size(), table + ": one period on " + date);
-                picked.put(table, value(on, "v"));
+                for (String taken : List.of("last", "first")) {
+                    String q = ts("SELECT " + taken + "(CLOSE['BTCUSD']) AS v FROM " + table + " ON DATE BY SYMBOL"
+                            + " SAMPLE BY 1d");
+                    Exception e = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> rows(model, c, q),
+                            table + ": " + taken + "(x) of " + date + "'s tie");
+                    assertTrue(String.valueOf(e.getMessage()).contains("under SAMPLE BY met a line with several rows at"
+                            + " one moment"), table + ": " + taken + "(x) refused by name: " + e.getMessage());
+                }
             }
-            System.out.println("[ts-adversarial] tie on " + date + ": last(CLOSE['BTCUSD']) SAMPLE BY 1d picked "
-                    + picked + " of the date's closes " + closes + " (by seq)");
-            assertTrue(closes.containsAll(picked.values()), "each pick is one of the date's closes: " + picked
-                    + " of " + closes);
-            assertNotEquals(picked.get("PRICES"), picked.get("PRICES_REVERSED"), "the same rows loaded in two orders"
-                    + " answered alike, " + picked + ": the tie no longer follows the load order -- the finding is"
-                    + " closed or hidden; say which, and retire this test");
+            // a line of no tie answers as it did: ALPHA's weeks
+            assertTrue(!rows(model, c, ts("SELECT last(CLOSE['ALPHA']) AS v FROM PRICES ON DATE BY SYMBOL"
+                    + " SAMPLE BY 1d")).isEmpty(), "a line of one row a date");
         }
     }
 

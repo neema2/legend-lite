@@ -699,6 +699,14 @@ class TsIslandTest {
         String join = refused("WITH q AS (SELECT * FROM PRICES JOIN INSTRUMENTS ON SYMBOL = TICKER) SELECT CLOSE AS c"
                 + " FROM q ON DAY", true);
         assertTrue(!join.contains("write WITH daily AS TS") && join.contains("JOIN"), join);
+        // DISTINCT in a source's subquery is the language's refusal, naming the fix, in FROM and in a WITH body alike
+        // (PR #90's finding 4, 2026-11-08: a bare syntax error before)
+        for (String q : List.of("SELECT CLOSE AS c FROM (SELECT DISTINCT * FROM PRICES) p ON DAY BY SYMBOL",
+                "WITH d AS (SELECT DISTINCT * FROM PRICES) SELECT CLOSE AS c FROM d ON DAY BY SYMBOL")) {
+            String said = refused(q, true);
+            assertTrue(said.contains("takes no DISTINCT") && said.contains("keep each date's last print before #TS"),
+                    q + ": " + said);
+        }
     }
 
     @Test
