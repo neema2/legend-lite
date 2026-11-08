@@ -1063,3 +1063,16 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
     returns a runtime's target.
   - **Guards and checks:** `MODEL_SITES` loses hole 7's sites. `PureV1ApiTest`, `ConnectionLeaseTest`, the server
     suites and the corpus must stay green. Measure the plan size on the demo project.
+- **Hole 7 v1 landed (`050e78bd`, 2026-11-08).** The server's session is opened from the plan alone:
+  - `ExecutionPlan.Project` on the product's targets;
+  - `PlanSessions.projectDatabase`;
+  - `Execution.Source.open(ExecutionPlan.Target)`;
+  - `ConnectionResolver`'s keys and fill deleted.
+
+  `noCompiledModelReachesTheRun` went from 31 sites to 6; the 6 left are hole 2's.
+  - **Verified:** guardrails, census, the core server, planner, exec, root (three judges) and integration suites; the
+    DuckDB corpus on both judges equal to the baseline; `//gates:pct_duckdb` green.
+  - **Still to do:**
+    - measure the plan's size with Data inline (the demo project, `query/demo/verify.mjs`);
+    - D3 (a CSV load's local path, the same shape: content in the plan);
+    - the full lane round with slice 4's close.
