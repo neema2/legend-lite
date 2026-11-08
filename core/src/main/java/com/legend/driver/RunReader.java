@@ -16,7 +16,7 @@ import java.util.function.Function;
  * so outside a judgment there is none.
  *
  * <p>The READER is the one a judgment reads a planned side through: inside the body's run, the program's own
- * {@link PlanRunner.SideReader}; for a held appeal, the edge's, each side a plan of its own run on the body's sessions
+ * {@link com.legend.judge.SideReader}; for a held appeal, the edge's, each side a plan of its own run on the body's sessions
  * after the body's run (the body's run sends its plan's statements and nothing else). The SESSIONS by target (I3,
  * 2026-11-07): planning names a target and never holds a session, so a judgment that needs a session itself -- the
  * compatibility referee replays the golden beside the body's database -- asks for the one its target opened
@@ -27,14 +27,14 @@ final class RunReader {
     private RunReader() {
     }
 
-    private record Published(PlanRunner.@Nullable SideReader reader,
+    private record Published(com.legend.judge.@Nullable SideReader reader,
             @Nullable Function<ExecutionPlan.Target, Sessions.Session> sessions) {
     }
 
     private static final ThreadLocal<@Nullable Published> CURRENT = new ThreadLocal<>();
 
     /** A judgment's scope with {@code reader} and the run's {@code sessions} published (null: none). */
-    static Scope judging(PlanRunner.@Nullable SideReader reader,
+    static Scope judging(com.legend.judge.@Nullable SideReader reader,
             @Nullable Function<ExecutionPlan.Target, Sessions.Session> sessions) {
         Published prior = CURRENT.get();
         CURRENT.set(new Published(reader, sessions));
@@ -57,7 +57,7 @@ final class RunReader {
     }
 
     /** The reader of the judgment in progress, or null. */
-    static PlanRunner.@Nullable SideReader current() {
+    static com.legend.judge.@Nullable SideReader current() {
         Published p = CURRENT.get();
         return p == null ? null : p.reader();
     }

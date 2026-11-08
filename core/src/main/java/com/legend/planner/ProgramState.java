@@ -43,7 +43,7 @@ public final class ProgramState {
      *  this program, never a value threaded through. */
     private final ObjectSites sites = new ObjectSites();
     private final List<TypedSpec> lets = new ArrayList<>();
-    private final List<ExecutionPlan.Node> steps = new ArrayList<>();
+    private final List<PlannedStep> steps = new ArrayList<>();
     private final List<String> staged = new ArrayList<>();
     /** The program's frames (M3f): the execute(...) results its statements read, their plan rows and stamps. */
     private final ProgramFrames frames = new ProgramFrames();
@@ -111,7 +111,14 @@ public final class ProgramState {
 
     /** Places {@code step} after the steps planned so far. */
     public void add(ExecutionPlan.Node step) {
-        steps.add(step);
+        steps.add(new PlannedStep.Product(step));
+    }
+
+    /** Places the extension's step {@code handle} after the steps planned so far, reading {@code declared} (the
+     *  plan-as-data design's step 3, 2026-11-08: a test's verdict group or branch, which the product's plan never
+     *  holds). */
+    public void addExtension(int handle, List<ExecutionPlan.Node> declared) {
+        steps.add(new PlannedStep.Extension(handle, declared));
     }
 
     /** Adds {@code let} to the lets the statements after read. */
@@ -132,8 +139,8 @@ public final class ProgramState {
     }
 
     /** The steps planned so far, in order (a copy). */
-    List<ExecutionPlan.Node> steps() {
-        return List.copyOf(steps);
+    List<PlannedStep> steps() {
+        return new ArrayList<>(steps);
     }
 
     /** The staged tables, in the order they were made (a copy). */

@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.AssertFailed;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.judge.AssertListener;
 import com.legend.judge.TypedSide;
 import com.legend.testplan.TestDoor;
@@ -44,17 +45,17 @@ final class AgreementAsserts implements TestDoor.Asserts {
     static final class One {
         final HostAsserts.Planned host;
         final DatabaseAsserts.@Nullable Each database;
-        final ExecutionPlan.Verdicts step;
+        final TestPlan.Verdicts step;
         /** The assert's steps, in order: its one step; an assertError over an assert's two (the host's own, then the
          *  database's raising one). */
-        final List<ExecutionPlan.Verdicts> steps;
-        final ExecutionPlan.Verdict hostVerdict;
-        final Map<Integer, ExecutionPlan.Verdict> members;
+        final List<TestPlan.Verdicts> steps;
+        final TestPlan.Verdict hostVerdict;
+        final Map<Integer, TestPlan.Verdict> members;
         AssertVerdicts.@Nullable HostHeld held;
         /** An assertError's (S135): the step is its raising verdict, and the database half's row is the statement's. */
         final boolean raising;
         /** An assertError's verdict whose row is the database half's (its raising step's). */
-        final ExecutionPlan.@Nullable Verdict raisingVerdict;
+        final TestPlan.@Nullable Verdict raisingVerdict;
         @Nullable List<Object> raisingRow;
 
         /** An assertError's steps for both judges (S135): the database's raising verdict, whose base the host reads --
@@ -62,7 +63,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
          *  asks both): the host's own step first, its sides read and judged as the host judge judges an assertError
          *  over an assert, then the database's raising step, its statement comparing what the database's verdict of the
          *  inner assert raised; the agreement rule decides once both are in. */
-        One(HostAsserts.Planned host, ExecutionPlan.Verdicts raising) {
+        One(HostAsserts.Planned host, TestPlan.Verdicts raising) {
             this.host = host;
             this.database = null;
             boolean overAnAssert = HostJudgment.core(host.assertion().check().judgment())
@@ -80,26 +81,26 @@ final class AgreementAsserts implements TestDoor.Asserts {
             this.raisingVerdict = null;
             this.host = host;
             this.database = database;
-            Map<Integer, ExecutionPlan.Verdict> m = new java.util.HashMap<>();
-            ExecutionPlan.Verdict hv = host.verdict();
-            ExecutionPlan.Verdicts group = database == null ? null : database.group();
+            Map<Integer, TestPlan.Verdict> m = new java.util.HashMap<>();
+            TestPlan.Verdict hv = host.verdict();
+            TestPlan.Verdicts group = database == null ? null : database.group();
             if (group == null) {
                 this.step = host.step();
                 this.hostVerdict = hv;
             } else {
                 // the host's base on the database's first member: one verdict carries both judges' statements
-                ExecutionPlan.Verdict first = group.verdicts().get(0);
+                TestPlan.Verdict first = group.verdicts().get(0);
                 // it replaces the database's first member in the plan, so it keeps that member's id
-                ExecutionPlan.Verdict both = new ExecutionPlan.Verdict(first.id(), hv.name(), hv.arm(), hv.base(),
+                TestPlan.Verdict both = new TestPlan.Verdict(first.id(), hv.name(), hv.arm(), hv.base(),
                         first.wrapper(), hv.message());
-                List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(group.verdicts().size());
+                List<TestPlan.Verdict> verdicts = new ArrayList<>(group.verdicts().size());
                 verdicts.add(both);
                 m.put(both.id(), first);
-                for (ExecutionPlan.Verdict v : group.verdicts().subList(1, group.verdicts().size())) {
+                for (TestPlan.Verdict v : group.verdicts().subList(1, group.verdicts().size())) {
                     verdicts.add(v);
                     m.put(v.id(), v);
                 }
-                this.step = new ExecutionPlan.Verdicts(verdicts, group.fused(), group.savepoint(), group.rules());
+                this.step = new TestPlan.Verdicts(verdicts, group.fused(), group.savepoint(), group.rules());
                 this.hostVerdict = both;
             }
             this.steps = List.of(step);
@@ -107,7 +108,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
 
         /** Whether {@code v} is the step's last verdict: both judges have read what they read once it is in. */
-        boolean closes(ExecutionPlan.Verdict v) {
+        boolean closes(TestPlan.Verdict v) {
             return step.verdicts().get(step.verdicts().size() - 1) == v;
         }
     }
@@ -116,18 +117,18 @@ final class AgreementAsserts implements TestDoor.Asserts {
     private final Map<Integer, One> byStatement;
     /** The branches (the asserts-as-plan-nodes program, step 4), by the statement's place: the host half's branch,
      *  each side's asserts assembled for both judges. */
-    private final Map<Integer, ExecutionPlan.Branch> branches;
+    private final Map<Integer, TestPlan.Branch> branches;
     private final Map<Integer, One> byVerdict;
 
-    private AgreementAsserts(HostAsserts host, Map<Integer, One> byStatement, Map<Integer, ExecutionPlan.Branch> branches,
+    private AgreementAsserts(HostAsserts host, Map<Integer, One> byStatement, Map<Integer, TestPlan.Branch> branches,
             List<AgreementAsserts> sides) {
         this.host = host;
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         Map<Integer, One> verdicts = new java.util.HashMap<>();
         for (One one : byStatement.values()) {
-            for (ExecutionPlan.Verdicts step : one.steps) {
-                for (ExecutionPlan.Verdict v : step.verdicts()) {
+            for (TestPlan.Verdicts step : one.steps) {
+                for (TestPlan.Verdict v : step.verdicts()) {
                     verdicts.put(v.id(), one);
                 }
             }
@@ -166,7 +167,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
         Map<Integer, DatabaseAsserts.Each> database = DatabaseAsserts.planEach(typed, runtime, databaseEnv,
                 systemRouted, host::frameStamp, lets);
         Map<Integer, One> byStatement = new LinkedHashMap<>();
-        Map<Integer, ExecutionPlan.Branch> branches = new LinkedHashMap<>();
+        Map<Integer, TestPlan.Branch> branches = new LinkedHashMap<>();
         List<AgreementAsserts> sides = new ArrayList<>();
         for (int i = 0; i < typed.body().size(); i++) {
             HostAsserts.Branched b = host.branch(i);
@@ -175,7 +176,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
                         databaseEnv, systemRouted, b.lets());
                 AgreementAsserts otherwise = assemble(b.otherwise(), AssertBranch.body(typed, b.parts().otherwise()),
                         runtime, databaseEnv, systemRouted, b.lets());
-                branches.put(i, new ExecutionPlan.Branch(b.condition(), then.steps(b.parts().then().size()),
+                branches.put(i, new TestPlan.Branch(b.condition(), then.steps(b.parts().then().size()),
                         otherwise.steps(b.parts().otherwise().size())));
                 sides.add(then);
                 sides.add(otherwise);
@@ -183,7 +184,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             }
             HostAsserts.Planned p = host.planned(i);
             if (p != null) {
-                ExecutionPlan.Verdicts raising = HostJudgment.core(p.assertion().check().judgment())
+                TestPlan.Verdicts raising = HostJudgment.core(p.assertion().check().judgment())
                         instanceof HostJudgment.AssertError
                         ? DatabaseAsserts.errorVerdictFor(p, typed.body().get(i), lets, typed.specs(), databaseEnv)
                         : null;
@@ -195,8 +196,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
     }
 
     @Override
-    public @Nullable List<? extends ExecutionPlan.Node> at(int statement) {
-        ExecutionPlan.Branch b = branches.get(statement);
+    public @Nullable List<? extends TestPlan.TestStep> at(int statement) {
+        TestPlan.Branch b = branches.get(statement);
         if (b != null) {
             return List.of(b);
         }
@@ -204,11 +205,16 @@ final class AgreementAsserts implements TestDoor.Asserts {
         return one == null ? null : one.steps;
     }
 
+    @Override
+    public TestPlan.Judge judge() {
+        return TestPlan.Judge.AGREEMENT;
+    }
+
     /** The steps of this body's {@code statements} statements, in order. */
-    private List<ExecutionPlan.Node> steps(int statements) {
-        List<ExecutionPlan.Node> out = new ArrayList<>();
+    private List<TestPlan.TestStep> steps(int statements) {
+        List<TestPlan.TestStep> out = new ArrayList<>();
         for (int i = 0; i < statements; i++) {
-            List<? extends ExecutionPlan.Node> at = at(i);
+            List<? extends TestPlan.TestStep> at = at(i);
             if (at == null) {
                 throw new IllegalStateException("a branch side's statement " + i + " planned no step");
             }
@@ -223,7 +229,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
     }
 
     /** The assert the runner handed {@code verdict} for. */
-    One of(ExecutionPlan.Verdict verdict) {
+    One of(TestPlan.Verdict verdict) {
         One one = byVerdict.get(verdict.id());
         if (one == null) {
             throw new IllegalStateException("a verdict step no assert of the body planned: " + verdict.name());
@@ -235,10 +241,10 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  reading them raised, the judgment deciding it), judged and HELD ({@link AssertVerdicts#heldAtItsStep}): the
      *  verdict of record is decided once the database half's rows are in ({@link #received}); a database member's
      *  (no base, so nothing read) is nothing to the host, but an error reading it is raised, never dropped. */
-    void hostSides(ExecutionPlan.Verdict verdict,
+    void hostSides(TestPlan.Verdict verdict,
             java.util.function.Supplier<List<com.legend.exec.PlanRunner.Rows>> rows,
             java.util.function.@Nullable Supplier<com.legend.exec.PlanRunner.Rows> message,
-            @Nullable AssertListener listener, ExecutionPlan.JudgingRules rules) {
+            @Nullable AssertListener listener, TestPlan.JudgingRules rules) {
         One one = of(verdict);
         if (verdict != one.hostVerdict) {
             if (verdict != one.raisingVerdict) {
@@ -256,8 +262,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
     /** The database half's row for {@code verdict} to its root; null where {@code verdict} is not the step's last.
      *  At the last, both judges have read: the agreement rule decides, the listener is told the verdict of record, and
      *  a failure raises (the walk's tryAdjudicate over its agreement arm). */
-    @Nullable TypedSide received(ExecutionPlan.Verdict verdict, @Nullable List<Object> row,
-            @Nullable AssertListener listener, PlanRunner.@Nullable SideReader reader) {
+    @Nullable TypedSide received(TestPlan.Verdict verdict, @Nullable List<Object> row,
+            @Nullable AssertListener listener, com.legend.judge.@Nullable SideReader reader) {
         One one = of(verdict);
         if (one.raising) {
             if (verdict != one.raisingVerdict) {
@@ -266,7 +272,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
             one.raisingRow = row;
             return decided(one, listener, reader);
         }
-        ExecutionPlan.Verdict member = one.members.get(verdict.id());
+        TestPlan.Verdict member = one.members.get(verdict.id());
         if (member != null) {
             java.util.Objects.requireNonNull(one.database).planned().received(member, row);
         }
@@ -277,7 +283,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
     }
 
     /** The runner's word on a group's fused statement, to the assert's database root. */
-    void fused(ExecutionPlan.Verdicts group, com.legend.error.@Nullable DataError rejected) {
+    void fused(TestPlan.Verdicts group, com.legend.error.@Nullable DataError rejected) {
         One one = of(group.verdicts().get(0));
         java.util.Objects.requireNonNull(one.database, "a fused statement for an assert the database declined")
                 .planned().fused(group, rejected);
@@ -286,7 +292,7 @@ final class AgreementAsserts implements TestDoor.Asserts {
     /** {@code one} decided at its last row, inside the program's run: a row its database half planned ahead read
      *  through the program's {@code reader} (THE WALL, 2026-11-06: no run of its own). */
     private static TypedSide decided(One one, @Nullable AssertListener listener,
-            PlanRunner.@Nullable SideReader reader) {
+            com.legend.judge.@Nullable SideReader reader) {
         AssertVerdicts.HostAssert a = one.host.assertion();
         AssertVerdicts.HostHeld held = one.held;
         if (held == null) {

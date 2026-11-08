@@ -161,7 +161,7 @@ public final class Equality {
     }
 
     /** Equal, or the first difference. */
-    public static @com.legend.base.Nullable String scalar(Typed e, Typed a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static @com.legend.base.Nullable String scalar(Typed e, Typed a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return same(e, a, rules) ? null
                 : "\nexpected: " + PureAsserts.repr(e.value())
                         + "\nactual:   " + PureAsserts.repr(a.value());
@@ -169,7 +169,7 @@ public final class Equality {
 
     /** The decision itself (the narrative is the caller's when it has a
      * better one — a row, a path). */
-    public static boolean same(Typed et, Typed at, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static boolean same(Typed et, Typed at, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");
         Object e = et.value();
         Object a = at.value();
@@ -199,7 +199,7 @@ public final class Equality {
             // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
             // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
             // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
+            return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
                     && String.valueOf(e).equals(String.valueOf(a));
         }
         if (ek == Kind.INTEGER) {
@@ -266,14 +266,14 @@ public final class Equality {
                 || x == Kind.DECIMAL && y == Kind.INTEGER;
     }
 
-    private static boolean structural(Object e, Object a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static boolean structural(Object e, Object a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return firstDiff(e, a, "$", (x, y) -> same(Typed.of(x), Typed.of(y), rules)) == null;
     }
 
     // ---- COLLECTIONS ------------------------------------------------------
 
     /** Element by element, in order. */
-    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (e.size() != a.size()) {
             return "\nexpected " + e.size() + " element(s), actual " + a.size();
         }
@@ -287,13 +287,13 @@ public final class Equality {
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return ordered(sorted(e), sorted(a), rules);
     }
 
     /** True when every element of {@code needle} has an equal in
      * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static boolean contains(List<Typed> hay, Typed needle, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         for (Typed h : hay) {
             if (same(needle, h, rules)) {
                 return true;
@@ -315,7 +315,7 @@ public final class Equality {
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one
      * equal actual row); cells through {@link #same}. */
-    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (e.size() != a.size()) {
             return false;
         }

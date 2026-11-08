@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class EqualityWorldsConformanceTest {
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
-    private static final com.legend.executionplan.ExecutionPlan.JudgingRules LITE =
-            com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
+    private static final com.legend.testexecutionplan.TestPlan.JudgingRules LITE =
+            com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
 
 
     private static Connection conn;
@@ -116,7 +116,7 @@ class EqualityWorldsConformanceTest {
         diverge(false, true, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
                 "clean mode's exact Float vs the database's DECIMAL arithmetic over bare literals");
         assertEquals(true, Equality.same(Equality.Typed.of(0.1d + 0.2d), Equality.Typed.of(0.3d),
-                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT),
+                com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT),
                 "compatibility mode's 2-ULP tolerance holds 0.1 + 0.2 as 0.3");
         // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for
         // decimals (both engine lanes lower == to SQL) while the
@@ -134,7 +134,7 @@ class EqualityWorldsConformanceTest {
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
         assertEquals(false, Equality.same(Equality.Typed.of(new java.math.BigDecimal("3.0")),
                 Equality.Typed.of(new java.math.BigDecimal("3.00")),
-                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT),
+                com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT),
                 "compatibility mode: the engine assert seam's scale-sensitive equals");
     }
 }

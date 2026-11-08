@@ -85,7 +85,7 @@ final class AssertErrorNative {
      *  road's one rule; a side that raises nothing fails ("No error was thrown"), an error no arm takes (a wall) is
      *  raised as it was. */
     static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (a.inner() != null) {
             // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
             // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the

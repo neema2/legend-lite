@@ -6,6 +6,7 @@ package com.legend.judge;
 import com.legend.database.Databases;
 import com.legend.exec.ExecutionTrace;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
@@ -70,13 +71,13 @@ class VerdictBatchSplitRungTest {
         }
 
         @Override
-        public ExecutionPlan.Verdicts.Savepoint savepoint() {
+        public TestPlan.Verdicts.Savepoint savepoint() {
             return null;
         }
 
         @Override
-        public ExecutionPlan.JudgingRules rules() {
-            return ExecutionPlan.JudgingRules.LITE;
+        public TestPlan.JudgingRules rules() {
+            return TestPlan.JudgingRules.LITE;
         }
     };
 
@@ -97,7 +98,7 @@ class VerdictBatchSplitRungTest {
         VerdictBatch.Group own = groups.get(0);
         assertFalse(own.keyed());
         assertNull(own.step().fused(), "no fused statement");
-        assertEquals(List.of("a1", "a2"), own.step().verdicts().stream().map(ExecutionPlan.Verdict::name).toList(),
+        assertEquals(List.of("a1", "a2"), own.step().verdicts().stream().map(TestPlan.Verdict::name).toList(),
                 "the members the dialect spells alone, each with its own statement; member 3 left out");
         own.step().verdicts().forEach(v -> assertEquals(ExecutionPlan.TdsResult.class, v.wrapper().getClass()));
     }

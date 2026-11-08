@@ -55,14 +55,14 @@ public final class PureAsserts {
      * spec's own message — {@code %r} single values, represented-and-
      * joined collections. */
     public static @com.legend.base.Nullable String assertEquals(
-            List<Object> expected, List<Object> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            List<Object> expected, List<Object> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return assertEquals(expected, actual, null, null, rules);
     }
 
     /** The message for typed sides — the verdict's own cells, so the
      * narrative can never disagree with the decision. */
     public static @com.legend.base.Nullable String assertEqualsTyped(
-            List<Equality.Typed> expected, List<Equality.Typed> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            List<Equality.Typed> expected, List<Equality.Typed> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (Equality.ordered(expected, actual, rules) == null) {
             return null;
         }
@@ -90,7 +90,7 @@ public final class PureAsserts {
     public static @com.legend.base.Nullable String assertEquals(
             List<Object> expected, List<Object> actual,
             @com.legend.base.Nullable String expectedClass,
-            @com.legend.base.Nullable String actualClass, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            @com.legend.base.Nullable String actualClass, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (equal(expected, actual, rules)) {
             return null;
         }
@@ -101,7 +101,7 @@ public final class PureAsserts {
      * (assertSameElements.pure:17): {@code assertEquals(e->sort(),
      * a->sort())} — the multiset rule IS sort-then-ordered-equal. */
     public static @com.legend.base.Nullable String assertSameElements(
-            List<Object> expected, List<Object> actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            List<Object> expected, List<Object> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return assertSameElements(expected, actual, null, null, rules);
     }
 
@@ -110,7 +110,7 @@ public final class PureAsserts {
     public static @com.legend.base.Nullable String assertSameElements(List<Object> expected, List<Object> actual,
             @com.legend.base.Nullable String expectedClass,
             @com.legend.base.Nullable String actualClass,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         List<Object> es = sorted(expected);
         List<Object> as = sorted(actual);
         if (equal(es, as, rules)) {
@@ -209,7 +209,7 @@ public final class PureAsserts {
      * true where pure answers false). */
     public static @com.legend.base.Nullable String assertEq(
             @com.legend.base.Nullable Object expected,
-            @com.legend.base.Nullable Object actual, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            @com.legend.base.Nullable Object actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
             // F13 — identity IS observable when both wires carry the
             // synthetic __id (keyless-class instance maps, minted per
@@ -312,7 +312,7 @@ public final class PureAsserts {
      * collection equality is ordered, element-wise. */
     // ---- messages only: the decision is Equality's (host mode's one judge)
 
-    private static boolean equal(List<Object> left, List<Object> right, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static boolean equal(List<Object> left, List<Object> right, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return Equality.ordered(Equality.Typed.all(left, null),
                 Equality.Typed.all(right, null), rules) == null;
     }

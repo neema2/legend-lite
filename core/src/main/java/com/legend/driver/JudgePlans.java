@@ -18,6 +18,7 @@ import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.judge.Row;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.lowering.TypedRows;
 import com.legend.lowering.VerdictSql;
 import com.legend.plan.PlanColumns;
@@ -70,10 +71,10 @@ final class JudgePlans {
     }
 
     /** A side of {@code plan}: its typed rows, or its keyed result's. */
-    static ExecutionPlan.Side sideOf(ExecutionPlan.Node plan) {
+    static TestPlan.Side sideOf(ExecutionPlan.Node plan) {
         return switch (plan) {
-            case ExecutionPlan.TdsResult t -> new ExecutionPlan.Side.Rows(t);
-            case ExecutionPlan.Keyed k -> new ExecutionPlan.Side.KeyedRows(k);
+            case ExecutionPlan.TdsResult t -> new TestPlan.Side.Rows(t);
+            case ExecutionPlan.Keyed k -> new TestPlan.Side.KeyedRows(k);
             default -> throw new IllegalStateException("a side is a typed result or a keyed one, not " + plan);
         };
     }
@@ -256,14 +257,14 @@ final class JudgePlans {
             }
 
             @Override
-            public ExecutionPlan.JudgingRules rules() {
+            public TestPlan.JudgingRules rules() {
                 return env.options().judgingRules();
             }
 
             @Override
-            public ExecutionPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint() {
+            public TestPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint() {
                 com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
-                return s == null ? null : new ExecutionPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
+                return s == null ? null : new TestPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
             }
 
             @Override
@@ -332,7 +333,7 @@ final class JudgePlans {
     enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
 
     /**
-     * A side PLANNED before any run: the plan value a verdict step's base holds ({@link ExecutionPlan.Side}: typed
+     * A side PLANNED before any run: the plan value a verdict step's base holds ({@link TestPlan.Side}: typed
      * rows, a keyed result, or the program's constant) with what its shaping needs once the runner has read it --
      * the wrapped side (its shape and declared type), the relation schema a grid is typed by, the planned root (the
      * to-one reader's check), and for a constant the compiler's value. The host judge's arms plan their sides so,
@@ -340,7 +341,7 @@ final class JudgePlans {
      * {@link #evalSide} plans, runs and shapes one side in place for the two shapes one pass cannot plan (the
      * quantified unroll, the two-branch if; the user's ruling of 2026-10-30, S4's) and the engine-text asserts (S2i).
      */
-    record PlannedSide(ExecutionPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
+    record PlannedSide(TestPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
             @com.legend.base.Nullable TypedSide answered, @com.legend.base.Nullable TypedSpec root,
             Type.@com.legend.base.Nullable RelationType schema) {
 
@@ -374,7 +375,7 @@ final class JudgePlans {
         BodyDriver.ExecEnv env = env0.withTarget(w.target());
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
-            case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
+            case GRAPH -> new PlannedSide(new TestPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
                     root, null);
             case TABULAR -> tabularPlanned(w, env, assertBoundary, root);
             // a side that is a UNION ALL read in its branches' order, the order the database judge numbers it by
@@ -388,7 +389,7 @@ final class JudgePlans {
     /** A constant side's rows: its text cells, as the runner hands a constant side's (I2, 2026-11-07: the one-side
      *  route that ran a planned side in place deleted with the walk -- a side's rows are a verdict step's). */
     static PlanRunner.Rows constantRows(PlannedSide p) {
-        if (!(p.side() instanceof ExecutionPlan.Side.Constant c)) {
+        if (!(p.side() instanceof TestPlan.Side.Constant c)) {
             throw new IllegalStateException("a planned side's rows are read by its verdict step, never in place");
         }
         List<List<Object>> rows = new ArrayList<>(c.cells().size());
@@ -402,7 +403,7 @@ final class JudgePlans {
      *  rules, read from the plan's facts). */
     static TypedSide shape(PlannedSide p, PlanRunner.Rows rows) {
         return switch (p.kind()) {
-            case CONSTANT -> decodeConstant((ExecutionPlan.Side.Constant) p.side(),
+            case CONSTANT -> decodeConstant((TestPlan.Side.Constant) p.side(),
                     java.util.Objects.requireNonNull(p.answered(), "a constant side's value"), rows);
             case GRAPH -> new TypedSide.Graph(objectsShape(rows), p.wrappedSide().shapeInfo().type().typeName());
             case TABULAR -> tabularShape(rows, java.util.Objects.requireNonNull(p.schema(), "a grid's schema"),
@@ -454,7 +455,7 @@ final class JudgePlans {
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), env.target()));
-            return new PlannedSide(new ExecutionPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
+            return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }
         if (schema == null) {
@@ -470,7 +471,7 @@ final class JudgePlans {
             com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                     com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
             ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target());
-            return new PlannedSide(new ExecutionPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
+            return new PlannedSide(new TestPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
         // a grid that is a UNION ALL read in its branches' order, the order the database judge numbers it by
         // (2026-11-06, the final audit: the two judges read one order)
@@ -654,7 +655,7 @@ final class JudgePlans {
      *  type, one row per value, each cell the value's text -- a String itself, an Integer its digits, a Boolean its
      *  word (the three kinds the folds admit; another kind refused by name); {@code joined} marks the compiler's join
      *  of the program's constant tokens (the user's ruling, 2026-10-30). */
-    static ExecutionPlan.Side.Constant constantSide(TypedSide answered, boolean joined) {
+    static TestPlan.Side.Constant constantSide(TypedSide answered, boolean joined) {
         String type = answered.returnType();
         List<Object> values = switch (answered) {
             case TypedSide.Scalar s -> java.util.Collections.singletonList(s.value());
@@ -669,7 +670,7 @@ final class JudgePlans {
         for (Object v : values) {
             cells.add(java.util.Collections.singletonList(constantText(v, type)));
         }
-        return new ExecutionPlan.Side.Constant(
+        return new TestPlan.Side.Constant(
                 List.of(new ExecutionPlan.Column("value", type, multiplicity, null, null, null)), cells, joined);
     }
 
@@ -689,7 +690,7 @@ final class JudgePlans {
     /** A constant side's cells read back by its column's declared type -- the plan's text, not the compiler's value
      *  -- and checked against that value: a difference is the plan's text being wrong, raised by name, never a
      *  fallback to the value. */
-    static TypedSide decodeConstant(ExecutionPlan.Side.Constant c, TypedSide answered, PlanRunner.Rows rows) {
+    static TypedSide decodeConstant(TestPlan.Side.Constant c, TypedSide answered, PlanRunner.Rows rows) {
         String type = c.columns().get(0).type();
         List<Object> values = new ArrayList<>(rows.rows().size());
         for (List<Object> row : rows.rows()) {

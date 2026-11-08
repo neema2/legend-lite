@@ -5,6 +5,7 @@ package com.legend.driver;
 
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -34,8 +35,8 @@ final class JudgeJson {
     }
 
     /** {@code text} read under {@code rules}; a text the rules refuse raises {@link IllegalStateException}. */
-    static @Nullable Object read(String text, ExecutionPlan.JudgingRules rules) {
-        if (rules == ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+    static @Nullable Object read(String text, TestPlan.JudgingRules rules) {
+        if (rules == TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
             return new JsonSimple(text).parse();
         }
         try {

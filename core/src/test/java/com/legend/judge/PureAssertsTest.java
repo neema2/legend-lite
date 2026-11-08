@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PureAssertsTest {
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
-    private static final com.legend.executionplan.ExecutionPlan.JudgingRules LITE =
-            com.legend.executionplan.ExecutionPlan.JudgingRules.LITE;
+    private static final com.legend.testexecutionplan.TestPlan.JudgingRules LITE =
+            com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
 
     private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
         return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a), LITE);
@@ -132,7 +132,7 @@ class PureAssertsTest {
         assertTrue(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
         assertFalse(Equality.same(Equality.Typed.of(new BigDecimal("1.50")), Equality.Typed.of(new BigDecimal("1.5")),
-                com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT));
+                com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT));
         assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
         // X1/X3: NO cross-primitive-kind equality (engine eq requires

@@ -92,6 +92,9 @@ class CodeShapeGuardrailTest {
             // 2026-11-08, the plan-as-data design's step 0: a body's verdict ids -- one counter per body, the last id
             // given; planning state, never read at run
             "VerdictIds.last",
+            // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the open program's end, set once when the program ends (its reads refused after it), and the
+            // test run's handing of the program's reader to the judges, once at the first callback
+            "ProgramRunner.closed", "TestRun.reading",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",

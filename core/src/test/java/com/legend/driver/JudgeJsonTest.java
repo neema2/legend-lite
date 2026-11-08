@@ -4,6 +4,7 @@
 package com.legend.driver;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,11 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class JudgeJsonTest {
 
     private static Object compat(String text) {
-        return JudgeJson.read(text, ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT);
+        return JudgeJson.read(text, TestPlan.JudgingRules.COMPILED_PURE_COMPAT);
     }
 
     private static Object lite(String text) {
-        return JudgeJson.read(text, ExecutionPlan.JudgingRules.LITE);
+        return JudgeJson.read(text, TestPlan.JudgingRules.LITE);
     }
 
     @Test

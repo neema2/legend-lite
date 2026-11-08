@@ -38,7 +38,7 @@ public final class TdsCompare {
     /** TDS grids compare STRUCTURALLY: column names ordered+exact, rows
      * under the order policy. */
     public static boolean grids(TypedSide.Tabular expected,
-            TypedSide.Tabular actual, boolean ordered, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            TypedSide.Tabular actual, boolean ordered, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (expected.columns().size() != actual.columns().size()) {
             return false;
         }

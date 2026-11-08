@@ -732,14 +732,14 @@ final class AssertVerdicts {
         /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null); an
          *  engine-text equality's census route counted once the arm answered, as {@link #adjudicate} counts it
          *  (M10b: never on a failed one, which raises before). */
-        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
             return judge(() -> sides, rules, null);
         }
 
         /** The verdict over its sides as the runner read them: their rows, or the error the reading raised, which
          *  the judgment decides (an assertError's answer, any other's failure: {@code HostJudge.judge}). */
         @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides,
-                com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+                com.legend.testexecutionplan.TestPlan.JudgingRules rules,
                 java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
             TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides, rules, message));
             if (v != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.EngineText e && e.routed()) {
@@ -778,7 +778,7 @@ final class AssertVerdicts {
      */
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(HostAssert a,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
@@ -859,7 +859,7 @@ final class AssertVerdicts {
      * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
      */
     static HostHeld heldAtItsStep(HostAssert a, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
@@ -2169,7 +2169,7 @@ final class AssertVerdicts {
      *  family: {@code rows} alone. */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
-        if (env.options().judgingRules() != com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+        if (env.options().judgingRules() != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
             // verdict; the ruled row comparison is compatibility mode's alone
             if (textRow == null) {

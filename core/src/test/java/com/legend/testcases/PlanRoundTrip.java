@@ -66,24 +66,6 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()), e.script());
             case ExecutionPlan.Setup u -> u;
             case ExecutionPlan.Constant c -> c;
-            case ExecutionPlan.Verdicts v -> new ExecutionPlan.Verdicts(v.verdicts().stream().map(each ->
-                    new ExecutionPlan.Verdict(each.id(), each.name(), each.arm(),
-                            each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
-                            each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper()),
-                            each.message() == null ? null : withoutTrees(each.message()), each.raises()))
-                    .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()),
-                    v.savepoint(), v.rules());
-            case ExecutionPlan.Branch b -> new ExecutionPlan.Branch(withoutTrees(b.condition()),
-                    b.then().stream().map(PlanRoundTrip::withoutTrees).toList(),
-                    b.otherwise().stream().map(PlanRoundTrip::withoutTrees).toList());
-        };
-    }
-
-    private static ExecutionPlan.Side withoutTrees(ExecutionPlan.Side side) {
-        return switch (side) {
-            case ExecutionPlan.Side.Rows r -> new ExecutionPlan.Side.Rows((ExecutionPlan.TdsResult) withoutTrees(r.result()));
-            case ExecutionPlan.Side.KeyedRows k -> new ExecutionPlan.Side.KeyedRows((ExecutionPlan.Keyed) withoutTrees(k.keyed()));
-            case ExecutionPlan.Side.Constant c -> c;
         };
     }
 
@@ -101,26 +83,6 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Effect e -> e.sql().statement().length();
             case ExecutionPlan.Setup u -> 0;
             case ExecutionPlan.Constant c -> 0;
-            case ExecutionPlan.Verdicts v -> {
-                long chars = v.fused() == null ? 0 : statementChars(v.fused());
-                for (ExecutionPlan.Verdict each : v.verdicts()) {
-                    chars += each.wrapper() == null ? 0 : statementChars(each.wrapper());
-                    for (ExecutionPlan.Side side : each.base()) {
-                        chars += switch (side) {
-                            case ExecutionPlan.Side.Rows r -> statementChars(r.result());
-                            case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
-                            case ExecutionPlan.Side.Constant c -> 0;
-                        };
-                    }
-                }
-                yield chars;
-            }
-            case ExecutionPlan.Branch b -> (switch (b.condition()) {
-                case ExecutionPlan.Side.Rows r -> statementChars(r.result());
-                case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
-                case ExecutionPlan.Side.Constant c -> 0L;
-            }) + b.then().stream().mapToLong(PlanRoundTrip::statementChars).sum()
-                    + b.otherwise().stream().mapToLong(PlanRoundTrip::statementChars).sum();
         };
     }
 
@@ -150,36 +112,6 @@ public final class PlanRoundTrip {
             }
             case ExecutionPlan.Constant c -> {
                 // a value the program wrote: no statement to render
-            }
-            case ExecutionPlan.Verdicts v -> {
-                if (v.fused() != null) {
-                    assertRenders(v.fused(), what);
-                }
-                for (ExecutionPlan.Verdict each : v.verdicts()) {
-                    if (each.wrapper() != null) {
-                        assertRenders(each.wrapper(), what);
-                    }
-                    for (ExecutionPlan.Side side : each.base()) {
-                        switch (side) {
-                            case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
-                            case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
-                            case ExecutionPlan.Side.Constant c -> {
-                                // a constant is the program's text: no statement, no tree
-                            }
-                        }
-                    }
-                }
-            }
-            case ExecutionPlan.Branch b -> {
-                switch (b.condition()) {
-                    case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
-                    case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
-                    case ExecutionPlan.Side.Constant c -> {
-                        // the program's text
-                    }
-                }
-                b.then().forEach(step -> assertRenders(step, what));
-                b.otherwise().forEach(step -> assertRenders(step, what));
             }
         }
     }

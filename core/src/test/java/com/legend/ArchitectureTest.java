@@ -88,6 +88,10 @@ final class ArchitectureTest {
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
             java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
+            // 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, steps 2 and 3): a test body's plan as data, and the exec
+            // package's program half, its own target
+            java.util.Map.entry("test_plan", "com.legend.testexecutionplan.TestPlan"),
+            java.util.Map.entry("exec_program", "com.legend.exec.ProgramRunner"),
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
@@ -1408,7 +1412,9 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        String seam = "com\\.legend\\.exec\\.(PlanRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
+        // ProgramRunner since 2026-11-08 (the plan-as-data design's step 3, the user's ruling): the runner's program half, its
+        // own target -- the program's transaction bracket and snapshot, as the runner took them before the split
+        String seam = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
         noClasses()
             .that().haveNameNotMatching(seam)
             .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(

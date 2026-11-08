@@ -8,6 +8,7 @@ import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.judge.AssertListener;
 import com.legend.judge.TypedSide;
 
@@ -167,12 +168,12 @@ final class Appeals {
         }
         PlanSessions.Source source = PlanSessions.of(session, null, systemSessions);
         // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
-        PlanRunner.SideReader own = side -> switch (side) {
-            case ExecutionPlan.Side.Rows r -> PlanRunner.rows(new ExecutionPlan(List.of(), r.result()), Map.of(),
+        com.legend.judge.SideReader own = side -> switch (side) {
+            case TestPlan.Side.Rows r -> PlanRunner.rows(new ExecutionPlan(List.of(), r.result()), Map.of(),
                     source);
-            case ExecutionPlan.Side.KeyedRows k -> PlanRunner.rows(new ExecutionPlan(List.of(), k.keyed()), Map.of(),
+            case TestPlan.Side.KeyedRows k -> PlanRunner.rows(new ExecutionPlan(List.of(), k.keyed()), Map.of(),
                     source);
-            case ExecutionPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
+            case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
                     + " answer is the planned side's own, never read");
         };
         int told = 0;

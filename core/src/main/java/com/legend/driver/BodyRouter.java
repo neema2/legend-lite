@@ -16,6 +16,7 @@ import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.judge.AssertListener;
 import com.legend.judge.TypedSide;
 import com.legend.judge.SqlReplayReferee;
@@ -130,12 +131,19 @@ public final class BodyRouter {
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
-        ExecutionPlan plan = planned.plan();
+        TestPlan plan = planned.plan();
         // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
-        com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
+        if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {
+            // guard 3 in report mode (docs/PLAN_AS_DATA_2026_11_07.md 2.10, from the design's step 3, 2026-11-08; hard
+            // from step 9): the run reads the plan READ BACK from its JSON, never the planner's objects -- a lookup by
+            // a planned object's identity, not its data, shows as a verdict that changes on the lane run so
+            plan = com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(plan));
+            planned = new TestDoor.Planned(plan, planned.effects(), planned.seeds());
+        }
         if (com.legend.diagnostics.Diagnostics.on("plan-json")) {
             // the plan as data, printed whole (the plan-as-data design, 2026-11-07: what the run reads)
-            System.out.println("[plan-json] " + com.legend.executionplan.PlanJson.write(plan));
+            System.out.println("[plan-json] " + com.legend.testexecutionplan.TestPlanJson.write(plan));
         }
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
@@ -153,10 +161,8 @@ public final class BodyRouter {
                 listener.beforeRun();
             }
             try (var open = appeals.open()) {
-                PlanRunner.program(plan, Map.of(),
-                        PlanSessions.of(session, null, systemSessions),
-                        database != null ? PlanRunner.Judging.DATABASE
-                                : agreement != null ? PlanRunner.Judging.BOTH : PlanRunner.Judging.HOST, moved);
+                TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
+                        moved, moved);
             } catch (RuntimeException runFailed) {
                 // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is the
                 // body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a wall's
@@ -182,7 +188,7 @@ public final class BodyRouter {
      *  rules refuse it, the compatibility rules count it as upstream does). */
     private static TypedQuery lifted(TypedQuery given, ExecuteOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        if (options.judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.LITE) {
+        if (options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
             com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
         } else {
             lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
@@ -210,7 +216,7 @@ public final class BodyRouter {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
                     options.resources());
         }
-        com.legend.executionplan.PlanJson.requireRoundTrip(planned.plan());
+        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned.plan());
         return target -> {
             Census.inc(Census.Key.BODIES_MOVED);
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
@@ -218,8 +224,8 @@ public final class BodyRouter {
             Moved moved = new Moved(planned, options.judgingRules(), dialect, options.recorder(), null, null,
                     null, null, null, null, sessionsByTarget(target, systemSessions));
             try {
-                PlanRunner.program(planned.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
-                        PlanRunner.Judging.HOST, moved);
+                TestRun.run(planned.plan(), Map.of(), PlanSessions.of(target, null, systemSessions),
+                        moved::textOrigin, moved, moved);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -241,7 +247,7 @@ public final class BodyRouter {
                 : session;
     }
 
-    private static final class Moved implements PlanRunner.ProgramSink {
+    private static final class Moved implements com.legend.exec.ProgramRunner.ProgramSink, TestRun.Judges {
         private final TestDoor.Planned planned;
         private final SqlDialect dialect;
         private final RawSqlBoundary.@Nullable Recorder recorder;
@@ -254,9 +260,6 @@ public final class BodyRouter {
         private final @Nullable DatabaseAsserts database;
         /** The body's asserts as both judges planned them (under the agreement judge), or null. */
         private final @Nullable AgreementAsserts agreement;
-        /** The places in the program's sequence of the database judge's verdict groups: the walk sends a fused
-         *  statement under BODY (M7). */
-        private final java.util.Set<Integer> databaseGroups;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
@@ -267,14 +270,13 @@ public final class BodyRouter {
         private @Nullable ResultSink opened;
         /** {@code node}'s verdict steps' rules recorded by verdict, each checked against the run's: a planner that
          *  stamped another run's rules is refused by name, never judged under them. */
-        private void rulesOf(ExecutionPlan.Node node, com.legend.executionplan.ExecutionPlan.JudgingRules runRules) {
+        private void rulesOf(TestPlan.TestStep node, com.legend.testexecutionplan.TestPlan.JudgingRules runRules) {
             switch (node) {
-                case ExecutionPlan.Sequence s -> s.steps().forEach(step -> rulesOf(step, runRules));
-                case ExecutionPlan.Branch b -> {
+                case TestPlan.Branch b -> {
                     b.then().forEach(step -> rulesOf(step, runRules));
                     b.otherwise().forEach(step -> rulesOf(step, runRules));
                 }
-                case ExecutionPlan.Verdicts v -> {
+                case TestPlan.Verdicts v -> {
                     if (v.rules() != runRules) {
                         throw new IllegalStateException("a verdict step planned under " + v.rules()
                                 + " in a run judging by " + runRules);
@@ -287,7 +289,7 @@ public final class BodyRouter {
         }
 
         /** The rules {@code verdict}'s step names. */
-        private com.legend.executionplan.ExecutionPlan.JudgingRules rules(ExecutionPlan.Verdict verdict) {
+        private com.legend.testexecutionplan.TestPlan.JudgingRules rules(TestPlan.Verdict verdict) {
             return java.util.Objects.requireNonNull(rulesOf.get(verdict.id()),
                     () -> "a verdict no step of the plan holds: " + verdict.name());
         }
@@ -296,9 +298,9 @@ public final class BodyRouter {
         private @Nullable TypedSide lastVerdict;
         /** The rules each verdict is judged by, read off the plan's verdict steps (the explicit rule, 2026-11-04): the
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
-        private final java.util.Map<Integer, com.legend.executionplan.ExecutionPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
+        private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
-        Moved(TestDoor.Planned planned, com.legend.executionplan.ExecutionPlan.JudgingRules runRules, SqlDialect dialect,
+        Moved(TestDoor.Planned planned, com.legend.testexecutionplan.TestPlan.JudgingRules runRules, SqlDialect dialect,
                 RawSqlBoundary.@Nullable Recorder recorder,
                 Execution.@Nullable Answer answer, @Nullable ResultSink early,
                 @Nullable HostAsserts asserts, @Nullable DatabaseAsserts database,
@@ -314,22 +316,14 @@ public final class BodyRouter {
             this.database = database;
             this.agreement = agreement;
             this.listener = listener;
-            rulesOf(planned.plan().root(), runRules);
-            java.util.Set<Integer> groups = new java.util.HashSet<>();
+            planned.plan().steps().forEach(step -> rulesOf(step, runRules));
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
-            List<ExecutionPlan.Node> steps = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps()
-                    : List.of(planned.plan().root());
+            List<TestPlan.TestStep> steps = planned.plan().steps();
             for (int i = 0; i < steps.size(); i++) {
-                if (steps.get(i) instanceof ExecutionPlan.Branch && database != null) {
-                    // a branch's statements under the database judge: its sides' fused statements under BODY, as any
-                    // group's, and its condition beside them (the asserts-as-plan-nodes program, step 4)
-                    groups.add(i);
-                }
-                if (!(steps.get(i) instanceof ExecutionPlan.Verdicts group)) {
+                // a verdict group's or a branch's statements under the database judge go under BODY, as the walk's
+                // flush sent them (M7): the plan's judge says so (TestRun.program)
+                if (!(steps.get(i) instanceof TestPlan.Verdicts group)) {
                     continue;
-                }
-                if (database != null) {
-                    groups.add(i);
                 }
                 HostAsserts.Planned p = agreement != null ? agreement.of(group.verdicts().get(0)).host
                         : asserts != null && group.verdicts().size() == 1 ? asserts.find(group.verdicts().get(0))
@@ -344,7 +338,6 @@ public final class BodyRouter {
                     }
                 }
             }
-            this.databaseGroups = groups;
             this.deferredTextOrigins = textOrigins;
         }
 
@@ -355,7 +348,7 @@ public final class BodyRouter {
         /** The database judge's row for {@code verdict} (M7): to its segment's batch, judged at the segment's last
          *  verdict by the batch's root loop; a body ending on an assert answers the verdict the walk answers. */
         @Override
-        public void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) {
+        public void verdict(TestPlan.Verdict verdict, @Nullable List<Object> row) {
             if (agreement != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
                 TypedSide v;
@@ -388,7 +381,7 @@ public final class BodyRouter {
         }
 
         @Override
-        public void fused(ExecutionPlan.Verdicts group, @Nullable DataError rejected) {
+        public void fused(TestPlan.Verdicts group, @Nullable DataError rejected) {
             if (agreement != null) {
                 agreement.fused(group, rejected);
                 return;
@@ -404,7 +397,7 @@ public final class BodyRouter {
          *  failure (an assert that does not hold) counted as raised and reported; a side the runner could not read
          *  comes to {@link #sidesFailed}, judged by the same path. */
         @Override
-        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
+        public void sides(TestPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
             if (agreement != null) {
                 // the host's verdict held until the database half's rows are in
                 agreement.hostSides(verdict, () -> rows, messageOf(verdict), listener, rules(verdict));
@@ -419,21 +412,21 @@ public final class BodyRouter {
         }
 
         /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
-        private PlanRunner.@Nullable SideReader reader;
+        private com.legend.judge.@Nullable SideReader reader;
 
         @Override
-        public void reader(PlanRunner.@Nullable SideReader reader) {
+        public void reader(com.legend.judge.@Nullable SideReader reader) {
             this.reader = reader;
         }
 
         /** {@code verdict}'s caller's message read on demand (the judge asks only where it fails), or null where the
          *  verdict carries none. */
-        private java.util.function.@Nullable Supplier<PlanRunner.Rows> messageOf(ExecutionPlan.Verdict verdict) {
-            ExecutionPlan.Side message = verdict.message();
+        private java.util.function.@Nullable Supplier<PlanRunner.Rows> messageOf(TestPlan.Verdict verdict) {
+            TestPlan.Side message = verdict.message();
             if (message == null) {
                 return null;
             }
-            PlanRunner.SideReader r = java.util.Objects.requireNonNull(reader,
+            com.legend.judge.SideReader r = java.util.Objects.requireNonNull(reader,
                     "a verdict's message asked for with no program running");
             return () -> {
                 try {
@@ -448,7 +441,7 @@ public final class BodyRouter {
          *  rows are, the judgment deciding the error (an assertError's answer; any other assert's failure, entered,
          *  counted and reported as the walk counts and reports an assert whose side raised). */
         @Override
-        public void sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
+        public void sidesFailed(TestPlan.Verdict verdict, RuntimeException failure) {
             if (agreement != null) {
                 agreement.hostSides(verdict, () -> {
                     throw failure;
@@ -462,7 +455,7 @@ public final class BodyRouter {
 
         /** The host's planned assert {@code verdict} is: the host judge's, or, under the database judge, an
          *  assertError's step (ruling N3: Java compares the error in both judge modes). */
-        private HostAsserts.Planned hostPlanned(ExecutionPlan.Verdict verdict) {
+        private HostAsserts.Planned hostPlanned(TestPlan.Verdict verdict) {
             if (database != null) {
                 HostAsserts.Planned step = database.hostStep(verdict);
                 if (step == null) {
@@ -476,7 +469,7 @@ public final class BodyRouter {
 
         private void judged(HostAsserts.Planned p, java.util.function.Supplier<List<TypedSide>> sides,
                 java.util.function.@Nullable Supplier<TypedSide> message,
-                com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+                com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
             AssertVerdicts.HostAssert a = p.assertion();
             TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener, sides, rules, message);
             if (v == null) {
@@ -486,24 +479,20 @@ public final class BodyRouter {
             lastVerdict = v;
         }
 
-        /** A frame let's eager run is sent under the walk's origin for it, LET (M9); the database judge's fused
-         *  statement under BODY, as the walk's flush sends it (M7); an engine-text verdict step reading our text as a
-         *  side under the origin the arm marked for it (M10c item 8); every other step as its kind. */
-        @Override
-        public com.legend.exec.@Nullable StatementOrigin originOf(int step) {
-            return planned.frameRuns().contains(step) ? com.legend.exec.StatementOrigin.LET
-                    : databaseGroups.contains(step) ? com.legend.exec.StatementOrigin.BODY
-                    : deferredTextOrigins.get(step);
+        /** The origin the verdict step at {@code step} reads our text under: an engine-text verdict step reading our
+         *  text as a side, the origin the arm marked for it (M10c item 8); else null. (A frame let's eager run goes
+         *  under LET and the database judge's steps under BODY by the plan's own facts: TestRun.program.) */
+        com.legend.exec.@Nullable StatementOrigin textOrigin(int step) {
+            return deferredTextOrigins.get(step);
         }
 
         /** Whether the program's step {@code step} is the graph's system store's seed step (the planner's). */
         private boolean systemStore(int step) {
-            return planned.plan().root() instanceof ExecutionPlan.Sequence s
-                    && s.steps().get(step) instanceof ExecutionPlan.Setup u
-                    && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
+            return planned.plan().steps().get(step) instanceof TestPlan.Run r
+                    && r.node() instanceof ExecutionPlan.Setup u && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
         }
 
-        private HostAsserts.Planned assertOf(ExecutionPlan.Verdict verdict) {
+        private HostAsserts.Planned assertOf(TestPlan.Verdict verdict) {
             if (asserts == null) {
                 throw new IllegalStateException("a verdict's sides in a moved body whose asserts no judge planned");
             }

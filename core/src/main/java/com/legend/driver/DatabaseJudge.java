@@ -268,7 +268,7 @@ final class DatabaseJudge {
         // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
         // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
         if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
-                env.options().judgingRules() == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT)) {
+                env.options().judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT)) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
         // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
@@ -895,7 +895,7 @@ final class DatabaseJudge {
             com.legend.compiler.element.type.Type ek = expected.type();
             com.legend.compiler.element.type.Type ak = actual.type();
             boolean compat = env.options().judgingRules()
-                    == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+                    == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
                     crossNumberKinds(ek, ak, compat),
                     compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT

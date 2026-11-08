@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * AN ASSERT UNDER AN {@code if} (the asserts-as-plan-nodes program, step 4, 2026-11-04;
  * docs/ASSERT_NODES_PLAN_2026_11_04.md): a statement {@code if(condition, |then, |else)} whose sides hold asserts is
- * planned as lite's {@link com.legend.executionplan.ExecutionPlan.Branch}: its condition a side the runner reads, each
+ * planned as lite's {@link com.legend.testexecutionplan.TestPlan.Branch}: its condition a side the runner reads, each
  * side a BODY of its own -- the side's statement over the lets before the branch -- planned by the same judge's planner
  * as any body, so an assert under an {@code if} is planned exactly as one at a statement's root, and the side not taken
  * is never sent, as upstream never evaluates it. Planning only: the typed tree read, nothing evaluated.

@@ -101,8 +101,8 @@ public final class PlanMaker {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
             return new ExecutionPlan(declarations(declared, query.context()),
-                    program(query, runtime, slots, features, ProgramState.Door.QUERY,
-                            NO_TEST_KINDS, false));
+                    new ExecutionPlan.Sequence(products(program(query, runtime, slots, features,
+                            ProgramState.Door.QUERY, NO_TEST_KINDS, false))));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -164,19 +164,32 @@ public final class PlanMaker {
     }
 
     /** {@code steps}' checks with their stamp dropped where no step binds it. */
-    private static List<ExecutionPlan.Node> withoutUnreadStamps(List<ExecutionPlan.Node> steps) {
+    private static List<PlannedStep> withoutUnreadStamps(List<PlannedStep> steps) {
         Set<String> read = new HashSet<>();
-        for (ExecutionPlan.Node step : steps) {
+        for (PlannedStep step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 sql.slots().forEach(slot -> read.add(slot.parameter()));
             }
         }
-        List<ExecutionPlan.Node> out = new ArrayList<>(steps.size());
-        for (ExecutionPlan.Node step : steps) {
-            out.add(step instanceof ExecutionPlan.Check c && c.sql().stamp() != null && !read.contains(c.sql().stamp())
-                    ? new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(),
-                            c.sql().target(), c.sql().tree(), c.sql().regions()))
+        List<PlannedStep> out = new ArrayList<>(steps.size());
+        for (PlannedStep step : steps) {
+            out.add(step instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Check c
+                    && c.sql().stamp() != null && !read.contains(c.sql().stamp())
+                    ? new PlannedStep.Product(new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(),
+                            c.sql().slots(), c.sql().target(), c.sql().tree(), c.sql().regions())))
                     : step);
+        }
+        return out;
+    }
+
+    /** {@code steps}, every one a product node: a product program holds no extension's step. */
+    private static List<ExecutionPlan.Node> products(List<PlannedStep> steps) {
+        List<ExecutionPlan.Node> out = new ArrayList<>(steps.size());
+        for (PlannedStep step : steps) {
+            if (!(step instanceof PlannedStep.Product p)) {
+                throw new IllegalStateException("a product program holds an extension's step");
+            }
+            out.add(p.node());
         }
         return out;
     }
@@ -200,16 +213,16 @@ public final class PlanMaker {
      *  statement itself): a stamp nothing binds -- the activity comment of an execute(...) run inside a frame let's
      *  own query, which the let's run does not stamp -- is refused by name (the MR inventory's latent defect 3, where
      *  it failed unbound when the plan ran; MR's audit S2: only where it is read). */
-    private static void everyReadStampBound(List<ExecutionPlan.Node> steps) {
+    private static void everyReadStampBound(List<PlannedStep> steps) {
         Set<String> bound = new HashSet<>();
-        for (ExecutionPlan.Node step : steps) {
+        for (PlannedStep step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 if (sql.stamp() != null) {
                     bound.add(sql.stamp());
                 }
             }
         }
-        for (ExecutionPlan.Node step : steps) {
+        for (PlannedStep step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 for (ExecutionPlan.Slot slot : sql.slots()) {
                     if (slot.parameter().startsWith(ProgramFrames.STAMP) && !bound.contains(slot.parameter())) {
@@ -222,6 +235,18 @@ public final class PlanMaker {
         }
     }
 
+    /** The statements a planned step sends: an extension's, those it declared. */
+    private static List<ExecutionPlan.Sql> sqls(PlannedStep step) {
+        return switch (step) {
+            case PlannedStep.Product p -> sqls(p.node());
+            case PlannedStep.Extension e -> {
+                List<ExecutionPlan.Sql> out = new ArrayList<>();
+                e.declared().forEach(n -> out.addAll(sqls(n)));
+                yield out;
+            }
+        };
+    }
+
     /** The statements a program's step sends. */
     private static List<ExecutionPlan.Sql> sqls(ExecutionPlan.Node step) {
         return switch (step) {
@@ -232,47 +257,7 @@ public final class PlanMaker {
             case ExecutionPlan.Keyed k -> List.of(k.keys(), k.body());
             case ExecutionPlan.Setup u -> List.of();
             case ExecutionPlan.Constant c -> List.of();
-            // a verdict group (the test-is-the-product plan's M6): its sides' statements, its wrappers', its fused one
-            case ExecutionPlan.Verdicts v -> {
-                List<ExecutionPlan.Sql> out = new ArrayList<>();
-                for (ExecutionPlan.Verdict verdict : v.verdicts()) {
-                    for (ExecutionPlan.Side side : verdict.base()) {
-                        out.addAll(sideSqls(side));
-                    }
-                    if (verdict.wrapper() != null) {
-                        out.addAll(sqls(verdict.wrapper()));
-                    }
-                    if (verdict.message() != null) {
-                        out.addAll(sideSqls(verdict.message()));
-                    }
-                }
-                if (v.fused() != null) {
-                    out.add(v.fused().sql());
-                }
-                yield out;
-            }
-            // a branch (the asserts-as-plan-nodes program, step 4): its condition's statement, then both sides' -- each
-            // side's statements are the program's whichever side runs
-            case ExecutionPlan.Branch b -> {
-                List<ExecutionPlan.Sql> out = new ArrayList<>(sideSqls(b.condition()));
-                for (ExecutionPlan.Node n : b.then()) {
-                    out.addAll(sqls(n));
-                }
-                for (ExecutionPlan.Node n : b.otherwise()) {
-                    out.addAll(sqls(n));
-                }
-                yield out;
-            }
             case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
-        };
-    }
-
-    /** The statements a side sends: a constant's none. */
-    private static List<ExecutionPlan.Sql> sideSqls(ExecutionPlan.Side side) {
-        return switch (side) {
-            case ExecutionPlan.Side.Rows r -> List.of(r.result().sql());
-            case ExecutionPlan.Side.KeyedRows k -> List.of(k.keyed().keys(), k.keyed().body());
-            case ExecutionPlan.Side.Constant c -> List.of();
         };
     }
 
@@ -289,12 +274,22 @@ public final class PlanMaker {
      * {@code systemRouted}: the body's statements read the graph's system metamodel store and no user store, so the
      * program's target is the SYSTEM database on the runtime's engine (the test-is-the-product plan's M10a).
      */
-    public static ExecutionPlan testProgram(TypedQuery query, String runtime, Set<Feature> features,
+    public static TestProgram testProgram(TypedQuery query, String runtime, Set<Feature> features,
             ProgramKinds kinds, boolean systemRouted) {
         List<QueryParameters.Declared> declared = query.parameters();
-        return new ExecutionPlan(declarations(declared, query.context()),
+        return new TestProgram(declarations(declared, query.context()),
                 program(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
                         systemRouted));
+    }
+
+    /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
+     *  steps, each a product node or the extension's own step by its handle, which the test door turns into its own
+     *  plan's. */
+    public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps) {
+        public TestProgram {
+            parameters = List.copyOf(parameters);
+            steps = List.copyOf(steps);
+        }
     }
 
     /** Each declared parameter as the value its statement binds: one value, an optional one's absence, or a list as
@@ -318,7 +313,7 @@ public final class PlanMaker {
      * statement's value is the plan's answer: a query's typed rows, or a write's count, which the database answers as a
      * value bound in a query of its own.
      */
-    private static ExecutionPlan.Node program(TypedQuery query, @Nullable String runtime,
+    private static List<PlannedStep> program(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
             ProgramState.Door door, ProgramKinds kinds, boolean systemRouted) {
         Decided decided = decide(query.context(), runtime);
@@ -351,7 +346,8 @@ public final class PlanMaker {
         } else {
             // a step planned ahead of the program that reads the store -- an assert's side, its message, a branch's
             // (2026-11-05, planning sends nothing: the side's route had seeded the store while the side was planned)
-            ExecutionPlan.Target ahead = systemTargetOf(kinds.plannedAhead());
+            ExecutionPlan.Target ahead = systemTargetOf(kinds.plannedAhead().stream()
+                    .<PlannedStep>map(PlannedStep.Product::new).toList());
             if (ahead != null) {
                 state.add(SystemRoutes.seeds(query.context(), ahead, decided.dialect()));
                 systemSeeded = true;
@@ -375,17 +371,17 @@ public final class PlanMaker {
                 planStatement(state, i, stmt, last, door, on);
             }
         }
-        List<ExecutionPlan.Node> steps = finished(state);
+        List<PlannedStep> steps = finished(state);
         if (!systemSeeded && systemTargetOf(steps) != null) {
             throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
-        return new ExecutionPlan.Sequence(steps);
+        return steps;
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
-    private static ExecutionPlan.@Nullable Target systemTargetOf(List<ExecutionPlan.Node> steps) {
-        for (ExecutionPlan.Node step : steps) {
+    private static ExecutionPlan.@Nullable Target systemTargetOf(List<PlannedStep> steps) {
+        for (PlannedStep step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 if (sql.target().database() instanceof ExecutionPlan.Database.System) {
                     return sql.target();
@@ -549,13 +545,14 @@ public final class PlanMaker {
      *  audit's B7a: an unread stamp would still be minted, and refused on a session whose statements carry no
      *  comment), and the staged tables dropped after the answer (a failed program's transaction takes them back with
      *  its writes where the dialect drops them with it). */
-    private static List<ExecutionPlan.Node> finished(ProgramState state) {
-        List<ExecutionPlan.Node> steps = withoutUnreadStamps(state.steps());
+    private static List<PlannedStep> finished(ProgramState state) {
+        List<PlannedStep> steps = withoutUnreadStamps(state.steps());
         everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
-            steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(
-                    null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()), null));
+            steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
+                    new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
+                    null)));
         }
         return steps;
     }

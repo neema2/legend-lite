@@ -7,7 +7,9 @@ import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.planner.PlanMaker;
+import com.legend.planner.PlannedStep;
 import com.legend.platform.Feature;
+import com.legend.testexecutionplan.TestPlan;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,7 +32,7 @@ public final class TestDoor {
     }
 
     /** {@code body}'s plan on {@code runtime}, under {@code features}. */
-    public static ExecutionPlan plan(TypedQuery body, String runtime, Set<Feature> features) {
+    public static TestPlan plan(TypedQuery body, String runtime, Set<Feature> features) {
         return planned(body, runtime, features).plan();
     }
 
@@ -48,15 +50,13 @@ public final class TestDoor {
     }
 
     /** A body's plan and, beside it, its effect steps' segments and ledger texts and its seed steps' ledger texts
-     *  (whether a seed answered rows is the run's to say), each by the step's place in the plan's sequence (the test
-     *  door's own index: the product plan carries no referee text); and the places of its frame lets' eager runs
-     *  (M9: a check the walk sends under its own origin, LET, which the plan does not say). */
-    public record Planned(ExecutionPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds,
-            Set<Integer> frameRuns) {
+     *  (whether a seed answered rows is the run's to say), each by the step's place in the plan's steps (the test
+     *  door's own index: the plan carries no referee text). A frame let's eager run is a step of the plan's own
+     *  ({@link TestPlan.FrameRun}: the plan-as-data design's step 3, 2026-11-08). */
+    public record Planned(TestPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds) {
         public Planned {
             effects = Collections.unmodifiableMap(new LinkedHashMap<>(effects));
             seeds = Collections.unmodifiableMap(new LinkedHashMap<>(seeds));
-            frameRuns = Collections.unmodifiableSet(new java.util.TreeSet<>(frameRuns));
         }
     }
 
@@ -76,7 +76,12 @@ public final class TestDoor {
          *  groups: the database judge defers every assert of a segment to the segment's last), one branch (an
          *  {@code if} whose sides hold asserts, each side's steps its judge's: the asserts-as-plan-nodes program, step
          *  4), or null (not planned: the body is refused by name). */
-        @Nullable List<? extends ExecutionPlan.Node> at(int statement);
+        @Nullable List<? extends TestPlan.TestStep> at(int statement);
+
+        /** The judge the asserts were planned for: the body's plan names it (the host's where none is planned). */
+        default TestPlan.Judge judge() {
+            return TestPlan.Judge.HOST;
+        }
 
         /** Whether a frame let's eager run is a step of the program (the host judge: Pure runs it at the let); the
          *  database judge runs no frame at its let -- its readers reference the frame's CTE inside the fused statement
@@ -118,26 +123,38 @@ public final class TestDoor {
             boolean systemRouted,
             java.util.function.@Nullable Function<String, java.nio.file.Path> resources) {
         TestKinds kinds = new TestKinds(body, runtime, asserts, resources);
-        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
-        List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
-                : List.of(plan.root());
-        Map<Integer, Effect> effects = byStep(steps, kinds.effects());
-        Map<Integer, List<String>> seeds = byStep(steps, kinds.seeds());
+        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
+        List<PlannedStep> planned = program.steps();
         for (int place : kinds.frameRuns()) {
-            if (place >= steps.size() || !(steps.get(place) instanceof ExecutionPlan.Check)) {
+            if (place >= planned.size() || !(planned.get(place) instanceof PlannedStep.Product p
+                    && p.node() instanceof ExecutionPlan.Check)) {
                 throw new IllegalStateException("the frame run at place " + place + " of the test door's plan is not"
-                        + " a check of its sequence");
+                        + " a check of its steps");
             }
         }
-        return new Planned(plan, effects, seeds, kinds.frameRuns());
+        // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
+        // its own origin, LET -- a fact of the plan), or the verdict step the library placed under its handle
+        List<TestPlan.TestStep> steps = new java.util.ArrayList<>(planned.size());
+        for (int i = 0; i < planned.size(); i++) {
+            boolean frameRun = kinds.frameRuns().contains(i);
+            steps.add(switch (planned.get(i)) {
+                case PlannedStep.Product p when frameRun ->
+                        new TestPlan.FrameRun((ExecutionPlan.Check) p.node());
+                case PlannedStep.Product p -> new TestPlan.Run(p.node());
+                case PlannedStep.Extension e -> kinds.extension(e.handle());
+            });
+        }
+        Map<Integer, Effect> effects = byStep(planned, kinds.effects());
+        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds());
+        return new Planned(new TestPlan(program.parameters(), steps, asserts.judge()), effects, seeds);
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library
      *  planned that is not one of them is refused by name (its texts would never reach the ledger). */
-    private static <T> Map<Integer, T> byStep(List<ExecutionPlan.Node> steps, Map<ExecutionPlan.Node, T> beside) {
+    private static <T> Map<Integer, T> byStep(List<PlannedStep> steps, Map<ExecutionPlan.Node, T> beside) {
         Map<Integer, T> byIndex = new LinkedHashMap<>();
         for (int i = 0; i < steps.size(); i++) {
-            T texts = beside.get(steps.get(i));
+            T texts = steps.get(i) instanceof PlannedStep.Product p ? beside.get(p.node()) : null;
             if (texts != null) {
                 byIndex.put(i, texts);
             }

@@ -77,16 +77,14 @@ public final class PlanJson {
      *  assert but the listener's name and the census arm); 26 since 2026-11-01: a target's database may be the graph's
      *  SYSTEM database on an engine ({@code system}: a test body reading the metamodel store, the test-is-the-product
      *  plan's M10a). */
-    public static final int VERSION = 26;
+    public static final int VERSION = 27;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, verdicts, constant, branch }
-
-    enum SideTag { rows, keyedRows, constant }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, constant }
 
     enum OutputTag { fixed, perKey }
 
@@ -139,12 +137,13 @@ public final class PlanJson {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("format", FORMAT);
         out.put("version", VERSION);
-        out.put("parameters", plan.parameters().stream().map(PlanJson::parameter).toList());
+        out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("root", node(plan.root()));
         return Json.toCompact(out);
     }
 
-    private static Map<String, Object> parameter(Parameter p) {
+    /** A declared parameter as JSON: the test plan's format writes its parameters so. */
+    public static Map<String, Object> parameterJson(Parameter p) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", p.name());
         o.put("type", p.type());
@@ -160,6 +159,11 @@ public final class PlanJson {
             o.put("upper", m.upper());
         }
         return o;
+    }
+
+    /** A product node as JSON: the test plan's format writes each product step so. */
+    public static Map<String, Object> nodeJson(Node n) {
+        return node(n);
     }
 
     private static Map<String, Object> node(Node n) {
@@ -241,80 +245,8 @@ public final class PlanJson {
                 o.put("columns", columns(c.columns()));
                 o.put("cells", c.cells());
             }
-            case ExecutionPlan.Verdicts v -> {
-                o.put("_type", NodeTag.verdicts.name());
-                List<Object> verdicts = new ArrayList<>();
-                for (ExecutionPlan.Verdict each : v.verdicts()) {
-                    Map<String, Object> vo = new LinkedHashMap<>();
-                    vo.put("id", each.id());
-                    vo.put("name", each.name());
-                    vo.put("arm", each.arm());
-                    List<Object> base = new ArrayList<>();
-                    for (ExecutionPlan.Side side : each.base()) {
-                        base.add(side(side));
-                    }
-                    vo.put("base", base);
-                    vo.put("wrapper", each.wrapper() == null ? null : node(each.wrapper()));
-                    if (each.message() != null) {
-                        vo.put("message", side(each.message()));
-                    }
-                    if (each.raises()) {
-                        vo.put("raises", true);
-                    }
-                    verdicts.add(vo);
-                }
-                o.put("verdicts", verdicts);
-                o.put("fused", v.fused() == null ? null : node(v.fused()));
-                if (v.savepoint() != null) {
-                    Map<String, Object> sp = new LinkedHashMap<>();
-                    sp.put("set", v.savepoint().set());
-                    sp.put("rollbackTo", v.savepoint().rollbackTo());
-                    sp.put("release", v.savepoint().release());
-                    o.put("savepoint", sp);
-                }
-                o.put("rules", switch (v.rules()) {
-                    case LITE -> "lite";
-                    case COMPILED_PURE_COMPAT -> "compiledPureCompat";
-                });
-            }
-            case ExecutionPlan.Branch b -> {
-                o.put("_type", NodeTag.branch.name());
-                o.put("condition", side(b.condition()));
-                o.put("then", nodes(b.then()));
-                o.put("otherwise", nodes(b.otherwise()));
-            }
         }
         return o;
-    }
-
-    private static List<Object> nodes(List<Node> steps) {
-        List<Object> out = new ArrayList<>(steps.size());
-        for (Node step : steps) {
-            out.add(node(step));
-        }
-        return out;
-    }
-
-    /** A verdict's side, or a branch's condition: a typed result, a keyed result, or a constant the program wrote. */
-    private static Map<String, Object> side(ExecutionPlan.Side side) {
-        Map<String, Object> so = new LinkedHashMap<>();
-        switch (side) {
-            case ExecutionPlan.Side.Rows r -> {
-                so.put("_type", SideTag.rows.name());
-                so.put("result", node(r.result()));
-            }
-            case ExecutionPlan.Side.KeyedRows k -> {
-                so.put("_type", SideTag.keyedRows.name());
-                so.put("keyed", node(k.keyed()));
-            }
-            case ExecutionPlan.Side.Constant c -> {
-                so.put("_type", SideTag.constant.name());
-                so.put("columns", columns(c.columns()));
-                so.put("cells", c.cells());
-                so.put("folded", c.folded());
-            }
-        }
-        return so;
     }
 
     /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
@@ -332,6 +264,11 @@ public final class PlanJson {
     }
 
     /** The columns with their three type facts (format 5's relation columns; a tabular result's since format 6). */
+    /** Columns with their type facts as JSON: a test plan's constant side writes its columns so. */
+    public static List<Object> columnsJson(List<ExecutionPlan.Column> columns) {
+        return columns(columns);
+    }
+
     private static List<Object> columns(List<ExecutionPlan.Column> columns) {
         List<Object> cols = new ArrayList<>();
         for (ExecutionPlan.Column c : columns) {
@@ -480,7 +417,7 @@ public final class PlanJson {
     /** How deep a plan's JSON may nest: its typed SQL tree nests as the query does (a class instance's text, spelled
      *  over its layout, nests a CASE and a CONCAT per property per level), far past the reader's default of 64, which
      *  guards a server against hostile input; a plan is the planner's own text. */
-    static final int MAX_DEPTH = 4096;
+    public static final int MAX_DEPTH = 4096;
 
     public static ExecutionPlan read(String json) {
         if (!(Json.parse(json, new Json.Config(MAX_DEPTH)) instanceof Json.Obj o)) {
@@ -498,6 +435,11 @@ public final class PlanJson {
         return new ExecutionPlan(parameters, readNode(o.getObj("root")));
     }
 
+    /** {@link #parameterJson}'s inverse. */
+    public static Parameter parameterOf(Json.Obj o) {
+        return readParameter(o);
+    }
+
     private static Parameter readParameter(Json.Obj o) {
         return new Parameter(o.getString("name"), o.getString("type"), readMultiplicity(o.getObj("multiplicity")),
                 o.getStringArray("enumValues"));
@@ -505,6 +447,11 @@ public final class PlanJson {
 
     private static Multiplicity readMultiplicity(Json.Obj o) {
         return new Multiplicity(o.getInt("lower"), o.has("upper") ? o.getInt("upper") : null);
+    }
+
+    /** {@link #nodeJson}'s inverse. */
+    public static Node nodeOf(Json.Obj o) {
+        return readNode(o);
     }
 
     private static Node readNode(Json.Obj o) {
@@ -567,35 +514,6 @@ public final class PlanJson {
                 }
                 yield new ExecutionPlan.Setup(o.getString("key"), steps, readTarget(o.getObj("target")));
             }
-            case verdicts -> {
-                List<ExecutionPlan.Verdict> verdicts = new ArrayList<>();
-                for (Json.Node n : o.getArr("verdicts").items()) {
-                    Json.Obj vo = (Json.Obj) n;
-                    List<ExecutionPlan.Side> base = new ArrayList<>();
-                    for (Json.Node sn : vo.getArr("base").items()) {
-                        base.add(readSide((Json.Obj) sn));
-                    }
-                    Json.Obj w = vo.getObjOr("wrapper", null);
-                    Json.Obj m = vo.getObjOr("message", null);
-                    verdicts.add(new ExecutionPlan.Verdict(vo.getInt("id"), vo.getString("name"), vo.getString("arm"),
-                            base, w == null ? null : readNode(w), m == null ? null : readSide(m),
-                            vo.getBoolOr("raises", false)));
-                }
-                Json.Obj f = o.getObjOr("fused", null);
-                Json.Obj sp = o.getObjOr("savepoint", null);
-                String rules = o.getString("rules");
-                yield new ExecutionPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
-                        sp == null ? null : new ExecutionPlan.Verdicts.Savepoint(sp.getString("set"),
-                                sp.getString("rollbackTo"), sp.getString("release")),
-                        switch (rules) {
-                            case "lite" -> ExecutionPlan.JudgingRules.LITE;
-                            case "compiledPureCompat" -> ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
-                            default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
-                                    + "': lite or compiledPureCompat");
-                        });
-            }
-            case branch -> new ExecutionPlan.Branch(readSide(o.getObj("condition")), readNodes(o.getArr("then")),
-                    readNodes(o.getArr("otherwise")));
             case constant -> {
                 List<List<String>> cells = new ArrayList<>();
                 for (Json.Node r : o.getArr("cells").items()) {
@@ -620,61 +538,37 @@ public final class PlanJson {
         };
     }
 
-    /** {@code o} read as a typed result node ({@code what} names the place that holds one). */
-    private static TdsResult typedResult(Json.Obj o, String what) {
-        Node n = readNode(o);
-        if (!(n instanceof TdsResult t)) {
-            throw new IllegalArgumentException(what + " is a typed result, not a " + o.getString("_type"));
-        }
-        return t;
-    }
-
     private static IllegalArgumentException notTextSide() {
         return new IllegalArgumentException("a constant side's cell is text or null (the program's own spelling)");
     }
 
-    private static List<Node> readNodes(Json.Arr steps) {
-        List<Node> out = new ArrayList<>();
-        for (Json.Node n : steps.items()) {
-            out.add(readNode((Json.Obj) n));
-        }
-        return out;
+    /** {@link #columnsJson}'s inverse. */
+    public static List<ExecutionPlan.Column> columnsOf(Json.Arr columns) {
+        return readRelationColumns(columns);
     }
 
-    /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
-    private static ExecutionPlan.Side readSide(Json.Obj so) {
-        return switch (tag(SideTag.class, so, "verdict side")) {
-            case rows -> new ExecutionPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));
-            case keyedRows -> {
-                Node k = readNode(so.getObj("keyed"));
-                if (!(k instanceof ExecutionPlan.Keyed keyed)) {
-                    throw new IllegalArgumentException("a keyed side holds a keyed result");
-                }
-                yield new ExecutionPlan.Side.KeyedRows(keyed);
+    /** Rows of TEXT cells (each a String or null): a constant's, as the program wrote them; {@code what} names the
+     *  place that holds them. */
+    public static List<List<String>> textCells(Json.Arr rows, String what) {
+        List<List<String>> cells = new ArrayList<>();
+        for (Json.Node r : rows.items()) {
+            if (!(r instanceof Json.Arr row)) {
+                throw new IllegalArgumentException(what + "'s row is an array of cells");
             }
-            case constant -> {
-                List<List<String>> cells = new ArrayList<>();
-                for (Json.Node r : so.getArr("cells").items()) {
-                    if (!(r instanceof Json.Arr row)) {
-                        throw new IllegalArgumentException("a constant side's row is an array of cells");
-                    }
-                    List<String> out = new ArrayList<>();
-                    for (Json.Node cell : row.items()) {
-                        out.add(switch (cell) {
-                            case Json.Str s -> s.value();
-                            case Json.Null x -> null;
-                            case Json.Num x -> throw notTextSide();
-                            case Json.Bool x -> throw notTextSide();
-                            case Json.Obj x -> throw notTextSide();
-                            case Json.Arr x -> throw notTextSide();
-                        });
-                    }
-                    cells.add(out);
-                }
-                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells,
-                        so.getBool("folded"));
+            List<String> out = new ArrayList<>();
+            for (Json.Node cell : row.items()) {
+                out.add(switch (cell) {
+                    case Json.Str s -> s.value();
+                    case Json.Null x -> null;
+                    case Json.Num x -> throw notTextSide();
+                    case Json.Bool x -> throw notTextSide();
+                    case Json.Obj x -> throw notTextSide();
+                    case Json.Arr x -> throw notTextSide();
+                });
             }
-        };
+            cells.add(out);
+        }
+        return cells;
     }
 
     private static List<ExecutionPlan.Column> readRelationColumns(Json.Arr columns) {

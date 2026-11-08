@@ -1,6 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -72,7 +73,7 @@ final class HostJudge {
     static TypedSide tdsRowValuesVerdict(String name,
             boolean wantEqual, HostJudgment.FlatFacts flat,
             SideFetch ef, SideFetch af,
-            boolean incidental, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            boolean incidental, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         // audit 22b F2: raw cells (a bare .rows view) never equal a
@@ -126,7 +127,7 @@ final class HostJudge {
      * (direction-aware sentinel — pool matching, never a sorted zip:
      * sorting separates an expected 'TDSNull' from its NULL cell). */
     static TypedSide tdsRowValuesSameElements(String family,
-            SideFetch ef, SideFetch af, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            SideFetch ef, SideFetch af, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
@@ -313,15 +314,15 @@ final class HostJudge {
      * {@link HostJudgment.EngineText}, the one named exception: M10b): the sink holds data. Null where the
      * judgment declines the sides it read (the walk's generic path continues).
      */
-    static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return judge(j, sides, rules, null);
     }
 
     /** {@code message}: the reader of the assert's caller's message where the verdict carries it apart from its sides
-     *  (ExecutionPlan.Verdict.message), asked only where the assert fails; null where the message, if any, is one of
+     *  (TestPlan.Verdict.message), asked only where the assert fails; null where the message, if any, is one of
      *  {@code sides} (a judgment nested in another's, whose sides the step read together). */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         java.util.Objects.requireNonNull(rules, "a judgment names the rules it judges by");
         return switch (j) {
@@ -364,7 +365,7 @@ final class HostJudge {
      * the error its function raises), every other's failure, raised as it was.
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         return j instanceof HostJudgment.AssertError a ? AssertErrorNative.judge(a, sides, rules)
                 : judge(j, sides.get(), rules, message);
@@ -424,7 +425,7 @@ final class HostJudge {
                 new HostJudgment.GridPair(name, wantEqual, sorted));
     }
 
-    private static TypedSide gridPairOf(HostJudgment.GridPair j, List<TypedSide> grids, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide gridPairOf(HostJudgment.GridPair j, List<TypedSide> grids, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         TypedSide.Tabular te = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
         TypedSide.Tabular ta = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
         if (te == null || ta == null) {
@@ -498,7 +499,7 @@ final class HostJudge {
     }
 
     private static @com.legend.base.Nullable TypedSide containsOf(HostJudgment.Contains j, List<TypedSide> both,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         List<Object> coll = AssertVerdicts.decodeSide(both.get(0));
         List<Object> val = AssertVerdicts.decodeSide(both.get(1));
         if (val.size() != 1) {
@@ -556,7 +557,7 @@ final class HostJudge {
     }
 
     private static @com.legend.base.Nullable TypedSide messagedOf(HostJudgment.Messaged m, List<TypedSide> sides,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         try (var messaged = com.legend.judge.CallerMessage.judging()) {
             return judge(m.inner(), sides.subList(0, m.innerSides()), rules);
@@ -582,7 +583,7 @@ final class HostJudge {
         return held ? AssertVerdicts.ok() : AssertVerdicts.fail("Assert failed");
     }
 
-    private static TypedSide subsetOf(HostJudgment.Subset j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide subsetOf(HostJudgment.Subset j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         String name = j.name();
         boolean wantTrue = j.wantTrue();
         List<Object> need = AssertVerdicts.decodeSide(pair.get(0));
@@ -628,7 +629,7 @@ final class HostJudge {
                 new HostJudgment.Eq(e, a, keys));
     }
 
-    private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
         Object ee = AssertVerdicts.one(ef.values(), "assertEq expected");
@@ -708,7 +709,7 @@ final class HostJudge {
                 new HostJudgment.SameElements(e, a, gridPair, keys));
     }
 
-    private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
         // §8 leg 1 — TABULAR sides under the MULTISET form:
@@ -753,7 +754,7 @@ final class HostJudge {
     /** Each element's planned assert judged over its slice of the sides, in order, counted as the walk counts an
      *  element it adjudicates (entered, its family; an engine-text route once answered): the last verdict, the first
      *  failure raising; an element whose judgment declines its sides is the walk's wall. */
-    private static TypedSide unrolledOf(HostJudgment.Unrolled u, List<TypedSide> sides, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide unrolledOf(HostJudgment.Unrolled u, List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         int at = 0;
         TypedSide last = null;
         for (int i = 0; i < u.parts().size(); i++) {
@@ -864,7 +865,7 @@ final class HostJudge {
 
     /** {@link HostJudgment.Rows} judged over its sides: each row as the element arm judges it, the first failure. */
     private static @com.legend.base.Nullable TypedSide rowsOf(HostJudgment.Rows j, List<TypedSide> sides,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         List<Object> rows;
         if (j.pairing() == null && !(sides.get(0) instanceof TypedSide.Tabular)) {
             // the per-element operand pairs (planPerElement): one value per element, each a {first, second} the
@@ -978,7 +979,7 @@ final class HostJudge {
                 new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
     }
 
-    private static TypedSide equalsOf(HostJudgment.Equals j, List<TypedSide> pair, com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+    private static TypedSide equalsOf(HostJudgment.Equals j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         String name = j.name();
         boolean wantEqual = j.wantEqual();
         boolean incidental = j.incidental();
@@ -1034,7 +1035,7 @@ final class HostJudge {
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         String ejson = AssertVerdicts.jsonSideTextOf(pair.get(0));
         String ajson = AssertVerdicts.jsonSideTextOf(pair.get(1));
         if (ejson == null || ajson == null) {
@@ -1086,7 +1087,7 @@ final class HostJudge {
     }
 
     private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair,
-            com.legend.executionplan.ExecutionPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         String name = j.name();
         String form = j.form();
         List<Object> ev = AssertVerdicts.decodeSide(pair.get(0));
@@ -1099,7 +1100,7 @@ final class HostJudge {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
             // verdict; the ruled row comparison after a failed text is compatibility mode's alone
             boolean held = et.equals(at)
-                    || rules == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT
+                    || rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
                             && com.legend.judge.TdsCompare.renderedText(
                                     j.aForm() != null ? et : at, j.aForm() != null ? at : et,
                                     form, j.sortedOrder());

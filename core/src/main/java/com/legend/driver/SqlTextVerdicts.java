@@ -471,7 +471,7 @@ final class SqlTextVerdicts {
      *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
     private static boolean appeals(BodyDriver.ExecEnv env) {
         return env.options().judgingRules()
-                == com.legend.executionplan.ExecutionPlan.JudgingRules.COMPILED_PURE_COMPAT;
+                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
     }
 
     /** A text that differs from its golden, in clean mode: the assert's failure, the first difference named. */
@@ -1804,7 +1804,7 @@ final class SqlTextVerdicts {
             }
             // after the body's run: the edge's reader, the side a plan of its own on the body's sessions (Appeals,
             // P1.2, 2026-11-07) -- never the body's reader
-            com.legend.exec.PlanRunner.SideReader reader = RunReader.current();
+            com.legend.judge.SideReader reader = RunReader.current();
             com.legend.exec.PlanRunner.Rows rows;
             try {
                 if (reader == null) {

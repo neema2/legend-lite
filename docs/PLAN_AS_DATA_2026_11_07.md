@@ -564,3 +564,31 @@ independently of the rules).
   `TypeInferenceException` (12 tests: a side whose typing failed while planned), was named by the list's loud refusal --
   the counts unchanged, the failure lines naming the missing class. It is on the list since. Every lane at the slice's
   end is the rest of the census.
+- **Step 3: the judge is the test plan's**, one per plan (`TestPlan.judge`: a body is planned by one judge), not a
+  field of each verdict group as 2.1 drew it; a branch's steps run under BODY where the plan's judge is the database's
+  alone, as the router's sink decided before.
+- **Step 3: the planner never sees the test plan's types.** It holds a program's step as `planner.PlannedStep`: a
+  product node, or the extension's step by its handle with the statements it reads (what the planner checks: the
+  stamps bound, the system store seeded). The test door turns each handle back into the test plan's step. A frame let's
+  eager run stays a product check inside the planner (its stamp logic reads checks) and becomes the test plan's
+  `FrameRun` at the door, its LET origin a fact of the plan.
+- **Step 3: the open program has no `readRaising`.** A raising verdict's base is read through `guarded(savepoint,
+  read)`; the error the read raises is the run's own object, caught by the test run as the runner caught it, and its
+  source position is read from its cause (exec's `RaisedErrors.Positioned`) for the database judge's parameters, as
+  the runner read it. At step 10 `testexec` reads that position through a data accessor of exec's, so no `java.sql`
+  subtype is named outside exec. A callback carries an origin as a product node does (2.8 passed one per read): the
+  marks layer exactly as they did (`enterIfUnmarked`), the branch condition's STATEMENT inside a BODY step.
+- **Step 3: a verdict's message reads the program's live values** (a write's count, a run's stamp bound so far), where
+  the runner's reader read the declared values alone; a message reading a value bound by a step before it now reads
+  it rather than failing unbound. No corpus or core test reads one.
+- **Step 3: removed** -- the two program sinks nothing constructed (`HostSides.Sink`, `VerdictBatch.VerdictSink`), and
+  the runner test "a verdict group is refused on the answer path" (the product plan cannot hold one: the type system
+  refuses it). The product plan's JSON is version 27 (no verdict or branch tag); the test plan's is its own format,
+  version 1, naming the product version it nests.
+- **Guard 1's pins at its introduction (step 3)**: the model's `ConnectionDefinition` inside the product plan's
+  database (step 7's connection description removes it) and the SQL tree's window-frame bound, an abstract `Number`
+  (an Integer or a Long as the frame was written). Step 9 brings guard 1 to zero, so the bound becomes a concrete type
+  there (a `Long`: a frame's row count); taken by the design's rule (the plan holds data of a named type), not a
+  question.
+- **Guard 3 in report mode (step 3)**: `-Dlegend.diagnostics=decoded-plan` runs every body on the plan read back from
+  its JSON; the DuckDB corpus under it is step 3's report, hard from step 9.

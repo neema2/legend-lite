@@ -76,10 +76,10 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
 legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
-# THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's step 2, 2026-11-08): a test body's
-# plan as data, beside the product's (:execution_plan) -- from step 2 an error known at planning (Failure). Data alone: it
-# depends on no planning or runtime library.
-legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", ":error"])
+# THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
+# body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
+# at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
+legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
@@ -204,13 +204,23 @@ legend_java_library(
 )
 legend_java_library(
     name = "exec",
-    srcs = glob(["src/main/java/com/legend/exec/*.java"]),
+    # the program runner is its own target, the package's (below)
+    srcs = glob(["src/main/java/com/legend/exec/*.java"], exclude = ["src/main/java/com/legend/exec/ProgramRunner.java"]),
     # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
     # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
     # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
     # type and spelling fact the runtime reads, the connector every driver fact. ArchitectureTest.execReachesNoPlanning
     # says it at the class level; tools/deps/core-layers.txt pins this list.
     deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":model", ":result", ":sql", ":values"],
+)
+# THE PROGRAM RUNNER (docs/PLAN_AS_DATA_2026_11_07.md 2.8 and 2.9, the user's ruling of 2026-11-08: its own target, the
+# exec package's): a program's steps in order on one session, a step exec does not know a callback at its place (a test
+# body's verdict group or branch), reading only what it declared. A product caller that runs plans (the server, the query
+# door) reaches none of it: they depend on :exec alone.
+legend_java_library(
+    name = "exec_program",
+    srcs = ["src/main/java/com/legend/exec/ProgramRunner.java"],
+    deps = ["//base", ":error", ":exec", ":execution_plan", ":result"],
 )
 # THE JUDGE (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer -- equality, the asserts, the TDS
 # compare, the canonical form, the SQL replay referee, the censuses -- out of exec. It reads the compiler's types and
@@ -273,7 +283,7 @@ legend_java_library(
         ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
         ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":test_plan", ":testdatagen", ":testplan",
-        ":validation", ":values",
+        ":validation", ":values", ":exec_program",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
@@ -288,7 +298,7 @@ legend_java_library(
     # seeds' content key (Seeds, M3e): :cache's Hash
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan",
-        ":model", ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
+        ":model", ":planner", ":platform", ":setup", ":sql", ":sql_dialect", ":test_plan",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
@@ -335,7 +345,7 @@ _CORE_TARGETS = [
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
     ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":driver", ":ide", ":test",
-    ":server_lib",
+    ":server_lib", ":test_plan", ":exec_program",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it

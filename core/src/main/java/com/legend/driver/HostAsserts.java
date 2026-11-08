@@ -11,6 +11,7 @@ import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
 import com.legend.planner.QueryDoor;
@@ -43,9 +44,9 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** One assert planned: its classification and judgment, its sides' plans (what shaping each needs), and its
      *  verdict step. */
-    record Planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides, ExecutionPlan.Verdicts step) {
+    record Planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides, TestPlan.Verdicts step) {
 
-        ExecutionPlan.Verdict verdict() {
+        TestPlan.Verdict verdict() {
             return step.verdicts().get(0);
         }
     }
@@ -53,7 +54,7 @@ final class HostAsserts implements TestDoor.Asserts {
     /** A branch planned (the asserts-as-plan-nodes program, step 4): its plan node, its condition as the host's
      *  planner planned it, each side's asserts as this planner planned them over the side's body, the branch's parts
      *  and the lets before it (the prefix both sides were planned over). */
-    record Branched(ExecutionPlan.Branch node, ExecutionPlan.Side condition, HostAsserts then, HostAsserts otherwise,
+    record Branched(TestPlan.Branch node, TestPlan.Side condition, HostAsserts then, HostAsserts otherwise,
             AssertBranch.Parts parts, List<TypedSpec> lets) {
         Branched {
             lets = List.copyOf(lets);
@@ -265,7 +266,7 @@ final class HostAsserts implements TestDoor.Asserts {
     private static @Nullable Branched planBranch(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             BodyDriver.@Nullable ExecEnv bodyEnv, AssertBranch.Parts parts, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames) {
-        ExecutionPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, typed.specs(), env, false,
+        TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, typed.specs(), env, false,
                 false, null).side();
         HostAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, bodyEnv, letPrefix, frames);
         HostAsserts otherwise = then == null ? null
@@ -273,16 +274,16 @@ final class HostAsserts implements TestDoor.Asserts {
         if (then == null || otherwise == null) {
             return null;
         }
-        ExecutionPlan.Branch node = new ExecutionPlan.Branch(condition, then.steps(parts.then().size()),
+        TestPlan.Branch node = new TestPlan.Branch(condition, then.steps(parts.then().size()),
                 otherwise.steps(parts.otherwise().size()));
         return new Branched(node, condition, then, otherwise, parts, letPrefix);
     }
 
     /** The steps of this body's {@code statements} statements, in order. */
-    List<ExecutionPlan.Node> steps(int statements) {
-        List<ExecutionPlan.Node> out = new ArrayList<>();
+    List<TestPlan.TestStep> steps(int statements) {
+        List<TestPlan.TestStep> out = new ArrayList<>();
         for (int i = 0; i < statements; i++) {
-            List<? extends ExecutionPlan.Node> at = at(i);
+            List<? extends TestPlan.TestStep> at = at(i);
             if (at == null) {
                 throw new IllegalStateException("a branch side's statement " + i + " planned no step");
             }
@@ -401,7 +402,7 @@ final class HostAsserts implements TestDoor.Asserts {
         if (!(bare instanceof com.legend.compiler.spec.typed.TypedNativeCall ae)) {
             return null;
         }
-        ExecutionPlan.Verdicts.@Nullable Savepoint savepoint = savepointOf(env);
+        TestPlan.Verdicts.@Nullable Savepoint savepoint = savepointOf(env);
         AssertErrorNative.Args args;
         try {
             args = AssertErrorNative.args(ae, letPrefix);
@@ -488,9 +489,9 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     /** The dialect's savepoint texts for a statement whose failure the program survives, or null where it has none. */
-    private static ExecutionPlan.Verdicts.@Nullable Savepoint savepointOf(BodyDriver.ExecEnv env) {
+    private static TestPlan.Verdicts.@Nullable Savepoint savepointOf(BodyDriver.ExecEnv env) {
         com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
-        return s == null ? null : new ExecutionPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
+        return s == null ? null : new TestPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
     }
 
     /** {@code assertion}'s verdict step over {@code sides}' base: one verdict, its wrapper none (the host judges). */
@@ -500,24 +501,24 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** {@code env}: the body's environment -- the rules its verdicts are judged by, and its verdict ids. */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
-            ExecutionPlan.Verdicts.@Nullable Savepoint savepoint, BodyDriver.ExecEnv env) {
-        ExecutionPlan.JudgingRules rules = env.options().judgingRules();
+            TestPlan.Verdicts.@Nullable Savepoint savepoint, BodyDriver.ExecEnv env) {
+        TestPlan.JudgingRules rules = env.options().judgingRules();
         // a caller's message, the check's last side (HostJudge.messaged), is the verdict's MESSAGE: the runner never
         // reads it on its own, the judge asks for it only where the assert fails (upstream evaluates it only there)
-        List<ExecutionPlan.Side> base = sides.base();
-        ExecutionPlan.Side message = null;
+        List<TestPlan.Side> base = sides.base();
+        TestPlan.Side message = null;
         if (assertion.check().judgment() instanceof HostJudgment.Messaged m && m.unplanned() == null
                 && base.size() == m.innerSides() + 1) {
             message = base.get(m.innerSides());
             base = base.subList(0, m.innerSides());
         }
-        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
+        TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message);
-        return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null, savepoint, rules));
+        return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint, rules));
     }
 
     @Override
-    public @Nullable List<? extends ExecutionPlan.Node> at(int statement) {
+    public @Nullable List<? extends TestPlan.TestStep> at(int statement) {
         Branched b = branches.get(statement);
         if (b != null) {
             return List.of(b.node());
@@ -542,7 +543,7 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     /** The assert the runner handed {@code verdict} for. */
-    Planned of(ExecutionPlan.Verdict verdict) {
+    Planned of(TestPlan.Verdict verdict) {
         Planned p = find(verdict);
         if (p == null) {
             throw new IllegalStateException("a verdict step no assert of the body planned: " + verdict.name());
@@ -551,7 +552,7 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     /** The assert planned for {@code verdict}, or null where this judge planned none for it (the database judge's). */
-    @Nullable Planned find(ExecutionPlan.Verdict verdict) {
+    @Nullable Planned find(TestPlan.Verdict verdict) {
         return byVerdict.get(verdict.id());
     }
 }

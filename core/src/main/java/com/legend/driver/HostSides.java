@@ -6,6 +6,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.judge.TypedSide;
 
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ import java.util.Map;
  * The host judge's sides as a verdict step's BASE (the planner-driver seam program's S2f, 2026-10-30; the plan's
  * §3.3): an arm names its sides before any run -- each the argument and the three flags its fetch passed (the
  * identity lane, the fold, the splice hook) -- they are planned ({@link JudgePlans#plannedSide}) into one
- * {@link ExecutionPlan.Verdict}'s base (typed rows, a keyed result, or the program's constant), run through
+ * {@link TestPlan.Verdict}'s base (typed rows, a keyed result, or the program's constant), run through
  * {@link PlanRunner#program} under {@link PlanRunner.Judging#HOST} on the sides' one session, and each is handed
  * back by its position, shaped as the one-side route shapes it ({@link JudgePlans#shape}). One statement per side,
  * in the arm's order, under the arm's origin: the sequence the one-side route sent. The host judge stays the
@@ -90,7 +91,7 @@ final class HostSides {
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}
      *  the session the group runs on, null where every side is a constant (nothing sent: each is read from its own
      *  text, and no side is a to-one reader's). */
-    record Planned(List<JudgePlans.PlannedSide> sides, List<ExecutionPlan.Side> base,
+    record Planned(List<JudgePlans.PlannedSide> sides, List<TestPlan.Side> base,
             ExecutionPlan.@com.legend.base.Nullable Target on) {
         Planned {
             sides = List.copyOf(sides);
@@ -105,7 +106,7 @@ final class HostSides {
     static Planned plan(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env) {
         List<JudgePlans.PlannedSide> planned = new ArrayList<>(asks.size());
-        List<ExecutionPlan.Side> base = new ArrayList<>(asks.size());
+        List<TestPlan.Side> base = new ArrayList<>(asks.size());
         // the group's one target: where a side reading a store was routed (two such sides on two targets are refused
         // by name: the one-target rule, the plan's §3.2); a side reading no store runs on ANY target
         // (BodyDriver.WrappedSide), so it joins the store-reading side's -- the metamodel bodies pair a side on the
@@ -151,7 +152,7 @@ final class HostSides {
     }
 
     /** {@code planned}'s BASE sides shaped from the rows the runner read for them: where the verdict carries its
-     *  caller's message apart ({@code ExecutionPlan.Verdict.message}, the planned check's last side), the rows are one
+     *  caller's message apart ({@code TestPlan.Verdict.message}, the planned check's last side), the rows are one
      *  fewer than the planned sides, and the message is {@link #message}'s to read. */
     static List<TypedSide> shapedBase(String name, Planned planned, List<PlanRunner.Rows> rows) {
         int n = rows.size();
@@ -166,45 +167,5 @@ final class HostSides {
             java.util.function.Supplier<PlanRunner.Rows> read) {
         JudgePlans.PlannedSide asked = planned.sides().get(planned.sides().size() - 1);
         return () -> JudgePlans.shape(asked, read.get());
-    }
-
-    /** The receiver of one verdict's sides; a verdict group of host sides answers no rows and is judged by no
-     *  database. */
-    private static final class Sink implements PlanRunner.ProgramSink {
-        private final List<List<PlanRunner.Rows>> got;
-
-        Sink(List<List<PlanRunner.Rows>> got) {
-            this.got = got;
-        }
-
-        @Override
-        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
-            got.add(sides);
-        }
-
-        @Override
-        public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
-            throw new IllegalStateException("the host judge's sides are judged by no database");
-        }
-
-        @Override
-        public void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
-            throw new IllegalStateException("a group of host sides has no fused statement");
-        }
-
-        @Override
-        public void columns(List<ExecutionPlan.Column> columns) {
-            throw new IllegalStateException("a group of host sides answers no rows");
-        }
-
-        @Override
-        public void batch(com.legend.result.Batch batch) {
-            throw new IllegalStateException("a group of host sides answers no rows");
-        }
-
-        @Override
-        public void end() {
-            throw new IllegalStateException("a group of host sides answers no rows");
-        }
     }
 }

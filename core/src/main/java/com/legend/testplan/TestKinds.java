@@ -26,6 +26,7 @@ import com.legend.planner.ProductStatements;
 import com.legend.planner.ProgramFrames;
 import com.legend.planner.ProgramKinds;
 import com.legend.planner.ProgramState;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.planner.QueryDoor;
 import com.legend.setup.CsvSeed;
 import com.legend.sql.RawSql;
@@ -115,17 +116,27 @@ final class TestKinds implements ProgramKinds {
         return com.legend.planner.PlanMaker.systemBeside(program.target());
     }
 
-    /** The asserts' steps, as their judge planned them before the program (the statements' in order). */
+    /** The statements of the asserts' steps, as their judge planned them before the program (the statements' in
+     *  order). */
     @Override
     public List<ExecutionPlan.Node> plannedAhead() {
         List<ExecutionPlan.Node> out = new java.util.ArrayList<>();
         for (int i = 0; i < body.body().size(); i++) {
-            List<? extends ExecutionPlan.Node> steps = asserts.at(i);
+            List<? extends TestPlan.TestStep> steps = asserts.at(i);
             if (steps != null) {
-                out.addAll(steps);
+                steps.forEach(step -> out.addAll(TestPlan.statements(step)));
             }
         }
         return out;
+    }
+
+    /** The verdict steps this program placed, by their handle in the planner's program (the plan-as-data design's step
+     *  3, 2026-11-08: the planner holds a test's step by its handle and the statements it reads alone). */
+    private final List<TestPlan.TestStep> extensions = new ArrayList<>();
+
+    /** The verdict step placed under {@code handle}. */
+    TestPlan.TestStep extension(int handle) {
+        return extensions.get(handle);
     }
 
     @Override
@@ -177,9 +188,12 @@ final class TestKinds implements ProgramKinds {
             // where it stands first, as a check (2026-11-06)
             // (read through the user functions it calls: the statement as the program plans it, inlined)
             eagerReads(program, index, statement);
-            List<? extends ExecutionPlan.Node> steps = asserts.at(index);
+            List<? extends TestPlan.TestStep> steps = asserts.at(index);
             if (steps != null) {
-                steps.forEach(program::add);
+                for (TestPlan.TestStep step : steps) {
+                    extensions.add(step);
+                    program.addExtension(extensions.size() - 1, TestPlan.statements(step));
+                }
                 return true;
             }
         }

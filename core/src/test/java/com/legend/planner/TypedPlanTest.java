@@ -44,8 +44,6 @@ class TypedPlanTest {
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();
             case ExecutionPlan.Setup u -> throw new IllegalStateException("a typed plan here has no seed step");
-            case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a typed plan here is never a verdict group");
-            case ExecutionPlan.Branch b -> throw new IllegalStateException("a typed plan here is never a branch");
             case ExecutionPlan.Constant c -> throw new IllegalStateException("a typed plan here reads a database: a"
                     + " constant answer names no target");
         };

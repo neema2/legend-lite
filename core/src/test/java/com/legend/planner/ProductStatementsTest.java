@@ -183,7 +183,12 @@ class ProductStatementsTest {
         PlanSessions.Source none = target -> {
             throw new AssertionError("a program that sends nothing opened a session");
         };
-        PlanRunner.program(plan, Map.of(), none, PlanRunner.Judging.HOST, new PlanRunner.ProgramSink() {
+        // a product plan of one constant: a program of that one step (the plan-as-data design's step 3, 2026-11-08: exec's
+        // program runner, its verdict steps the test plan's)
+        com.legend.exec.ProgramRunner.run(new com.legend.exec.ProgramRunner.Program(plan.parameters(),
+                List.of(new com.legend.exec.ProgramRunner.Node(plan.root(), null))), Map.of(), none, (id, open) -> {
+                    throw new AssertionError("no callback");
+                }, new com.legend.exec.ProgramRunner.ProgramSink() {
                     @Override
                     public void columns(List<ExecutionPlan.Column> columns) throws java.io.IOException {
                         collector.columns(columns);
@@ -197,23 +202,6 @@ class ProductStatementsTest {
                     @Override
                     public void end() throws java.io.IOException {
                         collector.end();
-                    }
-
-                    @Override
-                    public void verdict(ExecutionPlan.Verdict verdict,
-                            @com.legend.base.Nullable List<Object> row) {
-                        throw new AssertionError("no verdicts");
-                    }
-
-                    @Override
-                    public void fused(ExecutionPlan.Verdicts group,
-                            com.legend.error.@com.legend.base.Nullable DataError rejected) {
-                        throw new AssertionError("no verdicts");
-                    }
-
-                    @Override
-                    public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
-                        throw new AssertionError("no verdicts");
                     }
                 });
         assertEquals(List.of(List.of("alone")), collector.collected().rows());

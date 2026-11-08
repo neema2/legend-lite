@@ -182,7 +182,9 @@ class ErrorShapeGuardrailTest {
             // planned raise), and an assert's frame environment, gate or arm that raises is planned as the arm's wall
             // at the root's place, as the planning pass records it. Nothing swallowed
             Map.entry("DatabaseAsserts.java", 6),
-            Map.entry("PlanRunner.java", 1),
+            // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the host side read that fails is handed to the judges as the failure of that verdict's sides,
+            // moved with the verdict steps from the runner (PlanRunner, 1 -> 0) to the test run (TestRun, 0 -> 1)
+            Map.entry("TestRun.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable

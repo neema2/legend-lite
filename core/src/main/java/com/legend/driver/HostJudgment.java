@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
 
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.base.Nullable;
 import com.legend.compiler.element.EqualityKeys;
 import com.legend.compiler.element.ModelContext;
@@ -285,7 +286,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, H
     /** {@code j} with its wrapper taken off ({@link Messaged}: a caller's message, which does not change what the
      *  judgment IS): the judgment the planners ask about -- a planned raise, an engine-text arm, an unrolled
      *  quantifier. (2026-11-04: the wrappers hid those from the gate: 61 DuckDB corpus bodies. The run's mode is no
-     *  wrapper since the explicit rules, the same day: the verdict step names them, ExecutionPlan.JudgingRules, and the
+     *  wrapper since the explicit rules, the same day: the verdict step names them, TestPlan.JudgingRules, and the
      *  judge is handed them.) */
     static HostJudgment core(HostJudgment j) {
         HostJudgment c = j;

@@ -9,7 +9,8 @@ import com.legend.TypedQuery;
 import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.executionplan.PlanJson;
+import com.legend.testexecutionplan.TestPlan;
+import com.legend.testexecutionplan.TestPlanJson;
 import com.legend.test.StorelessRuntime;
 import com.legend.testplan.TestDoor;
 import org.junit.jupiter.api.Test;
@@ -50,28 +51,27 @@ class VerdictIdsTest {
                 case BOTH -> AgreementAsserts.plan(typed, rt, env, null, false);
             };
             assertNotNull(asserts, mode + ": the body's asserts planned");
-            ExecutionPlan plan = TestDoor.planned(typed, rt, options.features(), asserts).plan();
-            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>();
-            collect(plan.root(), verdicts);
+            TestPlan plan = TestDoor.planned(typed, rt, options.features(), asserts).plan();
+            List<TestPlan.Verdict> verdicts = new ArrayList<>();
+            plan.steps().forEach(step -> collect(step, verdicts));
             assertFalse(verdicts.isEmpty(), mode + ": the plan holds verdicts");
             Set<Integer> ids = new HashSet<>();
-            for (ExecutionPlan.Verdict v : verdicts) {
+            for (TestPlan.Verdict v : verdicts) {
                 assertTrue(v.id() >= 1, mode + ": " + v.name() + "'s id");
                 assertTrue(ids.add(v.id()), mode + ": " + v.name() + "'s id " + v.id() + " is another verdict's");
             }
             // the ids are the plan's, read back from its JSON as written
-            List<ExecutionPlan.Verdict> read = new ArrayList<>();
-            collect(PlanJson.read(PlanJson.write(plan)).root(), read);
-            assertEquals(verdicts.stream().map(ExecutionPlan.Verdict::id).toList(),
-                    read.stream().map(ExecutionPlan.Verdict::id).toList(), mode + ": the ids through the JSON");
+            List<TestPlan.Verdict> read = new ArrayList<>();
+            TestPlanJson.read(TestPlanJson.write(plan)).steps().forEach(step -> collect(step, read));
+            assertEquals(verdicts.stream().map(TestPlan.Verdict::id).toList(),
+                    read.stream().map(TestPlan.Verdict::id).toList(), mode + ": the ids through the JSON");
         }
     }
 
-    private static void collect(ExecutionPlan.Node node, List<ExecutionPlan.Verdict> into) {
+    private static void collect(TestPlan.TestStep node, List<TestPlan.Verdict> into) {
         switch (node) {
-            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> collect(step, into));
-            case ExecutionPlan.Verdicts g -> into.addAll(g.verdicts());
-            case ExecutionPlan.Branch b -> {
+            case TestPlan.Verdicts g -> into.addAll(g.verdicts());
+            case TestPlan.Branch b -> {
                 b.then().forEach(step -> collect(step, into));
                 b.otherwise().forEach(step -> collect(step, into));
             }

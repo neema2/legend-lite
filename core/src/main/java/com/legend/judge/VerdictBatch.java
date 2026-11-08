@@ -8,6 +8,7 @@ import com.legend.exec.ExecutionTrace;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PrepTrace;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.TestPlan;
 
 import com.legend.sql.SqlQuery;
 
@@ -97,11 +98,11 @@ public final class VerdictBatch {
         /** The savepoint that guards a fused statement inside a transaction where the body's database aborts one on a
          *  failing statement (F11, the test-is-the-product plan's B12), or null where none is needed or none exists
          *  ({@code SqlDialect.verdictSavepoint}). */
-        ExecutionPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint();
+        TestPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint();
 
         /** The rules the batch's verdicts are judged by (the run's, stamped on every group it plans: the explicit
          *  rule, 2026-11-04) -- the database judge planned their statements under them. */
-        ExecutionPlan.JudgingRules rules();
+        TestPlan.JudgingRules rules();
     }
 
     /** The arm a verdict's name spells: the assert function's simple name (the name is its callee's FQN, or the
@@ -111,30 +112,6 @@ public final class VerdictBatch {
         String simple = i < 0 ? name : name.substring(i + 2);
         int u = simple.indexOf('_');
         return u > 0 ? simple.substring(0, u) : simple;
-    }
-
-    /** A program sink for a verdict group alone: no answer, no host sides (a verdict group answers no rows and the
-     *  host judge is not asked here); the rows and the fused outcome are the batch's to take. */
-    private abstract static class VerdictSink implements PlanRunner.ProgramSink {
-        @Override
-        public void columns(List<ExecutionPlan.Column> columns) {
-            throw new IllegalStateException("a verdict group answers no rows");
-        }
-
-        @Override
-        public void batch(com.legend.result.Batch batch) {
-            throw new IllegalStateException("a verdict group answers no rows");
-        }
-
-        @Override
-        public void end() {
-            throw new IllegalStateException("a verdict group answers no rows");
-        }
-
-        @Override
-        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
-            throw new IllegalStateException("the host judge is not asked through the batch");
-        }
     }
 
     /** A deferred verdict statement, or an outcome the arm decided
@@ -422,7 +399,7 @@ public final class VerdictBatch {
 
     /** One verdict group of a planned batch: its step, the session it runs on, whether it is the keyed members' group
      *  (each verdict its keyed wrapper, no fused statement; a rejection fails the program, P1.2, 2026-11-07). */
-    public record Group(ExecutionPlan.Verdicts step, ExecutionPlan.Target on, boolean keyed) {
+    public record Group(TestPlan.Verdicts step, ExecutionPlan.Target on, boolean keyed) {
     }
 
     /**
@@ -507,7 +484,7 @@ public final class VerdictBatch {
         // runs only the plan's statements): on its root's first verdict in the plan (Verdict.message, attached once
         // the groups are made: carried), read through the run's reader only where the root fails; a message the
         // dialect cannot spell keeps its refusal, raised there
-        Map<Root, ExecutionPlan.Side> messages = new java.util.IdentityHashMap<>();
+        Map<Root, TestPlan.Side> messages = new java.util.IdentityHashMap<>();
         Map<Root, com.legend.testexecutionplan.Failure> messageRefusals = new java.util.IdentityHashMap<>();
         for (Root r : batch) {
             if (r.message == null) {
@@ -564,14 +541,14 @@ public final class VerdictBatch {
                 continue;
             }
             for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
-                List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
+                List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                 for (Pending p : part.getKey()) {
-                    ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
+                    TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
                             null);
                     verdicts.add(v);
                     members.put(v.id(), p);
                 }
-                out.add(new Group(new ExecutionPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
+                out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
                         runner.rules()), g.getKey(), false));
             }
         }
@@ -595,12 +572,12 @@ public final class VerdictBatch {
      *  2026-11-07: until then the message rode the root's first pending member, which a refused member or a root
      *  decided at planning left in no group); {@code members} keyed by the verdicts as rebuilt. */
     private static List<Group> carried(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Root, ExecutionPlan.Side> messages) {
-        Map<Pending, ExecutionPlan.Side> carry = new java.util.IdentityHashMap<>();
+            Map<Root, TestPlan.Side> messages) {
+        Map<Pending, TestPlan.Side> carry = new java.util.IdentityHashMap<>();
         java.util.Set<Pending> grouped = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         grouped.addAll(members.values());
         for (Root r : batch) {
-            ExecutionPlan.Side side = messages.get(r);
+            TestPlan.Side side = messages.get(r);
             if (side == null) {
                 continue;
             }
@@ -616,20 +593,20 @@ public final class VerdictBatch {
         }
         List<Group> out = new ArrayList<>(groups.size());
         for (Group g : groups) {
-            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(g.step().verdicts().size());
-            for (ExecutionPlan.Verdict v : g.step().verdicts()) {
+            List<TestPlan.Verdict> verdicts = new ArrayList<>(g.step().verdicts().size());
+            for (TestPlan.Verdict v : g.step().verdicts()) {
                 Pending p = members.get(v.id());
-                ExecutionPlan.Side side = p == null ? null : carry.get(p);
+                TestPlan.Side side = p == null ? null : carry.get(p);
                 if (side == null) {
                     verdicts.add(v);
                     continue;
                 }
-                ExecutionPlan.Verdict withMessage = new ExecutionPlan.Verdict(v.id(), v.name(), v.arm(), v.base(), v.wrapper(),
+                TestPlan.Verdict withMessage = new TestPlan.Verdict(v.id(), v.name(), v.arm(), v.base(), v.wrapper(),
                         side);
                 // the same verdict with its message: the same id, so its member stands
                 verdicts.add(withMessage);
             }
-            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(),
+            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(),
                     g.step().rules()), g.on(), g.keyed()));
         }
         return out;
@@ -666,13 +643,13 @@ public final class VerdictBatch {
         /** The dialect's refusal of each member it cannot spell, raised at the member's place (nothing sent). */
         private final Map<Pending, com.legend.testexecutionplan.Failure> refusals;
         /** Each root's caller's message that reads, a side of the plan (on its first verdict, Verdict.message). */
-        private final Map<Root, ExecutionPlan.Side> messages;
+        private final Map<Root, TestPlan.Side> messages;
         /** A caller's message the dialect cannot spell: its refusal, raised where the root fails. */
         private final Map<Root, com.legend.testexecutionplan.Failure> messageRefusals;
 
         private Planned(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
                 java.util.Set<Pending> unspelled, Map<Pending, com.legend.testexecutionplan.Failure> refusals,
-                Map<Root, ExecutionPlan.Side> messages,
+                Map<Root, TestPlan.Side> messages,
                 Map<Root, com.legend.testexecutionplan.Failure> messageRefusals) {
             this.batch = batch;
             this.groups = groups;
@@ -711,7 +688,7 @@ public final class VerdictBatch {
 
         /** The runner's word on a group's fused statement: sent, or rejected -- counted here; the runner then fails the
          *  body with the database's error, nothing retried another way (P1.2, G7, 2026-11-07). */
-        public void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+        public void fused(TestPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
             counted();
             if (rejected == null) {
                 Census.inc(Census.Key.VERDICT_FUSED);
@@ -723,7 +700,7 @@ public final class VerdictBatch {
         /** The row the runner read for {@code verdict} (null where none: a member the dialect could not spell, planned
          *  with no statement -- a rejected statement fails the program); the root loop reaches an absent row at its
          *  place. */
-        public void received(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+        public void received(TestPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
             counted();
             Pending p = members.get(verdict.id());
             if (p == null) {
@@ -761,16 +738,16 @@ public final class VerdictBatch {
         /** {@link #judge(AssertListener)} inside a program's run: a failing root's caller's message, a side the plan
          *  carries on the root's first verdict, read through the program's {@code reader}, never a run of its own. */
         public void judge(@com.legend.base.Nullable AssertListener l,
-                PlanRunner.@com.legend.base.Nullable SideReader reader) {
+                com.legend.judge.@com.legend.base.Nullable SideReader reader) {
             judge(l, reader, true);
         }
 
-        /** {@link #judge(AssertListener, PlanRunner.SideReader)}; {@code messages} false where the caller's message is
+        /** {@link #judge(AssertListener, com.legend.judge.SideReader)}; {@code messages} false where the caller's message is
          *  another judge's to read -- the agreement judge's: a failure both judges agree on is told in the HOST's words
          *  (AgreementArm), so this half judges the verdict alone and reads no message (P1.2, 2026-11-07: the plan
          *  carries the host's message on the assert's verdict, never this half's). */
         public void judge(@com.legend.base.Nullable AssertListener l,
-                PlanRunner.@com.legend.base.Nullable SideReader reader, boolean messages) {
+                com.legend.judge.@com.legend.base.Nullable SideReader reader, boolean messages) {
             counted();
             for (Root r : batch) {
                 RuntimeException failure = null;
@@ -856,13 +833,13 @@ public final class VerdictBatch {
 
     /** The failure of {@code r}, a root that did not hold, with its caller's message: the message's row sent now, at
      *  the root's place, its value the failure's text -- or the error reading it raised. */
-    private RuntimeException messaged(Root r, Planned planned, PlanRunner.@com.legend.base.Nullable SideReader reader) {
+    private RuntimeException messaged(Root r, Planned planned, com.legend.judge.@com.legend.base.Nullable SideReader reader) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", r.listenerName);
         com.legend.testexecutionplan.Failure refusal = planned.messageRefusals.get(r);
         if (refusal != null) {
             return planned.refused(r.listenerName, refusal);
         }
-        ExecutionPlan.Side side = java.util.Objects.requireNonNull(planned.messages.get(r));
+        TestPlan.Side side = java.util.Objects.requireNonNull(planned.messages.get(r));
         if (planned.groups.stream().flatMap(g -> g.step().verdicts().stream()).noneMatch(v -> side.equals(v.message()))) {
             // a root with no verdict in the plan (every member refused, or decided at planning): its message rides no
             // statement of the plan, so it is not read -- refused by name (the milestone audit's 3)
@@ -889,10 +866,10 @@ public final class VerdictBatch {
     }
 
     /** A planned verdict statement as a side of the plan the run's reader reads. */
-    private static ExecutionPlan.Side sideOf(ExecutionPlan.Node node) {
+    private static TestPlan.Side sideOf(ExecutionPlan.Node node) {
         return switch (node) {
-            case ExecutionPlan.TdsResult t -> new ExecutionPlan.Side.Rows(t);
-            case ExecutionPlan.Keyed k -> new ExecutionPlan.Side.KeyedRows(k);
+            case ExecutionPlan.TdsResult t -> new TestPlan.Side.Rows(t);
+            case ExecutionPlan.Keyed k -> new TestPlan.Side.KeyedRows(k);
             default -> throw new IllegalStateException("a verdict statement is a typed or keyed result");
         };
     }
@@ -909,10 +886,10 @@ public final class VerdictBatch {
      *  nothing sent. Null where no member is spelled. */
     private @com.legend.base.Nullable Group ownStatements(List<Pending> keyed, ExecutionPlan.Target on,
             Map<Integer, Pending> members, java.util.Set<Pending> unspelled, boolean isKeyed) {
-        List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
+        List<TestPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
             try {
-                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
+                TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
                         runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
                 verdicts.add(v);
                 members.put(v.id(), p);
@@ -920,7 +897,7 @@ public final class VerdictBatch {
                 unspelled.add(p);
             }
         }
-        return verdicts.isEmpty() ? null : new Group(new ExecutionPlan.Verdicts(verdicts, null, runner.rules()), on,
+        return verdicts.isEmpty() ? null : new Group(new TestPlan.Verdicts(verdicts, null, runner.rules()), on,
                 isKeyed);
     }
 
