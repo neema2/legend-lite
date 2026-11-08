@@ -126,7 +126,10 @@ Step 1 starts by completing this list (known so far): `Equality` (carrier and ef
 numeric family, the fine numeric kind per side and per column), `PureAsserts.classFqnOf`, `JudgePlans` shaping
 (reported type, relation columns, multiplicity, list carriers), `HostJudge.rowsOf` and `restrictOne` (key trees),
 `AssertErrorNative`'s judging, dynamic-pivot column types, `TypedSide.returnType` everywhere, and the referee's
-interface and the spec harness, which read compiler types from `TypedSide`.
+interface and the spec harness, which read compiler types from `TypedSide` (step 0, 2026-11-08: the referee's
+interface takes `TypedSide` and the model -- the model stays, the edge may use it; the harness's `ReplayReferee`
+reads a column's compiler type as `Type.EnumType` to decode an enum column, which becomes the plan's type name and a
+lookup in the model).
 
 ### 2.6 The connection description, and the system store's key
 
@@ -407,7 +410,7 @@ SqlTextVerdicts
 | a type decision moved to planning changes a verdict (step 1) | every lane, identical verdicts, before step 2 |
 | the callback changes a transaction, a routing or an origin (step 3) | every lane before step 4; the store-write, savepoint and system-routed core suites |
 | a failure's class, message or position drifts (step 2) | the core suites that pin exception types and messages; the harness's printed class names |
-| an `Any` slot's key trees make plans large (step 4) | measured at step 0; restricted to the classes the slot's values can be, if large |
+| an `Any` slot's key trees make plans large (step 4) | MEASURED at step 0 (2026-11-08, a print-only probe that did not land): 52 key trees on the DuckDB corpus under the host judge, the largest `DynaFunction`'s (159 classes, 357 keys; 9 verdicts) and `FunctionCall`'s and `SingleColumn`'s (69 classes, 176 keys; 8); 52 on PCT DuckDB and core's driver and integration suites, the largest `List`'s (45 classes; 4 verdicts); every other one small or empty. Carried as data they add tens of kilobytes to a handful of plans; step 4 chooses between carrying them and restricting them to the classes a slot's values can be, measured |
 | the edge's planned reads differ from today's appeal reads (step 8) | the DuckDB and H2 corpora's referee census and appeal outcomes, identical |
 
 ## 7. An example: `projection::limit::testSimpleLimit`

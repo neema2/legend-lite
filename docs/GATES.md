@@ -20902,3 +20902,24 @@ with no assert's verdict where the split rung used to record each assert): four 
 `stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat` (2026-09-23) left for it with its explanation
 (`83f68e44`). The H2 lane rerun green: `unregistered=0`. This is the baseline the plan-as-data step
 (`docs/PLAN_AS_DATA_2026_11_07.md`) is held to.
+
+## 2026-11-08 — The plan as data, step 0 (docs/PLAN_AS_DATA_2026_11_07.md): no behaviour change
+
+- **The census counters** (`Census`, JDK types alone) moved from `//core:exec` to `//core:diagnostics`, which both the
+  planning and the running halves reach (`4f268584`); the exec funnel register's row left, dated.
+- **Verdict ids** (`bba6df99`): every verdict of a body's plan carries an id no other verdict of that plan has, given
+  as it is planned by one counter per body (`judge/VerdictIds`, in the body's environment); a verdict rebuilt from
+  another keeps its id; every map keyed by a verdict object (the three planners', the batch's members, the sink's
+  rules) is keyed by id; `PlanJson` writes and reads it. `VerdictIdsTest` pins uniqueness under each judge and the ids
+  through the JSON. Guards dated: the judge register (+`VerdictIds`), `BodyDriver` 512 -> 514, the field allowlist
+  (+`VerdictIds.last`).
+- **Step 1's list** of run-time methods naming a compiler type (24, from the bytecode) is in the design, with the
+  referee's interface and the spec harness's enum decoding.
+- **`ApiToken`** is a vault key upstream (`Vault.INSTANCE.getValue(authStrategy.apiToken)`), so it rides the plan as a
+  reference.
+- **Measured** (a print-only probe that did not land): `Any`-slot key trees -- 52 on the DuckDB corpus under the host
+  judge, the largest `DynaFunction`'s 159 classes / 357 keys (9 verdicts); 52 on PCT DuckDB and core's driver and
+  integration suites, the largest `List`'s 45 classes (4 verdicts).
+- **Checks**: the DuckDB corpus on both judges unchanged after each change (host 2436, database 2429, failure lines
+  identical, every roster and register exact); core driver, judge and integration under the three judges, exec,
+  census, guardrails and architecture green; `//spec:all` and `//pct:all` build.
