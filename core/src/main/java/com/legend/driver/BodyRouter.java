@@ -60,7 +60,8 @@ public final class BodyRouter {
         HostAsserts host = null;
         DatabaseAsserts database = null;
         AgreementAsserts agreement = null;
-        // the body's engine-text appeals, held beside its plan by number until the design's step 8 (EngineTextAppeals)
+        // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
+        // (step 8b, 2026-11-08)
         EngineTextAppeals textAppeals = null;
         // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
         // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
@@ -136,6 +137,12 @@ public final class BodyRouter {
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
         // G11 (the goals of record, 2026-11-07): every test body's plan is portable data -- it survives its JSON
+        if (options.judgingRules() == TestPlan.JudgingRules.COMPILED_PURE_COMPAT && textAppeals != null) {
+            // the appeals the plan's verdicts name, the plan's own data (the plan-as-data design's step 8b, 2026-11-08):
+            // heard at their verdicts' steps, decided after the run from these records; lite's rules hear none
+            plan = new TestPlan(plan.parameters(), plan.steps(), plan.judge(), plan.extensionsByStep(),
+                    AppealsByVerdict.of(plan, textAppeals));
+        }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
         if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {
             // guard 3 in report mode (docs/PLAN_AS_DATA_2026_11_07.md 2.10, from the design's step 3, 2026-11-08; hard
@@ -162,8 +169,11 @@ public final class BodyRouter {
                 // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
                 listener.beforeRun();
             }
-            try (var open = appeals.open();
-                    var published = EngineTextAppeals.during(java.util.Objects.requireNonNull(textAppeals))) {
+            // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
+            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = AppealsByVerdict.byNumber(plan);
+            Appeals.Decider decider = (n, golden, ours, textEqual, l) -> SqlTextVerdicts.decideAppeal(
+                    AppealsByVerdict.of(planned, n), golden, ours, textEqual, referee, typed.context(), l);
+            try (var open = appeals.open()) {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);
             } catch (RuntimeException runFailed) {
@@ -171,11 +181,11 @@ public final class BodyRouter {
                 // body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a wall's
                 // refusal, the JVM's -- passes untouched: nothing is decided after it)
                 throw appeals.afterFailure(runFailed, session, systemSessions,
-                        sessionsByTarget(session, systemSessions));
+                        sessionsByTarget(session, systemSessions), decider);
             }
             // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is the
             // body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the caller)
-            appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions));
+            appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
             if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
                 // a body whose last statement is an assert answers its verdict as host rows, as the walk does
                 JudgePlans.host(moved.lastVerdict(), answer);
@@ -264,6 +274,8 @@ public final class BodyRouter {
         private final @Nullable ResultSink early;
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
         private final com.legend.judge.RootLoops.@Nullable Runs databaseRuns;
+        /** A database root's failed row's appeal, by its number in the plan (step 8b, 2026-11-08). */
+        private final java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals;
         /** The agreement judge's asserts, read from the plan (step 6, 2026-11-08), or null under another judge. */
         private final @Nullable AgreementRuns agreementRuns;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
@@ -322,7 +334,11 @@ public final class BodyRouter {
             TestPlan.Judge judge = planned.judge();
             this.databaseRuns = judge == TestPlan.Judge.DATABASE
                     ? new com.legend.judge.RootLoops.Runs(planned.steps()) : null;
-            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps()) : null;
+            // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
+            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = AppealsByVerdict.byNumber(planned);
+            this.rowAppeals = n -> row -> SqlTextVerdicts.rowAppealed(AppealsByVerdict.of(appealsPlanned, n), row);
+            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps(), rowAppeals)
+                    : null;
             planned.steps().forEach(step -> rulesOf(step, runRules));
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();
@@ -399,7 +415,7 @@ public final class BodyRouter {
             try (var judging = RunReader.judging(reader, sessions)) {
                 run.received(verdict, row);
                 if (runs.closes(verdict)) {
-                    run.judge(listener, reader, true, DatabaseJudge::verdictOf, EngineTextAppeals::rowAppeal);
+                    run.judge(listener, reader, true, DatabaseJudge::verdictOf, rowAppeals);
                 }
             }
             lastVerdict = AssertVerdicts.ok();

@@ -122,14 +122,14 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("assertion", wAssertion(x.assertion()));
         o.put("judgment", wHostJudgment(x.judgment()));
-        o.put("shapes", list(x.shapes(), each -> wSideShape(each)));
+        o.put("shapes", list(x.shapes(), e0 -> wSideShape(e0)));
         return o;
     }
 
     static TestPlan.Host rHost(Json.Obj o) {
         Assertion v_assertion = rAssertion(obj(field(o, "assertion", "Host")));
         HostJudgment v_judgment = rHostJudgment(obj(field(o, "judgment", "Host")));
-        List<SideShape> v_shapes = readList(field(o, "shapes", "Host"), each -> rSideShape(obj(each)));
+        List<SideShape> v_shapes = readList(field(o, "shapes", "Host"), n0 -> rSideShape(obj(n0)));
         return new TestPlan.Host(v_assertion, v_judgment, v_shapes);
     }
 
@@ -175,8 +175,8 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("kind", x.kind().name());
         o.put("typeName", x.typeName());
-        o.put("columns", list(x.columns(), each -> wSideShapeColumn(each)));
-        o.put("templates", list(x.templates(), each -> wSideShapeColumn(each)));
+        o.put("columns", list(x.columns(), e0 -> wSideShapeColumn(e0)));
+        o.put("templates", list(x.templates(), e0 -> wSideShapeColumn(e0)));
         o.put("oneCarrier", x.oneCarrier());
         o.put("scalar", x.scalar());
         o.put("lower", x.lower());
@@ -190,8 +190,8 @@ final class HostJson {
     static SideShape rSideShape(Json.Obj o) {
         SideShape.Kind v_kind = SideShape.Kind.valueOf(str(field(o, "kind", "SideShape")));
         String v_typeName = str(field(o, "typeName", "SideShape"));
-        List<SideShape.Column> v_columns = readList(field(o, "columns", "SideShape"), each -> rSideShapeColumn(obj(each)));
-        List<SideShape.Column> v_templates = readList(field(o, "templates", "SideShape"), each -> rSideShapeColumn(obj(each)));
+        List<SideShape.Column> v_columns = readList(field(o, "columns", "SideShape"), n0 -> rSideShapeColumn(obj(n0)));
+        List<SideShape.Column> v_templates = readList(field(o, "templates", "SideShape"), n0 -> rSideShapeColumn(obj(n0)));
         boolean v_oneCarrier = bool(field(o, "oneCarrier", "SideShape"));
         boolean v_scalar = bool(field(o, "scalar", "SideShape"));
         long v_lower = num(field(o, "lower", "SideShape"));
@@ -220,13 +220,13 @@ final class HostJson {
     static Map<String, Object> wKeyTree(KeyTree x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("classFqn", x.classFqn());
-        o.put("keys", list(x.keys(), each -> wKeyTreeKey(each)));
+        o.put("keys", list(x.keys(), e0 -> wKeyTreeKey(e0)));
         return o;
     }
 
     static KeyTree rKeyTree(Json.Obj o) {
         String v_classFqn = str(field(o, "classFqn", "KeyTree"));
-        List<KeyTree.Key> v_keys = readList(field(o, "keys", "KeyTree"), each -> rKeyTreeKey(obj(each)));
+        List<KeyTree.Key> v_keys = readList(field(o, "keys", "KeyTree"), n0 -> rKeyTreeKey(obj(n0)));
         return new KeyTree(v_classFqn, v_keys);
     }
 
@@ -301,7 +301,7 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("tolerance", x.tolerance());
-        o.put("args", list(x.args(), each -> wRowArg(each)));
+        o.put("args", list(x.args(), e0 -> wRowArg(e0)));
         o.put("expectedClass", x.expectedClass() == null ? null : x.expectedClass());
         o.put("actualClass", x.actualClass() == null ? null : x.actualClass());
         o.put("pairing", x.pairing() == null ? null : wPairing(x.pairing()));
@@ -311,7 +311,7 @@ final class HostJson {
     static HostJudgment.Rows rHjRows(Json.Obj o) {
         String v_name = str(field(o, "name", "Rows"));
         boolean v_tolerance = bool(field(o, "tolerance", "Rows"));
-        List<HostJudgment.RowArg> v_args = readList(field(o, "args", "Rows"), each -> rRowArg(obj(each)));
+        List<HostJudgment.RowArg> v_args = readList(field(o, "args", "Rows"), n0 -> rRowArg(obj(n0)));
         @Nullable String v_expectedClass = absent(o, "expectedClass", "Rows") ? null : str(o.get("expectedClass"));
         @Nullable String v_actualClass = absent(o, "actualClass", "Rows") ? null : str(o.get("actualClass"));
         HostJudgment.@Nullable Pairing v_pairing = absent(o, "pairing", "Rows") ? null : rPairing(obj(o.get("pairing")));
@@ -320,12 +320,12 @@ final class HostJson {
 
     static Map<String, Object> wHjUnrolled(HostJudgment.Unrolled x) {
         Map<String, Object> o = new LinkedHashMap<>();
-        o.put("parts", list(x.parts(), each -> wPart(each)));
+        o.put("parts", list(x.parts(), e0 -> wPart(e0)));
         return o;
     }
 
     static HostJudgment.Unrolled rHjUnrolled(Json.Obj o) {
-        List<HostJudgment.Part> v_parts = readList(field(o, "parts", "Unrolled"), each -> rPart(obj(each)));
+        List<HostJudgment.Part> v_parts = readList(field(o, "parts", "Unrolled"), n0 -> rPart(obj(n0)));
         return new HostJudgment.Unrolled(v_parts);
     }
 
@@ -449,7 +449,7 @@ final class HostJson {
 
     static HostJudgment.InstanceOf rHjInstanceOf(Json.Obj o) {
         @Nullable String v_typeName = absent(o, "typeName", "InstanceOf") ? null : str(o.get("typeName"));
-        java.util.Set<String> v_acceptedTypes = new java.util.LinkedHashSet<>(readList(field(o, "acceptedTypes", "InstanceOf"), each -> str(each)));
+        java.util.Set<String> v_acceptedTypes = new java.util.LinkedHashSet<>(readList(field(o, "acceptedTypes", "InstanceOf"), n0 -> str(n0)));
         return new HostJudgment.InstanceOf(v_typeName, v_acceptedTypes);
     }
 
@@ -652,7 +652,7 @@ final class HostJson {
         o.put("a", x.a() == null ? null : wKeyTree(x.a()));
         o.put("eSubA", x.eSubA());
         o.put("aSubE", x.aSubE());
-        o.put("byClass", map(x.byClass(), each -> wKeyTree(each)));
+        o.put("byClass", map(x.byClass(), e0 -> wKeyTree(e0)));
         return o;
     }
 
@@ -661,7 +661,7 @@ final class HostJson {
         @Nullable KeyTree v_a = absent(o, "a", "Keys") ? null : rKeyTree(obj(o.get("a")));
         boolean v_eSubA = bool(field(o, "eSubA", "Keys"));
         boolean v_aSubE = bool(field(o, "aSubE", "Keys"));
-        Map<String, KeyTree> v_byClass = readMap(field(o, "byClass", "Keys"), each -> rKeyTree(obj(each)));
+        Map<String, KeyTree> v_byClass = readMap(field(o, "byClass", "Keys"), n0 -> rKeyTree(obj(n0)));
         return new HostJudgment.Keys(v_e, v_a, v_eSubA, v_aSubE, v_byClass);
     }
 
@@ -756,28 +756,28 @@ final class HostJson {
 
     static Map<String, Object> wRootLoop(RootLoop x) {
         Map<String, Object> o = new LinkedHashMap<>();
-        o.put("roots", list(x.roots(), each -> wRlRoot(each)));
-        o.put("fragments", map(x.fragments(), each -> each));
+        o.put("roots", list(x.roots(), e0 -> wRlRoot(e0)));
+        o.put("fragments", map(x.fragments(), e0 -> e0));
         return o;
     }
 
     static RootLoop rRootLoop(Json.Obj o) {
-        List<RootLoop.Root> v_roots = readList(field(o, "roots", "RootLoop"), each -> rRlRoot(obj(each)));
-        Map<String, String> v_fragments = readMap(field(o, "fragments", "RootLoop"), each -> str(each));
+        List<RootLoop.Root> v_roots = readList(field(o, "roots", "RootLoop"), n0 -> rRlRoot(obj(n0)));
+        Map<String, String> v_fragments = readMap(field(o, "fragments", "RootLoop"), n0 -> str(n0));
         return new RootLoop(v_roots, v_fragments);
     }
 
     static Map<String, Object> wRlRoot(RootLoop.Root x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("listenerName", x.listenerName());
-        o.put("steps", list(x.steps(), each -> wRootStep(each)));
+        o.put("steps", list(x.steps(), e0 -> wRootStep(e0)));
         o.put("message", x.message() == null ? null : wRlMessage(x.message()));
         return o;
     }
 
     static RootLoop.Root rRlRoot(Json.Obj o) {
         String v_listenerName = str(field(o, "listenerName", "Root"));
-        List<RootLoop.Step> v_steps = readList(field(o, "steps", "Root"), each -> rRootStep(obj(each)));
+        List<RootLoop.Step> v_steps = readList(field(o, "steps", "Root"), n0 -> rRootStep(obj(n0)));
         RootLoop.@Nullable Message v_message = absent(o, "message", "Root") ? null : rRlMessage(obj(o.get("message")));
         return new RootLoop.Root(v_listenerName, v_steps, v_message);
     }
@@ -840,6 +840,122 @@ final class HostJson {
         int v_hostVerdict = Math.toIntExact(num(field(o, "hostVerdict", "Agreement")));
         int v_raisingVerdict = Math.toIntExact(num(field(o, "raisingVerdict", "Agreement")));
         return new Agreement(v_hostVerdict, v_raisingVerdict);
+    }
+
+    static Map<String, Object> wAppeal(Appeal x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("number", x.number());
+        o.put("name", x.name());
+        o.put("kind", x.kind().name());
+        o.put("contract", x.contract() == null ? null : x.contract());
+        o.put("rows", x.rows() == null ? null : wAppealRows(x.rows()));
+        o.put("batched", x.batched() == null ? null : wAppealBatched(x.batched()));
+        return o;
+    }
+
+    static Appeal rAppeal(Json.Obj o) {
+        int v_number = Math.toIntExact(num(field(o, "number", "Appeal")));
+        String v_name = str(field(o, "name", "Appeal"));
+        Appeal.Kind v_kind = Appeal.Kind.valueOf(str(field(o, "kind", "Appeal")));
+        @Nullable String v_contract = absent(o, "contract", "Appeal") ? null : str(o.get("contract"));
+        Appeal.@Nullable Rows v_rows = absent(o, "rows", "Appeal") ? null : rAppealRows(obj(o.get("rows")));
+        Appeal.@Nullable Batched v_batched = absent(o, "batched", "Appeal") ? null : rAppealBatched(obj(o.get("batched")));
+        return new Appeal(v_number, v_name, v_kind, v_contract, v_rows, v_batched);
+    }
+
+    static Map<String, Object> wAppealRows(Appeal.Rows x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("rows", wAppealRead(x.rows()));
+        o.put("population", wAppealRead(x.population()));
+        o.put("replaySql", x.replaySql() == null ? null : x.replaySql());
+        o.put("mappingFqn", x.mappingFqn() == null ? null : x.mappingFqn());
+        o.put("classFqn", x.classFqn() == null ? null : x.classFqn());
+        o.put("extentSubset", x.extentSubset());
+        o.put("ordered", x.ordered());
+        o.put("sortKeys", x.sortKeys() == null ? null : list(x.sortKeys(), e0 -> e0));
+        o.put("goldenPlan", x.goldenPlan() == null ? null : x.goldenPlan());
+        o.put("planBindings", map(x.planBindings(), e0 -> list(e0, e1 -> e1)));
+        o.put("temps", list(x.temps(), e0 -> wAppealTemp(e0)));
+        o.put("seed", x.seed() == null ? null : wAppealSeed(x.seed()));
+        o.put("stores", list(x.stores(), e0 -> e0));
+        o.put("on", com.legend.executionplan.PlanJson.targetJson(x.on()));
+        return o;
+    }
+
+    static Appeal.Rows rAppealRows(Json.Obj o) {
+        Appeal.Read v_rows = rAppealRead(obj(field(o, "rows", "Rows")));
+        Appeal.Read v_population = rAppealRead(obj(field(o, "population", "Rows")));
+        @Nullable String v_replaySql = absent(o, "replaySql", "Rows") ? null : str(o.get("replaySql"));
+        @Nullable String v_mappingFqn = absent(o, "mappingFqn", "Rows") ? null : str(o.get("mappingFqn"));
+        @Nullable String v_classFqn = absent(o, "classFqn", "Rows") ? null : str(o.get("classFqn"));
+        boolean v_extentSubset = bool(field(o, "extentSubset", "Rows"));
+        boolean v_ordered = bool(field(o, "ordered", "Rows"));
+        @Nullable List<String> v_sortKeys = absent(o, "sortKeys", "Rows") ? null : readList(o.get("sortKeys"), n0 -> str(n0));
+        @Nullable String v_goldenPlan = absent(o, "goldenPlan", "Rows") ? null : str(o.get("goldenPlan"));
+        Map<String, List<String>> v_planBindings = readMap(field(o, "planBindings", "Rows"), n0 -> readList(n0, n1 -> str(n1)));
+        List<Appeal.TempTable> v_temps = readList(field(o, "temps", "Rows"), n0 -> rAppealTemp(obj(n0)));
+        Appeal.@Nullable InListSeed v_seed = absent(o, "seed", "Rows") ? null : rAppealSeed(obj(o.get("seed")));
+        List<String> v_stores = readList(field(o, "stores", "Rows"), n0 -> str(n0));
+        ExecutionPlan.Target v_on = com.legend.executionplan.PlanJson.targetOf(obj(field(o, "on", "Rows")));
+        return new Appeal.Rows(v_rows, v_population, v_replaySql, v_mappingFqn, v_classFqn, v_extentSubset, v_ordered, v_sortKeys, v_goldenPlan, v_planBindings, v_temps, v_seed, v_stores, v_on);
+    }
+
+    static Map<String, Object> wAppealRead(Appeal.Read x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("side", x.side() == null ? null : TestPlanJson.side(x.side()));
+        o.put("shape", x.shape() == null ? null : wSideShape(x.shape()));
+        o.put("failure", x.failure() == null ? null : wFailure(x.failure()));
+        return o;
+    }
+
+    static Appeal.Read rAppealRead(Json.Obj o) {
+        TestPlan.@Nullable Side v_side = absent(o, "side", "Read") ? null : TestPlanJson.readSide(obj(o.get("side")));
+        @Nullable SideShape v_shape = absent(o, "shape", "Read") ? null : rSideShape(obj(o.get("shape")));
+        @Nullable Failure v_failure = absent(o, "failure", "Read") ? null : rFailure(obj(o.get("failure")));
+        return new Appeal.Read(v_side, v_shape, v_failure);
+    }
+
+    static Map<String, Object> wAppealTemp(Appeal.TempTable x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("name", x.name());
+        o.put("kind", x.kind());
+        o.put("values", list(x.values(), e0 -> e0));
+        return o;
+    }
+
+    static Appeal.TempTable rAppealTemp(Json.Obj o) {
+        String v_name = str(field(o, "name", "TempTable"));
+        String v_kind = str(field(o, "kind", "TempTable"));
+        List<String> v_values = readList(field(o, "values", "TempTable"), n0 -> str(n0));
+        return new Appeal.TempTable(v_name, v_kind, v_values);
+    }
+
+    static Map<String, Object> wAppealSeed(Appeal.InListSeed x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("kind", x.kind());
+        o.put("values", list(x.values(), e0 -> e0));
+        return o;
+    }
+
+    static Appeal.InListSeed rAppealSeed(Json.Obj o) {
+        String v_kind = str(field(o, "kind", "InListSeed"));
+        List<String> v_values = readList(field(o, "values", "InListSeed"), n0 -> str(n0));
+        return new Appeal.InListSeed(v_kind, v_values);
+    }
+
+    static Map<String, Object> wAppealBatched(Appeal.Batched x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("golden", x.golden());
+        o.put("ours", x.ours() == null ? null : x.ours());
+        o.put("textEqual", x.textEqual());
+        return o;
+    }
+
+    static Appeal.Batched rAppealBatched(Json.Obj o) {
+        String v_golden = str(field(o, "golden", "Batched"));
+        @Nullable String v_ours = absent(o, "ours", "Batched") ? null : str(o.get("ours"));
+        boolean v_textEqual = bool(field(o, "textEqual", "Batched"));
+        return new Appeal.Batched(v_golden, v_ours, v_textEqual);
     }
 
     static Map<String, Object> wKindClass(KindClass x) {

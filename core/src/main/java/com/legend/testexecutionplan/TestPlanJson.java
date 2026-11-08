@@ -234,7 +234,13 @@ public final class TestPlanJson {
             List<Object> written = new ArrayList<>(records.size());
             for (Extension e : records) {
                 Map<String, Object> o = null;
-                for (ExtensionCodec c : codecs) {
+                if (e instanceof Appeal a) {
+                    // the test plan's own record (an engine-text assert's appeal, step 8b): its own codec
+                    o = new LinkedHashMap<>();
+                    o.put("_type", "appeal");
+                    o.putAll(HostJson.wAppeal(a));
+                }
+                for (ExtensionCodec c : o != null ? List.<ExtensionCodec>of() : codecs) {
                     o = c.write(e);
                     if (o != null) {
                         break;
@@ -259,8 +265,8 @@ public final class TestPlanJson {
             for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
                 Json.Obj o = (Json.Obj) n;
                 String tag = o.getString("_type");
-                Extension read = null;
-                for (ExtensionCodec c : codecs) {
+                Extension read = "appeal".equals(tag) ? HostJson.rAppeal(o) : null;
+                for (ExtensionCodec c : read != null ? List.<ExtensionCodec>of() : codecs) {
                     read = c.read(tag, o);
                     if (read != null) {
                         break;

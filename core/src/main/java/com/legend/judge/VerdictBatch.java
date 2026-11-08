@@ -129,7 +129,7 @@ public final class VerdictBatch {
      *  decided it at planning (the dialect's refusal of the ruled row, a failure its planning raised), raised where the
      *  generic row fails. */
     private record Pending(int ix, String name, SqlQuery query,
-            ExecutionPlan.Target on, @com.legend.base.Nullable Appeal appeal, @com.legend.base.Nullable Step orElse)
+            ExecutionPlan.Target on, int appeal, @com.legend.base.Nullable Step orElse)
             implements Step {
     }
 
@@ -184,9 +184,6 @@ public final class VerdictBatch {
     /** The body's verdict ids: each verdict this batch plans takes the next. */
     private final VerdictIds ids;
     private final SelfContained selfContained;
-    /** Numbers a failed row's appeal (compatibility mode's rows): the plan names it by number, held beside the plan
-     *  until the design's step 8 makes it the edge's extension. */
-    private final java.util.function.ToIntFunction<Appeal> appeals;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
     private @com.legend.base.Nullable Root current;
@@ -200,13 +197,12 @@ public final class VerdictBatch {
     /** The lowering's one row over a generic verdict row and its ruled row. */
     private final Either either;
 
-    public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained,
-            java.util.function.ToIntFunction<Appeal> appeals, Runner runner, ExecutionTrace trace, VerdictIds ids) {
+    public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained, Runner runner, ExecutionTrace trace,
+            VerdictIds ids) {
         this.ids = ids;
         this.fusion = fusion;
         this.either = either;
         this.selfContained = selfContained;
-        this.appeals = appeals;
         this.runner = runner;
         this.trace = trace;
     }
@@ -249,11 +245,12 @@ public final class VerdictBatch {
     }
 
     public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on) {
-        defer(name, wantEqual, query, on, null);
+        defer(name, wantEqual, query, on, RootLoop.NO_APPEAL);
     }
 
-    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on,
-            @com.legend.base.Nullable Appeal appeal) {
+    /** {@code appeal}: the number, in the body's plan, of the appeal a failed row is heard by (the plan's data, step
+     *  8b), or {@link RootLoop#NO_APPEAL}. */
+    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on, int appeal) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
         for (Root x : roots) {
@@ -270,11 +267,11 @@ public final class VerdictBatch {
             // the verdict of the root's last row's ruled comparison (orElse): attached to that row, never a step of its
             // own; plan() makes the two one row
             int at = r.steps.indexOf(of);
-            if (at < 0 || of.orElse() != null || appeal != null) {
+            if (at < 0 || of.orElse() != null || appeal != RootLoop.NO_APPEAL) {
                 throw new IllegalStateException("verdict batch: a fallback for no row of the open root: " + name);
             }
             Pending withFallback = new Pending(of.ix(), of.name(), of.query(), of.on(), of.appeal(),
-                    new Pending(-1, name, row, on, null, null));
+                    new Pending(-1, name, row, on, RootLoop.NO_APPEAL, null));
             r.steps.set(at, withFallback);
             orElseOf.pop();
             orElseOf.push(withFallback);
@@ -293,7 +290,7 @@ public final class VerdictBatch {
             return null;
         }
         Step step = roots.get(0).steps.get(0);
-        if (step instanceof Pending p && p.appeal() == null && p.orElse() == null) {
+        if (step instanceof Pending p && p.appeal() == RootLoop.NO_APPEAL && p.orElse() == null) {
             return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
         }
         if (step instanceof Resolved r && r.reported() && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED
@@ -428,7 +425,7 @@ public final class VerdictBatch {
                 if (!(r.steps.get(i) instanceof Pending p && p.orElse() instanceof Pending f)) {
                     continue;
                 }
-                if (p.appeal() != null || f.orElse() != null || f.appeal() != null) {
+                if (p.appeal() != RootLoop.NO_APPEAL || f.orElse() != null || f.appeal() != RootLoop.NO_APPEAL) {
                     throw new IllegalStateException("verdict batch: a ruled row in a shape no rule plans as one row: "
                             + p.name());
                 }
@@ -452,15 +449,15 @@ public final class VerdictBatch {
                         throw new IllegalStateException("verdict batch: " + p.name() + "'s generic and ruled rows are"
                                 + " each spelled but not as one row: " + bothRefused.getMessage(), bothRefused);
                     }
-                    one = new Pending(p.ix(), p.name(), both, p.on(), null, null);
+                    one = new Pending(p.ix(), p.name(), both, p.on(), RootLoop.NO_APPEAL, null);
                 } else if (genericRefused != null && ruledRefused == null) {
-                    one = new Pending(p.ix(), p.name(), f.query(), p.on(), null, null);
+                    one = new Pending(p.ix(), p.name(), f.query(), p.on(), RootLoop.NO_APPEAL, null);
                 } else if (genericRefused == null) {
-                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), null,
+                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), RootLoop.NO_APPEAL,
                             new Resolved(Failures.of(java.util.Objects.requireNonNull(ruledRefused),
                                     "VerdictBatch.plan: a ruled row the dialect cannot spell"), true));
                 } else {
-                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), null, null);
+                    one = new Pending(p.ix(), p.name(), p.query(), p.on(), RootLoop.NO_APPEAL, null);
                 }
                 r.steps.set(i, one);
             }
@@ -579,10 +576,8 @@ public final class VerdictBatch {
                 steps.add(switch (s) {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
-                        Appeal appeal = p.appeal();
                         yield new RootLoop.Row(p.name(), id == null ? RootLoop.NO_VERDICT : id,
-                                id == null ? refusals.get(p.ix()) : null, decidedOrElse(p),
-                                appeal == null ? RootLoop.NO_APPEAL : appeals.applyAsInt(appeal));
+                                id == null ? refusals.get(p.ix()) : null, decidedOrElse(p), p.appeal());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                 });

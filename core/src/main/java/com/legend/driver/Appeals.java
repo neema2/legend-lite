@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * A BODY'S HELD APPEALS (P1.2, docs/GOALS_OF_RECORD_2026_11_07.md, G4 and G5): a compatibility appeal is the edge's, so
@@ -36,9 +35,11 @@ final class Appeals {
 
     private static final ThreadLocal<@Nullable Appeals> OPEN = new ThreadLocal<>();
 
-    /** An appeal held at its assert: decided after the run; {@code at} the kept reports before it; {@code messaged}
-     *  whether its assert carries a caller's message. */
-    private record Held(String name, Supplier<TypedSide> decide, int at, boolean messaged) {
+    /** An appeal heard at its assert, as the run records it (the plan-as-data design's step 8b, 2026-11-08: data, the
+     *  run's output): the appeal's number in the plan, the two texts as read and their equality; {@code at} the kept
+     *  reports before it; {@code messaged} whether its assert carries a caller's message. */
+    private record Held(String name, int number, String golden, String ours, boolean textEqual, int at,
+            boolean messaged) {
     }
 
     /** A report kept back while an appeal is held: told in order once the appeals before it hold. */
@@ -85,15 +86,23 @@ final class Appeals {
         return OPEN::remove;
     }
 
-    /** The appeal {@code decide} of the failed text of {@code name} held for after the run; the assert holds until
-     *  then. Refused outside a body's run: an appeal is heard at its assert's verdict step alone. */
-    static TypedSide hold(String name, Supplier<TypedSide> decide) {
+    /** The appeal numbered {@code number} heard over the failed text of {@code name}: recorded for after the run; the
+     *  assert holds until then. Refused outside a body's run: an appeal is heard at its assert's verdict step alone. */
+    static TypedSide hold(String name, int number, String golden, String ours, boolean textEqual) {
         Appeals open = OPEN.get();
         if (open == null) {
             throw new IllegalStateException(name + " (sql-text): an appeal heard outside a body's run");
         }
-        open.held.add(new Held(name, decide, open.kept.size(), com.legend.judge.CallerMessage.present()));
+        open.held.add(new Held(name, number, golden, ours, textEqual, open.kept.size(),
+                com.legend.judge.CallerMessage.present()));
         return AssertVerdicts.ok();
+    }
+
+    /** The listener of the body whose run is in progress (its reports kept back from the first held appeal on), or
+     *  null outside a body's run. */
+    static @Nullable AssertListener listenerNow() {
+        Appeals open = OPEN.get();
+        return open == null ? null : open.keeping;
     }
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
@@ -115,7 +124,7 @@ final class Appeals {
      *  are refused by name (the milestone audit's 2, 2026-11-07). */
     RuntimeException afterFailure(RuntimeException runFailed, Sessions.Session session,
             Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
-            Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+            Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
         if (held.isEmpty()) {
             deciding = true;
             return runFailed;
@@ -129,7 +138,7 @@ final class Appeals {
             return refused;
         }
         try {
-            decide(session, systemSessions, sessions);
+            decide(session, systemSessions, sessions, decider);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError appealFailed) {
             // the first held appeal's failure precedes the run's: raised here, the run's suppressed in it
             appealFailed.addSuppressed(runFailed);
@@ -154,7 +163,7 @@ final class Appeals {
      *  (the milestone audit's 2, 2026-11-07; the corpus measured none). */
     void decide(Sessions.Session session,
             Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
-            Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+            Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
         deciding = true;
         if (held.isEmpty()) {
             return;
@@ -182,7 +191,7 @@ final class Appeals {
                 tell(kept.get(told));
             }
             try (var judging = RunReader.judging(own, sessions); var noPlanning = com.legend.base.RunScope.judging()) {
-                h.decide().get();
+                decider.decide(h.number(), h.golden(), h.ours(), h.textEqual(), keeping);
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
                 failed(h, told, e);
                 throw e;
@@ -224,6 +233,14 @@ final class Appeals {
 
     private void tell(Report r) {
         r.tell(java.util.Objects.requireNonNull(listener));
+    }
+
+    /** How a held appeal is decided after the run: from the plan's data by its number, the texts the run recorded and
+     *  the run's listener (the edge's decision; step 8b, 2026-11-08). */
+    @FunctionalInterface
+    interface Decider {
+        TypedSide decide(int number, String golden, String ours, boolean textEqual,
+                @Nullable AssertListener listener);
     }
 
     /** A judgment's scope, closed when it ends. */

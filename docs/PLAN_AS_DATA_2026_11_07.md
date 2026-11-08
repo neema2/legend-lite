@@ -701,3 +701,20 @@ independently of the rules).
 - **Step 8a: an edge implies the compatibility rules** (ruled, 3a.3): `ExecuteOptions` refuses an edge under lite's
   own rules. `BodyRouterParityTest` hands the edge to its compatibility runs only. The census of an effect's
   statements is read from the plan's own effect step (its script), whatever the rules.
+- **Step 8b (2026-11-08): an engine-text assert's appeal is data, decided after the run.** The appeal's closure
+  (`TextAppeal`, four sites) and the database judge's row-appeal closures are gone: the arms plan an `Appeal` record
+  (`test_plan`): a contract's failure words, the generator's refusal (S143), or the rows leg -- our rows' and the
+  population's reads (each a statement and its shape, or the failure its planning raised), the referee's replay facts,
+  the temp tables and in-list seed the golden reads, the stores whose fixtures the harness provides, and the target the
+  referee replays on; for the database judge, the texts its verdict row compares. Each is numbered in its body; the
+  plan carries those its verdicts name (`extensionsByVerdict`, under the compatibility rules alone). At the verdict's
+  step the run RECORDS the appeal heard (its number and the texts read); after the run each is decided from the plan's
+  record, the run's record, the referee and the model. `EngineTextAppeals` is a planning registry of these records, no
+  longer published for the run.
+- **Step 8b: the appeal's record is the test plan's own type, and its decision still runs in the test road** (2.7 has
+  the edge plan its own records and decide them). The appeal's reads are planned by the arms' planning machinery
+  (`JudgePlans.plannedSide`), and its decision reads planned sides, a target's session and the listener through the
+  test road's run -- none of which the edge library can reach without the product exposing its run to it. Every input
+  is data in the plan now (the user's rule: no code in the plan); moving the decision code into the edge library, on an
+  interface the product declares, belongs with the package move (step 10), where testexec's run services get their
+  public form.

@@ -6,7 +6,6 @@ package com.legend.judge;
 import com.legend.database.Databases;
 import com.legend.exec.ExecutionTrace;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
@@ -85,8 +84,7 @@ class VerdictBatchSplitRungTest {
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
         VerdictBatch batch = new VerdictBatch((statements, frames) -> statements.get(0), (generic, ruled) -> generic,
-                (row, name, wantEqual) -> row, appeal -> RootLoop.NO_APPEAL, RUNNER, new ExecutionTrace(),
-                new VerdictIds());
+                (row, name, wantEqual) -> row, RUNNER, new ExecutionTrace(), new VerdictIds());
         batch.open("a");
         batch.defer("a1", true, member(1), ON);
         batch.defer("a2", true, member(2), ON);

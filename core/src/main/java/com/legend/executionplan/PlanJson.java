@@ -367,6 +367,16 @@ public final class PlanJson {
         return Json.toCompact(target(target));
     }
 
+    /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
+    public static Map<String, Object> targetJson(Target t) {
+        return target(t);
+    }
+
+    /** {@link #targetJson}'s inverse. */
+    public static Target targetOf(Json.Obj t) {
+        return readTarget(t);
+    }
+
     private static Map<String, Object> target(Target t) {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));

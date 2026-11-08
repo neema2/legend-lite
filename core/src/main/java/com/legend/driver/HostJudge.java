@@ -347,7 +347,7 @@ final class HostJudge {
             case HostJudgment.Json js -> jsonOf(js, sides, rules);
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.judge.Failures.raised(r.failure());
-            case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
+            case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides, rules);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message);
         };
