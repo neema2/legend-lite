@@ -28,7 +28,9 @@ import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
 import { marksCut, marksName, projectionName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
 import { aliasFor, nextSeriesId, seriesName, sourceOf, splitName, type TsColumn } from '../timeseries-expr.ts';
-import { readSeriesTexts, readTyped, type TsReader } from '../timeseries-text.ts';
+import { readSeriesTexts, readTyped, TsTextRefusal, writtenText, type TsReader } from '../timeseries-text.ts';
+import { termOf } from '../timeseries-builder-wire.ts';
+import { BuilderRefusal } from '../timeseries-builder-core.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { hostCalls, hostWorker } from './host.ts';
 import { codeOfPage, tileCode, TS_CODE_LANGUAGES, type TsCodeLanguage } from '../timeseries-code.ts';
@@ -100,6 +102,21 @@ function judged(doc: PageDocument, before: TimeseriesSpec | null, made: unknown)
 /** A series' text as Python gives it, read by core: its canonical text (refused where it is no series, in core's words). */
 async function textOf(s: Readonly<Record<string, unknown>>, what: string): Promise<string> {
   if (s['expr'] !== undefined) throw new Problem(`${what}: a series' formula is its #TS text now (text=...), not expr`);
+  if (s['term'] !== undefined) {
+    // a term of Python's builder (python/legend_lite/timeseries.py), made by this builder's own functions and written in
+    // the language (B3's Python twin), then read by core as any text is
+    if (s['text'] !== undefined) throw new Problem(`${what} is its text or its term, not both`);
+    let text: string;
+    try {
+      text = writtenText(termOf(s['term']).expr, []);
+    } catch (e) {
+      if (e instanceof BuilderRefusal || e instanceof TsTextRefusal) throw new Problem(`${what}: ${e.message}`);
+      throw e;
+    }
+    const read = await readTyped(text, reader);
+    if ('refused' in read) throw new Problem(`${what}: ${read.refused.message}: ${JSON.stringify(text)}`);
+    return read.text;
+  }
   const e = s['text'];
   if (typeof e !== 'string') throw new Problem(`${what}'s text is ${JSON.stringify(e ?? null)}, not a #TS expression`);
   const read = await readTyped(e, reader);
@@ -149,7 +166,8 @@ export async function timeseriesMade(page: string, given: string): Promise<strin
       const s = typeof raw === 'string' ? { text: raw } : raw;
       if (!isRecord(s)) throw new Problem(`series ${i + 1} is not an expression or an object`);
       const id = wordOf(s['id'], `series ${i + 1}'s id`) ?? nextSeriesId(series);
-      series.push({ ...s, id, text: await textOf(s, `series ${id}`) } as unknown as TsSeries);
+      const { term: _term, ...drawn } = s;
+      series.push({ ...drawn, id, text: await textOf(s, `series ${id}`) } as unknown as TsSeries);
     }
     const spec = judged(doc, null, { ...told, sources, series, ...(told['view'] === undefined && first?.view ? { view: first.view } : {}) });
     return JSON.stringify({ spec: spec satisfies TimeseriesSpec });
@@ -179,8 +197,9 @@ export async function timeseriesEdit(page: string, tile: string, given: string):
       if (!isRecord(s)) throw new Problem('a series plotted is an object of its expression and how it is drawn');
       const id = wordOf(s['id'], "the series' id");
       if (told['replace'] !== undefined && typeof told['replace'] !== 'boolean') throw new Problem("a plot's replace is true or false");
+      const { term: _term, ...drawn } = s;
       change = {
-        kind: 'plot', series: { ...s, text: await textOf(s, `series ${id ?? nextSeriesId(view.spec.series)}`) } as never,
+        kind: 'plot', series: { ...drawn, text: await textOf(s, `series ${id ?? nextSeriesId(view.spec.series)}`) } as never,
         ...(told['replace'] === true ? { replace: true } : {}),
       };
     } else if (told['kind'] === 'read') {

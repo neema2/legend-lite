@@ -1107,14 +1107,26 @@ js_run_binary(
         "generated/ts-words.gen.ts",
         ":gs_quant_signatures",
     ],
-    outs = ["generated/ts-builder-words.gen.ts"],
+    # and Python's twin of the same words (B3): python/legend_lite/_ts_words.py, //python:update_generated
+    outs = [
+        "generated/ts-builder-words.gen.ts",
+        "generated/ts_words.gen.py",
+    ],
     args = [
         package_name() + "/generated/ts-builder-words.gen.ts",
         "$(rootpath generated/ts-signatures.gen.ts)",
         "$(rootpath generated/ts-words.gen.ts)",
         "$(rootpath :gs_quant_signatures)",
+        package_name() + "/generated/ts_words.gen.py",
     ],
     tool = ":ts_builder_tool",
+)
+
+# the builder's words for Python (B3's twin), checked in by //python:update_generated
+filegroup(
+    name = "python_ts_words",
+    srcs = ["generated/ts_words.gen.py"],
+    visibility = ["//python:__pkg__"],
 )
 
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below

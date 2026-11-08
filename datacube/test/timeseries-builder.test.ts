@@ -9,8 +9,10 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import * as builder from '../src/timeseries-builder.ts';
 import {
-  BUILDER_WORDS, column, Interpolate, LagMode, Returns, series, Window, type Term, type WordShape,
+  basket_series, BUILDER_WORDS, column, Interpolate, LagMode, not_, percentile, power, RebalFreq, Returns, series, union, volatility, Window, zscores,
+  type Term, type WordShape,
 } from '../src/timeseries-builder.ts';
+import { termOf } from '../src/timeseries-builder-wire.ts';
 import { TS_FUNCTION_NAMES, TS_SIGNATURES, type TsExpr } from '../src/timeseries-spec.ts';
 import { SCALARS } from '../src/timeseries-words.ts';
 import { seriesExpr, told } from '../src/timeseries-text.ts';
@@ -244,4 +246,26 @@ it('every series is the builder\'s code, which run builds the same tree (B4\'s S
     const code = builderSource(t.expr);
     assert.equal(canonical(told(run(code).expr)), canonical(told(t.expr)), code);
   }
+});
+
+it('a term as Python tells it is the builder\'s own (B3\'s Python twin: python/legend_lite/timeseries.py)', () => {
+  const spx = { term: 'column', name: 'close', picks: ['SPX'] };
+  const cases: readonly (readonly [unknown, Term])[] = [
+    [{ term: 'word', name: 'volatility', lines: [spx], kw: { w: 22, returns_type: 'logarithmic' } }, volatility(column('close', 'SPX'), 22, Returns.LOGARITHMIC)],
+    [{ term: 'word', name: 'percentile', lines: [spx], kw: { n: 90, w: { term: 'window', w: '1y', r: '1y' } } }, percentile(column('close', 'SPX'), 90, new Window('1y'))],
+    [{ term: 'word', name: 'zscores', lines: [spx], kw: {} }, zscores(column('close', 'SPX'))],
+    [{ term: 'word', name: 'union', lines: [[spx, { term: 'series', id: 'A' }]], kw: {} }, union([column('close', 'SPX'), series('A')])],
+    [{ term: 'word', name: 'basket_series', lines: [[spx, { term: 'column', name: 'close', picks: ['NDX'] }]], kw: { weights: [0.6, 0.4], rebal_freq: 'monthly' } },
+      basket_series([column('close', 'SPX'), column('close', 'NDX')], [0.6, 0.4], null, RebalFreq.MONTHLY)],
+    [{ term: 'method', name: 'sub', x: { term: 'method', name: 'div', x: spx, y: { term: 'series', id: 'B' } }, y: 1 }, column('close', 'SPX').div(series('B')).sub(1)],
+    [{ term: 'method', name: 'and', x: { term: 'method', name: 'gt', x: spx, y: 100 }, y: { term: 'scalar', name: 'not_', x: { term: 'method', name: 'lt', x: spx, y: 50 } } },
+      column('close', 'SPX').gt(100).and(not_(column('close', 'SPX').lt(50)))],
+    [{ term: 'scalar', name: 'power', x: spx, args: [2] }, power(column('close', 'SPX'), 2)],
+    [{ term: 'method', name: 'radd', x: { term: 'column', name: 'px.volume', picks: [{ venue: 'NYSE' }], period: 'sum' }, y: 5 },
+      column('px.volume', { venue: 'NYSE' }).period('sum').radd(5)],
+  ];
+  for (const [wire, want] of cases) assert.deepEqual(termOf(wire).expr, want.expr, JSON.stringify(wire));
+  assert.throws(() => termOf({ term: 'word', name: 'vola', lines: [spx], kw: {} }), /vola is no word of the builder's/);
+  assert.throws(() => termOf({ term: 'word', name: 'volatility', lines: [spx], kw: { width: 3 } }), /volatility has no parameter width/);
+  assert.throws(() => termOf(42), /is no series/);
 });

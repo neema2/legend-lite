@@ -6,13 +6,16 @@
 // gs-quant names a parameter or spells an option otherwise). A word gs-quant has not keeps the library's name and
 // parameters. The tile's words are the tile's (src/timeseries-words.ts: its list and its whole-line rule).
 //
-// Usage: make.mts <out.ts> <ts-signatures.gen.ts> <ts-words.gen.ts> <gs-quant-signatures.json>
+// Python's twin (B3) from the same shapes: each word a function of gs-quant's name and Python signature, its defaults
+// shown as gs-quant writes them, its call told to DataCube's builder by name (python/legend_lite/_ts_words.py).
+//
+// Usage: make.mts <out.ts> <ts-signatures.gen.ts> <ts-words.gen.ts> <gs-quant-signatures.json> [<out.py>]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { SCALARS, tileSignatures, TS_FUNCTION_NAMES, type TsParamShape, type TsSignature } from '../../src/timeseries-words.ts';
 
-const [out, sigPath, wordsPath, gsPath] = process.argv.slice(2);
+const [out, sigPath, wordsPath, gsPath, pyOut] = process.argv.slice(2);
 if (out === undefined || sigPath === undefined || wordsPath === undefined || gsPath === undefined) {
   throw new Error('usage: make.mts <out.ts> <ts-signatures.gen.ts> <ts-words.gen.ts> <gs-quant-signatures.json>');
 }
@@ -39,6 +42,33 @@ const SMALL_ENUM = 30;
 const q = (s: string): string => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const lit = (v: unknown): string => (typeof v === 'string' ? q(v) : v === null || v === undefined ? 'null' : String(v));
 const doc = (s: string): string => s.replace(/\*\//g, '* /');
+
+// -- Python's twin --
+/** Python's keywords, which no function or parameter is named (one takes a trailing underscore, as gs-quant's if_). */
+const PY_KEYWORDS = new Set(['False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def',
+  'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or',
+  'pass', 'raise', 'return', 'try', 'while', 'with', 'yield']);
+const pyName = (n: string): string => (PY_KEYWORDS.has(n) ? `${n}_` : n);
+const pyLit = (v: unknown): string => (v === null || v === undefined ? 'None' : typeof v === 'boolean' ? (v ? 'True' : 'False')
+  : typeof v === 'string' ? q(v) : String(v));
+const pyEnums = new Set<string>();
+const pyIdent = (k: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && !PY_KEYWORDS.has(k);
+/** gs-quant's default as Python writes it (`Window(None, 0)`, `Returns.SIMPLE`, `None`). */
+function pyDefault(d: GsDefault): string {
+  if (d === null) return 'None';
+  if ('window' in d) return `Window(${pyLit(d.window[0])}, ${pyLit(d.window[1])})`;
+  if ('enum' in d) {
+    // an enumeration the builder carries none of (an `only` parameter's): its default shown as gs-quant writes it
+    if (GS.enums[d.enum] === undefined) return `${d.enum}.${d.member}`;
+    pyEnums.add(d.enum);
+    return pyIdent(d.member) ? `${d.enum}.${d.member}` : `${d.enum}[${q(d.member)}]`;
+  }
+  if ('value' in d) return pyLit(d.value);
+  throw new Error(`a default gs-quant writes as ${d.repr}`);
+}
+const pyDoc = (s: string): string => s.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+const pyDefs: string[] = [];
+const pyAll: string[] = [];
 
 /** A tag's values of a word, `name: rest`, by name. */
 function tagged(w: CatalogWord, tag: string): Map<string, string> {
@@ -119,6 +149,9 @@ for (const name of TS_FUNCTION_NAMES) {
   names.add(fnName);
   const shapeName = `${name.toUpperCase()}_SHAPE`;
   const gsEntries: string[] = [];
+  // Python's: its parameters by place (gs-quant's default shown, none where required) and those by name alone
+  const pyPos: { name: string; def?: string }[] = [];
+  const pyKw: { name: string; def: string }[] = [];
   const positional: { name: string; type: string; required: boolean }[] = [];
   const kwOnly: { name: string; type: string }[] = [];
   const lineParams: { name: string; type: string }[] = [];
@@ -184,14 +217,23 @@ for (const name of TS_FUNCTION_NAMES) {
           type = `${type} | ${values.map((v) => `typeof ${e}.${Object.entries(GS.enums[e]!).find(([, x]) => x === v)?.[0] ?? (() => { throw new Error(`${e} has no ${v}`); })()}`).join(' | ')}`;
         }
       }
+      const pyDef = unsaid ? pyLit(lib!.default) : isWeights || lib !== undefined ? (d.has ? pyDefault(p.default) : undefined)
+        : (d.has ? pyDefault(p.default) : 'None');
       if (p.kind === 'KEYWORD_ONLY') {
         entry.push('kwOnly: true');
         kwOnly.push({ name: p.name, type });
-      } else positional.push({ name: p.name, type, required: !d.has });
+        pyKw.push({ name: p.name, def: pyDef ?? 'None' });
+      } else {
+        positional.push({ name: p.name, type, required: !d.has });
+        pyPos.push({ name: p.name, ...(pyDef !== undefined ? { def: pyDef } : {}) });
+      }
       gsEntries.push(`{ ${entry.join(', ')} }`);
     }
     const extra = sig.params.filter((p) => !mapped.has(p.name)).map((p) => p.name);
-    for (const e of extra) kwOnly.push({ name: e, type: typeOf(null, sig.params.find((p) => p.name === e), true) });
+    for (const e of extra) {
+      kwOnly.push({ name: e, type: typeOf(null, sig.params.find((p) => p.name === e), true) });
+      pyKw.push({ name: e, def: 'None' });
+    }
     body.push(`const ${shapeName}: WordShape = { word: ${q(name)}, gsFunction: ${q(gsFn.function)}, lines: [${lineParams.map((p) => q(p.name)).join(', ')}], gs: [${gsEntries.join(', ')}], extra: [${extra.map(q).join(', ')}]${members ? `, members: { evenWeights: ${String(params.find((p) => p.name === 'weights')?.default !== null)} }` : ''}${listOf ? `, listOf: ${listOf}` : ''} };`);
   } else {
     // DataCube's own: the library's lines and parameters, its defaults
@@ -202,6 +244,7 @@ for (const name of TS_FUNCTION_NAMES) {
       const entry = [`name: ${q(p.name)}`, ...(has ? [`default: ${lit(p.default)}`] : [])];
       gsEntries.push(`{ ${entry.join(', ')} }`);
       positional.push({ name: p.name, type: typeOf(null, p, !has && !p.required), required: p.required && !has });
+      pyPos.push({ name: p.name, ...(has ? { def: pyLit(p.default) } : p.required ? {} : { def: 'None' }) });
     }
     body.push(`const ${shapeName}: WordShape = { word: ${q(name)}, gsFunction: null, lines: [${lineParams.map((p) => q(p.name)).join(', ')}], gs: [${gsEntries.join(', ')}], extra: [] };`);
   }
@@ -229,6 +272,19 @@ for (const name of TS_FUNCTION_NAMES) {
   body.push('}');
   body.push('');
   shapes.push(`  ${fnName}: ${shapeName},`);
+  // Python's: gs-quant's name and signature, its call told to the builder by the builder's own name
+  const py = pyName(gsFn ? spelled : name);
+  const pyParams = [
+    ...lineParams.map((p) => pyName(p.name)),
+    ...pyPos.map((p) => (p.def === undefined ? pyName(p.name) : `${pyName(p.name)}=_Default(${q(p.def)})`)),
+    ...(pyKw.length > 0 ? ['*', ...pyKw.map((p) => `${pyName(p.name)}=_Default(${q(p.def)})`)] : []),
+  ];
+  const told = [...pyPos, ...pyKw].map((p) => `${q(p.name)}: ${pyName(p.name)}`).join(', ');
+  pyDefs.push(`def ${py}(${pyParams.join(', ')}) -> Term:`);
+  pyDefs.push(`    """${pyDoc(label)}: ${pyDoc(about)} (${pyDoc(said)}.)"""`);
+  pyDefs.push(`    return _word(${q(fnName)}, [${lineParams.map((p) => pyName(p.name)).join(', ')}], **{${told}})`);
+  pyDefs.push('', '');
+  pyAll.push(py);
 }
 body.push('/** Each builder function\'s shape, by its name: what the fidelity test holds to gs-quant\'s own signatures. */');
 body.push('export const BUILDER_WORDS: Readonly<Record<string, WordShape>> = {', ...shapes, '};', '');
@@ -241,3 +297,32 @@ for (const e of [...enumsUsed].sort()) {
   lines.push('');
 }
 writeFileSync(out, [...lines, ...body].join('\n'));
+
+if (pyOut !== undefined) {
+  const enums = [...new Set([...enumsUsed, ...pyEnums])].sort();
+  const py: string[] = [
+    '# GENERATED by datacube/tools/ts-builder/make.mts from core\'s catalog and gs-quant\'s own signatures',
+    '# (projects/timeseries/gs-quant-signatures.json) -- DO NOT EDIT. Regenerate: bazel run //python:update_generated; its',
+    '# diff test fails the build if this copy drifts.',
+    '# ruff: noqa: E501',
+    '"""THE #TS BUILDER\'S WORDS FOR PYTHON (B3\'s Python twin, docs/TS_DECISIONS_2026_11_07.md §4, the builders): each word a',
+    'function of gs-quant 2.2.3\'s name and signature, its defaults shown as gs-quant writes them -- a default left out is',
+    'DataCube\'s to take -- its call made the tile\'s by DataCube\'s builder (datacube/src/timeseries-builder-wire.ts), the',
+    'same functions TypeScript\'s builder calls. A word gs-quant has not keeps the library\'s name and parameters."""',
+    '',
+    'from __future__ import annotations',
+    '',
+    'from enum import Enum',
+    '',
+    'from ._ts_terms import Term, _Default, _word',
+    '',
+    '',
+  ];
+  for (const e of enums) {
+    py.push(`#: gs-quant's ${e} (gs-quant 2.2.3's members and values).`);
+    py.push(`${e} = Enum(${q(e)}, {${Object.entries(GS.enums[e]!).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')}})`);
+  }
+  py.push('', '', ...pyDefs);
+  py.push(`__all__ = [${[...enums, ...pyAll].map(q).join(', ')}]`, '');
+  writeFileSync(pyOut, py.join('\n'));
+}

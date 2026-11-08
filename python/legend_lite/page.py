@@ -1945,11 +1945,13 @@ class Text(Tile):
         self._page._apply_page([_commands.page_set_text_files(tile=self._id, files=given)])
 
 
-def _series_told(expr: str, name: str | None, split: str | None, pane: int | None, axis: str | None,
+def _series_told(expr: Any, name: str | None, split: str | None, pane: int | None, axis: str | None,
                  style: Mapping[str, Any] | None) -> dict[str, Any]:
-    """A series as Python's plot and edit tell it: its #TS text (read by core, the one reader: A3 step 3) and the slots
-    given."""
-    told = {'text': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
+    """A series as Python's plot and edit tell it: its #TS text (read by core, the one reader: A3 step 3), or a term of
+    the builder (legend_lite.timeseries: DataCube's builder writes its text, B3), and the slots given."""
+    from ._ts_terms import Term
+    said = {'term': expr._wire} if isinstance(expr, Term) else {'text': expr}
+    told = {**said, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
     return {k: v for k, v in told.items() if v is not None}
 
 
@@ -2017,14 +2019,15 @@ class Timeseries(Tile):
     # its viewer's editors ask too (headless timeseriesEdit) -- and judged as a tile Python makes is: no rule of Python's
     # own (the review's A2, docs/TIMESERIES_REVIEW_2026_10_25.md).
 
-    def plot(self, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+    def plot(self, expr: Any, *, name: str | None = None, split: str | None = None, pane: int | None = None,
              axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
-        """A series more, after its others: ``expr`` in DataCube's expression language, its id the next letter (``$B``
-        reads it), a line per value of ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the
-        main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
+        """A series more, after its others: ``expr`` its #TS text, or a term of the builder (``legend_lite.timeseries``:
+        ``volatility(column('close', 'SPX'), 22)``), its id the next letter (``B`` reads it), a line per value of
+        ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the main one) on ``axis`` as ``style``
+        says -- what the viewer's + Series adds."""
         return self._edit({'kind': 'plot', 'series': _series_told(expr, name, split, pane, axis, style)})
 
-    def edit(self, id: str, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+    def edit(self, id: str, expr: Any, *, name: str | None = None, split: str | None = None, pane: int | None = None,
              axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
         """Series ``id`` written again, in place -- what the viewer's series editor's OK makes: its expression and how it is
         drawn, each as told (None: none), hidden if it was. Refused when it has no series ``id``."""
@@ -2849,7 +2852,10 @@ class Sheet:
         _ = self._doc
         page = self._page
         # no series: DataCube's first series of its first grid (its price-like value, a line per instrument)
-        given = {'sources': _timeseries_sources(sources), **({'series': list(series)} if series else {}),
+        # a term of the builder (legend_lite.timeseries) told as one: DataCube's builder writes its text (B3)
+        from ._ts_terms import Term
+        told = [{'term': s._wire} if isinstance(s, Term) else s for s in series]
+        given = {'sources': _timeseries_sources(sources), **({'series': told} if series else {}),
                  **{k: v for k, v in slots.items() if v is not None}}
         said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(given)))
         if 'problems' in said:
