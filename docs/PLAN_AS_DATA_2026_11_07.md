@@ -307,9 +307,9 @@ is the one walker and calls back for test steps (2.8). 8. No `driver` package: `
 
 ## 3a. Ruled after the reviews (the user, 2026-11-08)
 
-1. **`PlanRunner` split into its product half and its program half: agreed.** Whether the program half is its own
-   Bazel target, `//core:exec_program` (the toolkit check's option 3), is the user's question still: what the target
-   adds over the file split is enforcement only -- the product's binaries (everything depending on `//core:exec`)
+1. **`PlanRunner` split into its product half and its program half, the program half its own Bazel target
+   `//core:exec_program`: ruled ("Yes on its own build target", 2026-11-08).** What the target adds over the file split
+   is enforcement -- the product's binaries (everything depending on `//core:exec`)
    no longer carry the ~970 lines of test walking; `:exec` cannot compile against a program class; the layer pin
    names `testexec` as its only user. It stays in package `com.legend.exec` (as `mongodb_connector` does), its files
    under `src/main/java/com/legend/exec/` (the source-scanning guards hard-code that root); package-private across
@@ -324,6 +324,12 @@ is the one walker and calls back for test steps (2.8). 8. No `driver` package: `
 4. **D2 keeps the shape built** (ruled; the goals' D2 text now describes it).
 
 ## 4. The order of work
+
+**How it runs (the user, 2026-11-08): "keep going don't stop until we are done, do fast dev loops, hold questions until
+the end so you don't have to stop, make sure do audits and full gates at major milestones but batch things together."**
+Each change: the touched suites and the fast list. Each step: the DuckDB corpus on both judges. Each slice's end
+(steps 3, 8, 10): every lane one at a time, an independent audit, the GATES record. Questions that arise are written
+to section 10 and asked at the end; a decision needed to proceed is taken by the design's own rules and recorded there.
 
 Each step lands as one or more commits on the branch, held to the baseline of 2026-11-07 (GATES: every lane green at
 `69ba09c2` with the H2 register fix).
@@ -525,3 +531,6 @@ independently of the rules).
 - **The connection (2.6)**: the identity stays the whole target (key and kind alone would let different seeds share a
   database); the copy is faithful (`LocalH2`, class names, `qualifiedName`, every authentication); `graphKey` is a hash
   of the planned seed steps per engine with an explicit lifetime; refusal timing unchanged.
+
+## 10. Questions held for the end, and decisions taken on the way (2026-11-08 on)
+
