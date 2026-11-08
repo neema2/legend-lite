@@ -917,8 +917,11 @@ const CHART_BUDGET = 303_500;
  *  order"): the library's text, which the tile carries, with the builders' facts of a word's signature
  *  (timeseries::Words.gsParam, gsValue, gsAlso: where gs-quant names a parameter or spells an option otherwise) and the
  *  profile's sentence on them; the builder itself is no part of the tile (src/timeseries-builder.ts, imported by no
- *  page). Measured 137,512. */
-const TIMESERIES_BUDGET = 137_800;
+ *  page). Measured 137,512.
+ *  137,800 -> 138,900 (2026-11-08, the user: "Yes extend default to align with truncate option"): the library's text,
+ *  which the tile carries, with lag's extend -- gs-quant's LagMode, its tail past the line's end per date type, its rows
+ *  form's when -- and their sentences. Measured 138,684. */
+const TIMESERIES_BUDGET = 138_900;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
