@@ -956,3 +956,33 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
 model's load. A model with large Data elements pays at load, not at its first query, and a reload refills.
 
 **What happens without it:** the 24 product sites cannot go to zero, and slice 4 cannot close.
+
+### Hole 2: the catalog's test half, the implementation plan (2026-11-08; the design is `docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md`, agreed)
+
+Today `SystemDatabase.of(ctx)` keeps one system database per compiled model, in the model's derived cache. The plan
+already names the database by engine and graph key. The model is the only way the run finds the holder: hole 2's
+three `MODEL_SITES`.
+
+A process-wide registry keyed by graph key would keep every model's database alive, an eviction design the user
+ruled out. So the steps:
+1. **Split the seed rows** (`SystemRoutes.seeds`, `MetamodelSeeds.rows`) into the platform's rows and the model's.
+   The platform's are identical for every model (the homework's `SplitCheck`).
+2. **One catalog per in-process engine per process**, made once with its DDL and the platform's rows: a platform plan
+   of its own, keyed by the platform's content key. A registry of one per engine is finite, so it needs no eviction.
+3. **The body's system step becomes a REGISTRATION step:**
+   - inserts of the model's rows only, no DDL (H2 commits on DDL; check 1 found no other DDL on the system
+     database);
+   - on DuckDB through `INSERT ... SELECT` from a TEMP staging table, never the appender, which ignores the
+     transaction.
+4. **The test road runs a catalog-reading body inside a transaction on the catalog's session**, rolled back at the
+   body's end. A session sees the platform plus this model (`Class.all()` is all the classes it sees). The
+   `Database.System` target names the engine and the platform's key; the model's rows ride the plan's registration
+   step.
+5. **`SystemDatabase.of(ctx)` goes**, and with it hole 2's three `MODEL_SITES`. The planner's `SeedMemo` and
+   `graphKey` derived caches stay: they are planning's own knowledge.
+6. **Server engines** keep today's temporary tables on the host's system connection until the design's check 3.
+7. **The product half is hole 7's load plan:** registered on load, replaced on reload. That waits on the user's
+   decision above.
+
+Measure before and after: the corpus's `system=` statement count, and core's SQL size (`docs/CORE_SQL_SIZE_2026_11_04.md`:
+85% of core's SQL is this seed re-sent per test).
