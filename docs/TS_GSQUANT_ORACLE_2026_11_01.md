@@ -17,6 +17,29 @@ to its default, and `all` as `Window(None, 0)` (the text path sent it as a zero 
 that day **AGREE 144, DIFFER 2** (the same two), NO-GSQUANT 39, NOT-CHECKED 25, no ERROR (`sum B`,
 `sum(volume['AAPL'], all)`, now agrees).
 
+## B5: the second oracle (2026-11-08)
+
+The 39 series of a word gs-quant has no function for are now each read by a pinned outside reference (the oracle's
+header says how to install them): TA-Lib 0.6.8 (its C library 0.6.4) for `atr`, `stochastic`, `obv`, Keltner's and
+Donchian's channels; statsmodels 0.14.6 for `alpha`, `r_squared`, `hedge_ratio`, `residual` (least squares) and
+`dickey_fuller`, `half_life` (`adfuller` of no lags and a constant; the Ornstein-Uhlenbeck slope); pandas for the rest
+(`rebase`, `percent_change`, `drawdown`, `sharpe_ratio`, `tracking_error`, `information_ratio`, the captures,
+`lead_lag`, `vwap`, `total_return`, a date's `sum`, `ohlc`'s four lines). Each is computed from the word's own
+definition, its doc in `projects/timeseries/model.pure`, by the reference's own window rule -- a value once the window
+holds w observations (TA-Lib's lookback, pandas' `rolling(w)`, statsmodels' `RollingOLS`), a line's w-th return its
+(w + 1)-th date, as gs-quant's `x[w:]` -- and every field of a struct is compared (a channel's lower, upper and width;
+a candle's four), not its upper alone. `excess_returns` over a rate is gs-quant's own after all (`econometrics.py`
+computes a float rate offline, actual/360). The two differences gs-quant's oracle found are reported as the language
+names them (DEPARTS: S145, S150).
+
+**AGREE 183, DEPARTS 2, NOT-CHECKED 25, no DIFFER, no ERROR** -- by oracle: gs-quant 147, pandas 26, statsmodels 6,
+TA-Lib 5, gs-quant and pandas 1 (`weighted_sum` of two `rebase`s). The report: `tools/ts-oracle/report-2026-11-08.txt`.
+The 25 NOT-CHECKED remain as above (a from-date, a grain, a split, an alignment). The references' first readings found
+nothing in lite but two of the library's sentences: `total_return` was credited to gs-quant (2.2.3 has none: the
+library's own, now said so) and `percent_change` said "in percent" of a share (its unit a ratio, shown in percent:
+said so). Of the library's 86 words, six no oracle reads yet, none of them in a gallery series: `rank`, `round_down`,
+`round_up`, `seasonally_adjusted`, `trend`, `value_at`.
+
 ## What it found
 
 First run (2026-11-01): AGREE 119, DIFFER 27 (26 by a window's first value, O1; compare, O2), NO-GSQUANT 39,

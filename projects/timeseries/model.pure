@@ -1405,7 +1405,7 @@ function timeseries::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: Co
     ->without(~[tr, dt, l, ps, pm, pr, al, ss])->rename(~o, $out)
 }
 
-// The total return of a price with a yield a year accrued day by day (gs-quant's total_return of a number): its first
+// The total return of a price with a yield a year accrued day by day (DataCube's: gs-quant 2.2.3 has no total_return): its first
 // value, then each period's growth compounded -- its price over the one before, plus the yield over the days since (the
 // difference of its time -- a number, each row's, counted in timeUnit -- from the one before, over the timeUnits a day
 // has: 1; 86400) over 365; none where the price is none.
@@ -1418,7 +1418,7 @@ function timeseries::totalReturn<T,L,D,P,N,O>(t: Relation<T>[1], line: ColSpec<L
     ->without(~[g, pr, f0])->rename(~o, $out)
 }
 
-// The total return of a price with its dividends reinvested on their dates (gs-quant's total_return of a series; the
+// The total return of a price with its dividends reinvested on their dates (DataCube's, as the yield's above; the
 // two aligned by the caller, each on its own dates: a price of none on a dividend's date alone): (price + the dividends
 // since the price before) / the price before, on the price's dates -- a dividend of a date the price has none of paid
 // at its next -- compounded from its first value; the rows of a dividend alone dropped.
@@ -3615,7 +3615,7 @@ function timeseries::line::change<K,D>(x: Relation<(key:K, date:D, value:Number)
   $x->timeseries::changeFrom(~key, ~date, ~value, $from, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
 
-function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value\'s change from the line\'s first (or its value as of from), in percent.', timeseries::Words.label = '% change from start', timeseries::Words.family = 'Level', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (econometrics.index - 1)', timeseries::Words.about = 'Its change from its value as of the first date shown (its last at or before it), as a share of it.'} timeseries::line::percent_change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function <<timeseries::Words.anchored>> {meta::pure::profiles::doc.doc = 'Each value\'s change from the line\'s first (or its value as of from), as a share of it (shown in percent).', timeseries::Words.label = '% change from start', timeseries::Words.family = 'Level', timeseries::Words.unit = 'ratio', timeseries::Words.gsQuant = 'DataCube (econometrics.index - 1)', timeseries::Words.about = 'Its change from its value as of the first date shown (its last at or before it), as a share of it.'} timeseries::line::percent_change<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::percentChange(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }
@@ -4396,7 +4396,7 @@ function {meta::pure::profiles::doc.doc = 'x\'s rows before y\'s first, then y\'
   timeseries::line::helpers::spread($x, $y, $sample)->timeseries::prepend(~key, ~date, ~x, ~y, ~xo, ~yo, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (gs-quant\'s total_return).', timeseries::Words.label = 'Total return', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a total return index)', timeseries::Words.about = 'The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.', timeseries::Words.search = 'tr'} timeseries::line::total_return<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], dividends: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (DataCube\'s own: gs-quant has none).', timeseries::Words.label = 'Total return', timeseries::Words.family = 'Returns', timeseries::Words.unit = 'same', timeseries::Words.level = 'keeps', timeseries::Words.gsQuant = 'DataCube (a total return index)', timeseries::Words.about = 'The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.', timeseries::Words.search = 'tr'} timeseries::line::total_return<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], dividends: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::spread($price, $dividends, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
 }

@@ -586,7 +586,7 @@ Forms: `ohlc(open: Line, high: Line, low: Line, close: Line)`.
 
 ## `percent_change`
 
-Each value's change from the line's first (or its value as of from), in percent.
+Each value's change from the line's first (or its value as of from), as a share of it (shown in percent).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -858,7 +858,7 @@ Forms: `sum(x: Line, w: Integer)`, `sum(x: Line, w: Integer, unit: DurationUnit)
 
 ## `total_return`
 
-The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (gs-quant's total_return).
+The total return of a price: over a line of its dividends (on every date either has), or a dividend yield accrued actual/365 (DataCube's own: gs-quant has none).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
