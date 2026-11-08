@@ -600,6 +600,8 @@ _HEADLESS_TESTS = [
     "timeseries-option",
     # its changes, one rule its viewer and Python ask (2026-10-25, docs/TIMESERIES_REVIEW_2026_10_25.md A2)
     "timeseries-edit",
+    # the chart face, the rule's third front: a tile built in code (B3, docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-08)
+    "timeseries-chart",
     # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
     "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
