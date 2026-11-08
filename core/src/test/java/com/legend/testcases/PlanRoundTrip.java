@@ -118,11 +118,11 @@ public final class PlanRoundTrip {
 
     private static void assertRenders(ExecutionPlan.Sql sql, String what) {
         assertTrue(sql.tree() != null, what + ": the plan carries no typed tree");
-        DatabaseType type = switch (sql.target().database()) {
+        DatabaseType type = com.legend.planner.ConnectionPlans.model(switch (sql.target().database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System sys -> sys.type();
-        };
+        });
         RenderedStatement rendered = Databases.dialect(type).renderStatement(sql.tree());
         assertEquals(sql.statement(), rendered.sql(), what + ": the tree read back renders differently");
         assertEquals(sql.slots().size(), rendered.binds().size(), what + ": the tree read back binds differently");

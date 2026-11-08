@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -477,7 +476,7 @@ public final class Sessions {
     /** The opening for {@code def}: its database's connector's, from its specification, with its authentication
      *  checked first: one that carries a credential is refused by name, never ignored (no session the platform opens
      *  reads one yet). */
-    public static Opening openingFor(ConnectionDefinition def) {
+    public static Opening openingFor(com.legend.executionplan.Connection def) {
         if (!def.authentication().credentialFree()) {
             throw new com.legend.error.NotImplementedException(def.authentication().getClass().getSimpleName()
                     + " authentication is not implemented (connection '" + def.qualifiedName() + "')");

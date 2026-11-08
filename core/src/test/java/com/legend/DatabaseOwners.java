@@ -134,7 +134,13 @@ final class DatabaseOwners {
             MAIN + "model/",
             // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
-            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/");
+            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/",
+            // 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.6, the plan-as-data design's step 7): the plan's own FAITHFUL
+            // copy of the model's connection description -- the same variants under the same names -- its plan format
+            // codec, and the planner's copy from the model's, which name every database as the model's vocabulary does
+            MAIN + "executionplan/DatabaseType.java", MAIN + "executionplan/ConnectionSpecification.java",
+            MAIN + "executionplan/AuthenticationSpec.java", MAIN + "executionplan/ConnectionWire.java",
+            MAIN + "planner/ConnectionPlans.java");
 
     /** The warehouse's sources (D4): a host, whose engine is DuckDB. */
     private static final String WAREHOUSE = "warehouse/src/";

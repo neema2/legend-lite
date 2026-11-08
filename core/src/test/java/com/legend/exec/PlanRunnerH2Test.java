@@ -75,8 +75,8 @@ class PlanRunnerH2Test {
     /** A plan reading one value typed by its value, through a type hole, as text: {@code type} is the parameter's. */
     private static ExecutionPlan holed(String type) {
         String before = "SELECT CAST(CAST(? AS ";
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
-                H2, new ConnectionSpecification.LocalH2(null))), List.of(), List.of());
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
+                H2, new ConnectionSpecification.LocalH2(null)))), List.of(), List.of());
         return new ExecutionPlan(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
                 new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
@@ -124,8 +124,8 @@ class PlanRunnerH2Test {
     @Test
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
-            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
-                    H2, new ConnectionSpecification.LocalH2(null))), List.of(), List.of());
+            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
+                    H2, new ConnectionSpecification.LocalH2(null)))), List.of(), List.of());
             ExecutionPlan plan = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
@@ -159,8 +159,8 @@ class PlanRunnerH2Test {
     @Test
     void runsOfOneTargetThatStartTogetherSetItUpOnce() throws Exception {
         ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM TOGETHER_T",
-                target(new ExecutionPlan.Database.Declared(inMemory("s::H2", H2,
-                                new ConnectionSpecification.LocalH2(null))),
+                target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2", H2,
+                                new ConnectionSpecification.LocalH2(null)))),
                         statement("CREATE TABLE TOGETHER_T (ID INTEGER)"),
                         statement("INSERT INTO TOGETHER_T SELECT X FROM SYSTEM_RANGE(1, 100000)")));
         int runs = 8;

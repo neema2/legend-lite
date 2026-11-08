@@ -607,7 +607,8 @@ public final class BodyDriver {
     static com.legend.executionplan.ExecutionPlan.Target systemTarget(com.legend.planner.SystemRoutes.Route route,
             com.legend.sql.dialect.SqlDialect dialect) {
         return new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.System(route.engine()), dialect.sessionSetup(),
+                new com.legend.executionplan.ExecutionPlan.Database.System(
+                        com.legend.planner.ConnectionPlans.type(route.engine())), dialect.sessionSetup(),
                 java.util.List.of());
     }
 

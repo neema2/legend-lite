@@ -65,6 +65,10 @@
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
 # a program that writes from its plan (ConnectionResolver.RUNNER: the plan made, run by PlanRunner, its answer's SQL reported).
+# 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.6, the design's step 7): the plan holds its own FAITHFUL copy of the
+# connection description (executionplan.Connection, ConnectionSpecification, AuthenticationSpec, DatabaseType; the planner
+# copies the model's, planner/ConnectionPlans) -- `execution_plan` and `exec` no longer reach `model` (exec opens a session
+# from the plan's copy alone; the model depends on no plan, invariant 6j).
 spi	
 cache	base
 values	base
@@ -95,7 +99,7 @@ setup	base cache compiler execution_plan model protocol sql sql_dialect
 # D72, 2026-10-30 (B2, the wall): exec depends on no planning library -- compiler, compiler_element_type, database, setup and
 # sql_dialect gone with the judges' column and row (`judge`), the driver's decode facts (the connector's), the session source
 # and the system database (the driver's), and the wire table's compiler type (a name in the plan's vocabulary).
-exec	base cache diagnostics error execution_plan json model result sql values
+exec	base cache diagnostics error execution_plan json result sql values
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 3, the user's ruling): `exec_program`, the program runner -- the exec
 # package's program half, its own target; the driver reaches it.
 exec_program	base error exec execution_plan result
@@ -105,7 +109,7 @@ probe	base builtin lowering model platform
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
 testdatagen	base builtin compiler compiler_element_type error exec execution_plan judge lineage model plan protocol resolver setup sql sql_dialect values
-execution_plan	base json model sql
+execution_plan	base json sql
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
 # driver reach it (a planning failure recorded as data, raised at its turn). Step 3: it holds the test plan around the
 # product's (execution_plan) and its JSON (json); testplan reaches it (the test door builds the test plan).

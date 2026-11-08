@@ -51,9 +51,10 @@ final class JudgePlans {
      *  the doors, 2026-10-29). */
     static ExecutionPlan.Target target(com.legend.database.Target decided, com.legend.sql.dialect.SqlDialect dialect) {
         ExecutionPlan.Database database = switch (decided) {
-            case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
+            case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(
+                    com.legend.planner.ConnectionPlans.type(p.type()));
             case com.legend.database.Target.Declared d ->
-                    new ExecutionPlan.Database.Declared(d.connections().get(0));
+                    new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)));
         };
         return new ExecutionPlan.Target(database, dialect.sessionSetup(), List.of());
     }

@@ -74,13 +74,13 @@ class PostgresArmTest {
                 ConnectionResolver.session(com.legend.Compiler.compileModel(model), "test::PgRuntime");
                 var run = com.legend.base.RunScope.enter()) {
             // the session's check and its statements are a run's (THE WALL's rule 3, 2026-11-06)
-            com.legend.exec.Sessions.check(session, POSTGRES.type());
+            com.legend.exec.Sessions.check(session, com.legend.planner.ConnectionPlans.type(POSTGRES.type()));
             java.util.List<java.util.List<Object>> rows = new java.util.ArrayList<>();
             // the statements check the session against a plan target before any typed read (the driver's facts
             // are the database's)
             com.legend.exec.Statements statements = session.statements();
             statements.check(new com.legend.executionplan.ExecutionPlan.Target(
-                    new com.legend.executionplan.ExecutionPlan.Database.Platform(POSTGRES.type()),
+                    new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(POSTGRES.type())),
                     java.util.List.of(),
                     java.util.List.of()));
             statements.rows("SELECT inet_server_port() AS port, 41 + 1 AS answer", java.util.List.of(),

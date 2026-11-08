@@ -58,7 +58,7 @@ public final class ConnectionResolver {
         return switch (target) {
             case com.legend.database.Target.Platform p -> com.legend.exec.Sessions.view(STORE.getOrOpen(
                     Hash.combine(stores, Hash.ofUtf8("platform")), com.legend.exec.Sessions::closed,
-                    () -> com.legend.exec.Sessions.openPrivate(p.type())));
+                    () -> com.legend.exec.Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(p.type()))));
             case com.legend.database.Target.Declared d -> {
                 var distinct = new java.util.LinkedHashSet<String>();
                 d.connections().forEach(c -> distinct.add(definitionText(c)));
@@ -86,7 +86,7 @@ public final class ConnectionResolver {
                 steps.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(sql));
             }
             com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
-                    new com.legend.executionplan.ExecutionPlan.Database.Declared(def),
+                    new com.legend.executionplan.ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(def)),
                     dialect.sessionSetup(), steps);
             try (var origin = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
                 com.legend.exec.PlanRunner.setUp(steps, target, com.legend.exec.PlanSessions.of(made), null);
@@ -147,7 +147,7 @@ public final class ConnectionResolver {
 
     private static com.legend.exec.Sessions.Session connect(Hash storesKey, ConnectionDefinition def,
             com.legend.compiler.element.ModelContext ctx) {
-        return switch (com.legend.exec.Sessions.openingFor(def)) {
+        return switch (com.legend.exec.Sessions.openingFor(com.legend.planner.ConnectionPlans.of(def))) {
             case com.legend.exec.Sessions.Opening.Url u -> com.legend.exec.Sessions.open(u);
             // a named in-memory database is kept alive by its name — the user's EmbeddedH2 name, else one
             // per model stores + definition (D5): each use opens a connection the lease closes

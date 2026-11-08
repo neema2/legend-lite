@@ -3,7 +3,6 @@
 
 package com.legend.executionplan;
 
-import com.legend.model.ConnectionDefinition;
 
 import java.util.List;
 import java.util.Map;
@@ -722,24 +721,24 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     public sealed interface Database permits Database.Declared, Database.Platform, Database.System {
 
         /** The database's type: what its session must be. */
-        ConnectionDefinition.DatabaseType type();
+        DatabaseType type();
 
         /** The database a connection declares: its session is opened by this definition (or a caller's is checked
          *  against its type). */
-        record Declared(ConnectionDefinition connection) implements Database {
+        record Declared(Connection connection) implements Database {
             public Declared {
                 Objects.requireNonNull(connection, "connection");
             }
 
             @Override
-            public ConnectionDefinition.DatabaseType type() {
+            public DatabaseType type() {
                 return connection.databaseType();
             }
         }
 
         /** The platform's own in-process engine, for a runtime that binds no database, only model data
          *  (docs/SEMANTICS_REGISTER.md S27). */
-        record Platform(ConnectionDefinition.DatabaseType type) implements Database {
+        record Platform(DatabaseType type) implements Database {
             public Platform {
                 Objects.requireNonNull(type, "type");
             }
@@ -750,7 +749,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
          *  from every user connection). A test body reading the metamodel store runs its program here; the product's
          *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). */
-        record System(ConnectionDefinition.DatabaseType type) implements Database {
+        record System(DatabaseType type) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");
             }

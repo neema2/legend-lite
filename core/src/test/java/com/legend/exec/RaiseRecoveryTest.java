@@ -30,12 +30,12 @@ class RaiseRecoveryTest {
 
     @Test
     void mariaDbAndMySqlDeclareTheReadAndTheReset_everyOtherBuiltConnectorDeclaresNone() {
-        assertEquals(MARIADB, Connectors.of(DatabaseType.MariaDB).raiseRecovery());
-        assertEquals(MARIADB, Connectors.of(DatabaseType.MySQL).raiseRecovery());
+        assertEquals(MARIADB, Connectors.of(com.legend.planner.ConnectionPlans.type(DatabaseType.MariaDB)).raiseRecovery());
+        assertEquals(MARIADB, Connectors.of(com.legend.planner.ConnectionPlans.type(DatabaseType.MySQL)).raiseRecovery());
         for (DatabaseType type : new DatabaseType[] {DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.SQLite,
                 DatabaseType.Postgres, DatabaseType.Trino, DatabaseType.ClickHouse, DatabaseType.Snowflake,
                 DatabaseType.Databricks, DatabaseType.BigQuery, DatabaseType.MongoDB}) {
-            assertNull(Connectors.of(type).raiseRecovery(), type.toString());
+            assertNull(Connectors.of(com.legend.planner.ConnectionPlans.type(type)).raiseRecovery(), type.toString());
         }
     }
 

@@ -41,7 +41,7 @@ final class ProgramRunnerTest {
     @BeforeAll
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
-        target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(Databases.PLATFORM),
+        target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)),
                 List.of(), List.of());
     }
 
@@ -63,7 +63,7 @@ final class ProgramRunnerTest {
             Sessions.Session body = TestSessions.over(conn);
             Sessions.Session system = TestSessions.over(other);
             ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
-                    new ExecutionPlan.Database.System(Databases.PLATFORM), List.of(), List.of());
+                    new ExecutionPlan.Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of(), List.of());
             PlanSessions.Source source = PlanSessions.of(body, null, s -> system);
             assertEquals(Sessions.identity(system), Sessions.identity(source.open(systemTarget)),
                     "the System target opens the opener's session");

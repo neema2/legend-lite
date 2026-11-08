@@ -69,7 +69,7 @@ class RunScopeTest {
         try (var planning = RunScope.plans("a test body")) {
             assertTrue(RunScope.isPlanning());
             RunScope.Refused opened = assertThrows(RunScope.Refused.class,
-                    () -> Sessions.openPrivate(PLATFORM));
+                    () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM)));
             assertTrue(opened.getMessage().contains("a session opened while a test body is planned"),
                     opened.getMessage());
             RunScope.Refused ran = assertThrows(RunScope.Refused.class, RunScope::enter);
@@ -88,7 +88,7 @@ class RunScopeTest {
         int[] opened = {0};
         try (Sessions.Session lazy = Sessions.lazy(() -> {
             opened[0]++;
-            return Sessions.openPrivate(PLATFORM);
+            return Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM));
         })) {
             try (var planning = RunScope.plans("a system-routed body")) {
                 // a planner names the session (its state is its own) and opens nothing
@@ -109,14 +109,14 @@ class RunScopeTest {
 
     @Test
     void rule3ASessionsStatementsAndItsCheckAreARunsAlone() throws Exception {
-        try (Sessions.Session session = Sessions.openPrivate(PLATFORM)) {
+        try (Sessions.Session session = Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM))) {
             RunScope.Refused sent = assertThrows(RunScope.Refused.class, session::statements);
             assertTrue(sent.getMessage().contains("a session's statements outside a plan's run"), sent.getMessage());
             assertThrows(RunScope.Refused.class, () -> session.statements(null));
-            assertThrows(RunScope.Refused.class, () -> Sessions.check(session, PLATFORM));
+            assertThrows(RunScope.Refused.class, () -> Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM)));
             assertThrows(RunScope.Refused.class, () -> Sessions.view(session).statements());
             try (var run = RunScope.enter()) {
-                Sessions.check(session, PLATFORM);
+                Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM));
                 session.statements().execute("SELECT 1");
             }
             // the owner's bracket is the owner's: free outside a run, refused while planning

@@ -21,7 +21,7 @@ abstract class InProcessBackend implements TestBackend {
 
     @Override
     public final Connection open() throws SQLException {
-        return com.legend.exec.Connectors.of(type()).openPrivate();
+        return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type())).openPrivate();
     }
 
     @Override
@@ -38,6 +38,6 @@ abstract class InProcessBackend implements TestBackend {
     /** Its connector's in-memory specification ({@code exec.DatabaseConnector.storelessDeclaration}). */
     @Override
     public final String specificationAndAuth() {
-        return Connectors.of(type()).storelessDeclaration();
+        return Connectors.of(com.legend.planner.ConnectionPlans.type(type())).storelessDeclaration();
     }
 }

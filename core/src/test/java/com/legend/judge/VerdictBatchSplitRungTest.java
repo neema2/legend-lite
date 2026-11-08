@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class VerdictBatchSplitRungTest {
 
     private static final ExecutionPlan.Target ON = new ExecutionPlan.Target(
-            new ExecutionPlan.Database.Platform(Databases.PLATFORM), List.of(), List.of());
+            new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of(), List.of());
 
     private static final OutputCol V = new OutputCol("v", SqlType.Scalar.INTEGER, false);
 

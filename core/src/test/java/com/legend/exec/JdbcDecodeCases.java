@@ -52,7 +52,7 @@ final class JdbcDecodeCases {
         JdbcStatements st = new JdbcStatements(c, new SessionState());
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-            st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+            st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type)),
                     List.of(), List.of()));
             st.rows(sql, List.of(), List.of(), columns, out::add);
         }

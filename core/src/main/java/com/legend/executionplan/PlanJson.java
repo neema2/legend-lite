@@ -13,7 +13,6 @@ import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
 import com.legend.json.Json;
-import com.legend.model.ConnectionWire;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

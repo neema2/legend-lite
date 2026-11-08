@@ -666,3 +666,16 @@ independently of the rules).
   (`driver/AgreementRuns`) finds each assert's pairing from the plan's groups; the planner's `One` keeps no run state
   and the planner no map by verdict. The router reads which judge runs a plan from the plan (`TestPlan.judge`), never
   from which planner object it was handed. The test plan's JSON is version 4.
+- **Step 7a (2026-11-08): the plan's own connection description, a FAITHFUL COPY.** `ExecutionPlan.Database.Declared`
+  holds `executionplan.Connection` (the definition's fields: qualified name, store, database type, specification,
+  authentication), and `Platform`/`System` the plan's `DatabaseType`; the plan's `ConnectionSpecification` (each variant,
+  `LocalH2` kept) and `AuthenticationSpec` (each kept distinct, references never secrets) are copies of the model's --
+  the same variants under the same names with the same fields (2.6) -- and the planner copies the model's definition
+  variant by variant (`planner/ConnectionPlans`, an exhaustive switch each way). The plan format's codec
+  (`ConnectionWire`) moved to the plan over the copy, its JSON unchanged. `execution_plan` and `exec` no longer reach
+  `model`: exec opens a session from the plan's copy alone. Guard 1's two connection pins are gone; `Number` stays (step 9).
+- **Step 7a, a first attempt reverted (2026-11-08):** the first cut MOVED the specification, authentication and database
+  type records into the plan's library and had the model name them (one set of types). The guards refused it:
+  ArchitectureTest's invariant 6j keeps the model depending on protocol, values and error alone. The copy the design
+  names keeps 6j and is what landed; the model keeps its own vocabulary, and a caller handing the model's types to exec
+  copies them (`ConnectionPlans.of`, `.type`).

@@ -3,7 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 /** MySQL's sessions: MariaDB's ({@link MariaDbConnector}), the server named by the driver as MySQL. */
 final class MySqlConnector extends MariaDbConnector {

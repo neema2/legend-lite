@@ -50,7 +50,7 @@ class KeyedPivotKeyRoundTripTest {
                 st.execute("INSERT INTO T VALUES " + inserts);
             }
             Lean.Result r = Lean.run(MODEL.formatted(modelType, "{ type: " + type.name() + "; "
-                    + com.legend.exec.Connectors.of(type).storelessDeclaration() + "; }"),
+                    + com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).storelessDeclaration() + "; }"),
                     "|#>{local::DB.T}#->pivot(~[K], ~[s : x | $x.V : y | $y->plus()])", "local::RT", c);
             assertEquals(1, r.rows().size(), "one group (no static column): " + r.rows());
             List<List<Object>> out = new java.util.ArrayList<>();

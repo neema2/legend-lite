@@ -4,7 +4,6 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.model.ConnectionDefinition;
 import com.mongodb.MongoException;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -60,7 +59,7 @@ final class MongoDbStatements implements Statements {
     public void check(ExecutionPlan.Target target) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
-                || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
+                || d.connection().databaseType() != com.legend.executionplan.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
         }

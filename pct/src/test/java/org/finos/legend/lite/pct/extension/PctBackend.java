@@ -76,7 +76,8 @@ public final class PctBackend {
     /** Whether the lane's database's sessions are its connector's own, not JDBC's (MongoDB's,
      *  docs/MONGODB_PLAN_2026_10_16.md D12): no JDBC session to hand a plan, nor a server version to read off one. */
     private static boolean ownSessions(TestBackend backend) {
-        return com.legend.exec.Connectors.of(backend.type()).ownSessions();
+        return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type()))
+                .ownSessions();
     }
 
     /**
@@ -161,7 +162,8 @@ public final class PctBackend {
                     throw new IllegalStateException("the " + name() + " lane's query names no one declared connection: "
                             + target);
                 }
-                return com.legend.exec.Connectors.of(backend.type()).open(d.connections().get(0));
+                return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type()))
+                        .open(com.legend.planner.ConnectionPlans.of(d.connections().get(0)));
             };
         }
         if (backend.inProcess()) {
@@ -200,7 +202,8 @@ public final class PctBackend {
      *  again as on a new one): a plan that makes a table of the session's own (the system metamodel store's) runs on
      *  a new session, which drops the table when it closes. */
     private static boolean optionsOnly(com.legend.executionplan.ExecutionPlan.Target target) {
-        return target.session().equals(com.legend.database.Databases.dialect(target.database().type()).sessionSetup());
+        return target.session().equals(com.legend.database.Databases.dialect(
+                com.legend.planner.ConnectionPlans.model(target.database().type())).sessionSetup());
     }
 
     /** The one session over the lane's held connection ({@link #planSessions}). */

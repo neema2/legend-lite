@@ -69,7 +69,7 @@ public final class SystemDatabase {
         }
     }
 
-    private final Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Session> sessions = new HashMap<>();
+    private final Map<com.legend.executionplan.DatabaseType, Sessions.Session> sessions = new HashMap<>();
     private final Closer closer = new Closer();
 
     private SystemDatabase() {
@@ -91,7 +91,7 @@ public final class SystemDatabase {
      * seed step ({@code SystemRoutes.seeds}), which the runner runs on this session once (the walker-deletion program,
      * 2026-11-03: planning sends nothing).
      */
-    public synchronized Sessions.Session sessionFor(com.legend.model.ConnectionDefinition.DatabaseType engine,
+    public synchronized Sessions.Session sessionFor(com.legend.executionplan.DatabaseType engine,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
         Sessions.Session s = sessions.get(engine);
         if (s == null) {
@@ -113,7 +113,7 @@ public final class SystemDatabase {
         }
     }
 
-    private static Sessions.Session openPrivate(com.legend.model.ConnectionDefinition.DatabaseType engine) {
+    private static Sessions.Session openPrivate(com.legend.executionplan.DatabaseType engine) {
         try {
             return Sessions.openPrivate(engine);
         } catch (com.legend.error.DataError e) {
@@ -124,9 +124,10 @@ public final class SystemDatabase {
 
     /** The host's system connection for {@code engine}, checked to be on {@code engine} (the query is planned in its
      *  runtime's dialect): another database is refused, never written to. */
-    private static Sessions.Session openSystem(com.legend.model.ConnectionDefinition.DatabaseType engine,
+    private static Sessions.Session openSystem(com.legend.executionplan.DatabaseType engine,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
-        Sessions.Opener opener = systemConnections.get(engine);
+        // the host's system connections are configured by the model's name of the engine (ExecuteOptions)
+        Sessions.Opener opener = systemConnections.get(com.legend.planner.ConnectionPlans.model(engine));
         if (opener == null) {
             throw new com.legend.error.NotImplementedException("no system connection for " + engine
                     + " is configured: a query reading the system metamodel store on a server engine runs on the"

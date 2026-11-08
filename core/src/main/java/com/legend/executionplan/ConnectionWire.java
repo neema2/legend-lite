@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.model;
+package com.legend.executionplan;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,7 +64,7 @@ public final class ConnectionWire {
 
     /** {@code c} as its fields, in order: its name, store, declared type, specification and authentication, a field the
      *  definition leaves unset omitted. */
-    public static Map<String, Object> write(ConnectionDefinition c) {
+    public static Map<String, Object> write(Connection c) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", c.qualifiedName());
         if (c.storeName() != null) {
@@ -211,15 +211,15 @@ public final class ConnectionWire {
     }
 
     /** The connection {@link #write} wrote as {@code f}; an unknown tag or database type refused by name. */
-    public static ConnectionDefinition read(Fields f) {
-        return new ConnectionDefinition(f.string("name"), f.optionalString("store"),
+    public static Connection read(Fields f) {
+        return new Connection(f.string("name"), f.optionalString("store"),
                 databaseType(f.string("databaseType")), readSpecification(f.object("specification")),
                 readAuthentication(f.object("authentication")));
     }
 
     /** The declared database type named {@code name}; an unknown one refused by name. */
-    public static ConnectionDefinition.DatabaseType databaseType(String name) {
-        return named(ConnectionDefinition.DatabaseType.values(), name, "database type");
+    public static DatabaseType databaseType(String name) {
+        return named(DatabaseType.values(), name, "database type");
     }
 
     private static ConnectionSpecification readSpecification(Fields o) {

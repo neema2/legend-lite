@@ -93,7 +93,7 @@ public final class SystemRoutes {
 
     /** The store's seed steps, per engine, of one graph ({@code ModelContext.derived}). */
     private static final class SeedMemo {
-        private final java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
+        private final java.util.Map<com.legend.executionplan.DatabaseType,
                 java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep>> steps =
                 new java.util.concurrent.ConcurrentHashMap<>();
     }

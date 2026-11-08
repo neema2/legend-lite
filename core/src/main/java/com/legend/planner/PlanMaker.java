@@ -323,7 +323,8 @@ public final class PlanMaker {
         // them, once per graph, below)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? new ExecutionPlan.Target(systemRouted
-                        ? new ExecutionPlan.Database.System(decided.target().type()) : database(decided.target()),
+                        ? new ExecutionPlan.Database.System(ConnectionPlans.type(decided.target().type()))
+                        : database(decided.target()),
                         decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
                         Metamodel.NONE);
@@ -533,7 +534,7 @@ public final class PlanMaker {
      *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine and the session statements
      *  {@code home}'s, as the system database is the runtime's engine in this process. */
     public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home) {
-        ConnectionDefinition.DatabaseType type = switch (home.database()) {
+        com.legend.executionplan.DatabaseType type = switch (home.database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System s -> s.type();
@@ -842,8 +843,8 @@ public final class PlanMaker {
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */
     private static ExecutionPlan.Database database(Target decided) {
         return switch (decided) {
-            case Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
-            case Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
+            case Target.Platform p -> new ExecutionPlan.Database.Platform(ConnectionPlans.type(p.type()));
+            case Target.Declared d -> new ExecutionPlan.Database.Declared(ConnectionPlans.of(oneDefinition(d)));
         };
     }
 

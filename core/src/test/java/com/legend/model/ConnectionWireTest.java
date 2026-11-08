@@ -53,8 +53,8 @@ class ConnectionWireTest {
         for (DatabaseType type : DatabaseType.values()) {
             for (ConnectionSpecification spec : SPECIFICATIONS) {
                 for (AuthenticationSpec auth : AUTHENTICATIONS) {
-                    Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
-                            type, spec, auth)), List.of(), List.of());
+                    Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+                            type, spec, auth))), List.of(), List.of());
                     ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                             new Sql("select 1", List.of(), t, null)));
                     assertEquals(plan, PlanJson.read(PlanJson.write(plan)), type + " / " + spec + " / " + auth);

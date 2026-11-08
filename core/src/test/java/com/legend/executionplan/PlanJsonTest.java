@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
-        return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), List.of(),
+        return new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
+                spec, auth))), List.of(),
                 List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
 
@@ -86,8 +86,8 @@ class PlanJsonTest {
 
     @Test
     void bothSetupStepKindsReadBack_aNullCellStaysNull() {
-        Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
-                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
+        Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth()))),
                 List.of("SET TimeZone='UTC'"),
                 List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
@@ -102,7 +102,7 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(Databases.PLATFORM), List.of("SET TimeZone='UTC'"), List.of());
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -112,7 +112,7 @@ class PlanJsonTest {
     void theGraphsSystemDatabaseReadsBack() {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
         // database on its engine; the plan names it by type alone (the one who opens it holds the session)
-        Target t = new Target(new Database.System(Databases.PLATFORM), List.of(), List.of());
+        Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)), List.of(), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
