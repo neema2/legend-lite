@@ -900,3 +900,6 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
   - *Found, not changed:* `BodyRouterParityTest.queryPrograms` checks only that the router planned each body. On H2,
     `[1, 2, 3]->map(x|$x * 2)` is refused at planning (`UNNEST reached a dialect without an unnest placement`), and
     the test does not notice. This predates the batch.
+- **Slice 3 closed at `e8a932cb`** (2026-11-08): every lane green, two audits (the invariant audit and its
+  follow-up), the record in GATES. Its own pins are at zero: guard 1, guard 3, the listener, the rule re-read.
+  Marker branch `claude/plan-as-data-slice-3`.

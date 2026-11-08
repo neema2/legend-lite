@@ -21010,3 +21010,66 @@ with no assert's verdict where the split rung used to record each assert): four 
 - **What this record claims:** steps 4-8 as designed, verified on every lane. **Not** that the invariant holds. The
   holes above are slices 3 to 5's checklist (the design's section 11), closed by guards that pin each hole and must
   reach zero. Marker branch `claude/plan-as-data-slice-2`.
+
+## 2026-11-08 — The plan as data, slice 3 (docs/PLAN_AS_DATA_2026_11_07.md §11): holes 3, 4, 5, 8, D1 and D2 closed, three guards, two audits; every lane green
+
+- **Commits:**
+  - `99f4058c`, batch 1: step 9 (a window frame's offset a closed type), so guard 1 is at zero, judged per
+    (type, path) (D1); guard 3 hard on the DuckDB corpus lane; hole 3 (`TestPlan.answersLastVerdict`); hole 8 (the
+    run's rules re-check deleted); D2 (the plan carries every appeal its verdicts name, `PlannedAppeals`).
+  - `b0de178b`, batch 2: hole 5 (a decline is its verdict row's data, `RootLoop.Row.decline`, reported at the row's
+    turn; planning's environment holds no listener and no referee; the six "needs a replay oracle" planning walls
+    deleted) and hole 4 (the listener is output only; the doors `Execution.planBody`/`runBody`, `runProgram` composed
+    of them; the test runner provides fixtures between the halves).
+  - `4b81e64a`, the invariant audit's fixes; `d64c5f46`, a census fix; `e8a932cb`, the follow-up audit's fixes.
+- **The guards** (`ArchitectureTest`, in `//core:guardrails`):
+  - R1 measures every class of the driver, the judges and the edge but `PLANNING_ONLY`. A measured class reaching
+    planning directly is mixed and is itself a target, and the run-only `BodyRouter$Moved` is keyed by its own name.
+    14 mixed classes, 281 crossings, pinned in `R1_CROSSINGS`, zero at slice 5.
+  - `noCompiledModelReachesTheRun`, by call and method-reference reachability from the run's entries (the router's
+    run half, `runBody`, and the session sources, the server's included): 40 sites, holes 1, 2 and 7 (24 of them the
+    product's session source), pinned in `MODEL_SITES`, zero at slice 4.
+  - `theListenerIsOutputOnly`, hard: the listener's four void reports pinned exactly; nothing planning reaches tells
+    the listener, the held appeals, the edge's run half, the referee or the verdict census's outcome counters.
+  - `theRunRereadsNoRule`, hard (hole 8): nothing the run reaches reads the caller's judging rules, judge mode,
+    features, resources or engine-compat flag.
+  - Guard 1 walks an enum's fields and refuses a constant with a body.
+- **The invariant audit** (read-only, `b0de178b`, briefed with the invariant): 1 must-fix, 5 should-fixes, 5 notes, all
+  fixed in `4b81e64a`:
+  - must: the verdict census was written at planning and its attribution state read at run; now counted at the root's
+    turn from the plan's data;
+  - the agreement judge reported some declines nowhere; now once, first, under every judge (pinned);
+  - the three guards were weaker than their names; now reachability-based;
+  - hole 8 had no guard, and a plan with edge records ran silently with no edge (now refused);
+  - notes: `runBody` checks the plan carries its appeals; the defaulting `TestPlan` constructors are gone.
+- **The follow-up audit** (read-only, `e16f495c`): nothing must-fix; the six findings hold with respect to the
+  invariant. Its should-fixes, fixed in `d64c5f46` and `e8a932cb`: the census's accounting (walls, the agreement's
+  double count, a row's UNJUDGED); reachability through method references and the session sources; `engineCompat`.
+  **One defect confirmed and left open, A1 (slice 4):** under the agreement judge with the compatibility rules each
+  half holds its own appeal, so the referee replays twice; the outcome is right; pinned at 2 in
+  `BodyRouterParityTest`.
+- **Behaviour:**
+  - The DuckDB corpus equals the baseline on both judges at every batch (host 2436/108/7, database 2429/108/7, no line
+    differs).
+  - Two tallies moved as intended:
+    - under the database judge, `foreign-dialect:Composite` 9 to 8 (the host's count: a decline planning had told for
+      a row the run never reached);
+    - the census's "raised" counts are attributed to each assert's own family, the same total.
+  - In lite's own runs, an SQL-text assert with no referee is decided by its text (the user's ruling of 2026-11-05),
+    no longer refused at planning.
+- **Every lane at `e8a932cb`:** green:
+  - `//gates:core` and `//gates:checks` (233 pass, 1 skipped; rerun on a clean output base after the first run met
+    the session's disk allowance mid-build -- "No space left on device" copying inputs into a sandbox, no test's
+    failure); the Postgres tests as an unprivileged user;
+  - `//gates:corpus_duckdb`, `//gates:corpus_h2`;
+  - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+  - `//core:stress_suites`, `//core:stress_suites_h2`;
+  - `//wasm:planner` and `//pure-protocol:twins_test`.
+
+  The same round at `b0de178b` (batch 2, before the audits' fixes) was green too.
+- **What this record claims:** slice 3's holes closed and its own pins at zero (guard 1, guard 3, the listener, the
+  rule re-read). It does **not** claim the invariant holds:
+  - holes 1, 2, 6 and 7, D3, E and A1 remain;
+  - their guards are pinned and go to zero at slices 4 and 5.
+
+  Marker branch `claude/plan-as-data-slice-3`.
