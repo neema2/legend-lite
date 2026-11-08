@@ -19,8 +19,8 @@ import java.util.Set;
  * keyed pair restricts to, the byte verdict's static gates. {@code HostJudge.judge} switches on the record and runs
  * that one Java function over the rows and the facts. Part of a test body's plan (the plan-as-data design's step 4,
  * 2026-11-08: docs/PLAN_AS_DATA_2026_11_07.md 2.2): data alone -- no compiler object, no typed tree, no model, no
- * closure; the engine-text asserts' APPEAL is named by its number ({@link EngineText}), held beside the plan until the
- * design's step 8 makes it the edge's extension.
+ * closure; the engine-text asserts' APPEAL is named by its number ({@link EngineText}), the plan's own record by verdict
+ * ({@code TestPlan.extensionsByVerdict}, step 8b).
  */
 public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
@@ -124,7 +124,7 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** An UNROLLED quantified assert's judgment (M10c item 5): the elements' planned asserts in order, each judged over
-     *  its own slice of the sides ({@code askCounts} asks each), each counted as the walk counts it (entered, its
+     *  its own slice of the sides (each part's {@code asks}), each counted as the walk counts it (entered, its
      *  family); the statement's one verdict is the last element's, the first failure raising -- exactly the walk's
      *  unroll, which adjudicates each element and reports the statement once. */
     record Unrolled(List<Part> parts) implements HostJudgment {
@@ -237,9 +237,8 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned -- its name, the golden and our text where
      *  the plan holds them as constants (null: the text is a side the step reads), their equality, the decline decided
      *  before them, the statement origin our text is read under (an exec origin's name, or null) -- and its APPEAL,
-     *  named by its number in the body ({@code appeal}): the rows leg is harness Java held beside the plan until the
-     *  design's step 8 makes it the edge's extension (2.7, the user's ruling R3, T13, R6); whether the equality arm's
-     *  census route is counted at the step. */
+     *  named by its number in the body ({@code appeal}): the plan's {@link Appeal} record by verdict, heard at the step
+     *  and decided after the run (step 8b, 2.7); whether the equality arm's census route is counted at the step. */
     record EngineText(String name, @Nullable String golden, @Nullable String ours, boolean textEqual,
             @Nullable String decline, @Nullable String oursOrigin, int appeal, boolean routed) implements HostJudgment {
     }

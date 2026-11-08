@@ -3,7 +3,7 @@
 > **Status: every decision RULED by the user (2026-11-08); a focused independent check of the three parts no review
 > has seen (the runner's callback, the edge's extension point, the connection description) precedes step 0.** This
 > document replaces the earlier drafts and their appendix; its history is the branch's commits (`83f68e44` to
-> `982929bc`). Nothing below is implemented yet.
+> `982929bc`). Steps 0-8 are implemented (slices 1 and 2, 2026-11-08); section 10 records what each did.
 
 ## 0. The rule, and how it is proven
 
@@ -732,3 +732,52 @@ independently of the rules).
   2.6's exec-owned sessions with an explicit lifetime need an owner every caller opens and closes (a corpus run holds
   thousands of graphs; a per-run owner re-seeds the store per body, the cost `CORE_SQL_SIZE` measured), and two graphs
   of equal content sharing one store need the concurrency check 2.6 asks for before it lands.
+- **Slice 2's independent audit (2026-11-08, read-only, over `fbd29531..07258c9e`) and what it changed:**
+  - *Confirmed equivalent by the audit:* the database judge's root loop (`RootLoops` against the old
+    `VerdictBatch.Planned.judge`: order, census, refusals, ruled-row decisions, messages, appeals), the agreement
+    judge's pairings (`AgreementRuns` against the old `AgreementAsserts`, the assertError and over-an-assert forms), the
+    host judge's shaping and key selection from the plan, the engine-text judgment and its contract and TDG words, the
+    router's census and its S135/N3 dispatch; every field of the hand-written codec written and read; no identity map
+    and no thread-local planning object read by the run.
+  - *Must-fix, fixed:* an appeal side's planning failure of a class off the closed list failed the whole body's
+    planning (`Failures.of`), where it was kept until the appeal was heard. The appeal keeps such a failure as its
+    words alone (`Appeal.Unlisted`: the class's simple name and its message, all the rows leg reads of it), so planning
+    goes on and the decline (our rows) or the fault (the population) reads as before; a class on the list stays a
+    `Failure`.
+  - *Must-fix, fixed:* the stores the plan's appeals name were provided in verdict-id order; the harness's provision
+    never overlays, so its order is the fixtures' order. They are provided in the appeals' number order, the order their
+    arms were planned (`AppealsByVerdict.byNumber`). **Taken on the way:** only the stores of appeals the plan CARRIES are
+    provided (before step 8c every planned appeal's, a discarded arm's among them); the run provides what its plan
+    names, nothing a discarded plan asked for. The lanes measure it.
+  - *Should-fix, fixed:* the class-level wall no longer lets exec reach the model (`EXEC_MAY_REACH`), and the MongoDB
+    connector lost its unused model dependency; the R1 measurement covers the run classes steps 5, 6 and 8 made
+    (`AgreementRuns`, `AppealsByVerdict`, `RootLoops`), what it found pinned; the dead code deleted (`HostAssert.enter`
+    and its two `judge`s; `JudgePlans.shape(PlannedSide)` and its three helpers -- a second copy of the shaping rules,
+    a planned constant decoding as it did; `EngineTextAppeals.all`); a failed text decided at planning under the
+    compatibility rules is refused by name without numbering an appeal no plan carries; `RootLoops` accepts a verdict of
+    no row of the loop only as a decided segment's carrier, refusing any other non-member as before step 5; the
+    appeals' judgment walk is exhaustive (no `default`); the extension codecs load once; a guard keeps every
+    `ExtensionCodec` provider in `com.legend.edge` (`ArchitectureTest.extensionCodecsAreTheEdges`); a round-trip test
+    holds one of every host judgment, step, root-loop record, appeal read form and edge record
+    (`TestPlanJsonRoundTripTest`, checked against the sealed list); stale comments corrected.
+  - *Deviations the audit found unrecorded, recorded here:*
+    - the plan's appeals are added by the router (`AppealsByVerdict.of`), not by the test door: a plan from
+      `TestDoor.planned` names appeal numbers it does not carry until the router adds them, and under lite's own rules
+      an engine-text judgment's number names an appeal no run hears. Step 10's one test-planning entry, returning the
+      whole test plan, closes it.
+    - `ExecuteOptions`' public three-argument constructor turns the compatibility rules on with an edge (`edge != null`),
+      by ruling 3a.3 (a recorder implies the compatibility rules); before step 8a a recorder left them off there.
+    - under lite's own rules the seed step's ledger check returns early (`Moved.seeded`): with no edge there are no
+      ledger texts to count the statements against.
+    - the edge's records by verdict are keyed by verdict id, each appeal by its number (2.7 drew "by verdict id and part
+      index"): the same identification.
+    - the system store's key hashes each table definition's record text (`toString`, the components' names and values
+      by the Java language's definition) and the graph's rows, once per graph.
+    - the rows leg refuses a missing referee by name before reading our rows (it failed later, on the referee's first
+      use); PCT's channel B hands no referee and hears no appeal.
+    - an appeal's constant rows are decoded from the plan's text by their type's name (a `Long`, a `BigInteger`), as a
+      host side's constant is at its step, where the compiler's answered value was read.
+- **Slice 2's lanes: a fix after the core lane.** The planner's WebAssembly build (`//wasm:planner`, TeaVM) has no
+  `java.security`; step 7b's key used `MessageDigest`. The key is two 64-bit hashes in plain long arithmetic
+  (`SystemRoutes.hashOf`), the same content; the planner builds for the browser again (`//pure-protocol:twins_test`
+  with it).

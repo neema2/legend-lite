@@ -125,16 +125,16 @@ public final class SystemRoutes {
         // two 64-bit hashes over the content's characters, in plain long arithmetic: the planner runs in the browser
         // too (TeaVM, //wasm:planner), which has no java.security (the slice 2 lanes, 2026-11-08)
         String text = content.toString();
-        long h1 = 0xcbf29ce484222325L;
-        long h2 = 0x6a09e667f3bcc909L;
+        long fnv = 0xcbf29ce484222325L;
+        long mix = 0x6a09e667f3bcc909L;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            h1 = (h1 ^ c) * 0x100000001b3L;
-            h2 = (h2 + c) * 0x9e3779b97f4a7c15L;
-            h2 ^= h2 >>> 29;
+            fnv = (fnv ^ c) * 0x100000001b3L;
+            mix = (mix + c) * 0x9e3779b97f4a7c15L;
+            mix ^= mix >>> 29;
         }
         StringBuilder hex = new StringBuilder(32);
-        for (long h : new long[] {h1, h2}) {
+        for (long h : new long[] {fnv, mix}) {
             for (int shift = 60; shift >= 0; shift -= 4) {
                 hex.append(Character.forDigit((int) ((h >>> shift) & 0xF), 16));
             }

@@ -5,7 +5,6 @@ package com.legend.driver;
 
 import com.legend.testexecutionplan.Appeal;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -35,10 +34,5 @@ final class EngineTextAppeals {
             throw new IllegalStateException("no appeal numbered " + n + " planned in the body");
         }
         return a;
-    }
-
-    /** Every appeal planned, by number. */
-    Map<Integer, Appeal> all() {
-        return Collections.unmodifiableMap(planned);
     }
 }

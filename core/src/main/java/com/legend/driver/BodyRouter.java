@@ -166,7 +166,8 @@ public final class BodyRouter {
             Moved moved = new Moved(plan, options.judgingRules(), options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             if (listener != null) {
-                // the fixtures the planned appeals asked for, provided before the body's run (each a run of its own)
+                // the fixtures of the stores the plan's appeals name, provided before the body's run (each a run of its
+                // own; step 8c)
                 listener.beforeRun(AppealsByVerdict.stores(plan));
             }
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run

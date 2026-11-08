@@ -163,8 +163,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * {@code fused}: the group's wrapper over its verdicts' wrappers -- the verdict statements as ONE statement
      * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
      * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The test run sends
-     * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules, the messages and the agreement of the two judges are the judges' own, outside
-     * the plan. {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
+     * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
+     * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
      * database half's loop of the assert the group closes; null on every other group. {@code agreement}: under the
      * agreement judge, the pairing of the assert this group closes (step 6), null otherwise.

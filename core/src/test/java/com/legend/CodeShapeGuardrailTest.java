@@ -97,7 +97,7 @@ class CodeShapeGuardrailTest {
             // test run's handing of the program's reader to the judges, once at the first callback
             "ProgramRunner.closed", "TestRun.reading",
             // 2026-11-08, the plan-as-data design's step 4: the body's engine-text appeals' last number given (planning
-            // state, one per body; the registry leaves at step 8)
+            // state, one per body; since step 8b planning's registry alone, never published for the run)
             "EngineTextAppeals.last",
             // 2026-11-08, the plan-as-data design's step 6: one agreement-judged assert's run state -- the host half's
             // verdict held until the database half's rows are in, and an assertError's raising row -- once per run,

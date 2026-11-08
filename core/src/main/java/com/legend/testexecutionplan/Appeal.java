@@ -96,15 +96,34 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
      * One side of the rows leg as the plan reads it: its statement and its shape, or the failure its planning raised
      * (raised where the appeal reads it), or neither (the arm has no such side).
      */
-    public record Read(TestPlan.@Nullable Side side, @Nullable SideShape shape, @Nullable Failure failure) {
+    public record Read(TestPlan.@Nullable Side side, @Nullable SideShape shape, @Nullable Failure failure,
+            @Nullable Unlisted unlisted) {
         public Read {
-            if ((side == null) != (shape == null) || side != null && failure != null) {
+            if ((side == null) != (shape == null) || side != null && (failure != null || unlisted != null)
+                    || failure != null && unlisted != null) {
                 throw new IllegalArgumentException("a read is a side and its shape, or a failure, or none");
             }
         }
 
+        /** A side and its shape, or a failure on the closed list, or none. */
+        public Read(TestPlan.@Nullable Side side, @Nullable SideShape shape, @Nullable Failure failure) {
+            this(side, shape, failure, null);
+        }
+
         /** No such side. */
-        public static final Read NONE = new Read(null, null, null);
+        public static final Read NONE = new Read(null, null, null, null);
+    }
+
+    /**
+     * A side's planning failure of a class the closed list does not name (the slice 2 audit, 2026-11-08): the rows leg
+     * reads only its words -- the class's simple name and its message -- where it declines (our rows: rows-underivable)
+     * or faults (the population), so the appeal keeps those words, never a stand-in class; the body's planning goes on,
+     * as it did when the side's failure was kept until the appeal was heard.
+     */
+    public record Unlisted(String simpleName, @Nullable String message) {
+        public Unlisted {
+            Objects.requireNonNull(simpleName, "simpleName");
+        }
     }
 
     /** A temp table the golden reads: its name, its values' kind, its values. */

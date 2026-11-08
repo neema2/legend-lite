@@ -79,7 +79,7 @@ public final class BodyDriver {
             // (the plan-as-data design's step 0, 2026-11-08): planning state, never read at run
             com.legend.judge.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
-            // beside the plan until step 8
+            // planning's registry, the plan carrying those its verdicts name (step 8b)
             EngineTextAppeals appeals) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the

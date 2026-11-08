@@ -314,7 +314,8 @@ final class JudgePlans {
                                         : p.root() instanceof com.legend.compiler.spec.typed.TypedUserCall uc
                                         ? " " + uc.callee().qualifiedName() : "")));
             }
-            return shape(p, constantRows(p));
+            return decodeConstant((TestPlan.Side.Constant) p.side(),
+                    java.util.Objects.requireNonNull(p.answered(), "a constant side's value"), constantRows(p));
         }
         // with no collector: the side is a constant the compiler answers (a literal text the arm reads while the assert
         // is planned); one that needs a plan would run a statement at planning -- refused by name (I2, 2026-11-07: the
@@ -400,21 +401,6 @@ final class JudgePlans {
         return new PlanRunner.Rows(c.columns(), rows);
     }
 
-    /** {@code rows}, read for {@code p}, shaped as the side's declared shape (the legacy executor's own shaping
-     *  rules, read from the plan's facts). */
-    static TypedSide shape(PlannedSide p, PlanRunner.Rows rows) {
-        return switch (p.kind()) {
-            case CONSTANT -> decodeConstant((TestPlan.Side.Constant) p.side(),
-                    java.util.Objects.requireNonNull(p.answered(), "a constant side's value"), rows);
-            case GRAPH -> new TypedSide.Graph(objectsShape(rows), p.wrappedSide().shapeInfo().type().typeName());
-            case TABULAR -> tabularShape(rows, java.util.Objects.requireNonNull(p.schema(), "a grid's schema"),
-                    p.wrappedSide().shapeInfo());
-            case KEYED -> keyedShape(rows, java.util.Objects.requireNonNull(p.schema(), "a keyed grid's schema"),
-                    p.wrappedSide().shapeInfo());
-            case VALUES -> valuesShape(valueLane(rows), p.wrappedSide());
-        };
-    }
-
     /** {@code p}'s shape as the plan carries it (the plan-as-data design's step 4, 2026-11-08): every fact its
      *  shaping reads, decided here from the side's declared type, so the run shapes the rows from the plan alone. A
      *  constant side's text is read back here, at planning, and checked against the compiler's value (a difference is
@@ -475,8 +461,9 @@ final class JudgePlans {
                 planMultiplicity(c.multiplicity()));
     }
 
-    /** {@code rows}, read for a side the plan shapes as {@code s}: the same rules as {@link #shape(PlannedSide,
-     *  PlanRunner.Rows)}, read from the plan's facts alone (the plan-as-data design's step 4, 2026-11-08). */
+    /** {@code rows}, read for a side the plan shapes as {@code s}: the legacy executor's shaping rules, read from the
+     *  plan's facts alone (the plan-as-data design's step 4, 2026-11-08; the second copy over the planner's side,
+     *  shape(PlannedSide), deleted by the slice 2 audit, 2026-11-08 -- a planned constant decodes as it did). */
     static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
         return switch (s.kind()) {
             case CONSTANT -> {
@@ -554,7 +541,9 @@ final class JudgePlans {
                 + " columns " + s.columns() + " nor a per-key column of its templates " + s.templates());
     }
 
-    /** {@link #valuesShape(PlanRunner.Rows, BodyDriver.WrappedSide)}'s rules, read from the plan's shape. */
+    /** A value side's rules, read from the plan's shape (a required root of no rows refuses; a scalar of two rows
+     *  refuses; a null cell in a collection is the TDSNull value under a TDSNull root, a null slot on the Any and
+     *  variant lanes, a lowering defect otherwise). */
     private static TypedSide valuesShape(PlanRunner.Rows rows, com.legend.testexecutionplan.SideShape s) {
         long lower = s.lower();
         if (s.scalar()) {
@@ -677,25 +666,6 @@ final class JudgePlans {
                 root, schema);
     }
 
-    private static TypedSide tabularShape(PlanRunner.Rows rows, Type.RelationType schema, ExprType info) {
-        List<Column> columns = new ArrayList<>(schema.columns().size());
-        for (Type.Column c : schema.columns()) {
-            columns.add(new Column(c.name(), c.type().typeName(), planMultiplicity(c.multiplicity())));
-        }
-        if (schema.columns().isEmpty()) {
-            // a raw grid's: the columns its result reported, each typed by the Pure type the wire table named
-            for (ExecutionPlan.Column c : rows.columns()) {
-                columns.add(new Column(c.name(), reportedType(c),
-                        new ExecutionPlan.Multiplicity(c.multiplicity().lower() == 0 ? 0 : 1, 1)));
-            }
-        }
-        List<Row> out = new ArrayList<>(rows.rows().size());
-        for (List<Object> r : rows.rows()) {
-            out.add(new Row(r));
-        }
-        return new TypedSide.Tabular(columns, out, info.type().typeName(), oneCarrier(info.type()));
-    }
-
     /** A reported column's Pure type, in the plan's spelling: the primitive the wire table named, or Any (its cells
      *  the driver's kind). */
     private static String reportedType(ExecutionPlan.Column c) {
@@ -723,32 +693,6 @@ final class JudgePlans {
         return m == null ? null : com.legend.plan.PlanColumns.multiplicity(m);
     }
 
-    /** A keyed side's rows: each answered column typed by the schema's one pivot rule
-     *  ({@link Type.RelationType#pivotColumnType}): a fixed column by its name, a per-key one by its aggregate's
-     *  template, which its generated name ends with; named as the plan names it (a generated name presented in its
-     *  quotes, as the engine labels it). */
-    private static TypedSide keyedShape(PlanRunner.Rows rows, Type.RelationType schema, ExprType info) {
-        List<Column> columns = new ArrayList<>(rows.columns().size());
-        for (ExecutionPlan.Column c : rows.columns()) {
-            Type t = schema.pivotColumnType(c.name());
-            if (t == null) {
-                throw new IllegalStateException("the keyed side's column '" + c.name() + "' is neither among the"
-                        + " schema's columns " + schema.columns() + " nor a per-key column of its templates "
-                        + schema.dynamicColumns());
-            }
-            Type.Column fixed = schema.columns().stream().filter(x -> x.name().equals(c.name())).findFirst()
-                    .orElse(null);
-            columns.add(fixed != null
-                    ? new Column(fixed.name(), fixed.type().typeName(), planMultiplicity(fixed.multiplicity()))
-                    : new Column(Type.RelationType.presentPivotName(c.name()), t.typeName()));
-        }
-        List<Row> out = new ArrayList<>(rows.rows().size());
-        for (List<Object> r : rows.rows()) {
-            out.add(new Row(r));
-        }
-        return new TypedSide.Tabular(columns, out, info.type().typeName(), oneCarrier(info.type()));
-    }
-
     /** A value root's rows in the VALUE lane's carrier: a timestamp slot's cell with its digits trimmed
      *  ({@link com.legend.values.PureDateLiteral#trimmed}) -- the database judge's value-lane canon spells a
      *  timestamp so ({@code dateTimeText}: a whole second none, {@code .123} three), and so did the JSON rows
@@ -774,65 +718,6 @@ final class JudgePlans {
             out.add(cells);
         }
         return new PlanRunner.Rows(columns, out);
-    }
-
-    /** A value root's cells: the one-column relation {@code value}, shaped as a scalar or a collection with the
-     *  legacy executor's rules (a required root of no rows refuses; a scalar of two rows refuses; a null cell in a
-     *  collection is the TDSNull value under a TDSNull root, a null slot on the Any and variant lanes, a lowering
-     *  defect otherwise). */
-    private static TypedSide valuesShape(PlanRunner.Rows rows, BodyDriver.WrappedSide w) {
-        ExprType info = w.shapeInfo();
-        Type type = info.type();
-        long lower = info.multiplicity().requireBounded("result shape").lower();
-        boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
-        boolean anyRoot = PlatformTypes.isAny(type) || tdsNullRoot;
-        boolean variantRoot = type instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
-        if (w.shape() == com.legend.plan.ResultShape.SCALAR) {
-            if (rows.rows().isEmpty() && lower >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
-                        + info.multiplicity().text());
-            }
-            if (rows.rows().size() > 1) {
-                throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
-                        + " contract was not enforced upstream");
-            }
-            Object v = rows.rows().isEmpty() ? null : rows.rows().get(0).get(0);
-            if (v instanceof List<?> l && !PlatformTypes.isListCarrier(type)) {
-                // the list wire arriving as one cell under a scalar-shaped root: the collection is the value -- unless
-                // the value IS a List (a List<T> instance is one value holding its list, as the legacy executor kept
-                // the decoded list; 2026-10-27, the result boundary program's phase 5: the plan's decode reads every
-                // array as a list, so the declared type decides)
-                return new TypedSide.Collection(new ArrayList<>(l), type.typeName());
-            }
-            return new TypedSide.Scalar(v, type.typeName());
-        }
-        List<Object> values = new ArrayList<>(rows.rows().size());
-        for (List<Object> r : rows.rows()) {
-            Object v = r.get(0);
-            if (v == null) {
-                if (tdsNullRoot) {
-                    values.add(PlatformTypes.TDS_NULL_CELL);
-                } else if (anyRoot || variantRoot) {
-                    values.add(null);
-                } else {
-                    throw new IllegalStateException("NULL cell reached COLLECTION egress — the lowerer owns the"
-                            + " null-drop (COMPILER_SHORTCUT_AUDIT §5); a NULL here is a lowering defect, never an"
-                            + " empty");
-                }
-            } else {
-                values.add(v);
-            }
-        }
-        if (rows.rows().isEmpty() && lower >= 1) {
-            throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
-                    + info.multiplicity().text());
-        }
-        if (values.size() < lower) {
-            throw new IllegalStateException("collection-shaped result holds " + values.size()
-                    + " values, below its declared lower bound " + lower
-                    + " — NULL cells were dropped past the type's own contract");
-        }
-        return new TypedSide.Collection(values, type.typeName());
     }
 
     // ---- a constant side: the program's text in the plan, read back by its column's type (S2f) ------------------

@@ -1047,10 +1047,12 @@ final class ArchitectureTest {
      *  database facts, the platform, the parser, the normalizer, the root, the judge, the generator, the server. An
      *  allowlist, not a blacklist of planning packages (the D72 audit): the two jars built against the whole of core
      *  ({@code duckdb_load}, {@code postgres_cells}) hold exec classes this rule judges too, and a blacklist left the
-     *  root and the judge open to them. */
+     *  root and the judge open to them. The model left the list with exec's model dependency (2026-11-08, the
+     *  plan-as-data design's step 7a: exec opens a session from the plan's own connection description; the slice 2
+     *  audit closed the class-level half). */
     private static final java.util.Set<String> EXEC_MAY_REACH = java.util.Set.of("com.legend.exec", "com.legend.base",
             "com.legend.json", "com.legend.cache", "com.legend.diagnostics", "com.legend.error",
-            "com.legend.executionplan", "com.legend.model", "com.legend.result", "com.legend.sql", "com.legend.values");
+            "com.legend.executionplan", "com.legend.result", "com.legend.sql", "com.legend.values");
 
     /* EXEC_PLANNING_REFERENCES, the ratchet of exec's reaches into planning (2026-10-09 to 2026-10-30): sixteen rows at
      * its widest, five after D71 (the judges and the probes out), none after D72 (the seam-and-wall program's B2: the
@@ -1080,6 +1082,35 @@ final class ArchitectureTest {
      * unseen. Every provider the classpath registers for an exec plug-in interface (a database's connector, its driver's
      * cells, its bulk load) is a class of {@code com.legend.exec}, and the rule above therefore covers it.
      */
+    /** The test plan's extension codecs are the edge's (the plan-as-data design's step 8a, 2.7; the slice 2 audit,
+     *  2026-11-08): a provider of {@code ExtensionCodec} outside {@code com.legend.edge} would put another library's
+     *  records in the test plan. */
+    @Test
+    void extensionCodecsAreTheEdges() throws Exception {
+        java.util.List<String> outside = new java.util.ArrayList<>();
+        int providers = 0;
+        java.util.Enumeration<java.net.URL> files = ArchitectureTest.class.getClassLoader()
+                .getResources("META-INF/services/" + com.legend.testexecutionplan.ExtensionCodec.class.getName());
+        while (files.hasMoreElements()) {
+            java.net.URL file = files.nextElement();
+            try (var in = file.openStream()) {
+                for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                    String provider = line.replaceAll("#.*", "").trim();
+                    if (provider.isEmpty()) {
+                        continue;
+                    }
+                    providers++;
+                    if (!provider.startsWith("com.legend.edge.") || provider.substring(16).contains(".")) {
+                        outside.add(provider + " (" + file + ")");
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(providers > 0, "no extension codec on the classpath to check");
+        org.junit.jupiter.api.Assertions.assertTrue(outside.isEmpty(),
+                "an extension codec outside com.legend.edge (the test plan's extensions are the edge's): " + outside);
+    }
+
     @Test
     void execPluginsAreExecClasses() throws Exception {
         java.util.List<String> outside = new java.util.ArrayList<>();
@@ -1131,8 +1162,11 @@ final class ArchitectureTest {
                 "com.legend.driver.DatabaseAsserts", "com.legend.driver.AgreementAsserts", "com.legend.driver.JudgePlans",
                 "com.legend.driver.HostSides", "com.legend.driver.BodyDriver", "com.legend.driver.AssertBranch",
                 "com.legend.driver.SeedSqlForms", "com.legend.driver.LiteralFold");
+        // (2026-11-08, the slice 2 audit: the run classes the plan-as-data design's steps 5, 6 and 8 made --
+        // AgreementRuns, AppealsByVerdict, judge.RootLoops -- measured too)
         java.util.Set<String> runOnly = java.util.Set.of("com.legend.driver.BodyRouter$Moved",
-                "com.legend.driver.RunReader", "com.legend.driver.Appeals");
+                "com.legend.driver.RunReader", "com.legend.driver.Appeals", "com.legend.driver.AgreementRuns",
+                "com.legend.driver.AppealsByVerdict", "com.legend.judge.RootLoops");
         java.util.Set<String> sessionTypes = java.util.Set.of("com.legend.exec.Sessions$Session",
                 "com.legend.exec.PlanSessions", "com.legend.exec.PlanSessions$Source", "com.legend.exec.PlanRunner");
         java.util.Map<String, java.util.Set<String>> r1 = new java.util.TreeMap<>();
@@ -1178,13 +1212,17 @@ final class ArchitectureTest {
 
     /** {@link #thePlanRunSplitInReportMode}'s pinned crossings, shrink-only (the first measure, 2026-11-07). */
     private static final java.util.Set<String> SPLIT_CROSSINGS = java.util.Set.of(
-            // R1: the body's sink holds the judges' planned asserts and judges through them at each verdict step: the
-            // planned values move to their own package (driver.planned) with the split
+            // R1: the body's sink reads a verdict's multiplicity text through the compiler's Multiplicity, and shapes
+            // and messages through the planning classes' run halves -- each cut with the package split (step 10)
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.compiler.element.type.Multiplicity",
             // (gone 2026-11-08, the plan-as-data design's steps 5 and 6: the sink reads each judge's facts from the
             // plan -- the host's off the verdict, the database's root loop and the agreement's pairing off the group --
             // and holds no planner's asserts: Moved -> AgreementAsserts, DatabaseAsserts, HostAsserts)
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.HostSides",
+            // (2026-11-08, the slice 2 audit: the agreement judge's run class measured too) its host half shapes the
+            // base and reads the message through HostSides' run half (shapedBase, message), split with the package
+            // move (step 10)
+            "R1 com.legend.driver.AgreementRuns$Run -> com.legend.driver.HostSides",
             "R1 com.legend.driver.BodyRouter$Moved -> com.legend.driver.JudgePlans",
             // (gone 2026-11-08, the plan-as-data design's step 8: the test door's answer is the test plan, its ledger
             // texts the edge's records in it -- Moved -> TestDoor)

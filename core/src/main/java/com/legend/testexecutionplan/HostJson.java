@@ -905,14 +905,30 @@ final class HostJson {
         o.put("side", x.side() == null ? null : TestPlanJson.side(x.side()));
         o.put("shape", x.shape() == null ? null : wSideShape(x.shape()));
         o.put("failure", x.failure() == null ? null : wFailure(x.failure()));
+        o.put("unlisted", x.unlisted() == null ? null : wAppealUnlisted(x.unlisted()));
         return o;
+    }
+
+    static Map<String, Object> wAppealUnlisted(Appeal.Unlisted x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("simpleName", x.simpleName());
+        o.put("message", x.message());
+        return o;
+    }
+
+    static Appeal.Unlisted rAppealUnlisted(Json.Obj o) {
+        String v_simpleName = str(field(o, "simpleName", "Unlisted"));
+        @Nullable String v_message = absent(o, "message", "Unlisted") ? null : str(o.get("message"));
+        return new Appeal.Unlisted(v_simpleName, v_message);
     }
 
     static Appeal.Read rAppealRead(Json.Obj o) {
         TestPlan.@Nullable Side v_side = absent(o, "side", "Read") ? null : TestPlanJson.readSide(obj(o.get("side")));
         @Nullable SideShape v_shape = absent(o, "shape", "Read") ? null : rSideShape(obj(o.get("shape")));
         @Nullable Failure v_failure = absent(o, "failure", "Read") ? null : rFailure(obj(o.get("failure")));
-        return new Appeal.Read(v_side, v_shape, v_failure);
+        Appeal.@Nullable Unlisted v_unlisted = absent(o, "unlisted", "Read") ? null
+                : rAppealUnlisted(obj(o.get("unlisted")));
+        return new Appeal.Read(v_side, v_shape, v_failure, v_unlisted);
     }
 
     static Map<String, Object> wAppealTemp(Appeal.TempTable x) {

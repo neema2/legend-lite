@@ -86,8 +86,44 @@ final class AppealsByVerdict {
                     numbers(ae.inner().judgment(), out);
                 }
             }
-            default -> {
-                // no other judgment holds an appeal
+            // no other judgment holds an appeal: each named, so a new one is decided here (the slice 2 audit, 2026-11-08)
+            case HostJudgment.AllRows x -> {
+            }
+            case HostJudgment.Rows x -> {
+            }
+            case HostJudgment.TdsEquivalent x -> {
+            }
+            case HostJudgment.GridPair x -> {
+            }
+            case HostJudgment.Size x -> {
+            }
+            case HostJudgment.Contains x -> {
+            }
+            case HostJudgment.Tolerance x -> {
+            }
+            case HostJudgment.Condition x -> {
+            }
+            case HostJudgment.Subset x -> {
+            }
+            case HostJudgment.Empty x -> {
+            }
+            case HostJudgment.Eq x -> {
+            }
+            case HostJudgment.InstanceOf x -> {
+            }
+            case HostJudgment.Is x -> {
+            }
+            case HostJudgment.Decided x -> {
+            }
+            case HostJudgment.SameElements x -> {
+            }
+            case HostJudgment.Equals x -> {
+            }
+            case HostJudgment.Json x -> {
+            }
+            case HostJudgment.Rendered x -> {
+            }
+            case HostJudgment.Raise x -> {
             }
         }
         return out;
@@ -106,14 +142,25 @@ final class AppealsByVerdict {
         return out;
     }
 
-    /** The appeals {@code plan} carries, by number. */
+    /** The appeals {@code plan} carries, by number, in their numbers' order -- the order their arms were planned, so
+     *  the stores they name are provided in that order (the slice 2 audit, 2026-11-08: the harness's provision never
+     *  overlays, so its order is the fixtures' order; by verdict id it was the plan's walk's). */
     static Map<Integer, Appeal> byNumber(TestPlan plan) {
-        Map<Integer, Appeal> out = new LinkedHashMap<>();
+        Map<Integer, Appeal> found = new java.util.HashMap<>();
+        int last = 0;
         for (List<Extension> at : plan.extensionsByVerdict().values()) {
             for (Extension e : at) {
                 if (e instanceof Appeal a) {
-                    out.put(a.number(), a);
+                    found.put(a.number(), a);
+                    last = Math.max(last, a.number());
                 }
+            }
+        }
+        Map<Integer, Appeal> out = new LinkedHashMap<>();
+        for (int n = 1; n <= last; n++) {
+            Appeal a = found.get(n);
+            if (a != null) {
+                out.put(n, a);
             }
         }
         return out;

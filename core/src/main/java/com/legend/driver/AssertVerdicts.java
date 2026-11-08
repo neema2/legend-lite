@@ -723,27 +723,8 @@ final class AssertVerdicts {
             return family != null ? family : listenerName;
         }
 
-        /** The census at the assert's turn: its family, counted before any side runs (as {@link #adjudicate}
-         *  counts it). */
-        void enter() {
-            AssertVerdicts.enter(assertionOf(this));
-        }
-
-        /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null); an
-         *  engine-text equality's census route counted once the arm answered, as {@link #adjudicate} counts it
-         *  (M10b: never on a failed one, which raises before). */
-        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-            return judge(() -> sides, rules, null);
-        }
-
-        /** The verdict over its sides as the runner read them: their rows, or the error the reading raised, which
-         *  the judgment decides (an assertError's answer, any other's failure: {@code HostJudge.judge}). */
-        @com.legend.base.Nullable TypedSide judge(java.util.function.Supplier<List<TypedSide>> sides,
-                com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-                java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-            return AssertVerdicts.judge(assertionOf(this), check.judgment(), sides, rules, message);
-        }
-
+        // (2026-11-08, the slice 2 audit: enter() and the two judge(...) went -- the run judges from the verdict's own
+        // facts, judgedRowAtItsStep, and nothing called them)
     }
 
     private static void familyEntered(String family) {

@@ -220,11 +220,21 @@ public final class TestPlanJson {
     /** The codecs the classpath registers (the edge's, through the {@code ServiceLoader} seam): none under a run that
      *  hands no edge, whose plan holds no record of the edge's. */
     private static List<ExtensionCodec> codecs() {
-        List<ExtensionCodec> out = new ArrayList<>();
-        for (ExtensionCodec c : java.util.ServiceLoader.load(ExtensionCodec.class, ExtensionCodec.class.getClassLoader())) {
-            out.add(c);
+        return Codecs.ALL;
+    }
+
+    /** The registered codecs, loaded once (the slice 2 audit, 2026-11-08: each write and read loaded them again). */
+    private static final class Codecs {
+        static final List<ExtensionCodec> ALL = load();
+
+        private static List<ExtensionCodec> load() {
+            List<ExtensionCodec> out = new ArrayList<>();
+            for (ExtensionCodec c : java.util.ServiceLoader.load(ExtensionCodec.class,
+                    ExtensionCodec.class.getClassLoader())) {
+                out.add(c);
+            }
+            return List.copyOf(out);
         }
-        return out;
     }
 
     private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {

@@ -34,6 +34,9 @@ public final class RootLoops {
         private final RootLoop loop;
         private final Set<Integer> members = new HashSet<>();
         private final Map<Integer, List<Object>> rows = new HashMap<>();
+        /** Whether no root reads a verdict's row (every root decided at planning, or each member a canon the dialect
+         *  cannot spell): the segment's one verdict is then its carrier, a member of no row, with no statement. */
+        private final boolean decided;
         /** The flush counted once, as the segment's groups start to run (its first row or fused word, or its judging). */
         private boolean counted;
 
@@ -46,6 +49,7 @@ public final class RootLoops {
                     }
                 }
             }
+            this.decided = members.isEmpty();
         }
 
         public RootLoop loop() {
@@ -76,7 +80,9 @@ public final class RootLoops {
         public void received(TestPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
             counted();
             if (!members.contains(verdict.id())) {
-                if (row != null) {
+                // only the decided segment's carrier answers no row of the loop (the slice 2 audit, 2026-11-08: any
+                // other non-member is a plan that names the wrong segment, refused as before step 5)
+                if (row != null || !decided || verdict.wrapper() != null) {
                     throw new IllegalStateException("a verdict row for no member of this segment: " + verdict.name());
                 }
                 return;
