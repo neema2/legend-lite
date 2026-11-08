@@ -1,0 +1,89 @@
+# THE GS-QUANT ORACLE (README.md): gs-quant's own answers for every mapped word of #TS (mapping.yaml), snapped into the
+# committed answers.jsonl.gz by a person with gs-quant at the pin (pins.env) installed, never by a test: gs-quant is not one of the
+# repository's locked requirements, so CI judges from the committed file (//core:ts_gsquant_parity_test), and the live
+# drift check is run by hand.
+#   bazel run //tools/gs-quant-oracle:snap -- --check      (or --write; tools/gs-quant-oracle/snap.sh runs the same)
+# A hand tool: manual, so a wildcard build does not build it, and the checks lane builds it (tools_build_test), as the
+# IQ and Neo4j oracles' (tools/iq-oracle/BUILD.bazel says why native_binary).
+
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# the parity test's inputs: the cases, the pin, gs-quant's answers and the verdicts it holds, for the samples and for
+# each of the adversarial fixture's price files
+exports_files(
+    [
+        "mapping.yaml",
+        "pins.env",
+        "answers.jsonl.gz",
+        "ledger.tsv",
+        "answers-adversarial-raw.jsonl.gz",
+        "ledger-adversarial-raw.tsv",
+        "answers-adversarial-adjusted.jsonl.gz",
+        "ledger-adversarial-adjusted.tsv",
+    ],
+    visibility = ["//core:__pkg__"],
+)
+
+# THE TWO-ROWS TABLE (two_rows.py): what gs-quant answers over the fixture's line with two rows on one date, case by
+# case, read from the ledger alone. Its data, two-rows.tsv, is diff-tested (:update_generated_tests, in //:generated);
+# its page, TWO_ROWS.md, is written by the same rule and not diff-tested (prose is never a test input, G17, as
+# docs/timeseries/WORDS.md). Regenerate both: bazel run //tools/gs-quant-oracle:update_generated.
+py_binary(
+    name = "two_rows",
+    srcs = ["two_rows.py"],
+)
+
+run_binary(
+    name = "gen_two_rows",
+    srcs = ["ledger-adversarial-raw.tsv"],
+    outs = [
+        "generated/two-rows.tsv",
+        "generated/TWO_ROWS.md",
+    ],
+    args = [
+        "--ledger",
+        "$(execpath ledger-adversarial-raw.tsv)",
+        "--tsv",
+        "$(execpath generated/two-rows.tsv)",
+        "--md",
+        "$(execpath generated/TWO_ROWS.md)",
+    ],
+    env = {
+        "PYTHONHASHSEED": "0",
+        "PYTHONUTF8": "1",
+    },
+    tool = ":two_rows",
+)
+
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe two-rows table moved with the fixture ledger -- regenerate: bazel run //tools/gs-quant-oracle:update_generated, and read the diff",
+    files = {"two-rows.tsv": ":generated/two-rows.tsv"},
+    visibility = ["//:__pkg__"],
+)
+
+write_source_files(
+    name = "update_two_rows_page",
+    diff_test = False,
+    files = {"TWO_ROWS.md": ":generated/TWO_ROWS.md"},
+    visibility = ["//:__pkg__"],
+)
+
+native_binary(
+    name = "snap",
+    src = "snap.sh",
+    tags = ["manual"],
+)
+
+build_test(
+    name = "tools_build_test",
+    targets = [":snap"],
+)
+
+guards_package()

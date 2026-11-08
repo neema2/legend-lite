@@ -1,0 +1,139 @@
+# THE TWO-ROWS TABLE's data (two_rows.py, from ledger-adversarial-raw.tsv): each case run over BTCUSD, its group and gs-quant's answer there. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
+case	group	gs-quant	lite (duckdb)
+mean w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+mean w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+mean w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+sum w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+sum w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+sum w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+min w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+min w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+min w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+max w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+max w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+max w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+std w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+std w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+std w=all	two-values	731 points, 2 values on 2025-02-05	REFUSED
+var w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+var w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+var w=all	two-values	731 points, 2 values on 2025-02-05	REFUSED
+median default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+median w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+median w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+range default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+range w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+range w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+product default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+product w=5	two-values	727 points, 2 values on 2025-02-05	REFUSED
+product w=3mo	two-values	641 points, 2 values on 2025-02-05	REFUSED
+percentile n=50	two-values	732 points, 2 values on 2025-02-05	REFUSED
+percentile n=50,w=whole	two-values	732 points, 2 values on 2025-02-05	PASS
+percentile n=90,w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+percentile n=90,w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+percentiles default	four-values	734 points, 4 values on 2025-02-05	REFUSED
+percentiles w=20	four-values	714 points, 4 values on 2025-02-05	REFUSED
+percentiles w=3mo	one-or-none	640 points	DIFF
+zscores default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+zscores w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
+zscores w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+zscores w=whole	two-values	732 points, 2 values on 2025-02-05	PASS
+zscores w=63,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+winsorize default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+winsorize limit=1.5,w=whole	two-values	731 points, 2 values on 2025-02-05	REFUSED
+cov default	two-values	730 points, 2 values on 2025-02-05	REFUSED
+cov w=3mo	raises-every-symbol	TypeError at statistics.py:720	GS_ERROR
+cov w=all	two-values	730 points, 2 values on 2025-02-05	REFUSED
+exponential_std default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+exponential_std beta=0.9	two-values	731 points, 2 values on 2025-02-05	REFUSED
+returns default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+returns obs=5	two-values	727 points, 2 values on 2025-02-05	REFUSED
+returns type=log	two-values	731 points, 2 values on 2025-02-05	REFUSED
+returns type=absolute	two-values	731 points, 2 values on 2025-02-05	REFUSED
+returns obs=1mo	two-values	703 points, 2 values on 2025-02-05, 2 values on 2025-03-07	REFUSED
+prices default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+prices initial=100	two-values	732 points, 2 values on 2025-02-05	REFUSED
+prices type=log	two-values	732 points, 2 values on 2025-02-05	REFUSED
+index default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+index initial=100	two-values	732 points, 2 values on 2025-02-05	REFUSED
+rebase default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+rebase base=1	two-values	732 points, 2 values on 2025-02-05	REFUSED
+change default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+annualize default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=63	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=3mo	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=all	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility type=log	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=63,r=10	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=10,annualization_factor=252	two-values	722 points, 2 values on 2025-02-05	REFUSED
+correlation default	two-values	501 points, 2 values on 2025-02-05	REFUSED
+correlation w=3mo	two-values	442 points, 2 values on 2025-02-05	REFUSED
+correlation w=all	two-values	501 points, 2 values on 2025-02-05	REFUSED
+correlation w=63,r=10	two-values	496 points, 2 values on 2025-02-05	REFUSED
+beta default	two-values	501 points, 2 values on 2025-02-05	REFUSED
+beta w=3mo	raises-every-symbol	TypeError at econometrics.py:1040	GS_ERROR
+beta w=all	two-values	501 points, 2 values on 2025-02-05	REFUSED
+beta w=2	two-values	388 points, 2 values on 2025-02-05	REFUSED
+max_drawdown default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+max_drawdown w=63	two-values	669 points, 2 values on 2025-02-05	REFUSED
+max_drawdown w=3mo	raises-two-rows	ValueError at econometrics.py:1090	GS_ERROR
+vol_swap_volatility default	one-or-none	1 points	REFUSED
+vol_swap_volatility w=20	two-values	713 points, 2 values on 2025-02-05	REFUSED
+sharpe_ratio default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+sharpe_ratio w=63	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+sharpe_ratio w=1y	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+excess_returns y=0.05	two-values	732 points, 2 values on 2025-02-05	REFUSED
+excess_returns y=line	two-values	503 points, 2 values on 2025-02-05	REFUSED
+diff default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+diff obs=5	two-values	727 points, 2 values on 2025-02-05	REFUSED
+diff obs=1mo	two-values	703 points, 2 values on 2025-02-05, 2 values on 2025-03-07	REFUSED
+lag default	raises-two-rows	ValueError at analysis.py:489	GS_ERROR
+lag obs=5	raises-two-rows	ValueError at analysis.py:489	GS_ERROR
+lag mode=truncate	two-values	727 points, 2 values on 2025-02-05	REFUSED
+lag obs=1mo	one-or-none	732 points, 2 values on 2025-03-07	REFUSED
+first w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+last w=whole	two-values	732 points, 2 values on 2025-02-05	REFUSED
+count w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
+compare default	four-values	734 points, 4 values on 2025-02-05	REFUSED
+compare method=intersect	four-values	534 points, 4 values on 2025-02-05	REFUSED
+compare y=number	two-values	732 points, 2 values on 2025-02-05	PASS
+consecutive default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+consecutive direction=negative	two-values	732 points, 2 values on 2025-02-05	REFUSED
+smooth_spikes threshold=0.5	two-values	730 points, 2 values on 2025-02-05	REFUSED
+smooth_spikes threshold=0.05	two-values	730 points, 2 values on 2025-02-05	REFUSED
+smooth_spikes threshold=5,type=absolute	two-values	730 points, 2 values on 2025-02-05	REFUSED
+filter default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+filter operator=greater_than,value=0	one-or-none	323 points	REFUSED
+if x=line,y=line	two-values	732 points, 2 values on 2025-02-05	DIFF
+if x=1,y=-1	two-values	732 points, 2 values on 2025-02-05	PASS
+floor value=100	two-values	732 points, 2 values on 2025-02-05	PASS
+ceil value=100	two-values	732 points, 2 values on 2025-02-05	PASS
+weighted_sum default	raises-two-rows	ValueError at algebra.py:818	GS_ERROR
+geometrically_aggregate default	two-values	731 points, 2 values on 2025-02-05	REFUSED
+day default	two-values	732 points, 2 values on 2025-02-05	PASS
+month default	two-values	732 points, 2 values on 2025-02-05	PASS
+year default	two-values	732 points, 2 values on 2025-02-05	PASS
+quarter default	two-values	732 points, 2 values on 2025-02-05	PASS
+weekday default	two-values	732 points, 2 values on 2025-02-05	PASS
+value_at date=2022-03-15	two-values	732 points, 2 values on 2025-02-05	REFUSED
+value_at date=2022-03-13	two-values	732 points, 2 values on 2025-02-05	REFUSED
+bollinger_bands default.lower	two-values	731 points, 2 values on 2025-02-05	REFUSED
+bollinger_bands default.upper	two-values	731 points, 2 values on 2025-02-05	REFUSED
+bollinger_bands w=50,k=1.5.lower	two-values	682 points, 2 values on 2025-02-05	REFUSED
+bollinger_bands w=50,k=1.5.upper	two-values	682 points, 2 values on 2025-02-05	REFUSED
+smoothed_moving_average default	two-values	718 points, 2 values on 2025-02-05	REFUSED
+smoothed_moving_average w=30	two-values	702 points, 2 values on 2025-02-05	REFUSED
+rsi default	two-values	717 points, 2 values on 2025-02-05	REFUSED
+rsi w=30	two-values	701 points, 2 values on 2025-02-05	REFUSED
+exponential_moving_average default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+exponential_moving_average beta=0.9	two-values	732 points, 2 values on 2025-02-05	REFUSED
+exponential_moving_average beta=0	two-values	732 points, 2 values on 2025-02-05	PASS
+macd default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+macd m=5,n=35,s=5	two-values	732 points, 2 values on 2025-02-05	REFUSED
+exponential_volatility default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+exponential_volatility beta=0.9	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+exponential_spread_volatility default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+basket default	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
+basket rebalance=monthly	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR

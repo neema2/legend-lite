@@ -1,0 +1,2 @@
+# The gs-quant oracle's one requirement, at the pin (pins.env; pip expands the variable, which snap.sh exports).
+gs-quant==${GS_QUANT_VERSION}

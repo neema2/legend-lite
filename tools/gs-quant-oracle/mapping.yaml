@@ -1,0 +1,532 @@
+# THE GS-QUANT ORACLE'S MAPPING (CLAUDE.local.md's contract; docs/TS_GSQUANT_ORACLE_2026_11_01.md is the first oracle's
+# account): each word of docs/timeseries/WORDS.md (84 on upstream/claude/timeseries-language c047d41b0) to the
+# gs_quant.timeseries function that computes it, and the cases the oracle runs: each case a lite `#TS` item and the
+# gs-quant call that is its twin, written side by side so that one list drives both sides (snap.py runs `gs`;
+# //core:ts_gsquant_parity_test runs `ts`). A word gs-quant has no function for is SKIP, its reason said.
+#
+# gs-quant at the pin (pins.env's GS_QUANT_VERSION, the one place the release is written), read from its installed
+# sources (`src`: file:line under gs_quant/timeseries/).
+#
+# A CASE is [args, ts, gs] or [args, ts, gs, column]:
+#   args    the case's name within its word (`w=20`, `default`), the answers' and the ledger's key `<word> <args>`
+#   ts      a #TS item: written as `SELECT <ts> AS ts_value FROM px ON date` over the samples, `{x}` read as
+#           close[symbol = 'NVDA'] and `{y}` as close[symbol = 'SPX']; or, starting `WITH`, the whole statement
+#   gs      a Python expression over gs_quant.timeseries as `ts` (and its enums, `Window`, `dt`), `x` and `y` the same
+#           two lines as pandas Series (dates the index, float values), `cpi` macro's CPI (monthly), `px` the prices
+#           frame: a Series (one value a date), a DataFrame (`column` picks one) or a number (on every date of x)
+#   column  a struct word's field: lite's `ts_value_<column>`, gs-quant's DataFrame column by position (0 lower, 1 upper)
+#
+# Translation of lite's span to gs-quant's window (helper.py:197 normalize_window), as the cases write it:
+#   n (observations)   -> n                  gs-quant's Window(n, n): rolled over n, its first n points dropped (O1)
+#   Nd Nw Nmo Ny        -> 'Nd' 'Nw' 'Nm' 'Ny' a pandas DateOffset, (date - N unit, date]
+#   all                -> Window(None, 0)     every observation to date (gs-quant's default for every window)
+#   whole              -> the word's whole-series form in gs-quant (zscores' and winsorize's default)
+# EVERY gs-quant window defaults to Window(None, 0), to date. Where lite's default is a count (14, 20, 22, 63, 252),
+# the `default` case passes lite's default to gs-quant explicitly (`defaults` names it): the oracle never judges one
+# default against another.
+#
+# known: a docs/SEMANTICS_REGISTER.md row that predicts a DIFF on the cases it names (a ruled departure): the ledger
+# cites it, and the parity test holds the row to it.
+#
+# THE WORD COUNT: 87 on aad8e762a. PR #86 (merged 2026-11-02, head 69796cc5) shipped 81; six came after it,
+# each marked `since:` so this table audits against docs/timeseries/WORDS.md: rank (5a4904a54, 2026-11-03), round_down
+# and round_up (0cfd500fb, A4, 2026-11-06), floor and ceil (gs-quant's clamps, S161, 2026-11-08) and cash_index (the
+# risk-free data model, 23a007a3f, 2026-11-08). Two rows more are no word yet: wavg and wsum, ruled by R15
+# (docs/TS_ONE_TREE_PLAN_2026_10_31.md §11) and not in WORDS.md nor the library, SKIP with `ruled:` -- 89 rows.
+#
+# THE LIBRARY'S OWN TAGS: each word's function in projects/timeseries/model.pure carries `timeseries::Words.gsQuant`,
+# the module.function it names as its gs-quant twin, or `DataCube (...)` / `none (...)` where it has none. Every MAPPED
+# word's `gs` is its tag's function, and every SKIP word's tag is DataCube's or none, but for the words marked `tag:`
+# (snap.py reports TAG on any other disagreement).
+
+format: 1
+gs_quant: pins.env (GS_QUANT_VERSION)
+
+words:
+  # ---------------------------------------------------------------- rolling statistics (statistics.py)
+  - word: mean
+    gs: statistics.mean
+    src: statistics.py:274
+    cases:
+      - [w=20, "mean({x}, 20)", "ts.mean(x, 20)"]
+      - [w=3mo, "mean({x}, 3mo)", "ts.mean(x, '3m')"]
+      - [w=all, "mean({x}, all)", "ts.mean(x, Window(None, 0))"]
+      - ["w=20,r=10", "mean({x}, w => 20, r => 10)", "ts.mean(x, Window(20, 10))"]
+  - word: sum
+    gs: statistics.sum_
+    src: statistics.py:437
+    cases:
+      - [w=20, "sum({x}, 20)", "ts.sum_(x, 20)"]
+      - [w=3mo, "sum({x}, 3mo)", "ts.sum_(x, '3m')"]
+      - [w=all, "sum({x}, all)", "ts.sum_(x, Window(None, 0))"]
+  - word: min
+    gs: statistics.min_
+    src: statistics.py:86
+    cases:
+      - [w=20, "min({x}, 20)", "ts.min_(x, 20)"]
+      - [w=3mo, "min({x}, 3mo)", "ts.min_(x, '3m')"]
+      - [w=all, "min({x}, all)", "ts.min_(x, Window(None, 0))"]
+  - word: max
+    gs: statistics.max_
+    src: statistics.py:158
+    cases:
+      - [w=20, "max({x}, 20)", "ts.max_(x, 20)"]
+      - [w=3mo, "max({x}, 3mo)", "ts.max_(x, '3m')"]
+      - [w=all, "max({x}, all)", "ts.max_(x, Window(None, 0))"]
+  - word: std
+    gs: statistics.std
+    src: statistics.py:535
+    cases:
+      - [w=20, "std({x}, 20)", "ts.std(x, 20)"]
+      - [w=3mo, "std({x}, 3mo)", "ts.std(x, '3m')"]
+      - [w=all, "std({x}, all)", "ts.std(x, Window(None, 0))"]
+  - word: var
+    gs: statistics.var
+    src: statistics.py:628
+    cases:
+      - [w=20, "var({x}, 20)", "ts.var(x, 20)"]
+      - [w=3mo, "var({x}, 3mo)", "ts.var(x, '3m')"]
+      - [w=all, "var({x}, all)", "ts.var(x, Window(None, 0))"]
+  - word: median
+    gs: statistics.median
+    src: statistics.py:346
+    cases:
+      - [default, "median({x})", "ts.median(x, Window(None, 0))"]
+      - [w=3mo, "median({x}, 3mo)", "ts.median(x, '3m')"]
+      - [w=all, "median({x}, all)", "ts.median(x, Window(None, 0))"]
+  - word: range
+    gs: statistics.range_
+    src: statistics.py:228
+    cases:
+      - [default, "range({x})", "ts.range_(x, Window(None, 0))"]
+      - [w=3mo, "range({x}, 3mo)", "ts.range_(x, '3m')"]
+      - [w=all, "range({x}, all)", "ts.range_(x, Window(None, 0))"]
+  - word: product
+    gs: statistics.product
+    src: statistics.py:491
+    note: "over 1 + returns(x): a product of 1,304 prices overflows a double on both sides"
+    cases:
+      - [default, "product(1 + returns({x}))", "ts.product(1 + ts.returns(x), Window(None, 0))"]
+      - [w=5, "product(1 + returns({x}), 5)", "ts.product(1 + ts.returns(x), 5)"]
+      - [w=3mo, "product(1 + returns({x}), 3mo)", "ts.product(1 + ts.returns(x), '3m')"]
+  - word: percentile
+    gs: statistics.percentile
+    src: statistics.py:1035
+    note: "n required on both sides; lite's default window is to date (all), gs-quant's w=None one number of the whole line, which lite asks for by name (whole, judged on every date)"
+    cases:
+      - [n=50, "percentile({x}, 50)", "ts.percentile(x, 50, Window(None, 0))"]
+      - ["n=50,w=whole", "percentile({x}, 50, whole)", "ts.percentile(x, 50)"]
+      - ["n=90,w=20", "percentile({x}, n => 90, w => 20)", "ts.percentile(x, 90, 20)"]
+      - ["n=90,w=3mo", "percentile({x}, n => 90, w => 3mo)", "ts.percentile(x, 90, '3m')"]
+  - word: percentiles
+    gs: statistics.percentiles
+    src: statistics.py:968
+    cases:
+      - [default, "percentiles({x})", "ts.percentiles(x)"]
+      - [w=20, "percentiles({x}, 20)", "ts.percentiles(x, w=20)"]
+      - [w=3mo, "percentiles({x}, 3mo)", "ts.percentiles(x, w='3m')"]
+  - word: zscores
+    gs: statistics.zscores
+    src: statistics.py:733
+    defaults: "w: lite's default is to date (all); gs-quant's is the whole series"
+    known: {default: S150}
+    cases:
+      - [default, "zscores({x})", "ts.zscores(x)"]
+      - [w=20, "zscores({x}, 20)", "ts.zscores(x, 20)"]
+      - [w=3mo, "zscores({x}, 3mo)", "ts.zscores(x, '3m')"]
+      - [w=whole, "zscores({x}, whole)", "ts.zscores(x)"]
+      - ["w=63,r=10", "zscores({x}, w => 63, r => 10)", "ts.zscores(x, Window(63, 10))"]
+  - word: winsorize
+    gs: statistics.winsorize
+    src: statistics.py:793
+    note: "over returns(x); gs-quant reads the whole series whatever its w (mu = x.mean())"
+    known: {default: S150}
+    cases:
+      - [default, "winsorize(returns({x}))", "ts.winsorize(ts.returns(x))"]
+      - ["limit=1.5,w=whole", "winsorize(returns({x}), 1.5, whole)", "ts.winsorize(ts.returns(x), 1.5)"]
+  - word: cov
+    gs: statistics.cov
+    src: statistics.py:678
+    cases:
+      - [default, "cov({x}, {y})", "ts.cov(x, y, Window(None, 0))"]
+      - [w=3mo, "cov({x}, {y}, 3mo)", "ts.cov(x, y, '3m')"]
+      - [w=all, "cov({x}, {y}, all)", "ts.cov(x, y, Window(None, 0))"]
+  - word: exponential_std
+    gs: statistics.exponential_std
+    src: statistics.py:583
+    cases:
+      - [default, "exponential_std({x})", "ts.exponential_std(x)"]
+      - [beta=0.9, "exponential_std({x}, 0.9)", "ts.exponential_std(x, 0.9)"]
+
+  # ---------------------------------------------------------------- econometrics (econometrics.py)
+  - word: returns
+    gs: econometrics.returns
+    src: econometrics.py:272
+    note: "lite's log is gs-quant's Returns.LOGARITHMIC. obs=1mo: gs-quant shifts the index by the period and reads the exact date (lag TRUNCATE); lite reads as of, its last on or before"
+    cases:
+      - [default, "returns({x})", "ts.returns(x)"]
+      - [obs=5, "returns({x}, 5)", "ts.returns(x, 5)"]
+      - [type=log, "returns({x}, 1, 'log')", "ts.returns(x, 1, Returns.LOGARITHMIC)"]
+      - [type=absolute, "returns({x}, 1, 'absolute')", "ts.returns(x, 1, Returns.ABSOLUTE)"]
+      - [obs=1mo, "returns({x}, 1mo)", "ts.returns(x, '1m')"]
+  - word: prices
+    gs: econometrics.prices
+    src: econometrics.py:351
+    note: "over returns(x)"
+    cases:
+      - [default, "prices(returns({x}))", "ts.prices(ts.returns(x))"]
+      - [initial=100, "prices(returns({x}), 100)", "ts.prices(ts.returns(x), 100)"]
+      - [type=log, "prices(returns({x}, 1, 'log'), 1, 'log')", "ts.prices(ts.returns(x, 1, Returns.LOGARITHMIC), 1, Returns.LOGARITHMIC)"]
+  - word: index
+    gs: econometrics.index
+    src: econometrics.py:422
+    note: "lite's from has no gs-quant argument: not run"
+    cases:
+      - [default, "index({x})", "ts.index(x)"]
+      - [initial=100, "index({x}, 100)", "ts.index(x, 100)"]
+  - word: rebase
+    gs: econometrics.index
+    src: econometrics.py:422
+    defaults: "base: lite 100 -> index(x, 100)"
+    tag: "DataCube (econometrics.index): the identity rebase(x, b) = index(x, b), ruled 2026-11-07"
+    note: "lite's from has no gs-quant argument: not run"
+    cases:
+      - [default, "rebase({x})", "ts.index(x, 100)"]
+      - [base=1, "rebase({x}, base => 1)", "ts.index(x, 1)"]
+  - word: change
+    gs: econometrics.change
+    src: econometrics.py:459
+    note: "lite's from has no gs-quant argument: not run"
+    cases:
+      - [default, "change({x})", "ts.change(x)"]
+  - word: annualize
+    gs: econometrics.annualize
+    src: econometrics.py:519
+    note: "over std(returns(x), 21); gs-quant infers the factor from the dates (econometrics.py:490); lite's annualization_factor not run"
+    cases:
+      - [default, "annualize(std(returns({x}), 21))", "ts.annualize(ts.std(ts.returns(x), 21))"]
+  - word: volatility
+    gs: econometrics.volatility
+    src: econometrics.py:563
+    note: "w=10,annualization_factor=252 is the fixture's stale_price_5d trap (#90): over BRAVO it carries the trap's correct answer on 2024-10-21"
+    cases:
+      - [default, "volatility({x})", "ts.volatility(x, Window(None, 0))"]
+      - [w=63, "volatility({x}, 63)", "ts.volatility(x, 63)"]
+      - [w=3mo, "volatility({x}, 3mo)", "ts.volatility(x, '3m')"]
+      - [w=all, "volatility({x}, all)", "ts.volatility(x, Window(None, 0))"]
+      - [type=log, "volatility({x}, 22, 'log')", "ts.volatility(x, 22, Returns.LOGARITHMIC)"]
+      - ["w=63,r=10", "volatility({x}, w => 63, r => 10)", "ts.volatility(x, Window(63, 10))"]
+      - ["w=10,annualization_factor=252", "volatility({x}, 10, annualization_factor => 252)", "ts.volatility(x, 10, annualization_factor=252)"]
+  - word: correlation
+    gs: econometrics.correlation
+    src: econometrics.py:766
+    note: "S148: lite clamps into [-1, 1], within the tolerance"
+    cases:
+      - [default, "correlation({x}, {y})", "ts.correlation(x, y, Window(None, 0))"]
+      - [w=3mo, "correlation({x}, {y}, 3mo)", "ts.correlation(x, y, '3m')"]
+      - [w=all, "correlation({x}, {y}, all)", "ts.correlation(x, y, Window(None, 0))"]
+      - ["w=63,r=10", "correlation({x}, {y}, w => 63, r => 10)", "ts.correlation(x, y, Window(63, 10))"]
+  - word: beta
+    gs: econometrics.beta
+    src: econometrics.py:965
+    known: {w=2: S154}
+    cases:
+      - [default, "beta({x}, {y})", "ts.beta(x, y, Window(None, 0))"]
+      - [w=3mo, "beta({x}, {y}, 3mo)", "ts.beta(x, y, '3m')"]
+      - [w=all, "beta({x}, {y}, all)", "ts.beta(x, y, Window(None, 0))"]
+      - [w=2, "beta({x}, {y}, 2)", "ts.beta(x, y, 2)"]
+  - word: max_drawdown
+    gs: econometrics.max_drawdown
+    src: econometrics.py:1058
+    cases:
+      - [default, "max_drawdown({x})", "ts.max_drawdown(x)"]
+      - [w=63, "max_drawdown({x}, 63)", "ts.max_drawdown(x, 63)"]
+      - [w=3mo, "max_drawdown({x}, 3mo)", "ts.max_drawdown(x, '3m')"]
+  - word: vol_swap_volatility
+    gs: econometrics.vol_swap_volatility
+    src: econometrics.py:693
+    defaults: "w: lite's default is to date; gs-quant's n_days=None is Window(len, len - 1), one value at the line's last date: the two defaults differ (a DIFF of every date but the last, where they agree)"
+    note: "gs-quant's integer n_days is Window(n, n - 1), a ramp one shorter than O1's"
+    cases:
+      - [default, "vol_swap_volatility({x})", "ts.vol_swap_volatility(x)"]
+      - [w=20, "vol_swap_volatility({x}, 20)", "ts.vol_swap_volatility(x, 20)"]
+  - word: sharpe_ratio
+    gs: econometrics.sharpe_ratio
+    src: econometrics.py:217
+    note: "curve_type EXCESS_RETURNS reads x as excess-return levels and never calls Marquee (econometrics.py _get_ratio); its currency unused. S155 retired (2026-11-08): lite's is gs-quant's get_ratio_pure"
+    known: {w=1y: S162}
+    cases:
+      - [default, "sharpe_ratio({x})", "ts.sharpe_ratio(x, curve_type=CurveType.EXCESS_RETURNS)"]
+      - [w=63, "sharpe_ratio({x}, 63)", "ts.sharpe_ratio(x, w=63, curve_type=CurveType.EXCESS_RETURNS)"]
+      - [w=1y, "sharpe_ratio({x}, 1y)", "ts.sharpe_ratio(x, w='1y', curve_type=CurveType.EXCESS_RETURNS)"]
+  - word: excess_returns
+    gs: econometrics.excess_returns
+    src: econometrics.py:81
+    note: "a float rate is pure gs-quant, ACTUAL_360 as lite's (the first oracle skipped it as a service call; it is not); a line y is excess_returns_pure"
+    cases:
+      - [y=0.05, "excess_returns({x}, 0.05)", "ts.excess_returns(x, 0.05)"]
+      - [y=line, "excess_returns({x}, {y})", "ts.excess_returns_pure(x, y)"]
+
+  # ---------------------------------------------------------------- analysis (analysis.py)
+  - word: diff
+    gs: analysis.diff
+    src: analysis.py:327
+    note: "obs=1mo: as returns' (exact date against as of)"
+    cases:
+      - [default, "diff({x})", "ts.diff(x)"]
+      - [obs=5, "diff({x}, 5)", "ts.diff(x, 5)"]
+      - [obs=1mo, "diff({x}, 1mo)", "ts.diff(x, '1m')"]
+  - word: lag
+    gs: analysis.lag
+    src: analysis.py:418
+    note: "mode: gs-quant's EXTEND by default on both sides (the last values put past the line's end); truncate by name"
+    cases:
+      - [default, "lag({x})", "ts.lag(x)"]
+      - [obs=5, "lag({x}, 5)", "ts.lag(x, 5)"]
+      - [mode=truncate, "lag({x}, 5, mode => 'truncate')", "ts.lag(x, 5, LagMode.TRUNCATE)"]
+      - [obs=1mo, "lag({x}, 1mo)", "ts.lag(x, '1m')"]
+  - word: first
+    gs: analysis.first
+    src: analysis.py:201
+    cases:
+      - [w=all, "first({x}, all)", "ts.first(x)"]
+  - word: last
+    gs: analysis.last
+    src: analysis.py:232
+    cases:
+      - [w=whole, "last({x}, whole)", "ts.last(x)"]
+  - word: count
+    gs: analysis.count
+    src: analysis.py:292
+    note: "gs-quant counts to date only; lite's period and date forms not run"
+    cases:
+      - [w=all, "count({x}, all)", "ts.count(x)"]
+  - word: compare
+    gs: analysis.compare
+    src: analysis.py:361
+    known: {default: S145}
+    cases:
+      - [default, "compare({x}, mean({x}, 200))", "ts.compare(x, ts.mean(x, 200))"]
+      - [method=intersect, "compare({x}, mean({x}, 200), 'intersect')", "ts.compare(x, ts.mean(x, 200), Interpolate.INTERSECT)"]
+      - [y=number, "compare({x}, 100)", "ts.compare(x, 100.0)"]
+  - word: consecutive
+    gs: analysis.consecutive
+    src: analysis.py:495
+    cases:
+      - [default, "consecutive({x})", "ts.consecutive(x)"]
+      - [direction=negative, "consecutive({x}, 'negative')", "ts.consecutive(x, SignDirection.NEGATIVE)"]
+  - word: smooth_spikes
+    gs: analysis.smooth_spikes
+    src: analysis.py:42
+    cases:
+      - ["threshold=0.5", "smooth_spikes({x}, 0.5)", "ts.smooth_spikes(x, 0.5)"]
+      - ["threshold=0.05", "smooth_spikes({x}, 0.05)", "ts.smooth_spikes(x, 0.05)"]
+      - ["threshold=5,type=absolute", "smooth_spikes({x}, 5, 'absolute')", "ts.smooth_spikes(x, 5, ThresholdType.absolute)"]
+
+  # ---------------------------------------------------------------- algebra (algebra.py)
+  - word: filter
+    gs: algebra.filter_
+    src: algebra.py:566
+    note: "over returns(x); lite's empty is gs-quant's operator None"
+    cases:
+      - [default, "filter(returns({x}))", "ts.filter_(ts.returns(x))"]
+      - ["operator=greater_than,value=0", "filter(returns({x}), 'greater_than', 0)", "ts.filter_(ts.returns(x), FilterOperator.GREATER, 0)"]
+  - word: if
+    gs: algebra.if_
+    src: algebra.py:739
+    cases:
+      - ["x=line,y=line", "if(CASE WHEN {x} > 100 THEN 1 ELSE 0 END, {x}, {y})", "ts.if_((x > 100).astype(float), x, y)"]
+      - ["x=1,y=-1", "if(CASE WHEN {x} > 100 THEN 1 ELSE 0 END, 1, -1)", "ts.if_((x > 100).astype(float), 1.0, -1.0)"]
+  - word: floor
+    since: "e3515abfa (S161, 2026-11-08), after PR #86"
+    gs: algebra.floor
+    src: algebra.py:501
+    note: "gs-quant's floor(x, value): x held at value or above (S161)"
+    cases:
+      - [value=100, "floor({x}, 100)", "ts.floor(x, 100)"]
+  - word: ceil
+    since: "e3515abfa (S161, 2026-11-08), after PR #86"
+    gs: algebra.ceil
+    src: algebra.py:534
+    note: "gs-quant's ceil(x, value): x held at value or below (S161)"
+    cases:
+      - [value=100, "ceil({x}, 100)", "ts.ceil(x, 100)"]
+  - word: weighted_sum
+    gs: algebra.weighted_sum
+    src: algebra.py:777
+    cases:
+      - [default, "weighted_sum({x}, 0.6, {y}, 0.4)", "ts.weighted_sum([x, y], [0.6, 0.4])"]
+  - word: geometrically_aggregate
+    gs: algebra.geometrically_aggregate
+    src: algebra.py:823
+    note: "over returns(x)"
+    cases:
+      - [default, "geometrically_aggregate(returns({x}))", "ts.geometrically_aggregate(ts.returns(x))"]
+
+  # ---------------------------------------------------------------- datetime (datetime.py)
+  - word: day
+    gs: datetime.day
+    src: datetime.py:268
+    cases:
+      - [default, "day({x})", "ts.day(x)"]
+  - word: month
+    gs: datetime.month
+    src: datetime.py:299
+    cases:
+      - [default, "month({x})", "ts.month(x)"]
+  - word: year
+    gs: datetime.year
+    src: datetime.py:330
+    cases:
+      - [default, "year({x})", "ts.year(x)"]
+  - word: quarter
+    gs: datetime.quarter
+    src: datetime.py:361
+    cases:
+      - [default, "quarter({x})", "ts.quarter(x)"]
+  - word: weekday
+    gs: datetime.weekday
+    src: datetime.py:392
+    cases:
+      - [default, "weekday({x})", "ts.weekday(x)"]
+  - word: append
+    gs: datetime.append
+    src: datetime.py:544
+    note: "x = NVDA to 2022-06-30, y = SPX from 2022-06-01: twenty dates both have"
+    cases:
+      - [default, "WITH a AS (SELECT * FROM local::DB.prices WHERE date <= DATE '2022-06-30'), b AS (SELECT * FROM local::DB.prices WHERE date >= DATE '2022-06-01') SELECT append(a.close[symbol = 'NVDA'], b.close[symbol = 'SPX']) AS ts_value FROM a ON date, b ON date", "ts.append([x[:'2022-06-30'], y['2022-06-01':]])"]
+  - word: prepend
+    gs: datetime.prepend
+    src: datetime.py:580
+    note: "as append's"
+    cases:
+      - [default, "WITH a AS (SELECT * FROM local::DB.prices WHERE date <= DATE '2022-06-30'), b AS (SELECT * FROM local::DB.prices WHERE date >= DATE '2022-06-01') SELECT prepend(a.close[symbol = 'NVDA'], b.close[symbol = 'SPX']) AS ts_value FROM a ON date, b ON date", "ts.prepend([x[:'2022-06-30'], y['2022-06-01':]])"]
+  - word: union
+    gs: datetime.union
+    src: datetime.py:622
+    note: "as append's"
+    cases:
+      - [default, "WITH a AS (SELECT * FROM local::DB.prices WHERE date <= DATE '2022-06-30'), b AS (SELECT * FROM local::DB.prices WHERE date >= DATE '2022-06-01') SELECT union(a.close[symbol = 'NVDA'], b.close[symbol = 'SPX']) AS ts_value FROM a ON date, b ON date", "ts.union([x[:'2022-06-30'], y['2022-06-01':]])"]
+  - word: interpolate
+    gs: datetime.interpolate
+    src: datetime.py:150
+    note: "CPI (monthly) onto SPX's dates. method=zero passes y's dates as a list: gs-quant's ZERO branch reads a Series' VALUES as the dates (datetime.py:212, pd.Series(0.0, dates)), against its own docstring (a series' index), and answers one point at 1970-01-01 -- a gs-quant defect, an Open finding; the list is its other documented form. S145 (step's backfill before x's first value) cannot show here: CPI starts in 2015, before every date of SPX"
+    cases:
+      - [default, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX']) AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y)"]
+      - [method=nan, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'nan') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y, Interpolate.NAN)"]
+      - [method=zero, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'zero') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, list(y.index), Interpolate.ZERO)"]
+      - [method=step, "WITH macro AS (SELECT * FROM local::DB.macro), px AS (SELECT * FROM local::DB.prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'step') AS ts_value FROM macro ON date, px ON date", "ts.interpolate(cpi, y, Interpolate.STEP)"]
+  - word: value_at
+    gs: datetime.value
+    src: datetime.py:221
+    tag: "none: value_at's function carries no Words.gsQuant; datetime.value (Interpolate.STEP) is the oracle's reading"
+    note: "gs-quant answers one value, judged on every date of x; 2022-03-13 is a Sunday (as of)"
+    cases:
+      - [date=2022-03-15, "value_at({x}, '2022-03-15')", "ts.value(x, dt.date(2022, 3, 15))"]
+      - [date=2022-03-13, "value_at({x}, '2022-03-13')", "ts.value(x, dt.date(2022, 3, 13))"]
+
+  # ---------------------------------------------------------------- technicals (technicals.py)
+  - word: bollinger_bands
+    gs: technicals.bollinger_bands
+    src: technicals.py:97
+    note: "gs-quant answers [lower, upper]; lite's width (upper - lower) has no gs-quant column: lower and upper judged"
+    cases:
+      - [default.lower, "bollinger_bands({x})", "ts.bollinger_bands(x)", lower]
+      - [default.upper, "bollinger_bands({x})", "ts.bollinger_bands(x)", upper]
+      - ["w=50,k=1.5.lower", "bollinger_bands({x}, 50, 1.5)", "ts.bollinger_bands(x, 50, 1.5)", lower]
+      - ["w=50,k=1.5.upper", "bollinger_bands({x}, 50, 1.5)", "ts.bollinger_bands(x, 50, 1.5)", upper]
+  - word: smoothed_moving_average
+    gs: technicals.smoothed_moving_average
+    src: technicals.py:145
+    defaults: "w: lite 14 (S159: gs-quant's default reads the future), gs-quant Window(None, 0) -> 14 passed"
+    cases:
+      - [default, "smoothed_moving_average({x})", "ts.smoothed_moving_average(x, 14)"]
+      - [w=30, "smoothed_moving_average({x}, 30)", "ts.smoothed_moving_average(x, 30)"]
+  - word: rsi
+    gs: technicals.relative_strength_index
+    src: technicals.py:206
+    cases:
+      - [default, "rsi({x})", "ts.relative_strength_index(x)"]
+      - [w=30, "rsi({x}, 30)", "ts.relative_strength_index(x, 30)"]
+  - word: exponential_moving_average
+    gs: technicals.exponential_moving_average
+    src: technicals.py:259
+    cases:
+      - [default, "exponential_moving_average({x})", "ts.exponential_moving_average(x)"]
+      - [beta=0.9, "exponential_moving_average({x}, 0.9)", "ts.exponential_moving_average(x, 0.9)"]
+      - [beta=0, "exponential_moving_average({x}, 0)", "ts.exponential_moving_average(x, 0)"]
+  - word: macd
+    gs: technicals.macd
+    src: technicals.py:298
+    cases:
+      - [default, "macd({x})", "ts.macd(x)"]
+      - ["m=5,n=35,s=5", "macd({x}, 5, 35, 5)", "ts.macd(x, 5, 35, 5)"]
+  - word: exponential_volatility
+    gs: technicals.exponential_volatility
+    src: technicals.py:346
+    note: "gs-quant infers the annualization from the dates; lite's annualization_factor not run"
+    cases:
+      - [default, "exponential_volatility({x})", "ts.exponential_volatility(x)"]
+      - [beta=0.9, "exponential_volatility({x}, 0.9)", "ts.exponential_volatility(x, 0.9)"]
+  - word: exponential_spread_volatility
+    gs: technicals.exponential_spread_volatility
+    src: technicals.py:380
+    note: "as exponential_volatility's"
+    cases:
+      - [default, "exponential_spread_volatility({x})", "ts.exponential_spread_volatility(x)"]
+  - word: seasonally_adjusted
+    gs: technicals.seasonally_adjusted
+    src: technicals.py:491
+    note: "over macro's CPI under SAMPLE BY 1mo: gs-quant infers period 12 from monthly dates (technicals.py:413 _freq_to_period); over business days gs-quant re-samples to calendar days (period 365), which lite's SAMPLE BY count does not: not run"
+    cases:
+      - [default, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT seasonally_adjusted(last(value[series = 'CPI'])) AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.seasonally_adjusted(cpi)"]
+      - [method=multiplicative, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT seasonally_adjusted(last(value[series = 'CPI']), method => 'multiplicative') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.seasonally_adjusted(cpi, SeasonalModel.MULTIPLICATIVE)"]
+      - [freq=quarter, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT seasonally_adjusted(last(value[series = 'CPI']), freq => 'quarter') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.seasonally_adjusted(cpi, SeasonalModel.ADDITIVE, Frequency.QUARTER)"]
+  - word: trend
+    gs: technicals.trend
+    src: technicals.py:538
+    note: "as seasonally_adjusted's"
+    cases:
+      - [default, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT trend(last(value[series = 'CPI'])) AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.trend(cpi)"]
+      - [freq=quarter, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT trend(last(value[series = 'CPI']), freq => 'quarter') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.trend(cpi, SeasonalModel.ADDITIVE, Frequency.QUARTER)"]
+
+  # ---------------------------------------------------------------- backtesting (backtesting.py)
+  - word: basket
+    gs: backtesting.basket_series
+    src: backtesting.py:143
+    cases:
+      - [default, "basket({x}, 0.6, {y}, 0.4)", "ts.basket_series([x, y], [0.6, 0.4])"]
+      - [rebalance=monthly, "basket({x}, 0.6, {y}, 0.4, rebalance => 'monthly')", "ts.basket_series([x, y], [0.6, 0.4], rebal_freq=RebalFreq.MONTHLY)"]
+
+  # ---------------------------------------------------------------- SKIP: a service function (Marquee report APIs)
+  - {word: alpha,             skip: "gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)"}
+  - {word: information_ratio, skip: "measures_reports.py:1166, a Marquee report read (its tag: DataCube)"}
+  - {word: r_squared,         skip: "measures_reports.py:1527, a Marquee report read (its tag: DataCube)"}
+  - {word: tracking_error,    skip: "measures_reports.py:766, a Marquee report read (its tag: DataCube)"}
+
+  # ---------------------------------------------------------------- SKIP: no gs-quant function (every 2.2.x release checked, the pin's among them)
+  - {word: atr,               skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says \"gs-quant's and TA-Lib's atr\")"}
+  - {word: keltner_channels,  skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says \"(gs-quant's)\")"}
+  - {word: donchian_channels, skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says \"(gs-quant's)\")"}
+  - {word: obv,               skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says \"(gs-quant's)\")"}
+  - {word: stochastic,        skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: vwap,              skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: drawdown,          skip: "no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)"}
+  - {word: percent_change,    skip: "no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: \"match gsquant\"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)"}
+  - {word: cash_index,        since: "23a007a3f (2026-11-08), after PR #86", skip: "no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)"}
+  - {word: total_return,      skip: "no gs-quant function in gs_quant.timeseries (its tag: DataCube)"}
+  - {word: dickey_fuller,     skip: "no gs-quant function (its tag: DataCube, statsmodels' adfuller)"}
+  - {word: half_life,         skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: hedge_ratio,       skip: "no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)"}
+  - {word: residual,          skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: lead_lag,          skip: "no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)"}
+  - {word: up_capture,        skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: down_capture,      skip: "no gs-quant function (its tag: DataCube)"}
+  - {word: ohlc,              skip: "no gs-quant function: a struct of four lines, no computation (its tag: DataCube)"}
+  - {word: rank,              since: "5a4904a54 (2026-11-03), after PR #86", skip: "no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)"}
+  - {word: round_down,        since: "0cfd500fb (A4, 2026-11-06), after PR #86", skip: "no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)"}
+  - {word: round_up,          since: "0cfd500fb (A4, 2026-11-06), after PR #86", skip: "no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)"}
+
+  # ---------------------------------------------------------------- SKIP: ruled, not yet words (in neither WORDS.md nor the library)
+  - {word: wavg,              ruled: "R15 (docs/TS_ONE_TREE_PLAN_2026_10_31.md §11)", skip: "ruled by R15 (kdb+'s wavg(x, weights): under SAMPLE BY each period's VWAP, wavg(price, volume, 20) a rolling one) but not yet a word of WORDS.md or the library -- not implemented here; gs-quant has no weighted mean (R15)"}
+  - {word: wsum,              ruled: "R15 (docs/TS_ONE_TREE_PLAN_2026_10_31.md §11)", skip: "ruled by R15 (kdb+'s wsum(x, weights)) but not yet a word of WORDS.md or the library -- not implemented here; gs-quant has no weighted sum (R15)"}
