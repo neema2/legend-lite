@@ -5,7 +5,7 @@ mean w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 mean w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
 mean w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
 sum w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
-sum w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+sum w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 sum w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
 min w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 min w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
@@ -17,7 +17,7 @@ std w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 std w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
 std w=all	two-values	731 points, 2 values on 2025-02-05	REFUSED
 var w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
-var w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
+var w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 var w=all	two-values	731 points, 2 values on 2025-02-05	REFUSED
 median default	two-values	732 points, 2 values on 2025-02-05	REFUSED
 median w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS

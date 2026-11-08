@@ -1,19 +1,6 @@
 # EVERY DIFF NO REGISTER ROW RULES (two_rows.py, from the three ledgers): each case and where it is a DIFF; the PR's Open findings answer each. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
 case	where
-beta default	ledger-adversarial-raw@NEWCO,ledger-adversarial-adjusted@NEWCO
-beta w=all	ledger-adversarial-raw@NEWCO,ledger-adversarial-adjusted@NEWCO
 correlation w=3mo	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
-diff obs=1mo	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
 if x=line,y=line	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
 interpolate method=zero,dates=series	ledger
-lag obs=1mo	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
-percentile n=90,w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
-percentiles w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
-product default	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
 product w=3mo	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
-returns obs=1mo	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
-std w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
-sum w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
-var w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
-vol_swap_volatility default	ledger,ledger-adversarial-raw@ALPHA,ledger-adversarial-raw@NEWCO,ledger-adversarial-raw@BRAVO,ledger-adversarial-adjusted@ALPHA,ledger-adversarial-adjusted@NEWCO,ledger-adversarial-adjusted@BRAVO
-zscores w=3mo	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD

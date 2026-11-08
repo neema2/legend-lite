@@ -376,10 +376,10 @@ export function cash_index(rate: Line, ...args: Args<[day_count: 'actual_360' | 
   return word(CASH_INDEX_SHAPE, [rate], args);
 }
 
-const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w' }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: [] };
-/** Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.) */
-export function vol_swap_volatility(prices: Line, n_days: WindowLike, ...args: Args<[annualization_factor: 252, assume_zero_mean: true], { annualization_factor?: 252; assume_zero_mean?: true }>): Term {
-  return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], [n_days, ...args]);
+const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w', default: null }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: [] };
+/** Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent; with no window, the whole line's, one figure at its last date. (gs-quant's econometrics.vol_swap_volatility.) */
+export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowLike | null, annualization_factor: 252, assume_zero_mean: true], { n_days?: WindowLike | null; annualization_factor?: 252; assume_zero_mean?: true }>): Term {
+  return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], args);
 }
 
 const CONSECUTIVE_SHAPE: WordShape = { word: 'consecutive', gsFunction: 'analysis.consecutive', lines: ['x'], gs: [{ name: 'direction', default: 'positive', enum: 'SignDirection' }], extra: [] };

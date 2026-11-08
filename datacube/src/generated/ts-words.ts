@@ -974,9 +974,9 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
     forms: ['vol_swap_volatility(x: Line)', 'vol_swap_volatility(x: Line, w: Integer)', 'vol_swap_volatility(x: Line, w: Scope)', 'vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date (all); unless given, one figure of the whole line, at its last date (gs-quant\'s n_days None).',
     aliases: [],
-    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.'], differs: ['w defaults to every observation to date (gs-quant: the whole series)'], given: ['w: all'], limit: ['w: >= 0'], gsParam: ['w: n_days'], gsTold: ['n_days: gs-quant\'s default, None, is one figure of the whole series at its last date, which the language does not say'] },
+    facts: { label: ['Vol swap volatility'], family: ['Risk'], unit: ['percent'], gsQuant: ['econometrics.vol_swap_volatility'], about: ['The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent; with no window, the whole line\'s, one figure at its last date.'], limit: ['w: >= 0'], gsParam: ['w: n_days'] },
     marks: [],
   },
   volatility: {

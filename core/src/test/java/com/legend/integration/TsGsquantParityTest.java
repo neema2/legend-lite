@@ -40,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * mapping ({@code tools/gs-quant-oracle/mapping.yaml}) -- a word of the timeseries library as a {@code #TS} item over
  * the gallery's samples (//datacube:ts_replay_samples) -- run through the Pure library on DuckDB and judged against
  * gs-quant's own answer, snapped by {@code tools/gs-quant-oracle/snap.py} into {@code answers.jsonl.gz}: the same dates,
- * each value within 1e-9 absolute (a level), or 1e-8 relative for a volatility, a correlation or a beta. Each case's
+ * each value within 1e-9 of its series' scale, never less than 1e-9 (a level: the user's ruling of 2026-11-08, as the
+ * replays judge; it was 1e-9 absolute), or 1e-8 relative for a volatility, a correlation or a beta. Each case's
  * verdict -- PASS, DIFF, REFUSED (lite refuses it), GS_ERROR (gs-quant raised), SKIP (no gs-quant twin) -- is pinned in
  * the ledger's {@code duckdb} column ({@code tools/gs-quant-oracle/ledger.tsv}); a verdict that moves fails the test.
  * Run with {@code --jvm_flag=-Dts.gsquant.update=<tools/gs-quant-oracle/ledger.tsv in the workspace>} to rewrite the
@@ -471,12 +472,23 @@ class TsGsquantParityTest {
     record Verdict(String status, String detail) {
     }
 
-    /** Within the tolerance: a volatility, a correlation or a beta relative, a level absolute; an infinity itself. */
-    private static boolean same(boolean relative, double g, double l) {
+    /** Within the tolerance: a volatility, a correlation or a beta relative; a level within {@code level}, LEVEL of its
+     *  series' scale (judge's); an infinity itself. */
+    private static boolean same(boolean relative, double g, double l, double level) {
         if (Double.isInfinite(g)) {
             return l == g;
         }
-        return off(relative, g, l) <= (relative ? RATIO : LEVEL);
+        return off(relative, g, l) <= (relative ? RATIO : level);
+    }
+
+    /** A level's tolerance: LEVEL of its series' own scale, the largest magnitude of gs-quant's figures, never less than
+     *  LEVEL -- as //core:ts_replay_* judges (TsAnswers). The user's ruling of 2026-11-08 on PR #91's finding 10: a sum at
+     *  BTC's level (4.4e6, a float64 spacing of 9.3e-10) differed by a few units in the last place, pandas and the
+     *  database adding in their own orders, and 1e-9 absolute asked them to be bit-exact. */
+    static double levelTolerance(Map<String, List<Double>> gs) {
+        double scale = gs.values().stream().flatMap(List::stream).filter(v -> !v.isInfinite() && !v.isNaN())
+                .mapToDouble(Math::abs).max().orElse(0);
+        return LEVEL * Math.max(1, scale);
     }
 
     private static double off(boolean relative, double g, double l) {
@@ -487,6 +499,7 @@ class TsGsquantParityTest {
      *  alike as a bag (sorted: lite's order among one date's rows is the database's, S149; gs-quant's is the file's). */
     static Verdict judge(Case c, Map<String, List<Double>> gs, Map<String, List<Double>> lite) {
         boolean relative = RELATIVE.contains(c.word());
+        double level = levelTolerance(gs);
         List<String> onlyGs = gs.keySet().stream().filter(d -> !lite.containsKey(d)).toList();
         List<String> onlyLite = lite.keySet().stream().filter(d -> !gs.containsKey(d)).toList();
         List<String> apart = new ArrayList<>();
@@ -503,7 +516,7 @@ class TsGsquantParityTest {
             List<Double> ls = l.stream().sorted().toList();
             boolean alike = g.size() == ls.size();
             for (int i = 0; alike && i < g.size(); i++) {
-                alike = same(relative, g.get(i), ls.get(i));
+                alike = same(relative, g.get(i), ls.get(i), level);
             }
             if (!alike) {
                 count++;

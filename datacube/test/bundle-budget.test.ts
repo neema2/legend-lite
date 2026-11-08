@@ -953,8 +953,12 @@ const CHART_BUDGET = 303_500;
  *  refuse"): the library's text with SAMPLE BY's last and first refusing a tie at the moment they pick
  *  (lines::onceTaken) and its sentence. Measured 143,164.
  *  143,500 -> 144,000 (2026-11-08, item 14c; the user: "A clause: LATEST BY seq"): the library's text with LATEST BY's
- *  rule (lines::latestBy, onceLatest) and its sentence. Measured 143,624. */
-const TIMESERIES_BUDGET = 144_000;
+ *  rule (lines::latestBy, onceLatest) and its sentence. Measured 143,624.
+ *  144,000 -> 144,500 (2026-11-08, item 14e; the user's rulings on PR #91's findings): the library's text with
+ *  vol_swap_volatility's default as gs-quant's one figure and the rulings' sentences. Measured 144,047 with item 14g's
+ *  first attempt in it too (a calendar ramp from the first date, withdrawn the same day until 14g's points land), which
+ *  the ceiling keeps room for. */
+const TIMESERIES_BUDGET = 144_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

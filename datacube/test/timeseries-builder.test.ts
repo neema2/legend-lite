@@ -66,7 +66,6 @@ const LEDGER: Readonly<Record<string, string>> = {
   'union list': 'two series: the language\'s union reads two lines',
   'append list': 'two series: the language\'s append reads two lines',
   'prepend list': 'two series: the language\'s prepend reads two lines',
-  'vol_swap_volatility.n_days required': 'gs-quant\'s n_days of None is one figure of the whole series, at its last date, which no #TS says: told in every call (the library\'s gsTold; the review of 2026-11-08)',
   'smoothed_moving_average.w default':'the library\'s 14, Wilder\'s, as rsi\'s and atr\'s: gs-quant\'s default smooths by the whole series\' length, each past value changed by data to come (S150\'s look-ahead rule; the user, 2026-11-08)',
 };
 

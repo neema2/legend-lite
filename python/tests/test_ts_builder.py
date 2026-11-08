@@ -17,10 +17,8 @@ from legend_lite import timeseries as ts
 
 #: gs-quant's defaults the builders take otherwise, each with its reason: a whole-series seed the language computes none
 #: of, the library's 14 (a row of the TypeScript builder's ledger, datacube/test/timeseries-builder.test.ts); the dates
-#: interpolate reads a line in every call (gs-quant's None interpolates x over its own dates: x itself); vol_swap's n_days
-#: always told (the review of 2026-11-08: gs-quant's None is one figure of the whole series at its last date, which the
-#: language does not say -- the library's gsTold fact, a row of the TypeScript builder's ledger)
-DEFAULTS_OTHERWISE = {('smoothed_moving_average', 'w'), ('interpolate', 'dates'), ('vol_swap_volatility', 'n_days')}
+#: interpolate reads a line in every call (gs-quant's None interpolates x over its own dates: x itself)
+DEFAULTS_OTHERWISE = {('smoothed_moving_average', 'w'), ('interpolate', 'dates')}
 
 
 def gs_default(d):

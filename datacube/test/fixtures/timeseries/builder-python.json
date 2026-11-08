@@ -261,8 +261,8 @@
  },
  {
   "series": "word vol_swap_volatility",
-  "python": "vol_swap_volatility(column('close'), 5)",
-  "text": "vol_swap_volatility(close, w => 5)"
+  "python": "vol_swap_volatility(column('close'))",
+  "text": "vol_swap_volatility(close)"
  },
  {
   "series": "word consecutive",
@@ -786,7 +786,7 @@
  },
  {
   "series": "vol-swap A",
-  "python": "vol_swap_volatility(column('close', 'SPX'), 21)",
+  "python": "vol_swap_volatility(column('close', 'SPX'), n_days=21)",
   "text": "vol_swap_volatility(close['SPX'], w => 21)"
  },
  {

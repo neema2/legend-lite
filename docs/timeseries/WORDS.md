@@ -955,7 +955,7 @@ Forms: `var(x: Line, w: Integer)`, `var(x: Line, w: Integer, unit: DurationUnit)
 
 ## `vol_swap_volatility`
 
-The volatility a variance swap's realized leg reads, of x's values over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; the line's start to date unless given.
+The volatility a variance swap's realized leg reads, of x's values over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date (all); unless given, one figure of the whole line, at its last date (gs-quant's n_days None).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

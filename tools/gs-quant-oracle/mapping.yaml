@@ -76,6 +76,7 @@ words:
   - word: std
     gs: statistics.std
     src: statistics.py:535
+    known: {w=3mo: S149}
     cases:
       - [w=20, "std({x}, 20)", "ts.std(x, 20)"]
       - [w=3mo, "std({x}, 3mo)", "ts.std(x, '3m')"]
@@ -105,6 +106,7 @@ words:
     gs: statistics.product
     src: statistics.py:491
     note: "over 1 + returns(x): a product of 1,304 prices overflows a double on both sides"
+    known: {default: S165}
     cases:
       - [default, "product(1 + returns({x}))", "ts.product(1 + ts.returns(x), Window(None, 0))"]
       - [w=5, "product(1 + returns({x}), 5)", "ts.product(1 + ts.returns(x), 5)"]
@@ -113,6 +115,7 @@ words:
     gs: statistics.percentile
     src: statistics.py:1035
     note: "n required on both sides; lite's default window is to date (all), gs-quant's w=None one number of the whole line, which lite asks for by name (whole, judged on every date)"
+    known: {n=90,w=3mo: S149}
     cases:
       - [n=50, "percentile({x}, 50)", "ts.percentile(x, 50, Window(None, 0))"]
       - ["n=50,w=whole", "percentile({x}, 50, whole)", "ts.percentile(x, 50)"]
@@ -121,6 +124,7 @@ words:
   - word: percentiles
     gs: statistics.percentiles
     src: statistics.py:968
+    known: {w=3mo: S149}
     cases:
       - [default, "percentiles({x})", "ts.percentiles(x)"]
       - [w=20, "percentiles({x}, 20)", "ts.percentiles(x, w=20)"]
@@ -129,7 +133,7 @@ words:
     gs: statistics.zscores
     src: statistics.py:733
     defaults: "w: lite's default is to date (all); gs-quant's is the whole series"
-    known: {default: S150}
+    known: {default: S150, w=3mo: S149}
     cases:
       - [default, "zscores({x})", "ts.zscores(x)"]
       - [w=20, "zscores({x}, 20)", "ts.zscores(x, 20)"]
@@ -163,6 +167,7 @@ words:
     gs: econometrics.returns
     src: econometrics.py:272
     note: "lite's log is gs-quant's Returns.LOGARITHMIC. obs=1mo: gs-quant shifts the index by the period and reads the exact date (lag TRUNCATE); lite reads as of, its last on or before"
+    known: {obs=1mo: S164}
     cases:
       - [default, "returns({x})", "ts.returns(x)"]
       - [obs=5, "returns({x}, 5)", "ts.returns(x, 5)"]
@@ -229,7 +234,7 @@ words:
   - word: beta
     gs: econometrics.beta
     src: econometrics.py:965
-    known: {w=2: S154}
+    known: {w=2: S154, default: S166, w=all: S166}
     cases:
       - [default, "beta({x}, {y})", "ts.beta(x, y, Window(None, 0))"]
       - [w=3mo, "beta({x}, {y}, 3mo)", "ts.beta(x, y, '3m')"]
@@ -272,6 +277,7 @@ words:
     gs: analysis.diff
     src: analysis.py:327
     note: "obs=1mo: as returns' (exact date against as of)"
+    known: {obs=1mo: S164}
     cases:
       - [default, "diff({x})", "ts.diff(x)"]
       - [obs=5, "diff({x}, 5)", "ts.diff(x, 5)"]
@@ -280,6 +286,7 @@ words:
     gs: analysis.lag
     src: analysis.py:418
     note: "mode: gs-quant's EXTEND by default on both sides (the last values put past the line's end); truncate by name"
+    known: {obs=1mo: S164}
     cases:
       - [default, "lag({x})", "ts.lag(x)"]
       - [obs=5, "lag({x}, 5)", "ts.lag(x, 5)"]

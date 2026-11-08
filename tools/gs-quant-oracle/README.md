@@ -129,7 +129,9 @@ on one side and one on the other is a DIFF.
 
 ## The judge
 
-The same dates on both sides, each date the same number of values, and each value within **1e-9 absolute** (a level)
+The same dates on both sides, each date the same number of values, and each value within **1e-9 of its series'
+scale** (a level: 1e-9 times the largest magnitude of gs-quant's figures, never less than 1e-9 -- the replays' rule;
+the user's ruling of 2026-11-08, after a sum at BTC's level differed from pandas' in the last place)
 or **1e-8 relative** for a volatility, a correlation or a beta (`volatility`, `exponential_volatility`,
 `exponential_spread_volatility`, `vol_swap_volatility`, `correlation`, `beta`). A date one side answers and the other
 does not is a DIFF. gs-quant's one number (`percentile ... whole`, `value`) is its answer on every date of x. The

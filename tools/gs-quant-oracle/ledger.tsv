@@ -30,7 +30,7 @@ median w=all	OK	PASS	-	c71f8284c886deb1feb38548a1949c484e36b088b333556b99c42ba02
 range default	OK	PASS	-	6c27ad721af91601cc548f84f7537469245499a3a5327b649e065cf9f4c9e855	-	1304 points
 range w=3mo	OK	PASS	-	8c3b7734748da7466dfce801b892a4934122f0d3d4afada11d0a8538ddf6c293	-	1239 points
 range w=all	OK	PASS	-	6c27ad721af91601cc548f84f7537469245499a3a5327b649e065cf9f4c9e855	-	1304 points
-product default	OK	DIFF	-	52cb6841bec0af26c0333f3b111a480e6ba94f11eb4dab1636fec0652bb5283c	-	1304 points | lite: 1304 gs-quant points, 1303 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 2020-01-02, 0 lite's alone
+product default	OK	DIFF	S165	52cb6841bec0af26c0333f3b111a480e6ba94f11eb4dab1636fec0652bb5283c	-	1304 points | lite: 1304 gs-quant points, 1303 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 2020-01-02, 0 lite's alone
 product w=5	OK	PASS	-	594c23e5c4a9b618964293dcfcf2d5d2c2b466934de66b2c67e7852721659689	-	1299 points
 product w=3mo	OK	DIFF	-	201977e8f555699c7a3fd6475285fc2971c6cff05fd86245bba30e1d92a473dd	-	1239 points | lite: 1239 gs-quant points, 1238 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 2020-04-02, 0 lite's alone
 percentile n=50	OK	PASS	-	c71f8284c886deb1feb38548a1949c484e36b088b333556b99c42ba02d520de9	-	1304 points
@@ -56,7 +56,7 @@ returns default	OK	PASS	-	94f47ce28248278d9c9247f17a291f31a40c7183bcf79145363667
 returns obs=5	OK	PASS	-	0ea64c616046bd45d5a255ff0d3eeea8e79aaf3feea51864e9c4e2bba3698733	-	1299 points
 returns type=log	OK	PASS	-	5cd4aba6f9e2ea165f9f7e10c86732b64441b2e3937c9bcfdeb0546edd5a2e21	-	1303 points
 returns type=absolute	OK	PASS	-	a130496745640ba766adbf87a33237759d772cb6feea8c093b40ba6d967d9460	-	1303 points
-returns obs=1mo	OK	DIFF	-	4cd7e0d5f513611956183b1c2ac698872dbb76ba595fa1aa824e0717e05192ee	-	768 points | lite: 768 gs-quant points, 1282 lite's; 505 dates apart (worst absolute 0.2111890291413433), 0 gs-quant's alone, 514 lite's alone from 2020-02-03; 2020-02-05: gs-quant -0.32460732984293195, lite -0.32578397212543553; 2020-02-06: gs-quant -0.23629489603024578, lite -0.29493891797556726; 2020-02-07: gs-quant -0.28545119705340694, lite -0.2665406427221172
+returns obs=1mo	OK	DIFF	S164	4cd7e0d5f513611956183b1c2ac698872dbb76ba595fa1aa824e0717e05192ee	-	768 points | lite: 768 gs-quant points, 1282 lite's; 505 dates apart (worst absolute 0.2111890291413433), 0 gs-quant's alone, 514 lite's alone from 2020-02-03; 2020-02-05: gs-quant -0.32460732984293195, lite -0.32578397212543553; 2020-02-06: gs-quant -0.23629489603024578, lite -0.29493891797556726; 2020-02-07: gs-quant -0.28545119705340694, lite -0.2665406427221172
 prices default	OK	PASS	-	52cb6841bec0af26c0333f3b111a480e6ba94f11eb4dab1636fec0652bb5283c	-	1304 points
 prices initial=100	OK	PASS	-	78af830567ccd0a95b041c3d32f1d9859a33d7b86137d2bd70658d1ea1248211	-	1304 points
 prices type=log	OK	PASS	-	c708a1ab6667464056acd233e18abeacf936ce520295ebc45605296aa24e4396	-	1304 points
@@ -84,7 +84,7 @@ beta w=2	OK	DIFF	S154	988818837740ba50cd334ed1867184a0b3110a1aa44c861972ab502eef
 max_drawdown default	OK	PASS	-	f1b518193ed5c198f854ff69d704fa42f22342ac6c0c8ebedfe75f68912fcbfe	-	1304 points
 max_drawdown w=63	OK	PASS	-	73a9afb1b1ff2cff8f665ec5c427d2d30543f5866cda4ad61e7194980461ab43	-	1241 points
 max_drawdown w=3mo	OK	PASS	-	55eb8d73e0dd68916f62bf8cc06a9ff70f829c7f71b5c878bedafe8ef0116e85	-	1239 points
-vol_swap_volatility default	OK	DIFF	-	5f53068fc77cb1500502fceb0ae96cb25b1fb0baef5b38b9817af105ea147fff	-	1 points | lite: 1 gs-quant points, 1303 lite's; 0 dates apart (worst relative 0.0), 0 gs-quant's alone, 1302 lite's alone from 2020-01-03
+vol_swap_volatility default	OK	PASS	-	5f53068fc77cb1500502fceb0ae96cb25b1fb0baef5b38b9817af105ea147fff	-	1 points
 vol_swap_volatility w=20	OK	PASS	-	34ebdbb43c6ced29cd62ca5ae4121ba38285d9881d04c50a9132b4bd84f88194	-	1285 points
 sharpe_ratio default	OK	PASS	-	29eb5a8610d29f80bece6220472e956a71281eb7c042a871753cb84826ad5479	-	1302 points
 sharpe_ratio w=63	OK	PASS	-	dae43cb399d011085e0a0ebf7a6973dcd23c45edc8ff4495b1ee24e4e2d2aed8	-	1240 points
@@ -93,11 +93,11 @@ excess_returns y=0.05	OK	PASS	-	a829aad2a2efb683c7f53a27e51374c0b9637002592c08b2
 excess_returns y=line	OK	PASS	-	4b377db0a1d0be176e36aedd3e350bc7ae486b2ba1a97a19d04e51b2fc121622	-	1304 points
 diff default	OK	PASS	-	a130496745640ba766adbf87a33237759d772cb6feea8c093b40ba6d967d9460	-	1303 points
 diff obs=5	OK	PASS	-	f7ef049b06e4b8ca5459bf7cad3cdb6b5a769992d8415905e83e8c339084d89a	-	1299 points
-diff obs=1mo	OK	DIFF	-	d4433e581fd9c99d40a5bc646738cbc5e6d3a9776a0c5cf2c66782e7e0010673	-	768 points | lite: 768 gs-quant points, 1282 lite's; 505 dates apart (worst absolute 10.760000000000005), 0 gs-quant's alone, 514 lite's alone from 2020-02-03; 2020-02-05: gs-quant -1.8600000000000003, lite -1.87; 2020-02-06: gs-quant -1.25, lite -1.6900000000000004; 2020-02-07: gs-quant -1.5499999999999998, lite -1.4100000000000001
+diff obs=1mo	OK	DIFF	S164	d4433e581fd9c99d40a5bc646738cbc5e6d3a9776a0c5cf2c66782e7e0010673	-	768 points | lite: 768 gs-quant points, 1282 lite's; 505 dates apart (worst absolute 10.760000000000005), 0 gs-quant's alone, 514 lite's alone from 2020-02-03; 2020-02-05: gs-quant -1.8600000000000003, lite -1.87; 2020-02-06: gs-quant -1.25, lite -1.6900000000000004; 2020-02-07: gs-quant -1.5499999999999998, lite -1.4100000000000001
 lag default	OK	PASS	-	e0a12d98027fb4a6a847862d5a202c739b72a3a525a80cebb2c4b860476870db	-	1304 points, off its spine: its own dates
 lag obs=5	OK	PASS	-	a9bacdf7ddaac792f6a208bef356401826afbd4ee2d2b95a1d35682f0f960f40	-	1304 points, off its spine: its own dates
 lag mode=truncate	OK	PASS	-	2dfe5e3db10ee42d3ae29a42000aa057f27e6fa13a6f0e249b227e424a710a7a	-	1299 points
-lag obs=1mo	OK	DIFF	-	afdd2e8e7abfa1aef4e60c808cd38786cb809ece510ca9865243910de6f08888	-	1304 points, off its spine: its own dates | lite: 1304 gs-quant points, 1304 lite's; 522 dates apart (worst absolute 10.760000000000005), 519 gs-quant's alone from 2020-02-01, 519 lite's alone from 2020-02-03; 2020-02-05: gs-quant 5.73, lite 5.74; 2020-02-06: gs-quant 5.29, lite 5.73; 2020-02-07: gs-quant 5.43, lite 5.29
+lag obs=1mo	OK	DIFF	S164	afdd2e8e7abfa1aef4e60c808cd38786cb809ece510ca9865243910de6f08888	-	1304 points, off its spine: its own dates | lite: 1304 gs-quant points, 1304 lite's; 522 dates apart (worst absolute 10.760000000000005), 519 gs-quant's alone from 2020-02-01, 519 lite's alone from 2020-02-03; 2020-02-05: gs-quant 5.73, lite 5.74; 2020-02-06: gs-quant 5.29, lite 5.73; 2020-02-07: gs-quant 5.43, lite 5.29
 first w=all	OK	PASS	-	cf8a39cc5d7e29aea7fb7ecc5141a33bdb46b9fc257c802a8a06836b028c8e15	-	1304 points
 last w=whole	OK	PASS	-	7d90ebf0908ed6caf3e0bc202a29cec690d6c02d4d4a6d07605320d5a736c2b9	-	1304 points
 count w=all	OK	PASS	-	88ddc501588eedfc611cbd69337cbbfc4a3b0c488c66d080b2df4e9562d2d6fc	-	1304 points
