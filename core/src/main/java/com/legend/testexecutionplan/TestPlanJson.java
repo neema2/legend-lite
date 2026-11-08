@@ -28,8 +28,9 @@ public final class TestPlanJson {
      *  4 the same day (step 6): the agreement judge's pairing on an assert's last group; 5 the same day (step 8): the
      *  edge's records by step and by verdict, each through its codec; 6 (slice 3): whether the body's last statement
      *  answers a verdict; 7 (slice 3, hole 5): a root loop's row carries the decline its arm decided; 8 (slice 4,
-     *  hole 1): an appeal's rows carry the enumerations the referee decodes. */
-    public static final int VERSION = 8;
+     *  hole 1): an appeal's rows carry the enumerations the referee decodes; 9 (A1): an appeal names the appeal it is a
+     *  second hearing of. */
+    public static final int VERSION = 9;
 
     private TestPlanJson() {
     }

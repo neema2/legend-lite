@@ -25,9 +25,12 @@ import java.util.Objects;
  * @param contract a {@link Kind#CONTRACT} appeal's failure words, before the two texts
  * @param rows     a {@link Kind#ROWS} appeal's planned rows leg; null where the rows were not planned with the assert
  * @param batched  the database judge's row: the texts its verdict row compares (null where the host judges the text)
+ * @param joins    the number of the appeal this one is a second hearing of -- the agreement judge's database half
+ *                 hearing the assert its host half holds an appeal for: joined, never decided twice (A1, 2026-11-08) --
+ *                 or {@link RootLoop#NO_APPEAL}
  */
 public record Appeal(int number, String name, Kind kind, @Nullable String contract, @Nullable Rows rows,
-        @Nullable Batched batched) implements Extension {
+        @Nullable Batched batched, int joins) implements Extension {
 
     public Appeal {
         Objects.requireNonNull(name, "name");
@@ -49,12 +52,17 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
 
     /** The same appeal numbered {@code n} in its body. */
     public Appeal numbered(int n) {
-        return new Appeal(n, name, kind, contract, rows, batched);
+        return new Appeal(n, name, kind, contract, rows, batched, joins);
     }
 
     /** The same appeal heard on the database judge's verdict row comparing {@code b}'s texts. */
     public Appeal batchedOn(Batched b) {
-        return new Appeal(number, name, kind, contract, rows, b);
+        return new Appeal(number, name, kind, contract, rows, b, joins);
+    }
+
+    /** The same appeal as a second hearing of appeal {@code n} (the agreement judge's database half, A1). */
+    public Appeal joining(int n) {
+        return new Appeal(number, name, kind, contract, rows, batched, n);
     }
 
     /**

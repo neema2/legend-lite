@@ -98,6 +98,27 @@ final class Appeals {
         return AssertVerdicts.ok();
     }
 
+    /** A second hearing of appeal {@code number}, held earlier in this run by the assert's other half (the agreement
+     *  judge's database half, A1): joined to it -- decided once, told once. The appeal must be held, on the same
+     *  texts; anything else is refused by name. */
+    static TypedSide join(String name, int number, String golden, String ours) {
+        Appeals open = OPEN.get();
+        if (open == null) {
+            throw new IllegalStateException(name + " (sql-text): an appeal joined outside a body's run");
+        }
+        for (Held h : open.held) {
+            if (h.number() == number) {
+                if (!h.golden().equals(golden) || !h.ours().equals(ours)) {
+                    throw new IllegalStateException(name + " (sql-text): the agreement judge's two halves heard one"
+                            + " appeal on different texts");
+                }
+                return AssertVerdicts.ok();
+            }
+        }
+        throw new IllegalStateException(name + " (sql-text): a second hearing of appeal " + number + ", which no half"
+                + " holds");
+    }
+
     /** The listener of the body whose run is in progress (its reports kept back from the first held appeal on), or
      *  null outside a body's run. */
     static @Nullable AssertListener listenerNow() {

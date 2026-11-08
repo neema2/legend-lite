@@ -852,6 +852,7 @@ final class HostJson {
         o.put("contract", x.contract() == null ? null : x.contract());
         o.put("rows", x.rows() == null ? null : wAppealRows(x.rows()));
         o.put("batched", x.batched() == null ? null : wAppealBatched(x.batched()));
+        o.put("joins", x.joins());
         return o;
     }
 
@@ -862,7 +863,8 @@ final class HostJson {
         @Nullable String v_contract = absent(o, "contract", "Appeal") ? null : str(o.get("contract"));
         Appeal.@Nullable Rows v_rows = absent(o, "rows", "Appeal") ? null : rAppealRows(obj(o.get("rows")));
         Appeal.@Nullable Batched v_batched = absent(o, "batched", "Appeal") ? null : rAppealBatched(obj(o.get("batched")));
-        return new Appeal(v_number, v_name, v_kind, v_contract, v_rows, v_batched);
+        int v_joins = Math.toIntExact(num(field(o, "joins", "Appeal")));
+        return new Appeal(v_number, v_name, v_kind, v_contract, v_rows, v_batched, v_joins);
     }
 
     static Map<String, Object> wAppealRows(Appeal.Rows x) {

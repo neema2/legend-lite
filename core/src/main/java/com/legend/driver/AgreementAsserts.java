@@ -151,11 +151,33 @@ final class AgreementAsserts implements TestDoor.Asserts {
                         instanceof HostJudgment.AssertError
                         ? DatabaseAsserts.errorVerdictFor(p, typed.body().get(i), lets, typed.specs(), databaseEnv)
                         : null;
-                byStatement.put(i, raising != null ? new One(p, raising)
-                        : new One(p, p.assertion().beforeTheArm() != null ? null : database.get(i)));
+                DatabaseAsserts.Each each = raising != null || p.assertion().beforeTheArm() != null ? null
+                        : database.get(i);
+                byStatement.put(i, raising != null ? new One(p, raising) : new One(p, each));
+                joinAppeals(p, each, databaseEnv.appeals());
             }
         }
         return new AgreementAsserts(host, byStatement, branches);
+    }
+
+    /** One assert, one appeal (A1, the slice 3 follow-up audit, 2026-11-08): where the host half holds an engine-text
+     *  appeal for the assert, each appeal its database half's rows name is a second hearing of it -- joined at run,
+     *  decided once. Until then each half held one of its own, and the referee replayed twice. */
+    private static void joinAppeals(HostAsserts.Planned p, DatabaseAsserts.@Nullable Each database,
+            EngineTextAppeals appeals) {
+        if (database == null
+                || !(HostJudgment.core(p.assertion().check().judgment()) instanceof HostJudgment.EngineText e)
+                || e.appeal() == com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
+            return;
+        }
+        for (com.legend.testexecutionplan.RootLoop.Root r : database.planned().loop().roots()) {
+            for (com.legend.testexecutionplan.RootLoop.Step s : r.steps()) {
+                if (s instanceof com.legend.testexecutionplan.RootLoop.Row row
+                        && row.appeal() != com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
+                    appeals.join(row.appeal(), e.appeal());
+                }
+            }
+        }
     }
 
     @Override

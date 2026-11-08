@@ -77,7 +77,8 @@ class TestPlanJsonRoundTripTest {
                 new EffectTexts.Statement("select", true))), new SeedTexts(List.of("create table t"))));
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
-                new Appeal.Batched("golden", null, false)), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null)));
+                new Appeal.Batched("golden", null, false), 1), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null,
+                RootLoop.NO_APPEAL)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
                 true);
 
@@ -135,7 +136,7 @@ class TestPlanJsonRoundTripTest {
                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0]), List.of(),
                         List.of()),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
-        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null);
+        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);
     }
 
     private static TestPlan.Side constant() {

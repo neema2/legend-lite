@@ -27,6 +27,11 @@ final class EngineTextAppeals {
         return last;
     }
 
+    /** Appeal {@code n} made a second hearing of appeal {@code of} (the agreement judge's database half, A1). */
+    void join(int n, int of) {
+        planned.put(n, of(n).joining(of));
+    }
+
     /** The appeal numbered {@code n}. */
     Appeal of(int n) {
         Appeal a = planned.get(n);

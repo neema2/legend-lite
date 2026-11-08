@@ -671,7 +671,7 @@ final class SqlTextVerdicts {
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "foreign-dialect:" + dbType,
                     new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.CONTRACT, name + " (sql-text, " + dbType
-                            + " — text is the contract)", null, null));
+                            + " — text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
         }
         // a MULTI-STATEMENT lambda (leading lets, then the query — the
         // datePeriods `$fn`): the engine's plan is one statement per
@@ -1309,7 +1309,7 @@ final class SqlTextVerdicts {
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "plan-params-unbindable",
                     new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.CONTRACT, name + " (plan-text, params unbindable —"
-                            + " text is the contract)", null, null));
+                            + " text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
         }
         String filled = golden;
         for (var e : bindings.spellings().entrySet()) {
@@ -1478,7 +1478,7 @@ final class SqlTextVerdicts {
         // string equality; the referee (the fetch replayed on the referee, rows compared) is its APPEAL on a failed
         // text (decide: a row of the body's statement under the batch, the step's on the program road, now on the walk)
         return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.TDG, null, null,
-                null));
+                null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
 
     private static final java.util.regex.Pattern NUMBERED_IN_TEMP =
@@ -1697,7 +1697,7 @@ final class SqlTextVerdicts {
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
                 JudgmentFacts.enumsOf(env.ctx(), mappingFqn, classFqn, ahead.rows().data()));
         return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.ROWS, null, rows,
-                null));
+                null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
 
     /** The appeal's rows for an arm reaching its verdict under {@code env}: an arm re-run over a step's texts reads
@@ -1807,13 +1807,16 @@ final class SqlTextVerdicts {
      *  actual cell where the plan reads it, recorded for the decision after the run. */
     static TypedSide rowAppealed(com.legend.testexecutionplan.Appeal a, List<Object> row) {
         com.legend.testexecutionplan.Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
-        if (b.ours() != null) {
-            return Appeals.hold(a.name(), a.number(), b.golden(), b.ours(), b.textEqual());
+        String ours = b.ours() != null ? b.ours() : actualText(row);
+        if (ours == null) {
+            return fail(a.name() + " (sql-text): our text side, a String to one, read no string at the verdict step");
         }
-        String read = actualText(row);
-        return read == null
-                ? fail(a.name() + " (sql-text): our text side, a String to one, read no string at the verdict step")
-                : Appeals.hold(a.name(), a.number(), b.golden(), read, b.golden().equals(read));
+        // a second hearing of an appeal another half holds (the agreement judge's database half, A1): joined to it,
+        // never decided twice
+        return a.joins() != com.legend.testexecutionplan.RootLoop.NO_APPEAL
+                ? Appeals.join(a.name(), a.joins(), b.golden(), ours)
+                : Appeals.hold(a.name(), a.number(), b.golden(), ours,
+                        b.ours() != null ? b.textEqual() : b.golden().equals(ours));
     }
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */

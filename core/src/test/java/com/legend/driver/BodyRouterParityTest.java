@@ -1231,13 +1231,13 @@ class BodyRouterParityTest {
         assertTrue(agreed.outcome.startsWith("AssertFailed"), agreed.outcome);
         assertEquals(1, declinedOnce(agreed), agreed.verdicts.toString());
         // the text differing, the rows agreeing, under BOTH judges (the slice 3 follow-up audit, 2026-11-08): the
-        // appeal holds. KNOWN DEFECT A1 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 4): each half holds an appeal of
-        // its own, so the referee replays twice and its report is told twice -- this pin moves to 1 with the fix
+        // appeal holds, heard by both halves and decided ONCE: the database half's appeal joins the host half's (A1,
+        // fixed 2026-11-08: each half held an appeal of its own, so the referee replayed twice and was told twice)
         Run agreedMatch = assertParity(backend, ctx, "x::RT",
                 "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows) + "', " + producer + ");}",
                 "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.BOTH);
         assertEquals("ok", agreedMatch.outcome, "the rows agree under both judges: the appeal holds");
-        assertEquals(2, agreedMatch.verdicts.stream().filter(v -> v.contains("refereed MATCH")).count(),
+        assertEquals(1, agreedMatch.verdicts.stream().filter(v -> v.contains("refereed MATCH")).count(),
                 agreedMatch.verdicts.toString());
     }
 
