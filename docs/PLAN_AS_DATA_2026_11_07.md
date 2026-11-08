@@ -923,3 +923,36 @@ Each slice closes with every lane and an invariant audit, briefed with the rule,
   planner already writes the Data rows into a target's setup steps (it writes a connection's declared test data,
   2026-10-09), and how the server's shared-database key reads when it comes from the plan. Hole 7 and D3 (a CSV
   load's local path) are both about what a plan's target carries, so they share one design pass.
+- **Verified at `df9921bc`:** core suites on all three judge modes, guardrails, census; the DuckDB corpus on both
+  judges equals the baseline (no line differs, tallies equal).
+
+### Holes 7 and D3: what a plan's target carries (design, 2026-11-08; one decision for the user)
+
+**Read.**
+- The planner writes a connection's declared test data into its target (`ConnectionPlans.of`:
+  `testDataSetupCsv`, `testDataSetupSqls`). It does **not** write the model's Data rows.
+- Those rows reach a session only through the server's session source (`server.ConnectionResolver.connect`). It
+  makes a held project database on first use, keyed by the model's store definitions (`storesKey`), the connection
+  and the rows (`ProjectData.rowsKey`), and fills it from the model (`ProjectData.fill`).
+- So the run's session is found and filled by reading the compiled model: hole 7's 24 product sites in
+  `MODEL_SITES`.
+
+**Proposed shape** (the system catalog's product half, applied to every database a model declares):
+- **A LOAD PLAN per model**, made and run when the model is loaded:
+  - the catalog's registration rows, and every held database's Data rows, as plan steps on targets named by
+    content key;
+  - re-run on reload (replace); dropped on unload.
+- **A query's plan names its database by that key**, in its target's own data:
+  - the stores' content key and the connection description (2.6);
+  - the Data rows' key where the database is held.
+- **The `Execution.Source` contract becomes `open(ExecutionPlan.Target)`**: no model. The server opens or finds the
+  database by the target's key. The test harnesses' sources ignore the argument as today.
+- **Tests:** a test's model is loaded the same way, its load plan run in the test's session (or, for the catalog,
+  inside its rolled-back transaction, as the catalog design says).
+- **D3** (a CSV load's local file path in the plan) is the same question about a target: the plan carries the file's
+  content, read at planning, or a content key the load plan resolves. Never a path the run opens.
+
+**The decision (held for the user):** this moves the product's database filling from the first query to the
+model's load. A model with large Data elements pays at load, not at its first query, and a reload refills.
+
+**What happens without it:** the 24 product sites cannot go to zero, and slice 4 cannot close.
