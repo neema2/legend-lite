@@ -5,7 +5,7 @@
 // has no operator overloading -- the one difference it cannot avoid). Thin and write-only: a term is the tile's tree
 // (timeseries-spec.ts TsExpr), its text the tile's writer's (timeseries-text.ts seriesText), and core reads it back --
 // the builder never parses. Every value gs-quant takes that the language has no way to say is refused in words, never
-// dropped: a ramp apart from its window's size (item 13), a gs-quant parameter DataCube has not (assume_zero_mean)
+// dropped: a calendar window's ramp apart from its period, a gs-quant parameter DataCube has not (assume_zero_mean)
 // other than at gs-quant's default.
 
 import type { TsAggregate, TsExpr, TsFunctionName, TsMatch, TsOperator, TsParamShape } from './timeseries-spec.ts';
@@ -168,9 +168,10 @@ export function series(id: string): Term {
 /**
  * gs-quant's WINDOW (gs_quant.timeseries.helper.Window): a size -- observations, or a calendar period ('1m', '1y') --
  * and a ramp, the size unless told. The language says three of them: every observation to date (gs-quant's
- * `Window(None, 0)`, the language's `all`), a size whose ramp is the size (`Window(22)`, the language's `22`: drawn from
- * the observation its window first holds, one before gs-quant's -- the ramp difference every rolling word lists), and
- * a calendar period (`Window('3m')`). A ramp apart from its size is item 13's (B3), refused until then.
+ * `Window(None, 0)`, the language's `all`), a size whose ramp is the size (`Window(22)`, the language's `22`: none of
+ * its first 22 observations, as gs-quant's `x[22:]`), and a calendar period (`Window('3m')`); and a ramp apart from its
+ * size (`Window(63, 10)`, `Window(None, 5)`: the library's `r`, item 13, 2026-11-08) -- a calendar window's or a
+ * calendar ramp refused.
  */
 export class Window {
   readonly w: number | string | null;
@@ -187,18 +188,38 @@ export type WindowLike = Window | number | string;
 
 const TENOR = /^([1-9][0-9]*)([dwmy])$/;
 
-/** A window as the tile holds it (timeseries-spec.ts: a span, 0 every observation, `3m` a period). */
-function spanOf(fn: string, name: string, v: WindowLike): number | string {
-  if (v instanceof Window) {
-    if (v.w === null) {
-      if (v.r === 0 || v.r === null) return 0;
-      throw new BuilderRefusal(`${fn}'s ${name}: a window of every observation ramped by ${String(v.r)} is item 13's (a ramp apart from its size)`);
-    }
-    if (v.r !== v.w) {
-      throw new BuilderRefusal(`${fn}'s ${name}: Window(${JSON.stringify(v.w)}, ${JSON.stringify(v.r)}) -- a ramp apart from its size is item 13's; Window(${JSON.stringify(v.w)}) is its size alone`);
-    }
-    return spanOf(fn, name, v.w);
+/** A window's ramp apart from its size (gs-quant's `Window(w, r)`, item 13): the library's `r`, its first r points
+ *  dropped, each figure before the window's size over the points it has; none where the ramp is the size. */
+function rampOf(fn: string, name: string, v: WindowLike): number | undefined {
+  if (!(v instanceof Window) || v.r === v.w || (v.w === null && (v.r === 0 || v.r === null))) return undefined;
+  if (typeof v.r !== 'number' || !Number.isInteger(v.r) || v.r < 0) {
+    throw new BuilderRefusal(`${fn}'s ${name}: a ramp is a whole number of observations, not ${JSON.stringify(v.r)} (a calendar ramp is none of the language's yet)`);
   }
+  if (typeof v.w === 'string') {
+    throw new BuilderRefusal(`${fn}'s ${name}: Window(${JSON.stringify(v.w)}, ${v.r}) -- a calendar window's ramp apart from its period is none of the language's yet; Window(${JSON.stringify(v.w)}) is its period alone`);
+  }
+  return v.r;
+}
+
+/** The window of a word gs-quant computes over the whole series whatever its window is (winsorize: gs-quant's
+ *  `apply_ramp` alone): its ramp, the first points dropped -- a size apart from it, which only empties a line shorter
+ *  than it, refused, as a calendar ramp. */
+function wholeRampOf(fn: string, name: string, v: unknown): number {
+  const w = typeof v === 'number' ? new Window(v) : v;
+  if (!(w instanceof Window) || typeof w.r !== 'number' || !Number.isInteger(w.r) || w.r < 0) {
+    throw new BuilderRefusal(`${fn}'s ${name}: gs-quant's ${fn} reads the whole series whatever its window, which drops its first points alone -- a whole number of them, 22 or Window(None, 22), not ${JSON.stringify(v)} (a calendar ramp is none of the language's yet)`);
+  }
+  if (w.w === 0) throw new BuilderRefusal(`${fn}'s ${name}: gs-quant's ${fn} refuses a window of 0`);
+  if (w.w !== null && w.w !== w.r) {
+    throw new BuilderRefusal(`${fn}'s ${name}: Window(${JSON.stringify(w.w)}, ${w.r}) -- gs-quant's ${fn} reads its window's size only to give nothing where the line is shorter, none of the language's: Window(None, ${w.r}) or ${w.r}`);
+  }
+  return w.r;
+}
+
+/** A window as the tile holds it (timeseries-spec.ts: a span, 0 every observation, `3m` a period); its ramp apart from its
+ *  size is rampOf's. */
+function spanOf(fn: string, name: string, v: WindowLike): number | string {
+  if (v instanceof Window) return v.w === null ? 0 : spanOf(fn, name, v.w);
   if (typeof v === 'number') {
     if (!Number.isInteger(v) || v < 0) throw new BuilderRefusal(`${fn}'s ${name} is a whole number of observations, not ${v}`);
     return v;
@@ -292,6 +313,11 @@ function libValue(fn: string, gsName: string, p: TsParamShape, g: GsParam | unde
     }
     case 'whole':
     case 'number':
+      if (v instanceof Window && p.name === 'w') {
+        // a window the library takes as its size alone (smoothed_moving_average's: its seed no window, S159)
+        if (v.r !== v.w || typeof v.w !== 'number') throw new BuilderRefusal(`${fn} takes no ramp apart from its window's size: Window(${JSON.stringify(v.w)}) alone, its size a number of observations`);
+        return libValue(fn, gsName, p, g, v.w);
+      }
       if (typeof v !== 'number' || !Number.isFinite(v)) throw new BuilderRefusal(`${fn}'s ${gsName} is a number, not ${JSON.stringify(v)}`);
       if (p.kind === 'whole' && !Number.isInteger(v)) throw new BuilderRefusal(`${fn}'s ${gsName} is a whole number, not ${v}`);
       return v;
@@ -330,7 +356,12 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     if (g.whole !== undefined) {
       const told = v !== undefined && v !== null && !same(v, defaultOf(g));
       if (told && g.whole === 'always') {
-        throw new BuilderRefusal(`${fn}: gs-quant's clips by the whole series' mean and deviation whatever ${g.name} is -- its ${g.name} blanks the first points alone, a ramp (item 13)`);
+        // gs-quant's clips by the whole series' mean and deviation whatever its window is: its window drops the first
+        // points alone, the library's r (item 13)
+        params[g.lib ?? g.name] = 'whole';
+        const r = wholeRampOf(fn, g.name, v);
+        if (r > 0) params['r'] = r;
+        continue;
       }
       if (!told) {
         params[g.lib ?? g.name] = 'whole';
@@ -348,6 +379,12 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     const p = sig.params.find((q) => q.name === libName);
     if (p === undefined) throw new Error(`${fn}'s gs-quant parameter ${g.name} is the library's ${libName}, which ${fn} has not`);
     params[libName] = libValue(fn, g.name, p, g, v);
+    // a window's ramp apart from its size: the word's own r, where it takes one
+    const ramp = p.kind === 'span' ? rampOf(fn, g.name, v as WindowLike) : undefined;
+    if (ramp !== undefined) {
+      if (!sig.params.some((q) => q.name === 'r')) throw new BuilderRefusal(`${fn} takes no ramp apart from its window's size: Window(${JSON.stringify((v as Window).w)}) alone`);
+      params['r'] = ramp;
+    }
   }
   for (const name of shape.extra) {
     const v = told.get(name);

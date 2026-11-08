@@ -89,109 +89,109 @@ def annualize(x, *, annualization_factor=_Default('None')) -> Term:
     return _word('annualize', [x], **{'annualization_factor': annualization_factor})
 
 
-def mean(x, w=_Default('Window(None, 0)'), mean_type=_Default('MeanType.ARITHMETIC')) -> Term:
+def mean(x, w=_Default('Window(None, 0)'), mean_type=_Default('MeanType.ARITHMETIC'), *, r=_Default('None')) -> Term:
     """Moving average: The average over the last w observations. (gs-quant's statistics.mean.)"""
-    return _word('mean', [x], **{'w': w, 'mean_type': mean_type})
+    return _word('mean', [x], **{'w': w, 'mean_type': mean_type, 'r': r})
 
 
-def sum_(x, w=_Default('Window(None, 0)')) -> Term:
+def sum_(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling sum: The sum over the last w observations; from the start, a running total. (gs-quant's statistics.sum_.)"""
-    return _word('sum_', [x], **{'w': w})
+    return _word('sum_', [x], **{'w': w, 'r': r})
 
 
-def min_(x, w=_Default('Window(None, 0)')) -> Term:
+def min_(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling minimum: The least over the last w observations. (gs-quant's statistics.min_.)"""
-    return _word('min_', [x], **{'w': w})
+    return _word('min_', [x], **{'w': w, 'r': r})
 
 
-def max_(x, w=_Default('Window(None, 0)')) -> Term:
+def max_(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling maximum: The most over the last w observations. (gs-quant's statistics.max_.)"""
-    return _word('max_', [x], **{'w': w})
+    return _word('max_', [x], **{'w': w, 'r': r})
 
 
-def range_(x, w=_Default('Window(None, 0)')) -> Term:
+def range_(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling range: The most less the least over the last w observations. (gs-quant's statistics.range_.)"""
-    return _word('range_', [x], **{'w': w})
+    return _word('range_', [x], **{'w': w, 'r': r})
 
 
-def std(x, w=_Default('Window(None, 0)')) -> Term:
+def std(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling standard deviation: The sample standard deviation over the last w observations. (gs-quant's statistics.std.)"""
-    return _word('std', [x], **{'w': w})
+    return _word('std', [x], **{'w': w, 'r': r})
 
 
-def var(x, w=_Default('Window(None, 0)')) -> Term:
+def var(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling variance: The sample variance over the last w observations. (gs-quant's statistics.var.)"""
-    return _word('var_', [x], **{'w': w})
+    return _word('var_', [x], **{'w': w, 'r': r})
 
 
-def zscores(x, w=_Default('Window(None, 0)')) -> Term:
+def zscores(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Z-score: How many standard deviations from the mean: over the last w observations, or every one to date. (gs-quant's statistics.zscores.)"""
-    return _word('zscores', [x], **{'w': w})
+    return _word('zscores', [x], **{'w': w, 'r': r})
 
 
-def winsorize(x, limit=_Default('2.5'), w=_Default('Window(None, 0)')) -> Term:
+def winsorize(x, limit=_Default('2.5'), w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Winsorize: Held within limit standard deviations of its mean to date. (gs-quant's statistics.winsorize.)"""
-    return _word('winsorize', [x], **{'limit': limit, 'w': w})
+    return _word('winsorize', [x], **{'limit': limit, 'w': w, 'r': r})
 
 
-def volatility(x, w=_Default('Window(None, 0)'), returns_type=_Default('Returns.SIMPLE'), annualization_factor=_Default('None'), assume_zero_mean=_Default('False')) -> Term:
+def volatility(x, w=_Default('Window(None, 0)'), returns_type=_Default('Returns.SIMPLE'), annualization_factor=_Default('None'), assume_zero_mean=_Default('False'), *, r=_Default('None')) -> Term:
     """Realized volatility: The annualized standard deviation of its returns over the last w observations, in percent (20% is 20). (gs-quant's econometrics.volatility.)"""
-    return _word('volatility', [x], **{'w': w, 'returns_type': returns_type, 'annualization_factor': annualization_factor, 'assume_zero_mean': assume_zero_mean})
+    return _word('volatility', [x], **{'w': w, 'returns_type': returns_type, 'annualization_factor': annualization_factor, 'assume_zero_mean': assume_zero_mean, 'r': r})
 
 
-def drawdown(x, w=_Default('0')) -> Term:
+def drawdown(x, w=_Default('0'), r=_Default('None')) -> Term:
     """Drawdown: Below its running peak, as a share of it: x / max(x) - 1. (DataCube's own: gs-quant has none.)"""
-    return _word('drawdown', [x], **{'w': w})
+    return _word('drawdown', [x], **{'w': w, 'r': r})
 
 
-def max_drawdown(x, w=_Default('Window(None, 0)')) -> Term:
+def max_drawdown(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Maximum drawdown: The deepest drawdown over the last w observations (-0.2 for 20%). (gs-quant's econometrics.max_drawdown.)"""
-    return _word('max_drawdown', [x], **{'w': w})
+    return _word('max_drawdown', [x], **{'w': w, 'r': r})
 
 
-def sharpe_ratio(series, currency=_Default('RiskFreeRateCurrency.USD'), w=_Default('None'), curve_type=_Default('CurveType.PRICES'), method=_Default('Interpolate.NAN'), *, annualization_factor=_Default('None')) -> Term:
+def sharpe_ratio(series, currency=_Default('RiskFreeRateCurrency.USD'), w=_Default('None'), curve_type=_Default('CurveType.PRICES'), method=_Default('Interpolate.NAN'), *, annualization_factor=_Default('None'), r=_Default('None')) -> Term:
     """Sharpe ratio: Its annualized mean return over its annualized volatility, over the last w observations. (gs-quant's econometrics.sharpe_ratio.)"""
-    return _word('sharpe_ratio', [series], **{'currency': currency, 'w': w, 'curve_type': curve_type, 'method': method, 'annualization_factor': annualization_factor})
+    return _word('sharpe_ratio', [series], **{'currency': currency, 'w': w, 'curve_type': curve_type, 'method': method, 'annualization_factor': annualization_factor, 'r': r})
 
 
-def correlation(x, y, w=_Default('Window(None, 0)'), type_=_Default('SeriesType.PRICES'), returns_type=_Default('Returns.SIMPLE'), assume_zero_mean=_Default('False')) -> Term:
+def correlation(x, y, w=_Default('Window(None, 0)'), type_=_Default('SeriesType.PRICES'), returns_type=_Default('Returns.SIMPLE'), assume_zero_mean=_Default('False'), *, r=_Default('None')) -> Term:
     """Rolling correlation: The correlation of the two series' simple returns over the last w observations, on the dates both have. (gs-quant's econometrics.correlation.)"""
-    return _word('correlation', [x, y], **{'w': w, 'type_': type_, 'returns_type': returns_type, 'assume_zero_mean': assume_zero_mean})
+    return _word('correlation', [x, y], **{'w': w, 'type_': type_, 'returns_type': returns_type, 'assume_zero_mean': assume_zero_mean, 'r': r})
 
 
-def beta(x, b, w=_Default('Window(None, 0)'), prices=_Default('True')) -> Term:
+def beta(x, b, w=_Default('Window(None, 0)'), prices=_Default('True'), *, r=_Default('None')) -> Term:
     """Rolling beta: The first's beta to the second (a benchmark): the covariance of their simple returns over the second's variance. (gs-quant's econometrics.beta.)"""
-    return _word('beta', [x, b], **{'w': w, 'prices': prices})
+    return _word('beta', [x, b], **{'w': w, 'prices': prices, 'r': r})
 
 
-def cov(x, y, w=_Default('Window(None, 0)')) -> Term:
+def cov(x, y, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling covariance: The sample covariance of the two series as they are, over the last w observations. (gs-quant's statistics.cov.)"""
-    return _word('cov', [x, y], **{'w': w})
+    return _word('cov', [x, y], **{'w': w, 'r': r})
 
 
-def alpha(x, y, w=_Default('63'), annualization_factor=_Default('None')) -> Term:
+def alpha(x, y, w=_Default('63'), annualization_factor=_Default('None'), r=_Default('None')) -> Term:
     """Rolling alpha: The first's return above what its beta to the second explains: the mean of its simple returns less beta times the second's, annualized (Jensen's, a risk-free rate of zero), over the last w observations. (DataCube's own: gs-quant has none.)"""
-    return _word('alpha', [x, y], **{'w': w, 'annualization_factor': annualization_factor})
+    return _word('alpha', [x, y], **{'w': w, 'annualization_factor': annualization_factor, 'r': r})
 
 
-def r_squared(x, y, w=_Default('63')) -> Term:
+def r_squared(x, y, w=_Default('63'), r=_Default('None')) -> Term:
     """Rolling R²: How much of the first's returns the second's explain: their correlation squared, over the last w observations. (DataCube's own: gs-quant has none.)"""
-    return _word('r_squared', [x, y], **{'w': w})
+    return _word('r_squared', [x, y], **{'w': w, 'r': r})
 
 
-def hedge_ratio(x, y, w=_Default('63')) -> Term:
+def hedge_ratio(x, y, w=_Default('63'), r=_Default('None')) -> Term:
     """Hedge ratio: How many of the second hedge one of the first: the slope of the first's levels on the second's (least squares: their covariance over the second's variance), over the last w observations. (DataCube's own: gs-quant has none.)"""
-    return _word('hedge_ratio', [x, y], **{'w': w})
+    return _word('hedge_ratio', [x, y], **{'w': w, 'r': r})
 
 
-def residual(x, y, w=_Default('63')) -> Term:
+def residual(x, y, w=_Default('63'), r=_Default('None')) -> Term:
     """Regression residual: The first less what its rolling regression on the second gives for it: the spread of a pairs trade, x - (a + b·y) with a and b fitted over the last w observations of the levels. (DataCube's own: gs-quant has none.)"""
-    return _word('residual', [x, y], **{'w': w})
+    return _word('residual', [x, y], **{'w': w, 'r': r})
 
 
-def bollinger_bands(x, w=_Default('Window(None, 0)'), k=_Default('2')) -> Term:
+def bollinger_bands(x, w=_Default('Window(None, 0)'), k=_Default('2'), *, r=_Default('None')) -> Term:
     """Bollinger bands: A band k standard deviations either side of the moving average over the last w observations. (gs-quant's technicals.bollinger_bands.)"""
-    return _word('bollinger_bands', [x], **{'w': w, 'k': k})
+    return _word('bollinger_bands', [x], **{'w': w, 'k': k, 'r': r})
 
 
 def relative_strength_index(x, w=_Default('14')) -> Term:
@@ -234,19 +234,19 @@ def smoothed_moving_average(x, w=_Default('14')) -> Term:
     return _word('smoothed_moving_average', [x], **{'w': w})
 
 
-def percentiles(x, y=_Default('None'), w=_Default('Window(None, 0)')) -> Term:
+def percentiles(x, y=_Default('None'), w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling percentile rank: Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy's percentileofscore, kind=mean). (gs-quant's statistics.percentiles.)"""
-    return _word('percentiles', [x], **{'y': y, 'w': w})
+    return _word('percentiles', [x], **{'y': y, 'w': w, 'r': r})
 
 
-def median(x, w=_Default('Window(None, 0)')) -> Term:
+def median(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling median: The middle value over the last w observations (of an even count, the mean of the two middle ones). (gs-quant's statistics.median.)"""
-    return _word('median', [x], **{'w': w})
+    return _word('median', [x], **{'w': w, 'r': r})
 
 
-def percentile(x, n, w=_Default('None')) -> Term:
+def percentile(x, n, w=_Default('None'), *, r=_Default('None')) -> Term:
     """Rolling percentile: The n-th percentile of the values over the last w observations, between the two nearest (pandas' quantile); 0 (all) every one to date, whole the whole series' (gs-quant's statistics.percentile.)"""
-    return _word('percentile', [x], **{'n': n, 'w': w})
+    return _word('percentile', [x], **{'n': n, 'w': w, 'r': r})
 
 
 def floor(x, value=_Default('0')) -> Term:
@@ -274,9 +274,9 @@ def filter_(x, operator=_Default('None'), value=_Default('None')) -> Term:
     return _word('filter_', [x], **{'operator': operator, 'value': value})
 
 
-def product(x, w=_Default('Window(None, 0)')) -> Term:
+def product(x, w=_Default('Window(None, 0)'), *, r=_Default('None')) -> Term:
     """Rolling product: The product of the last w values (0: every one to date). (gs-quant's statistics.product.)"""
-    return _word('product', [x], **{'w': w})
+    return _word('product', [x], **{'w': w, 'r': r})
 
 
 def geometrically_aggregate(series) -> Term:
@@ -299,9 +299,9 @@ def excess_returns(price_series, benchmark_or_rate, *, day_count_convention=_Def
     return _word('excess_returns', [price_series, benchmark_or_rate], **{'day_count_convention': day_count_convention})
 
 
-def vol_swap_volatility(prices, n_days=_Default('None'), annualization_factor=_Default('252'), assume_zero_mean=_Default('True')) -> Term:
+def vol_swap_volatility(prices, n_days=_Default('None'), annualization_factor=_Default('252'), assume_zero_mean=_Default('True'), *, r=_Default('None')) -> Term:
     """Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.)"""
-    return _word('vol_swap_volatility', [prices], **{'n_days': n_days, 'annualization_factor': annualization_factor, 'assume_zero_mean': assume_zero_mean})
+    return _word('vol_swap_volatility', [prices], **{'n_days': n_days, 'annualization_factor': annualization_factor, 'assume_zero_mean': assume_zero_mean, 'r': r})
 
 
 def consecutive(x, direction=_Default('SignDirection.POSITIVE')) -> Term:
@@ -404,29 +404,29 @@ def obv(close, volume) -> Term:
     return _word('obv', [close, volume], **{})
 
 
-def vwap(price, volume, w=_Default('20')) -> Term:
+def vwap(price, volume, w=_Default('20'), r=_Default('None')) -> Term:
     """Volume-weighted average price: Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none. (DataCube's own: gs-quant has none.)"""
-    return _word('vwap', [price, volume], **{'w': w})
+    return _word('vwap', [price, volume], **{'w': w, 'r': r})
 
 
-def tracking_error(x, benchmark, w=_Default('63'), annualization_factor=_Default('None')) -> Term:
+def tracking_error(x, benchmark, w=_Default('63'), annualization_factor=_Default('None'), r=_Default('None')) -> Term:
     """Tracking error: The annualized standard deviation of the first's simple returns less the benchmark's, over the last w observations, in percent. (DataCube's own: gs-quant has none.)"""
-    return _word('tracking_error', [x, benchmark], **{'w': w, 'annualization_factor': annualization_factor})
+    return _word('tracking_error', [x, benchmark], **{'w': w, 'annualization_factor': annualization_factor, 'r': r})
 
 
-def information_ratio(x, benchmark, w=_Default('63'), annualization_factor=_Default('None')) -> Term:
+def information_ratio(x, benchmark, w=_Default('63'), annualization_factor=_Default('None'), r=_Default('None')) -> Term:
     """Information ratio: The mean of the first's simple returns less the benchmark's over their standard deviation, annualized, over the last w observations. (DataCube's own: gs-quant has none.)"""
-    return _word('information_ratio', [x, benchmark], **{'w': w, 'annualization_factor': annualization_factor})
+    return _word('information_ratio', [x, benchmark], **{'w': w, 'annualization_factor': annualization_factor, 'r': r})
 
 
-def up_capture(x, benchmark, w=_Default('63')) -> Term:
+def up_capture(x, benchmark, w=_Default('63'), r=_Default('None')) -> Term:
     """Up capture: The first's arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark's mean then, over the last w observations: above 100%, it rose more (Morningstar's compounds each). (DataCube's own: gs-quant has none.)"""
-    return _word('up_capture', [x, benchmark], **{'w': w})
+    return _word('up_capture', [x, benchmark], **{'w': w, 'r': r})
 
 
-def down_capture(x, benchmark, w=_Default('63')) -> Term:
+def down_capture(x, benchmark, w=_Default('63'), r=_Default('None')) -> Term:
     """Down capture: The first's arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark's mean then, over the last w observations: under 100%, it fell less (Morningstar's compounds each). (DataCube's own: gs-quant has none.)"""
-    return _word('down_capture', [x, benchmark], **{'w': w})
+    return _word('down_capture', [x, benchmark], **{'w': w, 'r': r})
 
 
 def total_return(price, dividends) -> Term:
@@ -439,19 +439,19 @@ def basket_series(series, weights=_Default('None'), costs=_Default('None'), reba
     return _word('basket_series', [series], **{'weights': weights, 'costs': costs, 'rebal_freq': rebal_freq, 'return_type': return_type})
 
 
-def lead_lag(x, y, lag=_Default('1'), w=_Default('63')) -> Term:
+def lead_lag(x, y, lag=_Default('1'), w=_Default('63'), r=_Default('None')) -> Term:
     """Lead-lag correlation: The rolling correlation of the first's simple returns with the second's lag observations before, each on its own dates, over the last w. (DataCube's own: gs-quant has none.)"""
-    return _word('lead_lag', [x, y], **{'lag': lag, 'w': w})
+    return _word('lead_lag', [x, y], **{'lag': lag, 'w': w, 'r': r})
 
 
-def dickey_fuller(x, w=_Default('0')) -> Term:
+def dickey_fuller(x, w=_Default('0'), r=_Default('None')) -> Term:
     """Dickey-Fuller statistic: The t-statistic of b in Δx = a + b·x[-1], by least squares over the last w differences (w + 1 values; 0: every one to date): far below 0 it reverts -- at 5%, under about −2.9 (MacKinnon's: −2.86 as w grows, −2.97 at 30). Of a spread written with its ratio, dickey_fuller(close[A] - 1.2 * close[B]), its stationarity; a running residual(y, x, 0) is each date's own fit, not Engle and Granger's one fit of the whole. (DataCube's own: gs-quant has none.)"""
-    return _word('dickey_fuller', [x], **{'w': w})
+    return _word('dickey_fuller', [x], **{'w': w, 'r': r})
 
 
-def half_life(x, w=_Default('0')) -> Term:
+def half_life(x, w=_Default('0'), r=_Default('None')) -> Term:
     """Half-life of mean reversion: −ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1). (DataCube's own: gs-quant has none.)"""
-    return _word('half_life', [x], **{'w': w})
+    return _word('half_life', [x], **{'w': w, 'r': r})
 
 
 __all__ = ['CurveType', 'FilterOperator', 'Frequency', 'Interpolate', 'LagMode', 'MeanType', 'RebalFreq', 'ReturnType', 'Returns', 'RiskFreeRateCurrency', 'SeasonalModel', 'SeriesType', 'SignDirection', 'ThresholdType', 'returns', 'prices', 'diff', 'lag', 'index', 'rebase', 'change', 'percent_change', 'annualize', 'mean', 'sum_', 'min_', 'max_', 'range_', 'std', 'var', 'zscores', 'winsorize', 'volatility', 'drawdown', 'max_drawdown', 'sharpe_ratio', 'correlation', 'beta', 'cov', 'alpha', 'r_squared', 'hedge_ratio', 'residual', 'bollinger_bands', 'relative_strength_index', 'ohlc', 'exponential_moving_average', 'exponential_std', 'exponential_volatility', 'exponential_spread_volatility', 'macd', 'smoothed_moving_average', 'percentiles', 'median', 'percentile', 'floor', 'ceil', 'if_', 'compare', 'filter_', 'product', 'geometrically_aggregate', 'weighted_sum', 'smooth_spikes', 'excess_returns', 'vol_swap_volatility', 'consecutive', 'trend', 'seasonally_adjusted', 'interpolate', 'union', 'append', 'prepend', 'first', 'last', 'count', 'day', 'month', 'year', 'quarter', 'weekday', 'atr', 'stochastic', 'keltner_channels', 'donchian_channels', 'obv', 'vwap', 'tracking_error', 'information_ratio', 'up_capture', 'down_capture', 'total_return', 'basket_series', 'lead_lag', 'dickey_fuller', 'half_life']

@@ -1086,6 +1086,97 @@ class TsIslandTest {
     }
 
     /**
+     * GS-QUANT'S WINDOW(w, r) (item 13, ruled 2026-11-07: `w => 63, r => 10`): each figure over the window's points to
+     * date, a window not yet full taking those it has (gs-quant's `rolling(w, 0)`), its first r points dropped
+     * (`apply_ramp`) -- a ramp below the window's size shows the partial windows, one above it drops full ones; with
+     * every point to date (`all`), the first r dropped.
+     */
+    @Test
+    void aWindowsRampApartFromItsSizeIsGsQuants() throws Exception {
+        int n = AAA.length;
+        java.util.function.BiFunction<Integer, Integer, Double> meanTo = (i, w) -> {
+            double s = 0;
+            int from = Math.max(0, i - w + 1);
+            for (int j = from; j <= i; j++) {
+                s += AAA[j];
+            }
+            return s / (i - from + 1);
+        };
+        for (TestBackend backend : backends()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT mean(CLOSE, 5, 2) AS partial, mean(CLOSE, 3, 6) AS late,"
+                    + " mean(CLOSE, all, 4) AS todate FROM PRICES ON DAY BY SYMBOL}#");
+            // the answer's dates from the third point on (a date no item has a value at is no row, R6)
+            assertClose(each(n - 2, k -> meanTo.apply(k + 2, 5)), column(got, "SYMBOL", "AAA", "partial"),
+                    backend + ": a ramp below the size: its partial windows");
+            assertClose(each(n - 2, k -> k + 2 < 6 ? null : meanTo.apply(k + 2, 3)), column(got, "SYMBOL", "AAA", "late"),
+                    backend + ": a ramp above the size: full windows dropped");
+            assertClose(each(n - 2, k -> k + 2 < 4 ? null : meanTo.apply(k + 2, k + 3)), column(got, "SYMBOL", "AAA", "todate"),
+                    backend + ": every point to date, the first four dropped");
+            // every windowed word alike: its to-date form's figures before the w-th point, its window's from it, none of
+            // the first r (each word's own two forms, as gs-quant's rolling(w, 0) and its ramp make them)
+            for (String[] w : new String[][] {
+                {"std(CLOSE, 5, 2)", "std(CLOSE, 5)", "std(CLOSE, all)"},
+                {"max(CLOSE, 5, 2)", "max(CLOSE, 5)", "max(CLOSE, all)"},
+                {"sum(CLOSE, 5, 2)", "sum(CLOSE, 5)", "sum(CLOSE, all)"},
+                {"median(CLOSE, w => 5, r => 2)", "median(CLOSE, w => 5)", "median(CLOSE, w => all)"},
+                {"range(CLOSE, w => 5, r => 2)", "range(CLOSE, w => 5)", "range(CLOSE, w => all)"},
+                {"zscores(CLOSE, w => 5, r => 2)", "zscores(CLOSE, w => 5)", "zscores(CLOSE, w => all)"},
+                {"volatility(CLOSE, w => 5, type => 'simple', r => 2)", "volatility(CLOSE, w => 5, type => 'simple')",
+                    "volatility(CLOSE, w => all, type => 'simple')"},
+                {"max_drawdown(CLOSE, w => 5, r => 2)", "max_drawdown(CLOSE, w => 5)", "max_drawdown(CLOSE, w => all)"},
+                {"correlation(CLOSE, CLOSE * CLOSE, w => 5, r => 2)", "correlation(CLOSE, CLOSE * CLOSE, w => 5)",
+                    "correlation(CLOSE, CLOSE * CLOSE, w => all)"}}) {
+                // the close beside them: a row every date, so a row's place is its point's
+                List<Map<String, String>> each = rows(backend, "|#TS{SELECT CLOSE AS c, " + w[0] + " AS s, " + w[1] + " AS f, "
+                        + w[2] + " AS t FROM PRICES ON DAY BY SYMBOL}#");
+                List<Map<String, String>> aaa = each.stream().filter(r -> "AAA".equals(r.get("SYMBOL"))).toList();
+                List<String> wrong = new ArrayList<>();
+                for (int i = 0; i < aaa.size(); i++) {
+                    Map<String, String> row = aaa.get(i);
+                    String want = i < 2 ? null : i < 5 ? row.get("t") : row.get("f");
+                    String said = row.get("s");
+                    if (want == null ? said != null : said == null || Math.abs(Double.parseDouble(said)
+                            - Double.parseDouble(want)) > 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)))) {
+                        wrong.add(i + ": " + said + " not " + want);
+                    }
+                }
+                assertEquals(List.of(), wrong, backend + ": " + w[0]);
+            }
+            // bollinger_bands' band alike (gs-quant's moving_average and std, each ramped); winsorize's window drops its
+            // first points alone (gs-quant reads the whole series whatever it is); a window longer than the line, nothing
+            // (apply_ramp's w > len(x))
+            List<Map<String, String>> more = rows(backend, "|#TS{SELECT CLOSE AS c, bollinger_bands(CLOSE, w => 5, r => 2) AS s,"
+                    + " bollinger_bands(CLOSE, w => 5) AS f, bollinger_bands(CLOSE, w => all) AS t,"
+                    + " winsorize(CLOSE, 1.5, whole, r => 3) AS ws, winsorize(CLOSE, 1.5, whole) AS ww,"
+                    + " mean(CLOSE, 50, 2) AS lg FROM PRICES ON DAY BY SYMBOL}#");
+            List<Map<String, String>> aaa = more.stream().filter(r -> "AAA".equals(r.get("SYMBOL"))).toList();
+            assertEquals(n, aaa.size(), backend + ": a row every date");
+            List<String> wrong = new ArrayList<>();
+            for (int i = 0; i < aaa.size(); i++) {
+                Map<String, String> row = aaa.get(i);
+                for (String field : List.of("lower", "upper", "width")) {
+                    String want = i < 2 ? null : i < 5 ? row.get("t_" + field) : row.get("f_" + field);
+                    if (!near(row.get("s_" + field), want)) {
+                        wrong.add(i + " bollinger " + field + ": " + row.get("s_" + field) + " not " + want);
+                    }
+                }
+                if (!near(row.get("ws"), i < 3 ? null : row.get("ww"))) {
+                    wrong.add(i + " winsorize: " + row.get("ws") + " not " + (i < 3 ? null : row.get("ww")));
+                }
+                if (row.get("lg") != null) {
+                    wrong.add(i + " a window of 50 over 12 points: " + row.get("lg"));
+                }
+            }
+            assertEquals(List.of(), wrong, backend + ": bollinger_bands, winsorize, a window longer than the line");
+        }
+    }
+
+    private static boolean near(String said, String want) {
+        return want == null ? said == null : said != null && Math.abs(Double.parseDouble(said) - Double.parseDouble(want))
+                <= 1e-9 * Math.max(1, Math.abs(Double.parseDouble(want)));
+    }
+
+    /**
      * GS-QUANT'S BOUND (register S161; the user, 2026-11-08: "Two-arg = gs-quant's"): floor(x, value) and ceil(x, value)
      * hold each value at the bound, nothing where x has none (SQL's greatest and least would take the bound there); of
      * one argument they are SQL's rounding and refused still (above).
@@ -2039,10 +2130,10 @@ class TsIslandTest {
                 "bb has lower, upper, width, not middle");
         refusals.put("SELECT volatility(CLOSE, 3, 'ln') AS v FROM PRICES ON DAY BY SYMBOL",
                 "volatility's type is 'simple', 'log', 'absolute'");
-        // gs-quant's volatility(x, w, returns_type, annualization_factor): a fifth is one too many (the catalog's
-        // order, the library's widest overload, M3)
-        refusals.put("SELECT volatility(CLOSE, 3, 'log', 12, 1) AS v FROM PRICES ON DAY BY SYMBOL",
-                "volatility takes 1 line and its parameters w, type, annualization_factor");
+        // gs-quant's volatility(x, w, returns_type, annualization_factor) and Window's ramp r (item 13, 2026-11-08): a
+        // sixth is one too many (the catalog's order, the library's widest overload, M3)
+        refusals.put("SELECT volatility(CLOSE, 3, 'log', 12, 1, 2) AS v FROM PRICES ON DAY BY SYMBOL",
+                "volatility takes 1 line and its parameters w, type, annualization_factor, r");
         refusals.put("SELECT CLOSE['AAA', 'BBB'] AS a FROM PRICES ON DAY BY SYMBOL", "a subscript names one instrument");
         refusals.put("SELECT close['AAA'] AS a FROM (PRICES WHERE SYMBOL = 'AAA') ON DAY",
                 "has no BY: it has no instrument to pick");
@@ -2123,10 +2214,12 @@ class TsIslandTest {
         }
         com.legend.protocol.ts.TsCatalog.Word vol = java.util.Objects.requireNonNull(byName.get("volatility"));
         assertEquals("x line [] [] required; w span [observations, period, all] [] optional; type word [] [simple, log,"
-                + " absolute] optional; annualization_factor whole [] [] optional", params(vol));
-        assertEquals(4, vol.forms().size(), vol.forms().toString());
-        assertEquals("x line [] [] required; w span [observations, period, all, date] [] required", params(java.util.Objects.requireNonNull(
-                byName.get("mean"))));
+                + " absolute] optional; annualization_factor whole [] [] optional; r whole [] [] optional", params(vol));
+        // 4 -> 6 (2026-11-08, item 13): its window's ramp apart from its size, of w observations and of every one to date
+        assertEquals(6, vol.forms().size(), vol.forms().toString());
+        // r: gs-quant's ramp apart from the window's size (item 13, 2026-11-08)
+        assertEquals("x line [] [] required; w span [observations, period, all, date] [] required; r whole [] [] optional",
+                params(java.util.Objects.requireNonNull(byName.get("mean"))));
         assertEquals("x line [] [] required; date date [] [] required", params(java.util.Objects.requireNonNull(byName.get("value_at"))));
         assertEquals("x line [] [] required; initial number [] [] optional; from since [] [] optional", params(java.util.Objects
                 .requireNonNull(byName.get("index"))));

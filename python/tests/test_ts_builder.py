@@ -111,9 +111,12 @@ class Plotted(unittest.TestCase):
         self.assertEqual((tile.series[-1]['id'], tile.series[-1]['text'], tile.series[-1]['name']), ('C', 'A / B - 1', 'ratio'))
         tile.edit('C', ts.if_(spx > ts.mean(spx, 2), spx, 0))
         self.assertEqual(tile.series[-1]['text'], "if(close['SPX'] > mean(close['SPX'], 2), close['SPX'], 0)")
-        # what the builder refuses, in its words: a ramp apart from a window's size is item 13's
-        with self.assertRaisesRegex(ValueError, r'series D: volatility.*item 13'):
-            tile.plot(ts.volatility(spx, ts.Window(5, 2)))
+        # a ramp apart from a window's size: gs-quant's Window(w, r), the library's r (item 13)
+        tile.plot(ts.volatility(spx, ts.Window(5, 2)))
+        self.assertEqual(tile.series[-1]['text'], "volatility(close['SPX'], w => 5, type => 'simple', r => 2)")
+        # what the builder refuses, in its words: a calendar window's ramp apart from its period
+        with self.assertRaisesRegex(ValueError, r"series E: mean.*a calendar window's ramp"):
+            tile.plot(ts.mean(spx, ts.Window('3m', 10)))
 
     def test_a_tiles_python_is_gs_quants_calls_and_run_builds_the_tile_again(self):
         # B4's Show Python (timeseries-code.ts): each series gs-quant's call of it, the program run builds the same tile
@@ -154,6 +157,8 @@ class Plotted(unittest.TestCase):
             if written != row['text']:
                 wrong.append(f"{row['series']}: {row['python']}\n    wrote {written}\n    not   {row['text']}")
         self.assertEqual(wrong, [])
-        with self.assertRaisesRegex(ValueError, 'volatility.*item 13'):
-            ts.text(ts.volatility(ts.column('close'), ts.Window(5, 2)))
+        self.assertEqual(ts.text(ts.mean(ts.column('close'), ts.Window(50, 10))), 'mean(close, 50, 10)')
+        self.assertEqual(ts.text(ts.winsorize(ts.column('close'), 2.5, 22)), 'winsorize(close, limit => 2.5, w => whole, r => 22)')
+        with self.assertRaisesRegex(ValueError, 'smoothed_moving_average takes no ramp'):
+            ts.text(ts.smoothed_moving_average(ts.column('close'), ts.Window(20, 5)))
         self.assertGreater(sum(1 for r in rows if 'python' in r), 200)

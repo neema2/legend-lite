@@ -170,7 +170,15 @@ class Printer {
       delete told[lib];
       if (g.whole !== undefined) {
         // gs-quant's default here is the whole line: written as its call without it; to date is none of its calls
-        if (v === 'whole') continue;
+        if (v === 'whole') {
+          // a window gs-quant reads for its ramp alone (winsorize's): Window(r, r), its first r points dropped (item 13)
+          const ramp = g.whole === 'always' ? told['r'] : undefined;
+          if (ramp !== undefined) {
+            delete told['r'];
+            kw.push(this.named(g.name, String(ramp)));
+          }
+          continue;
+        }
         if (v === undefined || v === 0) throw new Error(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its ${g.name} of no window is the whole series' (write the language's #TS)`);
       }
       if (v === undefined) {
@@ -180,7 +188,11 @@ class Printer {
         }
         continue;
       }
-      const value = this.gsValue(g, v);
+      // a window's ramp apart from its size: gs-quant's Window(w, r) (item 13), the library's w and r
+      const ramp = typeof g.default === 'object' && g.default !== null ? told['r'] : undefined;
+      if (ramp !== undefined) delete told['r'];
+      const value = ramp === undefined ? this.gsValue(g, v)
+        : `${this.#py ? '' : 'new '}Window(${v === 0 ? this.literal(null) : this.literal(v)}, ${String(ramp)})`;
       if (g.default === undefined) placed.push(value);
       else kw.push(this.named(g.name, value));
     }

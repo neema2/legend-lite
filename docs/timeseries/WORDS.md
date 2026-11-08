@@ -19,8 +19,9 @@ The annualized alpha of x's simple returns over y's over a window -- w observati
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
+| `r` | whole |  | no |
 
-Forms: `alpha(x: Line, y: Line, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `alpha(x: Line, y: Line, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`, `alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional), r: Integer)`, `alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional), r: Integer)`.
 
 ## `annualize`
 
@@ -77,8 +78,9 @@ The beta of x's simple returns on y's over a window -- w observations to date (a
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `beta(x: Line, y: Line)`, `beta(x: Line, y: Line, w: Integer)`, `beta(x: Line, y: Line, w: Scope)`, `beta(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `beta(x: Line, y: Line)`, `beta(x: Line, y: Line, w: Integer)`, `beta(x: Line, y: Line, w: Scope)`, `beta(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `beta(x: Line, y: Line, w: Integer, r: Integer)`, `beta(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `bollinger_bands`
 
@@ -89,8 +91,9 @@ Bollinger bands of x: its mean over a window less and plus k (2 unless given) sa
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `k` | number |  | no |
+| `r` | whole |  | no |
 
-Forms: `bollinger_bands(x: Line, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional))`, `bollinger_bands(x: Line, w: Scope, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))`.
+Forms: `bollinger_bands(x: Line, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional))`, `bollinger_bands(x: Line, w: Scope, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))`, `bollinger_bands(x: Line, w: Integer, k: Float (optional), r: Integer)`, `bollinger_bands(x: Line, w: Scope, k: Float (optional), r: Integer)`.
 
 ## `ceil`
 
@@ -146,8 +149,9 @@ The correlation of x's and y's simple returns over a window -- w observations to
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `correlation(x: Line, y: Line)`, `correlation(x: Line, y: Line, w: Integer)`, `correlation(x: Line, y: Line, w: Scope)`, `correlation(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `correlation(x: Line, y: Line)`, `correlation(x: Line, y: Line, w: Integer)`, `correlation(x: Line, y: Line, w: Scope)`, `correlation(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `correlation(x: Line, y: Line, w: Integer, r: Integer)`, `correlation(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `count`
 
@@ -169,8 +173,9 @@ The sample covariance of x's and y's values over a window -- w observations to d
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `cov(x: Line, y: Line)`, `cov(x: Line, y: Line, w: Integer)`, `cov(x: Line, y: Line, w: Scope)`, `cov(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `cov(x: Line, y: Line)`, `cov(x: Line, y: Line, w: Integer)`, `cov(x: Line, y: Line, w: Scope)`, `cov(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `cov(x: Line, y: Line, w: Integer, r: Integer)`, `cov(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `day`
 
@@ -190,8 +195,9 @@ The Dickey-Fuller statistic of x's values over a window -- w observations to dat
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `dickey_fuller(x: Line)`, `dickey_fuller(x: Line, w: Integer)`, `dickey_fuller(x: Line, w: Scope)`, `dickey_fuller(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `dickey_fuller(x: Line)`, `dickey_fuller(x: Line, w: Integer)`, `dickey_fuller(x: Line, w: Scope)`, `dickey_fuller(x: Line, w: Integer, unit: DurationUnit)`, `dickey_fuller(x: Line, w: Integer, r: Integer)`, `dickey_fuller(x: Line, w: Scope, r: Integer)`.
 
 ## `diff`
 
@@ -225,8 +231,9 @@ The down-market capture of x's simple returns against the benchmark's over a win
 | `x` | line |  | yes |
 | `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `down_capture(x: Line, benchmark: Line)`, `down_capture(x: Line, benchmark: Line, w: Integer)`, `down_capture(x: Line, benchmark: Line, w: Scope)`, `down_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`.
+Forms: `down_capture(x: Line, benchmark: Line)`, `down_capture(x: Line, benchmark: Line, w: Integer)`, `down_capture(x: Line, benchmark: Line, w: Scope)`, `down_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`, `down_capture(x: Line, benchmark: Line, w: Integer, r: Integer)`, `down_capture(x: Line, benchmark: Line, w: Scope, r: Integer)`.
 
 ## `drawdown`
 
@@ -236,8 +243,9 @@ Each value's drawdown from the greatest of x's values over a window -- w observa
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `drawdown(x: Line)`, `drawdown(x: Line, w: Integer)`, `drawdown(x: Line, w: Scope)`, `drawdown(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `drawdown(x: Line)`, `drawdown(x: Line, w: Integer)`, `drawdown(x: Line, w: Scope)`, `drawdown(x: Line, w: Integer, unit: DurationUnit)`, `drawdown(x: Line, w: Integer, r: Integer)`, `drawdown(x: Line, w: Scope, r: Integer)`.
 
 ## `excess_returns`
 
@@ -348,8 +356,9 @@ The half-life of mean reversion of x's values over a window -- w observations to
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `half_life(x: Line)`, `half_life(x: Line, w: Integer)`, `half_life(x: Line, w: Scope)`, `half_life(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `half_life(x: Line)`, `half_life(x: Line, w: Integer)`, `half_life(x: Line, w: Scope)`, `half_life(x: Line, w: Integer, unit: DurationUnit)`, `half_life(x: Line, w: Integer, r: Integer)`, `half_life(x: Line, w: Scope, r: Integer)`.
 
 ## `hedge_ratio`
 
@@ -360,8 +369,9 @@ The hedge ratio of x's values on y's (the beta of their levels) over a window --
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `hedge_ratio(x: Line, y: Line)`, `hedge_ratio(x: Line, y: Line, w: Integer)`, `hedge_ratio(x: Line, y: Line, w: Scope)`, `hedge_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `hedge_ratio(x: Line, y: Line)`, `hedge_ratio(x: Line, y: Line, w: Integer)`, `hedge_ratio(x: Line, y: Line, w: Scope)`, `hedge_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `hedge_ratio(x: Line, y: Line, w: Integer, r: Integer)`, `hedge_ratio(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `if`
 
@@ -397,8 +407,9 @@ The annualized information ratio of x's simple returns against the benchmark's o
 | `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
+| `r` | whole |  | no |
 
-Forms: `information_ratio(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `information_ratio(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`, `information_ratio(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional), r: Integer)`, `information_ratio(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional), r: Integer)`.
 
 ## `interpolate`
 
@@ -460,8 +471,9 @@ The correlation of x's simple returns with y's lag observations before (a lead w
 | `y` | line |  | yes |
 | `lag` | whole |  | no |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `lead_lag(x: Line, y: Line)`, `lead_lag(x: Line, y: Line, lag: Integer)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Integer)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Scope)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Integer, unit: DurationUnit)`.
+Forms: `lead_lag(x: Line, y: Line)`, `lead_lag(x: Line, y: Line, lag: Integer)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Integer)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Scope)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Integer, unit: DurationUnit)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Integer, r: Integer)`, `lead_lag(x: Line, y: Line, lag: Integer, w: Scope, r: Integer)`.
 
 ## `macd`
 
@@ -484,8 +496,9 @@ The greatest of x's values over a window: w observations to date (a value from t
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `max(x: Line, w: Integer)`, `max(x: Line, w: Integer, unit: DurationUnit)`, `max(x: Line, w: Scope)`, `max(x: Line, w: StrictDate)`.
+Forms: `max(x: Line, w: Integer)`, `max(x: Line, w: Integer, unit: DurationUnit)`, `max(x: Line, w: Scope)`, `max(x: Line, w: StrictDate)`, `max(x: Line, w: Integer, r: Integer)`, `max(x: Line, w: Scope, r: Integer)`.
 
 ## `max_drawdown`
 
@@ -495,8 +508,9 @@ The deepest drawdown of x's values within a window -- w observations to date (a 
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `max_drawdown(x: Line)`, `max_drawdown(x: Line, w: Integer)`, `max_drawdown(x: Line, w: Scope)`, `max_drawdown(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `max_drawdown(x: Line)`, `max_drawdown(x: Line, w: Integer)`, `max_drawdown(x: Line, w: Scope)`, `max_drawdown(x: Line, w: Integer, unit: DurationUnit)`, `max_drawdown(x: Line, w: Integer, r: Integer)`, `max_drawdown(x: Line, w: Scope, r: Integer)`.
 
 ## `mean`
 
@@ -508,8 +522,9 @@ Also written `avg`.
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `mean(x: Line, w: Integer)`, `mean(x: Line, w: Integer, unit: DurationUnit)`, `mean(x: Line, w: Scope)`, `mean(x: Line, w: StrictDate)`.
+Forms: `mean(x: Line, w: Integer)`, `mean(x: Line, w: Integer, unit: DurationUnit)`, `mean(x: Line, w: Scope)`, `mean(x: Line, w: StrictDate)`, `mean(x: Line, w: Integer, r: Integer)`, `mean(x: Line, w: Scope, r: Integer)`.
 
 ## `median`
 
@@ -519,8 +534,9 @@ The median of x's values over a window -- w observations to date, a calendar per
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `median(x: Line)`, `median(x: Line, w: Integer)`, `median(x: Line, w: Scope)`, `median(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `median(x: Line)`, `median(x: Line, w: Integer)`, `median(x: Line, w: Scope)`, `median(x: Line, w: Integer, unit: DurationUnit)`, `median(x: Line, w: Integer, r: Integer)`, `median(x: Line, w: Scope, r: Integer)`.
 
 ## `min`
 
@@ -530,8 +546,9 @@ The least of x's values over a window: w observations to date (a value from the 
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `min(x: Line, w: Integer)`, `min(x: Line, w: Integer, unit: DurationUnit)`, `min(x: Line, w: Scope)`, `min(x: Line, w: StrictDate)`.
+Forms: `min(x: Line, w: Integer)`, `min(x: Line, w: Integer, unit: DurationUnit)`, `min(x: Line, w: Scope)`, `min(x: Line, w: StrictDate)`, `min(x: Line, w: Integer, r: Integer)`, `min(x: Line, w: Scope, r: Integer)`.
 
 ## `month`
 
@@ -587,8 +604,9 @@ The n-th percentile of x's values over a window -- w observations to date, a cal
 | `x` | line |  | yes |
 | `n` | number |  | yes |
 | `w` | span | observations, period, all, whole | no |
+| `r` | whole |  | no |
 
-Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Whole)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`.
+Forms: `percentile(x: Line, n: Float)`, `percentile(x: Line, n: Float, w: Integer)`, `percentile(x: Line, n: Float, w: Scope)`, `percentile(x: Line, n: Float, w: Whole)`, `percentile(x: Line, n: Float, w: Integer, unit: DurationUnit)`, `percentile(x: Line, n: Float, w: Integer, r: Integer)`, `percentile(x: Line, n: Float, w: Scope, r: Integer)`.
 
 ## `percentiles`
 
@@ -598,8 +616,9 @@ Each of x's values' percentile among its window's -- w observations to date, a c
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `percentiles(x: Line)`, `percentiles(x: Line, w: Integer)`, `percentiles(x: Line, w: Scope)`, `percentiles(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `percentiles(x: Line)`, `percentiles(x: Line, w: Integer)`, `percentiles(x: Line, w: Scope)`, `percentiles(x: Line, w: Integer, unit: DurationUnit)`, `percentiles(x: Line, w: Integer, r: Integer)`, `percentiles(x: Line, w: Scope, r: Integer)`.
 
 ## `prepend`
 
@@ -632,8 +651,9 @@ The product of x's values over a window -- w observations to date (a value from 
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `product(x: Line)`, `product(x: Line, w: Integer)`, `product(x: Line, w: Scope)`, `product(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `product(x: Line)`, `product(x: Line, w: Integer)`, `product(x: Line, w: Scope)`, `product(x: Line, w: Integer, unit: DurationUnit)`, `product(x: Line, w: Integer, r: Integer)`, `product(x: Line, w: Scope, r: Integer)`.
 
 ## `quarter`
 
@@ -654,8 +674,9 @@ The R squared of x's simple returns regressed on y's over a window -- w observat
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `r_squared(x: Line, y: Line)`, `r_squared(x: Line, y: Line, w: Integer)`, `r_squared(x: Line, y: Line, w: Scope)`, `r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `r_squared(x: Line, y: Line)`, `r_squared(x: Line, y: Line, w: Integer)`, `r_squared(x: Line, y: Line, w: Scope)`, `r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `r_squared(x: Line, y: Line, w: Integer, r: Integer)`, `r_squared(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `range`
 
@@ -665,8 +686,9 @@ The range of x's values (greatest less least) over a window -- w observations to
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `range(x: Line)`, `range(x: Line, w: Integer)`, `range(x: Line, w: Scope)`, `range(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `range(x: Line)`, `range(x: Line, w: Integer)`, `range(x: Line, w: Scope)`, `range(x: Line, w: Integer, unit: DurationUnit)`, `range(x: Line, w: Integer, r: Integer)`, `range(x: Line, w: Scope, r: Integer)`.
 
 ## `rank`
 
@@ -700,8 +722,9 @@ The residual of x's value from its regression on y's over a window -- w observat
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `residual(x: Line, y: Line)`, `residual(x: Line, y: Line, w: Integer)`, `residual(x: Line, y: Line, w: Scope)`, `residual(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
+Forms: `residual(x: Line, y: Line)`, `residual(x: Line, y: Line, w: Integer)`, `residual(x: Line, y: Line, w: Scope)`, `residual(x: Line, y: Line, w: Integer, unit: DurationUnit)`, `residual(x: Line, y: Line, w: Integer, r: Integer)`, `residual(x: Line, y: Line, w: Scope, r: Integer)`.
 
 ## `returns`
 
@@ -767,8 +790,9 @@ The annualized Sharpe ratio of x's simple returns over a window -- w observation
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
+| `r` | whole |  | no |
 
-Forms: `sharpe_ratio(x: Line, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `sharpe_ratio(x: Line, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`, `sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional), r: Integer)`, `sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional), r: Integer)`.
 
 ## `smooth_spikes`
 
@@ -803,8 +827,9 @@ Also written `stddev`.
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `std(x: Line, w: Integer)`, `std(x: Line, w: Integer, unit: DurationUnit)`, `std(x: Line, w: Scope)`, `std(x: Line, w: StrictDate)`.
+Forms: `std(x: Line, w: Integer)`, `std(x: Line, w: Integer, unit: DurationUnit)`, `std(x: Line, w: Scope)`, `std(x: Line, w: StrictDate)`, `std(x: Line, w: Integer, r: Integer)`, `std(x: Line, w: Scope, r: Integer)`.
 
 ## `stochastic`
 
@@ -827,8 +852,9 @@ The sum of x's values over a window: w observations to date (a value from the li
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `sum(x: Line, w: Integer)`, `sum(x: Line, w: Integer, unit: DurationUnit)`, `sum(x: Line, w: Scope)`, `sum(x: Line, w: StrictDate)`.
+Forms: `sum(x: Line, w: Integer)`, `sum(x: Line, w: Integer, unit: DurationUnit)`, `sum(x: Line, w: Scope)`, `sum(x: Line, w: StrictDate)`, `sum(x: Line, w: Integer, r: Integer)`, `sum(x: Line, w: Scope, r: Integer)`.
 
 ## `total_return`
 
@@ -851,8 +877,9 @@ The annualized tracking error of x's simple returns against the benchmark's over
 | `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
 | `annualization_factor` | whole |  | no |
+| `r` | whole |  | no |
 
-Forms: `tracking_error(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`.
+Forms: `tracking_error(x: Line, benchmark: Line, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))`, `tracking_error(x: Line, benchmark: Line, w: Integer, annualization_factor: Integer (optional), r: Integer)`, `tracking_error(x: Line, benchmark: Line, w: Scope, annualization_factor: Integer (optional), r: Integer)`.
 
 ## `trend`
 
@@ -886,8 +913,9 @@ The up-market capture of x's simple returns against the benchmark's over a windo
 | `x` | line |  | yes |
 | `benchmark` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `up_capture(x: Line, benchmark: Line)`, `up_capture(x: Line, benchmark: Line, w: Integer)`, `up_capture(x: Line, benchmark: Line, w: Scope)`, `up_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`.
+Forms: `up_capture(x: Line, benchmark: Line)`, `up_capture(x: Line, benchmark: Line, w: Integer)`, `up_capture(x: Line, benchmark: Line, w: Scope)`, `up_capture(x: Line, benchmark: Line, w: Integer, unit: DurationUnit)`, `up_capture(x: Line, benchmark: Line, w: Integer, r: Integer)`, `up_capture(x: Line, benchmark: Line, w: Scope, r: Integer)`.
 
 ## `value_at`
 
@@ -910,8 +938,9 @@ Also written `variance`.
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, date | yes |
+| `r` | whole |  | no |
 
-Forms: `var(x: Line, w: Integer)`, `var(x: Line, w: Integer, unit: DurationUnit)`, `var(x: Line, w: Scope)`, `var(x: Line, w: StrictDate)`.
+Forms: `var(x: Line, w: Integer)`, `var(x: Line, w: Integer, unit: DurationUnit)`, `var(x: Line, w: Scope)`, `var(x: Line, w: StrictDate)`, `var(x: Line, w: Integer, r: Integer)`, `var(x: Line, w: Scope, r: Integer)`.
 
 ## `vol_swap_volatility`
 
@@ -921,8 +950,9 @@ The volatility a variance swap's realized leg reads, of x's values over a window
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)`, `vol_swap_volatility(x: Line, w: Scope)`, `vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)`, `vol_swap_volatility(x: Line, w: Scope)`, `vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)`, `vol_swap_volatility(x: Line, w: Integer, r: Integer)`, `vol_swap_volatility(x: Line, w: Scope, r: Integer)`.
 
 ## `volatility`
 
@@ -934,8 +964,9 @@ The annualized volatility of x's returns of a type (simple unless given) over a 
 | `w` | span | observations, period, all | no |
 | `type` | word | simple, log, absolute | no |
 | `annualization_factor` | whole |  | no |
+| `r` | whole |  | no |
 
-Forms: `volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))`.
+Forms: `volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))`, `volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional), r: Integer)`, `volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional), r: Integer)`.
 
 ## `vwap`
 
@@ -946,8 +977,9 @@ The volume-weighted average price over a window -- w observations to date (a val
 | `price` | line |  | yes |
 | `volume` | line |  | yes |
 | `w` | span | observations, period, all | no |
+| `r` | whole |  | no |
 
-Forms: `vwap(price: Line, volume: Line)`, `vwap(price: Line, volume: Line, w: Integer)`, `vwap(price: Line, volume: Line, w: Scope)`, `vwap(price: Line, volume: Line, w: Integer, unit: DurationUnit)`.
+Forms: `vwap(price: Line, volume: Line)`, `vwap(price: Line, volume: Line, w: Integer)`, `vwap(price: Line, volume: Line, w: Scope)`, `vwap(price: Line, volume: Line, w: Integer, unit: DurationUnit)`, `vwap(price: Line, volume: Line, w: Integer, r: Integer)`, `vwap(price: Line, volume: Line, w: Scope, r: Integer)`.
 
 ## `weekday`
 
@@ -978,8 +1010,9 @@ x's values winsorized: each held within limit (2.5 unless given) sample deviatio
 | `x` | line |  | yes |
 | `limit` | number |  | no |
 | `w` | span | whole | no |
+| `r` | whole |  | no |
 
-Forms: `winsorize(x: Line, limit: Float (optional))`, `winsorize(x: Line, limit: Float (optional), w: Whole)`.
+Forms: `winsorize(x: Line, limit: Float (optional))`, `winsorize(x: Line, limit: Float (optional), w: Whole)`, `winsorize(x: Line, limit: Float (optional), w: Whole, r: Integer)`.
 
 ## `year`
 
@@ -999,5 +1032,6 @@ The z-score of each of x's values against its window -- w observations to date (
 |---|---|---|---|
 | `x` | line |  | yes |
 | `w` | span | observations, period, all, whole | no |
+| `r` | whole |  | no |
 
-Forms: `zscores(x: Line)`, `zscores(x: Line, w: Whole)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `zscores(x: Line)`, `zscores(x: Line, w: Whole)`, `zscores(x: Line, w: Integer)`, `zscores(x: Line, w: Scope)`, `zscores(x: Line, w: Integer, unit: DurationUnit)`, `zscores(x: Line, w: Integer, r: Integer)`, `zscores(x: Line, w: Scope, r: Integer)`.

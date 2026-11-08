@@ -244,7 +244,8 @@ for (const name of TS_FUNCTION_NAMES) {
     catLines.forEach((p, i) => lineParams.push({ name: reads[i] ?? p.name, type: members ? 'readonly Line[]' : p.kind === 'line_or_number' ? 'Line | number' : 'Line' }));
     for (const p of sig.params) {
       const has = p.default !== undefined;
-      const entry = [`name: ${q(p.name)}`, ...(has ? [`default: ${lit(p.default)}`] : [])];
+      // an optional one without a default is the language's own where left out (null): by name, never by place (item 13's r)
+      const entry = [`name: ${q(p.name)}`, ...(has ? [`default: ${lit(p.default)}`] : p.required ? [] : ['default: null'])];
       gsEntries.push(`{ ${entry.join(', ')} }`);
       positional.push({ name: p.name, type: typeOf(null, p, !has && !p.required), required: p.required && !has });
       pyPos.push({ name: p.name, ...(has ? { def: pyLit(p.default) } : p.required ? {} : { def: 'None' }) });

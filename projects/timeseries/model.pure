@@ -2304,6 +2304,22 @@ function timeseries::line::helpers::ramped<K,D>(x: Relation<(key:K, date:D, valu
     ->filter(r|if(timeseries::lines::once($r.lo), |$r.rn > $w, |false))->select(~[key, date, value])
 }
 
+// GS-QUANT'S WINDOW(w, r) (item 13, ruled 2026-11-07 "add it": `w => 63, r => 10`): gs-quant computes every windowed
+// figure over the window's points to date, a window not yet full taking those it has (`rolling(w, 0)`), then drops its
+// first r points (`apply_ramp`, `x[r:]`; statistics.py, econometrics.py). Before x's w-th point a window not yet full
+// holds every point to date: the word's to-date form (`toDate`); from it on, the word's window of w (`windowed`); none of
+// the first r; and nothing where the window is longer than the line (apply_ramp's `w > len(x)`). A point's place is
+// counted on x itself, each row once (a running count of x's rows in date order), so a form that drops points of its own
+// (beta's first three) moves no other's.
+function timeseries::line::helpers::ramp<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], toDate: Relation<(key:K, date:D, value:Number)>[1], windowed: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], ramp: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->extend(~line_src:row|0)->concatenate($toDate->extend(~line_src:row|1))->concatenate($windowed->extend(~line_src:row|2))
+    ->extend(over(~[key], [~date->ascending(), ~line_src->ascending()], rows(unbounded(), 0)), ~line_at:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
+    ->extend(over(~[key]), ~line_n:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
+    ->filter(row|($row.line_at > $ramp) && ($row.line_n >= $w) && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)))
+    ->select(~[key, date, value])
+}
+
 // A returns type given, else simple (gs-quant's Returns.SIMPLE).
 function timeseries::line::helpers::returnsType(type: timeseries::Returns[0..1]): timeseries::Returns[1]
 {
@@ -2328,6 +2344,16 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
 function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::helpers::since($w)->timeseries::line::mean(timeseries::Scope.all)
+}
+
+function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, $x->timeseries::line::mean(timeseries::Scope.all), $x->timeseries::line::mean($w), $w, $r)
+}
+
+function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, $x->timeseries::line::mean($w), $x->timeseries::line::mean($w), 0, $r)
 }
 
 // =====================================================================================================================
@@ -4548,4 +4574,343 @@ function timeseries::line::seasonally_adjusted<K,D>(x: Relation<(key:K, date:D, 
        ->timeseries::seasonallyAdjusted(~key, ~date, ~value, ~pl, timeseries::line::helpers::cycle($sample, $freq), timeseries::line::helpers::halfCycle($sample, $freq), $method, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value),
     |$x->timeseries::periodIndex(~date, timeseries::line::helpers::grain($sample), ~pl)
        ->timeseries::seasonallyAdjusted(~key, ~date, ~value, ~pl, timeseries::line::helpers::cycle($sample, $freq), timeseries::line::helpers::halfCycle($sample, $freq), $method, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
+}
+
+// GS-QUANT'S WINDOW(w, r) for every windowed word (item 13, 2026-11-08): each word's figure over the window's
+// points to date, a window not yet full taking those it has, its first r points dropped -- the word's to-date and
+// windowed forms stitched (helpers::ramp; written by a script from each word's own two forms, mean's by hand), and
+// bollinger_bands' and winsorize's by hand at the end. smoothed_moving_average (its seed no window, S159) and count (no
+// window a tile gives it) take none.
+
+function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::sum($x, timeseries::Scope.all), timeseries::line::sum($x, $w), $w, $r)
+}
+
+function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::sum($x, $w), timeseries::line::sum($x, $w), 0, $r)
+}
+
+function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::min($x, timeseries::Scope.all), timeseries::line::min($x, $w), $w, $r)
+}
+
+function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::min($x, $w), timeseries::line::min($x, $w), 0, $r)
+}
+
+function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::max($x, timeseries::Scope.all), timeseries::line::max($x, $w), $w, $r)
+}
+
+function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::max($x, $w), timeseries::line::max($x, $w), 0, $r)
+}
+
+function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::std($x, timeseries::Scope.all), timeseries::line::std($x, $w), $w, $r)
+}
+
+function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::std($x, $w), timeseries::line::std($x, $w), 0, $r)
+}
+
+function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::var($x, timeseries::Scope.all), timeseries::line::var($x, $w), $w, $r)
+}
+
+function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::var($x, $w), timeseries::line::var($x, $w), 0, $r)
+}
+
+function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], type: timeseries::Returns[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::volatility($x, timeseries::Scope.all, $type, $annualization_factor, $sample), timeseries::line::volatility($x, $w, $type, $annualization_factor, $sample), $w, $r)
+}
+
+function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], type: timeseries::Returns[0..1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::volatility($x, $w, $type, $annualization_factor, $sample), timeseries::line::volatility($x, $w, $type, $annualization_factor, $sample), 0, $r)
+}
+
+function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::zscores($x, timeseries::Scope.all), timeseries::line::zscores($x, $w), $w, $r)
+}
+
+function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::zscores($x, $w), timeseries::line::zscores($x, $w), 0, $r)
+}
+
+function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::sharpe_ratio($x, timeseries::Scope.all, $annualization_factor, $sample), timeseries::line::sharpe_ratio($x, $w, $annualization_factor, $sample), $w, $r)
+}
+
+function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::sharpe_ratio($x, $w, $annualization_factor, $sample), timeseries::line::sharpe_ratio($x, $w, $annualization_factor, $sample), 0, $r)
+}
+
+function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::range($x, timeseries::Scope.all), timeseries::line::range($x, $w), $w, $r)
+}
+
+function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::range($x, $w), timeseries::line::range($x, $w), 0, $r)
+}
+
+function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::drawdown($x, timeseries::Scope.all), timeseries::line::drawdown($x, $w), $w, $r)
+}
+
+function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::drawdown($x, $w), timeseries::line::drawdown($x, $w), 0, $r)
+}
+
+function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::max_drawdown($x, timeseries::Scope.all), timeseries::line::max_drawdown($x, $w), $w, $r)
+}
+
+function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::max_drawdown($x, $w), timeseries::line::max_drawdown($x, $w), 0, $r)
+}
+
+function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::product($x, timeseries::Scope.all), timeseries::line::product($x, $w), $w, $r)
+}
+
+function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::product($x, $w), timeseries::line::product($x, $w), 0, $r)
+}
+
+function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::vol_swap_volatility($x, timeseries::Scope.all), timeseries::line::vol_swap_volatility($x, $w), $w, $r)
+}
+
+function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::vol_swap_volatility($x, $w), timeseries::line::vol_swap_volatility($x, $w), 0, $r)
+}
+
+function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::dickey_fuller($x, timeseries::Scope.all), timeseries::line::dickey_fuller($x, $w), $w, $r)
+}
+
+function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::dickey_fuller($x, $w), timeseries::line::dickey_fuller($x, $w), 0, $r)
+}
+
+function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::half_life($x, timeseries::Scope.all), timeseries::line::half_life($x, $w), $w, $r)
+}
+
+function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::half_life($x, $w), timeseries::line::half_life($x, $w), 0, $r)
+}
+
+function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::percentiles($x, timeseries::Scope.all), timeseries::line::percentiles($x, $w), $w, $r)
+}
+
+function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::percentiles($x, $w), timeseries::line::percentiles($x, $w), 0, $r)
+}
+
+function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::median($x, timeseries::Scope.all), timeseries::line::median($x, $w), $w, $r)
+}
+
+function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::median($x, $w), timeseries::line::median($x, $w), 0, $r)
+}
+
+function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::percentile($x, $n, timeseries::Scope.all), timeseries::line::percentile($x, $n, $w), $w, $r)
+}
+
+function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::percentile($x, $n, $w), timeseries::line::percentile($x, $n, $w), 0, $r)
+}
+
+function timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::correlation($x, $y, timeseries::Scope.all, $sample), timeseries::line::correlation($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::correlation<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::correlation($x, $y, $w, $sample), timeseries::line::correlation($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::beta($x, $y, timeseries::Scope.all, $sample), timeseries::line::beta($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::beta($x, $y, $w, $sample), timeseries::line::beta($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::cov($x, $y, timeseries::Scope.all, $sample), timeseries::line::cov($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::cov($x, $y, $w, $sample), timeseries::line::cov($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::r_squared<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::r_squared($x, $y, timeseries::Scope.all, $sample), timeseries::line::r_squared($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::r_squared<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::r_squared($x, $y, $w, $sample), timeseries::line::r_squared($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::hedge_ratio($x, $y, timeseries::Scope.all, $sample), timeseries::line::hedge_ratio($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::hedge_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::hedge_ratio($x, $y, $w, $sample), timeseries::line::hedge_ratio($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::alpha<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::alpha($x, $y, timeseries::Scope.all, $annualization_factor, $sample), timeseries::line::alpha($x, $y, $w, $annualization_factor, $sample), $w, $r)
+}
+
+function timeseries::line::alpha<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::alpha($x, $y, $w, $annualization_factor, $sample), timeseries::line::alpha($x, $y, $w, $annualization_factor, $sample), 0, $r)
+}
+
+function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::residual($x, $y, timeseries::Scope.all, $sample), timeseries::line::residual($x, $y, $w, $sample), $w, $r)
+}
+
+function timeseries::line::residual<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::residual($x, $y, $w, $sample), timeseries::line::residual($x, $y, $w, $sample), 0, $r)
+}
+
+function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::tracking_error($x, $benchmark, timeseries::Scope.all, $annualization_factor, $sample), timeseries::line::tracking_error($x, $benchmark, $w, $annualization_factor, $sample), $w, $r)
+}
+
+function timeseries::line::tracking_error<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::tracking_error($x, $benchmark, $w, $annualization_factor, $sample), timeseries::line::tracking_error($x, $benchmark, $w, $annualization_factor, $sample), 0, $r)
+}
+
+function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::information_ratio($x, $benchmark, timeseries::Scope.all, $annualization_factor, $sample), timeseries::line::information_ratio($x, $benchmark, $w, $annualization_factor, $sample), $w, $r)
+}
+
+function timeseries::line::information_ratio<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], annualization_factor: Integer[0..1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::information_ratio($x, $benchmark, $w, $annualization_factor, $sample), timeseries::line::information_ratio($x, $benchmark, $w, $annualization_factor, $sample), 0, $r)
+}
+
+function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::up_capture($x, $benchmark, timeseries::Scope.all, $sample), timeseries::line::up_capture($x, $benchmark, $w, $sample), $w, $r)
+}
+
+function timeseries::line::up_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::up_capture($x, $benchmark, $w, $sample), timeseries::line::up_capture($x, $benchmark, $w, $sample), 0, $r)
+}
+
+function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::down_capture($x, $benchmark, timeseries::Scope.all, $sample), timeseries::line::down_capture($x, $benchmark, $w, $sample), $w, $r)
+}
+
+function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], benchmark: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::down_capture($x, $benchmark, $w, $sample), timeseries::line::down_capture($x, $benchmark, $w, $sample), 0, $r)
+}
+
+function timeseries::line::lead_lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], lag: Integer[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::lead_lag($x, $y, $lag, timeseries::Scope.all, $sample), timeseries::line::lead_lag($x, $y, $lag, $w, $sample), $w, $r)
+}
+
+function timeseries::line::lead_lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], lag: Integer[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($x, timeseries::line::lead_lag($x, $y, $lag, $w, $sample), timeseries::line::lead_lag($x, $y, $lag, $w, $sample), 0, $r)
+}
+
+function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($price, timeseries::line::vwap($price, $volume, timeseries::Scope.all, $sample), timeseries::line::vwap($price, $volume, $w, $sample), $w, $r)
+}
+
+function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Number)>[1], volume: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::ramp($price, timeseries::line::vwap($price, $volume, $w, $sample), timeseries::line::vwap($price, $volume, $w, $sample), 0, $r)
+}
+
+// bollinger_bands' band (gs-quant's moving_average and std, each ramped alike): its mean and deviation over the window's
+// points to date until it is full -- the frame's own partial windows, bollingerBands blanking none but a point alone --
+// none of the first r, nothing where the window is longer than the line
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], k: Float[0..1], r: Integer[1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::lines::untied()->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)
+    ->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,row|$p->rowNumber($row)})->extend(over(~[key]), ~ln:{p,f,row|1}:y|$y->count())
+    ->filter(row|($row.rn > $r) && ($row.ln >= $w))->select(~[key, date, lower, upper, width])
+}
+
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], k: Float[0..1], r: Integer[1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::lines::untied()->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)
+    ->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,row|$p->rowNumber($row)})->filter(row|$row.rn > $r)->select(~[key, date, lower, upper, width])
+}
+
+// winsorize's window: gs-quant clips by the whole series' mean and deviation whatever its window is, which drops the
+// first r points alone (statistics.py's winsorize, apply_ramp)
+function timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1], w: timeseries::Whole[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->timeseries::line::winsorize($limit, $w)->timeseries::line::helpers::ramped($r)
 }

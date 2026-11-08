@@ -126,8 +126,8 @@
  },
  {
   "series": "word alpha",
-  "python": "alpha(column('close'), column('open'), w=5)",
-  "text": "alpha(close, open, w => 5)"
+  "python": "alpha(column('close'), column('open'), w=63)",
+  "text": "alpha(close, open, w => 63)"
  },
  {
   "series": "word r_squared",
@@ -366,13 +366,13 @@
  },
  {
   "series": "word tracking_error",
-  "python": "tracking_error(column('close'), column('open'), w=5)",
-  "text": "tracking_error(close, open, w => 5)"
+  "python": "tracking_error(column('close'), column('open'), w=63)",
+  "text": "tracking_error(close, open, w => 63)"
  },
  {
   "series": "word information_ratio",
-  "python": "information_ratio(column('close'), column('open'), w=5)",
-  "text": "information_ratio(close, open, w => 5)"
+  "python": "information_ratio(column('close'), column('open'), w=63)",
+  "text": "information_ratio(close, open, w => 63)"
  },
  {
   "series": "word up_capture",

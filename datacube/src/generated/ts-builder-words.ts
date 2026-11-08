@@ -118,129 +118,129 @@ export function annualize(x: Line, ...args: Args<[], { annualization_factor?: nu
   return word(ANNUALIZE_SHAPE, [x], args);
 }
 
-const MEAN_SHAPE: WordShape = { word: 'mean', gsFunction: 'statistics.mean', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'mean_type', only: true, default: 'arithmetic' }], extra: [] };
+const MEAN_SHAPE: WordShape = { word: 'mean', gsFunction: 'statistics.mean', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'mean_type', only: true, default: 'arithmetic' }], extra: ['r'] };
 /** Moving average: The average over the last w observations. (gs-quant's statistics.mean.) */
-export function mean(x: Line, ...args: Args<[w: WindowLike, mean_type: typeof MeanType.ARITHMETIC], { w?: WindowLike; mean_type?: typeof MeanType.ARITHMETIC }>): Term {
+export function mean(x: Line, ...args: Args<[w: WindowLike, mean_type: typeof MeanType.ARITHMETIC], { w?: WindowLike; mean_type?: typeof MeanType.ARITHMETIC; r?: number | null }>): Term {
   return word(MEAN_SHAPE, [x], args);
 }
 
-const SUM_SHAPE: WordShape = { word: 'sum', gsFunction: 'statistics.sum_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const SUM_SHAPE: WordShape = { word: 'sum', gsFunction: 'statistics.sum_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling sum: The sum over the last w observations; from the start, a running total. (gs-quant's statistics.sum_.) */
-export function sum_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function sum_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(SUM_SHAPE, [x], args);
 }
 
-const MIN_SHAPE: WordShape = { word: 'min', gsFunction: 'statistics.min_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const MIN_SHAPE: WordShape = { word: 'min', gsFunction: 'statistics.min_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling minimum: The least over the last w observations. (gs-quant's statistics.min_.) */
-export function min_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function min_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(MIN_SHAPE, [x], args);
 }
 
-const MAX_SHAPE: WordShape = { word: 'max', gsFunction: 'statistics.max_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const MAX_SHAPE: WordShape = { word: 'max', gsFunction: 'statistics.max_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling maximum: The most over the last w observations. (gs-quant's statistics.max_.) */
-export function max_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function max_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(MAX_SHAPE, [x], args);
 }
 
-const RANGE_SHAPE: WordShape = { word: 'range', gsFunction: 'statistics.range_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const RANGE_SHAPE: WordShape = { word: 'range', gsFunction: 'statistics.range_', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling range: The most less the least over the last w observations. (gs-quant's statistics.range_.) */
-export function range_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function range_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(RANGE_SHAPE, [x], args);
 }
 
-const STD_SHAPE: WordShape = { word: 'std', gsFunction: 'statistics.std', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const STD_SHAPE: WordShape = { word: 'std', gsFunction: 'statistics.std', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling standard deviation: The sample standard deviation over the last w observations. (gs-quant's statistics.std.) */
-export function std(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function std(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(STD_SHAPE, [x], args);
 }
 
-const VAR_SHAPE: WordShape = { word: 'var', gsFunction: 'statistics.var', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const VAR_SHAPE: WordShape = { word: 'var', gsFunction: 'statistics.var', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling variance: The sample variance over the last w observations. (gs-quant's statistics.var.) */
-export function var_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function var_(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(VAR_SHAPE, [x], args);
 }
 
-const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] }, whole: 'default' }], extra: [] };
+const ZSCORES_SHAPE: WordShape = { word: 'zscores', gsFunction: 'statistics.zscores', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] }, whole: 'default' }], extra: ['r'] };
 /** Z-score: How many standard deviations from the mean: over the last w observations, or every one to date. (gs-quant's statistics.zscores.) */
-export function zscores(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function zscores(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(ZSCORES_SHAPE, [x], args);
 }
 
-const WINSORIZE_SHAPE: WordShape = { word: 'winsorize', gsFunction: 'statistics.winsorize', lines: ['x'], gs: [{ name: 'limit', default: 2.5 }, { name: 'w', default: { window: [null, 0] }, whole: 'always' }], extra: [] };
+const WINSORIZE_SHAPE: WordShape = { word: 'winsorize', gsFunction: 'statistics.winsorize', lines: ['x'], gs: [{ name: 'limit', default: 2.5 }, { name: 'w', default: { window: [null, 0] }, whole: 'always' }], extra: ['r'] };
 /** Winsorize: Held within limit standard deviations of its mean to date. (gs-quant's statistics.winsorize.) */
-export function winsorize(x: Line, ...args: Args<[limit: number, w: WindowLike], { limit?: number; w?: WindowLike }>): Term {
+export function winsorize(x: Line, ...args: Args<[limit: number, w: WindowLike], { limit?: number; w?: WindowLike; r?: number | null }>): Term {
   return word(WINSORIZE_SHAPE, [x], args);
 }
 
-const VOLATILITY_SHAPE: WordShape = { word: 'volatility', gsFunction: 'econometrics.volatility', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'returns_type', lib: 'type', default: 'simple', enum: 'Returns', values: { logarithmic: 'log' } }, { name: 'annualization_factor', default: null }, { name: 'assume_zero_mean', only: true, default: false }], extra: [] };
+const VOLATILITY_SHAPE: WordShape = { word: 'volatility', gsFunction: 'econometrics.volatility', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'returns_type', lib: 'type', default: 'simple', enum: 'Returns', values: { logarithmic: 'log' } }, { name: 'annualization_factor', default: null }, { name: 'assume_zero_mean', only: true, default: false }], extra: ['r'] };
 /** Realized volatility: The annualized standard deviation of its returns over the last w observations, in percent (20% is 20). (gs-quant's econometrics.volatility.) */
-export function volatility(x: Line, ...args: Args<[w: WindowLike, returns_type: Returns, annualization_factor: number | null, assume_zero_mean: false], { w?: WindowLike; returns_type?: Returns; annualization_factor?: number | null; assume_zero_mean?: false }>): Term {
+export function volatility(x: Line, ...args: Args<[w: WindowLike, returns_type: Returns, annualization_factor: number | null, assume_zero_mean: false], { w?: WindowLike; returns_type?: Returns; annualization_factor?: number | null; assume_zero_mean?: false; r?: number | null }>): Term {
   return word(VOLATILITY_SHAPE, [x], args);
 }
 
-const DRAWDOWN_SHAPE: WordShape = { word: 'drawdown', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }], extra: [] };
+const DRAWDOWN_SHAPE: WordShape = { word: 'drawdown', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }, { name: 'r', default: null }], extra: [] };
 /** Drawdown: Below its running peak, as a share of it: x / max(x) - 1. (DataCube's own: gs-quant has none.) */
-export function drawdown(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function drawdown(x: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(DRAWDOWN_SHAPE, [x], args);
 }
 
-const MAX_DRAWDOWN_SHAPE: WordShape = { word: 'max_drawdown', gsFunction: 'econometrics.max_drawdown', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const MAX_DRAWDOWN_SHAPE: WordShape = { word: 'max_drawdown', gsFunction: 'econometrics.max_drawdown', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Maximum drawdown: The deepest drawdown over the last w observations (-0.2 for 20%). (gs-quant's econometrics.max_drawdown.) */
-export function max_drawdown(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function max_drawdown(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(MAX_DRAWDOWN_SHAPE, [x], args);
 }
 
-const SHARPE_RATIO_SHAPE: WordShape = { word: 'sharpe_ratio', gsFunction: 'econometrics.sharpe_ratio', lines: ['series'], gs: [{ name: 'currency', only: true, default: 'USD' }, { name: 'w', default: null }, { name: 'curve_type', only: true, default: 'prices' }, { name: 'method', only: true, default: 'nan' }], extra: ['annualization_factor'] };
+const SHARPE_RATIO_SHAPE: WordShape = { word: 'sharpe_ratio', gsFunction: 'econometrics.sharpe_ratio', lines: ['series'], gs: [{ name: 'currency', only: true, default: 'USD' }, { name: 'w', default: null }, { name: 'curve_type', only: true, default: 'prices' }, { name: 'method', only: true, default: 'nan' }], extra: ['annualization_factor', 'r'] };
 /** Sharpe ratio: Its annualized mean return over its annualized volatility, over the last w observations. (gs-quant's econometrics.sharpe_ratio.) */
-export function sharpe_ratio(series: Line, ...args: Args<[currency: typeof RiskFreeRateCurrency.USD, w: WindowLike | null, curve_type: typeof CurveType.PRICES, method: typeof Interpolate.NAN], { currency?: typeof RiskFreeRateCurrency.USD; w?: WindowLike | null; curve_type?: typeof CurveType.PRICES; method?: typeof Interpolate.NAN; annualization_factor?: number | null }>): Term {
+export function sharpe_ratio(series: Line, ...args: Args<[currency: typeof RiskFreeRateCurrency.USD, w: WindowLike | null, curve_type: typeof CurveType.PRICES, method: typeof Interpolate.NAN], { currency?: typeof RiskFreeRateCurrency.USD; w?: WindowLike | null; curve_type?: typeof CurveType.PRICES; method?: typeof Interpolate.NAN; annualization_factor?: number | null; r?: number | null }>): Term {
   return word(SHARPE_RATIO_SHAPE, [series], args);
 }
 
-const CORRELATION_SHAPE: WordShape = { word: 'correlation', gsFunction: 'econometrics.correlation', lines: ['x', 'y'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'type_', only: true, default: 'prices' }, { name: 'returns_type', only: true, default: 'simple' }, { name: 'assume_zero_mean', only: true, default: false }], extra: [] };
+const CORRELATION_SHAPE: WordShape = { word: 'correlation', gsFunction: 'econometrics.correlation', lines: ['x', 'y'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'type_', only: true, default: 'prices' }, { name: 'returns_type', only: true, default: 'simple' }, { name: 'assume_zero_mean', only: true, default: false }], extra: ['r'] };
 /** Rolling correlation: The correlation of the two series' simple returns over the last w observations, on the dates both have. (gs-quant's econometrics.correlation.) */
-export function correlation(x: Line, y: Line, ...args: Args<[w: WindowLike, type_: typeof SeriesType.PRICES, returns_type: typeof Returns.SIMPLE, assume_zero_mean: false], { w?: WindowLike; type_?: typeof SeriesType.PRICES; returns_type?: typeof Returns.SIMPLE; assume_zero_mean?: false }>): Term {
+export function correlation(x: Line, y: Line, ...args: Args<[w: WindowLike, type_: typeof SeriesType.PRICES, returns_type: typeof Returns.SIMPLE, assume_zero_mean: false], { w?: WindowLike; type_?: typeof SeriesType.PRICES; returns_type?: typeof Returns.SIMPLE; assume_zero_mean?: false; r?: number | null }>): Term {
   return word(CORRELATION_SHAPE, [x, y], args);
 }
 
-const BETA_SHAPE: WordShape = { word: 'beta', gsFunction: 'econometrics.beta', lines: ['x', 'b'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'prices', only: true, default: true }], extra: [] };
+const BETA_SHAPE: WordShape = { word: 'beta', gsFunction: 'econometrics.beta', lines: ['x', 'b'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'prices', only: true, default: true }], extra: ['r'] };
 /** Rolling beta: The first's beta to the second (a benchmark): the covariance of their simple returns over the second's variance. (gs-quant's econometrics.beta.) */
-export function beta(x: Line, b: Line, ...args: Args<[w: WindowLike, prices: true], { w?: WindowLike; prices?: true }>): Term {
+export function beta(x: Line, b: Line, ...args: Args<[w: WindowLike, prices: true], { w?: WindowLike; prices?: true; r?: number | null }>): Term {
   return word(BETA_SHAPE, [x, b], args);
 }
 
-const COV_SHAPE: WordShape = { word: 'cov', gsFunction: 'statistics.cov', lines: ['x', 'y'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const COV_SHAPE: WordShape = { word: 'cov', gsFunction: 'statistics.cov', lines: ['x', 'y'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling covariance: The sample covariance of the two series as they are, over the last w observations. (gs-quant's statistics.cov.) */
-export function cov(x: Line, y: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function cov(x: Line, y: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(COV_SHAPE, [x, y], args);
 }
 
-const ALPHA_SHAPE: WordShape = { word: 'alpha', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor' }], extra: [] };
+const ALPHA_SHAPE: WordShape = { word: 'alpha', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor', default: null }, { name: 'r', default: null }], extra: [] };
 /** Rolling alpha: The first's return above what its beta to the second explains: the mean of its simple returns less beta times the second's, annualized (Jensen's, a risk-free rate of zero), over the last w observations. (DataCube's own: gs-quant has none.) */
-export function alpha(x: Line, y: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null], { w?: WindowLike; annualization_factor?: number | null }>): Term {
+export function alpha(x: Line, y: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null, r: number | null], { w?: WindowLike; annualization_factor?: number | null; r?: number | null }>): Term {
   return word(ALPHA_SHAPE, [x, y], args);
 }
 
-const R_SQUARED_SHAPE: WordShape = { word: 'r_squared', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }], extra: [] };
+const R_SQUARED_SHAPE: WordShape = { word: 'r_squared', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Rolling R²: How much of the first's returns the second's explain: their correlation squared, over the last w observations. (DataCube's own: gs-quant has none.) */
-export function r_squared(x: Line, y: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function r_squared(x: Line, y: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(R_SQUARED_SHAPE, [x, y], args);
 }
 
-const HEDGE_RATIO_SHAPE: WordShape = { word: 'hedge_ratio', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }], extra: [] };
+const HEDGE_RATIO_SHAPE: WordShape = { word: 'hedge_ratio', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Hedge ratio: How many of the second hedge one of the first: the slope of the first's levels on the second's (least squares: their covariance over the second's variance), over the last w observations. (DataCube's own: gs-quant has none.) */
-export function hedge_ratio(x: Line, y: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function hedge_ratio(x: Line, y: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(HEDGE_RATIO_SHAPE, [x, y], args);
 }
 
-const RESIDUAL_SHAPE: WordShape = { word: 'residual', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }], extra: [] };
+const RESIDUAL_SHAPE: WordShape = { word: 'residual', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Regression residual: The first less what its rolling regression on the second gives for it: the spread of a pairs trade, x - (a + b·y) with a and b fitted over the last w observations of the levels. (DataCube's own: gs-quant has none.) */
-export function residual(x: Line, y: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function residual(x: Line, y: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(RESIDUAL_SHAPE, [x, y], args);
 }
 
-const BOLLINGER_BANDS_SHAPE: WordShape = { word: 'bollinger_bands', gsFunction: 'technicals.bollinger_bands', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'k', default: 2 }], extra: [] };
+const BOLLINGER_BANDS_SHAPE: WordShape = { word: 'bollinger_bands', gsFunction: 'technicals.bollinger_bands', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }, { name: 'k', default: 2 }], extra: ['r'] };
 /** Bollinger bands: A band k standard deviations either side of the moving average over the last w observations. (gs-quant's technicals.bollinger_bands.) */
-export function bollinger_bands(x: Line, ...args: Args<[w: WindowLike, k: number], { w?: WindowLike; k?: number }>): Term {
+export function bollinger_bands(x: Line, ...args: Args<[w: WindowLike, k: number], { w?: WindowLike; k?: number; r?: number | null }>): Term {
   return word(BOLLINGER_BANDS_SHAPE, [x], args);
 }
 
@@ -292,21 +292,21 @@ export function smoothed_moving_average(x: Line, ...args: Args<[w: WindowLike], 
   return word(SMOOTHED_MOVING_AVERAGE_SHAPE, [x], args);
 }
 
-const PERCENTILES_SHAPE: WordShape = { word: 'percentiles', gsFunction: 'statistics.percentiles', lines: ['x'], gs: [{ name: 'y', only: true, default: null }, { name: 'w', default: { window: [null, 0] } }], extra: [] };
+const PERCENTILES_SHAPE: WordShape = { word: 'percentiles', gsFunction: 'statistics.percentiles', lines: ['x'], gs: [{ name: 'y', only: true, default: null }, { name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling percentile rank: Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy's percentileofscore, kind=mean). (gs-quant's statistics.percentiles.) */
-export function percentiles(x: Line, ...args: Args<[y: null, w: WindowLike], { y?: null; w?: WindowLike }>): Term {
+export function percentiles(x: Line, ...args: Args<[y: null, w: WindowLike], { y?: null; w?: WindowLike; r?: number | null }>): Term {
   return word(PERCENTILES_SHAPE, [x], args);
 }
 
-const MEDIAN_SHAPE: WordShape = { word: 'median', gsFunction: 'statistics.median', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const MEDIAN_SHAPE: WordShape = { word: 'median', gsFunction: 'statistics.median', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling median: The middle value over the last w observations (of an even count, the mean of the two middle ones). (gs-quant's statistics.median.) */
-export function median(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function median(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(MEDIAN_SHAPE, [x], args);
 }
 
-const PERCENTILE_SHAPE: WordShape = { word: 'percentile', gsFunction: 'statistics.percentile', lines: ['x'], gs: [{ name: 'n' }, { name: 'w', default: null, whole: 'default' }], extra: [] };
+const PERCENTILE_SHAPE: WordShape = { word: 'percentile', gsFunction: 'statistics.percentile', lines: ['x'], gs: [{ name: 'n' }, { name: 'w', default: null, whole: 'default' }], extra: ['r'] };
 /** Rolling percentile: The n-th percentile of the values over the last w observations, between the two nearest (pandas' quantile); 0 (all) every one to date, whole the whole series' (gs-quant's statistics.percentile.) */
-export function percentile(x: Line, n: number, ...args: Args<[w: WindowLike | null], { w?: WindowLike | null }>): Term {
+export function percentile(x: Line, n: number, ...args: Args<[w: WindowLike | null], { w?: WindowLike | null; r?: number | null }>): Term {
   return word(PERCENTILE_SHAPE, [x], [n, ...args]);
 }
 
@@ -340,9 +340,9 @@ export function filter_(x: Line, ...args: Args<[operator: FilterOperator | null,
   return word(FILTER_SHAPE, [x], args);
 }
 
-const PRODUCT_SHAPE: WordShape = { word: 'product', gsFunction: 'statistics.product', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: [] };
+const PRODUCT_SHAPE: WordShape = { word: 'product', gsFunction: 'statistics.product', lines: ['x'], gs: [{ name: 'w', default: { window: [null, 0] } }], extra: ['r'] };
 /** Rolling product: The product of the last w values (0: every one to date). (gs-quant's statistics.product.) */
-export function product(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function product(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike; r?: number | null }>): Term {
   return word(PRODUCT_SHAPE, [x], args);
 }
 
@@ -370,9 +370,9 @@ export function excess_returns(price_series: Line, benchmark_or_rate: Line | num
   return word(EXCESS_RETURNS_SHAPE, [price_series, benchmark_or_rate], args);
 }
 
-const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w', default: null }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: [] };
+const VOL_SWAP_VOLATILITY_SHAPE: WordShape = { word: 'vol_swap_volatility', gsFunction: 'econometrics.vol_swap_volatility', lines: ['prices'], gs: [{ name: 'n_days', lib: 'w', default: null }, { name: 'annualization_factor', only: true, default: 252 }, { name: 'assume_zero_mean', only: true, default: true }], extra: ['r'] };
 /** Vol swap volatility: The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent. (gs-quant's econometrics.vol_swap_volatility.) */
-export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowLike | null, annualization_factor: 252, assume_zero_mean: true], { n_days?: WindowLike | null; annualization_factor?: 252; assume_zero_mean?: true }>): Term {
+export function vol_swap_volatility(prices: Line, ...args: Args<[n_days: WindowLike | null, annualization_factor: 252, assume_zero_mean: true], { n_days?: WindowLike | null; annualization_factor?: 252; assume_zero_mean?: true; r?: number | null }>): Term {
   return word(VOL_SWAP_VOLATILITY_SHAPE, [prices], args);
 }
 
@@ -496,33 +496,33 @@ export function obv(close: Line, volume: Line): Term {
   return word(OBV_SHAPE, [close, volume], []);
 }
 
-const VWAP_SHAPE: WordShape = { word: 'vwap', gsFunction: null, lines: ['price', 'volume'], gs: [{ name: 'w', default: 20 }], extra: [] };
+const VWAP_SHAPE: WordShape = { word: 'vwap', gsFunction: null, lines: ['price', 'volume'], gs: [{ name: 'w', default: 20 }, { name: 'r', default: null }], extra: [] };
 /** Volume-weighted average price: Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none. (DataCube's own: gs-quant has none.) */
-export function vwap(price: Line, volume: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function vwap(price: Line, volume: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(VWAP_SHAPE, [price, volume], args);
 }
 
-const TRACKING_ERROR_SHAPE: WordShape = { word: 'tracking_error', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor' }], extra: [] };
+const TRACKING_ERROR_SHAPE: WordShape = { word: 'tracking_error', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor', default: null }, { name: 'r', default: null }], extra: [] };
 /** Tracking error: The annualized standard deviation of the first's simple returns less the benchmark's, over the last w observations, in percent. (DataCube's own: gs-quant has none.) */
-export function tracking_error(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null], { w?: WindowLike; annualization_factor?: number | null }>): Term {
+export function tracking_error(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null, r: number | null], { w?: WindowLike; annualization_factor?: number | null; r?: number | null }>): Term {
   return word(TRACKING_ERROR_SHAPE, [x, benchmark], args);
 }
 
-const INFORMATION_RATIO_SHAPE: WordShape = { word: 'information_ratio', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor' }], extra: [] };
+const INFORMATION_RATIO_SHAPE: WordShape = { word: 'information_ratio', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'annualization_factor', default: null }, { name: 'r', default: null }], extra: [] };
 /** Information ratio: The mean of the first's simple returns less the benchmark's over their standard deviation, annualized, over the last w observations. (DataCube's own: gs-quant has none.) */
-export function information_ratio(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null], { w?: WindowLike; annualization_factor?: number | null }>): Term {
+export function information_ratio(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, annualization_factor: number | null, r: number | null], { w?: WindowLike; annualization_factor?: number | null; r?: number | null }>): Term {
   return word(INFORMATION_RATIO_SHAPE, [x, benchmark], args);
 }
 
-const UP_CAPTURE_SHAPE: WordShape = { word: 'up_capture', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }], extra: [] };
+const UP_CAPTURE_SHAPE: WordShape = { word: 'up_capture', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Up capture: The first's arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark's mean then, over the last w observations: above 100%, it rose more (Morningstar's compounds each). (DataCube's own: gs-quant has none.) */
-export function up_capture(x: Line, benchmark: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function up_capture(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(UP_CAPTURE_SHAPE, [x, benchmark], args);
 }
 
-const DOWN_CAPTURE_SHAPE: WordShape = { word: 'down_capture', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }], extra: [] };
+const DOWN_CAPTURE_SHAPE: WordShape = { word: 'down_capture', gsFunction: null, lines: ['x', 'benchmark'], gs: [{ name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Down capture: The first's arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark's mean then, over the last w observations: under 100%, it fell less (Morningstar's compounds each). (DataCube's own: gs-quant has none.) */
-export function down_capture(x: Line, benchmark: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function down_capture(x: Line, benchmark: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(DOWN_CAPTURE_SHAPE, [x, benchmark], args);
 }
 
@@ -538,21 +538,21 @@ export function basket_series(series: readonly Line[], ...args: Args<[weights: r
   return word(BASKET_SHAPE, [series], args);
 }
 
-const LEAD_LAG_SHAPE: WordShape = { word: 'lead_lag', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'lag', default: 1 }, { name: 'w', default: 63 }], extra: [] };
+const LEAD_LAG_SHAPE: WordShape = { word: 'lead_lag', gsFunction: null, lines: ['x', 'y'], gs: [{ name: 'lag', default: 1 }, { name: 'w', default: 63 }, { name: 'r', default: null }], extra: [] };
 /** Lead-lag correlation: The rolling correlation of the first's simple returns with the second's lag observations before, each on its own dates, over the last w. (DataCube's own: gs-quant has none.) */
-export function lead_lag(x: Line, y: Line, ...args: Args<[lag: number, w: WindowLike], { lag?: number; w?: WindowLike }>): Term {
+export function lead_lag(x: Line, y: Line, ...args: Args<[lag: number, w: WindowLike, r: number | null], { lag?: number; w?: WindowLike; r?: number | null }>): Term {
   return word(LEAD_LAG_SHAPE, [x, y], args);
 }
 
-const DICKEY_FULLER_SHAPE: WordShape = { word: 'dickey_fuller', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }], extra: [] };
+const DICKEY_FULLER_SHAPE: WordShape = { word: 'dickey_fuller', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }, { name: 'r', default: null }], extra: [] };
 /** Dickey-Fuller statistic: The t-statistic of b in Δx = a + b·x[-1], by least squares over the last w differences (w + 1 values; 0: every one to date): far below 0 it reverts -- at 5%, under about −2.9 (MacKinnon's: −2.86 as w grows, −2.97 at 30). Of a spread written with its ratio, dickey_fuller(close[A] - 1.2 * close[B]), its stationarity; a running residual(y, x, 0) is each date's own fit, not Engle and Granger's one fit of the whole. (DataCube's own: gs-quant has none.) */
-export function dickey_fuller(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function dickey_fuller(x: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(DICKEY_FULLER_SHAPE, [x], args);
 }
 
-const HALF_LIFE_SHAPE: WordShape = { word: 'half_life', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }], extra: [] };
+const HALF_LIFE_SHAPE: WordShape = { word: 'half_life', gsFunction: null, lines: ['x'], gs: [{ name: 'w', default: 0 }, { name: 'r', default: null }], extra: [] };
 /** Half-life of mean reversion: −ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1). (DataCube's own: gs-quant has none.) */
-export function half_life(x: Line, ...args: Args<[w: WindowLike], { w?: WindowLike }>): Term {
+export function half_life(x: Line, ...args: Args<[w: WindowLike, r: number | null], { w?: WindowLike; r?: number | null }>): Term {
   return word(HALF_LIFE_SHAPE, [x], args);
 }
 

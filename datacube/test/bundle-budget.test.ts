@@ -922,8 +922,11 @@ const CHART_BUDGET = 303_500;
  *  which the tile carries, with lag's extend -- gs-quant's LagMode, its tail past the line's end per date type, its rows
  *  form's when -- and their sentences. Measured 138,684.
  *  138,900 -> 139,300 (2026-11-08, the user: "Go", percentile to date unless the whole line is said): the library's
- *  text with percentile's whole form and gsWhole, and the tile's whole window (TsParamShape.whole). Measured 138,999. */
-const TIMESERIES_BUDGET = 139_300;
+ *  text with percentile's whole form and gsWhole, and the tile's whole window (TsParamShape.whole). Measured 138,999.
+ *  139,300 -> 139,800 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13, gs-quant's Window(w, r), ruled "add it"
+ *  2026-11-07; the user: "Carry on"): the library's text with each windowed word's r (helpers::ramp and two overloads a
+ *  word, bollinger_bands' and winsorize's) and r's sentence (timeseries-expr.ts PARAM_ABOUT). Measured 139,546. */
+const TIMESERIES_BUDGET = 139_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

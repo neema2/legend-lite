@@ -82,6 +82,7 @@ const PARAM_ABOUT: Readonly<Record<string, string>> = {
   obs: 'observations back, or a calendar period back (1y: the value as of a year before, its last at or before)',
   type: 'simple: x / x[-obs] - 1; log: ln x - ln x[-obs]; absolute: x - x[-obs]',
   annualization_factor: 'the periods a year its figure is annualized by; where not told, the frequency\'s periods a year, else what its dates infer',
+  r: 'the ramp, gs-quant\'s Window(w, r): its first r observations dropped, each figure before the w-th over the observations it has; where not told, the window\'s size',
 };
 
 /** Where every rolling figure's first value differs from gs-quant's: drawn at the observation its window first holds

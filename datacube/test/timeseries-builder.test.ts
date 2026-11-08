@@ -61,7 +61,7 @@ const LEDGER: Readonly<Record<string, string>> = {
   'exponential_spread_volatility +annualization_factor': 'the periods a year told, where gs-quant infers them alone',
   'zscores.w whole': 'gs-quant\'s default is its two-sided z-score of the whole series: written whole, the future read in the text, where the language\'s default is to date (S150; the user, 2026-11-08, kdb\'s discipline)',
   'percentile.w whole': 'gs-quant\'s default is one number of the whole series: written whole, that number on every date, where the language\'s default is to date (S150; the user, 2026-11-08)',
-  'winsorize.w whole': 'gs-quant\'s clips by the whole series\' mean and deviation whatever its window, which only blanks the first points: written whole; another window refused until item 13\'s ramp',
+  'winsorize.w whole': 'gs-quant\'s clips by the whole series\' mean and deviation whatever its window, which only drops the first points: written whole, a window its ramp (item 13, r)',
   'union list': 'two series: the language\'s union reads two lines',
   'append list': 'two series: the language\'s append reads two lines',
   'prepend list': 'two series: the language\'s prepend reads two lines',
@@ -85,7 +85,9 @@ function differences(): string[] {
       if (g.default === undefined && p.default !== null) out.push(`${fn}.${g.name} required`);
       else if (g.default !== undefined && JSON.stringify(g.default) !== JSON.stringify(gsDefault(p.default, GS.enums))) out.push(`${fn}.${g.name} default`);
     }
-    for (const e of s.extra) out.push(`${fn} +${e}`);
+    // the library's r is gs-quant's own Window's ramp (item 13), told inside the window argument: no difference
+    const windowed = s.gs.some((g) => (g.lib ?? g.name) === 'w');
+    for (const e of s.extra) if (!(e === 'r' && windowed)) out.push(`${fn} +${e}`);
     if (s.listOf !== undefined) out.push(`${fn} list`);
   }
   return out.sort();
@@ -172,7 +174,6 @@ describe('a builder term is its #TS text', () => {
     assert.equal(functions['zscores']!(spx, 22).text(), "zscores(close['SPX'], w => 22)");
     assert.equal(functions['percentile']!(spx, 90).text(), "percentile(close['SPX'], n => 90, w => whole)");
     assert.equal(functions['winsorize']!(spx).text(), "winsorize(close['SPX'], limit => 2.5, w => whole)");
-    assert.throws(() => functions['winsorize']!(spx, 2.5, 22), /blanks the first points alone, a ramp \(item 13\)/);
   });
 
   it('arithmetic as pandas\' methods; columns, series and SQL\'s words per point', () => {
@@ -183,8 +184,23 @@ describe('a builder term is its #TS text', () => {
     assert.equal(column('close', { venue: 'NYSE' }, 'AAPL').text(), "close[venue = 'NYSE', 'AAPL']");
   });
 
+  it('a window\'s ramp apart from its size is gs-quant\'s Window(w, r): the library\'s r (item 13)', () => {
+    assert.equal(volatility!(spx, new Window(22, 0)).text(), "volatility(close['SPX'], w => 22, type => 'simple', r => 0)");
+    assert.equal(mean!(spx, new Window(50, 10)).text(), "mean(close['SPX'], 50, 10)");
+    assert.equal(mean!(spx, new Window(null, 5)).text(), "mean(close['SPX'], all, 5)");
+    assert.equal(mean!(spx, new Window(50, 50)).text(), "mean(close['SPX'], 50)", 'a ramp the size is the window alone');
+    assert.throws(() => mean!(spx, new Window('3m', 10)), /a calendar window's ramp apart from its period is none of the language's yet/);
+    assert.equal(functions['bollinger_bands']!(spx, new Window(20, 5)).text(), "bollinger_bands(close['SPX'], w => 20, k => 2, r => 5)");
+    assert.throws(() => functions['smoothed_moving_average']!(spx, new Window(20, 5)), /smoothed_moving_average takes no ramp apart from its window's size/);
+    // winsorize: gs-quant clips by the whole series whatever its window, which drops its first points alone
+    assert.equal(functions['winsorize']!(spx, 2.5, 22).text(), "winsorize(close['SPX'], limit => 2.5, w => whole, r => 22)");
+    assert.equal(functions['winsorize']!(spx, 2.5, new Window(null, 5)).text(), "winsorize(close['SPX'], limit => 2.5, w => whole, r => 5)");
+    assert.equal(builderSource(functions['winsorize']!(spx, 2.5, 22).expr, 'python'), "winsorize(column('close', 'SPX'), limit=2.5, w=22)");
+    assert.throws(() => functions['winsorize']!(spx, 2.5, new Window(30, 5)), /reads its window's size only to give nothing where the line is shorter/);
+    assert.throws(() => functions['winsorize']!(spx, 2.5, 0), /refuses a window of 0/);
+  });
+
   it('refuses in words what the language has no way to say, never drops it', () => {
-    assert.throws(() => volatility!(spx, new Window(22, 0)), /a ramp apart from its size is item 13's/);
     assert.throws(() => volatility!(spx, 22, Returns.SIMPLE, null, true), /DataCube's has no assume_zero_mean -- gs-quant's false alone/);
     assert.throws(() => compare!(spx, ndx, Interpolate.TIME), /compare's method is one of .*not "time"/);
     assert.throws(() => append!([spx]), /append reads a list of 2 series, not 1/);

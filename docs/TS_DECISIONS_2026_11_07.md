@@ -267,8 +267,18 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      period's aggregate under the frequency, the role a word reads it by -- and a base's `from`), the translator's
      per-point `CASE`s, its `greatest`/`least` and its own word spelling gone; six Show #TS statements changed (the
      conditions and the bounds), every frozen answer the same, replayed on Postgres and ClickHouse;
-  5. B3's chart face and Python's twin, then B4. **B3 done 2026-11-08 but for `Window(w, r)`** (a ramp apart from its
-     size, moved here from item 2: the builders refuse it as item 13's still -- the next item of the order): the chart face (`datacube/src/timeseries-chart.ts`
+  5. B3's chart face and Python's twin, then B4. **B3 done 2026-11-08, `Window(w, r)` with it** (a ramp apart from its
+     size, moved here from item 2; ruled "add it" 2026-11-07): the library's `r` on every windowed word (31 written by a
+     script from each word's two forms; `mean`, `bollinger_bands` and `winsorize` by hand):
+     gs-quant's `rolling(w, 0)` then `apply_ramp` -- each figure before the w-th point over the points to date, none of
+     the first r, nothing where the window is longer than the line (`helpers::ramp` stitching the word's own to-date and
+     windowed forms; `bollinger_bands` by its frame's partial windows; `winsorize`, whose window gs-quant reads for its
+     ramp alone, its first r dropped); the builders write `Window(63, 10)` as `w => 63, r => 10` and print it back,
+     Python's and TypeScript's (`winsorize(x, 2.5, 22)` as `w => whole, r => 22`). Refused, in words: a calendar
+     window's or a calendar ramp (`Window('3m', 10)`), `winsorize`'s size apart from its ramp (it only empties a shorter
+     line), `smoothed_moving_average`'s (S159: its seed no window). Checked against gs-quant's rule, computed by hand, on
+     the in-process databases and Postgres (`TsIslandTest.aWindowsRampApartFromItsSizeIsGsQuants`); B5's oracle runs
+     gs-quant itself. The chart face (`datacube/src/timeseries-chart.ts`
      `Chart`, exported with the builder) -- each method one of the tile's changes made by `editTimeseries`, a plotted
      series a handle a later term reads by name; the change-parity ledger holds it to every change kind (`state` listed:
      a frozen tile is the page's). Python's twin (`python/legend_lite/timeseries.py`): gs-quant's names, signatures,
