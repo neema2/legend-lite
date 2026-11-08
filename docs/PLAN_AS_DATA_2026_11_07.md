@@ -299,23 +299,23 @@ withdrawn after the review). 6. The plan's own connection description, the URL r
 is the one walker and calls back for test steps (2.8). 8. No `driver` package: `testplan`/`testexec` beside
 `planner`/`exec` (2.9).
 
-## 3a. Proposed, awaiting the user's ruling (2026-11-08)
+## 3a. Ruled after the reviews (the user, 2026-11-08)
 
-1. **The program walker in its own target, `//core:exec_program`** (the toolkit check, 2026-11-08: option 3). The
-   callback design as ruled, but the program walker -- the shape, routing, bracket, seeds, scripts, savepoints, the
-   raising read, the step events, about 970 of `PlanRunner`'s 1,971 lines -- in a separate Bazel target in the same
-   Java package (`com.legend.exec`, as `mongodb_connector` already is), its files kept under
-   `src/main/java/com/legend/exec/` (the source-scanning guards hard-code that root), depending on `:exec`, depended on
-   by `testexec` alone; `tools/deps/core-layers.txt` pins that no product target reaches it and an ArchUnit rule that
-   no `:exec` class references a program class. The product's `//core:exec` then carries no test-only code. Its risk:
-   package-private across the split is enforced by the layer pin and ArchUnit, not by Java. The rejected alternative,
-   the walker in `testexec` on a public exec toolkit, would reverse ruling 7 and G1's wording, rewrite ~970 lines
-   against a new API, and still leave the statement-sending primitives in exec (only exec may send statements).
-2. **Landing in three slices**, each with its lanes and an audit, each merged only on the user's word: PR 1 after
-   step 3, PR 2 after step 8, PR 3 after step 10. The user (2026-11-08): "maybe -- I prefer three stacked in branch if
-   we go that route": three stacked branches, each cut from the one before. **A stop rule**: a verdict change at step 1 that is not explained
+1. **`PlanRunner` split into its product half and its program half: agreed.** Whether the program half is its own
+   Bazel target, `//core:exec_program` (the toolkit check's option 3), is the user's question still: what the target
+   adds over the file split is enforcement only -- the product's binaries (everything depending on `//core:exec`)
+   no longer carry the ~970 lines of test walking; `:exec` cannot compile against a program class; the layer pin
+   names `testexec` as its only user. It stays in package `com.legend.exec` (as `mongodb_connector` does), its files
+   under `src/main/java/com/legend/exec/` (the source-scanning guards hard-code that root); package-private across
+   the split is enforced by the pin and ArchUnit, not by Java. The rejected alternative, the walker in `testexec` on a
+   public exec toolkit, would reverse ruling 7 and G1's wording, rewrite ~970 lines against a new API, and still leave
+   the statement-sending primitives in exec (only exec may send statements).
+2. **Landing in three slices, stacked branches: ruled ("Slices yes stacked").** Three stacked branches, each cut from
+   the one before, each with its lanes and an audit, each merged only on the user's word: slice 1 after step 3,
+   slice 2 after step 8, slice 3 after step 10. **The stop rule**: a verdict change at step 1 that is not explained
    quickly stops the work and goes to the user.
-3. **A recorder implies the compatibility rules** (2.7), written as designed; the user's explicit word asked.
+3. **A recorder implies the compatibility rules: ruled** (2.7).
+4. **D2 keeps the shape built** (ruled; the goals' D2 text now describes it).
 
 ## 4. The order of work
 

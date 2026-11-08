@@ -303,9 +303,13 @@ lane's memory also needs fixing: it keeps one seeded DuckDB per test runtime ope
       Lite plans the same conversion.
   - **Later decision:** whether product services move from compile-per-call to plan-once, run-many. To be decided when
     measured.
-- **D2. Relation `toOne()`: RULED (the user, 2026-11-07: "sql guard is good").** An aggregate guard in SQL
-  (`CASE WHEN COUNT(*) = 1 … ELSE error(...)` joined back), proven on each database. A window column alone would miss
-  the zero-row case. The message is Pure's: `Cannot cast a collection of size N to multiplicity [1]`. The Java row
+- **D2. Relation `toOne()`: RULED (the user, 2026-11-07: "sql guard is good").** A guard in SQL, proven on each
+  database. As built (`lowering/ToOneGuard`, P1.3) and ruled on 2026-11-08 ("yes" to keeping it): each row carries a
+  `COUNT(*) OVER ()` window count and the rows are left-joined onto a one-row source, under `WHERE CASE WHEN
+  COALESCE(count, 0) = 1 THEN TRUE ELSE error(...) END` -- one read of the relation; the one-row source is what makes
+  the zero-row case raise (a window column alone would miss it). The aggregate-joined-back shape first written here
+  reads the relation twice and needs the same left join for zero rows; it was prototyped beside the built one and not
+  kept, which the user was told only on 2026-11-08. The message is Pure's: `Cannot cast a collection of size N to multiplicity [1]`. The Java row
   count, and the typed tree read at run to decide it, are deleted. This is done in P1.
 - **D3. The SQL comment stamp: RULED (2026-11-07).**
   - **Product:** traceability without editing SQL at run time. At planning, the dialect writes a fixed comment naming the
