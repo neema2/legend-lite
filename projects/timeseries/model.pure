@@ -629,7 +629,8 @@ function timeseries::trueRange<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<L
     ->without(~pc)->rename(~o, $out)
 }
 
-// The average true range over w (gs-quant's and TA-Lib's atr): Wilder's smoothed average of the true ranges.
+// The average true range over w (TA-Lib's ATR; DataCube's own -- gs-quant 2.2.3 has none, PR #91's finding 13):
+// Wilder's smoothed average of the true ranges.
 function timeseries::atr<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->timeseries::trueRange($line, $date, $high, $low, $close, ~tr)->timeseries::smoothedMean($line, $date, ~tr, $w, $out)->without(~tr)
@@ -644,7 +645,7 @@ function timeseries::stochastic<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<
     ->without(~[hh, ll, n])->rename(~o, $out)
 }
 
-// Keltner channels (gs-quant's): k average true ranges over a (atr) either side of the close's exponential average of
+// Keltner channels (DataCube's own; gs-quant has none): k average true ranges over a (atr) either side of the close's exponential average of
 // span w (ewmaSpan), and their width -- none until the average holds w closes.
 function timeseries::keltnerChannels<T,L,D,H,N,C,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], w: Integer[1], a: Integer[1], k: Number[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
 {
@@ -655,7 +656,7 @@ function timeseries::keltnerChannels<T,L,D,H,N,C,O1,O2,O3>(t: Relation<T>[1], li
     ->without(~[mid, av, n])->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
 }
 
-// Donchian channels over the window (gs-quant's): the lowest low and the highest high, and their width -- each none until
+// Donchian channels over the window (DataCube's own; gs-quant has none): the lowest low and the highest high, and their width -- each none until
 // the window holds ramp of its column's values.
 function timeseries::donchianChannels<T,H,N,O1,O2,O3>(t: Relation<T>[1], win: _Window<T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], ramp: Integer[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
 {
@@ -674,7 +675,7 @@ function timeseries::donchianChannelsPeriod<T,L,D,H,N,O1,O2,O3>(t: Relation<T>[1
     ->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
 }
 
-// On-balance volume (gs-quant's): from 0, each period's volume added on a rise of the close, taken off on a fall.
+// On-balance volume (StockCharts'; DataCube's own, gs-quant has none): from 0, each period's volume added on a rise of the close, taken off on a fall.
 function timeseries::obv<T,L,D,C,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], close: ColSpec<C⊆T>[1], volume: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(over($line, [$date->ascending()]), ~dx:{p,f,r|$r->read($close)->toOne() - $p->lag($r)->read($close)->toOne()})
