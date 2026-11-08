@@ -29,11 +29,12 @@ import {
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, firstValue, functionNamed, inlined, matchesText, wholeOf, nextSeriesId, paramOf, parseMatches, seriesName,
+  candleOf, columnRef, firstValue, functionNamed, inlined, wholeOf, nextSeriesId, paramOf, seriesName,
   sourcesOf, timeseriesProblems, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
 import {
-  allRead, completionsAt, heldReading, offeredWords, readSeriesTexts, readTyped, seriesText, treeOf, TsTextRefusal, writtenText,
+  allRead, completionsAt, heldReading, matchesText, offeredWords, readMatches, readSeriesTexts, readTyped, seriesText, treeOf, TsTextRefusal,
+  writtenText,
   type TsCompleting, type TsOffer, type TsReader,
 } from '../timeseries-text.ts';
 
@@ -3228,7 +3229,7 @@ export class TimeseriesView {
     const spec = this.#spec;
     const columns = this.#columns(spec);
     const source = select(doc, spec.sources.map((s) => [s.alias, s.alias] as const), spec.sources.at(-1)!.alias, () => paint(), 'Marks source');
-    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Rows: AAPL, side="BUY"', 'aria-label': 'Rows marked' });
+    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: "Rows: 'AAPL', side = 'BUY'", 'aria-label': 'Rows marked' });
     const at = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Drawn at' });
     const text = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Says' });
     const shape = select(doc, [['up', '▲ up'], ['down', '▼ down'], ['dot', '● dot']], 'up', () => undefined, 'Shape');
@@ -3249,12 +3250,9 @@ export class TimeseriesView {
       options(text, 'Says nothing', cols.filter((c) => c.name !== date).map((c) => c.name));
     };
     paint();
-    const add = button(doc, 'Add', 'Mark the rows over the series', () => {
-      let where: ReturnType<typeof parseMatches>;
-      try {
-        where = parseMatches(matches.value);
-      } catch (e) {
-        this.#say([e instanceof Error ? e.message : String(e)], true);
+    const add = button(doc, 'Add', 'Mark the rows over the series', () => void readMatches(matches.value, this.#host.readText).then((where) => {
+      if (where instanceof TsTextRefusal) {
+        this.#say([where.message], true);
         return;
       }
       const words = label.value.trim();
@@ -3264,7 +3262,7 @@ export class TimeseriesView {
         ...(text.value !== '' ? { text: text.value } : {}), ...(words ? { label: words } : {}),
       };
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
-    });
+    }));
     const rows = el(doc, 'div', 'dc-ts-row');
     rows.append(source, matches, at, shape, pane, text, label, add);
     return [el(doc, 'div', 'dc-ts-field-label', 'Marks from a grid\'s rows'), rows,
@@ -3279,7 +3277,7 @@ export class TimeseriesView {
     const columns = this.#columns(spec);
     const source = select(doc, spec.sources.map((s) => [s.alias, s.alias] as const), spec.sources[0]!.alias, () => paint(), 'Shade source');
     const column = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Shade column' });
-    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Rows: US', 'aria-label': 'Rows shaded' });
+    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: "Rows: 'US'", 'aria-label': 'Rows shaded' });
     const name = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Name', 'aria-label': 'Shade name' });
     const paint = (): void => {
       const date = spec.sources.find((s) => s.alias === source.value)?.date;
@@ -3297,15 +3295,14 @@ export class TimeseriesView {
         this.#say([columns.get(source.value) === undefined ? `Source ${source.value}'s grid is not on the page.` : `Source ${source.value}'s grid has no number column to shade by.`], true);
         return;
       }
-      let where: ReturnType<typeof parseMatches>;
-      try {
-        where = parseMatches(matches.value);
-      } catch (e) {
-        this.#say([e instanceof Error ? e.message : String(e)], true);
-        return;
-      }
-      const words = name.value.trim();
-      if (this.#edit({ kind: 'shade', column: column.value, source: source.value, ...(where.length > 0 ? { where } : {}), ...(words ? { name: words } : {}) })) this.#editSettings();
+      void readMatches(matches.value, this.#host.readText).then((where) => {
+        if (where instanceof TsTextRefusal) {
+          this.#say([where.message], true);
+          return;
+        }
+        const words = name.value.trim();
+        if (this.#edit({ kind: 'shade', column: column.value, source: source.value, ...(where.length > 0 ? { where } : {}), ...(words ? { name: words } : {}) })) this.#editSettings();
+      });
     });
     const row = el(doc, 'div', 'dc-ts-row');
     row.append(source, column, matches, name, add);

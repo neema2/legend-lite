@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { Sources } from '../../tools/js/runfiles.mts';
+import { WORD_SIGNATURES } from '../src/generated/ts-signatures.ts';
+import { SCALARS, TS_FUNCTION_NAMES } from '../src/timeseries-words.ts';
 
 // the sources this reads, as the BUILD target declares them (Bazel workplan P3-29): it walks no directory
 const SOURCES = new Sources('SOURCES', 'datacube');
@@ -630,5 +632,41 @@ describe('nothing is built and left unreachable', () => {
     // The exact hole the audit found: the menu was built and tested
     // as data, and `grep -c contextmenu src/grid/grid.ts` returned 0.
     assert.ok(APP.includes("addEventListener('contextmenu'"));
+  });
+});
+
+describe('the timeseries language has one reader, core\'s', () => {
+  // THE ORDER TO ONE READER (docs/TS_DECISIONS_2026_11_07.md §4, step 3, 2026-11-08): the tile read its formulas with a
+  // grammar of its own (timeseries-expr.ts parseExpr and its tokenizer, printed by exprText and exprSource, its marks'
+  // matches by parseMatches), which drifted from core's #TS -- two grammars of one language. A series' text is read by
+  // core alone (LitePlanner.tsItem, timeseries-text.ts readSeriesTexts) and written by timeseries-text.ts seriesText;
+  // tests build trees with the builder (timeseries-builder.ts). None of that grammar may come back.
+  const GRAMMAR = /\b(parseExpr|parseMatches|exprText|exprSource|TsSyntaxError)\b|\btokeni[sz]e/;
+
+  it('reads no series\' text itself: no tokenizer, no parser of the language', () => {
+    const hits: string[] = [];
+    for (const f of sources('src').filter((f) => !f.includes('generated'))) {
+      const timeseries = /timeseries|\/ts-/.test(f);
+      SOURCES.read(f).split('\n').forEach((line, i) => {
+        if (isComment(line)) return;
+        const m = GRAMMAR.exec(line);
+        // a tokenizer is banned where the timeseries live; the old grammar's names everywhere
+        if (m !== null && (m[1] !== undefined || timeseries)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `a series' text is core's to read (LitePlanner.tsItem):\n${hits.join('\n')}`);
+  });
+
+  /** The catalog's words the tile draws none of yet, each joining TS_FUNCTION_NAMES when it does: only allowed to shrink
+   *  (2026-11-08, the order's step 3: the library's per-point rounding words, a rank across a line, a value as of one
+   *  date -- core reads each in #TS; the tile has no gesture or tree for them). */
+  const UNDRAWN = ['rank', 'round_down', 'round_up', 'value_at'];
+
+  it('keeps no word table by hand: the tile\'s words are core\'s catalog\'s, and SQL\'s per point', () => {
+    const tile = new Set<string>(TS_FUNCTION_NAMES);
+    const strays = TS_FUNCTION_NAMES.filter((w) => WORD_SIGNATURES[w] === undefined && SCALARS[w] === undefined);
+    assert.deepEqual(strays, [], 'every word of TS_FUNCTION_NAMES (timeseries-words.ts) is core\'s generated catalog\'s or SCALARS\'');
+    assert.deepEqual(Object.keys(WORD_SIGNATURES).filter((w) => !tile.has(w)).sort(), UNDRAWN,
+      'the catalog\'s words the tile does not draw: a new one is drawn or named in UNDRAWN with why; one drawn leaves it');
   });
 });

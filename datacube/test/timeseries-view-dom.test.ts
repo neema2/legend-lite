@@ -1009,16 +1009,19 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
         f.value = value;
         f.dispatchEvent(new Event('change'));
       };
-      set('Rows marked', 'SPX');
+      set('Rows marked', "'SPX'");
       set('Drawn at', 'close');
       set('Shape', 'down');
       set('Says', 'volume');
       set('Marks label', 'SPX closes');
       [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add' && b.title === 'Mark the rows over the series')!.click();
+      // the rows' matches read by core (the one reader), then added
+      await until(() => (told.at(-1)?.annotations ?? []).length === 1, 'the marks');
       assert.deepEqual(told.at(-1)!.annotations, [{ kind: 'marks', source: 'px', where: [{ value: 'SPX' }], at: 'close', shape: 'down', text: 'volume', label: 'SPX closes' }]);
       set('Shade column', 'volume');
-      set('Rows shaded', 'NDX');
+      set('Rows shaded', "'NDX'");
       [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Shade')!.click();
+      await until(() => told.at(-1)!.series.length === 3, 'the shade');
       assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', text: writtenText(column('volume', 'NDX').ne(0).expr, []), name: 'volume' });
     } finally {
       view.dispose();

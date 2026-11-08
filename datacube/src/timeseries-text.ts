@@ -390,6 +390,23 @@ function matchText(m: TsMatch): string {
   return m.column === undefined ? literal(m.value) : `${ident(m.column)} = ${literal(m.value)}`;
 }
 
+/** Matches as the language writes them inside a column's brackets (`'AAPL', side = 'BUY'`). */
+export function matchesText(where: readonly TsMatch[]): string {
+  return where.map(matchText).join(', ');
+}
+
+/** Matches typed as inside a column's brackets, read by core as a column's are (a column `x` of them read, its
+ *  matches taken); none for no text, or why they are none. */
+export async function readMatches(text: string, reader: TsReader): Promise<readonly TsMatch[] | TsTextRefusal> {
+  if (text.trim() === '') return [];
+  const reading = readingOf(await reader(`x[${text}]`));
+  if (reading instanceof TsTextRefusal) return reading;
+  if (reading.kind !== 'column' || reading.column !== 'x' || reading.fn !== undefined || reading.source !== undefined) {
+    return new TsTextRefusal(`${text} is no list of matches ('AAPL', side = 'BUY')`);
+  }
+  return reading.where ?? [];
+}
+
 // ------------------------------------------------------------------ core's tree, read back
 
 /**
