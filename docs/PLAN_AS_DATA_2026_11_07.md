@@ -261,6 +261,12 @@ cost first (one write and one read per body).
 
 ## 5. Decisions for the user
 
+**Ruled (the user, 2026-11-08): "Yes to all"** -- decisions 1, 2, 3 and 5 as written below. Decision 4 is open: the
+user asked for its alternative first (A: the existing round-trip check plus the compile walls; B: A plus one checking
+lane running the decoded plan; C: every test lane runs the decoded plan, as written; D: a planner-free runner binary
+over plans written to files, which alone also catches state shared through statics -- the author's recommendation
+now: A and B in this step, D later as G11's own gate).
+
 1. **The edge is a renderer of the test plan** (4.5, the user's correction): no compatibility record in any plan and
    no third artifact; the test plan carries neutral facts about its reads (order, provenance, page), and the edge's
    engine style and referee derive the engine texts, ledgers and appeals from it.
