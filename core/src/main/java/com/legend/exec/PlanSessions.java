@@ -364,7 +364,7 @@ public final class PlanSessions {
     }
 
     /** {@code session} made into the project's database: the project's refusal raised, then the target's ONCE loads
-     *  (the project's Data rows, S145) run on it once, as a run of their own (THE WALL: a statement is sent only inside a
+     *  (the project's Data rows, S171) run on it once, as a run of their own (THE WALL: a statement is sent only inside a
      *  plan's run), under the SEED mark; a failure closes it. Kept by the caller for the process; each query's
      *  PER_ACQUISITION loads run on the session it acquires ({@link #acquired}). */
     private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target) {

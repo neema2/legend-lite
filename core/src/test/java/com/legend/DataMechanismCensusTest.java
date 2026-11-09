@@ -59,7 +59,7 @@ class DataMechanismCensusTest {
 
     /** The 17, in the inventory's order. */
     static final List<Row> ROWS = List.of(
-            // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S145), run on every database the platform
+            // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S171), run on every database the platform
             // makes and refused on any other (the M1 audit's finding 1). PENDING still (the M1 tenets audit's finding 2,
             // 2026-11-09): the fill is ProjectData.fill's INSERT text inline in every plan (decision 1's reference above
             // its threshold not built), PlanSessions.made makes it, Project.refused stays

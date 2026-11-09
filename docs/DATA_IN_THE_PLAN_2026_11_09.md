@@ -208,13 +208,13 @@ that cannot delete what it replaces is not done.
   closed format written as an object in the plan (plan JSON v32). `base.CsvCells` is upstream's rule (Commons CSV 1.5
   `EXCEL`, an empty or quoted empty cell NULL), measured equal to that library on 2,000,000 random texts
   (`docs/data-in-the-plan-homework/probes/csv_format_probe.java.txt`). A record whose width is not the header's and a
-  malformed quoted cell are refused by name at planning and at the run (S148, D-c). **Every database takes the
+  malformed quoted cell are refused by name at planning and at the run (S174, D-c). **Every database takes the
   streamed cells:** DuckDB's own reader cannot read the format exactly (a cell whose quote follows a space read as
   quoted, an empty line in a wider table skipped, mixed line breaks refused; pinned by
   `CsvLoadRenderTest.duckDbsOwnReaderReadsTheFormatOtherwise`), so `Delivery.DatabaseReads`, `DataLoads.stage` and
   `Statements.readsFile` are deleted. A file's load admits upstream's 500 MB (`LoadStep.File.sizeLimitMegabytes`,
-  upstream's words, at planning and at the run: D-b). A cell is bound as text and the database casts it (S147, D-a).
-  S146 closed.
+  upstream's words, at planning and at the run: D-b). A cell is bound as text and the database casts it (S173, D-a).
+  S172 closed.
 - **A target's loads (M2):** `Target(database, session, loads)`; each load `PER_ACQUISITION` (declared test data) after
   any `ONCE` one (a project's Data). Plan JSON v32 and test plan JSON v12 write each load once in a `loads` section, a
   target naming identities (`PlanJson.hoistLoads`/`inlineLoads`). `planner/LoadPlanner` is the one maker of a load and
@@ -226,7 +226,7 @@ that cannot delete what it replaces is not done.
 - **Service suites (M4, the user's ruling: option 1):** the harness keeps legend-engine's own overlay (a synthetic
   connection carrying the suite's CSV); its data reaches a plan only as a load
   (`ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`).
-- **A project's Data (M1, L3, S145):** the target's `ONCE` load, made once where the platform makes the
+- **A project's Data (M1, L3, S171):** the target's `ONCE` load, made once where the platform makes the
   project's database and kept; `Project` names its key and refusal alone (the refusal stays where the database is
   made, slice 5's rule).
 - **The census, corrected by the M1 tenets audit (2026-11-09, finding 2):** DELETED M2, M7-seed, M8 (3 of 17); M4
@@ -287,7 +287,7 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
    The threshold is measured first (the demo, markets at 1.87 MB, a stress body); about 16 KB, near a query's own SQL
    at p99, is the starting proposal.
 2. **When a project's `###Data` loads (ruled 2026-11-09).** At first use, `ONCE` per identity, and kept: a register
-   row (`docs/SEMANTICS_REGISTER.md` S145). The catalog's rows load with the model, as its design rules.
+   row (`docs/SEMANTICS_REGISTER.md` S171). The catalog's rows load with the model, as its design rules.
 3. **(Folded into 2.)**
 4. **The runners' default admission policy.** Recommended: `resource`, `content` and `bundle` everywhere; `url` only
    where the host enables it, never a local `file:`.
@@ -313,7 +313,7 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
      sources say otherwise: `CSVREAD` is H2's, used by legend-engine for other loads.)
    - **H2's `CSVREAD` rule is nobody's.** It trims a padded cell and reads `""` as an empty string. The H2 lane loaded
      files by it before L1 (`CSVREAD` in the statement) and since L1 (`base.CsvCells`, its rule measured equal): a
-     divergence on `main`, register row S146 (pending), removed by L2, whose streamed rule is the default.
+     divergence on `main`, register row S172 (pending), removed by L2, whose streamed rule is the default.
    - **A malformed row is an error, never repaired** (invariant 4). Measured: a short row -- DuckDB refuses it, upstream
      binds too few values; a long row -- upstream fails on the extra cell, **DuckDB as lite configures it returns no
      row and no error** (it must be configured to refuse: L2); an empty line -- DuckDB skips it, upstream reads a record
@@ -359,12 +359,12 @@ spent: run in a new session (`docs/CLOUD_SESSIONS.md`).
   `base.CsvCells` takes the default's rule (no trimming, an empty or `""` cell NULL, a malformed row refused by name),
   its equivalence test measured against DuckDB's reader and Commons CSV 1.5 `EXCEL` (not `CSVREAD`); DuckDB's
   `read_csv` configured so a long or short row is refused (measure `strict_mode`, `null_padding`, `ignore_errors`);
-  S146 closed. No corpus test should move (its one file is clean); run both corpus lanes and the H2 PCT lane.
+  S172 closed. No corpus test should move (its one file is clean); run both corpus lanes and the H2 PCT lane.
 - **L2, test data onto loads (M2, M3, M4, M7's seed forms):** `Target.setup` and the seed `Load` become loads with
   cadences `PER_ACQUISITION` and `BEFORE_STEP`; model-written data inline below the threshold with its digest; the
   census rows M2, M3, M4, M7-seed deleted (their symbols in `DataMechanismCensusTest`), the deleted count moved with a
   dated line.
-- **L3, a project's `###Data`:** a `Load(ONCE)` named by identity, made at first use and kept (S145); the inline
+- **L3, a project's `###Data`:** a `Load(ONCE)` named by identity, made at first use and kept (S171); the inline
   `Project.made` deleted; census row M1.
 - **Each slice:** every lane green (local; CI on every OS; the warm lane sessions for the lanes CI does not run, as
   round 25 did), its deletions done, its guard hard, its record in `docs/GATES.md`.

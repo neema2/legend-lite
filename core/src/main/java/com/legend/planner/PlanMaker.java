@@ -840,7 +840,7 @@ public final class PlanMaker {
         // the runtime's declared test data, then the system metamodel store's rows (M6, until L4), each its own load
         // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
-        // a project's Data rows: one ONCE load, made with its database and kept (L3, S145)
+        // a project's Data rows: one ONCE load, made with its database and kept (L3, S171)
         if (filled && project != null && !project.data().isEmpty()) {
             loads.add(LoadPlanner.load(project.dataIdentity(), ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
         }

@@ -119,7 +119,7 @@ class ProjectRowsTest {
         assertTrue(String.valueOf(notMade.getMessage()).contains("\"U\" not found"), String.valueOf(notMade));
     }
 
-    /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): named by
+    /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S171): named by
      *  its target, written once in the plan's load section, and read back as written. */
     @Test
     void aProjectsDataIsItsTargetsOnceLoadWrittenOnce() {

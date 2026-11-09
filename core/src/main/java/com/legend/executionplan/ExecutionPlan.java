@@ -361,7 +361,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  when it is made; a source that establishes none (a caller's session as it is) refuses a target that has
              *  one; a program node of this cadence is refused. */
             PER_ACQUISITION,
-            /** A project's Data rows (L3, S145): made once, when the platform makes the project's database the target
+            /** A project's Data rows (L3, S171): made once, when the platform makes the project's database the target
              *  names, and kept with it for the process; never run on a database the plan does not make. */
             ONCE
         }
@@ -799,7 +799,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * go of 2026-11-08): what the database holds when it is made, part of its identity -- named by what it holds, so
      * an edited row or table is a fresh database, and two models whose stores differ never share one (type audit D100).
      * What fills it is the target's {@link Load.Cadence#ONCE} load (the project's Data rows,
-     * docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): made once where the platform makes the database, and kept; until
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S171): made once where the platform makes the database, and kept; until
      * L3 the project's own {@code made} steps.
      *
      * @param key  the model's stores' and Data rows' content key ({@code ProjectData.contentKey})
