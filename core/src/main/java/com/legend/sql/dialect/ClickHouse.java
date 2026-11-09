@@ -65,10 +65,16 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  each answers as without the merge). And a count of a value is never read from its column's null map: the
      *  rewrite that does so ({@code optimize_functions_to_subcolumns}, {@code count(x)} as {@code sum(not(x.null))})
      *  lost the column under a window over a join ("Not found column __table2.close.null in block", measured
-     *  2026-11-07 on the gallery's replay: {@code count(close[symbol = 'SPX'], all)}), so it is off. */
+     *  2026-11-07 on the gallery's replay: {@code count(close[symbol = 'SPX'], all)}), so it is off. And a join is
+     *  planned by the join step 25.8 planned it by: 26.3's new logical join step ran a CASE's guarded raise its guard
+     *  held back once its select was a side of a hash join (the PCT's channel B verdict of {@code
+     *  testExtendLeadAdjustDerivedOffset} and {@code testProjectExtendNestedIfLeadAdjust}: a lead's date adjusted, its
+     *  date guard raised in the join of the expected and actual cells, each side answering alone; measured 2026-11-09
+     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
             + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
-            + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0";
+            + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0,"
+            + " query_plan_use_new_logical_join_step = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
