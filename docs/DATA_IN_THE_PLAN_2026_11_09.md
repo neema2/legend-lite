@@ -202,6 +202,36 @@ that cannot delete what it replaces is not done.
   `DataMechanismCensusTest` (the 17 rows, M8 deleted, its symbols at zero in every source tree); the corpus's
   `testLoadCsv` passes on the DuckDB and H2 lanes.
 
+### L2 and L3 as built (2026-11-09, branch `claude/total-wall`)
+
+- **The CSV format (decision 6, ruled):** `DataRef.Csv(delimiter, quote)`, `DEFAULT` a comma and a double quote, a
+  closed format written as an object in the plan (plan JSON v32). `base.CsvCells` is upstream's rule (Commons CSV 1.5
+  `EXCEL`, an empty or quoted empty cell NULL), measured equal to that library on 2,000,000 random texts
+  (`docs/data-in-the-plan-homework/probes/csv_format_probe.java.txt`). A record whose width is not the header's and a
+  malformed quoted cell are refused by name at planning and at the run (S148, D-c). **Every database takes the
+  streamed cells:** DuckDB's own reader cannot read the format exactly (a cell whose quote follows a space read as
+  quoted, an empty line in a wider table skipped, mixed line breaks refused; pinned by
+  `CsvLoadRenderTest.duckDbsOwnReaderReadsTheFormatOtherwise`), so `Delivery.DatabaseReads`, `DataLoads.stage` and
+  `Statements.readsFile` are deleted. A file's load admits upstream's 500 MB (`LoadStep.File.sizeLimitMegabytes`,
+  upstream's words, at planning and at the run: D-b). A cell is bound as text and the database casts it (S147, D-a).
+  S146 closed.
+- **A target's loads (M2):** `Target(database, session, loads)`; each load `PER_ACQUISITION` (declared test data) after
+  any `ONCE` one (a project's Data). Plan JSON v32 and test plan JSON v12 write each load once in a `loads` section, a
+  target naming identities (`PlanJson.hoistLoads`/`inlineLoads`). `planner/LoadPlanner` is the one maker of a load and
+  the one identity scheme (`load:` + the SHA-256, portable `cache.Hash`, of a length-prefixed encoding of the steps).
+  Exec runs every load through one deliverer (`PlanRunner.seed`), a target's at the points its setup ran (once per kept
+  in-memory database; on each query's acquisition on the project road).
+- **The test road (M3, M7-seed):** the seeds are `BEFORE_STEP` loads made by `LoadPlanner`; a seed form mapped over
+  `executeInDb` is an `AT_STEP` load; the plan's connection description no longer carries `testDataSetupCsv/Sqls`.
+- **Service suites (M4, the user's ruling: option 1):** the harness keeps legend-engine's own overlay (a synthetic
+  connection carrying the suite's CSV); its data reaches a plan only as a load
+  (`ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`).
+- **A project's Data (M1, L3, S145):** the target's `ONCE` load, made once where the platform makes the
+  project's database and kept; `Project` names its key and refusal alone (the refusal stays where the database is
+  made, slice 5's rule).
+- **The census:** M1, M2, M3, M4, M7-seed and M8 deleted (6 of 17); the TypeScript runner refuses a target naming any
+  load, as it refused a setup.
+
 ## 5. Upstream
 
 lite's choices here are its own design. Where one differs observably from legend-pure or legend-engine (for example a
