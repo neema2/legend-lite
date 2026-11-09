@@ -1,12 +1,13 @@
 -- Hybrid on DuckDB: reciprocal rank fusion (k = 60) of the keyword and vector arms' lists, one row per sha256 carrying every
--- location that holds it, cut to the top 5. No reranker: a cross-encoder is outside the engine (README).
+-- location that holds it, cut to the top max(5, the case's number of accepted pointers), which the judge passes in
+-- (DECISIONS.md entry 3). No reranker: a cross-encoder is outside the engine (README).
 --
--- Relevance is the fused score divided by its largest possible value, 2 / (60 + 1), a constant, which puts it on [0, 1] so
+-- Relevance is the fused score normalised by its theoretical maximum, 2 / 61 (rank 1 in both lists), a constant, which puts it on [0, 1] so
 -- that it can be blended with recency at all: an undivided fused score is at most 0.033 and recency alone would decide.
 -- A time-aware case ($time_aware) ranks by 0.7 * relevance + 0.3 * recency; every other case by relevance alone. Recency is
 -- 0.5 ^ (days before its own corpus's latest date / 14). A hash held at several dates takes its most recent location's.
 -- Ties break on the hash. The two arms below are their own files' statements, verbatim; the judge refuses a run if they
--- drift. Parameters: $question, $vector, $time_aware.
+-- drift. Parameters: $question, $vector, $time_aware, $cut.
 WITH keyword_arm AS (
 WITH scored AS (
     SELECT d.SHA256, fts_main_CO_PASSAGE_DISTINCT.match_bm25(d.SHA256, $question) AS SCORE
@@ -72,5 +73,5 @@ ORDER BY r.RANK
 )
 SELECT RANK, SHA256, SCORE, LOCATIONS
 FROM ranked
-WHERE RANK <= 5
+WHERE RANK <= $cut
 ORDER BY RANK

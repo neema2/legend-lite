@@ -15,7 +15,7 @@ retrieval lives there and not in Python: the judge passes in the question and re
 | `keyword_postgres.sql` | `tsvector`, `@@`, `ts_rank`, any term may match, top 150 |
 | `vector_duckdb.sql` | `array_cosine_similarity` over `FLOAT[384]`, top 150 |
 | `vector_postgres.sql` | pgvector `<=>`, top 150. Never run: the embedded Postgres has no pgvector |
-| `hybrid_duckdb.sql`, `hybrid_postgres.sql` | reciprocal rank fusion (k = 60), one row per hash, recency blend on time-aware cases, top 5 |
+| `hybrid_duckdb.sql`, `hybrid_postgres.sql` | reciprocal rank fusion (k = 60), one row per hash, recency blend on time-aware cases, cut as below |
 
 Every arm ranks distinct passages (one row per `sha256`) and each row carries every `(source, path, charStart)` holding
 that hash, so duplicates cannot use up the list.
@@ -26,9 +26,12 @@ Each hybrid statement contains its keyword and vector arms verbatim, and the jud
 **No reranker: that is the boundary.** A cross-encoder runs a model per candidate pair at query time, which is outside the
 engine. Everything here is either data preparation (the vectors) or a statement the database executes.
 
-Hybrid's relevance is the fused score divided by its largest possible value, `2 / (60 + 1)`, a constant that needs no
-look at the results. It is needed only for the blend `0.7 * relevance + 0.3 * recency`, which would otherwise be decided by
+Hybrid's relevance is the fused score normalised by its theoretical maximum, `2 / 61`, a constant that needs no look at
+the results. It is needed only for the blend `0.7 * relevance + 0.3 * recency`, which would otherwise be decided by
 recency alone: a fused score never exceeds 0.033.
+
+Postgres's `plainto_tsquery` ANDs its terms by default. `keyword_postgres.sql` turns them into ORs, because a whole-sentence
+question almost never contains all of its terms in one passage and DuckDB's `match_bm25` is already any-term.
 
 ## The structured route
 
@@ -50,13 +53,14 @@ the key does not match the corpus, the vectors were not made on the pins, or a h
 
 ## The ledger
 
-One row per (case, route, arm, backend), with no headline score.
+One row per (case, route, arm, backend), with no headline score. **The cut** is the top `max(5, accepted pointers)` of each
+case, so that a `match: all` case can pass in principle (`projects/unstructured/evals/DECISIONS.md`, entry 3).
 
 | Verdict | Means |
 |---|---|
-| `PASS` | every accepted pointer in the top 5 (`match: all`), or at least one (`match: any`). Carries path, section, asOfDate, sha256 and rank, `\|`-joined, one per pointer found |
+| `PASS` | every accepted pointer inside the cut (`match: all`), or at least one (`match: any`). Carries path, section, asOfDate, sha256 and rank, `\|`-joined, one per pointer found |
 | `DROPPED` | not that. On the structured route, the rows differ from the key's, missing or extra |
-| `STALE_HIT` | a superseded pointer in the top 5, even with the accepted one there too |
+| `STALE_HIT` | a superseded pointer inside the cut, even with the accepted one there too; it outranks `DROPPED` |
 | `EMPTY_OK` | a negative, and nothing returned |
 | `FALSE_HIT` | a negative, and something returned |
 | `REFUSED` | the arm is not available on that backend, named |

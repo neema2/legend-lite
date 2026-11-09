@@ -11,6 +11,12 @@ KEY_COLUMNS = ("case", "route", "arm", "backend")
 TOP = 5
 
 
+def cut(accepted: list) -> int:
+    """How far down a case is judged: the top 5, or as many as it accepts, so that a match: all case can pass in principle
+    (DECISIONS.md entry 3)."""
+    return max(TOP, len(accepted))
+
+
 def pointer(source: str, path: str, char_start: int) -> tuple:
     return (source, path, char_start)
 
@@ -18,8 +24,8 @@ def pointer(source: str, path: str, char_start: int) -> tuple:
 def text_verdict(results: list[dict], accepted: list[tuple], match: str, superseded: list[tuple], negative: bool) -> dict:
     """One arm's answer to one case. `results` are the arm's rows in rank order: rank, sha256, score and locations.
 
-    A superseded pointer in the top 5 is STALE_HIT even with the accepted one there too. `match: all` needs every accepted
-    pointer and `match: any` needs one; only then is a pointer's absence a DROPPED.
+    Judged at the case's cut(). A superseded pointer inside it is STALE_HIT even with the accepted one there too.
+    `match: all` needs every accepted pointer and `match: any` needs one; only then is a pointer's absence a DROPPED.
     """
     if negative:
         if not results:
@@ -27,7 +33,8 @@ def text_verdict(results: list[dict], accepted: list[tuple], match: str, superse
         first = results[0]
         where = first["locations"][0]
         return {"verdict": FALSE_HIT, "receipts": [], "detail": f"{len(results)} returned; rank 1 {where['path']}@{where['charStart']} score {first['score']:.4f}"}
-    top = [row for row in results if row["rank"] <= TOP]
+    limit = cut(accepted)
+    top = [row for row in results if row["rank"] <= limit]
     found = {}
     for row in top:
         for location in row["locations"]:
@@ -41,10 +48,10 @@ def text_verdict(results: list[dict], accepted: list[tuple], match: str, superse
         satisfied = bool(hit)
     else:
         raise ValueError(f"match must be all or any, not {match!r}")
-    of = f"{len(hit)} of {len(accepted)} accepted in the top {TOP} (match: {match})"
+    of = f"{len(hit)} of {len(accepted)} accepted in the top {limit} (match: {match})"
     if stale:
         ranks = "; ".join(f"{p[1]}@{p[2]} rank {found[p][0]['rank']}" for p in stale)
-        return {"verdict": STALE_HIT, "receipts": [], "detail": f"superseded in the top {TOP}: {ranks}; {of}"}
+        return {"verdict": STALE_HIT, "receipts": [], "detail": f"superseded in the top {limit}: {ranks}; {of}"}
     if not satisfied:
         return {"verdict": DROPPED, "receipts": [], "detail": "missing: " + "; ".join(f"{p[1]}@{p[2]}" for p in missing) + f"; {of}"}
     receipts = [{"path": found[p][1]["path"], "section": found[p][1]["section"], "asOfDate": str(found[p][1]["asOfDate"]),
