@@ -1,33 +1,33 @@
 # THE LEDGERS' COUNTS (two_rows.py, from the four ledgers): each ledger's verdicts with their dup-span share, and lite's split over the two-row line (BTCUSD, 2025-02-05). Every count the PR and docs/GATES.md quote is a row here. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
 ledger	measure	cases	of which dup-span, or distinct words
-ledger.tsv	PASS	240	0 dup-span
+ledger.tsv	PASS	285	0 dup-span
 ledger.tsv	DIFF	16	0 dup-span
 ledger.tsv	REFUSED	0	0 dup-span
 ledger.tsv	GS_ERROR	2	0 dup-span
 ledger.tsv	SKIP	8	0 dup-span
-ledger.tsv	rows	266	-
-ledger-adversarial-raw.tsv	PASS	698	20 dup-span
-ledger-adversarial-raw.tsv	DIFF	54	6 dup-span
-ledger-adversarial-raw.tsv	REFUSED	132	131 dup-span
-ledger-adversarial-raw.tsv	GS_ERROR	92	0 dup-span
+ledger.tsv	rows	311	-
+ledger-adversarial-raw.tsv	PASS	832	20 dup-span
+ledger-adversarial-raw.tsv	DIFF	55	6 dup-span
+ledger-adversarial-raw.tsv	REFUSED	162	161 dup-span
+ledger-adversarial-raw.tsv	GS_ERROR	107	0 dup-span
 ledger-adversarial-raw.tsv	SKIP	88	0 dup-span
-ledger-adversarial-raw.tsv	rows	1064	-
-ledger-adversarial-adjusted.tsv	PASS	698	20 dup-span
-ledger-adversarial-adjusted.tsv	DIFF	54	6 dup-span
-ledger-adversarial-adjusted.tsv	REFUSED	132	131 dup-span
-ledger-adversarial-adjusted.tsv	GS_ERROR	92	0 dup-span
+ledger-adversarial-raw.tsv	rows	1244	-
+ledger-adversarial-adjusted.tsv	PASS	832	20 dup-span
+ledger-adversarial-adjusted.tsv	DIFF	55	6 dup-span
+ledger-adversarial-adjusted.tsv	REFUSED	162	161 dup-span
+ledger-adversarial-adjusted.tsv	GS_ERROR	107	0 dup-span
 ledger-adversarial-adjusted.tsv	SKIP	88	0 dup-span
-ledger-adversarial-adjusted.tsv	rows	1064	-
+ledger-adversarial-adjusted.tsv	rows	1244	-
 ledger-gallery.tsv	PASS	196	0 dup-span
 ledger-gallery.tsv	DIFF	4	0 dup-span
 ledger-gallery.tsv	REFUSED	0	0 dup-span
 ledger-gallery.tsv	GS_ERROR	0	0 dup-span
 ledger-gallery.tsv	SKIP	32	0 dup-span
 ledger-gallery.tsv	rows	232	-
-two-row line	run	244	75 words
-two-row line	gs-quant raises	86	27 words
-two-row line	gs-quant answers	158	53 words
-two-row line	lite refuses (S149)	132	46 words
+two-row line	run	289	75 words
+two-row line	gs-quant raises	101	28 words
+two-row line	gs-quant answers	188	53 words
+two-row line	lite refuses (S149)	162	46 words
 two-row line	lite answers over both rows	26	23 words
 two-row line	of which PASS	20	20 words
 two-row line	of which DIFF	6	5 words

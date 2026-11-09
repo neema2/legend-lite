@@ -256,16 +256,21 @@ def word_problems(m):
 
 
 def tag_problems(m):
-    """TAG: a MAPPED word whose gs is not its library tag's function, or a SKIP word the library names a twin for --
-    but for a word whose `tag:` says why."""
+    """TAG: a MAPPED word whose gs is not its library tag's function, or a SKIP word or one a reference answers (ref:)
+    the library names a twin for -- but for a word whose `tag:` says why."""
     tags = library_tags()
     out = []
     for w in m["words"]:
-        if "tag" in w or "ref" in w:
-            # a word a reference answers (ref:) has no gs-quant function to hold to its tag: its tag is DataCube's
+        if "tag" in w:
             continue
         named = {t for tag in tags.get(w["word"], set()) for t in tag.split(", ") if re.fullmatch(r"[a-z]+\.\w+", t)}
-        if "skip" in w:
+        if "ref" in w:
+            # a word a reference answers has no gs-quant function: a tag naming one says gs-quant answers it (the
+            # checkpoint's review of 2026-11-09 found ref: words never checked)
+            if named:
+                out.append("TAG: " + w["word"] + " is answered by a reference, its library tag names "
+                           + ", ".join(sorted(named)))
+        elif "skip" in w:
             if named:
                 out.append("TAG: " + w["word"] + " is SKIP, its library tag names " + ", ".join(sorted(named)))
         elif w["gs"] not in named:
@@ -508,9 +513,11 @@ GALLERY_WORD = "series"
 
 def gallery_rows(path=GALLERY):
     """gallery.jsonl's rows: each series' key, Show Python's call of it (its other series inlined), its tile's sources,
-    its answer's fields (none for a value) and why gs-quant cannot answer it (null: it can)."""
+    its answer's fields (none for a value) and why gs-quant cannot answer it (null: it can) -- and the row's own text
+    (`row`), which a case's sha is over: its sources and fields as well as its call (the checkpoint's review of
+    2026-11-09: a tile's sources changed, its answer had stayed current)."""
     with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip() and not line.startswith("#")]
+        return [{**json.loads(line), "row": line.rstrip("\n")} for line in f if line.strip() and not line.startswith("#")]
 
 
 def gallery_known(m):
@@ -527,9 +534,10 @@ def gallery_frames(data):
 @functools.lru_cache(maxsize=None)
 def line_class():
     """A line of a gallery series' run (and every gs-quant answer there, gallery_namespace): a pandas Series whose
-    comparisons and `&`, `|` are the program's -- legend_lite.timeseries' Term's, the language's: two lines met on the
-    dates both have (S152), where pandas raises on two series of different dates (tools/ts-oracle/calls.py's rule, moved
-    here with the gallery) -- and Show Python's `.period(fn)`, each date's value of its rows under the tile's frequency,
+    arithmetic, comparisons and `&`, `|` are the program's -- legend_lite.timeseries' Term's, the language's: two lines
+    met on the dates both have (S152), where pandas raises on two series of different dates or aligns their union with
+    NaN (tools/ts-oracle/calls.py's rule, moved here with the gallery; gs-quant's functions are given plain Series, their
+    own operators pandas') -- and Show Python's `.period(fn)`, each date's value of its rows under the tile's frequency,
     which the gallery reads under none (a frequency is skipped): each date's one row itself (a date of two rows is this
     tool's error). pandas defers its own operators to it (`__pandas_priority__`)."""
     import pandas as pd
@@ -570,6 +578,32 @@ def line_class():
         def __ne__(self, other):
             return self._met(other, lambda a, b: a != b)
 
+        # the program's arithmetic too: two lines met on the dates both have, where pandas aligns their union with NaN
+        # (the checkpoint's review of 2026-11-09; every sample shares its dates today, so no answer moves)
+        def __add__(self, other):
+            return self._met(other, lambda a, b: a + b)
+
+        def __radd__(self, other):
+            return self._met(other, lambda a, b: b + a)
+
+        def __sub__(self, other):
+            return self._met(other, lambda a, b: a - b)
+
+        def __rsub__(self, other):
+            return self._met(other, lambda a, b: b - a)
+
+        def __mul__(self, other):
+            return self._met(other, lambda a, b: a * b)
+
+        def __rmul__(self, other):
+            return self._met(other, lambda a, b: b * a)
+
+        def __truediv__(self, other):
+            return self._met(other, lambda a, b: a / b)
+
+        def __rtruediv__(self, other):
+            return self._met(other, lambda a, b: b / a)
+
         def __and__(self, other):
             return self._met(other, lambda a, b: (a != 0) & (b != 0))
 
@@ -587,15 +621,26 @@ def line_class():
     return Line
 
 
+def plain_series(v):
+    """A program's Line (and a list of them: a basket's members) as a plain pandas Series: what gs-quant's functions
+    are given, so their own operators stay pandas' -- the Line's meeting is the program's alone."""
+    import pandas as pd
+    if isinstance(v, line_class()):
+        return pd.Series(v)
+    if isinstance(v, (list, tuple)):
+        return type(v)(plain_series(x) for x in v)
+    return v
+
+
 def gallery_namespace(ns):
-    """The namespace's every function answering a Line where it answers a pandas Series: a gallery series' operators
-    meet gs-quant's answers as the language meets lines."""
+    """The namespace's every function answering a Line where it answers a pandas Series, and given plain Series: a
+    gallery series' operators meet gs-quant's answers as the language meets lines, gs-quant's own computing as it does."""
     import pandas as pd
     line = line_class()
 
     def lined(f):
         def call(*args, **kwargs):
-            got = f(*args, **kwargs)
+            got = f(*[plain_series(a) for a in args], **{k: plain_series(v) for k, v in kwargs.items()})
             return line(got) if isinstance(got, pd.Series) and not isinstance(got, line) else got
         return call
     return {k: lined(v) if callable(v) and not isinstance(v, type) else v for k, v in ns.items()}
@@ -637,15 +682,18 @@ def cashed_sharpe_ratio(ns, column):
 
     def sharpe_ratio(series, currency=RiskFreeRateCurrency.USD, w=None, curve_type=CurveType.PRICES,
                      method=Interpolate.NAN):
+        series = plain_series(series)
         er = series if curve_type == CurveType.EXCESS_RETURNS else excess_returns_pure(
-            series, column("cash.index", getattr(currency, "value", currency)))
+            series, plain_series(column("cash.index", getattr(currency, "value", currency))))
         return line(get_ratio_pure(er, w, method))
     return sharpe_ratio
 
 
 def run_gallery(row, field, frames, ns):
     """gs-quant's answer for a gallery series (a field of it: a band's lower, a candle's open): its points in gs-quant's
-    own order, or None where gs-quant's answer has no such field (its bands no width), or raises."""
+    own order, or None where gs-quant's answer has no width (its bands are lower and upper alone), or raises -- any other
+    field it has not, or a field asked of a plain series, this tool's error (HARNESS: the checkpoint's review of
+    2026-11-09 found every missing field a silent SKIP)."""
     import pandas as pd
     read = []
     column = gallery_column(frames, row["sources"], read)
@@ -659,10 +707,12 @@ def run_gallery(row, field, frames, ns):
             got = got[field]
         elif field in ("lower", "upper") and got.shape[1] == 2:
             got = got.iloc[:, {"lower": 0, "upper": 1}[field]]
-        else:
+        elif field == "width" and got.shape[1] == 2:
             return None
+        else:
+            raise ValueError("gs-quant's frame of columns " + repr(list(got.columns)) + " has no " + repr(field))
     elif field is not None:
-        return None
+        raise ValueError("a field " + repr(field) + " of gs-quant's " + type(got).__name__ + ", which has none")
     if isinstance(got, pd.Series):
         return [(pd.Timestamp(d).date().isoformat(), value_text(float(v))) for d, v in got.items()
                 if not (v is None or (isinstance(v, float) and math.isnan(v)))]
@@ -675,8 +725,9 @@ def run_gallery(row, field, frames, ns):
 
 def snap_gallery(gallery, env, data_sha, ns, version, known_map):
     """Every series of the gallery (each field of a struct its own case) run over the pages' samples: its rows -- each its
-    own dates, never a spine -- its ledger cells and its meta entries. A case's sha is over its key, not its #TS: the
-    answer is gs-quant's, of its call alone, and the parity test runs the series' Show #TS as it is."""
+    own dates, never a spine -- its ledger cells and its meta entries. A case's sha is over its key and its gallery.jsonl
+    row (its call, sources and fields), not its #TS: the answer is gs-quant's, of its call alone, and the parity test runs
+    the series' Show #TS as it is."""
     rows, ledger, meta_cases = [], {}, {}
     ns = gallery_namespace(ns)
     for g in gallery:
@@ -687,7 +738,7 @@ def snap_gallery(gallery, env, data_sha, ns, version, known_map):
                 ledger[key] = [key, "SKIP", "SKIP", "-", "-", "-", g["skip"]]
                 continue
             register = known_map.get(args, "-")
-            case_sha = sha(args, g["python"], field, data_sha, version)
+            case_sha = sha(args, g["row"], field, data_sha, version)
             try:
                 points = run_gallery(g, field, env["frames"], ns)
             except Exception as e:   # noqa: BLE001 -- gs-quant's error is the case's answer; any other is this tool's
@@ -718,10 +769,11 @@ def raised_at(e):
     tb = traceback.extract_tb(e.__traceback__)
     frames = [f for f in tb if os.sep + "gs_quant" + os.sep in f.filename]
     if not frames:
-        # a reference's own refusal (references.py and the library it calls: pandas on a line of two rows on one
-        # date), its GS_ERROR as gs-quant's is -- the innermost frame of references.py
+        # a reference's deliberate refusal (references.Refused: a line of two rows on one date), its GS_ERROR as
+        # gs-quant's is -- the innermost frame of references.py; any other error there is this tool's (HARNESS: the
+        # checkpoint's review of 2026-11-09)
         own = [f for f in tb if os.path.basename(f.filename) == "references.py"]
-        return None if not own else "references.py:" + str(own[-1].lineno)
+        return "references.py:" + str(own[-1].lineno) if own and isinstance(e, references().Refused) else None
     f = frames[-1]
     path = f.filename.split(os.sep + "gs_quant" + os.sep, 1)[1]
     return (path[len("timeseries" + os.sep):] if path.startswith("timeseries" + os.sep) else path) + ":" + str(f.lineno)
@@ -747,6 +799,20 @@ def repeated(points):
     for d, _ in points:
         counts[d] = counts.get(d, 0) + 1
     return {d: n for d, n in sorted(counts.items()) if n > 1}
+
+
+#: the oracle's own code an answer is computed by: a change to either makes every answer file STALE (the parity test
+#: checks the same; the checkpoint's review of 2026-11-09 found an edit of either left the answers judged current)
+TOOLS = ("snap.py", "references.py")
+
+
+def tool_shas():
+    """Each of TOOLS' sha256, of its bytes."""
+    out = {}
+    for name in TOOLS:
+        with open(os.path.join(HERE, name), "rb") as f:
+            out[name] = hashlib.sha256(f.read()).hexdigest()
+    return out
 
 
 def sha(ts_text, gs_text, column, data_sha, version):
@@ -1088,11 +1154,15 @@ def one(m, args, suffix, data_sha, runs, where, version, gallery=None):
         ledger.update(l)
         meta_cases.update(mc)
         order += list(l)
+    tools = tool_shas()
     meta = {"tool": "tools/gs-quant-oracle/snap.py", "format": FORMAT, "pins": version, "data": data_sha,
-            "fixture": where, "cases": meta_cases}
+            "fixture": where, "tools": tools, "cases": meta_cases}
     old_meta, old_points = read_answers(answers_file, fixture)
     old_ledger, ledger_pin = read_ledger(ledger_file)
     if args.write:
+        if args.only and old_meta and old_meta.get("tools") != tools:
+            # a glob's cases snapped by tools the file's other cases were not: the file stays STALE until a whole write
+            meta["tools"] = old_meta.get("tools")
         if args.only and old_meta:
             # a glob's cases merged into the file: every other case's rows and entries kept as they are
             meta["cases"] = {**{k: v for k, v in old_meta.get("cases", {}).items() if k not in meta_cases},
@@ -1135,6 +1205,9 @@ def one(m, args, suffix, data_sha, runs, where, version, gallery=None):
     if ledger_pin != version:
         problems.append("STALE: " + os.path.relpath(ledger_file, ROOT) + "'s header names " + str(ledger_pin)
                         + ", the pins are " + version)
+    if old_meta.get("tools") != tools:
+        problems.append("STALE: " + os.path.relpath(answers_file, ROOT) + " was snapped by another snap.py or references.py"
+                        + " (TOOLS: their sha256)")
     live_rows = {row_key(r, fixture): r for r in rows}
     for key, entry in meta_cases.items():
         was = old_meta["cases"].get(key)

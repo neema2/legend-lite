@@ -9,6 +9,43 @@ mean w=20 @ALPHA	OK	PASS	-	52db3233ea58987f99e262d0c4c0e71709002aba931adf31049fe
 mean w=3mo @ALPHA	OK	PASS	-	dcf1f479a7de9015677e991516c1a2396dc5887b6cb4c36cc21511d8abda0399	-	440 points
 mean w=all @ALPHA	OK	PASS	-	d144f3a7c6fb7b408dd198711eff3b69f487f27dd7c816f3f847120a56954fb0	-	502 points
 mean w=20,r=10 @ALPHA	OK	PASS	-	1dcda97b9ede211756043cca88ebb58a30b720ab30ad2ec24ae2a60e9edb76b7	-	492 points
+mean w=3mo|returns @ALPHA	OK	PASS	-	af002c60c14bdf01a0482dbf35c8cb77add2bb84734a31432b21c533bacbc0cd	-	440 points
+mean w=3mo|mean22 @ALPHA	OK	PASS	-	e52730dccb0c1306ef753d5d0eac936f4514e8112d160619f5c3d0a238f3454d	-	418 points
+mean w=3mo|std22 @ALPHA	OK	PASS	-	9c0f915388e45689f5770e69a7fb328389e9cf8e9ed5c1ee98686a6fe3ca48d5	-	418 points
+mean w=3mo|volatility22 @ALPHA	OK	PASS	-	874d021985cfd055248319bfab20ed2da866903b33af4067eb2b67f7e1cd6cf3	-	418 points
+mean w=3mo|correlation22 @ALPHA	OK	PASS	-	ce36720c45e44219b0a55d1a4c895867f5640c6f9078928fecb4d5c11c6bf9f2	-	418 points
+mean w=3mo|beta22 @ALPHA	OK	PASS	-	51a9a1c9802193237a9f44ab3f305598b2db8087ee5638101a76269f0a9421b5	-	418 points
+mean w=3mo|drawdown22 @ALPHA	OK	PASS	-	4e662561eae971b0ee446be0b397cd0bd94c9e35c9cad22aef0fe53d7575e116	-	419 points
+mean w=3mo|rsi14 @ALPHA	OK	PASS	-	369a1fabbfcebe2f4ff020fb44941179a684041ea9f6589398900dbe4ca3ac6b	-	424 points
+mean w=3mo|vol_swap22 @ALPHA	OK	PASS	-	3d1e23bbbd17b04d96cc7cfadd10ec36fdc76fff92c3fb9d076d958657bb858a	-	419 points
+mean w=3mo|sum22 @ALPHA	OK	PASS	-	a3e9ea9c62a39d00ab86be2f1a6c96ae0c99e724cf73f5236404becea1275636	-	418 points
+mean w=3mo|min22 @ALPHA	OK	PASS	-	546cb0ad8f4d765d760d8969b2dfb42deda75b866edb4512f54aef231f231b67	-	418 points
+mean w=3mo|max22 @ALPHA	OK	PASS	-	0ae9946e3610ebf9a0e8e9325ac9b4d03ed2937c672647105ae850952a51b2ec	-	418 points
+mean w=3mo|range22 @ALPHA	OK	PASS	-	c4232e8305f59203c739412c6a88cd0318822dc04681f6d28ce4d4d04a795e18	-	418 points
+mean w=3mo|var22 @ALPHA	OK	PASS	-	ef9919f0476d6409ea64cb0ee1e681017ec3467085d14398cad8c2814c1e5f39	-	418 points
+mean w=3mo|median22 @ALPHA	OK	PASS	-	a4c2337bc6d28fbe0be2aca6c209375618d961637a3321662dc58100ee289bff	-	418 points
+mean w=3mo|product22 @ALPHA	OK	PASS	-	d9ad7994815b51583ce2110412bb64f7042f4ed02354ca792dfafa4f8a893c8f	-	418 points
+mean w=3mo|max_drawdown22 @ALPHA	OK	PASS	-	14f810a128db223892e7f5da591db0ac378a2c5b69ad2cc304beb3c2c88ea09b	-	418 points
+mean w=3mo|zscores22 @ALPHA	OK	PASS	-	ca2d128418a5533484d5be029e09ed788251675dab1354469d3d22c66acf634f	-	418 points
+mean w=3mo|percentile22 @ALPHA	OK	PASS	-	062d9a7a62cb0346cb04f2b30e0029f1444c070d0fc3777f75507e853c285358	-	418 points
+mean w=3mo|percentiles22 @ALPHA	OK	PASS	-	2868a8a9b813bb23922fe8d3fa822b7da0d9ce1d085690183648d14b95f81900	-	418 points
+mean w=3mo|sharpe_ratio22 @ALPHA	OK	PASS	-	bd5446cb6457b18ed5d00f4f9300fe7c3c8827146a8771e74602138c5d9bcc04	-	418 points
+mean w=3mo|smoothed_moving_average14 @ALPHA	OK	PASS	-	f63d6edbb6a516bca54bbc5db8eb30aa1dff7fc9cb59126c313cdc0721580c7e	-	425 points
+mean w=3mo|dickey_fuller63 @ALPHA	OK	PASS	-	e07c50acd61573b26ab88f88e81e732493ff33bcb0acf6854c6e7741d28b52a3	-	376 points
+mean w=3mo|half_life63 @ALPHA	OK	PASS	-	68ab61e9481f95509afe73484cef9987c462b83366c4fb74a252217efebc63e2	-	376 points
+mean w=3mo|cov22 @ALPHA	OK	PASS	-	33dac65a28bb7e1d8bacf1da0e051a563722db6b26fb408eb99e0c436f08964b	-	418 points
+mean w=3mo|alpha22 @ALPHA	OK	PASS	-	20499a90280781b9f4117bd76a7bd972bea54c1dde0e90353605b59cdc5c9c06	-	418 points
+mean w=3mo|r_squared22 @ALPHA	OK	PASS	-	5c1ce6da073e16693dc37b5c93b97085a2c074f0bfc42d2a0f06c63c32a756b0	-	418 points
+mean w=3mo|hedge_ratio22 @ALPHA	OK	PASS	-	06d7907427b6eaf52784bc08ff46e0a24bbe2f5922d39120dc462f7e113dae54	-	419 points
+mean w=3mo|residual22 @ALPHA	OK	PASS	-	d8152d509e082608298fddc4f73322158486cc8a00fd821a3b4bad7727973b40	-	419 points
+mean w=3mo|lead_lag22 @ALPHA	OK	PASS	-	05ec2a92cfe99bf4f1b24fc8d014a16944f39fb5ea3e3d58525c76fe5267865a	-	416 points
+mean w=3mo|tracking_error22 @ALPHA	OK	PASS	-	62dfa7295842e9615247b818b744ed754cf1752db817c12b16825887ed7ed983	-	418 points
+mean w=3mo|information_ratio22 @ALPHA	OK	PASS	-	c4c74075db4808528da7789538843cec3d1a49c768d5fac071a6108e78b79dd9	-	418 points
+mean w=3mo|up_capture22 @ALPHA	OK	PASS	-	d622cd55168849e8a9b5ffbc8eb536cf3d1d135c7aef4e348b51f4a13f384200	-	418 points
+mean w=3mo|down_capture22 @ALPHA	OK	PASS	-	2586570b4f38bad5dfadda83efb33b19454663086ab887b443a72257f816119a	-	418 points
+mean w=3mo|vwap20 @ALPHA	OK	PASS	-	44a49853d330d4ed87f1f53c4968f0d3463d3f001b2b18fe4c2bb4beee4090a3	-	420 points
+mean w=3mo|atr14 @ALPHA	OK	PASS	-	3e5be76cdc43074738bbdaa1e9d66e84019b9b56625f257d1cc9dc78e9349ba9	-	425 points
+mean w=3mo|stochastic14 @ALPHA	OK	PASS	-	48798a025bafaccb1e94921fb169bfa7e3c6f6f7ab3a3db3a5d892dab1a273b5	-	426 points
 sum w=20 @ALPHA	OK	PASS	-	26505816c28762b67496a4f0ec289cb8f4a247842ff8134b8da184de55408185	-	482 points
 sum w=3mo @ALPHA	OK	PASS	-	f49e84138017926673c973727ca340a71879dc5ea40bef46268786348ab2b165	-	440 points
 sum w=all @ALPHA	OK	PASS	-	45cabf8326158dfba149c7412366aa78ef237ff3c84ce7a44d3e4ec7d6a19f42	-	502 points
@@ -34,6 +71,8 @@ median w=3mo @ALPHA	OK	PASS	-	17c09ab2465df1fb203bebc0f7d25e14b9af8fe9398d625501
 median w=all @ALPHA	OK	PASS	-	fcbcbb0247d4b8927153fcb936a8e387e2ee47fe6280f77985f69763d71f766c	-	502 points
 median w=20 @ALPHA	OK	PASS	-	1c1e6ff3da0d39c3f447f3992f014c45a372e13c5a5820201049e30909a48111	-	482 points
 median w=20,r=10 @ALPHA	OK	PASS	-	bc4e9c370761bf4cf8a43a1606ebc3e86b7c86ebfa87839d68c0b7f6ba1084dc	-	492 points
+median w=6mo|returns @ALPHA	OK	PASS	-	ca37ebc5a31de69cf05bddd830f4cf56c74bfee25306800462ae56d4fe422401	-	377 points
+median w=22|returns @ALPHA	OK	PASS	-	c7b27a851c9158562ef9f69882c9a3d44bedb5047c7288504cff555bf7d38846	-	480 points
 range default @ALPHA	OK	PASS	-	040159db647a4a4eda69cf4ae0242a41f9539c5ff2f8c314947eda3583c9b5b4	-	502 points
 range w=3mo @ALPHA	OK	PASS	-	2b6dae63e96599d4d65b0638dd11bcd6fc35bd9ccd6792483925a1cc0ed2a118	-	440 points
 range w=all @ALPHA	OK	PASS	-	040159db647a4a4eda69cf4ae0242a41f9539c5ff2f8c314947eda3583c9b5b4	-	502 points
@@ -48,10 +87,15 @@ percentile n=50,w=whole @ALPHA	OK	PASS	-	59bcc62df3129e684496e4c25eb9e8d4f32cbcf
 percentile n=90,w=20 @ALPHA	OK	PASS	-	b9aef26f426850ebdc75d6ea025f1cb49a3ef5a28e5dacd08fb0bee689c877a1	-	482 points
 percentile n=90,w=3mo @ALPHA	OK	PASS	-	ca34e4257ad6ec61d3d2aa0acc409cbab7d9721c12bec053d2551f771e33c690	-	440 points
 percentile n=90,w=20,r=10 @ALPHA	OK	PASS	-	59632a7bf5067c31a02d4e313773f8fc6f6a34e1d056ed0a1940f61eef9f9c9d	-	492 points
+percentile n=90,w=6mo|returns @ALPHA	OK	PASS	-	8271d553f8face5169b988e853fa5e36487832e941eb66db71ffb0bf09e2f7c5	-	376 points
+percentile n=90,w=22|returns @ALPHA	OK	PASS	-	f1dc0baf90fbcf4ccda5aa4474f6e307c32d60ff2116b42347f70cc98e15acbb	-	479 points
+percentile n=90,w=22,r=10|returns @ALPHA	OK	PASS	-	4d6fcd9893625ab7a7de8baed130f238586a8656760240ce004ac70a7ed41f2b	-	491 points
 percentiles default @ALPHA	OK	PASS	-	1c6129d8e89dd117d34c6060518eb4b94a2788c306fd1057c7fbc367a64fe76d	-	502 points
 percentiles w=20 @ALPHA	OK	PASS	-	eec8c8da61b820e53278165aec286ea53e3296a815470f3f873ff39c2765cc20	-	482 points
 percentiles w=3mo @ALPHA	OK	PASS	-	d63ba74c649b02b758259f6836be7911f4c897e8d5aeb68773d13e15a1e3643a	-	440 points
 percentiles w=20,r=10 @ALPHA	OK	PASS	-	f40f7f034309e947d67bfa194573aa8502e373ca881a53227d6d694196888563	-	492 points
+percentiles w=6mo|returns @ALPHA	OK	PASS	-	5a17362c91903f4ae555ca3d66fa78d0b6ab810e3e47d160743f312a957b2f23	-	377 points
+percentiles w=22|returns @ALPHA	OK	PASS	-	640a1592146955befe502ade7f8d3dfd6c21d2d7b6b8d079469a008098d37cba	-	480 points
 zscores default @ALPHA	OK	DIFF	S150	09c8448ffe3f83711bc23dd9cfd292a1e0b0267648cab2e2b1538b47fddb2ed5	-	502 points | lite: 502 gs-quant points, 502 lite's; 501 dates apart (worst absolute 1.5446045587705912), 0 gs-quant's alone, 0 lite's alone; 2024-01-02: gs-quant 0.06516555740044976, lite 0.0; 2024-01-03: gs-quant -0.04869665896540737, lite -0.7071067811865476; 2024-01-04: gs-quant 0.04206307871752205, lite 0.3746988545544959
 zscores w=20 @ALPHA	OK	PASS	-	2e6f03b472a59a9b27797e10dffc3b5d773893eb4c52050a6ae5ef8be9d86a41	-	482 points
 zscores w=3mo @ALPHA	OK	PASS	-	1ec60b74eaf59c6f80d2a4017bfaa3fd8c6e8d69e1ea6645a42db5b139ba624f	-	440 points
@@ -90,6 +134,7 @@ volatility type=log @ALPHA	OK	PASS	-	fae58819b462ae85129978ff57b6d174fa2b055b570
 volatility w=63,r=10 @ALPHA	OK	PASS	-	75996373ff854cbde55399b3bb4ed6673b9b23b5dead4353e56610c22e506f4a	-	492 points
 volatility w=10,annualization_factor=252 @ALPHA	OK	PASS	-	70ffc2d3fce00af6b479562af2dab388238f6489543a2da911082d1ba679eecd	-	492 points
 volatility type=absolute @ALPHA	OK	PASS	-	c48bd2a2c19c8ab5b1702cf3b3c3e2b333af73275d3099bc25d66edc0cd92e07	-	480 points
+volatility w=6mo|lag @ALPHA	OK	PASS	-	ff511a2e8b4f65f2a5796cb6670ee060a9ba02835eecd07e4328d289a92656b4	-	377 points
 correlation default @ALPHA	OK	PASS	-	18a47b8389d8360ba86642347c9d08d5b92e76a82c9270b2a396232aa8b1e059	-	500 points
 correlation w=3mo @ALPHA	OK	PASS	-	c752d18222d6dc0912a5081ba6bb1f3d3d7bde8b8257bdee0e68604492d8b5df	-	440 points
 correlation w=all @ALPHA	OK	PASS	-	18a47b8389d8360ba86642347c9d08d5b92e76a82c9270b2a396232aa8b1e059	-	500 points
@@ -275,6 +320,43 @@ mean w=20 @NEWCO	OK	PASS	-	862fd460b64465a6ccaa5a747c55ec5a24c7aced51b7a393a67b9
 mean w=3mo @NEWCO	OK	PASS	-	c4746973215d04f031a12355195412ad812a68e74ea7c302f563669ac90bddd4	-	147 points
 mean w=all @NEWCO	OK	PASS	-	833295789debf36e71b1efc5c73465a8deadc280f8492f929e6d9d8374e0c47a	-	211 points
 mean w=20,r=10 @NEWCO	OK	PASS	-	d3b3d8bd44f458a62dc9b917a93788c52a5bfae9a76ae40acfa548b3779b39d1	-	201 points
+mean w=3mo|returns @NEWCO	OK	PASS	-	e40b5f41fcee6fb343b7614442804eed5c7a59903351074a058c8c23786a40a2	-	147 points
+mean w=3mo|mean22 @NEWCO	OK	PASS	-	2f59803cb887e118c311fa42d1188cf4b8e4bf4c8ac33889bb3aed3b74807119	-	127 points
+mean w=3mo|std22 @NEWCO	OK	PASS	-	9eab0817d3c2a508264b0e42e2ffa4a105597ddca79a280ade6b0330ce02ded4	-	127 points
+mean w=3mo|volatility22 @NEWCO	OK	PASS	-	38c9b57a9f53b25b4c25243f1aee9ccbb35797c04a5bd26efb8718ff593adb5e	-	127 points
+mean w=3mo|correlation22 @NEWCO	OK	PASS	-	b7fcc84cac3431c7f1a2a9db5628abfd059cb71d7f783534b0a4a56c3bf291c4	-	127 points
+mean w=3mo|beta22 @NEWCO	OK	PASS	-	837361f786085d3751312c4c62c021bb022ca27291d005440886f9c8f47864d3	-	127 points
+mean w=3mo|drawdown22 @NEWCO	OK	PASS	-	a3d12bdb88fbdae689bf7a486a522290bb26082e3317c1bbdd45ce60d6b9be56	-	128 points
+mean w=3mo|rsi14 @NEWCO	OK	PASS	-	52d88264d14a409ac0dcf4486380f5ef3291563d2f96182446e54bac0732bee6	-	133 points
+mean w=3mo|vol_swap22 @NEWCO	OK	PASS	-	121aed1aeeb24ee8f0a21efe21e2696c833a8a7d8c2d11cbad8ff78df2e5a9d4	-	128 points
+mean w=3mo|sum22 @NEWCO	OK	PASS	-	6718f8dc50fd734568ceb7b81d9ce9a5cea40759536c49207483a03526c162b0	-	127 points
+mean w=3mo|min22 @NEWCO	OK	PASS	-	40e24a32ff00b6cd0614d843aac98919ad0e8902afe8da6fba8e32fe1b96e501	-	127 points
+mean w=3mo|max22 @NEWCO	OK	PASS	-	efd9ec600798fd1fe8eb95434cb5f38ea78a82b11cdcb17a845e406ba12e3ff1	-	127 points
+mean w=3mo|range22 @NEWCO	OK	PASS	-	8970e14e84bbb2ab65eebbb90f82658220c114e0427df5ef23e11be74bdbbea5	-	127 points
+mean w=3mo|var22 @NEWCO	OK	PASS	-	5ee44bbff9ed0f6576bdb2d6662e87dcc32dc2f1e70ba9e2f6ffd21985e7e5d1	-	127 points
+mean w=3mo|median22 @NEWCO	OK	PASS	-	09f73302ea0bd616de2321bb6aaa30e5e9f2ee33ee58035b369f3097c68391b2	-	127 points
+mean w=3mo|product22 @NEWCO	OK	PASS	-	b6ebbb0c54c58346937979c507bfc43cdedf9907a097bbc1a6ddcf2722f153c4	-	127 points
+mean w=3mo|max_drawdown22 @NEWCO	OK	PASS	-	386553c8199e3d49fa0cbd304a811e38463c641c57d615a4d0ee263f12b03456	-	127 points
+mean w=3mo|zscores22 @NEWCO	OK	PASS	-	3cf42d77024c87975574d5918121da90aef0bea57a16c9e8d2d83d8c7a2717e6	-	127 points
+mean w=3mo|percentile22 @NEWCO	OK	PASS	-	0d535b9bdbb4096ab1bf893649722afe7780f3368fc6f06d2881f630c11e39a6	-	127 points
+mean w=3mo|percentiles22 @NEWCO	OK	PASS	-	53fc4a2309b5f362c626575ab6a302b032a74ca8c35c3e2be1f187dd73d7cc7f	-	127 points
+mean w=3mo|sharpe_ratio22 @NEWCO	OK	PASS	-	ab77464749dd0aab1735c95dfaf37b34b184cccbeb719eae88fea263fb9a3084	-	127 points
+mean w=3mo|smoothed_moving_average14 @NEWCO	OK	PASS	-	4edd5a1e52391a07a8f301eb880d4c5a5184fd8aae6bb2603bdd74d5a0298f03	-	134 points
+mean w=3mo|dickey_fuller63 @NEWCO	OK	PASS	-	57549b1345f7157e09440144fdc5d95a6df849a207da97c102a5682aba416040	-	85 points
+mean w=3mo|half_life63 @NEWCO	OK	PASS	-	8e7e79663cd2279f97b5848ca83d61f3ec1e88ace794628c38c1f486631df570	-	85 points
+mean w=3mo|cov22 @NEWCO	OK	DIFF	S167	2438a028c13ff2a6252f34eb7c6c57b68f182a7e422b6640e31e1e347feea4ad	-	210 points | lite: 210 gs-quant points, 127 lite's; 0 dates apart (worst absolute 0.0), 83 gs-quant's alone from 2025-03-04, 0 lite's alone
+mean w=3mo|alpha22 @NEWCO	OK	PASS	-	26deeac2fe2dca2fb03f88c6bf00de0f6b074bcf6da9447ac84dde0018693a23	-	127 points
+mean w=3mo|r_squared22 @NEWCO	OK	PASS	-	821a1a974c384160544f223fa04f64423cfa68bbb767b342704b76aa6af41d94	-	127 points
+mean w=3mo|hedge_ratio22 @NEWCO	OK	PASS	-	d4e2865fc4b3e55c866ecec29f7bcc6fb28c0a43b7baf277115de5a484d85a61	-	128 points
+mean w=3mo|residual22 @NEWCO	OK	PASS	-	5b280869f45bbc974ff17763a6ca7f15c1fe0bbabec4c3d1e449007bac5ea9c6	-	128 points
+mean w=3mo|lead_lag22 @NEWCO	OK	PASS	-	44aec3c80b83105e79a2782976c2722a7361ea1c973aac570eeec9f365a7482d	-	127 points
+mean w=3mo|tracking_error22 @NEWCO	OK	PASS	-	361f3a1b606e27ed3ea7605123cfeff475efd220f6b6760bfef98208226c43fa	-	127 points
+mean w=3mo|information_ratio22 @NEWCO	OK	PASS	-	b5545077504f3a9192fe376bc19b6ac16f7495a11d865acadc622e65c9bac0d0	-	127 points
+mean w=3mo|up_capture22 @NEWCO	OK	PASS	-	65aa7eea4055c5a74dbb19d199d9fe1940487880100a42bb07adb6768e08d718	-	127 points
+mean w=3mo|down_capture22 @NEWCO	OK	PASS	-	1c6af98c68efedcddd8c1abaa4c16b3e6325638c10475909c335700bfc2897b4	-	127 points
+mean w=3mo|vwap20 @NEWCO	OK	PASS	-	a37a2a4931fb82b994164896170433243f41988c1d7089a2dd3ee9339ae5178b	-	129 points
+mean w=3mo|atr14 @NEWCO	OK	PASS	-	7663c9f6fd8a790f0d9d59748c6155998bd4761e2def0cd627da1e833707c37a	-	134 points
+mean w=3mo|stochastic14 @NEWCO	OK	PASS	-	b132f93d4f7d74e89415b474ffa81282c38dfb2a76bd74be00a18916b306f108	-	135 points
 sum w=20 @NEWCO	OK	PASS	-	83e4b85bb71f5add9bc33517524137499d4301a1a273aa354ec09df3a4254db4	-	191 points
 sum w=3mo @NEWCO	OK	PASS	-	e6f0944122f88d6d6e58b232dc3d590581ed30d9f7848a32e7c0da4368821eaf	-	147 points
 sum w=all @NEWCO	OK	PASS	-	3fe7fe05c7e20e8febf6e4240990dc44715350be079ef1ddc9802a2cd5e3d60f	-	211 points
@@ -300,6 +382,8 @@ median w=3mo @NEWCO	OK	PASS	-	97ec46f60b165c3b0569dda3fe51bb45b96449687ad323ad58
 median w=all @NEWCO	OK	PASS	-	10808d9101e569fad9604c5cce367bbf9c441f4d49bca89d53198664f8a34881	-	211 points
 median w=20 @NEWCO	OK	PASS	-	c46029078b44d3e7db6a12aa25f1b65ac610b3a956b4e361adc2a17c86076c8d	-	191 points
 median w=20,r=10 @NEWCO	OK	PASS	-	563e95b9dfa5c1ca57d2db3b59ddc123bc9f9cda5db6376bccdd018c3aab2959	-	201 points
+median w=6mo|returns @NEWCO	OK	PASS	-	46ab9d4100fc5593f8ef395103eb5dbdd777f4e0383d5968b38def5da3bf822a	-	84 points
+median w=22|returns @NEWCO	OK	PASS	-	dcbdd40a9ecad8b76f15daeffbf2f64d0284366c34c7483dbd9e084df03868ce	-	189 points
 range default @NEWCO	OK	PASS	-	8094cb4d3c2ff46e7087b687fcc15f516013a1300aba19a7f167e7a2815f5093	-	211 points
 range w=3mo @NEWCO	OK	PASS	-	66b9767557940f75ebacb12fc4e73814308642ced0be1b43320325a9e2f3234d	-	147 points
 range w=all @NEWCO	OK	PASS	-	8094cb4d3c2ff46e7087b687fcc15f516013a1300aba19a7f167e7a2815f5093	-	211 points
@@ -314,10 +398,15 @@ percentile n=50,w=whole @NEWCO	OK	PASS	-	092bc9151f03eabbd7b288ba948fc68014aebe8
 percentile n=90,w=20 @NEWCO	OK	PASS	-	41bbf11fcd1943b37f965410b2e63493e9d95c1f31bb29e21b3123c1e5a57aac	-	191 points
 percentile n=90,w=3mo @NEWCO	OK	PASS	-	a1cd3ed3f4eb0cf0f926187922162c293569e33edc65391c0cc31d1d0b2708dd	-	147 points
 percentile n=90,w=20,r=10 @NEWCO	OK	PASS	-	196c171b1bd5618ccd631e727b8bb17c0f6cd897a890274e7055f38928fe6b26	-	201 points
+percentile n=90,w=6mo|returns @NEWCO	OK	PASS	-	c5d55726eaa063a8dec85ba0337414ce94c67e8439a753466cbb4c688059b11e	-	83 points
+percentile n=90,w=22|returns @NEWCO	OK	PASS	-	1f7adaca135ce4fa6ce1eae80448a30c3411c6774a73f197209a4f0b28b6dcfe	-	188 points
+percentile n=90,w=22,r=10|returns @NEWCO	OK	PASS	-	3d359afbaaa28f1d8c834b2eb171e525a3c224ab8ebae17215c97845ce8e3d94	-	200 points
 percentiles default @NEWCO	OK	PASS	-	62a48b8cb05e3538c66cbc03937f07d9a322c57afb1471ee8ff4a1fbcb90a498	-	211 points
 percentiles w=20 @NEWCO	OK	PASS	-	73a9741d172aa225454bb7c169fa58c1b23cd897536174d29865ab5d5c7b9114	-	191 points
 percentiles w=3mo @NEWCO	OK	PASS	-	d3ddb0c7203a0d85bfa08cb4de73f43ade036efc3bccd2c225c2f9fb5764e93d	-	147 points
 percentiles w=20,r=10 @NEWCO	OK	PASS	-	b7a84ecd768b4d800349b527f0b4046cc0697f116beaaef402fd53974079bbca	-	201 points
+percentiles w=6mo|returns @NEWCO	OK	PASS	-	82405e859c5b65e2c4355cc2ddd1b965ebbac26a36edfd641e2066d15ba4372c	-	84 points
+percentiles w=22|returns @NEWCO	OK	PASS	-	16dbe50b0980afa440ee3dc3156dca997598e8a87bc57edb4278af54fb5893bc	-	189 points
 zscores default @NEWCO	OK	DIFF	S150	72745547de22e10e71f115cc104868b0bd0264a715d4b2a840ed306ec071994a	-	211 points | lite: 211 gs-quant points, 211 lite's; 210 dates apart (worst absolute 1.9538416526463913), 0 gs-quant's alone, 0 lite's alone; 2025-03-03: gs-quant 1.274972401030341, lite 0.0; 2025-03-04: gs-quant 1.203751806786514, lite -0.7071067811865476; 2025-03-05: gs-quant 0.7004596074634643, lite -1.1472110856770206
 zscores w=20 @NEWCO	OK	PASS	-	1581f33396ed3c2b3e0288213f7aeae67c9303e33d87a64b8e2313b0f5c4e681	-	191 points
 zscores w=3mo @NEWCO	OK	PASS	-	4bf5ab81af6dba5705d91b98091d4dd92c017f722f049e5e25ee276fb0dafb16	-	147 points
@@ -356,6 +445,7 @@ volatility type=log @NEWCO	OK	PASS	-	a72e6e81aea7295b838554b2a9faa4b66f8bde9eec9
 volatility w=63,r=10 @NEWCO	OK	PASS	-	a5817736eb842e59a542023181eb38194acc42adea3ac018de8e32c865dcd255	-	201 points
 volatility w=10,annualization_factor=252 @NEWCO	OK	PASS	-	3be3f17566716b445b84e4085001abdbba1154d591fa197a4e487c03344016c5	-	201 points
 volatility type=absolute @NEWCO	OK	PASS	-	4edde97266e0b0b6b0f2a59d0b6f3be68c3cdccc4a4a765a8a4a54ae620fa71f	-	189 points
+volatility w=6mo|lag @NEWCO	OK	PASS	-	217c51f7f2736b233799a04a762b746391314c7f01c66cc20f8adec941c9d0fc	-	84 points
 correlation default @NEWCO	OK	PASS	-	982fda17abfc35fca6f69e9786769c96180c2cd230c1dc1719e30f8da3956da6	-	209 points
 correlation w=3mo @NEWCO	OK	PASS	-	6bc8c47c9999221304eba69203c5920af13312f67a35ba9cbd5b743a69d73f3a	-	147 points
 correlation w=all @NEWCO	OK	PASS	-	982fda17abfc35fca6f69e9786769c96180c2cd230c1dc1719e30f8da3956da6	-	209 points
@@ -541,6 +631,43 @@ mean w=20 @BRAVO	OK	PASS	-	65c5bd780caf6c9881a113bb25f4449b233963bb7badcd0c5e985
 mean w=3mo @BRAVO	OK	PASS	-	f8aace676252dfef4bf54f3569a6d5fec6fc49321de6631dc2e3f856e09e82a1	-	440 points
 mean w=all @BRAVO	OK	PASS	-	e9eeb476ff55e7c807b587a9fd305c6f957ecc6bbcf4805b181edc4611736124	-	502 points
 mean w=20,r=10 @BRAVO	OK	PASS	-	31940f072dd2d50414b2378110604f50550c0188691f9ce68b6bc274d47f754e	-	492 points
+mean w=3mo|returns @BRAVO	OK	PASS	-	c7f1088ce516e2a7afbd1c913e6de9a95b84473f5120867513f74aac68447f54	-	440 points
+mean w=3mo|mean22 @BRAVO	OK	PASS	-	2b9d9dabfaa1f8a492772f81db88e0be4f54786dc96c1086cc461e3a362b653e	-	418 points
+mean w=3mo|std22 @BRAVO	OK	PASS	-	b48c689a055d95a0d143bd885a8aa3aa2b1b1a827ced130d8e5bb2d5dd42efbc	-	418 points
+mean w=3mo|volatility22 @BRAVO	OK	PASS	-	ee1378082fa5fae77310d7326644bfe4c2d9abe9e3685f2177e826cbb15a225f	-	418 points
+mean w=3mo|correlation22 @BRAVO	OK	PASS	-	d5d7bd7b842473de4184e5c6540a3d294387c3ee6a3a6186c0bc7f3b74194c6d	-	418 points
+mean w=3mo|beta22 @BRAVO	OK	PASS	-	029ed170744fdd59939b0e4ea7476568941597c8f645382cf275c3ae515b612c	-	418 points
+mean w=3mo|drawdown22 @BRAVO	OK	PASS	-	406bdfebbbd2405cd780c469b1c5891386273b904c0baa5692398c2cdab7c999	-	419 points
+mean w=3mo|rsi14 @BRAVO	OK	PASS	-	d1fe2cc473ea2f14dd0c2b17a5ca873172093526e5bd1170922026712dc966bf	-	424 points
+mean w=3mo|vol_swap22 @BRAVO	OK	PASS	-	8b046a80f6d08d644fe345bdaed2e7db71fe8c01d4166c0aa5744c2df4223e4d	-	419 points
+mean w=3mo|sum22 @BRAVO	OK	PASS	-	50c4307a990fb5563f4e05b33e5f23ebc74db2af1fa1d055da93b7a4f9bf989e	-	418 points
+mean w=3mo|min22 @BRAVO	OK	PASS	-	d85006464eb3a21c9411419fdb5d7201becd40e6fa171eee14e0c6d0bf148901	-	418 points
+mean w=3mo|max22 @BRAVO	OK	PASS	-	d96d64b6e736ba5d745dc3d6123fbe6fc7b4cfd3be9b8aafd2c8e5e4d79119d4	-	418 points
+mean w=3mo|range22 @BRAVO	OK	PASS	-	69ca88474cc464318a041b41805407f1217746edb628e608d42c75cd0f7317a6	-	418 points
+mean w=3mo|var22 @BRAVO	OK	PASS	-	174d9993dcaa634a0c80ab19958aadf539d843aea717b1f5e95a8ecd0779de11	-	418 points
+mean w=3mo|median22 @BRAVO	OK	PASS	-	3d4ecfb814a96b9be7c478220172e0cdac87e6d93dcce1d72488edc4018a91ee	-	418 points
+mean w=3mo|product22 @BRAVO	OK	PASS	-	de11bd66ed7d55d7b625faeef7f2b65fcb39d97b3c48282df90fbdef17b47e18	-	418 points
+mean w=3mo|max_drawdown22 @BRAVO	OK	PASS	-	9b7bf95487af7ed23b6b5805a8b47a96e0b22a98f87860329475b5df973eeddc	-	418 points
+mean w=3mo|zscores22 @BRAVO	OK	PASS	-	04285d2a3f712b6d5d047bcf0146500f0e5e8b7a7a94895b3eb455be10faea4a	-	418 points
+mean w=3mo|percentile22 @BRAVO	OK	PASS	-	6cee97c8935504a3f175c0c7c19967f8a7abe91a98d32c3b451c8a1b6a163d03	-	418 points
+mean w=3mo|percentiles22 @BRAVO	OK	PASS	-	7c76a5264c7abfb7d045701cc3afb3d8aec84e1d8500c80aebae78ee0736b780	-	418 points
+mean w=3mo|sharpe_ratio22 @BRAVO	OK	PASS	-	68aa9f60419ec240c374296e5bac3408846cd76a6768c698e0a5b55285a1c7fa	-	418 points
+mean w=3mo|smoothed_moving_average14 @BRAVO	OK	PASS	-	657c1c5efd3c48d954fffe607d842115baa701c03edb2d1abfc871182d020f0b	-	425 points
+mean w=3mo|dickey_fuller63 @BRAVO	OK	PASS	-	9b0bd8c63e93fe1ff50c4b75e1616955cfe840d636f541f4be472ff64dbf179e	-	376 points
+mean w=3mo|half_life63 @BRAVO	OK	PASS	-	c41efd33a768a1a4b3c7fdc15ec4e72b474c5c92ee335ecc0fe2bbe7c94e0312	-	376 points
+mean w=3mo|cov22 @BRAVO	OK	PASS	-	98b395b5ce4a9f36fcd0ec855ecf2ed594a3d1855fea37826445190841c51969	-	418 points
+mean w=3mo|alpha22 @BRAVO	OK	PASS	-	93774daffec909f98399235ad7d236ae55a7040ce300d3b2645758a2949cb039	-	418 points
+mean w=3mo|r_squared22 @BRAVO	OK	PASS	-	88dea8ec662bd7edd56ce7ba25524062199da8a405e518a801ad6d698b961cef	-	418 points
+mean w=3mo|hedge_ratio22 @BRAVO	OK	PASS	-	2048024e71579717c1e7a2db89df04fc1ce120417e2cfe99886995268b6b05bd	-	419 points
+mean w=3mo|residual22 @BRAVO	OK	PASS	-	474691684349220c9859edcc5520fdcf81b20ebc35778c238256dbde367a397f	-	419 points
+mean w=3mo|lead_lag22 @BRAVO	OK	PASS	-	0ea9405ffb02f70c571b1c438c6afb5997f08db78bd83afc3161e291afb83444	-	416 points
+mean w=3mo|tracking_error22 @BRAVO	OK	PASS	-	62dfa7295842e9615247b818b744ed754cf1752db817c12b16825887ed7ed983	-	418 points
+mean w=3mo|information_ratio22 @BRAVO	OK	PASS	-	43d87249654c97ea9ec1806e1a28ecc3e2888a62f0f0093e389ab316020c7136	-	418 points
+mean w=3mo|up_capture22 @BRAVO	OK	PASS	-	dda322161af56f98d598ab2fb564b2fa0dbdc3414470d6cf6dc926ba3b5e4b2e	-	418 points
+mean w=3mo|down_capture22 @BRAVO	OK	PASS	-	ec741d9d36108445c923dc04f77f8a57069064e7587ae2829686e2c1278f8b03	-	418 points
+mean w=3mo|vwap20 @BRAVO	OK	PASS	-	5ae6d21fe83ac384db96a39cb04134247b60d7f6236618425873418150c21595	-	420 points
+mean w=3mo|atr14 @BRAVO	OK	PASS	-	1ef6b7f0d5c8e5d8e3f626de17074729162256abd8d1232fcd8a27636e95d108	-	425 points
+mean w=3mo|stochastic14 @BRAVO	OK	PASS	-	81528bee41ec507f2c5c5178d4f0907b722e4976914dff9ecc0d8efe9b2505a7	-	426 points
 sum w=20 @BRAVO	OK	PASS	-	0ee5eec31662a34c1c3bae097c1edec8e5910bcbca88f3dc644d2b047a809e29	-	482 points
 sum w=3mo @BRAVO	OK	PASS	-	710977d0fb76bf9be28c7693d6e97817d735061f80ef5c1cd44b03fd582287bc	-	440 points
 sum w=all @BRAVO	OK	PASS	-	7e0688c47c11b833e6fa21ca579745c75a4fe6a106676fb26201c739a236a6f2	-	502 points
@@ -566,6 +693,8 @@ median w=3mo @BRAVO	OK	PASS	-	3ba130c048f6492e18b8558c2fe7b09fc4c3ceebeb0cd9e74d
 median w=all @BRAVO	OK	PASS	-	e52a37199b4d015d2dc26fb68a8f10ea0fa7b94042c604bba7c7dc0d2490be53	-	502 points
 median w=20 @BRAVO	OK	PASS	-	76f846aab977b8ab739aec93739a0d09f0a86b650b6375db5d7dd1b424048f04	-	482 points
 median w=20,r=10 @BRAVO	OK	PASS	-	09737c2c390895b1c8c11c797c7c80422c45e58aed7ccf38ea3eee133e733920	-	492 points
+median w=6mo|returns @BRAVO	OK	PASS	-	c53fb8226a0dd1f38c5e4d0d5b0cbc8b0ee68d3e2bf1b85d9b4b94054e8c6be4	-	377 points
+median w=22|returns @BRAVO	OK	PASS	-	fb189d766357cc9d12e989b7d400a71db7379111ea1bf937dd9c60de902a6e35	-	480 points
 range default @BRAVO	OK	PASS	-	25ff1dcc4d8d99b70999156e2e21dfa7968cc74e24fb6aaf9c6a3f157546cf10	-	502 points
 range w=3mo @BRAVO	OK	PASS	-	1363ed0ec218ab34794c87b913d275941b05d555e9a9be7f4fc2bf6ab9a3c20f	-	440 points
 range w=all @BRAVO	OK	PASS	-	25ff1dcc4d8d99b70999156e2e21dfa7968cc74e24fb6aaf9c6a3f157546cf10	-	502 points
@@ -580,10 +709,15 @@ percentile n=50,w=whole @BRAVO	OK	PASS	-	7619cb15e83a9b239937b169704f40bb8159e99
 percentile n=90,w=20 @BRAVO	OK	PASS	-	45fcf9d66710156d548d26f1b6449d94e2ba88435e6ab4433b02cf7a3f52e683	-	482 points
 percentile n=90,w=3mo @BRAVO	OK	PASS	-	ac2bcd0699d9c2355601700042efa5f4671d35bd52aac3b5fdca1b82df5e576e	-	440 points
 percentile n=90,w=20,r=10 @BRAVO	OK	PASS	-	192cfca8a997725851aeecc8e819b145c06d5cccb8277f1c4e500fd2ca30dcce	-	492 points
+percentile n=90,w=6mo|returns @BRAVO	OK	PASS	-	a1576728f006170813c1925e77a5b61afcae8680acd0fa60948a4207fe9a5ef9	-	376 points
+percentile n=90,w=22|returns @BRAVO	OK	PASS	-	685894837c862dc747aebe3b7383e831604376998c6a97ff71876517a5088099	-	479 points
+percentile n=90,w=22,r=10|returns @BRAVO	OK	PASS	-	47eebdc1a91500ec949a6a17b513f09b19509df1d823631d450dcf8aadfd6468	-	491 points
 percentiles default @BRAVO	OK	PASS	-	48fdd95b5b1fb9582ddfb8bd58dccee6070648225e1fa76d2a07a78e4b2be8fc	-	502 points
 percentiles w=20 @BRAVO	OK	PASS	-	726b0d7cfad0bd0ace773b24061f8f0ece7a1694341ff6667f4c228279c7fc7f	-	482 points
 percentiles w=3mo @BRAVO	OK	PASS	-	d123d074d02dad04d44a7b3b126baf04f4b83a473fa9256879c8a0a04fe0d52a	-	440 points
 percentiles w=20,r=10 @BRAVO	OK	PASS	-	e6217c2c57f9188b2ca7e19194ea0969f3e0ed297078e0a7d565e62d976fe096	-	492 points
+percentiles w=6mo|returns @BRAVO	OK	PASS	-	177f4b2363241e5276d92576d5942d1dae69d50e6fb64b3cc696d075f0183784	-	377 points
+percentiles w=22|returns @BRAVO	OK	PASS	-	46f282df5f289b4e24a79ffef5ba9f74ceb7ad8b4b4e23323964e3ffed405171	-	480 points
 zscores default @BRAVO	OK	DIFF	S150	30114fd8b749be0c2d39fb900f9245441d69f9cd45ffe0856ef23726c8271652	-	502 points | lite: 502 gs-quant points, 502 lite's; 501 dates apart (worst absolute 5.574910994705342), 0 gs-quant's alone, 0 lite's alone; 2024-01-02: gs-quant 1.5255593200582314, lite 0.0; 2024-01-03: gs-quant 1.4973037425256803, lite -0.7071067811865476; 2024-01-04: gs-quant 1.5707068189417646, lite 1.0673291594375727
 zscores w=20 @BRAVO	OK	PASS	-	3c767203ad8929331e5b970759564d77516aef9f30a8b62de15c12eec75bddd1	-	482 points
 zscores w=3mo @BRAVO	OK	PASS	-	c324577cb86d1ecf96a090be2771fc44ad3f1b8086d1f32de5dd2c9800b3c153	-	440 points
@@ -622,6 +756,7 @@ volatility type=log @BRAVO	OK	PASS	-	cc86bd0cad7433b5f30c65c0f0c1bb8431b821b6188
 volatility w=63,r=10 @BRAVO	OK	PASS	-	4d0cff96e52f170464f027a295a007664664eb6eec9672328fadf76317fc7f41	-	492 points
 volatility w=10,annualization_factor=252 @BRAVO	OK	PASS	-	2d9274b8f371c618f9613114889d7ff926feef00a6e291aebb9b1f8aa1d03b6d	-	492 points
 volatility type=absolute @BRAVO	OK	PASS	-	0407731c2f11baae6ee6664622f6b028db6c0bf3104846b29b7a8ef96335348a	-	480 points
+volatility w=6mo|lag @BRAVO	OK	PASS	-	13f1db19fcd15e2552cfa7dcaf8e76bbc6741e9dc5a3b1ebfd9ab5a8fef7e34e	-	377 points
 correlation default @BRAVO	OK	PASS	-	fadbaa2f0985dd4d5cd4b70ad9bf242cb2854e8cd83d79f58ec197b4d3432398	-	500 points
 correlation w=3mo @BRAVO	OK	PASS	-	5a2b29cd3716fe075b3c997fdb066d99a3415a2cde80358ab765a4928e0dd31b	-	440 points
 correlation w=all @BRAVO	OK	PASS	-	fadbaa2f0985dd4d5cd4b70ad9bf242cb2854e8cd83d79f58ec197b4d3432398	-	500 points
@@ -807,6 +942,43 @@ mean w=20 @BTCUSD	OK	REFUSED	-	06a477da1af4c178e09969bf6c7c75676dfd798dd9f282fde
 mean w=3mo @BTCUSD	OK	PASS	-	891b12bd5fbeed91daa775a43641c29455e23af142b92f2763b0e7f95e5cdabb	dup-span	641 points, 2 values on 2025-02-05
 mean w=all @BTCUSD	OK	REFUSED	-	06cbb11fd0d687f18767dc79113718070a3099cb71a8c1de6d37d13aaa1a500f	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 mean w=20,r=10 @BTCUSD	OK	REFUSED	-	0d030817a0a9f00274e4db61b84378165577425f825f8fd159376fd33a3d8566	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|returns @BTCUSD	OK	REFUSED	-	dff157cb9d8dc3bdf6da71922c9a892dc2ffa66e5b8d297810333e538f5167d9	dup-span	641 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|mean22 @BTCUSD	OK	REFUSED	-	23912864a222c415c74706861438db97731bad762824908fb6a6702a8845ea08	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|std22 @BTCUSD	OK	REFUSED	-	c06b800ac0ada58452e1fa69ef4eb6d7c0b92c7e962575b1270c1fe822ef9c54	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|volatility22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
+mean w=3mo|correlation22 @BTCUSD	OK	REFUSED	-	790cc91f32d33a18ee413cff53f808ff61d696cea2607baa118723c927f307dc	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|beta22 @BTCUSD	OK	REFUSED	-	8ef2b30e50e0a4366f2b618251cee66eb82cdadc8b24a67dd4d9f7ed1c15d960	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|drawdown22 @BTCUSD	OK	REFUSED	-	0791dfa44de492fd08817b5afa28b0cd9005ec9781daa3703ac3c5b726c80c14	dup-span	620 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|rsi14 @BTCUSD	OK	REFUSED	-	a6fda11bb1d70adff1365a346c1ea4cb3ecdc76fe33d9cd6ec187814136caa66	dup-span	626 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|vol_swap22 @BTCUSD	OK	REFUSED	-	28ba40025cf9fd994635ba29b010826dcf69b4ae990c2d5e223b0f1d71edcabb	dup-span	620 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|sum22 @BTCUSD	OK	REFUSED	-	dd4b914e5abd1f7b76a7e91884d65b52e85fa6ca5195f73e16fb5cb41cd03ea1	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|min22 @BTCUSD	OK	REFUSED	-	1d5ea29e25042012c00f7cae05b05ec6f73cd167a8c1fa26b4b30b6540b4d562	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|max22 @BTCUSD	OK	REFUSED	-	f97f03bf4a387c766c987634c1e9ae922010509b69a96c25793ae51cc3cb17bd	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|range22 @BTCUSD	OK	REFUSED	-	f5414cb74256317c76252c9220f4dd9ecd498de402a3802c93618ba7140932a7	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|var22 @BTCUSD	OK	REFUSED	-	e7e23280b6b6e1fdc4ab9caf533ddbc2db498e2aafeecc05c65fb191b931d095	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|median22 @BTCUSD	OK	REFUSED	-	9aed8f0b98159104e0d6e3fc07397ea980c1f86fb72a02cc74379c0eb02970b5	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|product22 @BTCUSD	OK	REFUSED	-	941c8054ec41b8cc8c5be98e1630ba1bee4054e09ee7dcc2c7ed15d545b9580e	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|max_drawdown22 @BTCUSD	OK	REFUSED	-	96ea8c77695895c5df11dae868c936699ebd5a354139d2e7b29edfe14d606359	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|zscores22 @BTCUSD	OK	REFUSED	-	21ed5ef4ebbedc349e44f1fc02ccd633d6e1bf05c6e783023aaba4d3c5f5b53d	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|percentile22 @BTCUSD	OK	REFUSED	-	68a947e9a7f5e9429f76d42f378d5ec51d9c756abd3ac37820a72a1dd2c55685	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|percentiles22 @BTCUSD	OK	REFUSED	-	6cb64511c6c46fc576876fa169dfdf47d346300fd322d55a53b841eb9b05888d	dup-span	621 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|sharpe_ratio22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
+mean w=3mo|smoothed_moving_average14 @BTCUSD	OK	REFUSED	-	91acb45cb42266b33a76f6718d006729b5c50719730bca0cc52121d16b6bccb9	dup-span	627 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|dickey_fuller63 @BTCUSD	OK	REFUSED	-	0a078435b720694cad0a374373d45d32ebbd66be47e610d4ac2b020bff61bbc2	dup-span	577 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|half_life63 @BTCUSD	OK	REFUSED	-	659f8c86b8a7dcd655cfe3263de88e73817258d2d30c6258e1f87a35560828db	dup-span	577 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|cov22 @BTCUSD	OK	REFUSED	S167	e4ca9b103bf2706b1c9457178af01851f2b7aa20746f42fa8934cb6a9a6dbac7	dup-span	619 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+mean w=3mo|alpha22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|r_squared22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|hedge_ratio22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|residual22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|lead_lag22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|tracking_error22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|information_ratio22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|up_capture22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|down_capture22 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|vwap20 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|atr14 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+mean w=3mo|stochastic14 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
 sum w=20 @BTCUSD	OK	REFUSED	-	cf9a5e0183168f349ef0cf049d75c7d55e20537abc89107c858a925f645da1bf	dup-span	712 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 sum w=3mo @BTCUSD	OK	PASS	-	411d49c880d149b93b57c5d304b6507aba4910c340bdee8cb43f608e64a7a186	dup-span	641 points, 2 values on 2025-02-05
 sum w=all @BTCUSD	OK	REFUSED	-	5aea0b347d7a0a9b4bf2e326adfa85aeb7c736df44d9aae01353a2d8c6a0ef78	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
@@ -832,6 +1004,8 @@ median w=3mo @BTCUSD	OK	PASS	-	086e67c56f1d29d3f6cfc644ebebf45a080f4bf31bc4a0978
 median w=all @BTCUSD	OK	REFUSED	-	70d646441ae9a06e849a4c6e9e12c1016e798f2f31f138975b1d9f9c3408cf26	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 median w=20 @BTCUSD	OK	REFUSED	-	8e0a62833a2dc95cb7de7276968ff6f760fb4afe466e2b28f95b2740123d7fdd	dup-span	712 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 median w=20,r=10 @BTCUSD	OK	REFUSED	-	176a0d036b9183cb0df4bb6668bc3059fb979e7488d0a8f8546bb39c9365e715	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+median w=6mo|returns @BTCUSD	OK	REFUSED	-	287debe8c76553c857f21733bc5efd1ec3a38ced8183832da7cf3a7fa8bf4710	dup-span	550 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+median w=22|returns @BTCUSD	OK	REFUSED	-	e892d708543b686b193f595782a57ea535760d1bb1290d451144b7911ab87adc	dup-span	710 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 range default @BTCUSD	OK	REFUSED	-	28f44e6fd1d049e125d1a0ca08e0f4b8e8c1d83ae03e49ba83d0d2c26b24d21b	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 range w=3mo @BTCUSD	OK	PASS	-	edcfb232328b50447743120c1f50b59504458932b3a1b56cd2079e5ec9f7ae71	dup-span	641 points, 2 values on 2025-02-05
 range w=all @BTCUSD	OK	REFUSED	-	28f44e6fd1d049e125d1a0ca08e0f4b8e8c1d83ae03e49ba83d0d2c26b24d21b	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
@@ -846,10 +1020,15 @@ percentile n=50,w=whole @BTCUSD	OK	PASS	-	12406c99c4ef0a5b69bafcc10051e5532a1eaf
 percentile n=90,w=20 @BTCUSD	OK	REFUSED	-	fcfb4126952154b3afc4883765a554db27671a4b67dc9d9c41c33d4fa94a09ad	dup-span	712 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 percentile n=90,w=3mo @BTCUSD	OK	DIFF	S149	4fe781abbf6adaaeab0f74674fe924280848ca5195ad98869970640b7fd80d9e	dup-span	641 points, 2 values on 2025-02-05 | lite: 641 gs-quant points, 641 lite's; 1 dates apart (worst absolute 165.8880000000063), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant [62052.022, 62052.022], lite [62217.91, 62217.91]
 percentile n=90,w=20,r=10 @BTCUSD	OK	REFUSED	-	656d985a1fda3a283fe17fa9689fbfc453d95d210ec0cbd30830e63b1786e530	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+percentile n=90,w=6mo|returns @BTCUSD	OK	REFUSED	-	1cc55fb8547bdc24db148e9e0c91eb3711e504b9610c9975e7f2af520c4f9ae7	dup-span	549 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+percentile n=90,w=22|returns @BTCUSD	OK	REFUSED	-	fad6663cdefebc5c83d5617550c210ef1e0f47d0dd24cf7f74c641fa123d08b9	dup-span	709 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+percentile n=90,w=22,r=10|returns @BTCUSD	OK	REFUSED	-	b37958a4fedfd80c0bfd5ba05b386cbb80cf7a6d04c2d2d7be6d9567ad222d88	dup-span	721 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 percentiles default @BTCUSD	OK	REFUSED	-	b12414fca2a55a979b05579e7b4d53b6ce9d5d70b1da5db85fb7b4eef0f0f9a4	dup-span	734 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 percentiles w=20 @BTCUSD	OK	REFUSED	-	ec121620c49e29e025a919628ebdc5c708594351230db70c9d1a53ccd2bd54e8	dup-span	714 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 percentiles w=3mo @BTCUSD	OK	DIFF	S149	79a93a0bdce4c9f88da26a005c0ea6326f2f60988f52a7bfdaf4f37b839b6a9b	dup-span	640 points, 1 values on 2025-02-05 | lite: 640 gs-quant points, 641 lite's; 1 dates apart (worst absolute 1.0752688172043037), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant 94.08602150537634, lite [93.01075268817203, 93.01075268817203]
 percentiles w=20,r=10 @BTCUSD	OK	REFUSED	-	ff3e3b580f1119089cf18d8fbaf0b25867b66a8eaf0c997e311466820f3db144	dup-span	724 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+percentiles w=6mo|returns @BTCUSD	OK	REFUSED	-	06e747dcae5cbb2b171af3a6c0afe3475a05ba9fc0fedb68f22c032465fb9560	dup-span	549 points, 1 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+percentiles w=22|returns @BTCUSD	OK	REFUSED	-	0a7b4890edcc543652fe2d5f04acc47d214c653f1b9c7de23920ed721e9ec452	dup-span	712 points, 4 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 zscores default @BTCUSD	OK	REFUSED	S150	05ddd10c84d4d053a0d1a722ae9a829cee677be18c5dd571aab68eb4e77b57ad	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 zscores w=20 @BTCUSD	OK	REFUSED	-	bf7be8992cf2071a0165c2774b8db847bd04bb1795abeb7c552ad07084c84836	dup-span	712 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 zscores w=3mo @BTCUSD	OK	DIFF	S149	8da3135bf9bfcdcc226c430b9bec6aa2cf69b233c903552803c1da9fee76dba1	dup-span	641 points, 2 values on 2025-02-05 | lite: 641 gs-quant points, 641 lite's; 1 dates apart (worst absolute 0.057711461341862114), 0 gs-quant's alone, 0 lite's alone; 2025-02-05: gs-quant [1.9867315897559428, 1.9867315897559428], lite [1.9290201284140807, 1.9867315897559443]
@@ -888,6 +1067,7 @@ volatility type=log @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data 
 volatility w=63,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
 volatility w=10,annualization_factor=252 @BTCUSD	OK	REFUSED	-	e7ac2982ab8ffa073156c1730b340871eac4a01592c1e95ea560df71d0683d56	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 volatility type=absolute @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
+volatility w=6mo|lag @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	MqValueError: multiple data points on same date (econometrics.py:497)
 correlation default @BTCUSD	OK	REFUSED	-	e486b9abc8643e1d299d6c289ffbd44049b9b73431490cd29932bd3771287d0a	dup-span	501 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 correlation w=3mo @BTCUSD	OK	REFUSED	-	2e7090440b770dad55b99b92449040faa858d9ade1644fe32ce911e192e42617	dup-span	442 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 correlation w=all @BTCUSD	OK	REFUSED	-	e486b9abc8643e1d299d6c289ffbd44049b9b73431490cd29932bd3771287d0a	dup-span	501 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
@@ -987,64 +1167,64 @@ trend freq=quarter @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' o
 basket default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
 basket rebalance=monthly @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
 basket rebalance=weekly @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
-alpha default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-alpha w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-alpha w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-alpha w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-information_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-information_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-information_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-information_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-r_squared default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-r_squared w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-r_squared w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-r_squared w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-tracking_error default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-tracking_error w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-tracking_error w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-tracking_error w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-hedge_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-hedge_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-hedge_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-hedge_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-residual default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-residual w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-residual w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-residual w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-up_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-up_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-up_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-up_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-down_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-down_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-down_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-down_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-lead_lag default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-lead_lag lag=2 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-lead_lag w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-lead_lag w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-lead_lag w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-atr default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-atr w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-stochastic default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-stochastic w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-keltner_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-keltner_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-keltner_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-keltner_channels w=10,a=5,k=1.5.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-keltner_channels w=10,a=5,k=1.5.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels w=3mo.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels w=3mo.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels w=all.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-donchian_channels w=all.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-obv default @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-vwap default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-vwap w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-vwap w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-vwap w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+alpha default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+alpha w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+alpha w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+alpha w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+information_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+information_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+information_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+information_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+r_squared default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+r_squared w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+r_squared w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+r_squared w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+tracking_error default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+tracking_error w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+tracking_error w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+tracking_error w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+hedge_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+hedge_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+hedge_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+hedge_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+residual default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+residual w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+residual w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+residual w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+up_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+up_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+up_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+up_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+down_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+down_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+down_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+down_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+lead_lag default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+lead_lag lag=2 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+lead_lag w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+lead_lag w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+lead_lag w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+atr default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+atr w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+stochastic default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+stochastic w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+keltner_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+keltner_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+keltner_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+keltner_channels w=10,a=5,k=1.5.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+keltner_channels w=10,a=5,k=1.5.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels w=3mo.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels w=3mo.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels w=all.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+donchian_channels w=all.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+obv default @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+vwap default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+vwap w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+vwap w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+vwap w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
 drawdown default @BTCUSD	OK	REFUSED	-	cd317c2796ce8a5b1aeba02c288baf88abbefaf513cc1b955610038d61dbd083	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 drawdown w=20 @BTCUSD	OK	REFUSED	-	599b6a33cbfd2d6a4bebb18d4fb8705a310e46ccdbd1685413d8b1e933fa2b2b	dup-span	713 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 drawdown w=3mo @BTCUSD	OK	PASS	-	d587332bccd186d46b7ece635c1670025cf5593ea45d7d1105dd3395b2edb82a	dup-span	641 points, 2 values on 2025-02-05
@@ -1057,10 +1237,10 @@ half_life default @BTCUSD	OK	REFUSED	-	4e5f6f18cc4b0a9c8587cccc74656d46ee4bdd6fc
 half_life w=30 @BTCUSD	OK	REFUSED	-	09f86c8c805e964a4ee9ab49e944f1b03bab5ac9f36593e307477af21aedc2f2	dup-span	641 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 half_life w=3mo @BTCUSD	OK	REFUSED	-	83ef456ce6f3549964502080c2e89e3f69d60afc70830811cddae368d52f50b5	dup-span	596 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
 half_life w=30,r=10 @BTCUSD	OK	REFUSED	-	175e8b361b0469db4474ce07d9a4bf19a0e21990127aa5a31cc0379bf7bd8506	dup-span	661 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
-ohlc default.open @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-ohlc default.high @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-ohlc default.low @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
-ohlc default.close @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+ohlc default.open @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+ohlc default.high @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+ohlc default.low @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
+ohlc default.close @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	Refused: a line of two rows on one date (2025-02-05): no reference meets it (references.py:120)
 percent_change @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)

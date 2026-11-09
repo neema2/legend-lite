@@ -400,7 +400,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const to = DAYS[20]!;
     const kept = await line(await spec({ A: "volatility(close['AAA'], w => 5, type => 'simple')" }), 'A', {}, { from, to });
     assert.deepEqual(kept.dates, DAYS.slice(10, 21));
-    close(kept.values, all.values.slice(10, 21), 'the window\'s volatility, as over every date');
+    // every date's figure by its date: the line begins where its ramp ends (gs-quant's apply_ramp slices it)
+    const at = all.dates.indexOf(from);
+    close(kept.values, all.values.slice(at, at + 11), 'the window\'s volatility, as over every date');
     assert.ok(kept.values[0] !== null, 'its first value has its five returns');
     // a value that is a window itself (a running sum, a running drawdown, a lag): every one over every date too -- a
     // plain filter after a window's extend is folded into its WHERE (core lowering/Fold.java filterSlot), never so here
@@ -446,11 +448,13 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('volatility: the annualized standard deviation of returns, in percent (gs-quant: 20% is 20)', async () => {
     const r = simple(AAA);
-    const want = r.map((_, i) => (i < 10 ? null : sd(r.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100));
+    // from the point after the first full window, as the rolling statistics (gs-quant's ramp, its first 10 points
+    // sliced off: a word of no rows form makes a new line, its ramp dropped -- the checkpoint's review, 2026-11-09)
+    const want = ramp(r.map((_, i) => (i < 10 ? null : sd(r.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100)), 10);
     close((await line(await spec({ A: "volatility(close['AAA'], w => 10, type => 'simple')" }))).values, want, 'vol', 1e-7);
     close((await line(await spec({ A: "volatility(close['AAA'], w => 10, type => 'simple')" }))).values, want, "volatility(alias, w => all, type => 'simple')", 1e-7);
     const lr = zip(AAA, lagged(AAA, 1), (v, p) => Math.log(v / p));
-    const logWant = lr.map((_, i) => (i < 10 ? null : sd(lr.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100));
+    const logWant = ramp(lr.map((_, i) => (i < 10 ? null : sd(lr.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100)), 10);
     close((await line(await spec({ A: "volatility(close['AAA'], w => 10, type => 'log')" }))).values, logWant, 'log vol', 1e-7);
   });
 
@@ -601,7 +605,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const weeks = [...new Set(DAYS.map(weekOf))];
     const last = weeks.map((w) => AAA[DAYS.map(weekOf).lastIndexOf(w)]!);
     const r = simple(last);
-    const want = r.map((_, i) => (i < 2 ? null : sd(r.slice(i - 1, i + 1) as number[]) * Math.sqrt(52) * 100));
+    // its first 2 points sliced off, its ramp (gs-quant's apply_ramp)
+    const want = ramp(r.map((_, i) => (i < 2 ? null : sd(r.slice(i - 1, i + 1) as number[]) * Math.sqrt(52) * 100)), 2);
     assert.ok(want.filter((v) => v !== null).length >= 4, 'figures to compare');
     close((await line(await spec({ A: "volatility(close['AAA'], w => 2, type => 'simple')" }, { grain: 'week' }))).values, want, 'weekly vol', 1e-7);
   });
@@ -624,13 +629,16 @@ describe('gs-quant\'s functions, as the database computes them', () => {
   it('correlation, beta and covariance of two instruments\' returns', async () => {
     const ra = simple(AAA);
     const rb = simple(BBB);
-    const corr = pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q)));
+    // each from the point after its first full window: its first 8 sliced off (gs-quant's apply_ramp; a word of no
+    // rows form makes a new line, its ramp dropped -- the checkpoint's review, 2026-11-09)
+    const corr = ramp(pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 8);
     close((await line(await spec({ A: "correlation(close['AAA'], close['BBB'], w => 8)" }))).values, corr, 'corr', 1e-7);
-    const beta = pairs(ra, rb, 8, (p, q) => cov(p, q) / sd(q) ** 2);
+    const beta = ramp(pairs(ra, rb, 8, (p, q) => cov(p, q) / sd(q) ** 2), 8);
     close((await line(await spec({ A: "beta(close['AAA'], close['BBB'], w => 8)" }))).values, beta, 'beta', 1e-7);
     // of levels, gs-quant's Window(8, 8) drops its first 8 points (apply_ramp): none at the 8th, where the window is
-    // first full (the gs-quant oracle's catalog cases, 2026-11-09); the returns' words above ramp so already
-    const c = ramped(pairs(AAA, BBB, 8, (p, q) => cov(p, q)), 8);
+    // first full (the gs-quant oracle's catalog cases, 2026-11-09), its line from the 9th (those 8 sliced off, as the
+    // returns' words above)
+    const c = ramp(pairs(AAA, BBB, 8, (p, q) => cov(p, q)), 8);
     close((await line(await spec({ A: "cov(close['AAA'], close['BBB'], w => 8)" }))).values, c, 'cov', 1e-7);
   });
 
@@ -670,17 +678,18 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const ra = simple(AAA);
     const rb = simple(BBB);
     const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    // each its ramp sliced off: of returns its first 8, of levels its first 7 (gs-quant's Window(8, 8) of levels,
+    // full at the 8th; the checkpoint's review, 2026-11-09)
     close((await line(await spec({ A: "r_squared(close['AAA'], close['BBB'], w => 8)" }))).values,
-      pairs(ra, rb, 8, (p, q) => (cov(p, q) / (sd(p) * sd(q))) ** 2), 'R²', 1e-7);
+      ramp(pairs(ra, rb, 8, (p, q) => (cov(p, q) / (sd(p) * sd(q))) ** 2), 8), 'R²', 1e-7);
     close((await line(await spec({ A: "alpha(close['AAA'], close['BBB'], w => 8)" }))).values,
-      pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha, annualized', 1e-7);
-    close((await line(await spec({ A: "hedge_ratio(close['AAA'], close['BBB'], w => 8)" }))).values, pairs(AAA, BBB, 8, slope), 'hedge ratio', 1e-7);
+      ramp(pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 8), 'alpha, annualized', 1e-7);
+    close((await line(await spec({ A: "hedge_ratio(close['AAA'], close['BBB'], w => 8)" }))).values, ramp(pairs(AAA, BBB, 8, slope), 7), 'hedge ratio', 1e-7);
     close((await line(await spec({ A: "residual(close['AAA'], close['BBB'], w => 8)" }))).values,
-      pairs(AAA, BBB, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual', 1e-7);
-    // over a calendar period too
+      ramp(pairs(AAA, BBB, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 7), 'residual', 1e-7);
+    // over a calendar period too: from the first date that period on (14g's rampedPeriod)
     const start = onBy(DAYS[0]!, 3, 'w');
-    close((await line(await spec({ A: "hedge_ratio(close['AAA'], close['BBB'], w => 3w)" }))).values, DAYS.map((d) => {
-      if (d < start) return null;
+    close((await line(await spec({ A: "hedge_ratio(close['AAA'], close['BBB'], w => 3w)" }))).values, DAYS.filter((d) => d >= start).map((d) => {
       const js = DAYS.map((_, j) => j).filter((j) => DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
       return slope(js.map((j) => AAA[j]!), js.map((j) => BBB[j]!));
     }), 'hedge ratio over 3w', 1e-7);
@@ -692,15 +701,17 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const ra = simple(AAA);
     const rb = simple(lagged(BBB, 3));
     const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    // each its first 8 met rows sliced off (its ramp: a lag's empties among them, counted by position as gs-quant's)
     close((await line(await spec({ A: "alpha(close['AAA'], lag(close['BBB'], 3, 'truncate'), w => 8)" }))).values,
-      pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha on a lag', 1e-7);
-    close((await line(await spec({ A: "beta(close['AAA'], lag(close['BBB'], 3, 'truncate'), w => 8)" }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
+      ramp(pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 8), 'alpha on a lag', 1e-7);
+    close((await line(await spec({ A: "beta(close['AAA'], lag(close['BBB'], 3, 'truncate'), w => 8)" }))).values, ramp(pairs(ra, rb, 8, slope), 8), 'beta on a lag', 1e-7);
     close((await line(await spec({ A: "correlation(close['AAA'], lag(close['BBB'], 3, 'truncate'), w => 8)" }))).values,
-      pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 'correlation on a lag', 1e-7);
+      ramp(pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 8), 'correlation on a lag', 1e-7);
+    // a mean's line from its 6th date (its points), and the levels' words' first 7 of the dates both have after
     const mb = ramped(rolling(BBB, 5, avg), 5);
     close((await line(await spec({ A: "residual(close['AAA'], mean(close['BBB'], 5), w => 8)" }))).values,
-      ramp(pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 5), 'residual on a mean', 1e-7);
-    close((await line(await spec({ A: "hedge_ratio(close['AAA'], mean(close['BBB'], 5), w => 8)" }))).values, ramp(pairs(AAA, mb, 8, slope), 5), 'hedge ratio on a mean', 1e-7);
+      ramp(pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 12), 'residual on a mean', 1e-7);
+    close((await line(await spec({ A: "hedge_ratio(close['AAA'], mean(close['BBB'], 5), w => 8)" }))).values, ramp(pairs(AAA, mb, 8, slope), 12), 'hedge ratio on a mean', 1e-7);
   });
 
   it('a series read by another: $A', async () => {
@@ -708,7 +719,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(ts, 'B')).values, simple(AAA), "A");
     const ra = simple(AAA);
     const rb = simple(BBB);
-    const want = ra.map((_, i) => (i < 10 ? null : (sd(ra.slice(i - 9, i + 1) as number[]) - sd(rb.slice(i - 9, i + 1) as number[])) * Math.sqrt(252) * 100));
+    // two volatilities' lines, each from its 11th date (its ramp sliced off), met on the dates both have
+    const want = ramp(ra.map((_, i) => (i < 10 ? null : (sd(ra.slice(i - 9, i + 1) as number[]) - sd(rb.slice(i - 9, i + 1) as number[])) * Math.sqrt(252) * 100)), 10);
     close((await line(ts, 'C')).values, want, 'vol spread', 1e-7);
   });
 
@@ -725,9 +737,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       const down = smma(c.map((v) => Math.max(-v, 0)), w);
       return [null, ...c.map((_, j) => (up[j] === null ? null : down[j] === 0 ? 100 : 100 - 100 / (1 + up[j]! / down[j]!)))];
     };
-    close((await line(await spec({ A: "rsi(close['AAA'], w => 6)" }))).values, rsi(6), 'rsi', 1e-9);
+    // from its (w + 2)-th date, its first w + 1 sliced off (gs-quant's ramp; the checkpoint's review, 2026-11-09)
+    close((await line(await spec({ A: "rsi(close['AAA'], w => 6)" }))).values, ramp(rsi(6), 7), 'rsi', 1e-9);
     // of one: from the second change, gs-quant's ramp of 1 (the E9 review's nit)
-    close((await line(await spec({ A: "rsi(close['AAA'], w => 1)" }))).values, rsi(1), 'rsi of 1', 1e-9);
+    close((await line(await spec({ A: "rsi(close['AAA'], w => 1)" }))).values, ramp(rsi(1), 2), 'rsi of 1', 1e-9);
   });
 
   // the second audit's S5: initial at the first date -- gs-quant's product over the returns to date, as pandas' prod
@@ -858,13 +871,15 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       return Math.min(Math.max(v, m - s), m + s);
     }), 'winsorize', 1e-9);
     // gs-quant's get_ratio_pure (item 13b): the window's last level over its first (nine before), compounded over 365.25
-    // days, over the volatility of its ten returns (in percent) -- from the twelfth point, its volatility's first dropped
+    // days, over the volatility of its ten returns (in percent) -- from the twelfth point, its volatility's first dropped;
+    // its line from the eleventh, none there (get_ratio_pure's apply_ramp of 10 over the ratio on every date: the
+    // checkpoint's fix series, 2026-11-09)
     const r = simple(AAA);
     close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 10)" }))).values, ramp(DAYS.map((d, i) => {
       if (i < 11) return null;
       const growth = (AAA[i]! / AAA[i - 9]!) ** (365.25 / dayCount(DAYS[i - 9]!, d)) - 1;
       return growth / (sd(r.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100) * 100;
-    }), 11), 'sharpe 10', 1e-7);
+    }), 10), 'sharpe 10', 1e-7);
   });
 
   // a figure whose ramp counts from the first date of the series it reads, not of the column it is over (the library's
@@ -905,7 +920,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       return vals.length < 2 ? null : sd(vals) * Math.sqrt(252) * 100;
     })), 'volatility 1m', 1e-9);
     // a Sharpe ratio over 1m too, gs-quant's: the level against its level as of a month back (S162), compounded over the
-    // month's days, over that volatility -- its first value (the first date a month on) dropped
+    // month's days, over that volatility -- its first value (the first date a month on) none, its line from that date
     const first = DAYS.findIndex((d) => d >= start);
     close((await line(await spec({ A: "sharpe_ratio(close['AAA'], w => 1mo)" }))).values, ramp(DAYS.map((d, i) => {
       if (i <= first) return null;
@@ -915,18 +930,18 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       if (j < 0 || vals.length < 2) return null;
       const growth = (AAA[i]! / AAA[j]!) ** (365.25 / dayCount(back, d)) - 1;
       return growth / (sd(vals) * Math.sqrt(252) * 100) * 100;
-    }), first + 1), 'sharpe 1m', 1e-9);
+    }), first), 'sharpe 1m', 1e-9);
   });
 
   // its ramp from the first price's date, as gs-quant's counts from x.index[0] (item 14g, 2026-11-09; the first return's
-  // date before) -- its rows kept, a pair word's rows form its table's
+  // date before) -- its points from there (a pair word's rows form's, pairPointsPeriod: the checkpoint's review,
+  // 2026-11-09), the tile's line its points
   it('correlation over 3w: two series\' returns over the dates both have, each three weeks back', async () => {
     const l = await line(await spec({ A: "correlation(close['AAA'], close['BBB'], w => 3w)" }));
     const ra = simple(AAA);
     const rb = simple(BBB);
     const start = onBy(DAYS[0]!, 3, 'w');
-    close(l.values, DAYS.map((d) => {
-      if (d < start) return null;
+    close(l.values, DAYS.filter((d) => d >= start).map((d) => {
       const js = DAYS.map((_, j) => j).filter((j) => ra[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
       const a = js.map((j) => ra[j]!);
       const b = js.map((j) => rb[j]!);
@@ -940,10 +955,10 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     const ra = simple(AAA);
     const rb = simple(BBB);
     const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    // each line from the first date that period on (its points: the checkpoint's review, 2026-11-09)
     const over = (xs: Line, ys: Line, f: (p: number[], q: number[]) => number): Line => {
       const start = onBy(DAYS[0]!, 3, 'w');
-      return DAYS.map((d) => {
-        if (d < start) return null;
+      return DAYS.filter((d) => d >= start).map((d) => {
         const js = DAYS.map((_, j) => j).filter((j) => xs[j] !== null && ys[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
         return f(js.map((j) => xs[j]!), js.map((j) => ys[j]!));
       });
@@ -1299,11 +1314,12 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
 
   it('vol_swap_volatility: the root mean square of log returns, annualized by 252, in percent', async () => {
     const lr = AAA.map((v, i) => (i === 0 ? null : Math.log(v / AAA[i - 1]!)));
-    close((await line(await spec({ A: "vol_swap_volatility(close['AAA'], w => 10)" }))).values, lr.map((_, i) => {
+    // from its tenth date, its first 9 sliced off (gs-quant's ramp: the checkpoint's review, 2026-11-09)
+    close((await line(await spec({ A: "vol_swap_volatility(close['AAA'], w => 10)" }))).values, ramp(lr.map((_, i) => {
       if (i < 9) return null;
       const w = lr.slice(i - 9, i + 1).filter((v) => v !== null) as number[];
       return Math.sqrt(w.reduce((a, b) => a + b * b, 0) / w.length) * Math.sqrt(252) * 100;
-    }), 'vol swap', 1e-9);
+    }), 9), 'vol swap', 1e-9);
   });
 
   it('consecutive: the days in a row up (down), 0 where it breaks', async () => {
@@ -1531,9 +1547,10 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   });
 
   it('smoothed_moving_average: Wilder\'s, from the mean of w', async () => {
-    close(await longLine("smoothed_moving_average(close, w => 14)"), smma(LONG, 14), 'smma 14', 1e-10);
+    // its first w sliced off (gs-quant's ramp: the checkpoint's review, 2026-11-09)
+    close(await longLine("smoothed_moving_average(close, w => 14)"), ramp(smma(LONG, 14), 14), 'smma 14', 1e-10);
     // of one: each value itself, from the first after the first -- gs-quant's ramp of 1 (the E9 review's nit)
-    close(await longLine("smoothed_moving_average(close, w => 1)"), smma(LONG, 1), 'smma 1', 0);
+    close(await longLine("smoothed_moving_average(close, w => 1)"), ramp(smma(LONG, 1), 1), 'smma 1', 0);
   });
 
   // the E9 review's weak tests: an average per line of a split, its blocks over each line's own values, and at a frequency
@@ -2021,23 +2038,26 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   const correlation = (a: number[], b: number[]): number => cov(a, b) / (sd(a) * sd(b));
 
   it('atr: Wilder\'s average of true ranges, as TA-Lib\'s -- of an instrument with gaps, each close before its own', async () => {
+    // each from its (w + 1)-th date, its first w sliced off (TA-Lib's lookback, gs-quant's ramp: the checkpoint's review,
+    // 2026-11-09)
     const l = await packLine("atr(high['P'], low['P'], close['P'], w => 14)");
-    assert.deepEqual(l.dates, PACK_DAYS);
-    close(l.values, talibAtr(trueRanges(PH, PL, PC), 14), 'ATR 14', 1e-9);
+    assert.deepEqual(l.dates, PACK_DAYS.slice(14));
+    close(l.values, ramp(talibAtr(trueRanges(PH, PL, PC), 14), 14), 'ATR 14', 1e-9);
     const q = await packLine("atr(high['Q'], low['Q'], close['Q'], w => 5)");
-    assert.deepEqual(q.dates, Q_DAYS);
+    assert.deepEqual(q.dates, Q_DAYS.slice(5));
     const pick = (x: number[]): number[] => Q_IDX.map((i) => x[i]!);
-    close(q.values, talibAtr(trueRanges(pick(QH), pick(QL), pick(QC)), 5), 'ATR 5 over Q\'s own dates', 1e-9);
+    close(q.values, ramp(talibAtr(trueRanges(pick(QH), pick(QL), pick(QC)), 5), 5), 'ATR 5 over Q\'s own dates', 1e-9);
   });
 
   it('stochastic: 100 × (close − lowest low) / (highest high − lowest low) over w, as TA-Lib\'s fast %K', async () => {
+    // from its 14th date, its first 13 sliced off (gs-quant's ramp of levels: the checkpoint's review, 2026-11-09)
     const l = await packLine("stochastic(high['P'], low['P'], close['P'], w => 14)");
-    close(l.values, PC.map((c, i) => {
+    close(l.values, ramp(PC.map((c, i) => {
       if (i < 13) return null;
       const hh = Math.max(...PH.slice(i - 13, i + 1));
       const ll = Math.min(...PL.slice(i - 13, i + 1));
       return (100 * (c - ll)) / (hh - ll);
-    }), '%K 14', 1e-9);
+    }), 13), '%K 14', 1e-9);
     assert.ok(l.values.every((v) => v === null || (v >= 0 && v <= 100)));
   });
 
@@ -2097,8 +2117,9 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       PC.map((c, i) => (i === 0 ? 0 : (total += Math.sign(c - PC[i - 1]!) * PV[i]!))), 'OBV', 0);
     const vwap = (v: number[][]): number => v.reduce((s, [p, q]) => s + p! * q!, 0) / v.reduce((s, [, q]) => s + q!, 0);
     const pv = PC.map((p, i) => [p, PV[i]!]);
+    // from its tenth date, its first 9 sliced off (gs-quant's ramp of levels: the checkpoint's review, 2026-11-09)
     close((await packLine("vwap(close['P'], volume['P'], w => 10)")).values,
-      pv.map((_, i) => (i < 9 ? null : vwap(pv.slice(i - 9, i + 1)))), 'VWAP 10', 1e-12);
+      ramp(pv.map((_, i) => (i < 9 ? null : vwap(pv.slice(i - 9, i + 1)))), 9), 'VWAP 10', 1e-12);
     close((await packLine("vwap(close['P'], volume['P'], w => all)")).values, pv.map((_, i) => vwap(pv.slice(0, i + 1))), 'VWAP to date', 1e-12);
     // over a calendar period (the library's vwapPeriod): the dates after two weeks back, to this one, from the first
     // price two weeks on
@@ -2126,29 +2147,33 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   it('tracking error and information ratio: of P\'s returns less Q\'s, each on its own dates, annualized', async () => {
     const { a, b } = pairsOn();
     const active = zip(a, b, (p, q) => p - q);
+    // each from its 11th date, its first 10 sliced off (gs-quant's ramp: the checkpoint's review, 2026-11-09)
     close((await packLine("tracking_error(close['P'], close['Q'], w => 10)", { grain: 'day' })).values,
-      rolling(active, 10, (v) => sd(v) * Math.sqrt(252) * 100), 'TE', 1e-9);
+      ramp(rolling(active, 10, (v) => sd(v) * Math.sqrt(252) * 100), 10), 'TE', 1e-9);
     close((await packLine("information_ratio(close['P'], close['Q'], w => 10)", { grain: 'day' })).values,
-      rolling(active, 10, (v) => (avg(v) / sd(v)) * Math.sqrt(252)), 'IR', 1e-9);
+      ramp(rolling(active, 10, (v) => (avg(v) / sd(v)) * Math.sqrt(252)), 10), 'IR', 1e-9);
   });
 
   it('up and down capture: P\'s mean return on the periods Q rose (fell) over Q\'s mean then', async () => {
     const { a, b } = pairsOn();
     for (const [f, up] of [['up_capture', true], ['down_capture', false]] as const) {
-      close((await packLine(`${f}(close['P'], close['Q'], 10)`)).values, windowed(a, b, 10, (p, q) => {
+      close((await packLine(`${f}(close['P'], close['Q'], 10)`)).values, ramp(windowed(a, b, 10, (p, q) => {
         const on = q.map((_, i) => i).filter((i) => (up ? q[i]! > 0 : q[i]! < 0));
         if (on.length === 0) return null;
         return avg(on.map((i) => p[i]!)) / avg(on.map((i) => q[i]!));
-      }), f, 1e-9);
+      }), 10), f, 1e-9);
     }
   });
 
   it('lead_lag: P\'s returns against Q\'s lag observations before (after, below 0), on Q\'s own dates', async () => {
     for (const k of [0, 2, -2]) {
       const { a, b } = pairsOn(k);
+      // from its 10th pair (its ramp: the reference's, the checkpoint's fix series of 2026-11-09)
+      let n = 0;
+      const at = a.findIndex((v, j) => v !== null && b[j] !== null && ++n === 10);
       const l = await packLine(`lead_lag(close['P'], close['Q'], ${k}, 10)`);
-      assert.deepEqual(l.dates, Q_DAYS);
-      close(l.values, windowed(a, b, 10, correlation), `lag ${k}`, 1e-9);
+      assert.deepEqual(l.dates, Q_DAYS.slice(at));
+      close(l.values, ramp(windowed(a, b, 10, correlation), at), `lag ${k}`, 1e-9);
     }
   });
 
@@ -2166,18 +2191,20 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     };
     const { a, b } = pairsOn();
     const active = zip(a, b, (p, q) => p - q);
+    // each line its points, from the first date that period on: its ramp's dates dropped (a rows form's points from its
+    // ramp too, pairPointsPeriod: the checkpoint's review, 2026-11-09)
+    const start = onBy(Q_DAYS[0]!, 1, 'm');
     close((await packLine("tracking_error(close['P'], close['Q'], w => 1mo)", { grain: 'day' })).values,
-      over(active, active, (p) => sd(p) * Math.sqrt(252) * 100), 'TE 1m', 1e-9);
+      since(start, over(active, active, (p) => sd(p) * Math.sqrt(252) * 100), Q_DAYS), 'TE 1m', 1e-9);
     close((await packLine("information_ratio(close['P'], close['Q'], w => 1mo)", { grain: 'day' })).values,
-      over(active, active, (p) => (avg(p) / sd(p)) * Math.sqrt(252)), 'IR 1m', 1e-9);
+      since(start, over(active, active, (p) => (avg(p) / sd(p)) * Math.sqrt(252)), Q_DAYS), 'IR 1m', 1e-9);
     for (const [f, up] of [['up_capture', true], ['down_capture', false]] as const) {
-      close((await packLine(`${f}(close['P'], close['Q'], 1mo)`)).values, over(a, b, (p, q) => {
+      close((await packLine(`${f}(close['P'], close['Q'], 1mo)`)).values, since(start, over(a, b, (p, q) => {
         const on = q.map((_, i) => i).filter((i) => (up ? q[i]! > 0 : q[i]! < 0));
         return on.length === 0 ? null : avg(on.map((i) => p[i]!)) / avg(on.map((i) => q[i]!));
-      }), `${f} 1m`, 1e-9);
+      }), Q_DAYS), `${f} 1m`, 1e-9);
     }
-    // lead_lag has its line form alone, whose rows are its points: its ramp's dates dropped (the others' rows forms keep
-    // their table's rows, none on those dates)
+    // and lead_lag's, whose line form alone it has
     for (const k of [0, 2]) {
       const { a: la, b: lb } = pairsOn(k);
       close((await packLine(`lead_lag(close['P'], close['Q'], ${k}, 1mo)`)).values, since(onBy(Q_DAYS[0]!, 1, 'm'), over(la, lb, correlation), Q_DAYS),
@@ -2269,15 +2296,15 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
 
   it('dickey_fuller and half_life: the t-statistic of b in Δx = a + b·x[-1], and −ln 2 / ln(1 + b), over w', async () => {
     const df = await packLine("dickey_fuller(close['P'], w => 30)");
-    // 30 pairs: the 31st value on
-    close(df.values, PC.map((_, i) => (i < 30 ? null : ols(PC.slice(i - 30, i + 1)).t)), 'DF over 30', 1e-9);
+    // 30 pairs: the 31st value on, its line from there (its first 30 sliced off: the checkpoint's review, 2026-11-09)
+    close(df.values, ramp(PC.map((_, i) => (i < 30 ? null : ols(PC.slice(i - 30, i + 1)).t)), 30), 'DF over 30', 1e-9);
     const hl = await packLine("half_life(close['P'], w => 30)");
-    close(hl.values, PC.map((_, i) => {
+    close(hl.values, ramp(PC.map((_, i) => {
       if (i < 30) return null;
       const { b } = ols(PC.slice(i - 30, i + 1));
       return b >= 0 || b <= -1 ? null : -Math.log(2) / Math.log(1 + b);
-    }), 'half-life over 30', 1e-9);
-    assert.ok(hl.values.some((v) => v !== null) && hl.values.some((v, i) => i >= 30 && v === null), 'the sample reverts and does not');
+    }), 30), 'half-life over 30', 1e-9);
+    assert.ok(hl.values.some((v) => v !== null) && hl.values.some((v) => v === null), 'the sample reverts and does not');
     // from the start: three pairs on
     close((await packLine("dickey_fuller(close['P'], w => all)")).values, PC.map((_, i) => (i < 3 ? null : ols(PC.slice(0, i + 1)).t)), 'DF to date', 1e-9);
   });
@@ -2318,11 +2345,12 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     const WV = weeks.map((k) => of(k).reduce((t, i) => t + PV[i]!, 0));
     const WPV = weeks.map((k) => of(k).reduce((t, i) => t + PC[i]! * PV[i]!, 0));
     const weekly = { grain: 'week' as const };
+    // ATR from its fourth week, %K from its fourth: each ramp sliced off (the checkpoint's review, 2026-11-09)
     const atr = await packLine("atr(high['P'], low['P'], close['P'], w => 3)", weekly);
-    assert.deepEqual(atr.dates, weeks.map((k) => PACK_DAYS[of(k).at(-1)!]!), 'each week at its last day');
-    close(atr.values, talibAtr(trueRanges(WH, WL, WC), 3), 'weekly ATR', 1e-9);
+    assert.deepEqual(atr.dates, weeks.map((k) => PACK_DAYS[of(k).at(-1)!]!).slice(3), 'each week at its last day');
+    close(atr.values, ramp(talibAtr(trueRanges(WH, WL, WC), 3), 3), 'weekly ATR', 1e-9);
     close((await packLine("stochastic(high['P'], low['P'], close['P'], w => 4)", weekly)).values,
-      WC.map((c, i) => (i < 3 ? null : (100 * (c - Math.min(...WL.slice(i - 3, i + 1)))) / (Math.max(...WH.slice(i - 3, i + 1)) - Math.min(...WL.slice(i - 3, i + 1))))), 'weekly %K', 1e-9);
+      ramp(WC.map((c, i) => (i < 3 ? null : (100 * (c - Math.min(...WL.slice(i - 3, i + 1)))) / (Math.max(...WH.slice(i - 3, i + 1)) - Math.min(...WL.slice(i - 3, i + 1))))), 3), 'weekly %K', 1e-9);
     const dc = await packLine("donchian_channels(high['P'], low['P'], w => 4)", weekly);
     close(dc.upper!, rolling(WH, 4, (v) => Math.max(...v)), 'weekly upper', 0);
     close(dc.lower!, rolling(WL, 4, (v) => Math.min(...v)), 'weekly lower', 0);
@@ -2794,10 +2822,12 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     const r = await ingestFile(engine, files, new File([csv], 'monthly.csv'), writer, { table: 'q3_monthly' });
     const own = plannerFor(r.model, r.runtime);
     const monthly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
-    const ts = await spec({ A: "volatility(close, w => 12, type => 'log')" });
+    // a window of 6 months: the line from its seventh month (its ramp sliced off), seven dates whose spacing says the
+    // periods a year (a window of the 12 left one, which says none: the checkpoint's review, 2026-11-09)
+    const ts = await spec({ A: "volatility(close, w => 6, type => 'log')" });
     const t = await engine.execute(await own.plan(seriesQuery(monthly, ts, ts.series[0]!).query), 0);
     const logs = levels.slice(1).map((v, i) => Math.log(v / levels[i]!));
-    const want = sd(logs) * Math.sqrt(12) * 100;
+    const want = sd(logs.slice(-6)) * Math.sqrt(12) * 100;
     close([num(values(t, TS_VALUE)[0])], [want], 'monthly volatility, by 12', 1e-9);
     assert.equal(Number(values(t, TS_PER_YEAR)[0]), 12);
   });
@@ -2959,9 +2989,11 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     const st = await run(statsQuery(inputs, ts, ts.series[0]!));
     const [first, last] = [AAA[0]! - 200, AAA.at(-1)! - 200];
     close([num(values(st, statName('pct'))[0])], [last / first - 1], 'pct', 1e-9);
+    // drawn from its fifth date, where its window is full: its first four sliced off, the line from there (gs-quant's
+    // apply_ramp; the checkpoint's review, 2026-11-09)
     const dd = await line(await spec({ A: "drawdown(close['AAA'], w => 5)" }));
-    assert.deepEqual(dd.values.slice(0, 4), [null, null, null, null]);
-    assert.notEqual(dd.values[4], null);
+    assert.deepEqual(dd.dates.slice(0, 1), [DAYS[4]!]);
+    assert.notEqual(dd.values[0], null);
   });
 
   // G2: a date of another type than a date was read as one
@@ -3059,7 +3091,9 @@ describe('a series combining two grids, planned over one model of their tables (
   it('a rolling correlation of two grids\' returns, each taken on its own dates, then joined', async () => {
     const own = simple(AAA);
     const a = RATE_DAYS.map((d) => own[DAYS.indexOf(d)]!);
-    const corr = pairs(a, simple(TEN), 5, (p, q) => cov(p, q) / (sd(p) * sd(q)));
+    // its points from its sixth date, its ramp's 5 sliced off (a pair's rows form's points: the checkpoint's review,
+    // 2026-11-09)
+    const corr = ramp(pairs(a, simple(TEN), 5, (p, q) => cov(p, q) / (sd(p) * sd(q))), 5);
     close((await joinedLine(await combined({ A: "correlation(px.close['AAA'], rates.yield['10Y'], w => 5)" }))).values, corr, 'corr', 1e-7);
   });
 

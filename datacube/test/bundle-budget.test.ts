@@ -975,8 +975,15 @@ const CHART_BUDGET = 303_500;
  *  145,501.
  *  145,800 -> 146,100 (2026-11-09, item 14f, step 4, the references' cases and what they found): the library's text with
  *  lead_lag's ramp full from x's (w + lag)-th point (helpers::ramp's full), and a calendar volatility's, Dickey-Fuller's
- *  and half-life's lines of several rows a date refused (D8) and their sentences. Measured 145,861. */
-const TIMESERIES_BUDGET = 146_100;
+ *  and half-life's lines of several rows a date refused (D8) and their sentences. Measured 145,861.
+ *  146,100 -> 148,000 (2026-11-09, item 14i, the checkpoint: an independent review of the run's changes, its findings
+ *  fixed; the user: "keep going in order don't stop"): the library's text, which the tile carries, with every count
+ *  word's line from its ramp's end (helpers::ramped on its line forms; the pair words' rows forms' points,
+ *  rows::pairPoints and pairPointsPeriod), the calendar words' ramps from the line's first point, lead_lag's line from
+ *  its w-th pair, the Sharpe ratio's points on its met rows (helpers::sharpeOn, firstNone), a basket's member of several
+ *  rows a date refused (helpers::memberOnce, D1), percentile's empties dropped first, and their sentences. Measured
+ *  147,679. */
+const TIMESERIES_BUDGET = 148_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

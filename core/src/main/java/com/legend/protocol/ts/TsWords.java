@@ -348,7 +348,9 @@ final class TsWords {
             for (List<Integer> pick : List.of(own, all)) {
                 List<String> types = pick.stream().map(i -> o.params().get(i).type()).toList();
                 List<TsToPure.Parameter> p = r.params();
-                if (p.size() != pick.size() + 6 || !p.subList(5, p.size() - 1).stream().map(TsToPure.Parameter::type)
+                // its table, key, date and two values, its own, then the answer's column and its points (its rows past
+                // its ramp: a word reading it counts its own ramp from there, the checkpoint's review of 2026-11-09)
+                if (p.size() != pick.size() + 7 || !p.subList(5, p.size() - 2).stream().map(TsToPure.Parameter::type)
                         .toList().equals(types)) {
                     continue;
                 }
@@ -371,13 +373,16 @@ final class TsWords {
                 TsLines.Valued py = yv;
                 TsLines.Line met = c.met(List.of(px, py), pos);
                 String out = c.fresh(word);
+                String points = c.fresh(word + "_pts");
                 TsLines.Line line = c.grown(met, rel -> {
                     List<ValueSpecification> a = new ArrayList<>(List.of(rel, new ColSpec(met.part()),
                             new ColSpec(met.at()), new ColSpec(px.value()), new ColSpec(py.value())));
                     pick.forEach(i -> a.add(bound.get(i)));
                     a.add(new ColSpec(out));
+                    a.add(new ColSpec(points));
                     return TsLines.call(rowsFqn, a);
                 });
+                c.present(out, points);
                 return new TsLines.Valued(line, out);
             }
         }

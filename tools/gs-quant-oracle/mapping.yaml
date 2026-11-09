@@ -62,11 +62,54 @@ words:
   - word: mean
     gs: statistics.mean
     src: statistics.py:274
+    # a mean over a covariance of lines of different spans: gs-quant's cov ramps over the union of their dates (S167),
+    # so its line starts earlier and the mean's calendar ramp with it (NEWCO, the adversarial fixture)
+    known: {"w=3mo|cov22": S167}
     cases:
       - [w=20, "mean({x}, 20)", printed]
       - [w=3mo, "mean({x}, 3mo)", printed]
       - [w=all, "mean({x}, all)", printed]
       - ["w=20,r=10", "mean({x}, w => 20, r => 10)", printed]
+      # a calendar window over another word's line (the checkpoint's review, 2026-11-09): its ramp from that line's
+      # first point -- a count word's first after its own ramp (gs-quant's apply_ramp slices it off), a word of no ramp's
+      # first point though it holds no value (returns' first)
+      - [w=3mo|returns, "mean(returns({x}), 3mo)", printed]
+      - [w=3mo|mean22, "mean(mean({x}, 22), 3mo)", printed]
+      - [w=3mo|std22, "mean(std({x}, 22), 3mo)", printed]
+      - [w=3mo|volatility22, "mean(volatility({x}, 22), 3mo)", printed]
+      - [w=3mo|correlation22, "mean(correlation({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|beta22, "mean(beta({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|drawdown22, "mean(drawdown({x}, 22), 3mo)", printed]
+      - [w=3mo|rsi14, "mean(rsi({x}, 14), 3mo)", printed]
+      - [w=3mo|vol_swap22, "mean(vol_swap_volatility({x}, 22), 3mo)", printed]
+      - [w=3mo|sum22, "mean(sum({x}, 22), 3mo)", printed]
+      - [w=3mo|min22, "mean(min({x}, 22), 3mo)", printed]
+      - [w=3mo|max22, "mean(max({x}, 22), 3mo)", printed]
+      - [w=3mo|range22, "mean(range({x}, 22), 3mo)", printed]
+      - [w=3mo|var22, "mean(var({x}, 22), 3mo)", printed]
+      - [w=3mo|median22, "mean(median({x}, 22), 3mo)", printed]
+      - [w=3mo|product22, "mean(product(returns({x}), 22), 3mo)", printed]
+      - [w=3mo|max_drawdown22, "mean(max_drawdown({x}, 22), 3mo)", printed]
+      - [w=3mo|zscores22, "mean(zscores({x}, 22), 3mo)", printed]
+      - [w=3mo|percentile22, "mean(percentile({x}, n => 90, w => 22), 3mo)", printed]
+      - [w=3mo|percentiles22, "mean(percentiles({x}, 22), 3mo)", printed]
+      - [w=3mo|sharpe_ratio22, "mean(sharpe_ratio({x}, 22), 3mo)", printed]
+      - [w=3mo|smoothed_moving_average14, "mean(smoothed_moving_average({x}, 14), 3mo)", printed]
+      - [w=3mo|dickey_fuller63, "mean(dickey_fuller({x}, 63), 3mo)", printed]
+      - [w=3mo|half_life63, "mean(half_life({x}, 63), 3mo)", printed]
+      - [w=3mo|cov22, "mean(cov({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|alpha22, "mean(alpha({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|r_squared22, "mean(r_squared({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|hedge_ratio22, "mean(hedge_ratio({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|residual22, "mean(residual({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|lead_lag22, "mean(lead_lag({x}, {y}, 1, 22), 3mo)", printed]
+      - [w=3mo|tracking_error22, "mean(tracking_error({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|information_ratio22, "mean(information_ratio({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|up_capture22, "mean(up_capture({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|down_capture22, "mean(down_capture({x}, {y}, 22), 3mo)", printed]
+      - [w=3mo|vwap20, "mean(vwap({x}, {x.volume}, w => 20), 3mo)", printed]
+      - [w=3mo|atr14, "mean(atr({x.high}, {x.low}, {x}, w => 14), 3mo)", printed]
+      - [w=3mo|stochastic14, "mean(stochastic({x.high}, {x.low}, {x}, w => 14), 3mo)", printed]
   - word: sum
     gs: statistics.sum_
     src: statistics.py:437
@@ -117,6 +160,9 @@ words:
       - [w=all, "median({x}, all)", printed]
       - [w=20, "median({x}, 20)", printed]
       - ["w=20,r=10", "median({x}, w => 20, r => 10)", printed]
+      # over a line whose first point holds no value (the checkpoint's review): its ramp from that point
+      - [w=6mo|returns, "median(returns({x}), 6mo)", printed]
+      - [w=22|returns, "median(returns({x}), 22)", printed]
   - word: range
     gs: statistics.range_
     src: statistics.py:228
@@ -149,6 +195,10 @@ words:
       - ["n=90,w=20", "percentile({x}, n => 90, w => 20)", printed]
       - ["n=90,w=3mo", "percentile({x}, n => 90, w => 3mo)", printed]
       - ["n=90,w=20,r=10", "percentile({x}, n => 90, w => 20, r => 10)", printed]
+      - ["n=90,w=6mo|returns", "percentile(returns({x}), n => 90, w => 6mo)", printed]
+      # gs-quant's percentile reads x.dropna(): its window and its ramp over the points of a value alone
+      - ["n=90,w=22|returns", "percentile(returns({x}), n => 90, w => 22)", printed]
+      - ["n=90,w=22,r=10|returns", "percentile(returns({x}), n => 90, w => 22, r => 10)", printed]
   - word: percentiles
     gs: statistics.percentiles
     src: statistics.py:968
@@ -158,6 +208,8 @@ words:
       - [w=20, "percentiles({x}, 20)", printed]
       - [w=3mo, "percentiles({x}, 3mo)", printed]
       - ["w=20,r=10", "percentiles({x}, w => 20, r => 10)", printed]
+      - [w=6mo|returns, "percentiles(returns({x}), 6mo)", printed]
+      - [w=22|returns, "percentiles(returns({x}), 22)", printed]
   - word: zscores
     gs: statistics.zscores
     src: statistics.py:733
@@ -261,6 +313,8 @@ words:
       - ["w=63,r=10", "volatility({x}, w => 63, r => 10)", printed]
       - ["w=10,annualization_factor=252", "volatility({x}, 10, annualization_factor => 252)", printed]
       - [type=absolute, "volatility({x}, 22, 'absolute')", printed]
+      # over a line whose first point holds no value (the checkpoint's review): its ramp from that point
+      - [w=6mo|lag, "volatility(lag({x}, 1, 'truncate'), 6mo)", printed]
   - word: correlation
     gs: econometrics.correlation
     src: econometrics.py:766

@@ -2,7 +2,7 @@
 
 The timeseries library (`projects/timeseries/model.pure`) is gs-quant's functions written as Pure, and the `#TS{...}#`
 island is its language (`docs/timeseries/WORDS.md`). This tool holds each word to `gs_quant.timeseries` itself: every
-case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin -- for 236 of its 258 cases the call Show
+case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin -- for 283 of its 303 cases the call Show
 Python prints for the item (`calls.tsv`, the tile's own printer: the code the tile shows is the code gs-quant answers;
 docs/TS_DECISIONS_2026_11_07.md item 14f, step 2), for the rest a call written beside it; `snap.py` runs the twin over
 the gallery's samples and snaps each series into `answers.jsonl.gz`, and `//core:ts_gsquant_parity_test` runs the item
@@ -10,7 +10,8 @@ through the Pure library on DuckDB and judges it against them.
 
 **CI never runs gs-quant.** It is not one of the repository's locked requirements. The parity lane judges each case
 against the committed answers, and fails a case with no answer (UNSNAPPED), one whose texts or samples moved since
-the snap (STALE), an answer whose case is gone (GONE), and a file snapped with another gs-quant (VERSION). Only a
+the snap (STALE), a file snapped by another `snap.py` or `references.py` (STALE: each answers file records their
+sha256), an answer whose case is gone (GONE), and a file snapped with another gs-quant (VERSION). Only a
 person runs the live check (`--check`), locally: after editing the mapping, after changing this tool, and before
 landing a change to the answers.
 
@@ -107,10 +108,11 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
   not finite. `dates` is `[first, last, count]`: the reader takes the spine's dates from `first` to `last` and checks
   that there are `count` of them (SPINE fails the parity test otherwise). A series with a date off its spine (gs-quant's
   lag of a calendar period moves each date: `lag obs=1mo` answers on 2020-02-01, a Saturday) carries its own dates as a
-  list instead, so no point is lost. First, the meta line: the tool, gs-quant's release, the data's sha, and each
-  case's sha (its two texts, its column, the data, the release), its status (OK or GS_ERROR) and gs-quant's error.
-  Three files: `answers.jsonl.gz` (the samples, 0.8 MB), `answers-adversarial-raw.jsonl.gz` and
-  `answers-adversarial-adjusted.jsonl.gz` (a fixture's `prices.csv` and `prices_adjusted.csv`, 1.1 MB each).
+  list instead, so no point is lost. First, the meta line: the tool, gs-quant's release, the data's sha, the sha256 of
+  `snap.py` and `references.py` (`tools`: the code the answers were computed by), and each case's sha (its two texts,
+  its column, the data, the release), its status (OK or GS_ERROR) and gs-quant's error. Four files: `answers.jsonl.gz`
+  (the samples), `answers-adversarial-raw.jsonl.gz` and `answers-adversarial-adjusted.jsonl.gz` (a fixture's
+  `prices.csv` and `prices_adjusted.csv`), and `answers-gallery.jsonl.gz` (the gallery's series, below).
 - **`ledger.tsv`** (and `ledger-adversarial-raw.tsv`, `ledger-adversarial-adjusted.tsv`): each case, `<word> <args>`
   (over a fixture ` @<symbol>`): `gsquant` (snap.py's: OK, GS_ERROR, SKIP), `duckdb` (the parity test's: PASS, DIFF,
   REFUSED, GS_ERROR, SKIP), `register` (the row that rules a DIFF), `digest` (the sha256 of the series' row, its
@@ -128,8 +130,9 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
   (`--test_env=GS_ORACLE_GALLERY_UPDATE=$PWD/tools/gs-quant-oracle/gallery.jsonl` rewrites it), each its gs-quant call
   (Show Python of it, its other series inlined), its tile's sources, its answer's fields and why gs-quant cannot answer
   it (a split, a frequency, an alignment, a base date shown, DataCube's own spelling: SKIP); snapped by `snap.py --write`
-  with the samples (each row its own dates, no spine; a case's sha over its key, not its Show #TS, which the parity test
-  runs as it stands), judged as the cases are. A band's width gs-quant answers none of is SKIP.
+  with the samples (each row its own dates, no spine; a case's sha over its key and its `gallery.jsonl` row -- its call,
+  sources and fields -- not its Show #TS, which the parity test runs as it stands), judged as the cases are. A band's
+  width gs-quant answers none of is SKIP; any other field its answer has not is this tool's error (HARNESS).
 - **`traps.tsv`** (`--write --fixture`): each trap of the fixture's manifest that `mapping.yaml`'s `traps:` names a case
   for -- #90's four: `holiday_gap`, `late_print`, `split_2_for_1`, `stale_price_5d` -- gs-quant's value on the trap's
   date in each price file, against the manifest's correct answer. `--check --fixture` holds it to a fresh reading.
@@ -155,7 +158,7 @@ with two rows on one date (BTCUSD's print and its correction on 2025-02-05): whi
 verdict for each. Every count the PR and `docs/GATES.md` quote is a row of **`summary.tsv`** (each ledger's verdicts and
 their dup-span share; lite's split over the two-row line in cases and distinct words), and every DIFF no register row
 rules is a row of **`unruled.tsv`**, which the PR's Open findings answer one by one. All of it is GENERATED from the
-three ledgers by `two_rows.py`, never typed, and a ledger row no group of the table describes fails the run. The three
+four ledgers by `two_rows.py`, never typed, and a ledger row no group of the table describes fails the run. The three
 `.tsv` files are diff-tested (`//tools/gs-quant-oracle:update_generated_tests`, in `//:generated`, the checks lane);
 `TWO_ROWS.md` is written from the raw ledger by the same rule and not diff-tested (prose is never a test input, G17, as
 `docs/timeseries/WORDS.md`).
@@ -181,7 +184,9 @@ effectively bit-exact, so a sum taken in another order DIFFs by a few units in t
 
 A verdict is earned, never defaulted: REFUSED is lite's own refusal alone -- a `DataError` at run time (S149's among
 them) or a `LegendCompileException` as the query compiles -- and any other exception fails the test as its own fault;
-GS_ERROR is an error raised inside gs-quant (snap.py stops, HARNESS, on one raised by no frame of gs-quant); an OK
+GS_ERROR is an error raised inside gs-quant, or a reference's deliberate refusal (`references.Refused`: a line of two
+rows on one date, which no reference meets) -- snap.py stops, HARNESS, on any other (raised by no frame of gs-quant,
+or a bug of `references.py`); an OK
 case with no answer row fails (NO ROW), as does a row whose points are not its metadata's count (POINTS) or whose
 dates and values are not one length (SPINE). Every DIFF and REFUSED is written to the test's undeclared outputs
 (`gsquant-findings.md`): its first points apart, gs-quant's call and source line, the `#TS` statement and lite's SQL
@@ -190,10 +195,12 @@ contributor never edits `docs/SEMANTICS_REGISTER.md`) -- never change a word to 
 
 ## What the oracle cannot say
 
-- A word gs-quant has no function for (SKIP, 25 of 87, and `wavg`, `wsum`, ruled by R15 and not yet words): DataCube's own (`atr`, the channels, the captures, the
-  regressions' residue), a Marquee service (`alpha`, `information_ratio`, `r_squared`, `tracking_error`: report reads
-  in gs-quant; `cash_index`: gs-quant's cash is a currency's curve from Marquee), or no twin (`rank`, `round_down`, `round_up`, `percent_change`: its identity `x / x0 - 1` for the owner
-  to rule).
+- A word neither gs-quant nor a reference answers (SKIP, 6 of 87, and `wavg`, `wsum`, ruled by R15 and not yet
+  words): `cash_index` and `total_return` (gs-quant's cash is a currency's curve from Marquee; the gallery reads both
+  through `references.py`), or no twin (`rank`, `round_down`, `round_up`, `percent_change`: its identity `x / x0 - 1`
+  for the owner to rule). DataCube's own words that gs-quant has no function for -- `atr`, the channels, the captures,
+  the regressions, a Marquee report's reads in gs-quant (`alpha`, `information_ratio`, `r_squared`,
+  `tracking_error`) -- are answered by `references.py` (19 words, `ref:`).
 - A form with no gs-quant argument: a word's `from`, a period or date form of `count`, an `across` window (each date's
   instruments: gs-quant's functions take one series).
 - A case gs-quant raises on is GS_ERROR, its message and frame kept: `cov` and `beta` over a calendar window compare a

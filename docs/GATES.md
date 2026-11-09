@@ -20726,3 +20726,28 @@ each fixture file PASS 698, DIFF 54, as before; `unruled.tsv` empty. `tools/ts-o
 retired (its README says what stays: `signatures.py`, the reports). Checks: `//core:ts_gsquant_parity_test` (69.0s),
 `//datacube:timeseries_ts_parity_test` (43.8s), `snap.sh --check` (0 problems: samples 258 cases, gallery 202),
 `//tools/gs-quant-oracle/...`, `//tools/guards/...`: pass. Not run: `//gates:local` and CI.
+
+## 2026-11-09 — The checkpoint (14i): the chart API's guards, and an independent review's findings fixed
+
+`docs/TS_DECISIONS_2026_11_07.md` item 14i. The guards (ruling A of §5): 14f35bc24. The review (two reviewers: the
+library and core; the printer, builders and oracle), its findings fixed: every windowed word's line and points begin
+where its ramp ends, as gs-quant's `apply_ramp` slices it -- found by `mean(volatility(x, 22), 3mo)` answering from a
+month early, held by 45 new nested cases (`mean w=3mo|<word>` over every windowed word, and median, percentile,
+percentiles and volatility over returns and lags); D8 for a calendar vol swap, D1 for a basket's member of several rows
+a date; Python's number-first `and` as `x.rand(2)`; a currency's code as written; `ToDate()`/`Across()` branded; the
+oracle's harness errors, its shas over the gallery's rows and its own code. **Verdicts: the samples PASS 285, DIFF 16
+(PASS +45, the nested cases; no verdict moved); each fixture file PASS 832, DIFF 55 (+1: `mean w=3mo|cov22 @NEWCO`,
+S167's), REFUSED 162 (+30: BTCUSD's D8, as the inner words'), GS_ERROR 107 (+15); the gallery PASS 196, DIFF 4, SKIP
+32, as before; `unruled.tsv` empty.** Checks, each alone: `//core:ts_gsquant_parity_test` (82.2s),
+`//core:ts_island_test` (79.0s), `//core:timeseries_library_test` (48.5s), `//core:ts_documents_test` (8.1s),
+`//core:ts_adversarial_test` (7.3s), `//core:ts_replay_clickhouse_test` (27.5s), `//core:ts_documents_clickhouse_test`
+(21.2s), as the unprivileged user `//core:ts_island_postgres_test` (66.4s), `//core:ts_replay_postgres_test` (104.6s:
+the Sharpe ratio's first form joined its line back onto x, which Postgres planned past its two-minute timeout -- its
+points are now its met rows), `//core:ts_documents_postgres_test` (15.0s), `//core:core_tests_protocol`,
+`//core:core_tests_architecture`, `//datacube:timeseries_ts_parity_test` (39.2s), `//datacube:timeseries_queries_test`
+(79.6s: a count word's tile line from its ramp's end, as the rows forms' already), `//datacube:stress_markets_test`
+(52.9s), `//datacube:timeseries_builder_test`, `_spec_test`, `_code_test`, `guardrails_test`, `one_api_ledger_test`,
+`timeseries_edit_test`, `timeseries_view_dom_test` (27.2s), `bundle_budget_test` (the first timeseries tile 147,679 of a
+budget raised 146,100 -> 148,000, its note dated), `typecheck_test`, `//python:ts_builder_test`, `//python:markets_test`
+(120.3s), `//:generated` (72): pass. `snap.sh --write` and `--write --fixture` re-snapped every dataset (the tools' sha
+now in each file); `snap.sh --check`: 0 problems (samples 303 cases, gallery 202). Not run: `//gates:local` and CI.

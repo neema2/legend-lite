@@ -35,6 +35,10 @@ exports_files(
         "ledger-adversarial-adjusted.tsv",
         "answers-gallery.jsonl.gz",
         "ledger-gallery.tsv",
+        # the oracle's own code, each answer file's meta its sha256 (snap.py's TOOLS): an edit of either makes the
+        # answers STALE in the parity test (the checkpoint's review of 2026-11-09)
+        "snap.py",
+        "references.py",
     ],
     visibility = ["//core:__pkg__"],
 )
@@ -53,7 +57,7 @@ exports_files(
     ],
 )
 
-# THE LEDGERS' REPORTS (two_rows.py), read from the three ledgers alone: two-rows.tsv (what gs-quant and lite answer
+# THE LEDGERS' REPORTS (two_rows.py), read from the four ledgers alone: two-rows.tsv (what gs-quant and lite answer
 # over the fixture's line with two rows on one date, case by case), summary.tsv (every count the PR and GATES quote)
 # and unruled.tsv (every DIFF no register row rules), diff-tested (:update_generated_tests, in //:generated); and the
 # two-rows page, TWO_ROWS.md, written by the same rule and not diff-tested (prose is never a test input, G17, as

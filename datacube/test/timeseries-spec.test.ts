@@ -217,6 +217,7 @@ describe('the saved spec\'s reader', () => {
       // filter's empty operator reads no value: gs-quant's filter_ refuses a value of no operator (item 1 of 2026-11-09)
       [{ kind: 'call', fn: 'filter', args: [{ kind: 'column', column: 'c' }], params: { operator: 'empty', value: 5 } }, /filter's value 5 is read by no operator/],
       [{ kind: 'call', fn: 'filter', args: [{ kind: 'column', column: 'c' }], params: { value: 5 } }, /filter's value 5 is read by no operator/],
+      [{ kind: 'call', fn: 'zscores', args: [{ kind: 'column', column: 'c' }], params: { w: 'across', r: 5 } }, /zscores's r is no part of a window across/],
     ];
     for (const [tree, said] of cases) assert.match(treeProblem(tree, 'series A', ['px']) ?? '', said, JSON.stringify(tree));
     assert.equal(treeProblem({ kind: 'column', source: 'px', column: 'c' }, 'series A', ['px']), null);

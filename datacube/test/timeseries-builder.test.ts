@@ -180,6 +180,19 @@ describe('a builder term is its #TS text', () => {
     assert.equal(builderSource(sharpe_ratio!(spx, { w: 252, curve_type: CurveType.EXCESS_RETURNS }).expr, 'python'),
       "sharpe_ratio(column('close', 'SPX'), w=252, curve_type=CurveType.EXCESS_RETURNS)");
     assert.throws(() => sharpe_ratio!(spx, { curve_type: 'levels' as never }), /curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS/);
+    // a currency's code as written, never uppercased; a cash line of no code written as its excess returns, read back
+    // as that same line (the checkpoint's review of 2026-11-09: 'usd' had been read back as 'USD')
+    assert.throws(() => sharpe_ratio!(spx, 'usd' as never), /currency is a currency's code, three capital letters/);
+    assert.throws(() => sharpe_ratio!(spx, 'EURO' as never), /currency is a currency's code, three capital letters/);
+    for (const code of ['usd', 'EURO']) {
+      const tree = told(functions['sharpe_ratio']!(functions['excess_returns']!(spx, column('cash.index', code)), { curve_type: CurveType.EXCESS_RETURNS }).expr);
+      const python = builderSource(tree, 'python');
+      assert.equal(python, `sharpe_ratio(excess_returns_pure(column('close', 'SPX'), column('cash.index', '${code}')), w=Window(None, 0), curve_type=CurveType.EXCESS_RETURNS)`);
+      const ts = builderSource(tree);
+      const names = Object.keys(functions);
+      const run = new Function(...names, `return ${ts};`)(...names.map((n) => functions[n])) as Term;
+      assert.equal(canonical(told(run.expr)), canonical(tree), ts);
+    }
     assert.equal(append!([spx, ndx]).text(), "append(close['SPX'], close['NDX'])");
     // gs-quant's whole-series figures written whole, the future read seen (the user, 2026-11-08)
     assert.equal(functions['zscores']!(spx).text(), "zscores(close['SPX'], w => whole)");
@@ -341,6 +354,8 @@ it('a series gs-quant has no call of is written with DataCube\'s own names, and 
   assert.equal(builderSource(told(seriesExpr(w.item!.expr!, [])), 'python'), "winsorize(column('close', 'SPX'), limit=1.5, w=ToDate())");
   assert.equal(builderSource(told(seriesExpr((await readText("zscores(close['SPX'], across)")).item!.expr!, [])), 'python'),
     "zscores(column('close', 'SPX'), w=Across())");
+  // a number first of and: DataCube's method in Python too, never pandas' bitwise 2 & x
+  assert.equal(builderSource(told(column('close', 'SPX').gt(100).rand(2).expr), 'python'), "(column('close', 'SPX') > 100).rand(2)");
   assert.equal(builderSource(cmp(), 'python'), "compare(column('close', 'SPX'), column('close', 'NDX'))");
   assert.equal(builderSource(cmp()), "compare(column('close', 'SPX'), column('close', 'NDX'))");
   // a z-score's all is its call of no window, the same meaning: written as it, read back so
@@ -348,6 +363,12 @@ it('a series gs-quant has no call of is written with DataCube\'s own names, and 
   assert.equal(builderSource(told(seriesExpr(all.item!.expr!, [])), 'python'), "zscores(column('close', 'SPX'), w=ToDate())");
   // DataCube's own windows only where the language takes them
   assert.throws(() => functions['mean']!(column('close'), new builder.Across()), /mean's w reads no cross-section/);
+  // ToDate() and Across() are branded: a value of no window is a type error, as the builder refuses it at run time (an
+  // empty class had been every value's type: the checkpoint's review of 2026-11-09)
+  // @ts-expect-error a boolean is no window
+  assert.throws(() => volatility(column('close'), true));
+  // a cross-section has no first points to ramp
+  assert.throws(() => functions['zscores']!(column('close'), new builder.Across(), { r: 5 }), /zscores's r is no part of Across\(\)/);
   assert.throws(() => functions['returns']!(column('close'), new builder.ToDate()), /returns's .* takes no window to date|is no window/);
   // a tree no tile draws is a defect, thrown as one
   assert.throws(() => builderSource({ kind: 'number', value: 5 }, 'python'), /a number alone is no series a tile draws/);

@@ -1687,6 +1687,16 @@ class TsIslandTest {
                 assertTrue(String.valueOf(e.getMessage()).contains("both have several rows on one date"),
                         backend + ": " + q + " refused by name: " + e.getMessage());
             }
+            // a weighted sum's or a basket's member of several rows a date beside one of one: no weight is its own,
+            // refused naming the fix where it had been dropped -- its two rows counted as two members of the met
+            // dates (the checkpoint's review, 2026-11-09)
+            for (String q : List.of("weighted_sum(p.CLOSE, 0.5, q.CLOSE['AAA'], 0.5)",
+                    "basket(p.CLOSE, 0.5, q.CLOSE['AAA'], 0.5)")) {
+                String run = "|#TS{SELECT " + q + " AS b FROM PRICES p ON DAY, PRICES q ON DAY BY SYMBOL}#";
+                Exception e = assertThrows(Exception.class, () -> rows(backend, run), backend + ": " + q);
+                assertTrue(String.valueOf(e.getMessage()).contains("met a member line with several rows on one date"),
+                        backend + ": " + q + " refused by name: " + e.getMessage());
+            }
         }
     }
 
@@ -1713,7 +1723,11 @@ class TsIslandTest {
                     // Dickey-Fuller's or a half-life's differences (the gs-quant oracle's references, 2026-11-09:
                     // BTCUSD's two rows on 2025-02-05 answered twice, the same value)
                     "SELECT volatility(CLOSE, 3d) AS v", "SELECT dickey_fuller(CLOSE, 5d) AS df",
-                    "SELECT half_life(CLOSE, 5d) AS hl")) {
+                    "SELECT half_life(CLOSE, 5d) AS hl",
+                    // their line forms (a count window: no rows form), the ramp's check every row's, and a vol swap's
+                    // log returns over a calendar window (the checkpoint's review, 2026-11-09)
+                    "SELECT dickey_fuller(CLOSE, 5) AS df", "SELECT half_life(CLOSE, 5) AS hl",
+                    "SELECT vol_swap_volatility(CLOSE, 3) AS vs", "SELECT vol_swap_volatility(CLOSE, 3d) AS vs")) {
                 String query = "|#TS{" + q + " FROM PRICES ON DAY}#";
                 if (q.contains("['AAA']")) {
                     query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"

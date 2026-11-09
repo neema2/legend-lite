@@ -466,12 +466,12 @@
  },
  {
   "series": "extension 1 AND close['SPX'] > 100",
-  "python": "1 & (column('close', 'SPX') > 100)",
+  "python": "(column('close', 'SPX') > 100).rand(1)",
   "text": "1 AND close['SPX'] > 100"
  },
  {
   "series": "extension 0 OR close['SPX'] < 50",
-  "python": "0 | (column('close', 'SPX') < 50)",
+  "python": "(column('close', 'SPX') < 50).ror(0)",
   "text": "0 OR close['SPX'] < 50"
  },
  {

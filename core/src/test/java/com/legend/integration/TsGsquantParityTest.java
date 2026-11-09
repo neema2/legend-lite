@@ -105,8 +105,10 @@ class TsGsquantParityTest {
     // ------------------------------------------------------------------ the mapping (snap.py's line_cases mirrors it)
 
     /** One case: its word, its args, its #TS item, its gs-quant text, the struct field it reads (or null), the
-     *  register row that rules a DIFF on it (or "-"), and its word's gs-quant source line. */
-    record Case(String word, String args, String ts, String gs, String column, String register, String src) {
+     *  register row that rules a DIFF on it (or "-"), its word's gs-quant source line, and a gallery case's
+     *  gallery.jsonl row (its call, sources and fields: what its sha is over; null for the mapping's cases). */
+    record Case(String word, String args, String ts, String gs, String column, String register, String src,
+            String row) {
         String key() {
             return word + " " + args;
         }
@@ -169,7 +171,7 @@ class TsGsquantParityTest {
         for (String[] r : rows) {
             cases.add(new Case(word, r[0], r[1], r[2], r.length > 3 ? r[3] : null,
                     known.containsKey(r[0]) ? known.get(r[0]) : NO_REGISTER_ROW,
-                    src));
+                    src, null));
         }
         return new Word(word, false, cases, false);
     }
@@ -205,7 +207,7 @@ class TsGsquantParityTest {
                     throw new IllegalStateException("PRINTED: " + c.key() + " is `printed`, and calls.tsv holds "
                             + (call == null ? "no row for it" : call) + " (rewrite calls.tsv, or write its call)");
                 }
-                cases.add(new Case(c.word(), c.args(), c.ts(), call, c.column(), c.register(), c.src()));
+                cases.add(new Case(c.word(), c.args(), c.ts(), call, c.column(), c.register(), c.src(), c.row()));
             }
             out.add(new Word(w.word(), w.skip(), cases, w.ruled()));
         }
@@ -263,11 +265,13 @@ class TsGsquantParityTest {
     }
 
     /** What a case's answer is for (snap.py's sha): its two texts, its column, the data (over a fixture, with the
-     *  symbol it runs as x) and gs-quant's release, the pin -- a gallery series' its key in place of its #TS (snap.py's
-     *  snap_gallery: gs-quant's answer is its call's alone, and the series' Show #TS is run as it stands). */
+     *  symbol it runs as x) and gs-quant's release, the pin -- a gallery series' its key and its gallery.jsonl row in
+     *  place of its #TS and its call (snap.py's snap_gallery: gs-quant's answer is its call's alone, over its sources;
+     *  the series' Show #TS is run as it stands). */
     static String sha(Case c, String dataSha, String pin) throws Exception {
-        String ts = GALLERY_WORD.equals(c.word()) ? c.args() : c.ts();
-        String joined = String.join("\n\0\n", ts, c.gs(), c.column() == null ? "" : c.column(), dataSha, pin);
+        boolean gallery = GALLERY_WORD.equals(c.word());
+        String joined = String.join("\n\0\n", gallery ? c.args() : c.ts(), gallery ? c.row() : c.gs(),
+                c.column() == null ? "" : c.column(), dataSha, pin);
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
                 joined.getBytes(StandardCharsets.UTF_8)));
     }
@@ -382,11 +386,20 @@ class TsGsquantParityTest {
 
     /** UNSNAPPED, STALE and GONE: the answers against the cases a dataset runs (each key and its sha); an answers file
      *  snapped under another release than the pin is STALE whole. */
-    static List<String> guards(Map<String, String> expected, Answers answers, String pin, String name) {
+    static List<String> guards(Map<String, String> expected, Answers answers, String pin, String name) throws Exception {
         List<String> out = new ArrayList<>();
         if (!pin.equals(answers.meta().getString("pins"))) {
             out.add("STALE: " + name + "'s answers were snapped under " + answers.meta().getString("pins")
                     + ", the pins are " + pin + " (tools/gs-quant-oracle/snap.sh --write)");
+        }
+        // the oracle's own code the answers were computed by (snap.py's TOOLS): an edit of either makes them STALE (the
+        // checkpoint's review of 2026-11-09 found such an edit left the answers judged current)
+        Json.Obj tools = answers.meta().get("tools") instanceof Json.Obj o ? o : null;
+        for (Map.Entry<String, String> t : toolShas().entrySet()) {
+            if (tools == null || !tools.has(t.getKey()) || !tools.getString(t.getKey()).equals(t.getValue())) {
+                out.add("STALE: " + name + "'s answers were snapped by another " + t.getKey()
+                        + " (tools/gs-quant-oracle/snap.sh --write)");
+            }
         }
         Json.Obj snapped = (Json.Obj) answers.meta().get("cases");
         expected.forEach((key, sha) -> {
@@ -655,6 +668,15 @@ class TsGsquantParityTest {
             Path answers, Path ledger, Map<String, List<String>> lineDates, List<String> ats) {
     }
 
+    /** snap.py's TOOLS, each file's sha256: the oracle's code an answer file records it was snapped by. */
+    static Map<String, String> toolShas() throws Exception {
+        Map<String, String> out = new LinkedHashMap<>();
+        out.put("snap.py", sha256(Files.readString(Runfile.property("ts.gsquant.snap"), StandardCharsets.UTF_8)));
+        out.put("references.py", sha256(Files.readString(Runfile.property("ts.gsquant.references"),
+                StandardCharsets.UTF_8)));
+        return out;
+    }
+
     static String sha256(String text) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
                 text.getBytes(StandardCharsets.UTF_8)));
@@ -761,7 +783,7 @@ class TsGsquantParityTest {
                     throw new IllegalStateException("no Show #TS statement of " + id + " in show-ts.txt");
                 }
                 cases.add(new Case(GALLERY_WORD, args, statement, o.getString("python"), field,
-                        known.getOrDefault(args, NO_REGISTER_ROW), "-"));
+                        known.getOrDefault(args, NO_REGISTER_ROW), "-", line));
             }
         }
         for (String k : known.keySet()) {
@@ -836,7 +858,10 @@ class TsGsquantParityTest {
                             continue;
                         }
                         if (!snapped.has(key)) {
-                            continue;   // UNSNAPPED, reported by the guards
+                            // reported by the guards; its verdict says so, never left unset (a development run's
+                            // tally read it, the checkpoint's review of 2026-11-09)
+                            verdicts.put(key, new Verdict("UNSNAPPED", "no answer snapped (tools/gs-quant-oracle/snap.sh --write)"));
+                            continue;
                         }
                         Json.Obj entry = (Json.Obj) snapped.get(key);
                         if ("GS_ERROR".equals(entry.getString("status"))) {

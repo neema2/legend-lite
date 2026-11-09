@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -338,6 +339,30 @@ class TimeseriesLibraryTest {
                 () -> Compiler.compileModel("###Pure\nClass my::Other\n{\n}\n",
                         "###Pure\nClass lib::Bad\n{\n  name: lib::Nothing[1];\n}\n"));
         assertTrue(broken.getMessage().matches("(?s)\\[\\d+:\\d+.*"), broken.getMessage());
+    }
+
+    /**
+     * A word over a calendar window that reads its line by a lag inside it -- a Dickey-Fuller's or a half-life's
+     * differences, a vol swap's log returns -- refuses a line of several rows on a date in its line form too, where a
+     * person's Pure calls it ({@code untied()}; #TS reaches the rows forms alone: the time model's D8, the
+     * checkpoint's review of 2026-11-09). PRICES' AAA and BBB as one line: two rows on each date, in no order.
+     */
+    @Test
+    void aCalendarWordOfALagRefusesALineOfSeveralRowsADateInItsLineForm() throws Exception {
+        String line = "|" + PRICES + "->extend(~key:r|'all')->rename(~DAY, ~date)->rename(~CLOSE, ~value)"
+                + "->select(~[key, date, value])";
+        for (TestBackend backend : TestBackends.inProcess()) {
+            for (String word : List.of("dickey_fuller", "half_life", "vol_swap_volatility")) {
+                String query = line + "->timeseries::line::" + word
+                        + "(5, meta::pure::functions::date::DurationUnit.DAYS)";
+                Exception e = assertThrows(Exception.class, () -> rows(backend, query), backend + ": " + word);
+                assertTrue(String.valueOf(e.getMessage()).contains("several rows on one date, which have no order"),
+                        backend + ": " + word + " refused by name: " + e.getMessage());
+                // one instrument's line, one row a date: it answers
+                assertFalse(rows(backend, query.replace("->extend(~key:r|'all')", "->filter(r|$r.SYMBOL == 'AAA')"
+                        + "->extend(~key:r|'all')")).isEmpty(), backend + ": " + word + " of AAA's line");
+            }
+        }
     }
 
     @Test

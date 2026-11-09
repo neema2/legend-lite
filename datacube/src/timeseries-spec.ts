@@ -626,6 +626,11 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           }
         }
       }
+      // a window across a date's instruments is each date's cross-section: no ramp of a line's first points reads it (the
+      // language's across forms take no r; the checkpoint's review of 2026-11-09)
+      if (isRecord(params) && params['r'] !== undefined && f.params.some((q) => q.kind === 'span' && params[q.name] === 'across')) {
+        return `${fn}'s r is no part of a window across a date's instruments: a cross-section has no first points to ramp`;
+      }
       // filter's empty operator (its default) reads no value: a value beside it is no part of the series -- refused,
       // never dropped, as gs-quant's filter_ refuses a value of no operator (algebra.filter_; item 1 of 2026-11-09)
       if (fn === 'filter' && isRecord(params) && (params['operator'] ?? 'empty') === 'empty' && params['value'] !== undefined && params['value'] !== 0) {

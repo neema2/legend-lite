@@ -1248,10 +1248,15 @@ junit_test(
         "//tools/gs-quant-oracle:calls.tsv",
         "//tools/gs-quant-oracle:mapping.yaml",
         "//tools/gs-quant-oracle:pins.env",
+        "//tools/gs-quant-oracle:references.py",
+        "//tools/gs-quant-oracle:snap.py",
     ],
     jvm_flags = [
         "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
         "-Dts.gsquant.pins=$(rlocationpath //tools/gs-quant-oracle:pins.env)",
+        # the oracle's own code: each answer file records its sha256, and an edit of either makes the answers STALE
+        "-Dts.gsquant.snap=$(rlocationpath //tools/gs-quant-oracle:snap.py)",
+        "-Dts.gsquant.references=$(rlocationpath //tools/gs-quant-oracle:references.py)",
         "-Dts.gsquant.mapping=$(rlocationpath //tools/gs-quant-oracle:mapping.yaml)",
         # each case's #TS item as Show Python prints it: the gs-quant call of a case the mapping writes `printed` (14f)
         "-Dts.gsquant.calls=$(rlocationpath //tools/gs-quant-oracle:calls.tsv)",

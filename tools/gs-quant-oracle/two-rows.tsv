@@ -4,6 +4,43 @@ mean w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 mean w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 mean w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
 mean w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|returns	two-values	641 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|mean22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|std22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|volatility22	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+mean w=3mo|correlation22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|beta22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|drawdown22	two-values	620 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|rsi14	two-values	626 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|vol_swap22	two-values	620 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|sum22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|min22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|max22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|range22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|var22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|median22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|product22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|max_drawdown22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|zscores22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|percentile22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|percentiles22	four-values	621 points, 4 values on 2025-02-05	REFUSED
+mean w=3mo|sharpe_ratio22	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+mean w=3mo|smoothed_moving_average14	two-values	627 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|dickey_fuller63	two-values	577 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|half_life63	two-values	577 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|cov22	two-values	619 points, 2 values on 2025-02-05	REFUSED
+mean w=3mo|alpha22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|r_squared22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|hedge_ratio22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|residual22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|lead_lag22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|tracking_error22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|information_ratio22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|up_capture22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|down_capture22	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|vwap20	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|atr14	raises-two-rows	Refused at references.py:120	GS_ERROR
+mean w=3mo|stochastic14	raises-two-rows	Refused at references.py:120	GS_ERROR
 sum w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 sum w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 sum w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
@@ -29,6 +66,8 @@ median w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 median w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
 median w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 median w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+median w=6mo|returns	two-values	550 points, 2 values on 2025-02-05	REFUSED
+median w=22|returns	two-values	710 points, 2 values on 2025-02-05	REFUSED
 range default	two-values	732 points, 2 values on 2025-02-05	REFUSED
 range w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
 range w=all	two-values	732 points, 2 values on 2025-02-05	REFUSED
@@ -43,10 +82,15 @@ percentile n=50,w=whole	two-values	732 points, 2 values on 2025-02-05	PASS
 percentile n=90,w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 percentile n=90,w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
 percentile n=90,w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+percentile n=90,w=6mo|returns	two-values	549 points, 2 values on 2025-02-05	REFUSED
+percentile n=90,w=22|returns	two-values	709 points, 2 values on 2025-02-05	REFUSED
+percentile n=90,w=22,r=10|returns	two-values	721 points, 2 values on 2025-02-05	REFUSED
 percentiles default	four-values	734 points, 4 values on 2025-02-05	REFUSED
 percentiles w=20	four-values	714 points, 4 values on 2025-02-05	REFUSED
 percentiles w=3mo	one-value	640 points, 1 values on 2025-02-05	DIFF
 percentiles w=20,r=10	four-values	724 points, 4 values on 2025-02-05	REFUSED
+percentiles w=6mo|returns	one-value	549 points, 1 values on 2025-02-05	REFUSED
+percentiles w=22|returns	four-values	712 points, 4 values on 2025-02-05	REFUSED
 zscores default	two-values	732 points, 2 values on 2025-02-05	REFUSED
 zscores w=20	two-values	712 points, 2 values on 2025-02-05	REFUSED
 zscores w=3mo	two-values	641 points, 2 values on 2025-02-05	DIFF
@@ -85,6 +129,7 @@ volatility type=log	raises-497	MqValueError at econometrics.py:497	GS_ERROR
 volatility w=63,r=10	raises-497	MqValueError at econometrics.py:497	GS_ERROR
 volatility w=10,annualization_factor=252	two-values	722 points, 2 values on 2025-02-05	REFUSED
 volatility type=absolute	raises-497	MqValueError at econometrics.py:497	GS_ERROR
+volatility w=6mo|lag	raises-497	MqValueError at econometrics.py:497	GS_ERROR
 correlation default	two-values	501 points, 2 values on 2025-02-05	REFUSED
 correlation w=3mo	two-values	442 points, 2 values on 2025-02-05	REFUSED
 correlation w=all	two-values	501 points, 2 values on 2025-02-05	REFUSED
@@ -170,64 +215,64 @@ exponential_spread_volatility default	raises-497	MqValueError at econometrics.py
 basket default	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
 basket rebalance=monthly	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
 basket rebalance=weekly	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
-alpha default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-alpha w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-alpha w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-alpha w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-information_ratio default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-information_ratio w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-information_ratio w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-information_ratio w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-r_squared default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-r_squared w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-r_squared w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-r_squared w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-tracking_error default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-tracking_error w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-tracking_error w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-tracking_error w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-hedge_ratio default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-hedge_ratio w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-hedge_ratio w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-hedge_ratio w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-residual default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-residual w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-residual w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-residual w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-up_capture default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-up_capture w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-up_capture w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-up_capture w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-down_capture default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-down_capture w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-down_capture w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-down_capture w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-lead_lag default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-lead_lag lag=2	raises-two-rows	ValueError at references.py:97	GS_ERROR
-lead_lag w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-lead_lag w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-lead_lag w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
-atr default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-atr w=5	raises-two-rows	ValueError at references.py:97	GS_ERROR
-stochastic default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-stochastic w=5	raises-two-rows	ValueError at references.py:97	GS_ERROR
-keltner_channels default.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
-keltner_channels default.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
-keltner_channels default.width	raises-two-rows	ValueError at references.py:97	GS_ERROR
-keltner_channels w=10,a=5,k=1.5.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
-keltner_channels w=10,a=5,k=1.5.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels default.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels default.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels default.width	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels w=3mo.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels w=3mo.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels w=all.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
-donchian_channels w=all.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
-obv default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-vwap default	raises-two-rows	ValueError at references.py:97	GS_ERROR
-vwap w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
-vwap w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
-vwap w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+alpha default	raises-two-rows	Refused at references.py:120	GS_ERROR
+alpha w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+alpha w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+alpha w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+information_ratio default	raises-two-rows	Refused at references.py:120	GS_ERROR
+information_ratio w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+information_ratio w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+information_ratio w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+r_squared default	raises-two-rows	Refused at references.py:120	GS_ERROR
+r_squared w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+r_squared w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+r_squared w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+tracking_error default	raises-two-rows	Refused at references.py:120	GS_ERROR
+tracking_error w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+tracking_error w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+tracking_error w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+hedge_ratio default	raises-two-rows	Refused at references.py:120	GS_ERROR
+hedge_ratio w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+hedge_ratio w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+hedge_ratio w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+residual default	raises-two-rows	Refused at references.py:120	GS_ERROR
+residual w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+residual w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+residual w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+up_capture default	raises-two-rows	Refused at references.py:120	GS_ERROR
+up_capture w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+up_capture w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+up_capture w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+down_capture default	raises-two-rows	Refused at references.py:120	GS_ERROR
+down_capture w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+down_capture w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+down_capture w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+lead_lag default	raises-two-rows	Refused at references.py:120	GS_ERROR
+lead_lag lag=2	raises-two-rows	Refused at references.py:120	GS_ERROR
+lead_lag w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+lead_lag w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+lead_lag w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
+atr default	raises-two-rows	Refused at references.py:120	GS_ERROR
+atr w=5	raises-two-rows	Refused at references.py:120	GS_ERROR
+stochastic default	raises-two-rows	Refused at references.py:120	GS_ERROR
+stochastic w=5	raises-two-rows	Refused at references.py:120	GS_ERROR
+keltner_channels default.lower	raises-two-rows	Refused at references.py:120	GS_ERROR
+keltner_channels default.upper	raises-two-rows	Refused at references.py:120	GS_ERROR
+keltner_channels default.width	raises-two-rows	Refused at references.py:120	GS_ERROR
+keltner_channels w=10,a=5,k=1.5.lower	raises-two-rows	Refused at references.py:120	GS_ERROR
+keltner_channels w=10,a=5,k=1.5.upper	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels default.lower	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels default.upper	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels default.width	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels w=3mo.lower	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels w=3mo.upper	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels w=all.lower	raises-two-rows	Refused at references.py:120	GS_ERROR
+donchian_channels w=all.upper	raises-two-rows	Refused at references.py:120	GS_ERROR
+obv default	raises-two-rows	Refused at references.py:120	GS_ERROR
+vwap default	raises-two-rows	Refused at references.py:120	GS_ERROR
+vwap w=3mo	raises-two-rows	Refused at references.py:120	GS_ERROR
+vwap w=all	raises-two-rows	Refused at references.py:120	GS_ERROR
+vwap w=20,r=10	raises-two-rows	Refused at references.py:120	GS_ERROR
 drawdown default	two-values	732 points, 2 values on 2025-02-05	REFUSED
 drawdown w=20	two-values	713 points, 2 values on 2025-02-05	REFUSED
 drawdown w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
@@ -240,7 +285,7 @@ half_life default	two-values	673 points, 2 values on 2025-02-05	REFUSED
 half_life w=30	two-values	641 points, 2 values on 2025-02-05	REFUSED
 half_life w=3mo	two-values	596 points, 2 values on 2025-02-05	REFUSED
 half_life w=30,r=10	two-values	661 points, 2 values on 2025-02-05	REFUSED
-ohlc default.open	raises-two-rows	ValueError at references.py:97	GS_ERROR
-ohlc default.high	raises-two-rows	ValueError at references.py:97	GS_ERROR
-ohlc default.low	raises-two-rows	ValueError at references.py:97	GS_ERROR
-ohlc default.close	raises-two-rows	ValueError at references.py:97	GS_ERROR
+ohlc default.open	raises-two-rows	Refused at references.py:120	GS_ERROR
+ohlc default.high	raises-two-rows	Refused at references.py:120	GS_ERROR
+ohlc default.low	raises-two-rows	Refused at references.py:120	GS_ERROR
+ohlc default.close	raises-two-rows	Refused at references.py:120	GS_ERROR

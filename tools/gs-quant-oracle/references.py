@@ -63,12 +63,16 @@ def over(df, w, f, extra=0, least=1, first=None, before=0):
       Window(n, r)      gs-quant's: a window not yet full takes those it has (rolling(n, 0)), its first r points none,
                         nothing where the line is shorter than n -- its points counted on the line x itself, `before`
                         of them before df's first (a line's returns: its first price; gs-quant's apply_ramp of the
-                        answer interpolated onto x, as lite's helpers::ramp)."""
+                        answer interpolated onto x, as lite's helpers::ramp).
+    Its answer begins where its ramp ends, as gs-quant's apply_ramp slices it (x[r:], x.loc[x.index[0] + r:]): a word
+    reading it counts its own ramp from there (the checkpoint's review, 2026-11-09)."""
     idx = df.index
     vals = []
+    keep = 0
     if isinstance(w, str):
         off = offset(w)
         start = (idx[0] if first is None else first) + off
+        keep = int(np.searchsorted(idx.values, start.to_datetime64(), side="left"))
         for i, d in enumerate(idx):
             lo = int(np.searchsorted(idx.values, (d - off).to_datetime64(), side="right"))
             part = df.iloc[max(0, lo - extra): i + 1]
@@ -76,24 +80,45 @@ def over(df, w, f, extra=0, least=1, first=None, before=0):
     elif isinstance(w, Window) and w.w is not None:
         n, r = int(w.w), int(w.r)
         if len(df) + before < n:
-            return pd.Series(np.nan, index=idx, dtype=float)
+            return pd.Series(np.nan, index=idx, dtype=float).iloc[len(idx):]
+        keep = max(0, r - before)
         for i in range(len(df)):
             part = df.iloc[max(0, i - n + 1 - extra): i + 1]
             vals.append(f(part) if i + before >= r and len(part) >= least + extra else np.nan)
     elif w in (0, None) or isinstance(w, Window):
         r = int(w.r) if isinstance(w, Window) and w.r is not None else 0
+        keep = max(0, r - before)
         for i in range(len(df)):
             part = df.iloc[: i + 1]
             vals.append(f(part) if i + before >= r and len(part) >= least + extra else np.nan)
     else:
         n = int(w) + extra
+        keep = n - 1
         for i in range(len(df)):
             vals.append(f(df.iloc[i - n + 1: i + 1]) if i + 1 >= n else np.nan)
-    return pd.Series(vals, index=idx, dtype=float)
+    return pd.Series(vals, index=idx, dtype=float).iloc[keep:]
+
+
+def from_first(s):
+    """A TA-Lib answer from its first value (a frame's: the first date every field has one): its lookback, the ramp it
+    computes none over, sliced as gs-quant's apply_ramp slices a ramp (over's rule)."""
+    whole = s.dropna(how="any") if isinstance(s, pd.DataFrame) else s.dropna()
+    return s.iloc[len(s):] if whole.empty else s.loc[whole.index[0]:]
+
+
+class Refused(ValueError):
+    """A reference's deliberate refusal of a case it has no answer for, recorded as GS_ERROR as gs-quant's own raise is:
+    the one error of this file snap.py records -- any other raised here is the tool's (HARNESS), never an answer (the
+    checkpoint's review of 2026-11-09 found a bug of this file would have been snapped as gs-quant's error)."""
 
 
 def met(*lines):
-    """Lines on the dates every one has (the library's helpers::meet)."""
+    """Lines on the dates every one has (the library's helpers::meet): refused where one has two rows on a date (the
+    adversarial fixture's BTCUSD on 2025-02-05), which no line meets -- pandas cannot align it."""
+    for x in lines:
+        if x.index.has_duplicates:
+            raise Refused("a line of two rows on one date (" + str(x.index[x.index.duplicated()][0].date())
+                          + "): no reference meets it")
     return pd.concat(lines, axis=1, join="inner")
 
 
@@ -164,7 +189,7 @@ def drawdown(x, w=0, r=None):
 def atr(high, low, close, w=14):
     m = met(high, low, close)
     h, lo, c = m.T.values
-    return pd.Series(talib.ATR(h, lo, c, timeperiod=int(w)), index=m.index)
+    return from_first(pd.Series(talib.ATR(h, lo, c, timeperiod=int(w)), index=m.index))
 
 
 @reference("TA-Lib")
@@ -173,7 +198,7 @@ def stochastic(high, low, close, w=14):
     m = met(high, low, close)
     h, lo, c = m.T.values
     k, _ = talib.STOCHF(h, lo, c, fastk_period=int(w), fastd_period=1, fastd_matype=0)
-    return pd.Series(k, index=m.index)
+    return from_first(pd.Series(k, index=m.index))
 
 
 @reference("TA-Lib")
@@ -192,7 +217,7 @@ def keltner_channels(high, low, close, w=20, a=10, k=2):
     mid = pd.Series(talib.EMA(c, timeperiod=int(w)), index=m.index)
     atr_ = pd.Series(talib.ATR(h, lo, c, timeperiod=int(a)), index=m.index)
     lower, upper = mid - float(k) * atr_, mid + float(k) * atr_
-    return pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower})
+    return from_first(pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower}))
 
 
 @reference("TA-Lib")
@@ -204,7 +229,7 @@ def donchian_channels(high, low, w=20):
     else:
         lower = over(m.iloc[:, 1], w, lambda s: s.min())
         upper = over(m.iloc[:, 0], w, lambda s: s.max())
-    return pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower})
+    return from_first(pd.DataFrame({"lower": lower, "upper": upper, "width": upper - lower}))
 
 
 @reference("pandas")

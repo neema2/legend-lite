@@ -147,8 +147,8 @@ class Printer {
     }
   }
 
-  /** A binary's number first, which reads the other way round (5 + x is x.radd(5), 1 < x is x > 1; 1 & x is x.rand(1),
-   *  DataCube's name, as pandas reflects it): of two numbers, no series a tile draws. */
+  /** A binary's number first, which reads the other way round (5 + x is x.radd(5), 1 < x is x > 1; 1 and x is
+   *  x.rand(1), DataCube's name, in Python too: pandas' 1 & x is bitwise): of two numbers, no series a tile draws. */
   numberFirst(e: Extract<TsExpr, { kind: 'binary' }>): void {
     if (e.left.kind === 'number' && e.right.kind === 'number') throw new CodeDefect('arithmetic of two numbers is no series a tile draws');
     if (e.left.kind === 'number' && (e.op === 'and' || e.op === 'or')) this.extensions.add(`r${e.op}`);
@@ -170,6 +170,12 @@ class Printer {
   /** Python's arithmetic: its operators, in parentheses where Python binds otherwise than the tree. */
   pyBinary(e: Extract<TsExpr, { kind: 'binary' }>): Code {
     this.numberFirst(e);
+    // a number first of and / or: DataCube's method, never Python's `2 & x` -- pandas reads that bitwise (2 & True is 0),
+    // the language's `2 and x` is x (the checkpoint's review of 2026-11-09)
+    if (e.left.kind === 'number' && (e.op === 'and' || e.op === 'or')) {
+      const c = this.source(e.right);
+      return { text: `${c.at < PY_ATOM ? `(${c.text})` : c.text}.${REVERSED[e.op]}(${e.left.value})`, at: PY_ATOM };
+    }
     // a comparison with its number first: the series' side compared the other way (1 < x is x > 1), as Python reflects it
     const flipped = e.left.kind === 'number' && REVERSED[e.op] === undefined;
     const op = flipped ? MIRRORED[e.op]! : e.op;
@@ -213,7 +219,8 @@ class Printer {
     const kw: string[] = [];
     const placed: string[] = [];
     // gs-quant's risk-free cash (item 13b): a line's excess returns over a currency's cash is gs-quant's PRICES of that
-    // currency, one of its seven; any other line, its EXCESS_RETURNS
+    // currency, one of its seven or another's code; any other line, its EXCESS_RETURNS (a cash line of no currency's
+    // code among them, cashOver's)
     let args = e.args;
     let excess = false;
     if (takesCash(shape)) {
@@ -293,7 +300,8 @@ class Printer {
         }
       }
       // left to the language, whose reading is gs-quant's default (compare's method: step, S145) -- the builder's call
-      // without it says the same (timeseries-builder-core.ts word)
+      // without it says the same (timeseries-builder-core.ts word); under a tile's alignment, the alignment's, which the
+      // tile's program says beside it (its align), as for every meeting of two lines in the tile
       if (v === undefined) continue;
       // a window's ramp apart from its size: gs-quant's Window(w, r) (item 13), the library's w and r
       const ramp = lib === 'w' ? told['r'] : undefined;

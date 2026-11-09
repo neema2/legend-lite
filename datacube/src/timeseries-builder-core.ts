@@ -210,11 +210,26 @@ export class Window {
  * line's last date; the language's `all`). Elsewhere gs-quant's own `Window(None, 0)` says it (a mean's, percentile's),
  * and ToDate() is the same. DataCube's own: gs-quant has none.
  */
-export class ToDate {}
+export class ToDate {
+  /** Its code, and its brand: an empty class is every value's type, so `mean(x, true)` type-checked (the checkpoint's
+   *  review of 2026-11-09). */
+  readonly #said = 'ToDate()';
+
+  toString(): string {
+    return this.#said;
+  }
+}
 
 /** ACROSS A DATE'S INSTRUMENTS (the language's `across`, item 13c): each date's cross-section -- zscores', winsorize's,
  *  percentile's. DataCube's own: gs-quant reads none. */
-export class Across {}
+export class Across {
+  /** Its code and its brand, as ToDate's. */
+  readonly #said = 'Across()';
+
+  toString(): string {
+    return this.#said;
+  }
+}
 
 /** What a window parameter takes: gs-quant's Window, a number of observations, or a calendar period -- or DataCube's own
  *  ToDate() and Across(). */
@@ -403,12 +418,15 @@ export function takesCash(shape: WordShape): boolean {
 }
 
 /** `e` as a line's excess returns over a currency's cash (`excess_returns(x, cash.index['USD'])`): the line and the
- *  currency, or nothing where it is no such call. */
+ *  currency, or nothing where it is no such call -- a cash line of no currency's code (`cash.index['usd']`) among them:
+ *  the builder's currency is a code alone, so such a line is written as its excess returns, which reads it back (the
+ *  checkpoint's review of 2026-11-09: 'usd' was written as 'usd' and read back as 'USD', another line). */
 export function cashOver(e: TsExpr): { readonly x: TsExpr; readonly currency: string } | undefined {
   if (e.kind !== 'call' || e.fn !== 'excess_returns' || e.args.length !== 2) return undefined;
   const c = e.args[1]!;
   const at = c.kind === 'column' && c.source === 'cash' && c.column === 'index' && c.fn === undefined ? c.where ?? [] : [];
-  return at.length === 1 && at[0]!.column === undefined && typeof at[0]!.value === 'string' ? { x: e.args[0]!, currency: at[0]!.value } : undefined;
+  const code = at.length === 1 && at[0]!.column === undefined ? at[0]!.value : undefined;
+  return typeof code === 'string' && CURRENCY.test(code) ? { x: e.args[0]!, currency: code } : undefined;
 }
 
 /** The currency's cash a word's line is over (gs-quant's PRICES), or null where the line is excess returns already. */
@@ -417,12 +435,14 @@ function cashOf(fn: string, told: ReadonlyMap<string, unknown>): string | null {
   if (curve === 'excess_returns') return null;
   if (curve !== 'prices') throw new BuilderRefusal(`${fn}'s curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS, not ${JSON.stringify(curve)}`);
   const currency = told.has('currency') ? told.get('currency') : 'USD';
-  // a currency of gs-quant's RiskFreeRateCurrency, or any other the page has a cash line of ('CAD': DataCube's own, a
-  // value gs-quant refuses -- item 1 of 2026-11-09)
-  if (typeof currency !== 'string' || !CURRENCY.test(currency.toUpperCase())) {
-    throw new BuilderRefusal(`${fn}'s currency is a currency's three letters, one of gs-quant's RiskFreeRateCurrency (${RISK_FREE_CURRENCIES.join(', ')}) or another the page has cash of, not ${JSON.stringify(currency)}`);
+  // a currency of gs-quant's RiskFreeRateCurrency, or another's code ('CAD': DataCube's own, a value gs-quant refuses --
+  // item 1 of 2026-11-09), its cash line the page's `cash.index['CAD']`. The builder sees no page: a currency it has no
+  // cash of draws no line. A code as written, never uppercased: 'usd' is refused, where it was read as 'USD' (the
+  // checkpoint's review of 2026-11-09)
+  if (typeof currency !== 'string' || !CURRENCY.test(currency)) {
+    throw new BuilderRefusal(`${fn}'s currency is a currency's code, three capital letters (gs-quant's RiskFreeRateCurrency: ${RISK_FREE_CURRENCIES.join(', ')}), not ${JSON.stringify(currency)}`);
   }
-  return currency.toUpperCase();
+  return currency;
 }
 
 /** A currency's code: its three letters. */
@@ -471,15 +491,19 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     const lib = sig.params.find((q) => q.name === (g.lib ?? g.name));
     // a parameter the language leaves to itself where it is not told, its reading gs-quant's default: compare's method,
     // step unless given (gs-quant's, but for a line's start: S145) -- not written, as the tile's own call writes none
-    // (item 1 of 2026-11-09: Show Python's compare(x, y))
+    // (item 1 of 2026-11-09: Show Python's compare(x, y)). Under a tile's alignment (align: zero, nan, time) it is the
+    // alignment's, as every meeting of two lines in the tile is (x - y's too): the tile's program says its align, and a
+    // tile of one is no gs-quant program (the oracle's gallery skips it; the checkpoint's review of 2026-11-09)
     const own = !told.has(g.name) && g.whole === undefined && !g.only && !g.weights && lib !== undefined && lib.default === undefined && !lib.required;
     let v = told.has(g.name) ? told.get(g.name) : own ? undefined : defaultOf(g);
     // DataCube's own windows: the language's to date and across, where the parameter takes them
     if (v instanceof ToDate || v instanceof Across) {
-      const said = v instanceof ToDate ? 'ToDate()' : 'Across()';
+      const said = String(v);
       if (lib?.kind !== 'span') throw new BuilderRefusal(`${fn}'s ${g.name} is no window: ${said} is a window's`);
       if (v instanceof Across) {
         if (lib.across !== true) throw new BuilderRefusal(`${fn}'s ${g.name} reads no cross-section: Across() is zscores', winsorize's and percentile's`);
+        // a cross-section has no first points to ramp (the language's across forms take no r; the review of 2026-11-09)
+        if (told.has('r')) throw new BuilderRefusal(`${fn}'s r is no part of Across(): a cross-section has no first points to ramp`);
         params[lib.name] = 'across';
       } else if (g.whole === undefined || told.has('r')) {
         // to date, the language's `all` -- a whole word's too where a ramp is told (its call of no window takes none)
