@@ -2,5 +2,4 @@
 case	where
 cov w=20	ledger-adversarial-raw@NEWCO,ledger-adversarial-adjusted@NEWCO
 cov w=20,r=10	ledger-adversarial-raw@NEWCO,ledger-adversarial-adjusted@NEWCO
-if x=line,y=line	ledger-adversarial-raw@BTCUSD,ledger-adversarial-adjusted@BTCUSD
 interpolate method=zero,dates=series	ledger

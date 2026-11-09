@@ -968,8 +968,12 @@ const CHART_BUDGET = 303_500;
  *  144,500 -> 145,200 (2026-11-09, item 14g; the user's ruling on PR #91's finding 2, "gs-quant's: from the first
  *  date", and "Should we push the right fix to later? Why?" -- done now): the library's text with every calendar word's
  *  ramp counted from its line's first date and its ramp's dates dropped (helpers::rampedPeriod, rampedBandPeriod,
- *  rows::pointsPeriod, the since forms of overPeriod and its kin) and their sentences. Measured 144,911. */
-const TIMESERIES_BUDGET = 145_200;
+ *  rows::pointsPeriod, the since forms of overPeriod and its kin) and their sentences. Measured 144,911.
+ *  145,200 -> 145,800 (2026-11-09, item 14f, the gs-quant oracle's catalog cases and what they found): the library's
+ *  text with cov over a count ramped as gs-quant's Window(w, w), and lines spread refusing two of several rows on one
+ *  date (the time model's D1, as meet's: each line's rows counted in spreadOn's groupBy) and their sentences. Measured
+ *  145,501. */
+const TIMESERIES_BUDGET = 145_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

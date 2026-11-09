@@ -134,7 +134,7 @@ filter operator=l_equals,value=0	no-value	406 points, 0 values on 2025-02-05	REF
 filter operator=g_equals,value=0	no-value	323 points, 0 values on 2025-02-05	REFUSED
 filter operator=equals,value=0	two-values	731 points, 2 values on 2025-02-05	REFUSED
 filter operator=not_equals,value=0	no-value	0 points, 0 values on 2025-02-05	REFUSED
-if x=line,y=line	two-values	732 points, 2 values on 2025-02-05	DIFF
+if x=line,y=line	two-values	732 points, 2 values on 2025-02-05	REFUSED
 if x=1,y=-1	two-values	732 points, 2 values on 2025-02-05	PASS
 floor value=100	two-values	732 points, 2 values on 2025-02-05	PASS
 ceil value=100	two-values	732 points, 2 values on 2025-02-05	PASS

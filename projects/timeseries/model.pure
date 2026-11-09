@@ -4376,32 +4376,36 @@ function timeseries::line::helpers::periods<K,D>(x: Relation<(key:K, date:D, val
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]
 {
-  timeseries::lines::union($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date, $b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date)
-    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+  timeseries::lines::union($a->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|1, ib:r|0])->select(~[key, p, date, to, ia, ib]), ~date, $b->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|1])->select(~[key, p, date, to, ia, ib]), ~date)
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max(), an:r|$r.ia:v|$v->sum(), bn:r|$r.ib:v|$v->sum()])
     ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~x)->rename(~to, ~xo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
     ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~y)->rename(~to, ~yo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
-    ->select(~[key, sd, so, x, xo, y, yo])->rename(~sd, ~date)->rename(~so, ~o)
+    ->extend(~xd:r|if(timeseries::lines::single($r.an, $r.bn), |$r.x, |[]))
+    ->select(~[key, sd, so, xd, xo, y, yo])->rename(~sd, ~date)->rename(~so, ~o)->rename(~xd, ~x)
 }
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer, z:Number, zo:Integer)>[1]
 {
-  timeseries::lines::union(timeseries::lines::union($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date, $b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date), ~date, $c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date)
-    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+  timeseries::lines::union(timeseries::lines::union($a->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|1, ib:r|0, ic:r|0])->select(~[key, p, date, to, ia, ib, ic]), ~date, $b->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|1, ic:r|0])->select(~[key, p, date, to, ia, ib, ic]), ~date), ~date, $c->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|0, ic:r|1])->select(~[key, p, date, to, ia, ib, ic]), ~date)
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max(), an:r|$r.ia:v|$v->sum(), bn:r|$r.ib:v|$v->sum(), cn:r|$r.ic:v|$v->sum()])
     ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~x)->rename(~to, ~xo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
     ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~y)->rename(~to, ~yo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
     ->join($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ck)->rename(~p, ~cp)->rename(~value, ~z)->rename(~to, ~zo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ck) && ($l.p == $r.cp)})
-    ->select(~[key, sd, so, x, xo, y, yo, z, zo])->rename(~sd, ~date)->rename(~so, ~o)
+    ->extend(~xd:r|if(timeseries::lines::single($r.an, $r.bn) && timeseries::lines::single($r.an, $r.cn) && timeseries::lines::single($r.bn, $r.cn), |$r.x, |[]))
+    ->select(~[key, sd, so, xd, xo, y, yo, z, zo])->rename(~sd, ~date)->rename(~so, ~o)->rename(~xd, ~x)
 }
 
 function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1], d: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, open:Number, ho:Integer, high:Number, hh:Integer, low:Number, hl:Integer, close:Number, hc:Integer)>[1]
 {
-  timeseries::lines::union(timeseries::lines::union(timeseries::lines::union($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date, $b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date), ~date, $c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date), ~date, $d->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]), ~date)
-    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+  timeseries::lines::union(timeseries::lines::union(timeseries::lines::union($a->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|1, ib:r|0, ic:r|0, id:r|0])->select(~[key, p, date, to, ia, ib, ic, id]), ~date, $b->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|1, ic:r|0, id:r|0])->select(~[key, p, date, to, ia, ib, ic, id]), ~date), ~date, $c->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|0, ic:r|1, id:r|0])->select(~[key, p, date, to, ia, ib, ic, id]), ~date), ~date, $d->extend(~[to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS), ia:r|0, ib:r|0, ic:r|0, id:r|1])->select(~[key, p, date, to, ia, ib, ic, id]), ~date)
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max(), an:r|$r.ia:v|$v->sum(), bn:r|$r.ib:v|$v->sum(), cn:r|$r.ic:v|$v->sum(), dn:r|$r.id:v|$v->sum()])
     ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~open)->rename(~to, ~ho), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
     ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~high)->rename(~to, ~hh), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
     ->join($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ck)->rename(~p, ~cp)->rename(~value, ~low)->rename(~to, ~hl), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ck) && ($l.p == $r.cp)})
     ->join($d->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~dk)->rename(~p, ~dp)->rename(~value, ~close)->rename(~to, ~hc), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.dk) && ($l.p == $r.dp)})
-    ->select(~[key, sd, so, open, ho, high, hh, low, hl, close, hc])->rename(~sd, ~date)->rename(~so, ~o)
+    ->extend(~od:r|if(timeseries::lines::single($r.an, $r.bn) && timeseries::lines::single($r.an, $r.cn) && timeseries::lines::single($r.an, $r.dn)
+        && timeseries::lines::single($r.bn, $r.cn) && timeseries::lines::single($r.bn, $r.dn) && timeseries::lines::single($r.cn, $r.dn), |$r.open, |[]))
+    ->select(~[key, sd, so, od, ho, high, hh, low, hl, close, hc])->rename(~sd, ~date)->rename(~so, ~o)->rename(~od, ~open)
 }
 
 // A WORD'S LINES OF TWO GRAINS MEETING (the time model's D4; the A2 review, 2026-11-03): a word's lines meet on their
@@ -4456,7 +4460,10 @@ function timeseries::line::helpers::filled<K,D>(a: Relation<(key:K, date:D, valu
 }
 
 // TWO LINES SPREAD (R6): every key and date either has -- under a SAMPLE BY, every period, dated at its latest -- each
-// line's value where it has one (x, y), its own number in time there (xo, yo: whether it has a row), the date's (o).
+// line's value where it has one (x, y), its own number in time there (xo, yo: whether it has a row), the date's (o). A
+// line with several rows on a date pairs with the others' one as a lookup; two with several are refused (the time
+// model's D1, lines::single, as meet's: spreadOn counts each line's rows a period -- gs-quant's if_ over a line of two
+// rows on one date paired them by position, lite four ways; the gs-quant oracle, 2026-11-09).
 function timeseries::line::helpers::spread<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]
 {
   timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($x, $sample), timeseries::line::helpers::periods($y, $sample))

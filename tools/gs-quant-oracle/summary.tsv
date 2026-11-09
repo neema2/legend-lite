@@ -7,21 +7,21 @@ ledger.tsv	GS_ERROR	2	0 dup-span
 ledger.tsv	SKIP	27	0 dup-span
 ledger.tsv	rows	211	-
 ledger-adversarial-raw.tsv	PASS	490	19 dup-span
-ledger-adversarial-raw.tsv	DIFF	40	7 dup-span
-ledger-adversarial-raw.tsv	REFUSED	120	119 dup-span
+ledger-adversarial-raw.tsv	DIFF	39	6 dup-span
+ledger-adversarial-raw.tsv	REFUSED	121	120 dup-span
 ledger-adversarial-raw.tsv	GS_ERROR	30	0 dup-span
 ledger-adversarial-raw.tsv	SKIP	164	0 dup-span
 ledger-adversarial-raw.tsv	rows	844	-
 ledger-adversarial-adjusted.tsv	PASS	490	19 dup-span
-ledger-adversarial-adjusted.tsv	DIFF	40	7 dup-span
-ledger-adversarial-adjusted.tsv	REFUSED	120	119 dup-span
+ledger-adversarial-adjusted.tsv	DIFF	39	6 dup-span
+ledger-adversarial-adjusted.tsv	REFUSED	121	120 dup-span
 ledger-adversarial-adjusted.tsv	GS_ERROR	30	0 dup-span
 ledger-adversarial-adjusted.tsv	SKIP	164	0 dup-span
 ledger-adversarial-adjusted.tsv	rows	844	-
 two-row line	run	170	56 words
 two-row line	gs-quant raises	24	11 words
 two-row line	gs-quant answers	146	50 words
-two-row line	lite refuses (S149)	120	42 words
-two-row line	lite answers over both rows	26	22 words
+two-row line	lite refuses (S149)	121	43 words
+two-row line	lite answers over both rows	25	22 words
 two-row line	of which PASS	19	19 words
-two-row line	of which DIFF	7	6 words
+two-row line	of which DIFF	6	5 words
