@@ -49,7 +49,15 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 24 since 2026-10-31: an effect's script, the setup node (a program's seed step) and a verdict group's savepoint (the
 // test-is-the-product plan's M3) -- an effect and a seed step are refused by name, as any step that is not an update, a
 // check, a typed result or a constant
-const PLAN_VERSION = 26;
+// 25 since 2026-11-01: a verdict carries no wantEqual -- inside the verdicts node this runner refuses
+// 26 since 2026-11-01: a target's database may be the graph's system database -- a database this runner does not hold
+// 27 since 2026-11-08: the verdict group and the branch leave for the test plan's own format -- nodes this runner refused
+// 28 since 2026-11-08: the system database names its store by its content's key -- as 26
+// 29 since 2026-11-08: a declared or platform database carries its project's identity (`project`) -- a server's
+// project database, which only the server's plans name; a host runs on its own session and reads none of it
+// 30 since 2026-11-09: whether the plan writes (`writes`: where Java's run sends it) and a project's refusal
+// (`refused`) -- this runner runs every step on the host's one session, a write in its transaction, so it reads neither
+const PLAN_VERSION = 30;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
