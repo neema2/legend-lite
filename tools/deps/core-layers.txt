@@ -136,7 +136,7 @@ pure_v1	arrow_ipc base compiler compiler_element_type database error execution_p
 # body's door and its options, the one library that sees both halves of a test. `test` (the harness) reaches the test
 # door; the server the product's.
 execution	base compiler exec execution_plan planner platform result
-test_execution	base exec execution_plan model planner platform test_plan testexec testplan
+test_execution	base exec execution_plan planner platform test_plan testexec testplan
 # 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
 # test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
 # extension point; nothing on the plan side reaches it.

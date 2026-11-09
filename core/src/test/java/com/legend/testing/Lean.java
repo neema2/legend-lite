@@ -56,7 +56,7 @@ public final class Lean {
 
     /** {@code query} over {@code model} on {@code runtime} as the server runs it with no caller's connection (the
      *  route {@code QueryService.execute(model, query, runtime, sinkOf)} was until D67, 2026-10-30): on the connection
-     *  the runtime declares, leased from the server's resolver ({@code ConnectionResolver.SOURCE}), the plan sessions
+     *  the runtime declares, leased from the server's resolver ({@code PlanSessions.PROJECT_DATABASES}), the plan sessions
      *  shared -- the session the COMPILER decided, which is what a test of the server's sessions judges. Lite's JSON
      *  rows, read back. */
     public static Result service(String model, String query, @com.legend.base.Nullable String runtime) {
@@ -64,7 +64,7 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model), query, runtime, com.legend.server.ConnectionResolver.SOURCE,
+            plan = Execution.run(LaneFloor.model(model), query, runtime, com.legend.exec.PlanSessions.PROJECT_DATABASES,
                     PlanSessions.shared(), p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

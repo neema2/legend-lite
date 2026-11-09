@@ -21,22 +21,12 @@ public final class ConnectionResolver {
     // session that closes its connection (before leases nobody closed them: 25 calls, 25 file descriptors, measured
     // by ConnectionLeaseTest). The contract is the same -- callers always close -- and the seam's session carries it.
 
-    /** The server's session source: the plan's target opened as a project's own database
-     *  ({@code PlanSessions.projectDatabase}) -- a declared connection by {@code Sessions}' opening, the platform's
-     *  engine for a runtime binding only model data. Public since D67 (2026-10-30): the tests' twin reads the server's
-     *  route through it ({@code testing.Lean.service}). */
-    public static final com.legend.exec.SessionSource SOURCE = com.legend.exec.PlanSessions::projectDatabase;
-
     /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
-     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a plan that
-     *  reads runs on its answer's target's connection, leased, established first as legend-engine establishes it on
-     *  every acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's
-     *  sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) -- the plan says which. A database failure is a
-     *  {@link com.legend.error.DataError}. */
-    public static final PureV1Api.Runner RUNNER = (plan, sink) -> com.legend.Execution.runPlan(plan, SOURCE,
-            com.legend.exec.PlanSessions.shared(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, sink,
-            com.legend.result.Batcher.DEFAULT_CAPACITY);
-
-    // (the tests' session for a runtime of a compiled model, session(ctx, runtimeFqn), left for the tests 2026-11-09,
-    // slice 5: it planned the runtime's target, so the server's runner read the planner; the tests' ServerSessions)
+     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): the product
+     *  door, planning the query and running it as the server runs one -- a read on its project's database, leased and
+     *  established first as legend-engine establishes it on every acquisition; a program that writes on the plan's own
+     *  sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}.
+     *  (Slice 5, 2026-11-09: the server's session source is exec's, {@code PlanSessions.PROJECT_DATABASES}; the tests'
+     *  session for a runtime of a compiled model is the tests' {@code ServerSessions}.) */
+    public static final PureV1Api.Runner RUNNER = com.legend.Execution::runOnProjectDatabases;
 }

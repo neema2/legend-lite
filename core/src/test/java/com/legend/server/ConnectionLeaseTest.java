@@ -105,7 +105,7 @@ class ConnectionLeaseTest {
     private static byte[] written(String query, boolean csv) throws java.io.IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         java.io.Writer w = new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8);
-        com.legend.Execution.run(duckModel, query, "test::TestRuntime", ConnectionResolver.SOURCE,
+        com.legend.Execution.run(duckModel, query, "test::TestRuntime", com.legend.exec.PlanSessions.PROJECT_DATABASES,
                 com.legend.exec.PlanSessions.shared(), plan -> csv
                         ? new com.legend.result.CsvWriter(w, plan.answerShape())
                         : new com.legend.result.JsonRowsWriter(w, plan.answerShape()));

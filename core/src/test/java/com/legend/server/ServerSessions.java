@@ -13,6 +13,6 @@ final class ServerSessions {
     }
 
     static com.legend.exec.Sessions.Session session(com.legend.compiler.element.ModelContext ctx, String runtimeFqn) {
-        return ConnectionResolver.SOURCE.open(com.legend.planner.PlanMaker.runtimeTarget(ctx, runtimeFqn));
+        return com.legend.exec.PlanSessions.PROJECT_DATABASES.open(com.legend.planner.PlanMaker.runtimeTarget(ctx, runtimeFqn));
     }
 }

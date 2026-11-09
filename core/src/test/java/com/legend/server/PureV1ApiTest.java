@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureV1ApiTest {
 
     /** A runner for a route that must not run anything. */
-    private static final PureV1Api.Runner NO_RUN = (plan, sink) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, sinkOf) -> {
         throw new AssertionError("nothing is run here");
     };
 
@@ -630,13 +630,12 @@ class PureV1ApiTest {
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
-                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (plan, sink) -> {
-                    // the host is handed the plan alone, never the compiled query: where it runs is the plan's (slice 5)
-                    ran[0] = String.valueOf(plan.answerSql().target().database());
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, sinkOf) -> {
+                    // the host's door is handed the compiled query and its runtime: the door plans and runs it (slice 5)
+                    ran[0] = runtime;
                     throw new IllegalArgumentException("not here");
                 });
-        org.junit.jupiter.api.Assertions.assertTrue(ran[0] != null && ran[0].contains("H2"),
-                "the runtime's target, on its H2 connection: " + ran[0]);
+        assertEquals("trades::h2::RT", ran[0]);
         assertEquals(500, refused.status(), refused.json());
         assertEquals("IllegalArgumentException: not here", Json.parseObject(refused.json()).getString("message"));
     }

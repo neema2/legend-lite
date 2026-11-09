@@ -103,25 +103,19 @@ public final class PureV1Api {
     static final Json.Config REQUEST = new Json.Config(4096);
 
     /**
-     * How a host runs an execute: the PLAN this API made (slice 5, 2026-11-09: until then the host was handed the typed
-     * query and planned it -- a compiled model across the seam), its rows streamed to {@code sink}, which the API made
-     * from the plan before any statement runs (an answer the engine's API has no form for is refused before a
-     * program's writes land). The plan says alone where it runs: whether it writes, and its answer's target.
-     * legend-lite's server hands in its door ({@code ConnectionResolver.RUNNER}).
+     * How a host runs an execute: the query this API compiled, planned and run by the host's door (legend-lite's
+     * server hands in its product door, {@code Execution.runOnProjectDatabases}: {@code ConnectionResolver.RUNNER}),
+     * its rows streamed to the sink {@code sinkOf} makes from the plan before any statement runs (an answer the
+     * engine's API has no form for is refused before a program's writes land). This API compiles and writes; it plans
+     * and runs nothing of an execute itself (slice 5, 2026-11-09: its own plan-then-run is gone -- the user's question,
+     * "why can't v1 call the same door directly?"; this library ships in the WebAssembly and native planners too, which
+     * have no database, so the door is handed in).
      */
     @FunctionalInterface
     public interface Runner {
-        void run(com.legend.executionplan.ExecutionPlan plan, com.legend.result.ResultSink sink)
+        void run(com.legend.TypedQuery query, String runtime,
+                java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
                 throws java.io.IOException;
-    }
-
-    /** {@code query} planned for {@code runtime} (the query's one planning entry, {@code TypedQuery.executionPlan}: the
-     *  door plans through it too) and handed to {@code runner} with the sink {@code sinkOf} makes from the plan. */
-    private static void planAndRun(com.legend.TypedQuery query, String runtime, Runner runner,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
-            throws java.io.IOException {
-        com.legend.executionplan.ExecutionPlan plan = query.executionPlan(runtime, java.util.Set.of());
-        runner.run(plan, sinkOf.apply(plan));
     }
 
     /**
@@ -431,7 +425,7 @@ public final class PureV1Api {
                 String runtime = runtimeOf(request, query.target());
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
-                    planAndRun(query, runtime, runner, plan -> engineWriter(query, plan, out));
+                    runner.run(query, runtime, plan -> engineWriter(query, plan, out));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -461,7 +455,7 @@ public final class PureV1Api {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query.target());
                 try {
-                    planAndRun(query, runtime, runner, plan -> arrowWriter(query, plan, out));
+                    runner.run(query, runtime, plan -> arrowWriter(query, plan, out));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }

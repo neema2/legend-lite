@@ -37,6 +37,16 @@ public final class ProductRun {
         return plan;
     }
 
+    /** {@code plan} run as the server runs it (legend-engine's {@code pure/v1/execution/execute}): a read on its
+     *  answer's target's project database, established first as legend-engine establishes a connection on every
+     *  acquisition (its declared test data run on it); a program that writes on the plan's own shared sessions. Its rows
+     *  to the sink {@code sinkOf} makes from it, in the stream's default batches. */
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, Function<ExecutionPlan, ResultSink> sinkOf)
+            throws IOException {
+        return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.shared(), Establish.DECLARED_SETUP, sinkOf,
+                com.legend.result.Batcher.DEFAULT_CAPACITY);
+    }
+
     /** {@code plan} run, its rows to {@code sink} in batches of up to {@code batchRows}. */
     public static void run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, ResultSink sink, int batchRows) throws IOException {

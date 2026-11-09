@@ -756,11 +756,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *
      * @param key  the model's stores' and Data rows' content key ({@code ProjectData.contentKey})
      * @param made the statements that make and fill it, run once when it is made
+     * @param refused why the model's Data rows cannot make it (a table its Databases declare none or more than once
+     *                of), or null: raised where the runner would make it, never by a run on another database (the
+     *                plan-as-data design's slice 5, 2026-11-09: planned as a failure until then, every query of such
+     *                a model refused at planning; before hole 7 the server refused it as it made the database)
      */
-    public record Project(String key, List<SetupStep> made) {
+    public record Project(String key, List<SetupStep> made, @com.legend.base.Nullable String refused) {
         public Project {
             Objects.requireNonNull(key, "key");
             made = List.copyOf(made);
+            if (refused != null && !made.isEmpty()) {
+                throw new IllegalArgumentException("a project database refused carries no statements to make it");
+            }
         }
     }
 

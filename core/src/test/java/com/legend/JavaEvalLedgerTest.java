@@ -1849,7 +1849,8 @@ class JavaEvalLedgerTest {
             "\\b(if|else|for|while|do|switch|case|try|catch|finally|throw|new|synchronized)\\b|->|::|(?<![<,]|[<,] )\\?");
 
     /** THE DOORS HOLD NO LOGIC (slice 5, 2026-11-09): in comment-stripped source, a door spells no branch, loop, catch,
-     *  throw, lambda, method reference, ternary or {@code new} -- each method is a planning call and a run call
+     *  throw, lambda, method reference, ternary or {@code new}, and each method is ONE statement -- its run call, the
+     *  planning call an argument of it
      *  ({@code ArchitectureTest.theDoorsOnlyCompose} pins which calls, in bytecode; a branch is invisible there). Pinned
      *  at zero, no register: a door that needs a decision has found work for the planner or the runner. */
     @Test
@@ -1866,6 +1867,32 @@ class JavaEvalLedgerTest {
                 if (m.find()) {
                     drift.append("\n  ").append(f).append(":").append(i + 1).append(": '").append(m.group())
                             .append("' in ").append(lines[i].strip());
+                }
+            }
+            // ONE STATEMENT A METHOD: a method's body (depth 2, inside the class's) holds at most one statement -- its
+            // run, the plan an argument of it -- so nothing is planned after a run starts and nothing sits between
+            int depth = 0;
+            int line = 1;
+            int bodyLine = 0;
+            int statements = 0;
+            for (int i = 0; i < src.length(); i++) {
+                char c = src.charAt(i);
+                if (c == '\n') {
+                    line++;
+                } else if (c == '{') {
+                    depth++;
+                    if (depth == 2) {
+                        bodyLine = line;
+                        statements = 0;
+                    }
+                } else if (c == '}') {
+                    if (depth == 2 && statements > 1) {
+                        drift.append("\n  ").append(f).append(":").append(bodyLine).append(": a method of ")
+                                .append(statements).append(" statements (a door's is one: its run, its plan an argument)");
+                    }
+                    depth--;
+                } else if (c == ';' && depth == 2) {
+                    statements++;
                 }
             }
         }

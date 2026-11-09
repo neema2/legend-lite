@@ -25,7 +25,7 @@ public record ExecuteOptions(
         java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources,
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
-        java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType, com.legend.exec.Sessions.Opener>
+        java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
                 systemConnections,
         boolean engineCompat) {
 
@@ -79,7 +79,7 @@ public record ExecuteOptions(
 
     /** The host's system connections, by engine: where a server engine's system database lives, configured apart from
      *  every runtime's connection (the platform holds no server credential; SystemDatabase). */
-    public ExecuteOptions withSystemConnections(java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
+    public ExecuteOptions withSystemConnections(java.util.Map<com.legend.executionplan.DatabaseType,
             com.legend.exec.Sessions.Opener> connections) {
         return new ExecuteOptions(edge, resources, features, judgeMode, connections, engineCompat);
     }
@@ -97,16 +97,6 @@ public record ExecuteOptions(
 
     /** The rules this run's asserts are judged by, which its planners stamp on every verdict step (the user,
      *  2026-11-04: "explicit rule"): backwards compatibility's where the run asked for it, lite's own otherwise. */
-    /** The host's system connections keyed by the plan's database type (the same constant as the model's): the run
-     *  finds a system database by the plan's target alone. The door's until slice 5 (2026-11-09). */
-    public java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
-            systemConnectionsByEngine() {
-        java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener> out =
-                new java.util.LinkedHashMap<>();
-        systemConnections.forEach((t, o) -> out.put(com.legend.executionplan.DatabaseType.valueOf(t.name()), o));
-        return java.util.Collections.unmodifiableMap(out);
-    }
-
     public com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules() {
         return engineCompat ? com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT : com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
     }

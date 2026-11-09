@@ -79,7 +79,8 @@ public final class PlanJson {
      *  plan-as-data design's step 3); 28 the same day: the system database names its store by its content's key
      *  ({@code graphKey}, step 7); 29 the same day: a declared or platform database carries its project's identity
      *  ({@code project}: the plan-as-data design's hole 7); 30 since 2026-11-09: whether the plan writes
-     *  ({@code writes}: the plan-as-data design's slice 5 -- the run reads it from the plan, never from the query). */
+     *  ({@code writes}: the plan-as-data design's slice 5 -- the run reads it from the plan, never from the query), and a
+     *  project database's refusal ({@code refused}: why its Data rows cannot make it, raised where it is made). */
     public static final int VERSION = 30;
 
     private PlanJson() {
@@ -682,6 +683,7 @@ public final class PlanJson {
             made.add(setupStep(step));
         }
         o.put("made", made);
+        o.put("refused", project.refused());
         return o;
     }
 
@@ -696,7 +698,7 @@ public final class PlanJson {
         for (Json.Node n : o.getArr("made").items()) {
             made.add(readSetupStep((Json.Obj) n));
         }
-        return new ExecutionPlan.Project(o.getString("key"), made);
+        return new ExecutionPlan.Project(o.getString("key"), made, o.getStringOr("refused", null));
     }
 
     private static SetupStep readSetupStep(Json.Obj o) {

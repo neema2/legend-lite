@@ -872,13 +872,17 @@ public final class PlanMaker {
         return ctx.derived(Projects.class, c -> new Projects()).byKind.computeIfAbsent(
                 (platform ? "platform/" : "declared/") + dialect.getClass().getName(), k -> {
                     String key = com.legend.cache.Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex();
+                    // a model whose Data rows cannot make the database: the refusal is the plan's, raised where the
+                    // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
+                    // model, those on another database too -- the stress lanes' 5,795 bodies)
+                    String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
                     List<ExecutionPlan.SetupStep> made = new ArrayList<>();
-                    if (!platform) {
+                    if (!platform && refused == null) {
                         for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
                             made.add(new ExecutionPlan.SetupStep.Statement(sql));
                         }
                     }
-                    return new ExecutionPlan.Project(key, made);
+                    return new ExecutionPlan.Project(key, made, refused);
                 });
     }
 

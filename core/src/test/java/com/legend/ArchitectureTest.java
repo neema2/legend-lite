@@ -1289,19 +1289,20 @@ final class ArchitectureTest {
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
             "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
-            "com.legend.ExecuteOptions#systemConnectionsByEngine");
+            "com.legend.ExecuteOptions#systemConnections");
 
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
-            "com.legend.testexec.TestRunner#run", "com.legend.testexec.TestRunner#runOpening");
+            "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
+            "com.legend.testexec.TestRunner#runOpening");
 
     /**
      * THE DOORS ONLY COMPOSE (the user's question of 2026-11-09: "something that enforces that this should only call
      * one line to call planner and one line to call executor and that's all it can do"): a door holds no state (no
      * field, no nested class) and each of its methods calls only planning's entries ({@link #DOOR_PLANNING_CALLS}),
      * the runs' entries ({@link #DOOR_RUN_CALLS}) and its own overloads; it calls at most one run -- a run entry or an
-     * overload -- and that call is its last (nothing is planned after a run starts). It reads no field but an enum's
-     * constant. Its source holds no branch, loop, lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}:
-     * the bytecode does not show a branch). A line cap would only measure it; this says what it may do.
+     * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
+     * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
+     * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
      */
     @Test
     void theDoorsOnlyCompose() {
@@ -1323,24 +1324,16 @@ final class ArchitectureTest {
                     continue;
                 }
                 int runs = 0;
-                int runLine = -1;
-                int lastPlanningLine = -1;
                 for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
                     String target = call.getTargetOwner().getName() + "#" + call.getName();
                     if (DOOR_RUN_CALLS.contains(target) || call.getTargetOwner().getName().equals(top)) {
                         runs++;
-                        runLine = call.getLineNumber();
-                    } else if (DOOR_PLANNING_CALLS.contains(target)) {
-                        lastPlanningLine = Math.max(lastPlanningLine, call.getLineNumber());
-                    } else {
+                    } else if (!DOOR_PLANNING_CALLS.contains(target)) {
                         found.add(u.getFullName() + " calls " + target);
                     }
                 }
                 if (runs > 1) {
                     found.add(u.getFullName() + " runs " + runs + " times");
-                }
-                if (runs == 1 && lastPlanningLine > runLine) {
-                    found.add(u.getFullName() + " plans after it runs (line " + lastPlanningLine + ")");
                 }
                 if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
                     found.add(u.getFullName() + " makes a method reference");
@@ -1434,13 +1427,16 @@ final class ArchitectureTest {
      *  implemented by lambdas and method references, which no call site expands (the slice 3 follow-up audit,
      *  2026-11-08). */
     private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.testexec.TestRunner#run",
-            "com.legend.Execution#runBody", "com.legend.Execution#runPlan", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
+            // slice 5, 2026-11-09: the doors are thin -- the runs' own entries, and the session sources, are the run's
+            "com.legend.testexec.TestRunner#runOpening", "com.legend.exec.ProductRun#run",
+            "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.exec.SessionSource#open",
+            "com.legend.exec.SessionSource#given",
             "com.legend.exec.PlanSessions#projectDatabase");
 
     /** Where planning begins: the router's planning halves and the doors'. */
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
             "com.legend.testplan.TestPlanner#planned", "com.legend.testplan.TestPlanner#planAhead",
-            "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
+            "com.legend.TestExecution#planBody", "com.legend.TestExecution#planProgram");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's

@@ -48,7 +48,7 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (plan, sink) -> {
+                (query, runtime, sinkOf) -> {
                     throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
                             + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
                 }, HELD);

@@ -222,6 +222,12 @@ public final class PlanSessions {
     /** The projects' own databases (C5), kept by their identity: made once, then reused. */
     private static final HandleStore<Sessions.Session> PROJECTS = new HandleStore<>();
 
+    /** The server's session source: each plan's target opened as a project's own database ({@link #projectDatabase})
+     *  -- a declared connection by {@code Sessions}' opening, the platform's engine for a runtime binding only model
+     *  data. {@code ConnectionResolver.SOURCE} until slice 5 (2026-11-09): the source is the runtime's, named here, so
+     *  the server names no runtime class. */
+    public static final SessionSource PROJECT_DATABASES = PlanSessions::projectDatabase;
+
     /**
      * A PROJECT'S OWN DATABASE for {@code target} (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's
      * hole 7, the user's go of 2026-11-08): found or made from the plan's target alone, never the model -- kept by the
@@ -265,6 +271,13 @@ public final class PlanSessions {
      *  sent only inside a plan's run), under the SEED mark; a failure closes it. */
     private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target,
             ExecutionPlan.@com.legend.base.Nullable Project project) {
+        if (project != null && project.refused() != null) {
+            // the model's Data rows cannot make it: refused where it is made, as the server refused before hole 7
+            String refused = project.refused();
+            return closedOnFailure(session, () -> {
+                throw new IllegalArgumentException(refused);
+            });
+        }
         if (project == null || project.made().isEmpty()) {
             return session;
         }

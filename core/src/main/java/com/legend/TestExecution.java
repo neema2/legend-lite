@@ -40,7 +40,7 @@ public final class TestExecution {
             @Nullable AssertListener listener, @Nullable SqlReplayReferee referee, ExecuteOptions options,
             @Nullable Answer answer) {
         TestRunner.runOpening(TestPlanner.plan(typed, runtimeFqn, options.planning()), sessions,
-                options.systemConnectionsByEngine(), options.edge(), listener, referee, answer);
+                options.systemConnections(), options.edge(), listener, referee, answer);
     }
 
     /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee, ExecuteOptions, Answer)}
@@ -69,14 +69,14 @@ public final class TestExecution {
      *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer}'s sink. */
     public static void runBody(TestPlan plan, Sessions.Session session, @Nullable AssertListener listener,
             @Nullable SqlReplayReferee referee, ExecuteOptions options, @Nullable Answer answer) {
-        TestRunner.run(plan, session, options.systemConnectionsByEngine(), options.edge(), listener, referee, answer,
+        TestRunner.run(plan, session, options.systemConnections(), options.edge(), listener, referee, answer,
                 StatementOrigin.OTHER);
     }
 
     /** A fixture's {@code plan} ({@link #planProgram}) run on {@code session}, its statements counted as seeding (the
      *  census's SEED). */
     public static void runFixture(TestPlan plan, Sessions.Session session, ExecuteOptions options) {
-        TestRunner.run(plan, session, options.systemConnectionsByEngine(), options.edge(), null, null, null,
+        TestRunner.run(plan, session, options.systemConnections(), options.edge(), null, null, null,
                 StatementOrigin.SEED);
     }
 }

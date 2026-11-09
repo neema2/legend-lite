@@ -88,6 +88,6 @@ public final class StorelessRuntime {
     /** The connection's specification and authentication, as the in-process session on {@code type} is opened: its
      *  connector's ({@code exec.DatabaseConnector.storelessDeclaration}). */
     private static String specificationAndAuth(DatabaseType type) {
-        return com.legend.exec.Connectors.of(com.legend.executionplan.DatabaseType.valueOf(type.name())).storelessDeclaration();
+        return com.legend.exec.Connectors.named(type.name()).storelessDeclaration();
     }
 }

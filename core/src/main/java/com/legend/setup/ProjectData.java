@@ -82,8 +82,41 @@ public record ProjectData(String name, List<String> open, List<String> use, List
         return out.toString();
     }
 
-    /** Every table a relational Data element fills, made and filled by {@code dialect}'s statements, in order. */
+    /**
+     * Why {@code ctx}'s Data rows cannot make a project's database, or null where they can: a relational Data element
+     * with no rows, not even a header, or a table it fills that the model's Databases declare none or more than once of
+     * ({@link #declaring}). A plan carries it as data (the plan-as-data design's slice 5, 2026-11-09): the server
+     * refuses it where it makes the project's database, as it did before hole 7, and a query whose session is not the
+     * project's -- a test's, on its own database -- never meets it.
+     */
+    public static @com.legend.base.Nullable String refusal(ModelContext ctx) {
+        for (DataDefinition data : ctx.dataElements().toList()) {
+            if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
+                continue;
+            }
+            for (Protocol.PRelationalCsvTable t : csv.tables()) {
+                if (t.values() == null) {
+                    return "the Data element " + data.qualifiedName() + " fills " + t.schema() + "." + t.table()
+                            + " with no rows, not even a header";
+                }
+                List<String> declaring = declaringAll(ctx, t.schema(), t.table());
+                if (declaring.size() != 1) {
+                    return "the Data element " + data.qualifiedName() + " fills " + t.schema() + "." + t.table()
+                            + (declaring.isEmpty() ? ", which no Database of the model declares"
+                                    : ", which more than one Database declares " + declaring);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Every table a relational Data element fills, made and filled by {@code dialect}'s statements, in order; refused
+     *  by name where the rows cannot make the database ({@link #refusal}). */
     public static List<String> fill(ModelContext ctx, SqlDialect dialect) {
+        String refused = refusal(ctx);
+        if (refused != null) {
+            throw new IllegalArgumentException(refused);
+        }
         List<String> out = new ArrayList<>();
         for (DataDefinition data : ctx.dataElements().toList()) {
             // only rows a relational store holds: a model store's or an external format's data is not a table's
@@ -91,11 +124,7 @@ public record ProjectData(String name, List<String> open, List<String> use, List
                 continue;
             }
             for (Protocol.PRelationalCsvTable t : csv.tables()) {
-                if (t.values() == null) {
-                    throw new IllegalArgumentException("the Data element " + data.qualifiedName() + " fills "
-                            + t.schema() + "." + t.table() + " with no rows, not even a header");
-                }
-                String database = declaring(ctx, data.qualifiedName(), t.schema(), t.table());
+                String database = declaringAll(ctx, t.schema(), t.table()).get(0);
                 out.addAll(CsvSeed.sqls(t.schema() + "\n" + t.table() + "\n" + t.values(), database, ctx, dialect));
             }
         }
@@ -103,11 +132,11 @@ public record ProjectData(String name, List<String> open, List<String> use, List
     }
 
     /**
-     * The one Database of the model that itself declares {@code schema.table} ({@code default}: a table of its default
-     * schema). None, or more than one, is refused: which one would be a guess -- a test names its store, and a
-     * project's own database has no test to ask.
+     * The Databases of the model that themselves declare {@code schema.table} ({@code default}: a table of its default
+     * schema). A fill takes the one; none, or more than one, is {@link #refusal}'s: which one would be a guess -- a test
+     * names its store, and a project's own database has no test to ask.
      */
-    private static String declaring(ModelContext ctx, String element, String schema, String table) {
+    private static List<String> declaringAll(ModelContext ctx, String schema, String table) {
         List<String> declaring = new ArrayList<>();
         for (DatabaseDefinition db : ctx.databases().toList()) {
             List<DatabaseDefinition.TableDefinition> tables = "default".equals(schema) ? db.defaultSchemaTables()
@@ -117,11 +146,6 @@ public record ProjectData(String name, List<String> open, List<String> use, List
                 declaring.add(db.qualifiedName());
             }
         }
-        if (declaring.size() != 1) {
-            throw new IllegalArgumentException("the Data element " + element + " fills " + schema + "." + table
-                    + (declaring.isEmpty() ? ", which no Database of the model declares"
-                            : ", which more than one Database declares " + declaring));
-        }
-        return declaring.get(0);
+        return declaring;
     }
 }

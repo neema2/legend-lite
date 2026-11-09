@@ -61,11 +61,13 @@ public final class Execution {
                 batchRows);
     }
 
-    /** A product query's PLAN run (slice 5, 2026-11-09: a host that planned the query itself, pure/v1's execute, hands
-     *  the plan, never the compiled query), its rows to {@code sink}. */
-    public static void runPlan(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            ProductRun.Establish establish, ResultSink sink, int batchRows) throws IOException {
-        ProductRun.run(plan, sessions, planSessions, establish, sink, batchRows);
+    /** A query run as legend-lite's server runs it (legend-engine's {@code pure/v1/execution/execute}): planned, then
+     *  run on its project's databases ({@link ProductRun#onProjectDatabases}). pure/v1's execute reaches it through the
+     *  runner the server hands the API (slice 5, 2026-11-09: pure/v1 compiles, the door plans and runs -- the API's own
+     *  plan-then-run is gone). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, Function<ExecutionPlan, ResultSink> sinkOf) throws IOException {
+        return ProductRun.onProjectDatabases(typed.executionPlan(runtimeFqn), sinkOf);
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Function)} for a

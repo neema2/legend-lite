@@ -19,6 +19,13 @@ public final class Connectors {
     }
 
     /** {@code type}'s connector. */
+    /** The connector of the database type named {@code type} (a model's type: the same constant): the registry's own
+     *  reading of the name, so a caller holding the model's type names no database (slice 5, 2026-11-09: the test
+     *  runtime's text read it through the planner's copy until then). */
+    public static DatabaseConnector named(String type) {
+        return of(DatabaseType.valueOf(type));
+    }
+
     public static DatabaseConnector of(DatabaseType type) {
         return switch (type) {
             case DuckDB -> DuckDbConnector.INSTANCE;

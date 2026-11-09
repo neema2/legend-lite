@@ -211,8 +211,9 @@ public final class PctBackend {
 
     /** The host's system connections: a server lane's own engine ({@link TestBackend#openSystem}); none for an
      *  in-process lane. */
-    public static java.util.Map<DatabaseType, com.legend.exec.Sessions.Opener> systemConnections() {
+    public static java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
+            systemConnections() {
         TestBackend backend = backend();
-        return backend.inProcess() ? java.util.Map.of() : java.util.Map.of(backend.type(), backend::openSystem);
+        return backend.inProcess() ? java.util.Map.of() : java.util.Map.of(backend.planType(), backend::openSystem);
     }
 }
