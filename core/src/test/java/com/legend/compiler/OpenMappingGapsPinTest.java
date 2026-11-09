@@ -19,9 +19,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins three open findings of the unstructured study (projects/unstructured/FINDINGS.md) at today's behaviour: a mapping
- * or a value that should be refused and is not. No test here says the behaviour is right. Each is here to turn red the
- * day the gap closes; when one does, delete it and its row in FINDINGS.md.
+ * Pins three findings of the unstructured study (projects/unstructured/FINDINGS.md) at today's behaviour. F-U1 and F-U2
+ * are laxer than legend-engine, which refuses both: each is here to turn red the day the gap closes, and then it and its
+ * FINDINGS.md row are deleted. F-U5 matches legend-engine, by the owner's ruling, and is here so a change to it is seen.
  */
 class OpenMappingGapsPinTest {
 
@@ -121,8 +121,8 @@ class OpenMappingGapsPinTest {
             assertTrue(plan.toString().contains("ELSE NULL"), plan.toString());
             List<List<Object>> rows = new ArrayList<>(collector.collected().rows());
             assertEquals(List.of(Arrays.asList("a", null)), rows,
-                    "F-U5 has moved: 'Blue' is outside ColorMap and color is [1]. If this now refuses, delete this pin"
-                            + " and its FINDINGS.md row.");
+                    "F-U5 has moved: 'Blue' is outside ColorMap and color is [1]. legend-engine answers null here"
+                            + " (FINDINGS.md), and the owner ruled lite is not stricter than upstream.");
         }
     }
 }

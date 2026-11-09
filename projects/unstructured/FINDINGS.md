@@ -1,19 +1,46 @@
 # Open findings of the unstructured study
 
-Found while modelling the study's corpora. Whether legend-pure and legend-engine refuse F-U1 and F-U2 has not been read
-from the pinned sources yet.
+Found while modelling the study's corpora. Upstream's answer below was read from the pinned sources (legend-engine
+4.145.0) and asked of the engine runner (`//tools/engine-runner`, the recipe in `docs/result-boundary-homework/README.md`
+§7), on the same models the pins use, with an H2 connection.
 
-| id | what | today | pinned by |
-|---|---|---|---|
-| F-U1 | A mapping can name a column its table does not have. | `compileModel` accepts it; only a query that reaches the property fails, at planning. So a model that compiles says little about its mappings. | `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistCompiles` |
-| F-U2 | An `AssociationMapping` can name a set id that does not exist. | Accepted by `compileModel` and by planning. | `OpenMappingGapsPinTest.fU2_anAssociationMappingToASetIdThatDoesNotExistPlans` |
-| F-U5 | A stored value outside an `EnumerationMapping` reads back as NULL, even on a `[1]` property. | No refusal at load or at read; see below. | `OpenMappingGapsPinTest.fU5_aValueOutsideTheEnumMappingReadsBackAsNullOnARequiredProperty` |
-| F-U3 | No vector column. | A Relational column has no VECTOR type (`DatabaseProtocolParser.parseDbType`) and Pure has no embedding type, so `corpus::Passage` carries no embedding. | nothing: an absent feature |
-| F-U4 | No long-text column. | There is no TEXT or CLOB, so long text is `VARCHAR(1000000)`: above the corpus's longest section (391,046 bytes) and within Postgres's limit for a sized VARCHAR (10,485,760). | nothing: an absent feature |
+| id | what | lite today | legend-engine 4.145.0 | pinned by |
+|---|---|---|---|---|
+| F-U1 | A mapping can name a column its table does not have. | `compileModel` accepts it; only a query that reaches the property fails, at planning. So a model that compiles says little about its mappings. | Refuses at compile: `Can't find column 'NO_SUCH_COLUMN'`. | `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistCompiles` |
+| F-U2 | An `AssociationMapping` can name a set id that does not exist. | Accepted by `compileModel` and by planning. | Compiles, then refuses at planning: `Expected 1 class mapping for 'B' in 'M', found 0`. | `OpenMappingGapsPinTest.fU2_anAssociationMappingToASetIdThatDoesNotExistPlans` |
+| F-U5 | A stored value outside an `EnumerationMapping` reads back as NULL, even on a `[1]` property. | No refusal at load or at read; see below. | The same answer and the same SQL: matches upstream; the loader refuses out-of-enum values before the database sees them. | `OpenMappingGapsPinTest.fU5_aValueOutsideTheEnumMappingReadsBackAsNullOnARequiredProperty` |
+| F-U3 | No vector column. | A Relational column has no VECTOR type (`DatabaseProtocolParser.parseDbType`) and Pure has no embedding type, so `corpus::Passage` carries no embedding. | not read: an absent feature here, not a divergence found | nothing |
+| F-U4 | No long-text column. | There is no TEXT or CLOB, so long text is `VARCHAR(1000000)`: above the corpus's longest section (391,046 bytes) and within Postgres's limit for a sized VARCHAR (10,485,760). | not read: an absent feature here, not a divergence found | nothing |
 
-When a pin turns red the gap has closed: delete the pin and its row.
+When a pin turns red the behaviour has moved: read its failure message, then change the pin and its row deliberately.
 
-## F-U5: a value outside the enum reads back as NULL
+## Needs a ruling: two defect reports
+
+Lite is laxer than upstream in both, with no register row, so each is a defect under the upstream-fidelity tenet.
+**Recommendation: close both to match upstream.** Nothing on this branch changes core's behaviour; if the owner wants the
+fix, it is a separate PR. Both were run on the pin's own model with an H2 connection. The same model with the real column
+or the real set id compiles and plans. Paths are at tag `legend-engine-4.145.0`.
+
+### Defect F-U1: a mapping to a column that does not exist compiles
+
+- **Upstream refuses at compile.** The engine's exact error from the run:
+  `org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find column 'NO_SUCH_COLUMN'`
+- **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-grammar/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/HelperRelationalBuilder.java:163`
+- **Lite:** `compileModel` accepts it. Only a query that reaches the property fails, at planning.
+- **Turns red when closed:** `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistCompiles`
+
+### Defect F-U2: an association mapping to a set id that does not exist plans
+
+- **Upstream compiles it, then refuses at planning.** The engine's exact error from the run:
+  `Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "Expected 1 class mapping for 'B' in 'M', found 0"`
+- **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure:1934`
+- **Lite:** `compileModel` and planning both accept it.
+- **Turns red when closed:** `OpenMappingGapsPinTest.fU2_anAssociationMappingToASetIdThatDoesNotExistPlans`
+
+## F-U5: matches upstream
+
+Matches upstream; the loader refuses out-of-enum values before the database sees them. No register row: the register
+records differences, and this is none (the owner, 2026-11-08).
 
 Lite plans the mapping as a `CASE` whose fall-through is NULL (`lending::Collateral.kind`, from `model.pure`):
 
@@ -24,28 +51,35 @@ CASE WHEN t0.KIND = 'AllAssets' THEN 'AllAssets' WHEN t0.KIND = 'Receivables' TH
 ```
 
 So a row whose column holds a misspelled value is accepted by the database and answered with NULL, on a property the
-model declares `[1]`. `tools/unstructured-corpus/load.py` refuses such a value before it loads, but that protects this
-corpus only: any other way of writing the table still reads back NULL.
+model declares `[1]`.
 
-**What legend-engine does, read from the pinned source (tag `legend-engine-4.145.0`; read, not run):**
-`RelationalResult.java` (its TDS transformers, lines 259-281) applies `ExecutionNodeTDSResultHelper.getTDSEnumTransformer`
-to an enum column, which is `ExecutionNodeResultHelper.buildReverseEnumFunc` (lines 44-48):
+**legend-engine does the same, asked on the runner.** One row holds `'Blue'`, outside the mapping, the other `'Red'`:
 
-```java
-return s -> reverseEnumMap.get(s == null ? "" : s.toString());
+```
+select "root".ID as "id", case when "root".COLOR = 'Red' then 'Red' else null end as "color" from ITEM as "root"
+"rows" : [{"values": ["a",null]},{"values": ["b","Red"]}]
 ```
 
-`reverseEnumMap` is a `UnifiedMap` of stored value to enum name, with no check around the lookup, so a stored value
-outside the mapping becomes null there too. The outcome reads the same; the place differs (upstream maps in Java after
-the rows return, lite in the SQL). A class-result column goes through the same function
-(`ExecutionNodeClassResultHelper`, line 76).
+The upstream-fidelity tenet decides it (the owner, 2026-11-08): lite answers null, and is not made stricter than upstream.
+This corrects this file's earlier reading, which took the mapping to happen in Java after the rows return
+(`ExecutionNodeResultHelper.buildReverseEnumFunc`). That code exists, but on this relation path the SQL does the mapping.
 
-**Needs a ruling (the owner):** the source says legend-engine also answers null. Should this be confirmed against the
-engine runner and then posted as the register row below, or should lite refuse even though upstream does not? If the
-runner shows upstream refusing after all, this is a defect in lite instead.
+## Design inputs for the judge
 
-Proposed row for `docs/SEMANTICS_REGISTER.md`, number left to the owner:
+**Repeated passage text is expected, and is not a bug.** EDGAR's 1,499 passage rows hold 1,361 distinct sha256 values: 125
+values sit on more than one row (138 extra rows), nearly all boilerplate repeated across filings. The synthetic corpora add
+their own repeats: signature blocks, the disclaimer, standard clauses. An agreement's clauses say "the Borrower", so 14 of
+the 65 covenant hashes and 27 of the 32 event-of-default hashes also appear in other agreements; `spans.csv` says which
+clause each row means. No allocation request's hash repeats. Across all three corpora there are 2,595 rows and 1,769
+distinct values.
 
-| id | kind | legend-pure / legend-engine | lite | why, decided by | evidence | owner |
-|---|---|---|---|---|---|---|
-| (owner) | mechanism | a stored value outside an `EnumerationMapping` maps to null in Java after the rows return (`ExecutionNodeResultHelper.buildReverseEnumFunc`, `reverseEnumMap.get`), with no refusal | the same value maps to NULL in the SQL (`CASE ... ELSE NULL END`), with no refusal | Java does not compute a value the database can; not yet ruled | `OpenMappingGapsPinTest.fU5_...`; legend-engine 4.145.0 source, read only | (owner) |
+The owner's ruling, 2026-11-08, which the judge inherits:
+
+- The judge dedupes by sha256 before any cut.
+- A result row is identified by `(path, charStart)`. `sha256` is its fingerprint, not its identity.
+
+`load.py` refuses two passages with the same `(path, charStart)`, across all three corpora, so that identity always holds.
+
+**The passage rule differs by corpus, by design (for the study's §4; the owner, 2026-11-08).** EDGAR passages merge to about
+800 characters because filings have no natural unit. SALES and LENDING passages are the paragraph or the clause because the
+ground truth hashes exactly that unit. `corpus/README.md` states it for the corpus.
