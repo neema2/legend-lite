@@ -37,7 +37,7 @@ C03	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vecto
 C03	text	hybrid	duckdb	direct-sql	DROPPED	-	-	-	-	-	missing: bodies/MSG-0006.txt@119; 1 of 2 accepted in the top 5 (match: all)
 C03	text	hybrid	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
 C03	structured	pure	duckdb	lite	PASS	-	-	-	-	-	1 rows, as the key
-C04	text	keyword	duckdb	direct-sql	DROPPED	-	-	-	-	-	missing: bodies/MSG-0010.txt@9; bodies/MSG-0035.txt@11; bodies/MSG-0060.txt@12; bodies/MSG-0035.txt@102; bodies/MSG-0060.txt@104; 1 of 6 accepted in the top 6 (match: all)
+C04	text	keyword	duckdb	direct-sql	DROPPED	-	-	-	-	-	missing: bodies/MSG-0010.txt@9; bodies/MSG-0035.txt@11; bodies/MSG-0060.txt@12; bodies/MSG-0010.txt@111; bodies/MSG-0035.txt@102; bodies/MSG-0060.txt@104; 0 of 6 accepted in the top 6 (match: all)
 C04	text	keyword	postgres	direct-sql	DROPPED	-	-	-	-	-	missing: bodies/MSG-0010.txt@9; bodies/MSG-0035.txt@11; bodies/MSG-0060.txt@12; bodies/MSG-0010.txt@111; bodies/MSG-0035.txt@102; bodies/MSG-0060.txt@104; 0 of 6 accepted in the top 6 (match: all)
 C04	text	vector	duckdb	direct-sql	DROPPED	-	-	-	-	-	missing: bodies/MSG-0010.txt@9; bodies/MSG-0035.txt@11; bodies/MSG-0060.txt@12; bodies/MSG-0010.txt@111; bodies/MSG-0035.txt@102; bodies/MSG-0060.txt@104; 0 of 6 accepted in the top 6 (match: all)
 C04	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
@@ -161,7 +161,7 @@ C40	text	keyword	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K
 C40	text	keyword	postgres	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K/320193_0000320193-26-000026/item_7.txt@0 score 0.0405
 C40	text	vector	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-Q/19617_0001628280-26-069523/item_2.txt@20002 score 0.7488
 C40	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
-C40	text	hybrid	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	5 returned; rank 1 8-K/19617_0001193125-26-426704/item_8.01.txt@0 score 0.8780
+C40	text	hybrid	duckdb	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
 C40	text	hybrid	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
 C42	text	keyword	duckdb	direct-sql	PASS	10-K/320193_0000320193-26-000026/item_7.txt	item_7	2026-11-03	8a24a37762cdd95d1c2a20d7d8cbc5f2ccd2c19affc0991414cefabd7e6f703e	1	1 of 1 accepted in the top 5 (match: all)
 C42	text	keyword	postgres	direct-sql	PASS	10-K/320193_0000320193-26-000026/item_7.txt	item_7	2026-11-03	8a24a37762cdd95d1c2a20d7d8cbc5f2ccd2c19affc0991414cefabd7e6f703e	1	1 of 1 accepted in the top 5 (match: all)
@@ -293,15 +293,15 @@ C77	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vecto
 C77	text	hybrid	duckdb	direct-sql	PASS	agreements/CA-012.txt	Section 8.01(c)	2025-09-13	c049bbba89022e88b31544f0bc273a4d7616fe568f447c52688417534991f121	1	1 of 1 accepted in the top 5 (match: all)
 C77	text	hybrid	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
 C77	structured	pure	duckdb	lite	PASS	-	-	-	-	-	1 rows, as the key
-C78	text	keyword	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-Q/19617_0001628280-26-069523/item_2.txt@10830 score 4.1325
-C78	text	keyword	postgres	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K/19617_0001628280-26-008131/item_7.txt@171975 score 0.0240
+C78	text	keyword	duckdb	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
+C78	text	keyword	postgres	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
 C78	text	vector	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K/19617_0001628280-26-008131/item_7.txt@171896 score 0.7122
 C78	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
 C78	text	hybrid	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	5 returned; rank 1 10-K/19617_0001628280-26-008131/item_7.txt@171896 score 0.9236
 C78	text	hybrid	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
-C80	text	keyword	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 bodies/MSG-0035.txt@102 score 4.0385
-C80	text	keyword	postgres	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K/320193_0000320193-26-000026/item_7.txt@7683 score 0.0187
+C80	text	keyword	duckdb	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
+C80	text	keyword	postgres	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
 C80	text	vector	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	150 returned; rank 1 10-K/19617_0001628280-26-008131/item_7.txt@175379 score 0.6537
 C80	text	vector	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist
-C80	text	hybrid	duckdb	direct-sql	FALSE_HIT	-	-	-	-	-	5 returned; rank 1 10-K/19617_0001628280-26-008131/item_7.txt@255186 score 0.8245
+C80	text	hybrid	duckdb	direct-sql	EMPTY_OK	-	-	-	-	-	nothing returned
 C80	text	hybrid	postgres	direct-sql	REFUSED	-	-	-	-	-	pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist

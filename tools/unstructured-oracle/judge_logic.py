@@ -1,6 +1,7 @@
 """The judge's rules, with no database, server or model behind them, so that they can be tested without the corpus."""
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 PASS, DROPPED, STALE_HIT, EMPTY_OK, FALSE_HIT, REFUSED, ERROR, UNRESOLVED = (
@@ -9,6 +10,16 @@ VERDICTS = (PASS, DROPPED, STALE_HIT, EMPTY_OK, FALSE_HIT, REFUSED, ERROR, UNRES
 COLUMNS = ("case", "route", "arm", "backend", "road", "verdict", "path", "section", "asOfDate", "sha256", "rank", "detail")
 KEY_COLUMNS = ("case", "route", "arm", "backend")
 TOP = 5
+FLOORED_ARM = re.compile(r"WITH arm AS \(\n(.*)\n\)\nSELECT RANK, SHA256, SCORE, LOCATIONS\nFROM arm\n"
+                         r"WHERE \(SELECT MAX\(SCORE\) FROM arm\) >= [0-9.]+\nORDER BY RANK", re.DOTALL)
+
+
+def arm_list(statement: str) -> str:
+    """The part of an arm's statement that hybrid fuses: its comments gone, and its floor, if it has one, gone too. A floor
+    written in any other form is left in, so that the drift check refuses it."""
+    body = "\n".join(line for line in statement.splitlines() if not line.startswith("--")).strip()
+    floored = FLOORED_ARM.fullmatch(body)
+    return floored.group(1) if floored else body
 
 
 def cut(accepted: list) -> int:
