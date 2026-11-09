@@ -48,8 +48,8 @@ TARGETS = (
     (320193, "Apple", "10-K", 1),
     (320193, "Apple", "10-Q", 2),
     (320193, "Apple", "8-K", 3),
-    # JPMorgan's 10-K and 10-Q are left out (2026-11-08, the study's owner): 24.5 MB of inline XBRL between them, and the
-    # 15 MB corpus budget cannot be met with them in, even with every 8-K and 10-Q dropped.
+    (19617, "JPMorgan", "10-K", 1),
+    (19617, "JPMorgan", "10-Q", 1),
     (19617, "JPMorgan", "8-K", 2),
 )
 

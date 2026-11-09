@@ -2,6 +2,59 @@
 # (kind: extracted); sorted by path, no timestamps, so a re-run reproduces it byte for byte. Paths are relative
 # to this directory. Do not edit by hand.
 files:
+- path: "10-K/19617_0001628280-26-008131/item_1a.txt"
+  kind: "extracted"
+  section: "item_1A"
+  heading: "Item 1A. Risk Factors."
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-K"
+  accession: "0001628280-26-008131"
+  filed: "2026-02-13"
+  derived_from: "10-K/19617_0001628280-26-008131/jpm-20251231.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm"
+  bytes: 113886
+  sha256: "746e044b490a639001349b28f076f0c434fa98c26413df4e1fa6ede554abf979"
+- path: "10-K/19617_0001628280-26-008131/item_7.txt"
+  kind: "extracted"
+  section: "item_7"
+  heading: "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations."
+  followed_pointer: true
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-K"
+  accession: "0001628280-26-008131"
+  filed: "2026-02-13"
+  derived_from: "10-K/19617_0001628280-26-008131/jpm-20251231.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm"
+  bytes: 391046
+  sha256: "653607790e36315a952a10722bb6f487a9da2b8c79f77de731fe83a125f786b6"
+- path: "10-K/19617_0001628280-26-008131/item_7a.txt"
+  kind: "extracted"
+  section: "item_7A"
+  heading: "Item 7A. Quantitative and Qualitative Disclosures About Market Risk."
+  followed_pointer: true
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-K"
+  accession: "0001628280-26-008131"
+  filed: "2026-02-13"
+  derived_from: "10-K/19617_0001628280-26-008131/jpm-20251231.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm"
+  bytes: 35853
+  sha256: "f43a0c95002412bb58b3a3dd82cfec5531a23199f5f369df619ec03588bdba8f"
+- path: "10-K/19617_0001628280-26-008131/jpm-20251231.htm"
+  kind: "raw"
+  role: "primary"
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-K"
+  accession: "0001628280-26-008131"
+  filed: "2026-02-13"
+  report_period: "2025-12-31"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm"
+  bytes: 12927325
+  sha256: "4d9febdbc2038dcdca8726053286df4cbbfd48885051cbd781efcc3becb66a23"
 - path: "10-K/320193_0000320193-26-000026/aapl-20260926.htm"
   kind: "raw"
   role: "primary"
@@ -53,6 +106,62 @@ files:
   source_url: "https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm"
   bytes: 3031
   sha256: "a01b6846ec576103d7f64534586c9a3991c1b6eae12bd11ead8516bb42cec424"
+- path: "10-Q/19617_0001628280-26-069523/item_1a.txt"
+  kind: "extracted"
+  section: "item_1A"
+  heading: "Item 1A. Risk Factors."
+  ten_k_item: "1A"
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-Q"
+  accession: "0001628280-26-069523"
+  filed: "2026-11-03"
+  derived_from: "10-Q/19617_0001628280-26-069523/jpm-20260930.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/jpm-20260930.htm"
+  bytes: 409
+  sha256: "76dbf487df96a5e59d9d80b382a34778e231b65dc47032040316d70ee1c34281"
+- path: "10-Q/19617_0001628280-26-069523/item_2.txt"
+  kind: "extracted"
+  section: "item_2"
+  heading: "Consolidated financial highlights (unaudited)"
+  ten_k_item: "7"
+  followed_pointer: true
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-Q"
+  accession: "0001628280-26-069523"
+  filed: "2026-11-03"
+  derived_from: "10-Q/19617_0001628280-26-069523/jpm-20260930.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/jpm-20260930.htm"
+  bytes: 283677
+  sha256: "6678d044e6e7afea027e488e5970cd909046ea6908c78e993486f7b291584332"
+- path: "10-Q/19617_0001628280-26-069523/item_3.txt"
+  kind: "extracted"
+  section: "item_3"
+  heading: "Item 3. Quantitative and Qualitative Disclosures About Market Risk."
+  ten_k_item: "7A"
+  followed_pointer: true
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-Q"
+  accession: "0001628280-26-069523"
+  filed: "2026-11-03"
+  derived_from: "10-Q/19617_0001628280-26-069523/jpm-20260930.htm"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/jpm-20260930.htm"
+  bytes: 19617
+  sha256: "41ccb8f96bb0957aba851dab09b95a8a1723e50ee9be05422ed0ba70f49a8102"
+- path: "10-Q/19617_0001628280-26-069523/jpm-20260930.htm"
+  kind: "raw"
+  role: "primary"
+  cik: 19617
+  company: "JPMorgan"
+  form: "10-Q"
+  accession: "0001628280-26-069523"
+  filed: "2026-11-03"
+  report_period: "2026-09-30"
+  source_url: "https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/jpm-20260930.htm"
+  bytes: 11540619
+  sha256: "3d08b6c5f4b5d8ea82b96dec6d620757783f3abb10d593655ffbc176fda02bf4"
 - path: "10-Q/320193_0000320193-26-000013/aapl-20260328.htm"
   kind: "raw"
   role: "primary"
