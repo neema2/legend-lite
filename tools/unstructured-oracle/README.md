@@ -36,3 +36,39 @@ A structured query always goes through lite: the judge starts `//core:server` an
 `/api/pure/v1/execution/execute` with the model as text and `runtime::DuckDb`. It never runs one itself. Rows are compared
 as a set, numbers by value (`4`, `4.0` and `4.00` are one value, and a boolean is not a number). A refusal or a failure is
 an ERROR, never an empty result.
+
+## Running it
+
+```
+UNSTRUCTURED_ORACLE_PYTHON=<venv>/bin/python UNSTRUCTURED_MODEL_DIR=<model> tools/unstructured-oracle/run.sh --write
+```
+
+`run.sh` starts the embedded Postgres in a throwaway directory, loads the corpora, computes the vectors, builds the index
+and runs the judge. The judge stops, naming the cause, if the key is not the one `DECISIONS.md` last recorded, a pointer of
+the key does not match the corpus, the vectors were not made on the pins, or a hybrid statement has drifted from its arms.
+`--check` is a fresh run against the committed `ledger.tsv`; `judge.py --compare OLD NEW` is that gate over two files.
+
+## The ledger
+
+One row per (case, route, arm, backend), with no headline score.
+
+| Verdict | Means |
+|---|---|
+| `PASS` | every accepted pointer in the top 5 (`match: all`), or at least one (`match: any`). Carries path, section, asOfDate, sha256 and rank, `\|`-joined, one per pointer found |
+| `DROPPED` | not that. On the structured route, the rows differ from the key's, missing or extra |
+| `STALE_HIT` | a superseded pointer in the top 5, even with the accepted one there too |
+| `EMPTY_OK` | a negative, and nothing returned |
+| `FALSE_HIT` | a negative, and something returned |
+| `REFUSED` | the arm is not available on that backend, named |
+| `ERROR` | the search broke; never spelled as an empty result |
+| `UNRESOLVED` | the case's status is not `resolved` |
+
+`road` says how a row was reached: `lite` for the structured route, `direct-sql` for the text arms, which have no Pure
+spelling yet. `summary.tsv` is the counts per route, arm and backend, generated from the ledger.
+
+**The gate:** a run that turns any row from PASS to anything else, or loses it, fails, even if the counts improve.
+
+## What this measures, and what it does not
+
+Search is over all of `CO_PASSAGE`, not scoped to the case's corpus, and a text arm has no score cut, so a vector search
+always returns neighbours: a negative on it cannot be `EMPTY_OK`.

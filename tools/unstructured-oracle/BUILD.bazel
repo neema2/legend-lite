@@ -1,0 +1,21 @@
+# THE UNSTRUCTURED STUDY'S JUDGE (README.md). The judge itself is a hand tool: it needs the EDGAR corpus, which is never
+# committed, the pinned model and a live server. Its verdict rules and its gate need none of those and are tested here.
+
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+py_library(
+    name = "judge_logic",
+    srcs = ["judge_logic.py"],
+    imports = ["."],
+)
+
+py_test(
+    name = "judge_logic_test",
+    size = "small",
+    srcs = ["judge_logic_test.py"],
+    deps = [":judge_logic"],
+)
+
+guards_package()
