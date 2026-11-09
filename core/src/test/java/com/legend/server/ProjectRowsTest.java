@@ -62,6 +62,21 @@ class ProjectRowsTest {
         assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(PARTY));
     }
 
+    /** The same project on H2's in-memory database (legend-engine's {@code LocalH2}: the opener names it, the Named arm)
+     *  answers its own rows too, and a refused model is refused there by name, never run on an empty database (the M1
+     *  tenets audit's finding 1, 2026-11-09: only the held arm made the database until then). */
+    @Test
+    void anH2ProjectsQueryAnswersItsOwnRows_andARefusedOneIsRefused() throws Exception {
+        String h2 = PARTY.replace("type: DuckDB; specification: DuckDB { }; auth: Test;",
+                "type: H2; specification: LocalH2 { }; auth: DefaultH2;");
+        org.junit.jupiter.api.Assertions.assertNotEquals(PARTY, h2);
+        assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(h2));
+        IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> names(h2.replace("PARTY.PARTY:\n", "PARTY.NOPE:\n")));
+        assertEquals("the Data element proj::PartyData fills PARTY.NOPE, which no Database of the model declares",
+                refused.getMessage());
+    }
+
     /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): named by
      *  its target, written once in the plan's load section, and read back as written. */
     @Test

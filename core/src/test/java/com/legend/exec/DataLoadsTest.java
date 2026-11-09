@@ -47,7 +47,6 @@ class DataLoadsTest {
     private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE,
             List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of());
 
-    private static int LIMIT = 500;
 
     /** Every in-process database whose dialect spells a CSV file's load (one that spells none refuses by name). */
     private static List<TestBackend> loading() {
@@ -65,11 +64,16 @@ class DataLoadsTest {
     }
 
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes) {
+        return file(dialect, name, bytes, 500);
+    }
+
+    /** {@link #file(SqlDialect, String, byte[])} admitting {@code limitMegabytes} (upstream's 500 by default). */
+    private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes, int limitMegabytes) {
         SqlDialect.CsvLoad spelled = dialect.csvLoad(LOAD);
         ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
                 LOAD.columns().size());
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
-                DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, LIMIT);
+                DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);
     }
 
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
@@ -158,7 +162,7 @@ class DataLoadsTest {
         }
     }
 
-    /** A file whose cells are malformed by its declared format, or a record of another width than its header's, is
+    /** A file whose cells are malformed by its declared format, or a record of another width than its table's, is
      *  refused by name at the run as at planning -- never padded, cut, skipped or repaired (invariant 4). */
     @Test
     void aMalformedFileIsRefusedNeverRepaired(@TempDir Path dir) throws Exception {
@@ -184,17 +188,23 @@ class DataLoadsTest {
         }
         byte[] bytes = text.toString().getBytes(StandardCharsets.UTF_8);
         Files.write(dir.resolve("big.csv"), bytes);
-        int was = LIMIT;
-        LIMIT = 1;
-        try {
-            for (TestBackend b : loading()) {
-                DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
-                        load(b, file(b.dialect(), "big.csv", bytes))), b.name());
-                assertTrue(e.getMessage().startsWith("Unable to read the CSV file '/big.csv' File is too large, file"
-                        + " was 1.00 Mb, limit is 1 Mb"), e.getMessage());
-            }
-        } finally {
-            LIMIT = was;
+        for (TestBackend b : loading()) {
+            DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
+                    load(b, file(b.dialect(), "big.csv", bytes, 1))), b.name());
+            assertTrue(e.getMessage().startsWith("Unable to read the CSV file '/big.csv' File is too large, file"
+                    + " was 1.00 Mb, limit is 1 Mb"), e.getMessage());
+        }
+    }
+
+    /** The header is dropped unread, as upstream drops it (legend-pure's {@code LazyIterate.drop(..., 1)}): a header of
+     *  another width than the table loads its data records (the M1 tenets audit's finding 4, 2026-11-09). */
+    @Test
+    void theHeaderIsDroppedUnread(@TempDir Path dir) throws Exception {
+        byte[] bytes = "Name\nJoe,Bloggs,21".getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("narrow.csv"), bytes);
+        for (TestBackend b : loading()) {
+            assertEquals(List.of(List.of("Joe", "Bloggs", 21)), loaded(b, DataStores.resources(dir),
+                    load(b, file(b.dialect(), "narrow.csv", bytes))), b.name());
         }
     }
 

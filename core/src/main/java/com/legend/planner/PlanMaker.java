@@ -826,7 +826,14 @@ public final class PlanMaker {
             ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel, boolean projectDatabase) {
         ProjectPlan project = projectDatabase ? project(decided, ctx, dialect) : null;
-        ExecutionPlan.Database database = database(decided, project == null ? null : project.project());
+        // the project's Data rows, and their refusal, belong to a database the platform makes: a database the user
+        // names or a server holds is the user's own, named by the project's key alone (the M1 tenets audit, finding 1)
+        boolean filled = project != null && decided instanceof Target.Declared d
+                && com.legend.executionplan.ConnectionSpecification.platformMakes(
+                        ConnectionPlans.of(oneDefinition(d)).specification());
+        ExecutionPlan.Project named = project == null ? null : filled ? project.project()
+                : new ExecutionPlan.Project(project.project().key(), null);
+        ExecutionPlan.Database database = database(decided, named);
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
         ExecutionPlan.Target bare = new ExecutionPlan.Target(database, session, List.of());
@@ -834,7 +841,7 @@ public final class PlanMaker {
         // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         // a project's Data rows: one ONCE load, made with its database and kept (L3, S145)
-        if (project != null && !project.data().isEmpty()) {
+        if (filled && project != null && !project.data().isEmpty()) {
             loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
         }
         loads.addAll(LoadPlanner.targetLoads(setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));

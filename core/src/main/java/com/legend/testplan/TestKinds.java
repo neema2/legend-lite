@@ -450,9 +450,11 @@ final class TestKinds implements ProgramKinds {
                     + " door writes (item 7c); any other effectful map is the T9 kind the test-is-the-product plan's M9"
                     + " plans");
         }
-        // a seed form's statements are a LOAD at its place, never the effect script's (L2, M7, 2026-11-09): the texts
-        // the platform spelled from the form's data, each as the lambda's executeInDb would send it, run AT_STEP
-        boolean formLoad = !(st.prepared() instanceof Prepared.Effect);
+        // a seed FORM's statements are a LOAD at its place, never the effect script's (L2, M7-seed, 2026-11-09): the
+        // texts the platform spelled from the form's data, each as the lambda's executeInDb would send it, run AT_STEP.
+        // A DDL text collection mapped over executeInDb is the author's own SQL (M7-authored): it stays an effect
+        // (the M1 tenets audit's finding 5, 2026-11-09)
+        boolean formLoad = form != null && !(st.prepared() instanceof Prepared.Effect);
         List<EffectPlanner.Statement> loaded = new ArrayList<>();
         NativeFn.Effect effect = null;
         for (Prepared.Effect e : effects) {

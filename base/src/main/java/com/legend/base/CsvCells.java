@@ -88,30 +88,27 @@ public final class CsvCells {
         return Collections.unmodifiableList(rows);
     }
 
-    /** {@code rows}' data rows, the header dropped: refused by name unless every row is exactly {@code width} cells
-     *  wide (a short row is never padded, a long one never cut, an empty line in a wider table never skipped). */
+    /** {@code rows}' data rows, the first record (the header) dropped unread, as upstream drops it
+     *  ({@code LazyIterate.drop(..., 1)}): refused by name unless every data row is exactly {@code width} cells wide,
+     *  the table's (a short row is never padded, a long one never cut, an empty line in a wider table never skipped). */
     public static List<List<String>> body(List<List<String>> rows, int width) {
         List<List<String>> out = new ArrayList<>(Math.max(0, rows.size() - 1));
         for (int r = 1; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             if (row.size() != width) {
                 throw new Malformed("the CSV text's record " + (r + 1) + " has " + row.size() + " cell(s), and its"
-                        + " header names " + width + (row.size() == 1 && row.get(0) == null ? " (an empty line)" : ""));
+                        + " table takes " + width + (row.size() == 1 && row.get(0) == null ? " (an empty line)" : ""));
             }
             out.add(row);
         }
         return Collections.unmodifiableList(out);
     }
 
-    /** {@code text}'s data rows by the format's rule, each exactly {@code width} cells, the header dropped (none for a
-     *  text of no record or a header alone): refused by name ({@link Malformed}) where the text is malformed, its header
-     *  names another number of columns than {@code width}, or a record is not {@code width} wide. */
+    /** {@code text}'s data rows by the format's rule, each exactly {@code width} cells, the header dropped unread as
+     *  upstream drops it (none for a text of no record or a header alone): refused by name ({@link Malformed}) where the
+     *  text is malformed or a data record is not {@code width} wide, the table's. */
     public static List<List<String>> table(String text, char delimiter, char quote, int width) {
-        List<List<String>> rows = rows(text, delimiter, quote);
-        if (!rows.isEmpty() && rows.get(0).size() != width) {
-            throw new Malformed("its header names " + rows.get(0).size() + " column(s), and its table takes " + width);
-        }
-        return body(rows, width);
+        return body(rows(text, delimiter, quote), width);
     }
 
     /** One cell read: its text (empty for an empty cell), and whether its record ends after it. */

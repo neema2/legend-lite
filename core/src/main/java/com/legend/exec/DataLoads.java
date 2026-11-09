@@ -23,8 +23,8 @@ final class DataLoads {
     }
 
     /** {@code bytes}' data rows, each exactly {@code columns} wide, split by the reference's declared format
-     *  ({@code DataRef.Csv}: {@code base.CsvCells}, upstream's rule): refused by name unless the header names
-     *  {@code columns} columns and every record is that wide and well-formed -- never padded, cut or repaired
+     *  ({@code DataRef.Csv}: {@code base.CsvCells}, upstream's rule): the header dropped unread, as upstream drops it;
+     *  refused by name unless every data record is {@code columns} wide and well-formed -- never padded, cut or repaired
      *  (AGENTS.md invariant 4; planning refused such a file already, and the digest makes these its bytes). */
     static List<List<String>> cells(DataRef ref, byte[] bytes, int columns, int sizeLimitMegabytes) {
         try {

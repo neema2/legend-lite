@@ -300,4 +300,28 @@ class ConnectorsTest {
             assertEquals(e.getValue(), Connectors.of(com.legend.planner.ConnectionPlans.type(e.getKey())).decoding(), e.getKey().toString());
         }
     }
+
+    /** THE ONE RULE for a project's Data (the M1 tenets audit's finding 1, 2026-11-09): the planner plans the fill only
+     *  where {@code ConnectionSpecification.platformMakes} says the platform makes the database, and exec makes it only
+     *  where a connector's opening is held or named by the opener. Equal for every database type and specification a
+     *  connector opens. */
+    @Test
+    void thePlatformMakesExactlyTheDatabasesItsConnectorsOpenAsItsOwn() {
+        for (DatabaseType type : DatabaseType.values()) {
+            for (ConnectionSpecification spec : SPECIFICATIONS.values()) {
+                com.legend.executionplan.Connection plan = com.legend.planner.ConnectionPlans.of(
+                        new ConnectionDefinition(Q, "q::S", type, spec, new AuthenticationSpec.TestAuth()));
+                Sessions.Opening opening;
+                try {
+                    opening = Connectors.of(plan.databaseType()).opening(plan);
+                } catch (RuntimeException refused) {
+                    continue;
+                }
+                boolean own = opening instanceof Sessions.Opening.Held
+                        || opening instanceof Sessions.Opening.Named n && n.name() == null;
+                assertEquals(own, com.legend.executionplan.ConnectionSpecification.platformMakes(plan.specification()),
+                        type + " " + spec.getClass().getSimpleName() + ": " + opening);
+            }
+        }
+    }
 }

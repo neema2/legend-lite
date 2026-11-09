@@ -70,7 +70,7 @@ class CsvLoadRenderTest {
         for (String text : List.of("A,B\n\"x\"q,y", "A,B\n\"x,y\n")) {
             assertThrows(com.legend.base.CsvCells.Malformed.class, () -> com.legend.base.CsvCells.rows(text), text);
         }
-        // a record of another width than the header's is refused, never padded or cut (upstream binds too few values,
+        // a data record of another width than the table's is refused, never padded or cut (upstream binds too few values,
         // or fails on the extra cell); an empty line is a record of one cell, a NULL row in a one-column table
         for (String text : List.of("A,B\nx", "A,B\nx,y,z", "A,B\nx,y\n\nz,w")) {
             assertThrows(com.legend.base.CsvCells.Malformed.class,

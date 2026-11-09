@@ -331,48 +331,83 @@ public final class PlanSessions {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
             case ExecutionPlan.Database.Platform p -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                    () -> Sessions.openPrivate(p.type())));
+                    () -> made(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
+                    refuseFill(target, d, "a database its connector opens");
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Url u -> Sessions.open(u);
+                    case Sessions.Opening.Url u -> {
+                        refuseFill(target, d, "a database reached by a URL");
+                        yield Sessions.open(u);
+                    }
                     // a named in-memory database is kept alive by its name: the user's, else one per project and
-                    // connection (D5); each use opens a connection the caller closes
-                    case Sessions.Opening.Named n -> Sessions.openNamed(n, n.name() != null ? n.name()
-                            : "c_" + key.hex().substring(0, 16));
+                    // connection (D5), made once with the project's Data (its maker kept as the marker); each use
+                    // opens a connection the caller closes
+                    case Sessions.Opening.Named n -> {
+                        if (n.name() != null) {
+                            refuseFill(target, d, "an in-memory database the user named ('" + n.name() + "')");
+                            yield Sessions.openNamed(n, n.name());
+                        }
+                        String name = "c_" + key.hex().substring(0, 16);
+                        PROJECTS.getOrOpenSlowly(key, Sessions::closed, () -> made(Sessions.openNamed(n, name), target));
+                        yield Sessions.openNamed(n, name);
+                    }
                     case Sessions.Opening.Held h -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                            () -> made(Sessions.openHeld(h), target, d.project())));
+                            () -> made(Sessions.openHeld(h), target)));
                 };
             }
         };
     }
 
-    /** {@code session} made into the project's database: the target's ONCE loads (the project's Data rows, S145) run
-     *  on it once, as a run of their own (THE WALL: a statement is sent only inside a plan's run), under the SEED mark;
-     *  a failure closes it. Kept by the caller for the process. */
-    private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target,
-            ExecutionPlan.@com.legend.base.Nullable Project project) {
-        if (project != null && project.refused() != null) {
-            // the model's Data rows cannot make it: refused where it is made, as the server refused before hole 7
-            String refused = project.refused();
-            return closedOnFailure(session, () -> {
-                throw new IllegalArgumentException(refused);
-            });
-        }
+    /** {@code session} made into the project's database: the project's refusal raised, then the target's ONCE loads
+     *  (the project's Data rows, S145) run on it once, as a run of their own (THE WALL: a statement is sent only inside a
+     *  plan's run), under the SEED mark; a failure closes it. Kept by the caller for the process; each query's
+     *  PER_ACQUISITION loads run on the session it acquires ({@link #acquired}). */
+    private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target) {
         return closedOnFailure(session, () -> {
+            refuseRefused(target);
             try (var run = com.legend.base.RunScope.enter()) {
                 loads(session, target, ExecutionPlan.Load.Cadence.ONCE);
             }
         });
     }
 
+    /** The project's refusal, raised where its database would be made (the model's Data rows cannot make it). */
+    private static void refuseRefused(ExecutionPlan.Target target) {
+        ExecutionPlan.Project project = switch (target.database()) {
+            case ExecutionPlan.Database.Declared d -> d.project();
+            case ExecutionPlan.Database.Platform p -> p.project();
+            case ExecutionPlan.Database.System s -> null;
+        };
+        if (project != null && project.refused() != null) {
+            throw new IllegalArgumentException(project.refused());
+        }
+    }
+
+    /** A project's Data (a ONCE load), or its refusal, for a database the platform does not make: refused by name, never
+     *  loaded into the user's own database nor skipped (the planner plans neither there: ConnectionSpecification's
+     *  platformMakes, the one rule). */
+    private static void refuseFill(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
+        boolean fills = target.loads().stream().anyMatch(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE);
+        if (fills || (d.project() != null && d.project().refused() != null)) {
+            throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is " + what
+                    + ", and the plan fills it with its project's Data: never run on it");
+        }
+    }
+
     /** {@code session} with {@code target}'s loads established on it, as a run of their own; a load that fails closes
      *  the session it was opened for, the load's failure the one told. */
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
-        return closedOnFailure(session, () -> loads(session, target));
+        // a database the platform made for the target: the project's refusal, its Data (ONCE), then what each
+        // acquisition establishes (the M1 tenets audit's finding 1: until then the ONCE loads were skipped here)
+        return closedOnFailure(session, () -> {
+            refuseRefused(target);
+            loads(session, target, ExecutionPlan.Load.Cadence.ONCE);
+            loads(session, target);
+        });
     }
 
     /** {@code session} after {@code work} ran on it; closed, and the failure raised, where {@code work} fails. */

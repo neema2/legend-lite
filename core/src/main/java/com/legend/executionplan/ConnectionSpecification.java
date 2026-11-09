@@ -25,6 +25,15 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Databricks,
                 ConnectionSpecification.BigQuery {
 
+    /** Whether the platform MAKES the database a connection of {@code spec} names (an in-memory database: an
+     *  {@code InMemory} one, or legend-engine's {@code LocalH2}), as opposed to one the user names or a server holds.
+     *  A project's Data rows load only into a database the platform makes (the M1 tenets audit's finding 1,
+     *  2026-11-09): the planner plans the fill only there, and exec refuses a fill for any other. The one rule both
+     *  read; {@code exec.ConnectorsTest} holds it equal to each connector's opening (held, or named by the opener). */
+    static boolean platformMakes(ConnectionSpecification spec) {
+        return spec instanceof InMemory || spec instanceof LocalH2;
+    }
+
     /**
      * In-memory database connection (DuckDB / SQLite / H2). No configuration.
      * Pure: {@code specification: InMemory {};}.
