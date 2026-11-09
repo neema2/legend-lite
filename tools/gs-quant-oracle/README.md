@@ -83,7 +83,10 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
 - **`ledger.tsv`** (and `ledger-adversarial-raw.tsv`, `ledger-adversarial-adjusted.tsv`): each case, `<word> <args>`
   (over a fixture ` @<symbol>`): `gsquant` (snap.py's: OK, GS_ERROR, SKIP), `duckdb` (the parity test's: PASS, DIFF,
   REFUSED, GS_ERROR, SKIP), `register` (the row that rules a DIFF), `digest` (the sha256 of the series' row, its
-  `dates` and `values` written canonically: `--check` holds a live run to it, so drift shows from the ledger alone),
+  `dates` and `values` written canonically: `--check` holds a live run to it, and where the bytes differ to the
+  snapped answer, each value within 1e-10 of its series' scale -- a platform's last bits are not drift: the answers
+  snapped on the contributor's machine and the same pins on Linux x86-64 differ by at most 3.2e-12 of a value, measured
+  2026-11-09, `DRIFT_TOLERANCE`),
   `note` (`dup-span`: the series covers a date a line it reads holds two rows on), and `why`, in two halves: gs-quant's
   (snap.py's: its points, its count of values on each date a line holds two rows on, or the frame of gs-quant it raised
   in) and, after ` | lite: `, the parity test's account of a DIFF or a REFUSED. Each writer rewrites its own half; the

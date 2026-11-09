@@ -149,7 +149,8 @@ def line_cases(path=MAPPING):
         if m:
             for part in m.group(1).split(", "):
                 k, v = part.split(": ")
-                words[-1]["known"][k] = v
+                # a key with a comma is double-quoted (YAML's flow map splits a plain one there)
+                words[-1]["known"][k[1:-1] if k.startswith('"') and k.endswith('"') else k] = v
             continue
         m = re.match(r"      - \[(.*)\]$", line)
         if m:
@@ -358,6 +359,33 @@ def digest(dates, values):
     """A series' sha256, as the ledger's digest column holds it: its row's dates and values, written canonically."""
     text = json.dumps({"dates": dates, "values": values}, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+#: how far a live value may sit from the snapped one and be the same answer: a platform's floating point, not
+#: gs-quant -- the answers snapped on the contributor's machine and gs-quant at the same pins on Linux x86-64 differ by
+#: at most 3.2e-12 of a value (macd; most below 1e-14), measured 2026-11-09 (docs/TS_DECISIONS_2026_11_07.md item 14f).
+#: A tenth of the parity test's 1e-9: what moves less is no DRIFT, what the judge could see always is.
+DRIFT_TOLERANCE = 1e-10
+
+
+def drift(live, snapped):
+    """Why a live series is not the snapped one, or None where it is, within DRIFT_TOLERANCE of the series' scale (the
+    judge's rule for a level: its largest magnitude, at least 1)."""
+    if snapped is None:
+        return "no snapped series"
+    if live["dates"] != snapped["dates"]:
+        return "its dates moved"
+    if len(live["values"]) != len(snapped["values"]):
+        return "its point count moved"
+    numbers = [abs(v) for v in snapped["values"] if isinstance(v, float) or isinstance(v, int)]
+    scale = max([1.0] + numbers)
+    for d, (a, b) in enumerate(zip(live["values"], snapped["values"])):
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if abs(a - b) > DRIFT_TOLERANCE * scale:
+                return "a value moved by " + format(abs(a - b), ".3g") + " at its point " + str(d)
+        elif a != b:
+            return "a value's kind moved at its point " + str(d)
+    return None
 
 
 def value_text(v):
@@ -805,7 +833,7 @@ def one(m, args, suffix, data_sha, runs, where, version):
     if ledger_pin != version:
         problems.append("STALE: " + os.path.relpath(ledger_file, ROOT) + "'s header names " + str(ledger_pin)
                         + ", the pins are " + version)
-    live = {row_key(r, fixture): digest(r["dates"], r["values"]) for r in rows}
+    live_rows = {row_key(r, fixture): r for r in rows}
     for key, entry in meta_cases.items():
         was = old_meta["cases"].get(key)
         if was is None:
@@ -814,9 +842,13 @@ def one(m, args, suffix, data_sha, runs, where, version):
             problems.append("STALE: " + key)
         elif was["status"] != entry["status"] or was.get("error") != entry.get("error"):
             problems.append("DRIFT: " + key + ": " + was["status"] + " then, " + entry["status"] + " now")
-        elif entry["status"] == "OK" and (old_ledger.get(key) or [""] * 7)[4] != live[key]:
-            # the ledger's digest alone: a live series that is not the one snapped
-            problems.append("DRIFT: " + key + " (its series' digest is not the ledger's)")
+        elif entry["status"] == "OK":
+            r = live_rows[key]
+            if (old_ledger.get(key) or [""] * 7)[4] != digest(r["dates"], r["values"]):
+                # not the bytes snapped: DRIFT unless every value is the snapped one within a platform's last bits
+                moved = drift(r, old_points.get(key))
+                if moved:
+                    problems.append("DRIFT: " + key + " (" + moved + ")")
     for key in old_meta["cases"]:
         if (not args.only or fnmatch.fnmatchcase(key, args.only)) and key not in meta_cases:
             problems.append("GONE: " + key)

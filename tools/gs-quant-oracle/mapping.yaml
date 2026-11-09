@@ -115,7 +115,7 @@ words:
     gs: statistics.percentile
     src: statistics.py:1035
     note: "n required on both sides; lite's default window is to date (all), gs-quant's w=None one number of the whole line, which lite asks for by name (whole, judged on every date)"
-    known: {n=90,w=3mo: S149}
+    known: {"n=90,w=3mo": S149}
     cases:
       - [n=50, "percentile({x}, 50)", "ts.percentile(x, 50, Window(None, 0))"]
       - ["n=50,w=whole", "percentile({x}, 50, whole)", "ts.percentile(x, 50)"]

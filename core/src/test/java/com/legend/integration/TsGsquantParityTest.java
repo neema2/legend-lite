@@ -140,7 +140,8 @@ class TsGsquantParityTest {
             } else if ((m = KNOWN.matcher(line)).matches()) {
                 for (String part : m.group(1).split(", ")) {
                     String[] kv = part.split(": ");
-                    known.put(kv[0], kv[1]);
+                    // a key with a comma is double-quoted (YAML's flow map splits a plain one there)
+                    known.put(kv[0].startsWith("\"") && kv[0].endsWith("\"") ? kv[0].substring(1, kv[0].length() - 1) : kv[0], kv[1]);
                 }
             } else if ((m = SRC.matcher(line)).matches()) {
                 src = m.group(1);
