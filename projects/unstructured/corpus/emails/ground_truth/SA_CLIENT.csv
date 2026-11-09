@@ -1,0 +1,9 @@
+CLIENT_ID,LEGAL_NAME,CLIENT_TYPE,DOMICILE,TIER,COVERAGE_DESK
+C-01,Quillon Asset Management LLC,AssetManager,US,Tier1,IGCredit
+C-02,Brantoak Capital Partners LP,HedgeFund,US,Tier1,HYCredit
+C-03,Sorrelmead Teachers Pension Fund,Pension,CA,Tier1,ECM
+C-04,Velmara Life Assurance plc,Insurer,GB,Tier2,IGCredit
+C-05,Ysolde Sovereign Reserve Authority,SovereignWealth,SG,Tier1,Rates
+C-06,Hallerbrunn Privatbank AG,PrivateBank,CH,Tier3,EquitiesCash
+C-07,Corvane Treasury Services Inc.,Corporate,US,Tier3,FX
+C-08,Ostermark Global Credit Fund,HedgeFund,LU,Tier2,HYCredit
