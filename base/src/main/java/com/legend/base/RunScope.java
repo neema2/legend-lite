@@ -95,15 +95,25 @@ public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> JUDGING = ThreadLocal.withInitial(() -> new int[1]);
 
-    /** What refuses planning on this thread: a run, or a judgment decided after one. */
+    /** What refuses planning on this thread: a run, or a judgment decided after one, or a run's caller called back. */
     private static String busy() {
-        return DEPTH.get()[0] > 0 ? "a plan runs" : "a judgment is decided after its run";
+        return DEPTH.get()[0] > 0 ? "a plan runs"
+                : "a judgment is decided after its run, or a run's caller is called back for it";
     }
 
     /** A judgment decided AFTER a run (a held compatibility appeal, P1, 2026-11-07): it plans nothing -- the planning
      *  seams refuse as inside a run -- and reads only plans planned ahead, each a run of its own. Close it when the
      *  judgment ends. */
     public static Judging judging() {
+        JUDGING.get()[0]++;
+        return () -> JUDGING.get()[0]--;
+    }
+
+    /** A run's caller called back around it (the full audit's must-fix, 2026-11-09: the wall's blind spot at exec's
+     *  entry): the sink a caller makes from the plan, the session it opens for the plan's target, the answer's sink --
+     *  each called before the plan's run scope opens ({@link #enter}) -- plan nothing; planning is refused as inside a
+     *  run. Exec's runs hold it from their entry to their end. Close it when the run ends. */
+    public static Judging callingBack() {
         JUDGING.get()[0]++;
         return () -> JUDGING.get()[0]--;
     }

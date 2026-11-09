@@ -477,9 +477,12 @@ public final class PureV1Api {
             case OBJECTS -> throw new IllegalArgumentException(
                     "ARROW_IPC answers a relation query; a graph fetch under it is refused (upstream's answer unprobed)");
             case RELATION -> {
+                // the compiler's column types read NOW, before the run: the writer the run calls back reads no
+                // compiled query (the full audit, 2026-11-09)
+                Map<String, com.legend.compiler.element.type.Type> declared = declaredTypes(query.resultType());
                 java.util.function.Function<List<com.legend.executionplan.ExecutionPlan.Column>, Map<String, String>>
                         metadata = columns -> {
-                            com.legend.result.PureV1Writer.Envelope e = envelope(query.resultType(),
+                            com.legend.result.PureV1Writer.Envelope e = envelope(declared,
                                     plan.answerSql().statement(), columns);
                             Map<String, String> m = new LinkedHashMap<>();
                             m.put("legend.builder", e.builder());
@@ -565,12 +568,15 @@ public final class PureV1Api {
         return switch (plan.answerShape()) {
             case OBJECTS -> com.legend.result.PureV1Writer.objects(out);
             case RELATION -> {
+                // the compiler's column types read NOW, before the run: the writer the run calls back for a dynamic
+                // pivot's announced columns reads no compiled query (the full audit, 2026-11-09)
+                Map<String, com.legend.compiler.element.type.Type> declared = declaredTypes(query.resultType());
                 List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
                 if (stated == null) {
                     yield com.legend.result.PureV1Writer.relation(out,
-                            columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
+                            columns -> envelope(declared, plan.answerSql().statement(), columns));
                 }
-                com.legend.result.PureV1Writer.Envelope made = envelope(query.resultType(),
+                com.legend.result.PureV1Writer.Envelope made = envelope(declared,
                         plan.answerSql().statement(), stated);
                 yield com.legend.result.PureV1Writer.relation(out, columns -> made);
             }
@@ -587,12 +593,19 @@ public final class PureV1Api {
     /** A relation's envelope for the columns the run announced: each column's builder entry by the type the compiler
      *  gave it (a column only the data names -- a dynamic pivot's -- by its plan type, a primitive), the relational
      *  activity carrying {@code sql}, and the columns' names as the engine labels them. */
-    private static com.legend.result.PureV1Writer.Envelope envelope(com.legend.compiler.element.type.ExprType rootType,
-            String sql, List<com.legend.executionplan.ExecutionPlan.Column> columns) {
+    private static Map<String, com.legend.compiler.element.type.Type> declaredTypes(
+            com.legend.compiler.element.type.ExprType rootType) {
         Map<String, com.legend.compiler.element.type.Type> declared = new LinkedHashMap<>();
         for (var c : UpstreamRelationType.columns(rootType)) {
             declared.put(c.name(), c.type());
         }
+        return declared;
+    }
+
+    /** {@link #envelope} over the column types the compiler gave the query's relation ({@link #declaredTypes}). */
+    private static com.legend.result.PureV1Writer.Envelope envelope(
+            Map<String, com.legend.compiler.element.type.Type> declared, String sql,
+            List<com.legend.executionplan.ExecutionPlan.Column> columns) {
         List<Map<String, Object>> builderColumns = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (var c : columns) {
@@ -696,8 +709,8 @@ public final class PureV1Api {
             if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
                 out.put("builder", Map.of("_type", "json"));
             } else {
-                com.legend.result.PureV1Writer.Envelope e = envelope(hosted.query().resultType(), statement,
-                        result.columns());
+                com.legend.result.PureV1Writer.Envelope e = envelope(declaredTypes(hosted.query().resultType()),
+                        statement, result.columns());
                 out.put("builder", Json.parse(e.builder()));
                 out.put("activities", Json.parse(e.activities()));
                 out.put("columns", e.names());

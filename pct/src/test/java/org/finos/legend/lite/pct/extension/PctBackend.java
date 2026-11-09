@@ -148,13 +148,12 @@ public final class PctBackend {
      * connection; a server lane's a new SYSTEM session per query (the one that holds a session's own tables --
      * ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session statements make for
      * the system metamodel store), closed after; but where the backend holds a session (a cloud's) and the plan's
-     * session statements are its dialect's options alone, the held one ({@code planned}: the target the query's plan
-     * answers on, null for a constant -- asked of such a lane alone). Round 14 measured why (2026-11-03): a plain lane
+     * session statements are its dialect's options alone, the held one (the target the query's plan answers on, which
+     * the run hands the source). Round 14 measured why (2026-11-03): a plain lane
      * session, as the door's first route opened, lost getAll::testBasic on ClickHouse (a temporary table lives in its
      * HTTP session) and Snowflake (no current schema).
      */
-    public static com.legend.exec.SessionSource executionSource(
-            java.util.function.Supplier<com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target> planned) {
+    public static com.legend.exec.SessionSource executionSource() {
         TestBackend backend = backend();
         if (ownSessions(backend)) {
             return target -> {
@@ -180,8 +179,8 @@ public final class PctBackend {
             try {
                 Connection held = backend.held();
                 if (held != null) {
-                    com.legend.executionplan.ExecutionPlan.Target t = planned.get();
-                    if (t == null || optionsOnly(t)) {
+                    // the target the plan answers on (a constant answer opens no session at all)
+                    if (optionsOnly(target)) {
                         com.legend.exec.Sessions.Session s = heldSession;
                         if (s == null) {
                             s = com.legend.testbackend.TestSessions.over(held);

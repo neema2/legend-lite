@@ -64,8 +64,10 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model), query, runtime, com.legend.exec.PlanSessions.PROJECT_DATABASES,
-                    PlanSessions.shared(), p -> sink.of(p));
+            // the server's own route (2026-11-09: the server's plans alone name the project's database)
+            plan = Execution.runOnProjectDatabases(
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model)), query), runtime,
+                    p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

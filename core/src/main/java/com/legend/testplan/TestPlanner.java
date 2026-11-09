@@ -79,8 +79,9 @@ public final class TestPlanner {
             // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
             bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
             // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the
-            // database's): a body holding an assert of a shape the judge's planner does not plan yet has none, and the
-            // walk runs it (a named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
+            // database's): a body holding an assert of a shape the judge's planner does not plan yet has none, and is
+            // refused by name below (the walk that ran it is deleted; a named rule over its shape:
+            // AssertVerdicts.planHost; the database arms answering null)
             boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
             // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so
             // its asserts are planned on the system database's TARGET and its program's target is that database, whose
@@ -183,9 +184,9 @@ public final class TestPlanner {
     /**
      * {@code given} PLANNED NOW, to run later on a session of the same database (zero exemptions, the owner,
      * 2026-11-05): a runner's fixture program planned with the assert whose compatibility appeal provides it, and run
-     * where the appeal provides it -- inside the body's run, which plans nothing. A body that judges nothing (an effect
-     * or query program, no assert) planned whole by the test door as {@link #plan} plans it; null for any other
-     * (the walk's, an assert's, a system-routed body's), which the caller cannot plan ahead.
+     * by the caller between the body's plan and its run (hole 4, 2026-11-08: {@code PlannedAppeals.stores}). A body
+     * that judges nothing (an effect or query program, no assert) planned whole by the test door as {@link #plan} plans
+     * it; null for any other (an assert's, a system-routed body's), which the caller cannot plan ahead.
      */
     public static @Nullable TestPlan planned(TypedQuery given, @Nullable String runtimeFqn,
             SqlDialect dialect, PlanningOptions options) {

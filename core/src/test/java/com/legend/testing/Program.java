@@ -60,8 +60,8 @@ public final class Program {
      *  with no property): core's tests of verdicts run under each judge alone and under both, as channel B's suites
      *  do (the core parity program, 2026-11-03: the user's "100% parity on host+database on our core tests"). A test
      *  that passes its own options keeps its own judge. */
-    public static ExecuteOptions.JudgeMode laneJudge() {
-        return ExecuteOptions.JudgeMode.valueOf(System.getProperty("legend.test.judge", "HOST"));
+    public static com.legend.testplan.PlanningOptions.JudgeMode laneJudge() {
+        return com.legend.testplan.PlanningOptions.JudgeMode.valueOf(System.getProperty("legend.test.judge", "HOST"));
     }
 
     /** The last statement's side of {@code body} run through the program entry, read through the twin's reader: for

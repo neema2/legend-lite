@@ -9,7 +9,7 @@ import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -70,7 +70,7 @@ class LiteralChannelTest {
     private static Lean.Result runBoth(String query) throws SQLException {
         return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
                 com.legend.ExecuteOptions.NONE.withJudgeMode(
-                        com.legend.ExecuteOptions.JudgeMode.BOTH));
+                        com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
     }
 
     @Test

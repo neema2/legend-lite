@@ -58,10 +58,16 @@ public record ProjectData(String name, List<String> open, List<String> use, List
      * makes them with) and its Data rows ({@link #rowsKey}). Two models that agree on both hold the same database.
      */
     public static String contentKey(ModelContext ctx) {
+        return storesKey(ctx) + "--\n" + rowsKey(ctx);
+    }
+
+    /** What the model's stores are, as text: every Database it declares (its tables' shapes). The platform's own
+     *  database is keyed by this alone: it is filled with nothing. */
+    public static String storesKey(ModelContext ctx) {
         StringBuilder out = new StringBuilder();
         ctx.databases().sorted(java.util.Comparator.comparing(DatabaseDefinition::qualifiedName))
                 .forEach(db -> out.append(db).append('\n'));
-        return out.append("--\n").append(rowsKey(ctx)).toString();
+        return out.toString();
     }
 
     /**

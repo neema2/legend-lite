@@ -107,7 +107,7 @@ public final class CapabilityReach {
     private static SqlQuery lower(Map<String, Object> models, String model, String expression) {
         Object built = models.computeIfAbsent(model, m -> {
             try {
-                return Compiler.compileModel(com.legend.test.StorelessRuntime.with(m, DatabaseType.DuckDB));
+                return Compiler.compileModel(com.legend.testbackend.StorelessRuntime.with(m, DatabaseType.DuckDB));
             } catch (RuntimeException e) {
                 return e;
             }
@@ -116,7 +116,7 @@ public final class CapabilityReach {
             throw e;
         }
         return Compiler.query((ModelContext) built, expression)
-                .lower(com.legend.test.StorelessRuntime.RUNTIME, true).plan();
+                .lower(com.legend.testbackend.StorelessRuntime.RUNTIME, true).plan();
     }
 
     /** Records every function and aggregate a statement holds, changing nothing. */

@@ -228,8 +228,21 @@ public final class TypedQuery {
      *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features) {
+        return planned(runtime, features, false);
+    }
+
+    /** The query planned as the server runs it (legend-engine's {@code pure/v1/execution/execute}): its target names
+     *  the project's own database, made from the model's stores and filled with its Data rows where it is made
+     *  ({@code ExecutionPlan.Project}). Every other road plans {@link #executionPlan}: the database itself (the full
+     *  audit, 2026-11-09). */
+    public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime) {
+        return planned(runtime, java.util.Set.of(), true);
+    }
+
+    private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
-            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features);
+            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
             if (Boolean.getBoolean("legend.plan.roundtrip")) {
                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
             }

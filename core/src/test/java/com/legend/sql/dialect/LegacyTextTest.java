@@ -33,9 +33,9 @@ class LegacyTextTest {
         String body = "|meta::relational::functions::sqlstring::toSQLString(" + query
                 + ", test::M, meta::relational::runtime::DatabaseType.H2, [])";
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            var r = Program.last(com.legend.test.StorelessRuntime.with(MODEL,
+            var r = Program.last(com.legend.testbackend.StorelessRuntime.with(MODEL,
                     com.legend.model.ConnectionDefinition.DatabaseType.DuckDB), body,
-                    com.legend.test.StorelessRuntime.RUNTIME, c);
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, c);
             return String.valueOf(r.one());
         }
     }

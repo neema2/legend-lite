@@ -169,7 +169,8 @@ class HarnessDisciplineTest {
             // map largest-first. 2 -> 3 (§E3 slack census): the slack
             // report, same display-only shape. 3 -> 2 (2026-10-29, the doors' audit D64): the slack report
             // deleted with the wire census's arm, callerless since the plan runner.
-            Map.entry("SqlTypeCensus.java", 2),
+            // (SqlTypeCensus.java 2 -> deleted 2026-11-09, the full audit: the census had no feeder; with its static
+            // state, the class went)
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's

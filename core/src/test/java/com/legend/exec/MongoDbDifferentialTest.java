@@ -426,7 +426,7 @@ class MongoDbDifferentialTest {
     /** {@code expression}'s typed plan. */
     private static ExecutionPlan plan(String model, String expression) {
         return Compiler.query(Compiler.compileModel(model), expression)
-                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME);
+                .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME);
     }
 
     private static String run(String model, String expression, PlanCases.Written output) throws Exception {

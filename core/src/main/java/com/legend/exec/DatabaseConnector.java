@@ -93,7 +93,7 @@ public interface DatabaseConnector {
     }
 
     /** The specification and authentication a storeless runtime declares for this database's in-process session
-     *  ({@code test.StorelessRuntime}), in the model's connection grammar. */
+     *  ({@code testbackend.StorelessRuntime}, the tests'), in the model's connection grammar. */
     default String storelessDeclaration() {
         throw new IllegalArgumentException("no storeless runtime on " + type()
                 + ": the platform does not execute on it");

@@ -93,7 +93,7 @@ class DeclaredQuotedTableH2Test {
     private static String execute(String body) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             var r = Program.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
-                    com.legend.test.StorelessRuntime.RUNTIME, c);
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, c);
             return String.valueOf(r.one());
         }
     }

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.test;
+package com.legend.testbackend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
@@ -88,6 +88,6 @@ public final class StorelessRuntime {
     /** The connection's specification and authentication, as the in-process session on {@code type} is opened: its
      *  connector's ({@code exec.DatabaseConnector.storelessDeclaration}). */
     private static String specificationAndAuth(DatabaseType type) {
-        return com.legend.exec.Connectors.named(type.name()).storelessDeclaration();
+        return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).storelessDeclaration();
     }
 }

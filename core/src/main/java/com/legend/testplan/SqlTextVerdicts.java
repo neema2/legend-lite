@@ -1616,18 +1616,16 @@ final class SqlTextVerdicts {
                 null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
 
-    /** The appeal's rows for an arm reaching its verdict under {@code env}: an arm re-run over a step's texts reads
-     *  rows planned with the assert; an arm reached outside any run (planned for the program
-     *  road under either judge, or walked) under the compatibility rules, whose text may fail -- not byte-equal, or a
-     *  text the step reads -- plans them now, naming each store they read for the harness to provide before the
-     *  body's run (the plan's data, {@code PlannedAppeals.stores}: step 8c and hole 4); else none -- inside a run
-     *  nothing is planned, and an
-     *  appeal with no rows planned is refused there by the runtime wall, by name. */
+    /** The appeal's rows for an arm planned under {@code env} under the compatibility rules, whose text may fail --
+     *  not byte-equal, or a text the step reads: planned now, naming each store they read for the harness to provide
+     *  before the body's run (the plan's data, {@code PlannedAppeals.stores}: step 8c and hole 4); else none. Planning
+     *  is never inside a run (the wall's {@code RunScope.plans} refuses it; the full audit, 2026-11-09: the check of a
+     *  run in force here could never hold, and read the wall as a channel). */
     private static @com.legend.base.Nullable RowsAhead rowsAhead(BodyDriver.ExecEnv env, boolean textEqual,
             TypedSpec rowsRead, @com.legend.base.Nullable TypedSpec populationRead,
             @com.legend.base.Nullable String mappingFqn, List<TypedSpec> letPrefix, SpecCompiler specs,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        if (!appeals(env) || textEqual || com.legend.base.RunScope.running()) {
+        if (!appeals(env) || textEqual) {
             return null;
         }
         // the stores the rows leg reads, named in the plan's data: the harness is asked for their fixtures before the

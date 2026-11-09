@@ -149,10 +149,10 @@ public final class TestDoor {
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
         boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
-        // the session the body runs on: its runtime's target, planned (slice 5, 2026-11-09: the door planned it beside
-        // the plan until then)
+        // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
+        // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.runtimeTarget(body.context(), runtime));
+                PlanMaker.testSessionTarget(body.context(), runtime));
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

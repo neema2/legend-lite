@@ -217,8 +217,6 @@ public final class PlanSessions {
         }
     }
 
-    /** {@code session} with {@code target}'s setup run on it; a setup that fails closes the session it was opened
-     *  for, the setup's failure the one told. */
     /** The projects' own databases (C5), kept by their identity: made once, then reused. */
     private static final HandleStore<Sessions.Session> PROJECTS = new HandleStore<>();
 
@@ -240,7 +238,9 @@ public final class PlanSessions {
      * establishes a connection on every acquisition.
      */
     public static Sessions.Session projectDatabase(ExecutionPlan.Target target) {
-        ExecutionPlan.Target identity = new ExecutionPlan.Target(target.database(), java.util.List.of(),
+        // the database's identity: its connection and its project's key -- never the statements that make it, which
+        // the key already names (the full audit, 2026-11-09: the whole fill was serialized and hashed on every open)
+        ExecutionPlan.Target identity = new ExecutionPlan.Target(identityOf(target.database()), java.util.List.of(),
                 java.util.List.of());
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(identity));
         return switch (target.database()) {
@@ -266,6 +266,21 @@ public final class PlanSessions {
         };
     }
 
+    /** {@code database} as its identity: a project named by its key alone (its statements dropped). */
+    private static ExecutionPlan.Database identityOf(ExecutionPlan.Database database) {
+        return switch (database) {
+            case ExecutionPlan.Database.Declared d -> d.project() == null ? d
+                    : new ExecutionPlan.Database.Declared(d.connection(), keyOnly(d.project()));
+            case ExecutionPlan.Database.Platform p -> p.project() == null ? p
+                    : new ExecutionPlan.Database.Platform(p.type(), keyOnly(p.project()));
+            case ExecutionPlan.Database.System s -> s;
+        };
+    }
+
+    private static ExecutionPlan.Project keyOnly(ExecutionPlan.Project project) {
+        return new ExecutionPlan.Project(project.key(), java.util.List.of(), project.refused());
+    }
+
     /** {@code session} made into the project's database: the project's {@code made} steps run on it once (the
      *  statements that make and fill its tables from the Data rows) as a run of their own (THE WALL: a statement is
      *  sent only inside a plan's run), under the SEED mark; a failure closes it. */
@@ -288,6 +303,8 @@ public final class PlanSessions {
         });
     }
 
+    /** {@code session} with {@code target}'s setup run on it; a setup that fails closes the session it was opened
+     *  for, the setup's failure the one told. */
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
         return closedOnFailure(session, () -> establish(session, target));
     }

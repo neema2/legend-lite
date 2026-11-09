@@ -152,4 +152,6 @@ ide	base door lexer model parser
 # between the body's plan and its run, where the run used to ask its listener for them.
 test	base compiler error exec execution_plan json model planner protocol result sql test_execution test_plan testexec values
 saved_queries	base json
-server_lib	base cache compiler compiler_element_type database error exec execution execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect
+# 2026-11-09 (the full audit): `server_lib` reaches no runtime library -- the server hands pure/v1 the product door;
+# `cache`, `lowering` and `setup` were declared and unused.
+server_lib	base compiler compiler_element_type database error execution execution_plan json model parser plan planner protocol pure_v1 result saved_queries sql_dialect

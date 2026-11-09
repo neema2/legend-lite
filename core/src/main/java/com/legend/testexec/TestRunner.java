@@ -39,7 +39,9 @@ public final class TestRunner {
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections, @Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Answer answer) {
-        try (Sessions.Session session = sessions.open(plan.session())) {
+        // the caller's session source is called back before the plan's run opens: it plans nothing
+        try (var callbacks = com.legend.base.RunScope.callingBack();
+                Sessions.Session session = sessions.open(plan.session())) {
             run(plan, session, systemConnections, edge, callers, referee, answer, StatementOrigin.OTHER);
         }
     }
@@ -60,47 +62,51 @@ public final class TestRunner {
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
-        // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
-        // judges tell the caller's listener through it, its reports kept back while an appeal is held
-        Appeals appeals = new Appeals(callers);
-        // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
-        BodyRun run = new BodyRun(appeals);
-        AssertListener listener = appeals.listener();
-        ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
-                : null;
-        // the graph's system database for a step that names it -- the body's own target when the body is
-        // system-routed, else the second, read-only session a statement reading the system store alone runs on
-        // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
-        // one, leased for the run), opened when a step first asks
-        try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
-            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    leases::sessionFor;
-            Moved moved = new Moved(plan, edge, answer, early, listener, run);
-            // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
-            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
-            Appeals.Decider decider = (n, golden, ours, textEqual, l, reader, sessions) ->
-                    com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
-                            golden, ours, textEqual, referee, l, reader, sessions);
-            try {
-                TestRun.run(plan, Map.of(), PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin),
-                        moved::textOrigin,
-                        moved, moved);
-            } catch (RuntimeException runFailed) {
-                // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is the
-                // body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a wall's
-                // refusal, the JVM's -- passes untouched: nothing is decided after it)
-                throw appeals.afterFailure(runFailed, session, systemSessions,
-                        sessionsByTarget(session, systemSessions), decider);
+        // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
+        // (the answer's sink is made first): they plan nothing (the full audit's must-fix, 2026-11-09)
+        try (var callbacks = com.legend.base.RunScope.callingBack()) {
+            // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
+            // judges tell the caller's listener through it, its reports kept back while an appeal is held
+            Appeals appeals = new Appeals(callers);
+            // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
+            BodyRun run = new BodyRun(appeals);
+            AssertListener listener = appeals.listener();
+            ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
+                    : null;
+            // the graph's system database for a step that names it -- the body's own target when the body is
+            // system-routed, else the second, read-only session a statement reading the system store alone runs on
+            // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
+            // one, leased for the run), opened when a step first asks
+            try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
+                java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
+                        leases::sessionFor;
+                Moved moved = new Moved(plan, edge, answer, early, listener, run);
+                // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
+                java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
+                Appeals.Decider decider = (n, golden, ours, textEqual, l, reader, sessions) ->
+                        com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
+                                golden, ours, textEqual, referee, l, reader, sessions);
+                try {
+                    TestRun.run(plan, Map.of(), PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin),
+                            moved::textOrigin,
+                            moved, moved);
+                } catch (RuntimeException runFailed) {
+                    // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is the
+                    // body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a wall's
+                    // refusal, the JVM's -- passes untouched: nothing is decided after it)
+                    throw appeals.afterFailure(runFailed, session, systemSessions,
+                            sessionsByTarget(session, systemSessions), decider);
+                }
+                // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is the
+                // body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the caller)
+                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
+                if (answer != null && plan.answersLastVerdict()) {
+                    // a body whose last statement is an assert answers its verdict as host rows, as the walk does
+                    com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-            // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is the
-            // body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the caller)
-            appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
-            if (answer != null && plan.answersLastVerdict()) {
-                // a body whose last statement is an assert answers its verdict as host rows, as the walk does
-                com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

@@ -3,7 +3,7 @@ package com.legend;
 import com.legend.testing.Lean;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -137,7 +137,7 @@ class AuditRound5Test {
         assertEquals(false, scalar("|test::GT.CITY == 1"));
         // ...but an Any operand is undecided: the lowering must not fold it
         // (LOUD or genuinely compared are both acceptable; false-by-fiat is not)
-        String sql = Compiler.query(Compiler.compileModel(com.legend.test.StorelessRuntime.with(MODEL, Databases.PLATFORM)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.test.StorelessRuntime.RUNTIME).sql();
+        String sql = Compiler.query(Compiler.compileModel(com.legend.testbackend.StorelessRuntime.with(MODEL, Databases.PLATFORM)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.testbackend.StorelessRuntime.RUNTIME).sql();
         assertTrue(!sql.contains("SELECT FALSE") && !sql.contains("SELECT false"),
                 "enum-vs-Any must not constant-fold: " + sql);
     }

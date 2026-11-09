@@ -334,11 +334,11 @@ public final class MinimalCorpus {
         }
         // the lane's argument (-Dlegend.judge.mode, judge-lanes.sh) is the RUN's
         // mode — handed to the runner once; nothing in the product reads it
-        com.legend.ExecuteOptions.JudgeMode judgeMode = switch (
+        com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
-            case "host" -> com.legend.ExecuteOptions.JudgeMode.HOST;
-            case "database" -> com.legend.ExecuteOptions.JudgeMode.DATABASE;
-            case "both" -> com.legend.ExecuteOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
+            case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+            case "database" -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
+            case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
                     + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };

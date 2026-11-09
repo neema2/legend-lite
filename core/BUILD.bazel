@@ -357,7 +357,9 @@ legend_java_library(
             "src/main/java/com/legend/server/PureV1Api.java",
         ],
     ),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":exec", ":execution", ":execution_plan", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":setup", ":sql_dialect"],
+    # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
+    # class; :cache, :lowering and :setup were unused
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [

@@ -1175,7 +1175,7 @@ final class ArchitectureTest {
             .that().resideInAnyPackage("com.legend.testplan..", "com.legend.planner..", "com.legend.testdatagen..",
                     "com.legend.compiler..", "com.legend.lowering..", "com.legend.resolver..")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
-            .orShould().dependOnClassesThat().belongToAnyOf(com.legend.Execution.class,
+            .orShould().dependOnClassesThat().belongToAnyOf(com.legend.Execution.class, com.legend.TestExecution.class,
                     com.legend.ExecuteOptions.class)
             .as("R2, slice 5: planning reaches no runtime class and not the door")
             .check(CORE_PROD_CLASSES);
@@ -1205,7 +1205,13 @@ final class ArchitectureTest {
     /** The planning libraries (R4, below): the compiler, the planners, the middle end, the generator's planning. */
     private static final java.util.List<String> PLANNING_PACKAGES = java.util.List.of("com.legend.compiler",
             "com.legend.planner", "com.legend.testplan", "com.legend.lowering", "com.legend.resolver",
-            "com.legend.normalizer", "com.legend.testdatagen");
+            "com.legend.normalizer", "com.legend.testdatagen",
+            // the rest of the plan side's libraries (the full audit, 2026-11-09: a class that renders or fills SQL and
+            // runs it was unseen): the dialects, the setup, the databases, the plan's text, the platform, the parser,
+            // the lexer, the built-ins, the protocol, the lineage, the validation
+            "com.legend.sql.dialect", "com.legend.setup", "com.legend.database", "com.legend.plan",
+            "com.legend.platform", "com.legend.parser", "com.legend.lexer", "com.legend.builtin",
+            "com.legend.protocol", "com.legend.lineage", "com.legend.validation");
 
     /** The running libraries (R4): the runtime and the test's run. */
     private static final java.util.List<String> RUNNING_PACKAGES = java.util.List.of("com.legend.exec",
@@ -1224,7 +1230,11 @@ final class ArchitectureTest {
     private static final java.util.Set<String> PLANNING_API = java.util.Set.of("com.legend.Compiler",
             "com.legend.TypedQuery", "com.legend.HeldModels", "com.legend.compiler.element.ModelContext",
             "com.legend.compiler.element.PureModelContext", "com.legend.planner.ProgramFacts",
-            "com.legend.testplan.PlanningOptions");
+            "com.legend.testplan.PlanningOptions", "com.legend.platform.Feature");
+
+    /** Planning's INPUT a caller builds and hands the compiler (R4): the parsed program, Pure's protocol values (a test
+     *  runner composes a test body's call; the full audit's widening of R4 to every planning library, 2026-11-09). */
+    private static final String PLANNING_INPUT_PACKAGE = "com.legend.protocol.";
 
     /** What a caller above the doors may name of running (R4): a session and where one comes from (the resource the
      *  caller owns and hands a door), and the types a door's run takes from it (the answer's sink, the referee). */
@@ -1274,6 +1284,7 @@ final class ArchitectureTest {
                 continue;
             }
             plans.removeAll(PLANNING_API);
+            plans.removeIf(t -> t.startsWith(PLANNING_INPUT_PACKAGE));
             runs.removeAll(RUN_API);
             if (!plans.isEmpty() || !runs.isEmpty()) {
                 composers.add(top + " reaches planning " + plans + " and running " + runs);
@@ -1287,6 +1298,7 @@ final class ArchitectureTest {
      *  options' three accessors. */
     private static final java.util.Set<String> DOOR_PLANNING_CALLS = java.util.Set.of(
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
+            "com.legend.TypedQuery#projectPlan",
             "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
             "com.legend.ExecuteOptions#systemConnections");
@@ -1367,9 +1379,12 @@ final class ArchitectureTest {
      *  (G4: "proven at run time (RunScope) and at compile time (ArchUnit)") -- a guard, never a channel. */
     @Test
     void noThreadLocalState() {
+        // any thread-scoped holder, a subclass of ThreadLocal or a ScopedValue included (the full audit, 2026-11-09:
+        // the rule matched ThreadLocal's raw type alone)
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
             .that().areDeclaredInClassesThat().doNotBelongToAnyOf(com.legend.base.RunScope.class)
-            .should().haveRawType(ThreadLocal.class)
+            .should().haveRawType(com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(ThreadLocal.class))
+            .orShould().haveRawType("java.lang.ScopedValue")
             .as("no thread-local state but the run-time wall's (RunScope)")
             .check(CORE_PROD_CLASSES);
     }
@@ -1997,7 +2012,7 @@ final class ArchitectureTest {
      * line-based regex {@code CodeShapeGuardrailTest.noStaticMutableState}, which a declaration split over two lines
      * escaped ({@code CanonicalDivergence.CONTEXT_SOURCE}, execution plan W0.2(d)). Its known limit: a final field may
      * still hold a mutable object (a queue, a map, an AtomicReference); collections are held by
-     * {@link #staticCollectionStateIsImmutableOrRegistered}, and the rest is the runner's to remove (W6.2).
+     * {@link #staticStateIsConstantOrRegistered} holds the rest (2026-11-09: until then collections alone).
      */
     @Test
     void staticFieldsAreFinal() {
@@ -2010,181 +2025,193 @@ final class ArchitectureTest {
                 .check(CORE_PROD_CLASSES);
     }
 
+    /** The kinds of static state the product may hold (the user's ruling of 2026-11-09: "do we want mutable state? fix
+     *  all of it"): anything else is a constant -- immutable, or a registry sealed once its class initialised
+     *  ({@code base.Sealed}). */
+    private enum StaticKind {
+        /** The run-time wall's thread-scoped depth (G4: proven at run time), the one thread-local of the product. */
+        RUN_GUARD,
+        /** A holder of the process's resources: the databases and sessions it keeps, a counter that names them. */
+        RESOURCE,
+        /** A memo of a pure function of constant inputs (the platform's tables, the boot model): an answer kept is the
+         *  answer computed again. */
+        CACHE,
+        /** Measurement: a census's counters, samples and attribution label -- written by the product, read only by its
+         *  own class's reports, never by a decision. */
+        MEASUREMENT,
+        /** A constant table held as an array for its speed (a digest's constants, a calendar's names): private, never
+         *  written after its class initialised. */
+        CONSTANT_ARRAY
+    }
+
+    /** THE STATIC STATE REGISTER (2026-11-09; until then {@code staticCollectionStateIsImmutableOrRegistered}, which saw
+     *  collections alone -- an atomic, an array, a shared dialect, a session store passed it): every static field of the
+     *  product holding a mutable object after its class initialised, by kind. Exact in both directions. */
+    private static final java.util.Map<String, StaticKind> STATIC_STATE = java.util.Map.ofEntries(
+            java.util.Map.entry("com.legend.base.RunScope.DEPTH", StaticKind.RUN_GUARD),
+            java.util.Map.entry("com.legend.base.RunScope.PLANNING", StaticKind.RUN_GUARD),
+            java.util.Map.entry("com.legend.base.RunScope.JUDGING", StaticKind.RUN_GUARD),
+            // the databases the process keeps: the server's project databases, the plans' own and named ones
+            java.util.Map.entry("com.legend.exec.PlanSessions.SHARED", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.NAMED", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.PROJECTS", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.ATTEMPTS", StaticKind.RESOURCE),
+            // the current system database of each engine, leased per run (hole 2)
+            java.util.Map.entry("com.legend.exec.SystemDatabase.CURRENT", StaticKind.RESOURCE),
+            // a private in-memory database's unique name
+            java.util.Map.entry("com.legend.exec.H2Connector.PRIVATE_IDS", StaticKind.RESOURCE),
+            // the boot model compiled once; a bare name's referents and a built call's names over the platform's tables
+            java.util.Map.entry("com.legend.Compiler.BOOT", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.compiler.BareNames.REFERENTS", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.compiler.NameResolver.BUILT", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.diagnostics.Census.COUNTS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.KEYED", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.FALLBACK_REASONS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.ATTRIBUTION", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CHANNEL_SEEN", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.DISAGREE_SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_FORMS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_DECLINES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_SIDE_ROWS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_DECLINE_WITNESSES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
+                    StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.SEEN", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.TABLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.ROWS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.sql.dialect.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.sql.dialect.SQLite.MONTHS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SQLite.DAYS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_S", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.SHA256_K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.cache.Sha256.K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.cache.Sha256.H0", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.MONTHS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.WEEKDAYS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.WEEK_STARTS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.lexer.TokenStream.TOKEN_TYPES", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.DATA_TYPE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.OP_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.PLAN_NODE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.CONNECTION_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.DATASOURCE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.VS_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.ACTIVITY_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.ELEMENT_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.lowering.DateFormats.FORMAT_TOKENS", StaticKind.CONSTANT_ARRAY));
+
+    /**
+     * NO STATIC STATE BUT THE REGISTER'S (the user's ruling of 2026-11-09, "do we want mutable state? fix all of it"):
+     * every static field of the product is read after its class initialised, and the object it holds is a constant --
+     * immutable, a lambda, a record or an enum, or a registry sealed once built ({@code base.Sealed}) -- or a field of
+     * {@link #STATIC_STATE}, by kind, and private (no other class reaches it: a census is read through its own reports,
+     * never by a decision; a cache or a resource through its class's methods). The register is exact: an entry whose
+     * field now holds a constant is stale.
+     */
     @Test
-    void staticCollectionStateIsImmutableOrRegistered() throws Exception {
-        java.util.Set<String> register = java.util.Set.of(
-                // CENSUS (block-compiler homework 2026-09-21): the fused
-                // statement's fallback reasons, appended by the batch's split
-                // rung, read by the corpus lanes only — no verdict reads it
-                // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): every count the lanes
-                // print or pin, one storage, one snapshot — read by the lanes and the
-                // divergence report only, never by a verdict
-                "com.legend.diagnostics.Census.COUNTS",
-                "com.legend.diagnostics.Census.KEYED",
-                "com.legend.diagnostics.Census.FALLBACK_REASONS",
-                // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
-                // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
-                "com.legend.diagnostics.Census.UNPLANNED_ASSERTS",
-                // (com.legend.base.RunScope.REPORTED left 2026-11-06 with the wall's report mode: nothing turns the
-                // wall off)
-                // write-once static-init tables (populated once in <clinit>,
-                // read-only thereafter) — burn-down: wrap immutable
-                "com.legend.lexer.Lexer.KEYWORDS",
-                "com.legend.lowering.Windows.FNS",
-                "com.legend.lowering.Windows.AGGREGATES",
-                "com.legend.lowering.Scalars.RULES",
-                "com.legend.lowering.FeatureRules.UNDER",
-                "com.legend.lowering.Aggregates.REDUCERS",
-                "com.legend.platform.CoreFn.BY_NAME",
-                "com.legend.builtin.Pure.ALL_CLASSES",
-                "com.legend.builtin.Pure.ALL_ENUMS",
-                "com.legend.builtin.Pure.ALL",
-                "com.legend.builtin.Pure$Index.CLASS_BY_FQN",
-                "com.legend.builtin.Pure$Index.ENUM_BY_FQN",
-                "com.legend.builtin.Pure$Index.FN_BY_FQN",
-                "com.legend.builtin.Pure$Index.FN_BY_ID",
-                "com.legend.builtin.Pure$Index.USER_RESOLVABLE_FQNS",
-                // the step-3 shadow diff's sinks (a probe, deleted at step 4)
-                "com.legend.probe.Shadow.SEEN",
-                "com.legend.probe.Shadow.TABLES",
-                "com.legend.probe.Shadow.ROWS",
-                "com.legend.compiler.NameResolver.PRELUDE_TYPES",
-                "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
-                "com.legend.parser.SectionGrammarRegistry.REGISTRY",
-                // warn-once diagnostic suppression set: genuinely mutable
-                // runtime state, bounded by the model's FQN universe
-                "com.legend.compiler.element.FunctionCompiler.SUPPRESSED_ONCE",
-                // live diagnostic ledger (Phase 0 honesty instrument):
-                // accumulates timings at runtime; content-addressing is
-                // meaningless for a metrics sink
-                // per-test wall of the same ledger (batch 8: the corpus
-                // dump names its 30 slowest tests)
-                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
-                // bounded witness sample for the harness-published
-                // table; measurement only, never verdict-affecting
-                "com.legend.testexec.CanonicalDivergence.SAMPLES",
-                // V7 dual-channel census (V7_ASSERT_VERDICT_CHARTER
-                // §4.1): per-form harness-vs-production verdict counts,
-                // bounded classified declines, bounded disagreement
-                // witnesses; measurement only — the CanonicalDivergence
-                // pattern
-                // (the SQL channel's reserved disagreement witness buffer
-                // went with the byte channel, 2026-11-07, the P1 audit's 4)
-                // §8.3b wobble burn: the BYTE channel's pinned-census
-                // witnesses get the same reserved buffer — a ±1 count
-                // wobble was unattributable because its rows sat past
-                // the shared 200-cap (decline-row crowding, the
-                // dual-verdict buffer's lesson re-learned); bounded by
-                // the exact-pinned disagree count (23); measurement only
-                "com.legend.testexec.CanonicalDivergence.DISAGREE_SAMPLES",
-                "com.legend.testexec.CanonicalDivergence.V7_FORMS",
-                // leg 3.0 (DATABASE_MODE_HOMEWORK §4a): the SQL canon's
-                // CLAIM / DECLINE census per assert family and reason —
-                // bounded by families × decline-reason heads (~40 keys);
-                // measurement only, printed by the corpus lanes, never
-                // read by a verdict
-                "com.legend.diagnostics.VerdictCensus.SQL_CENSUS",
-                "com.legend.testexec.CanonicalDivergence.V7_DECLINES",
-                "com.legend.testexec.CanonicalDivergence.V7_SAMPLES",
-                // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):
-                // per-ROW decline attribution, UNCAPPED by census
-                // doctrine but bounded by the sweep's own decline count
-                // (~420); measurement only, never verdict-affecting
-                "com.legend.testexec.CanonicalDivergence.V7_DECLINE_WITNESSES",
-                // slice-1 quarantine channel move (census §10h): the
-                // wall-surfaced quarantine tests, vocabulary-matched —
-                // bounded by the partition's own size (20 today);
-                // measurement only, never verdict-affecting
-                "com.legend.testexec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
-                // SQLTEXT slice 3a: the text-emission census's
-                // per-reason text-verdict tally (foreign dialects,
-                // replay declines) — bounded by decline-reason
-                // cardinality; measurement only, never
-                // verdict-affecting (the CanonicalDivergence pattern)
-                // TYPED-IR Slice 1: the label-lie census's classified
-                // counters (declared-vs-computed pair -> count);
-                // measurement only, never verdict-affecting — the
-                // CanonicalDivergence pattern
-                "com.legend.testexec.SqlTypeCensus.CLASSES",
-                // T3: bounded per-class WITNESSES (3 max each) — the
-                // emission-seam locator; measurement only
-                "com.legend.testexec.SqlTypeCensus.SAMPLES",
-                // §E3 M-N1: the nullability differential's classified
-                // counters + bounded witnesses (fact-vs-label nullable
-                // — the M-N3 flip payload); measurement only, the
-                // §4AD navigation-arm census: runtime accumulation,
-                // dumped by the corpus runner (NAV_ARM_CENSUS_4AD.md)
-                // SqlTypeCensus pattern (runtime accumulation is the
-                // legitimate static-census shape)
-                "com.legend.testexec.SqlTypeCensus.NUL_CLASSES",
-                "com.legend.testexec.SqlTypeCensus.NUL_SAMPLES",
-                // (the §E3 slack census's SLACK_CLASSES and SLACK_SAMPLES LEFT this allowlist 2026-10-29: deleted
-                // with the wire census's arm by the doors' audit, D64 -- callerless since the plan runner)
-                // the primitive census (2026-10-12, the coverage map, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): a
-                // tally per MIR primitive by outcome, bounded by the MIR's vocabulary; written only under
-                // -Dlegend.diagnostics=primitives; measurement only, never verdict-affecting (the SqlTypeCensus
-                // pattern)
-                "com.legend.testexec.PrimitiveCensus.TALLY",
-                // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
-                "com.legend.testexec.PrimitiveCensus.TESTS",
-                // com.legend.exec.SessionState.OF LEFT this register 2026-10-30 (D70, the seam's step A): the
-                // process-wide weak map keyed by the driver's connection is gone -- the state is the owning session's
-                // own, shared by its views (Sessions.Session.state()); a product session owns its connection
-                // (theProductBorrowsNoConnection), so nothing is wrapped as a session anew at every call any more
-                // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
-                // call may mean at an arity, computed from static tables (the engine surface, the core
-                // import group, the forms, the catalog) and kept per (name, arity) once computed; never
-                // cleared, never keyed by anything but those inputs
-                "com.legend.compiler.BareNames.REFERENTS",
-                // the resolver's answers for built calls (L7 step 3, 2026-10-10): per (name, arity) under the
-                // sectionless-query scope, from the same static inputs; never cleared
-                "com.legend.compiler.NameResolver.BUILT",
-                // the current system database of each engine (the plan-as-data design's hole 2, 2026-11-09): found by
-                // the plan's own target, one per engine plus those a run still leases; under the class's lock, never
-                // read by a verdict -- it replaced the graph-keyed cache in the compiled model (ModelContext.derived)
-                "com.legend.exec.SystemDatabase.CURRENT");
+    void staticStateIsConstantOrRegistered() throws Exception {
         java.util.List<String> violations = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
-            if (jc.getPackageName().startsWith("com.legend.cache")) {
-                continue;
-            }
             Class<?> cls;
             try {
                 cls = Class.forName(jc.getName());
             } catch (Throwable t) {
-                continue; // unloadable in the test JVM — nothing to inspect
+                continue; // a class whose driver is not on the test JVM's classpath: nothing to inspect
             }
             for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
-                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())
-                        || !(java.util.Map.class.isAssignableFrom(f.getType())
-                                || java.util.Collection.class.isAssignableFrom(f.getType()))) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.isSynthetic()
+                        || f.getType().isPrimitive()) {
                     continue;
                 }
                 String id = cls.getName() + "." + f.getName();
-                if (register.contains(id)) {
+                f.setAccessible(true);
+                String mutable = mutableObject(f.get(null), 0);
+                StaticKind kind = STATIC_STATE.get(id);
+                if (mutable == null) {
+                    if (kind != null) {
+                        violations.add(id + " is registered as " + kind + " but holds a constant (shrink the register)");
+                    }
                     continue;
                 }
-                f.setAccessible(true);
-                Object v = f.get(null);
-                if (v == null || !isKnownImmutable(v)) {
-                    violations.add(id + " holds "
-                            + (v == null ? "null" : v.getClass().getName()));
+                seen.add(id);
+                if (kind == null) {
+                    violations.add(id + " holds mutable state, " + mutable + " (make it constant, or register its kind)");
+                } else if (!java.lang.reflect.Modifier.isPrivate(f.getModifiers())) {
+                    violations.add(id + " (" + kind + ") is not private: another class could read or write it");
                 }
             }
         }
+        java.util.Set<String> gone = new java.util.TreeSet<>(STATIC_STATE.keySet());
+        gone.removeAll(seen);
+        for (String id : gone) {
+            if (violations.stream().noneMatch(v -> v.startsWith(id + " "))) {
+                violations.add(id + " is registered but no longer exists (shrink the register)");
+            }
+        }
         org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
-                "Invariant 3 (field level): static collection state outside "
-                        + "com.legend.cache must be immutable or registered "
-                        + "with justification:\n  "
+                "no static state but the register's (constant, sealed, or registered by kind):\n  "
                         + String.join("\n  ", violations));
     }
 
-    private static boolean isKnownImmutable(Object v) {
-        String n = v.getClass().getName();
-        return n.startsWith("java.util.ImmutableCollections")
-                || n.startsWith("java.util.Collections$Unmodifiable")
-                || n.startsWith("java.util.Collections$Empty")
-                || n.startsWith("java.util.Collections$Singleton");
+    /** Why {@code v} is mutable, or null for a constant. */
+    private static @com.legend.base.Nullable String mutableObject(@com.legend.base.Nullable Object v, int depth) {
+        if (v == null || depth > 2) {
+            return null;
+        }
+        Class<?> k = v.getClass();
+        String n = k.getName();
+        if (v instanceof com.legend.base.Sealed.Seal seal) {
+            return seal.sealed() ? null : "an unsealed registry " + n;
+        }
+        if (k.isArray()) {
+            return java.lang.reflect.Array.getLength(v) == 0 ? null : "an array " + k.getComponentType().getName();
+        }
+        if (k.isEnum() || k.isRecord() || v instanceof String || v instanceof Number || v instanceof Boolean
+                || v instanceof Character || v instanceof Class || k.isHidden() || k.isSynthetic()) {
+            return null;
+        }
+        if (v instanceof java.util.Collection<?> || v instanceof java.util.Map<?, ?>) {
+            return n.startsWith("java.util.ImmutableCollections") || n.startsWith("java.util.Collections$Unmodifiable")
+                    || n.startsWith("java.util.Collections$Empty") || n.startsWith("java.util.Collections$Singleton")
+                    ? null : "a collection " + n;
+        }
+        if (n.startsWith("java.util.concurrent.atomic.") || v instanceof ThreadLocal<?>
+                || v instanceof StringBuilder) {
+            return "a holder " + n;
+        }
+        if (n.startsWith("java.") || n.startsWith("javax.") || n.startsWith("jdk.") || n.startsWith("sun.")) {
+            return null;
+        }
+        // the product's own object: mutable if it has a field that is not final, or holds something mutable
+        for (Class<?> x = k; x != null && x != Object.class; x = x.getSuperclass()) {
+            for (java.lang.reflect.Field f : x.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+                if (!java.lang.reflect.Modifier.isFinal(f.getModifiers())) {
+                    return "an object " + n + " (its field " + f.getName() + " is not final)";
+                }
+                try {
+                    f.setAccessible(true);
+                    String inner = mutableObject(f.get(v), depth + 1);
+                    if (inner != null) {
+                        return "an object " + n + " (its field " + f.getName() + ": " + inner + ")";
+                    }
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    return "an object " + n + " (its field " + f.getName() + " unreadable: " + e + ")";
+                }
+            }
+        }
+        return null;
     }
 
     /**

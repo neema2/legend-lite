@@ -142,8 +142,8 @@ class RowLoadDuckDbTest {
                 """;
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = Program.last(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
-                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.test.StorelessRuntime.RUNTIME, c);
+            var r = Program.last(com.legend.testbackend.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.testbackend.StorelessRuntime.RUNTIME, c);
             assertEquals("dbInc", r.one());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
                     "the seed's rows must take DuckDB's Appender");

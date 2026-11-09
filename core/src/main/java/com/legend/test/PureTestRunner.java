@@ -123,7 +123,7 @@ public final class PureTestRunner implements AutoCloseable {
     /**
      * @param ctx            the compiled model the tests live in (with its execution overlay)
      * @param runtimeFqn     the runtime the bodies execute against: a test executes on its declared
-     *                       connection, as any query does (a storeless model's: {@link StorelessRuntime})
+     *                       connection, as any query does (a storeless model's: the tests' {@code testbackend.StorelessRuntime})
      * @param sessions       how a package session opens (a session the runner owns)
      * @param sharedSetups   zero-parameter functions every package's session runs first
      *                       (a corpus-wide fixture); may be empty
@@ -133,14 +133,14 @@ public final class PureTestRunner implements AutoCloseable {
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
         this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
-                ExecuteOptions.JudgeMode.HOST);
+                com.legend.testplan.PlanningOptions.JudgeMode.HOST);
     }
 
     /** @param judgeMode the run's assert judge (one mode per run, on every
-     *                   test's options — {@link ExecuteOptions.JudgeMode}) */
+     *                   test's options — {@link com.legend.testplan.PlanningOptions.JudgeMode}) */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
-            ExecuteOptions.JudgeMode judgeMode) {
+            com.legend.testplan.PlanningOptions.JudgeMode judgeMode) {
         this.ctx = ctx;
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
@@ -150,7 +150,7 @@ public final class PureTestRunner implements AutoCloseable {
         this.judgeMode = judgeMode;
     }
 
-    private final ExecuteOptions.JudgeMode judgeMode;
+    private final com.legend.testplan.PlanningOptions.JudgeMode judgeMode;
 
     /** The setups the platform derived as INERT (no statement effects) and
      *  so never ran — a caller pins the count: an effect analysis that wrongly

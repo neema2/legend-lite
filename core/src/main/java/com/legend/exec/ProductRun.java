@@ -33,7 +33,10 @@ public final class ProductRun {
      *  behind a refused answer. Returns the plan that ran. */
     public static ExecutionPlan run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, Function<ExecutionPlan, ResultSink> sinkOf, int batchRows) throws IOException {
-        run(plan, sessions, planSessions, establish, sinkOf.apply(plan), batchRows);
+        // the caller's sink and sessions are called back here, before the plan's run opens: they plan nothing
+        try (var callbacks = com.legend.base.RunScope.callingBack()) {
+            run(plan, sessions, planSessions, establish, sinkOf.apply(plan), batchRows);
+        }
         return plan;
     }
 
@@ -49,6 +52,15 @@ public final class ProductRun {
 
     /** {@code plan} run, its rows to {@code sink} in batches of up to {@code batchRows}. */
     public static void run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
+            Establish establish, ResultSink sink, int batchRows) throws IOException {
+        try (var callbacks = com.legend.base.RunScope.callingBack()) {
+            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows);
+        }
+    }
+
+    /** {@link #run(ExecutionPlan, SessionSource, PlanSessions.Source, Establish, ResultSink, int)} inside the scope
+     *  that refuses planning while the caller's sessions are opened. */
+    private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, ResultSink sink, int batchRows) throws IOException {
         if (plan.writes()) {
             PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);

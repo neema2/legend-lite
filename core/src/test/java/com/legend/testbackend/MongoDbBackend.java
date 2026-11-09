@@ -4,7 +4,7 @@
 package com.legend.testbackend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.testing.EmbeddedMongoDb;
 
 import java.sql.Connection;

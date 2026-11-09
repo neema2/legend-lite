@@ -8,7 +8,8 @@ package com.legend.server;
  * stores differ never share one) -- so the same stores, definition and rows keep their database across requests
  * (tables persist -- the feature) while an EDITED definition, store or row gets a fresh one. A held in-memory one is
  * made once holding the Data rows the plan carries. Until hole 7 this class keyed and filled them itself by reading
- * the model. A specification or database type not built is refused by name.
+ * the model; since slice 5 (2026-11-09) it names no runtime class at all -- its runner is the product door, and the
+ * sessions' source is exec's.
  */
 public final class ConnectionResolver {
 

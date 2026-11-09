@@ -570,7 +570,7 @@ class JavaEvalLedgerTest {
             // 2598 -> 2599 (leg 3.4 step 2, 2026-09-20): an immediately executed verdict
             // statement carries the batch's frame definitions (one attach line)
             // 2599 -> 2593 (2026-09-20, lean ladder): the once-per-JVM JUDGE_MODE static
-            // deleted — the mode rides the run's options (ExecuteOptions.JudgeMode)
+            // deleted — the mode rides the run's options (com.legend.testplan.PlanningOptions.JudgeMode)
             // 2593 -> 2599 (2026-09-20, lean ladder rung 4): SideRows.scalarRow — a
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
@@ -1418,8 +1418,9 @@ class JavaEvalLedgerTest {
                     // written by CanonicalRenderSql's caller where a side is planned and read by the judges
                     // InstanceIds.java left for the planner 2026-10-31 (the seam program's S2g): the site-id minter is
                     // planning state (the lowering mints ids from it), the planning half of the body's environment
-                    "SqlTypeCensus.java",
-                    "PrimitiveCensus.java",
+                    // SqlTypeCensus.java and PrimitiveCensus.java deleted 2026-11-09 (the full audit, no mutable static
+                    // state): neither had a feeder -- their probe and record lost their last callers -- so every count
+                    // read zero; the PCT gates that pinned them were dead gates
                     "SqlReplayReferee.java",
                     // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run):
                     // whether the assert being judged carries a caller's message, so an appeal held under it is refused
@@ -1842,7 +1843,13 @@ class JavaEvalLedgerTest {
      *  line to call planner and one line to call executor and that's all it can do"). */
     private static final java.util.List<String> DOOR_FILES = java.util.List.of(
             "core/src/main/java/com/legend/Execution.java",
-            "core/src/main/java/com/legend/TestExecution.java");
+            "core/src/main/java/com/legend/TestExecution.java",
+            // the test door's options (the full audit, 2026-11-09: a switch and a check hid there): a record of the two
+            // halves' options and its withers -- a wither makes options, so {@code new} is its one allowance
+            "core/src/main/java/com/legend/ExecuteOptions.java");
+
+    /** The doors' options file: where {@code new} is allowed (its withers). */
+    private static final String OPTIONS_FILE = "core/src/main/java/com/legend/ExecuteOptions.java";
 
     /** Logic's spellings: a branch, a loop, a catch, a throw, a lambda or method reference, a ternary, an object made. */
     private static final Pattern DOOR_LOGIC = Pattern.compile(
@@ -1864,7 +1871,11 @@ class JavaEvalLedgerTest {
             String[] lines = src.split("\n", -1);
             for (int i = 0; i < lines.length; i++) {
                 java.util.regex.Matcher m = DOOR_LOGIC.matcher(lines[i]);
-                if (m.find()) {
+                boolean found = m.find();
+                while (found && f.equals(OPTIONS_FILE) && m.group().equals("new")) {
+                    found = m.find();
+                }
+                if (found) {
                     drift.append("\n  ").append(f).append(":").append(i + 1).append(": '").append(m.group())
                             .append("' in ").append(lines[i].strip());
                 }

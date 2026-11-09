@@ -196,7 +196,8 @@ class ErrorShapeGuardrailTest {
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable
             // ResultSetMetaData is a counted unknown, never a failure
-            Map.entry("SqlTypeCensus.java", 1),
+            // (SqlTypeCensus.java 1 -> deleted 2026-11-09, the full audit: the census had no feeder; with its static
+            // state, the class went)
             // 0 -> 1 (2026-10-18, the writes design's leg 2, reviewed): Executor.inTransaction's rollback -- any
             // failure of the work (a RuntimeException or an Error) rolls the transaction back and restores
             // autocommit, a failure of either suppressed into it, and is RETHROWN unchanged; never a swallow, never

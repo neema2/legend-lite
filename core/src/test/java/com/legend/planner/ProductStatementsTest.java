@@ -13,7 +13,7 @@ import com.legend.database.Databases;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackends;
 import com.legend.testbackend.TestSessions;
 import com.legend.testcases.PlanRoundTrip;

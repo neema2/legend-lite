@@ -15,7 +15,7 @@ import com.legend.TypedQuery;
 import com.legend.database.Databases;
 import com.legend.error.NotImplementedException;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.exec.PlanSessions;
 import com.legend.testbackend.TestBackends;
 import com.legend.testbackend.TestSessions;

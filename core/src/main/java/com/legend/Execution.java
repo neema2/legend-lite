@@ -18,8 +18,9 @@ import java.util.function.Function;
  * THE PRODUCT'S DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; thin since the plan-as-data
  * design's slice 5, 2026-11-09): a query planned by its one planning entry ({@code TypedQuery.executionPlan}: the
  * planner never touches a database) and the plan run by exec's product run ({@link ProductRun}: the plan alone says
- * where it runs). Each method is one planning call and one run call, or a call of another of them -- no logic, no
- * state ({@code ArchitectureTest.theDoorsOnlyCompose}). Its own library ({@code //core:execution}); a test body's door
+ * where it runs). Each method is one statement: its run call, its planning calls the run's argument (a query's
+ * text compiled, then planned), or a call of another of them -- no logic, no state
+ * ({@code ArchitectureTest.theDoorsOnlyCompose}, {@code JavaEvalLedgerTest.theDoorsHoldNoLogic}). Its own library ({@code //core:execution}); a test body's door
  * is {@link TestExecution}, its own.
  */
 public final class Execution {
@@ -67,7 +68,7 @@ public final class Execution {
      *  plan-then-run is gone). */
     public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn, Function<ExecutionPlan, ResultSink> sinkOf) throws IOException {
-        return ProductRun.onProjectDatabases(typed.executionPlan(runtimeFqn), sinkOf);
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), sinkOf);
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Function)} for a

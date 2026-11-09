@@ -11,7 +11,7 @@ import com.legend.error.AssertFailed;
 import com.legend.diagnostics.Census;
 import com.legend.testbackend.TestBackends;
 import com.legend.testing.Program;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import java.sql.Connection;
 

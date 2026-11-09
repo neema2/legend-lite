@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.ExecuteOptions;
 import com.legend.database.Databases;
 import com.legend.error.AssertFailed;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackends;
 import com.legend.testing.Program;
 
@@ -218,15 +218,15 @@ class AssertBarTest {
             // a new probe that misses goes here with the change that adds it, and leaves with the one that closes it
     ));
 
-    private static final List<ExecuteOptions.JudgeMode> JUDGES = List.of(ExecuteOptions.JudgeMode.HOST,
-            ExecuteOptions.JudgeMode.DATABASE, ExecuteOptions.JudgeMode.BOTH);
+    private static final List<com.legend.testplan.PlanningOptions.JudgeMode> JUDGES = List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+            com.legend.testplan.PlanningOptions.JudgeMode.DATABASE, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
 
     /** A failing assert's message that raises: its evaluation's error is the test's, as upstream's (the assert bar,
      *  2026-11-04) -- under every judge. */
     @Test
     void aFailingAssertsMessageThatRaisesRaisesItsOwnError() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            for (ExecuteOptions.JudgeMode mode : JUDGES) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                 assertEquals("DataError: The system is trying to get an element at offset 5 where the collection is"
                                 + " of size 2",
                         outcome(c, "{|let x = [1, 2]; assertEmpty([1], | $x->at(5)->toString());}", mode),
@@ -242,7 +242,7 @@ class AssertBarTest {
         try (Connection c = TestBackends.platform().open()) {
             for (Probe p : PROBES) {
                 List<String> wrong = new ArrayList<>();
-                for (ExecuteOptions.JudgeMode mode : JUDGES) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                     String got = outcome(c, p.body(), mode);
                     String want = p.failure() == null ? "pass" : "AssertFailed: " + p.failure();
                     if (!want.equals(got)) {
@@ -253,7 +253,7 @@ class AssertBarTest {
             }
             for (Answer a : ANSWERS) {
                 List<String> wrong = new ArrayList<>();
-                for (ExecuteOptions.JudgeMode mode : JUDGES) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                     String got;
                     try {
                         got = String.valueOf(Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), a.body(),
@@ -281,7 +281,7 @@ class AssertBarTest {
     @Test
     void backwardsCompatibilityModeComparesNumbersAsCompiledPureDoes() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            for (ExecuteOptions.JudgeMode mode : JUDGES) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                 ExecuteOptions compat = ExecuteOptions.NONE.withJudgeMode(mode).withEngineCompat(true);
                 Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), "{|assertEquals(1D, 1)}",
                         StorelessRuntime.RUNTIME, c, compat);
@@ -310,7 +310,7 @@ class AssertBarTest {
                 int bodyOrigin = com.legend.exec.StatementOrigin.BODY.ordinal();
                 long before = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin];
                 Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
-                        ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.DATABASE));
+                        ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
                 long sent = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin] - before;
                 org.junit.jupiter.api.Assertions.assertEquals(1L, sent, "one fused statement: " + body);
             }
@@ -325,7 +325,7 @@ class AssertBarTest {
         }
     }
 
-    private static String outcome(Connection c, String body, ExecuteOptions.JudgeMode mode) {
+    private static String outcome(Connection c, String body, com.legend.testplan.PlanningOptions.JudgeMode mode) {
         try {
             Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
                     ExecuteOptions.NONE.withJudgeMode(mode));

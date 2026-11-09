@@ -7,7 +7,7 @@ import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -130,7 +130,7 @@ class AssertVerdictsTest {
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
     private static Lean.Result runBoth(String query) throws SQLException {
         return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
-                ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
+                ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
     }
 
     @Test

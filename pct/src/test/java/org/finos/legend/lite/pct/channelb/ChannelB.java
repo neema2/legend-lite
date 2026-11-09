@@ -261,12 +261,12 @@ public final class ChannelB {
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
                             // bodies under one judge, to read which shapes the program road plans for it
-                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.valueOf(
+                            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
                                     System.getProperty("pct.channelb.judge", "BOTH")))
                             // a server lane's system connection, as channel A's (PctBackend)
                             .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections())

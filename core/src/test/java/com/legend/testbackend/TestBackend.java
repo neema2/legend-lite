@@ -6,7 +6,7 @@ package com.legend.testbackend;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import java.sql.Connection;
 import java.sql.SQLException;

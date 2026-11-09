@@ -13,7 +13,7 @@ import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.testexecutionplan.TestPlanJson;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ class VerdictIdsTest {
         ModelContext ctx = Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM));
         TypedQuery typed = typed(ctx, BODY);
         String rt = StorelessRuntime.RUNTIME;
-        for (ExecuteOptions.JudgeMode mode : ExecuteOptions.JudgeMode.values()) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.values()) {
             ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
             BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options.planning());
             TestDoor.Asserts asserts = switch (mode) {
@@ -53,7 +53,7 @@ class VerdictIdsTest {
                 case BOTH -> AgreementAsserts.plan(typed, rt, env, null, false);
             };
             assertNotNull(asserts, mode + ": the body's asserts planned");
-            TestPlan plan = TestDoor.planned(typed, rt, options.features(), asserts);
+            TestPlan plan = TestDoor.planned(typed, rt, options.planning().features(), asserts);
             List<TestPlan.Verdict> verdicts = new ArrayList<>();
             plan.steps().forEach(step -> collect(step, verdicts));
             assertFalse(verdicts.isEmpty(), mode + ": the plan holds verdicts");

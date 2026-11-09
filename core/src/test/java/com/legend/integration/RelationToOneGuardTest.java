@@ -3,7 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testing.LaneFloor;
 import com.legend.testing.Lean;

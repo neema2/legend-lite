@@ -91,8 +91,12 @@ public final class PlanMaker {
     /** {@code query}'s TYPED plan on {@code runtime}, lowered under the feature flags {@code features}, each declared
      *  parameter a value the statement binds where it is used. No server version: a database's statements are spelled
      *  alike for every version lite runs (2026-11-05, one H2; until then H2's plans were written per version, read off
-     *  the caller's session). */
-    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime, Set<Feature> features) {
+     *  the caller's session). {@code projectDatabase}: whether its target names the project's own database -- the
+     *  server's run of it ({@code Execution.runOnProjectDatabases}), its Data rows the database's making -- or the
+     *  database itself (every other run; the full audit, 2026-11-09: every product plan carried the project's whole
+     *  Data fill, and a model whose fill could not be written was refused on every road). */
+    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime, Set<Feature> features,
+            boolean projectDatabase) {
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);
         List<QueryParameters.Declared> declared = query.parameters();
@@ -102,7 +106,7 @@ public final class PlanMaker {
             // 2026-10-26), a sequence of steps on one session
             return ExecutionPlan.writing(declarations(declared, query.context()),
                     new ExecutionPlan.Sequence(products(program(query, runtime, slots, features,
-                            ProgramState.Door.QUERY, NO_TEST_KINDS, false))));
+                            ProgramState.Door.QUERY, NO_TEST_KINDS, false, projectDatabase))));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -121,7 +125,7 @@ public final class PlanMaker {
         SqlDialect dialect = decided.dialect();
         Metamodel metamodel = metamodel(l, dialect);
         ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
-                metamodel);
+                metamodel, projectDatabase);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
@@ -279,7 +283,7 @@ public final class PlanMaker {
         List<QueryParameters.Declared> declared = query.parameters();
         return new TestProgram(declarations(declared, query.context()),
                 program(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
-                        systemRouted));
+                        systemRouted, false));
     }
 
     /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
@@ -315,7 +319,7 @@ public final class PlanMaker {
      */
     private static List<PlannedStep> program(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
-            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted) {
+            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
         Decided decided = decide(query.context(), runtime);
         // a product program reads no system metamodel table (Class.all() inside a write program is not designed); the
         // test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads the
@@ -328,7 +332,7 @@ public final class PlanMaker {
                         : database(decided.target(), null),
                         decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
-                        Metamodel.NONE);
+                        Metamodel.NONE, projectDatabase);
         List<TypedSpec> body = query.body();
         StagedRows.refuseLetsTheWritesChange(body, query.specs());
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
@@ -400,7 +404,16 @@ public final class PlanMaker {
      *  a session before a query of its own exists (a program's, a test's seeding). Planning: no session is opened. */
     public static ExecutionPlan.Target runtimeTarget(ModelContext ctx, String runtime) {
         Decided decided = decide(ctx, runtime);
-        return target(decided.target(), runtime, ctx, decided.dialect(), Metamodel.NONE);
+        return target(decided.target(), runtime, ctx, decided.dialect(), Metamodel.NONE, true);
+    }
+
+    /** The target of the session a test body runs on: its runtime's database itself, the dialect's session statements,
+     *  no setup -- the test door's own target (R17 C6), never the server's project database (the full audit,
+     *  2026-11-09: the test plan carried the product target, the project's Data fill and the declared setup with it,
+     *  which no test run reads). */
+    public static ExecutionPlan.Target testSessionTarget(ModelContext ctx, String runtime) {
+        Decided decided = decide(ctx, runtime);
+        return new ExecutionPlan.Target(database(decided.target(), null), decided.dialect().sessionSetup(), List.of());
     }
 
     private record Decided(Target target, SqlDialect dialect) {
@@ -839,8 +852,8 @@ public final class PlanMaker {
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(Target decided, String runtime,
             ModelContext ctx, SqlDialect dialect,
-            Metamodel metamodel) {
-        ExecutionPlan.Database database = database(decided, project(decided, ctx, dialect));
+            Metamodel metamodel, boolean projectDatabase) {
+        ExecutionPlan.Database database = database(decided, projectDatabase ? project(decided, ctx, dialect) : null);
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
         steps.addAll(metamodel.setup());
@@ -871,7 +884,11 @@ public final class PlanMaker {
         boolean platform = decided instanceof Target.Platform;
         return ctx.derived(Projects.class, c -> new Projects()).byKind.computeIfAbsent(
                 (platform ? "platform/" : "declared/") + dialect.getClass().getName(), k -> {
-                    String key = com.legend.cache.Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex();
+                    // the platform's database is keyed by the stores alone and filled with nothing, as the server kept it
+                    // (the full audit, 2026-11-09: keyed by the Data rows too, an edited row made a fresh one); a
+                    // declared database by what it holds, the stores and the Data rows
+                    String key = com.legend.cache.Hash.ofUtf8(platform ? com.legend.setup.ProjectData.storesKey(ctx)
+                            : com.legend.setup.ProjectData.contentKey(ctx)).hex();
                     // a model whose Data rows cannot make the database: the refusal is the plan's, raised where the
                     // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
