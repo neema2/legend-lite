@@ -1394,8 +1394,6 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
-    /** A date-time finer than a microsecond is a {@code TIMESTAMP} of its first six digits, the finer ones cut, as its
-     *  literal is ({@link #timestampLit}). */
     /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, the finer ones cut, as its
      *  literal is ({@link #timestampLit}; D1, P4); a number is bound bare. */
     @Override

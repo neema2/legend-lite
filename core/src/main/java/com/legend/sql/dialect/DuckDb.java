@@ -237,7 +237,6 @@ public final class DuckDb extends AnsiSqlRenderer {
         return c.materialized() ? " AS MATERIALIZED (" : " AS (";
     }
 
-    /** A date-time finer than a microsecond is a {@code TIMESTAMP_NS}, as its literal is ({@link #timestampLit}). */
     /** A Date and a DateTime parameter are DuckDB's finest timestamp, {@code TIMESTAMP_NS} (D1, P4: the declared type
      *  decides, never the value); a number is bound bare, typed as its literal is. */
     @Override

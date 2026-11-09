@@ -298,7 +298,10 @@ pastes (a piece pasted twice would carry its parameter once); a method that only
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
 names, types and keywords, so it is text. Never edit rendered SQL after it is written, at planning or at run: the
-runner sends a plan's text as it is. A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
+runner sends a plan's text as it is, with ONE allowed exception and two pending items (the tenets re-audit's B-3,
+2026-11-09): a keyed region, which the runner writes once per key (`PlanRunner.expand`, the charter's A3(a)); PENDING,
+the per-execution trace comment `JdbcStatements.stamped` still writes at run (D3), and MariaDB's error read-back, still
+the connector's (D4) -- both scheduled for the total wall's M5. A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
 is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
 `SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a
 value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printer

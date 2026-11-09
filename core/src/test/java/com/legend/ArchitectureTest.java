@@ -2530,20 +2530,14 @@ final class ArchitectureTest {
             ));
 
     /**
-     * <strong>L7 "resolve once", step 3 (2026-10-10).</strong> A call built after the name resolver is born with
-     * its record, so no reader works a name out from a spelling: the typer, its checkers and desugars, the
-     * normalizer, validation, lineage and test-data generation construct an {@code AppliedFunction} only through
-     * {@code Calls} (the parser and the protocol readers build calls before resolution; the resolver records).
-     */
-    /**
      * <strong>P2, one constructor (docs/DATA_IN_THE_PLAN_2026_11_09.md 6; turned on 2026-11-09 after the M1 tenets
      * audit's finding 3).</strong> A plan's {@code ExecutionPlan.Load} is made by {@code planner.LoadPlanner} alone, with
      * its one identity scheme; the plan's JSON reader rebuilds what a writer wrote. (Until L4a, 2026-11-09,
      * {@code planner.SystemRoutes}' system store load was a dated exception, named by a constant; it is the load
-     * planner's now, named by its content.) Its steps ({@code LoadStep}) are made by the planner's makers of statements
-     * and rows -- {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad}, {@code planner.PlanMaker},
-     * {@code planner.SystemRoutes}, {@code testplan.EffectPlanner}, {@code testplan.TestKinds} -- and the JSON reader:
-     * never exec (an exec class makes no load and no step: {@link #execMakesNoLoad}).
+     * planner's now, named by its content.) Its steps are guarded by {@link #onlyThePlannersMakersMakeALoadStep}, exec
+     * by {@link #execMakesNoLoad}. {@code LoadPlanner.load} is public: the test planner's load makers
+     * ({@code testplan.EffectPlanner}, {@code testplan.TestKinds}) call it across the package line; what this guards is
+     * that every load takes the one constructor call and the one identity scheme.
      */
     @Test
     void onlyTheLoadPlannerMakesALoad() {
@@ -2556,6 +2550,27 @@ final class ArchitectureTest {
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .name("com.legend.executionplan.ExecutionPlan$Load"))))
             .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>P2, a load's steps (the tenets re-audit's A-5, 2026-11-09: until then named in a javadoc, guarded only
+     * inside exec).</strong> A plan's {@code LoadStep} -- a statement, rows, a file and its delivery -- is made by the
+     * planner's makers of statements and rows alone: {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad},
+     * {@code planner.PlanMaker}, {@code planner.SystemCatalog}, {@code testplan.EffectPlanner}; the plan's JSON reader
+     * rebuilds what a writer wrote.
+     */
+    @Test
+    void onlyThePlannersMakersMakeALoadStep() {
+        noClasses()
+            .that().resideInAPackage("com.legend..")
+            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog)"
+                    + "|testplan\\.EffectPlanner|executionplan\\.PlanJson)(\\$.*)?")
+            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
+                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
+                                    .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$LoadStep\\$.*"))))
+            .as("P2: a load's steps are made by the planner's makers of statements and rows; the JSON reader rebuilds")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -2572,6 +2587,12 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * <strong>L7 "resolve once", step 3 (2026-10-10).</strong> A call built after the name resolver is born with
+     * its record, so no reader works a name out from a spelling: the typer, its checkers and desugars, the
+     * normalizer, validation, lineage and test-data generation construct an {@code AppliedFunction} only through
+     * {@code Calls} (the parser and the protocol readers build calls before resolution; the resolver records).
+     */
     @Test
     void callsAreBuiltOnlyByTheBuilder() {
         noClasses()

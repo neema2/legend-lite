@@ -44,7 +44,10 @@ class PlanRunnerH2Test {
                 .orElseThrow();
         ExecutionPlan another = counting(inMemory("s::Other", other, new ConnectionSpecification.InMemory()), "T");
         try (Connection h2 = TestBackends.of(H2).open()) {
-            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
+            // its loads established on the session it is acquired on (a caller's session as it is refuses a target that
+            // loads: the re-audit's A-3, 2026-11-09)
+            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.acquired(
+                    com.legend.testbackend.TestSessions.over(h2), another.answerSql().target())));
             assertTrue(otherDatabase.getMessage().contains("dialect/connection mismatch"), otherDatabase.getMessage());
         }
     }

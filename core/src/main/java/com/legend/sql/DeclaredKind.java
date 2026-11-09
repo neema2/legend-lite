@@ -8,7 +8,9 @@ package com.legend.sql;
  * D1, ruled 2026-11-07: "Yes perfect"; P4 of the total wall, 2026-11-09): a Float's, a Decimal's, a Number's, a Date's
  * and a DateTime's. The dialect writes the placeholder for the declared type, as upstream's database extension writes
  * its template for the declared type when the plan is made (legend-engine's {@code processPlaceHolder}); nothing at run
- * picks a type from the value, and the statement's text is the same on every call. Until P4 the runner wrote a type
+ * writes a type into the statement, and its text is the same on every call (a number bound bare is typed by the
+ * database from the class the driver passes, as upstream's bare literal is by its digits: the re-audit's B-4,
+ * 2026-11-09). Until P4 the runner wrote a type
  * chosen by the value into a hole in the statement.
  */
 public enum DeclaredKind {

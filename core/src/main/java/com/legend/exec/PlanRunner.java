@@ -560,15 +560,17 @@ public final class PlanRunner {
         // (AT_STEP, PER_ACQUISITION, ONCE) write
         boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP
                 || seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
-        verifyIdentity(seeds);
         if (seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION && session.ownsTransaction()) {
             throw new IllegalStateException("a registration (" + seeds.identity() + ") on a session that holds no"
                     + " transaction for the run: it would be committed, and seen by every other run");
         }
         SeedKey key = new SeedKey(seeds.identity());
         if (memo && session.state().established(key)) {
+            // the session holds this identity, verified when it ran: a load skipped runs nothing, so it is not digested
+            // again for every step that names it (the re-audit's A-7, 2026-11-09)
             return;
         }
+        verifyIdentity(seeds);
         if (!memo) {
             // a program's own load writes, as an effect does: a seed established before it is established no more
             session.state().markWriting();

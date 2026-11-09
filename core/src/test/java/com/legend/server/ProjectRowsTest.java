@@ -106,9 +106,9 @@ class ProjectRowsTest {
         String readU = "|#>{proj::PartyDB.PARTY.U}#->select(~[ID])";
         // the two editions' project databases are named apart: the key is the whole target as a plan writes it, its
         // loads by identity
-        String keyWith = com.legend.executionplan.PlanJson.writeTarget(com.legend.Compiler.query(
+        var keyWith = com.legend.exec.PlanSessions.projectKey(com.legend.Compiler.query(
                 com.legend.Compiler.compileModel(withU), readU).projectPlan("proj::RT").answerSql().target());
-        String keyWithout = com.legend.executionplan.PlanJson.writeTarget(com.legend.Compiler.query(
+        var keyWithout = com.legend.exec.PlanSessions.projectKey(com.legend.Compiler.query(
                 com.legend.Compiler.compileModel(withoutU), readU).projectPlan("proj::RT").answerSql().target());
         org.junit.jupiter.api.Assertions.assertNotEquals(keyWith, keyWithout);
         assertEquals(List.of(7L), com.legend.testing.Lean.service(withU, readU, "proj::RT").rows().stream()
@@ -117,6 +117,40 @@ class ProjectRowsTest {
         RuntimeException notMade = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> com.legend.testing.Lean.service(withoutU, readU, "proj::RT"));
         assertTrue(String.valueOf(notMade.getMessage()).contains("\"U\" not found"), String.valueOf(notMade));
+    }
+
+    /** Two queries over one project share its one kept database, a query reading the system metamodel's tables too
+     *  (the re-audit's A-4, 2026-11-09): the key names what the database holds -- its connection, its project, its ONCE
+     *  loads -- never a query's own per-acquisition loads, which until then kept a database (with the whole fill) per
+     *  query shape. */
+    @Test
+    void twoQueriesOverOneProjectShareItsDatabase_oneReadingTheMetamodel() {
+        var ctx = com.legend.Compiler.compileModel(PARTY);
+        var plain = com.legend.Compiler.query(ctx, QUERY).projectPlan("proj::RT").answerSql().target();
+        var metamodel = com.legend.Compiler.query(ctx, "|meta::pure::metamodel::type::Class.all()->size()")
+                .projectPlan("proj::RT").answerSql().target();
+        org.junit.jupiter.api.Assertions.assertNotEquals(plain.loads(), metamodel.loads(),
+                "the metamodel's query loads its tables on acquisition");
+        assertEquals(com.legend.exec.PlanSessions.projectKey(plain), com.legend.exec.PlanSessions.projectKey(metamodel));
+    }
+
+    /** A source runs the loads its target names or refuses the target (the re-audit's A-3, 2026-11-09): a project's
+     *  Data (its ONCE load) on a session the caller holds is refused by name, acquired or as it is, never skipped. */
+    @Test
+    void aProjectsDataOnACallersSessionIsRefused_neverSkipped() throws Exception {
+        var target = com.legend.Compiler.query(com.legend.Compiler.compileModel(PARTY), QUERY).projectPlan("proj::RT")
+                .answerSql().target();
+        assertTrue(target.loads().stream().anyMatch(
+                l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE), String.valueOf(target));
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            var session = com.legend.testbackend.TestSessions.over(c);
+            var acquired = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> com.legend.exec.PlanSessions.acquired(session, target));
+            assertTrue(String.valueOf(acquired.getMessage()).contains("does not run"), acquired.getMessage());
+            var given = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> com.legend.exec.PlanSessions.of(session).open(target));
+            assertTrue(String.valueOf(given.getMessage()).contains("does not run"), given.getMessage());
+        }
     }
 
     /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S171): named by

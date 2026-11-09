@@ -362,12 +362,12 @@ public class H2 extends AnsiSqlRenderer {
         return t == com.legend.sql.SqlType.Scalar.TIMESTAMP ? "TIMESTAMP(9)" : castTypeName(t);
     }
 
-    /** The type H2 gives a literal of a value of {@code kind}, spelled with the value's own digits where it takes them:
-     *  every kind, H2 typing every placeholder when it prepares it. */
     /** H2 types a placeholder when it prepares it, so each declared kind is cast to the closest fixed type (D1, ruled
      *  2026-11-07; P4): a Float {@code FLOAT} (upstream's own), a Decimal and a Number {@code DECFLOAT} (exact), a Date
      *  and a DateTime a {@code TIMESTAMP(9)}, bound as text. Until P4 the runner wrote the type of each value's literal
-     *  into a hole. */
+     *  into a hole. The Decimal and the Number arms are PENDING THE USER'S RULING (R2, drafted row S175): upstream writes
+     *  both bare, so a Decimal keeps its scale ({@code 2.50}) and a whole Number stays an integer, where a
+     *  {@code DECFLOAT} keeps neither. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {

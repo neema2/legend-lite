@@ -438,6 +438,11 @@ final class JdbcStatements implements Statements {
                         } else if (asText != null && v.value() instanceof java.time.LocalDate d) {
                             // a StrictDate value of a Date parameter: its text, a midnight timestamp in the cast (D1)
                             st.setString(index, d.toString());
+                        } else if (asText != null) {
+                            // a slot bound as text holds a date or a date-time: anything else is the plan's defect,
+                            // refused by name, never bound as the driver would take it (invariant 4)
+                            throw new IllegalStateException("slot " + index + " of '" + slot.parameter() + "' binds a"
+                                    + " date or a date-time as its text, given a " + v.value().getClass().getSimpleName());
                         } else {
                             st.setObject(index, v.value());
                         }

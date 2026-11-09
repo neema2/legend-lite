@@ -842,6 +842,15 @@ public final class PlanMaker {
                         ConnectionPlans.of(oneDefinition(d)).specification());
         ExecutionPlan.Project named = project == null ? null : filled ? project.project()
                 : new ExecutionPlan.Project(project.project().key(), null);
+        List<ExecutionPlan.LoadStep> declared = setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);
+        if (named != null && !declared.isEmpty()) {
+            // the project's database is named by what it holds: its stores and Data rows, and the declared test data
+            // each acquisition establishes on it -- so two editions whose test data differ are two databases, and a
+            // query's own per-acquisition loads (the metamodel's tables) never name another (the re-audit's A-4,
+            // 2026-11-09: until then exec keyed by every load, one kept database per query shape)
+            named = new ExecutionPlan.Project(com.legend.cache.Hash.ofUtf8(named.key() + "\u0001"
+                    + LoadPlanner.identity(ExecutionPlan.Load.Cadence.PER_ACQUISITION, declared)).hex(), named.refused());
+        }
         ExecutionPlan.Database database = database(decided, named);
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
@@ -853,7 +862,7 @@ public final class PlanMaker {
         if (filled && project != null && !project.data().isEmpty()) {
             loads.add(LoadPlanner.load(project.dataIdentity(), ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
         }
-        loads.addAll(LoadPlanner.targetLoads(setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));
+        loads.addAll(LoadPlanner.targetLoads(declared, bare));
         loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
         return new ExecutionPlan.Target(database, session, loads);
     }

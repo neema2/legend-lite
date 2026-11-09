@@ -167,7 +167,8 @@ which cannot make this mistake.
 
 What landed: `docs/DATA_IN_THE_PLAN_2026_11_09.md` "L2 and L3 as built" (the declared CSV format, upstream's rule, every
 database streamed; a target's loads written once per plan; the seeds and seed forms as loads; the plan's connection
-without raw test data; a project's Data its target's ONCE load; the census at 6 of 17 deleted). Measured on that
+without raw test data; a project's Data its target's ONCE load; the census at 6 of 17 deleted -- corrected 2026-11-09 by the M1 tenets audit and its re-audit: 2 deleted, M2 and M8,
+and M4 bounded). Measured on that
 commit, in a root container (one heavy lane at a time):
 
 - `bazel test --lockfile_mode=error //gates:local`: 488 pass, 1 skipped by design; the 10 that refuse root (the eight
@@ -194,8 +195,10 @@ declared Pure type at planning, per database; `TypeHole` and the runner's statem
 - At `732b25e1`, one lane at a time: `//core:census`, `//core:guardrails`; `//gates:pct_duckdb`, `//gates:pct_h2`,
   `//gates:pct_channel_b`; `//spec:corpus_duckdb`, `//spec:corpus_h2` (the rosters' verdicts hold);
   `//core:stress_suites`, `//core:stress_suites_h2`: all green.
-- Open, for the user: R1/R2 (an H2 Float parameter as `DECFLOAT`, against upstream's `CAST(%s AS FLOAT)`; H2 Decimal's
-  scale) await their rulings before their rows (S175 on) land.
+- Open, for the user: R1/R2 -- lite's H2 placeholder casts a Float to `FLOAT` (upstream's own `CAST(%s AS FLOAT)`), and a
+  Decimal and a Number to `DECFLOAT`, where upstream writes both bare; the Decimal and Number arms are PENDING THE USER'S
+  RULING (row S175 drafted). Corrected 2026-11-09 by the re-audit's B-7: this line said until then that the Float
+  parameter was `DECFLOAT`, which the code never wrote.
 
 ## Read this before trusting a green
 

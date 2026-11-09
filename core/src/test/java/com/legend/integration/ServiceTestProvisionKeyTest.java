@@ -185,8 +185,9 @@ class ServiceTestProvisionKeyTest {
     }
 
     /**
-     * THE M4 GUARD (docs/DATA_IN_THE_PLAN_2026_11_09.md, census row M4, the user's ruling of 2026-11-09: option 1, the
-     * upstream-faithful overlay kept): a suite's data, which the harness overlays as a synthetic connection's declared
+     * THE M4 GUARD (docs/DATA_IN_THE_PLAN_2026_11_09.md, census row M4, the orchestrator's decision of 2026-11-09: option 1,
+     * the upstream-faithful overlay kept -- upstream's own shape, so no divergence; option 2, a door-level fixture, was
+     * declined as surface with no gain to the seal): a suite's data, which the harness overlays as a synthetic connection's declared
      * test data exactly as legend-engine's service test runner does, reaches the test plan ONLY inside a load's steps --
      * never in a target's connection description, never in a statement's text.
      */
@@ -202,7 +203,7 @@ class ServiceTestProvisionKeyTest {
         find(plan, "", false, where);
         org.junit.jupiter.api.Assertions.assertFalse(where.isEmpty(), "the suite's row is loaded: " + json);
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
-                .filter(w -> !w.startsWith("load:")).toList(), "the suite's row outside a load: " + json);
+                .filter(w -> !inLoadSteps(w)).toList(), "the suite's row outside a load's steps: " + json);
     }
 
     /** The same guard under the compatibility edge (the M1 correctness audit's C2, 2026-11-09): the suite's data reaches
@@ -220,11 +221,19 @@ class ServiceTestProvisionKeyTest {
                 new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
         java.util.List<String> where = new java.util.ArrayList<>();
         find(plan, "", false, where);
-        org.junit.jupiter.api.Assertions.assertTrue(where.stream().anyMatch(w -> w.startsWith("load:")), json);
+        org.junit.jupiter.api.Assertions.assertTrue(where.stream().anyMatch(ServiceTestProvisionKeyTest::inLoadSteps),
+                json);
+        // the edge's record alone beside the loads: its seed texts, pinned to that field (the re-audit's small item,
+        // 2026-11-09: until then any string under the extensions passed)
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
-                .filter(w -> !w.startsWith("load:") && !w.startsWith("outside:/extensions/")).toList(),
-                "the suite's row outside a load and the edge's seed texts: " + json);
+                .filter(w -> !inLoadSteps(w) && !(w.startsWith("outside:/extensions/byStep/") && w.contains("/texts/")))
+                .toList(), "the suite's row outside a load's steps and the edge's seed texts: " + json);
         org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"seedTexts\""), "the edge's seed texts: " + json);
+    }
+
+    /** Whether {@code where} (a {@link #find} path) is inside a load node's steps. */
+    private static boolean inLoadSteps(String where) {
+        return where.startsWith("load:") && where.contains("/steps/");
     }
 
     /** Every string holding the suite's value ('Aa'), each named by whether it sits inside a load node's steps. */

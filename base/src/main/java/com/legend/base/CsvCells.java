@@ -24,7 +24,7 @@ import java.util.List;
  *   <li>an empty line is a record of one empty cell (EXCEL keeps empty lines);</li>
  *   <li>an empty cell, quoted or not, is NULL; every other cell its text.</li>
  * </ul>
- * A row's width is the caller's to check ({@link #body}): a row whose width is not the header's is refused by name,
+ * A row's width is the caller's to check ({@link #body}): a row whose width is not the table's is refused by name,
  * never padded or cut (AGENTS.md invariant 4; decision 6: upstream binds too few values or fails on the extra one).
  */
 public final class CsvCells {

@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * deleted 2026-11-09): a run-time parameter's placeholder is typed by its declared Pure type when the plan is made, and
  * the runner sends a plan's text as it is. Until then the dialect left a hole in H2's statement (and a date-time's on
  * every database) that the runner filled with the type of each value's literal -- SQL text written at run. Each symbol of
- * that mechanism reads zero in every main source tree; one that returns fails here.
+ * that mechanism reads zero in every main source tree; one that returns fails here. That the runner sends the plan's own
+ * text, character for character, is {@code planner.SentStatementsAreThePlansTest}'s (the re-audit's B-6).
  */
 @Tag("census")
 class TypeHoleDeletedTest {
@@ -34,7 +35,10 @@ class TypeHoleDeletedTest {
     @Test
     void theTypeHolesSymbolsReadZero() throws IOException {
         List<Path> files = new ArrayList<>();
-        for (String tree : List.of("core/src/main/java", "core/src/main/mongodb", "wasm")) {
+        // every main tree a session's statements are written in: the drivers' own (DuckDB's bulk loader, Postgres's
+        // copy) included (the re-audit's B-6, 2026-11-09)
+        for (String tree : List.of("core/src/main/java", "core/src/main/mongodb", "core/src/main/duckdb",
+                "core/src/main/postgres", "wasm")) {
             files.addAll(SourceFiles.under(tree));
         }
         assertTrue(files.size() > 500, "too few sources read to prove anything: " + files.size());

@@ -25,15 +25,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * THE DELETION CENSUS of docs/DATA_IN_THE_PLAN_2026_11_09.md section 6, P4 (the user, 2026-11-09: "provably deleting
  * all other 17 mechanisms ... that's the real guarantee that we fixed everything"): one row for each of the 17 ways
  * data reached a database on 2026-11-09 (docs/data-in-the-plan-homework/inventory.md), each DELETED (its symbols read
- * zero in every source tree; a symbol that returns fails here), PENDING (the slice that deletes it), or STAYING (not a
- * load at all: the guard that bounds it). A row moves from PENDING to DELETED with its slice, never back; a mechanism
- * with no row fails. The census is complete when no row is PENDING (L8).
+ * zero in every source tree; a symbol that returns fails here), BOUNDED (kept by a ruling: the part that reached a plan
+ * deleted, its symbols reading zero, the rest held by a named guard), PENDING (the slice that deletes it; what its
+ * slices removed so far reads zero, {@link #REMOVED_SO_FAR}), or STAYING (not a load at all: the guard that bounds
+ * it). The rule: a row's state moves only with its slice and a dated note -- toward DELETED, or to BOUNDED by a
+ * decision recorded with whoever made it -- and a deleted symbol that returns fails here; a mechanism with no row
+ * fails. The census is complete when no row is PENDING (L8).
  */
 @Tag("census")
 class DataMechanismCensusTest {
 
-    /** A mechanism's state: deleted (with the symbols that must read zero), pending (its slice), or staying (its
-     *  guard). */
+    /** A mechanism's state: deleted (with the symbols that must read zero), bounded (its deleted part and its guard),
+     *  pending (its slice), or staying (its guard). */
     sealed interface State permits Deleted, Bounded, Pending, Staying {
     }
 
@@ -76,7 +79,11 @@ class DataMechanismCensusTest {
                             "PlanRunner.setUp(",
                             "setUpIn(",
                             "PlanSessions.setUp(",
-                            "refuseSetup("))),
+                            "refuseSetup(",
+                            // the setup's own step record, replaced by LoadStep (the re-audit's small item, 2026-11-09)
+                            "interface SetupStep",
+                            "SetupStep.Statement(",
+                            "SetupStep.Rows("))),
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
             // scheme), and the plan's connection description no longer carries the raw test data. PENDING still (the
             // M1 tenets audit's finding 2): Seeds.planned remains the seeds' own path to their steps, and the referee's
@@ -84,7 +91,7 @@ class DataMechanismCensusTest {
             // symbols so far read zero (theRemovedSymbolsReadZero)
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
                     new Pending("L8 (SeedTexts; Seeds.planned's own path)")),
-            // L2, 2026-11-09 (the user's ruling: option 1): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
+            // L2, 2026-11-09 (the orchestrator's decision: option 1, upstream's own harness shape): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
             // harness keeps the upstream-faithful overlay (a synthetic connection carrying the suite's CSV, as
             // legend-engine's service test runner builds one, and RuntimeKey, a cache of overlay contexts by value); its
             // data reaches a plan only as a load, which the guard proves

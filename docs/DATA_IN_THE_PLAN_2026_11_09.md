@@ -138,6 +138,14 @@ carriage; the database casts every value.
 Four of the 17 are not loads at all: they are the query language and the user's own program. They stay, and a guard
 (§6, P9) proves none of them can carry a load. The other 13 move onto loads and their code is deleted.
 
+**Amended 2026-11-09 (the tenets re-audit's A-1 and A-2):** 12 of the 13 move onto loads and are deleted. M4 is BOUNDED
+instead -- the orchestrator's decision of 2026-11-09: keep legend-engine's harness overlay (upstream's shape, so no
+divergence); option 2, a door-level fixture, was declined as surface with no gain to the seal -- its data reaches a plan
+only as a load (`ServiceTestProvisionKeyTest`). M8's row below names `SqlDml.LoadCsv` as deleted: the record stays, as
+the streamed insert's MIR (`EffectPlanner.loadCsv` builds it for `Delivery.Streamed`'s statement), and holds no path;
+what M8 deleted is the path in the statement (`csvSource`, `TestKinds.resourceFile`, the dialects' file read). The
+census (`DataMechanismCensusTest`) is the authority for each row's state; the table states the design.
+
 | # | Today (inventory §1) | Fate | What is deleted |
 |---|---|---|---|
 | M1 | `###Data` into the server's project database: `Project.made` inside every product plan's target | a `Load(ONCE)` in the plan's load section, named by identity | `ExecutionPlan.Project.made`/`refused` (the refusal moves to planning the load), `PlanSessions.made`, `ProjectData.fill`'s statement text path |
@@ -221,17 +229,22 @@ that cannot delete what it replaces is not done.
   the one identity scheme (`load:` + the SHA-256, portable `cache.Hash`, of a length-prefixed encoding of the steps).
   Exec runs every load through one deliverer (`PlanRunner.seed`), a target's at the points its setup ran (once per kept
   in-memory database; on each query's acquisition on the project road).
-- **The test road (M3, M7-seed):** the seeds are `BEFORE_STEP` loads made by `LoadPlanner`; a seed form mapped over
-  `executeInDb` is an `AT_STEP` load; the plan's connection description no longer carries `testDataSetupCsv/Sqls`.
-- **Service suites (M4, the user's ruling: option 1):** the harness keeps legend-engine's own overlay (a synthetic
+- **The test road (M3):** the seeds are `BEFORE_STEP` loads made by `LoadPlanner`; the plan's connection description no
+  longer carries `testDataSetupCsv/Sqls`. A seed form mapped over `executeInDb` stays the effect's script, as the M1
+  correctness audit's C3 restored it (2026-11-09: as an `AT_STEP` load it changed what the referee replayed), so M7-seed
+  is PENDING for L5.
+- **Service suites (M4, the orchestrator's decision, 2026-11-09: option 1 -- keep legend-engine's harness overlay,
+  upstream's shape, so no divergence; option 2, a door-level fixture, declined as surface with no gain to the seal;
+  until the re-audit's A-2 this line called it the user's ruling, which it was not):** the harness keeps legend-engine's own overlay (a synthetic
   connection carrying the suite's CSV); its data reaches a plan only as a load
   (`ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`).
 - **A project's Data (M1, L3, S171):** the target's `ONCE` load, made once where the platform makes the
   project's database and kept; `Project` names its key and refusal alone (the refusal stays where the database is
   made, slice 5's rule).
-- **The census, corrected by the M1 tenets audit (2026-11-09, finding 2):** DELETED M2, M7-seed, M8 (3 of 17); M4
-  BOUNDED (the user's option 1: the harness's overlay stays, legend-engine's own shape; its data reaches a plan only as a
-  load, `ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`); M1 PENDING (the fill is still
+- **The census, corrected by the M1 tenets audit (2026-11-09, finding 2) and by the re-audit (A-2):** DELETED M2, M8 (2
+  of 17); M4 BOUNDED (the orchestrator's option 1: the harness's overlay stays, legend-engine's own shape; its data
+  reaches a plan only as a load, `ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`); M7-seed PENDING
+  (L5: the seed forms stay the effect's script, C3); M1 PENDING (the fill is still
   `ProjectData.fill`'s INSERT text inline: decision 1's reference above the threshold), M3 PENDING (`Seeds.planned` is
   still the seeds' own path; `SeedTexts`, the referee's copy, goes with M15 at L8), each with what L2/L3 removed held at
   zero. The TypeScript runner refuses a target naming any load, as it refused a setup.
@@ -282,7 +295,12 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
 - **P1 One record family.** The plan records (`executionplan`, `testexecutionplan`) hold data for a database only in
   `Load`/`LoadStep`: no other record has a row-shaped field (`List<List<String>>`, bytes) but `Constant` (an answer the
   program wrote, not a load). `PlanTypesAreDataTest` extended.
-- **P2 One constructor.** Only the load planner constructs `Load` and `LoadStep` (ArchUnit).
+- **P2 One constructor.** Only the load planner constructs `Load` (`ArchitectureTest.onlyTheLoadPlannerMakesALoad`); a
+  `LoadStep` is made only by the planner's makers of statements and rows (`setup.CsvSeed`, `setup.Ddl`, `setup.RowLoad`,
+  `planner.PlanMaker`, `planner.SystemCatalog`, `testplan.EffectPlanner`: `onlyThePlannersMakersMakeALoadStep`); the
+  JSON reader rebuilds either; exec makes neither (`execMakesNoLoad`). `LoadPlanner.load` is public (the test planner
+  calls it): the guard is the one constructor call and identity scheme, not the caller set (the re-audit's A-5,
+  2026-11-09: until then this line claimed both records were the load planner's alone).
 - **P3 One deliverer.** Only exec's loader sends a load's statements, streams its rows or binds a staged file: the JDBC
   census pins the LOADS act and a load's sends to it (`JdbcSurfaceCensusTest`).
 - **P4 The deletion census.** A source census lists, per mechanism M1-M17, its deleted symbols (§3's last column),

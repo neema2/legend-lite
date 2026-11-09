@@ -150,9 +150,36 @@ public final class PlanSessions {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             var sys = system;
-            return target.database() instanceof ExecutionPlan.Database.System && sys != null
-                    ? Sessions.view(sys.sessionFor(target), trace)
-                    : Sessions.view(session, trace);
+            if (target.database() instanceof ExecutionPlan.Database.System && sys != null) {
+                // the system database's leases make and establish what its target loads (the catalog, L4b)
+                return Sessions.view(sys.sessionFor(target), trace);
+            }
+            // the caller's session as it set it up: a target that loads data would run without it, refused by name,
+            // never skipped (the re-audit's A-3, 2026-11-09: until then this source ran none and said nothing)
+            refuseUnrun(target, "a session the caller holds, as it set it up", false);
+            return Sessions.view(session, trace);
+        }
+    }
+
+    /** {@code target}'s loads and its project's refusal, refused by name where {@code what} runs them not: every load,
+     *  or (where {@code acquires}) every one but its acquisition's ({@code PER_ACQUISITION}). A source runs the loads its
+     *  target names or refuses the target: never a plan run with less data than it names (the re-audit's A-3). */
+    static void refuseUnrun(ExecutionPlan.Target target, String what, boolean acquires) {
+        java.util.List<ExecutionPlan.Load> unrun = target.loads().stream()
+                .filter(l -> !(acquires && l.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION)).toList();
+        ExecutionPlan.Project project = switch (target.database()) {
+            case ExecutionPlan.Database.Declared d -> d.project();
+            case ExecutionPlan.Database.Platform p -> p.project();
+            case ExecutionPlan.Database.System s -> null;
+        };
+        if (!unrun.isEmpty()) {
+            throw new IllegalStateException("the plan's target names " + unrun.size() + " load(s) "
+                    + unrun.stream().map(ExecutionPlan.Load::cadence).collect(java.util.stream.Collectors.toCollection(
+                            () -> java.util.EnumSet.noneOf(ExecutionPlan.Load.Cadence.class))) + " that " + what
+                    + " does not run: a database the platform makes runs them (the project's databases), never skipped");
+        }
+        if (project != null && project.refused() != null) {
+            throw new IllegalArgumentException(project.refused());
         }
     }
 
@@ -162,20 +189,27 @@ public final class PlanSessions {
      *  the one deliverer ({@link PlanRunner#establishOn}); a load whose rows need a bulk loader is refused by name there,
      *  before any statement, on a database that has none. Until L2 (2026-11-09) the target's {@code setup}. */
     public static Source acquired(Sessions.Session session, ExecutionPlan.Target target) {
+        // its ONCE loads and its project's refusal are the made database's: refused by name on a session the caller
+        // holds (the re-audit's A-3, 2026-11-09: until then skipped silently)
+        refuseUnrun(target, "a session acquired for it", true);
+        return new Acquired(session, target);
+    }
+
+    /** {@link #acquired} on a session of a database made for the target -- a project's own ({@link #projectDatabase}),
+     *  its ONCE loads run and its refusal raised where it was made: what each acquisition establishes, run here. */
+    public static Source acquiredOnMade(Sessions.Session session, ExecutionPlan.Target target) {
         return new Acquired(session, target);
     }
 
     private static final class Acquired implements Source {
         private final Sessions.Session session;
         private final ExecutionPlan.Target target;
-        private final Source source;
         // [0] established, [1] an establishing that failed: never run again on the same source (some of its steps ran)
         private final boolean[] state = {false, false};
 
         Acquired(Sessions.Session session, ExecutionPlan.Target target) {
             this.session = session;
             this.target = target;
-            this.source = of(session);
         }
 
         @Override
@@ -192,7 +226,9 @@ public final class PlanSessions {
                     state[0] = true;
                 }
             }
-            return source.open(t);
+            // the loads established above: a view of the session for every target (the caller's own, never the
+            // source that refuses a target's loads)
+            return Sessions.view(session);
         }
     }
 
@@ -224,6 +260,9 @@ public final class PlanSessions {
      *  stored owned session, or an owned session of the target's own where the database keeps itself (the user's
      *  named in-memory database, a URL). */
     private static Sessions.Session openShared(ExecutionPlan.Target target) {
+        // a kept database is reached without its loads running: each verified against its content where the key that
+        // finds it is made (the re-audit's A-7, 2026-11-09)
+        target.loads().forEach(PlanRunner::verifyIdentity);
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
         return switch (target.database()) {
             // the graph's system database is the body driver's (opened once per graph, its store the plan's seed step):
@@ -322,12 +361,7 @@ public final class PlanSessions {
             throw new IllegalArgumentException("the server's project databases run a plan the server planned "
                     + "(TypedQuery.projectPlan); this plan's target names no project: " + target.database());
         }
-        // the database's identity: its connection, its project's key, its session statements and its loads BY IDENTITY
-        // (their content's digests: never the statements themselves, which the full audit of 2026-11-09 found serialized
-        // and hashed on every open) -- so two models whose declared test data differ never share one (the M1
-        // correctness audit's C1, 2026-11-09: since L2 the connection no longer carried the test data that told them
-        // apart)
-        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
+        Hash key = projectKey(target);
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
@@ -361,6 +395,27 @@ public final class PlanSessions {
                 };
             }
         };
+    }
+
+    /**
+     * A project's database's KEEPING KEY: what the database holds -- its connection and its project (whose key names the
+     * stores, the Data rows and the declared test data: the planner's) -- and the ONCE loads it is made with, BY
+     * IDENTITY, each verified against its content first (the re-audit's A-7, 2026-11-09: a kept database is reached
+     * without its loads running, so a load claiming another fill's identity is refused here). A query's own
+     * per-acquisition loads and session statements are not what the database holds, so they name none (the re-audit's
+     * A-4: until then the whole target was hashed, and a query reading the metamodel's tables kept a database of its
+     * own, with the whole fill; the M1 correctness audit's C1 is kept by the project's key).
+     */
+    public static Hash projectKey(ExecutionPlan.Target target) {
+        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeTarget(
+                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of())));
+        for (ExecutionPlan.Load load : target.loads()) {
+            if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
+                PlanRunner.verifyIdentity(load);
+                key.append('\u0001').append(load.identity());
+            }
+        }
+        return Hash.ofUtf8(key.toString());
     }
 
     /** {@code session} made into the project's database: the project's refusal raised, then the target's ONCE loads

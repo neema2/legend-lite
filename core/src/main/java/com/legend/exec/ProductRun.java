@@ -71,7 +71,10 @@ public final class ProductRun {
         ExecutionPlan.Target target = plan.answerSql().target();
         try (Sessions.Session session = sessions.open(target)) {
             PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> PlanSessions.acquired(session, target);
+                // a project's database was made with its ONCE loads (PlanSessions.projectDatabase); every other session
+                // runs only what each acquisition establishes, and refuses the rest by name
+                case DECLARED_SETUP -> sessions instanceof SessionSource.ProjectDatabases
+                        ? PlanSessions.acquiredOnMade(session, target) : PlanSessions.acquired(session, target);
                 case AS_GIVEN -> {
                     // the caller set its session up: a target that loads data on acquisition would run without it,
                     // refused by name, never skipped (the M1 tenets audit's finding 7, 2026-11-09)
