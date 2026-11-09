@@ -55,9 +55,31 @@ class DataMechanismCensusTest {
     /** The 17, in the inventory's order. */
     static final List<Row> ROWS = List.of(
             new Row("M1", "###Data into the server's project database (Project.made)", new Pending("L3")),
-            new Row("M2", "a connection's declared test data on the product path (Target.setup)", new Pending("L2")),
+            // L2, 2026-11-09: a target's declared test data is its PER_ACQUISITION loads, written once per plan and run
+            // by the one deliverer every load takes (PlanRunner.seed); the target's setup and its own runner are gone
+            new Row("M2", "a connection's declared test data on the product path (Target.setup)", new Deleted("L2",
+                    List.of(
+                            // the target's setup steps and the reader of them
+                            "target.setup()",
+                            "\"setup\", t.setup()",
+                            // the setup's own runner and the sources that ran it
+                            "PlanRunner.setUp(",
+                            "setUpIn(",
+                            "PlanSessions.setUp(",
+                            "refuseSetup("))),
+            // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
+            // scheme); the plan's connection description no longer carries the raw test data the loads carry. The
+            // referee's copy of a seed's rows (the edge's SeedTexts) is M15's, replayed from the plan's loads at L8
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
-                    new Pending("L2")),
+                    new Deleted("L2", List.of(
+                            // the seeds' own identity scheme, folded into LoadPlanner.identity
+                            "Seeds.key(",
+                            // the plan's copy of a connection's raw test data, written and read
+                            "x.testDataSetupCsv(), x.testDataSetupSqls()",
+                            "putIfSet(o, \"testDataSetupCsv\"",
+                            "o.optionalString(\"testDataSetupCsv\")",
+                            // the node a seed was until L1
+                            "ExecutionPlan.Setup"))),
             new Row("M4", "service-suite data through a synthetic connection", new Pending("L2")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4")),
             new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
@@ -82,7 +104,8 @@ class DataMechanismCensusTest {
                     new Staying("P9: constants come from the compiled model alone")),
             new Row("M13-output", "the test-data generator's rows handed on as seed text", new Pending("L8")),
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Pending("L7")),
-            new Row("M15", "harnesses seed by JDBC; the referee's mirror replays seed texts", new Pending("L8")),
+            new Row("M15", "harnesses seed by JDBC; the referee's mirror replays seed texts (the edge's SeedTexts)",
+                    new Pending("L8")),
             new Row("M16", "parameters, keyed keys, counts, host rows",
                     new Staying("P9: parameters come from the caller alone")),
             new Row("M17", "data parsed and never loaded", new Pending("L8")),
@@ -141,9 +164,9 @@ class DataMechanismCensusTest {
 
     @Test
     void theDeletedRowsOnlyGrow() {
-        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8). A row leaves PENDING with its slice and
-        // this count rises with it, in the same change, with its date and slice
+        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2 and M3). A row leaves
+        // PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        assertEquals(1, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }
