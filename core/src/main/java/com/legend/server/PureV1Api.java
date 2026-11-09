@@ -104,34 +104,24 @@ public final class PureV1Api {
 
     /**
      * How a host runs an execute: the PLAN this API made (slice 5, 2026-11-09: until then the host was handed the typed
-     * query and planned it -- a compiled model across the seam), run on the session its {@code target} names, its rows
-     * streamed to {@code sink}, which the API made from the plan before any statement runs (an answer the engine's API
-     * has no form for is refused before a program's writes land); {@code writes} whether the plan writes (it runs on
-     * the plan's own sessions). legend-lite's server hands in its door ({@code ConnectionResolver.RUNNER}).
+     * query and planned it -- a compiled model across the seam), its rows streamed to {@code sink}, which the API made
+     * from the plan before any statement runs (an answer the engine's API has no form for is refused before a
+     * program's writes land). The plan says alone where it runs: whether it writes, and its answer's target.
+     * legend-lite's server hands in its door ({@code ConnectionResolver.RUNNER}).
      */
     @FunctionalInterface
     public interface Runner {
-        void run(com.legend.executionplan.ExecutionPlan plan, com.legend.executionplan.ExecutionPlan.Target target,
-                boolean writes, com.legend.result.ResultSink sink) throws java.io.IOException;
+        void run(com.legend.executionplan.ExecutionPlan plan, com.legend.result.ResultSink sink)
+                throws java.io.IOException;
     }
 
-    /** {@code query} planned for {@code runtime}, under the wall's planning scope, and handed to {@code runner} with the
-     *  sink {@code sinkOf} makes from the plan: the plan, its session's target (the answer's statement's, else the
-     *  runtime's) and whether it writes are all the host is given. */
+    /** {@code query} planned for {@code runtime} (the query's one planning entry, {@code TypedQuery.executionPlan}: the
+     *  door plans through it too) and handed to {@code runner} with the sink {@code sinkOf} makes from the plan. */
     private static void planAndRun(com.legend.TypedQuery query, String runtime, Runner runner,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
             throws java.io.IOException {
-        com.legend.executionplan.ExecutionPlan plan;
-        com.legend.executionplan.ExecutionPlan.Target target;
-        try (var planning = com.legend.base.RunScope.plans("a query")) {
-            plan = query.executionPlan(runtime, java.util.Set.of());
-            if (Boolean.getBoolean("legend.plan.roundtrip")) {
-                com.legend.executionplan.PlanJson.requireRoundTrip(plan);
-            }
-            target = plan.sendsTheAnswer() ? plan.answerSql().target()
-                    : com.legend.planner.PlanMaker.runtimeTarget(query.context(), runtime);
-        }
-        runner.run(plan, target, query.writes(), sinkOf.apply(plan));
+        com.legend.executionplan.ExecutionPlan plan = query.executionPlan(runtime, java.util.Set.of());
+        runner.run(plan, sinkOf.apply(plan));
     }
 
     /**

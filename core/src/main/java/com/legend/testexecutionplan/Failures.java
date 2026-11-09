@@ -11,8 +11,8 @@ import com.legend.error.LegendCompileException;
  * A PLANNING FAILURE TO DATA, AND BACK AT ITS TURN (docs/PLAN_AS_DATA_2026_11_07.md 2.4, the design's step 2,
  * 2026-11-08): {@link #of} is the planning half -- the exception an assert's, a let's or a side's planning raised, as
  * the test plan's {@link Failure}; {@link #raised} the run's -- the exception the failure names, with its message,
- * raised at the verdict's turn as the planned exception was. Two halves of one rule, in the judges' package until the
- * design's step 10 puts each with its side (testplan, testexec).
+ * raised at the verdict's turn as the planned exception was. Two halves of one rule, in the test plan's library: the
+ * planning half is called by testplan, the run's by testexec (slice 5, 2026-11-09).
  */
 public final class Failures {
 

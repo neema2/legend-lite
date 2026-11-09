@@ -31,18 +31,35 @@ public final class TestRunner {
 
 
     /**
-     * A body's plan ({@link #plan}, or a program planned ahead, {@link #planned}) RUN on {@code session}: the plan's
-     * data alone decides what is sent and judged, each verdict told to {@code callers} at its turn (the listener is the
-     * run's output, never asked for anything: hole 4, 2026-11-08 -- the fixtures the plan's appeals name are the
-     * caller's to provide before this, {@code PlannedAppeals.stores}); the appeals held are decided after the run by
-     * the {@code referee}. No compiled model: the system database's sessions are found by the plan's own targets
-     * (hole 2, 2026-11-08) and an appeal's enums are the plan's (hole 1).
+     * A body's test plan RUN on the session {@code sessions} opens for the plan's own target ({@link TestPlan#session},
+     * planned: slice 5, 2026-11-09 -- the door opened it from the model until then), closed when the run ends (a
+     * caller's own session, {@code SessionSource.given}, is a view: closing it closes nothing). The test door's
+     * {@code runProgram}: no fixture is provided between the body's plan and its run.
+     */
+    public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
+            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections, @Nullable Edge edge,
+            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Answer answer) {
+        try (Sessions.Session session = sessions.open(plan.session())) {
+            run(plan, session, systemConnections, edge, callers, referee, answer, StatementOrigin.OTHER);
+        }
+    }
+
+    /**
+     * A body's test plan (planned whole, or a program planned ahead: the test planner's) RUN on {@code session}: the
+     * plan's data alone decides what is sent and judged, each verdict told to {@code callers} at its turn (the listener
+     * is the run's output, never asked for anything: hole 4, 2026-11-08 -- the fixtures the plan's appeals name are
+     * the caller's to provide before this, {@code PlannedAppeals.stores}); the appeals held are decided after the run
+     * by the {@code referee}; its statements counted under {@code origin} (a fixture's seeding: SEED). No compiled
+     * model: the system database's sessions are found by the plan's own targets (hole 2, 2026-11-08) and an appeal's
+     * enums are the plan's (hole 1). A plan naming an appeal it does not carry is refused before anything runs,
+     * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5).
      */
     public static void run(TestPlan plan, Sessions.Session session,
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
+        com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
         // judges tell the caller's listener through it, its reports kept back while an appeal is held
         Appeals appeals = new Appeals(callers);
@@ -87,11 +104,6 @@ public final class TestRunner {
         }
     }
 
-    /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
-     *  statements to the raw-SQL ledger as each runs, the texts the walk records (the referee mirrors the ledger to
-     *  replay the golden SQL of later bodies), and an effect's failure named as the walk names it; each assert's
-     *  sides judged by the host judge at its verdict step, counted and reported to the listener as the walk does
-     *  (M6). The database judge's verdicts reach no moved body: its bodies stay on the walk until M7. */
     /** The run's session for a target: the graph's system database for a target naming it, the body's own session for
      *  every other -- as the run's sessions source maps them ({@link PlanSessions#of}), unviewed: the held appeals'
      *  decision after the run is handed it (the referee's replay; {@link Appeals#decide}). */
@@ -102,6 +114,10 @@ public final class TestRunner {
                 : session;
     }
 
+    /** The run's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed statements'
+     *  ledger texts to the edge as each runs (the referee mirrors the ledger to replay the golden SQL of later bodies),
+     *  and an effect's failure named; each assert's verdict judged at its step by the judge the plan names and reported
+     *  to the listener. */
     private static final class Moved implements com.legend.exec.ProgramRunner.ProgramSink, TestRun.Judges {
         private final TestPlan planned;
         /** The compatibility edge the run was handed, which records the referee's ledger, or null (lite's rules). */

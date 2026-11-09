@@ -4,7 +4,7 @@
 package org.finos.legend.lite.pct.channelb;
 
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.FunctionDefinition;
@@ -261,8 +261,8 @@ public final class ChannelB {
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
-            Execution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the

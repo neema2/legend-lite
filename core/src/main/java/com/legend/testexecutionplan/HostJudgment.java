@@ -87,7 +87,7 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
-     *  the element arm judges a pair ({@code judge.PureAsserts}: the same decision, the same message, the
+     *  the element arm judges a pair ({@code testexec.PureAsserts}: the same decision, the same message, the
      *  first failing row's): the sides are the zip's arms ({@code pairing}: their pairing by position, stopped at the
      *  shorter, zip's own rule) or one relation source ({@code pairing} null: its rows as records by column name); each
      *  argument a row's field, the row itself, or a literal, decided at planning (2026-11-04, the core program: until

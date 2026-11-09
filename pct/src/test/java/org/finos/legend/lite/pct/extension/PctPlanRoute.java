@@ -49,7 +49,7 @@ final class PctPlanRoute {
                     ExecutionPlan planned = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME, features);
                     return planned.sendsTheAnswer() ? planned.answerSql().target() : null;
                 }),
-                PctBackend.planSessions(), com.legend.Execution.Establish.DECLARED_SETUP, features, p -> {
+                PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, p -> {
                     if (p.answerShape() != ExecutionPlan.TdsResult.Shape.RELATION) {
                         return collector;
                     }

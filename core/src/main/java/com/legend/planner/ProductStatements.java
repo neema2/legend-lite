@@ -66,7 +66,7 @@ public final class ProductStatements {
 
     /** The literal kinds a plan answers as its own constant, the database never asked: the kinds whose database
      *  spelling cannot differ from the literal's (D26). The one owner, read by the test road's fold too
-     *  ({@code driver.LiteralFold.ADMITTED}); a new kind needs its differential leg in {@code ConstantPlanParityTest}
+     *  ({@code testplan.LiteralFold.ADMITTED}); a new kind needs its differential leg in {@code ConstantPlanParityTest}
      *  first. */
     public static final Set<String> ADMITTED = Set.of("String", "Boolean");
 

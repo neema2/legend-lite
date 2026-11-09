@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureV1ApiTest {
 
     /** A runner for a route that must not run anything. */
-    private static final PureV1Api.Runner NO_RUN = (plan, target, writes, sink) -> {
+    private static final PureV1Api.Runner NO_RUN = (plan, sink) -> {
         throw new AssertionError("nothing is run here");
     };
 
@@ -630,9 +630,9 @@ class PureV1ApiTest {
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
-                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (plan, target, writes, sink) -> {
-                    // the host is handed the plan and its session's target, never the compiled query (slice 5)
-                    ran[0] = String.valueOf(target.database());
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (plan, sink) -> {
+                    // the host is handed the plan alone, never the compiled query: where it runs is the plan's (slice 5)
+                    ran[0] = String.valueOf(plan.answerSql().target().database());
                     throw new IllegalArgumentException("not here");
                 });
         org.junit.jupiter.api.Assertions.assertTrue(ran[0] != null && ran[0].contains("H2"),

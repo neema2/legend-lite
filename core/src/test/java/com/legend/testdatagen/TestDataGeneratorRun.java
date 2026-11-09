@@ -351,7 +351,7 @@ final class TestDataGeneratorRun {
     /** {@code node}'s rows, run by the plan runner on the run's session. */
     private static List<List<Object>> rows(Session st, ExecutionPlan.TdsResult node) {
         try {
-            return PlanRunner.rows(new ExecutionPlan(List.of(), node), Map.of(), st.sessions()).rows();
+            return PlanRunner.rows(ExecutionPlan.reading(List.of(), node), Map.of(), st.sessions()).rows();
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }

@@ -25,21 +25,18 @@ public final class ConnectionResolver {
      *  ({@code PlanSessions.projectDatabase}) -- a declared connection by {@code Sessions}' opening, the platform's
      *  engine for a runtime binding only model data. Public since D67 (2026-10-30): the tests' twin reads the server's
      *  route through it ({@code testing.Lean.service}). */
-    public static final com.legend.Execution.Source SOURCE = com.legend.exec.PlanSessions::projectDatabase;
+    public static final com.legend.exec.SessionSource SOURCE = com.legend.exec.PlanSessions::projectDatabase;
 
     /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
-     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a query that
-     *  reads runs on its runtime's connection, leased, established first as legend-engine establishes it on every
-     *  acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's sessions
-     *  (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}. */
-    public static final PureV1Api.Runner RUNNER = (plan, target, writes, sink) -> com.legend.Execution.runPlan(plan,
-            target, writes, SOURCE, com.legend.exec.PlanSessions.shared(), com.legend.Execution.Establish.DECLARED_SETUP,
-            sink, com.legend.result.Batcher.DEFAULT_CAPACITY);
+     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a plan that
+     *  reads runs on its answer's target's connection, leased, established first as legend-engine establishes it on
+     *  every acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's
+     *  sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) -- the plan says which. A database failure is a
+     *  {@link com.legend.error.DataError}. */
+    public static final PureV1Api.Runner RUNNER = (plan, sink) -> com.legend.Execution.runPlan(plan, SOURCE,
+            com.legend.exec.PlanSessions.shared(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, sink,
+            com.legend.result.Batcher.DEFAULT_CAPACITY);
 
-    /** The session for {@code runtimeFqn} of the compiled model {@code ctx}: the same session a query on that runtime
-     *  executes on (a caller that seeds tables before querying shares the database) -- the runtime's target planned,
-     *  then opened as any query's is. The caller closes it. Tests' alone. */
-    static com.legend.exec.Sessions.Session session(com.legend.compiler.element.ModelContext ctx, String runtimeFqn) {
-        return SOURCE.open(com.legend.planner.PlanMaker.runtimeTarget(ctx, runtimeFqn));
-    }
+    // (the tests' session for a runtime of a compiled model, session(ctx, runtimeFqn), left for the tests 2026-11-09,
+    // slice 5: it planned the runtime's target, so the server's runner read the planner; the tests' ServerSessions)
 }

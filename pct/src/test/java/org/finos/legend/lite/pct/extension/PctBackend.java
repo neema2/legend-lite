@@ -153,7 +153,7 @@ public final class PctBackend {
      * session, as the door's first route opened, lost getAll::testBasic on ClickHouse (a temporary table lives in its
      * HTTP session) and Snowflake (no current schema).
      */
-    public static com.legend.Execution.Source executionSource(
+    public static com.legend.exec.SessionSource executionSource(
             java.util.function.Supplier<com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target> planned) {
         TestBackend backend = backend();
         if (ownSessions(backend)) {

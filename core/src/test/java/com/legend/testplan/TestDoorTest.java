@@ -129,7 +129,7 @@ class TestDoorTest {
             });
         }
         // the planner's program is a sequence of its steps, one step or many, as the test door made it before step 3
-        return new ExecutionPlan(test.parameters(), new ExecutionPlan.Sequence(nodes));
+        return ExecutionPlan.reading(test.parameters(), new ExecutionPlan.Sequence(nodes));
     }
 
     /** {@code plan} run as the test door's plans run, through the program runner (its seed steps are the program

@@ -78,8 +78,9 @@ public final class PlanJson {
      *  plan's M10a); 27 since 2026-11-08: the verdict group and the branch leave for the test plan's own format (the
      *  plan-as-data design's step 3); 28 the same day: the system database names its store by its content's key
      *  ({@code graphKey}, step 7); 29 the same day: a declared or platform database carries its project's identity
-     *  ({@code project}: the plan-as-data design's hole 7). */
-    public static final int VERSION = 29;
+     *  ({@code project}: the plan-as-data design's hole 7); 30 since 2026-11-09: whether the plan writes
+     *  ({@code writes}: the plan-as-data design's slice 5 -- the run reads it from the plan, never from the query). */
+    public static final int VERSION = 30;
 
     private PlanJson() {
     }
@@ -141,6 +142,7 @@ public final class PlanJson {
         out.put("version", VERSION);
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("root", node(plan.root()));
+        out.put("writes", plan.writes());
         return Json.toCompact(out);
     }
 
@@ -447,7 +449,7 @@ public final class PlanJson {
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
         }
-        return new ExecutionPlan(parameters, readNode(o.getObj("root")));
+        return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
     }
 
     /** {@link #parameterJson}'s inverse. */

@@ -29,8 +29,8 @@ public final class TestPlanJson {
      *  edge's records by step and by verdict, each through its codec; 6 (slice 3): whether the body's last statement
      *  answers a verdict; 7 (slice 3, hole 5): a root loop's row carries the decline its arm decided; 8 (slice 4,
      *  hole 1): an appeal's rows carry the enumerations the referee decodes; 9 (A1): an appeal names the appeal it is a
-     *  second hearing of. */
-    public static final int VERSION = 9;
+     *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on. */
+    public static final int VERSION = 10;
 
     private TestPlanJson() {
     }
@@ -80,6 +80,7 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
+        out.put("session", PlanJson.targetJson(plan.session()));
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -218,7 +219,8 @@ public final class TestPlanJson {
         Json.Obj ext = o.getObjOr("extensions", null);
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
-                ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"));
+                ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
+                PlanJson.targetOf(o.getObj("session")));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

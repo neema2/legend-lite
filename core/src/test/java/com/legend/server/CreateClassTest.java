@@ -411,7 +411,7 @@ class CreateClassTest {
     // Through the route, and what cannot be a class
     // ---------------------------------------------------------------------
 
-    private static final PureV1Api.Runner NO_RUN = (plan, target, writes, sink) -> {
+    private static final PureV1Api.Runner NO_RUN = (plan, sink) -> {
         throw new AssertionError("nothing is run here");
     };
 

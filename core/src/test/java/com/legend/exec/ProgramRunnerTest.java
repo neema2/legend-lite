@@ -119,7 +119,7 @@ final class ProgramRunnerTest {
     /** {@code steps}, each a product node, as a program: the plan reads back from its JSON as written. */
     private static ProgramRunner.Program program(ExecutionPlan.Node... steps) {
         for (ExecutionPlan.Node n : steps) {
-            assertEquals(n, PlanJson.read(PlanJson.write(new ExecutionPlan(List.of(), n))).root(),
+            assertEquals(n, PlanJson.read(PlanJson.write(ExecutionPlan.reading(List.of(), n))).root(),
                     "a step reads back as written");
         }
         List<ProgramRunner.Step> out = new ArrayList<>();

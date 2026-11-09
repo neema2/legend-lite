@@ -615,7 +615,7 @@ public final class VerdictQueries {
         return cur;
     }
 
-    /** A JSON golden, as its judge read it ({@code driver.JudgeJson}, register S144), in its CANONICAL text (compact,
+    /** A JSON golden, as its judge read it ({@code testexecutionplan.JudgeJson}, register S144), in its CANONICAL text (compact,
      * keys sorted — {@code Json.canonical}). */
     public static com.legend.compiler.spec.typed.TypedCString canonicalJsonGolden(@com.legend.base.Nullable Object parsed) {
         String canon = com.legend.sql.Json.canonical(parsed);

@@ -18,12 +18,26 @@ import java.util.Objects;
  *
  * @param parameters the plan's declared parameters, validated and converted by the executor before anything runs
  * @param root       what the plan computes
+ * @param writes     whether the plan changes a store: a plan that writes runs on its statements' own sessions (decision
+ *                   A, docs/WRITES_DESIGN_2026_10_18.md §8), one that reads on the session its answer's target names
+ *                   (the plan-as-data design's slice 5, 2026-11-09: a fact of the plan, so a plan read back from its
+ *                   JSON runs alone -- until then the door read it off the typed query and handed it beside the plan)
  */
-public record ExecutionPlan(List<Parameter> parameters, Node root) {
+public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
 
     public ExecutionPlan {
         parameters = List.copyOf(parameters);
         Objects.requireNonNull(root, "root");
+    }
+
+    /** A plan that reads: it changes no store. */
+    public static ExecutionPlan reading(List<Parameter> parameters, Node root) {
+        return new ExecutionPlan(parameters, root, false);
+    }
+
+    /** A plan that writes: a program that changes a store. */
+    public static ExecutionPlan writing(List<Parameter> parameters, Node root) {
+        return new ExecutionPlan(parameters, root, true);
     }
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
@@ -116,7 +130,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** {@code [lower..upper]}; {@code upper} null is {@code *}. */
     /** An execution's trace comment, as legend-engine's executor writes one per execution: the run stamps a
      *  statement with one, and planning writes the one a frame's activity row names (2026-11-09: one spelling for
      *  both halves). */
@@ -124,6 +137,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         return "-- \"executionTraceID\" : \"" + id + "\"";
     }
 
+    /** {@code [lower..upper]}; {@code upper} null is {@code *}. */
     public record Multiplicity(int lower, @com.legend.base.Nullable Integer upper) {
         public Multiplicity {
             if (lower < 0 || (upper != null && upper < lower)) {

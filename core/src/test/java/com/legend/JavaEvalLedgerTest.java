@@ -1383,7 +1383,12 @@ class JavaEvalLedgerTest {
                     // THE SYSTEM DATABASE HOLDER, the driver's until slice 5 (hole 2): the current system database of
                     // each engine, found by the plan's own target and leased per run; it opens and closes sessions
                     // through the seam's doors and evaluates nothing
-                    "SystemDatabase.java");
+                    "SystemDatabase.java",
+                    // 2026-11-09, slice 5's two doors: a product plan's run (the door's runPlan until then: where the plan
+                    // says it runs -- its writes on its own sessions, a read on its answer's target's session, a constant
+                    // on none) and the contract of where a read's session comes from (the door's Source); both take the
+                    // plan and nothing of the model, and evaluate nothing
+                    "ProductRun.java", "SessionSource.java");
 
     /** THE JUDGE PACKAGE is a CLOSED REGISTER (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer
      * out of exec -- the host lattice, the grid compare, the canonical instruments, the verdict batch, the referee,
@@ -1436,8 +1441,9 @@ class JavaEvalLedgerTest {
 
 
     /** THE ROOT, closed (user directive 2026-09-01, SQLTEXT slice 3; step C, D73, 2026-10-30): the top-level package
-     * holds the product's five public doors and nothing else -- the plan side's {@code Compiler}, {@code TypedQuery},
-     * {@code HeldModels} and the execution side's {@code Execution}, {@code ExecuteOptions}. Until D73 it held the
+     * holds the product's public doors and nothing else -- the plan side's {@code Compiler}, {@code TypedQuery},
+     * {@code HeldModels}, the product's {@code Execution} and the test body's {@code TestExecution} and
+     * {@code ExecuteOptions} (the two execution doors split in slice 5, 2026-11-09). Until D73 it held the
      * executor and the verdict arms too (exactly where host evaluation likes to creep back in), told apart from the
      * plan side by Bazel alone; the machinery is {@code planner/} and {@code driver/} now, each a closed register
      * below, and a NEW file at the root is a new door, registered consciously. */
@@ -1445,6 +1451,10 @@ class JavaEvalLedgerTest {
             java.util.Set.of(
                     "Compiler.java", "TypedQuery.java", "HeldModels.java",
                     "Execution.java", "ExecuteOptions.java",
+                    // 2026-11-09, slice 5 (the user's word: "split the door"): the test body's door, its own library
+                    // beside the product's -- a body planned by the test planner, its plan run by the test runner; it
+                    // holds no logic (theDoorsHoldNoLogic; ArchitectureTest.theDoorsOnlyCompose)
+                    "TestExecution.java",
                     "package-info.java");
 
     /** THE PLANNER'S MACHINERY, closed (step C, D73, 2026-10-30): a typed query to its plan -- the plan maker, the
@@ -1827,6 +1837,41 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",
             // 2026-10-29 (the doors): the generator itself -- every statement the plan runner's
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java");
+
+    /** The doors' sources (the user's question of 2026-11-09: "something that enforces that this should only call one
+     *  line to call planner and one line to call executor and that's all it can do"). */
+    private static final java.util.List<String> DOOR_FILES = java.util.List.of(
+            "core/src/main/java/com/legend/Execution.java",
+            "core/src/main/java/com/legend/TestExecution.java");
+
+    /** Logic's spellings: a branch, a loop, a catch, a throw, a lambda or method reference, a ternary, an object made. */
+    private static final Pattern DOOR_LOGIC = Pattern.compile(
+            "\\b(if|else|for|while|do|switch|case|try|catch|finally|throw|new|synchronized)\\b|->|::|(?<![<,]|[<,] )\\?");
+
+    /** THE DOORS HOLD NO LOGIC (slice 5, 2026-11-09): in comment-stripped source, a door spells no branch, loop, catch,
+     *  throw, lambda, method reference, ternary or {@code new} -- each method is a planning call and a run call
+     *  ({@code ArchitectureTest.theDoorsOnlyCompose} pins which calls, in bytecode; a branch is invisible there). Pinned
+     *  at zero, no register: a door that needs a decision has found work for the planner or the runner. */
+    @Test
+    void theDoorsHoldNoLogic() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : DOOR_FILES) {
+            String src = Files.readString(SourceFiles.file(f))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "")
+                    .replaceAll("\"(\\\\.|[^\"\\\\])*\"", "\"\"");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                java.util.regex.Matcher m = DOOR_LOGIC.matcher(lines[i]);
+                if (m.find()) {
+                    drift.append("\n  ").append(f).append(":").append(i + 1).append(": '").append(m.group())
+                            .append("' in ").append(lines[i].strip());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(drift.length() == 0,
+                "a door holds logic (move it to the planner or the runner):" + drift);
+    }
 
     private static final Pattern CONNECTION_SPELLING = Pattern.compile("\\.connection\\(\\)|java\\.sql\\.");
 

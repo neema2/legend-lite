@@ -5,7 +5,7 @@ package com.legend.test;
 
 
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.PureModelContext;
 import com.legend.model.AuthenticationSpec;
@@ -246,8 +246,8 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // session; its last statement's answer streams through the boundary's writer for the test's format
                 // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
                 // assertions compare
-                Execution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
-                        com.legend.Execution.Source.given(conn), null, null, com.legend.ExecuteOptions.NONE,
+                TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
+                        com.legend.exec.SessionSource.given(conn), null, null, com.legend.ExecuteOptions.NONE,
                         shape -> writer(out, shape, test.serializationFormat()));
             } catch (Skip s) {
                 throw s;

@@ -24,7 +24,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
  *
  * <p>Public since step C (D73, 2026-10-30), for ONE caller: the body router ({@link TestPlanner}, since the
  * test-is-the-product plan's M5, 2026-11-01), which walks here every body of a class not yet moved onto the program
- * road; the execution door (Execution.runProgram) calls the router. The class was package-private by design while it
+ * road; the execution door (TestExecution.runProgram) calls the router. The class was package-private by design while it
  * shared the root package with the door; ArchitectureTest.theDriverHasOneCaller keeps the design across the package
  * line.
  */

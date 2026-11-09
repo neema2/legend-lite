@@ -415,7 +415,7 @@ class PlanMakerTest {
         for (DatabaseType type : IN_PROCESS) {
             ExecutionPlan root = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
             ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root(), type.name());
-            ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
+            ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
             assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, sequence.answerShape());
             assertEquals(sequence, com.legend.executionplan.PlanJson.read(com.legend.executionplan.PlanJson.write(sequence)),
                     type + ": the sequence read back");
@@ -431,7 +431,7 @@ class PlanMakerTest {
         ExecutionPlan root = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
                 .executionPlan("s::RT");
         ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root());
-        ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
+        ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(
                 new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", keyed.keys().target())), keyed)));
         String expected;
         try (Connection c = fresh(Databases.PLATFORM)) {

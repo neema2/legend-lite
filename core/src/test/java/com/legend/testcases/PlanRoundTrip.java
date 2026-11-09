@@ -42,7 +42,7 @@ public final class PlanRoundTrip {
         if (dir == null) {
             return;
         }
-        ExecutionPlan bare = new ExecutionPlan(plan.parameters(), withoutTrees(plan.root()));
+        ExecutionPlan bare = ExecutionPlan.reading(plan.parameters(), withoutTrees(plan.root()));
         long statementChars = statementChars(plan.root());
         String line = what.replace('\t', ' ') + "\t" + json.length() + "\t" + PlanJson.write(bare).length() + "\t"
                 + statementChars + "\n";

@@ -24,13 +24,14 @@
  *   <li>{@code lowering/}   — {@code TypedSpec} → {@code sql.SqlQuery} (Lowerer, phase I)</li>
  *   <li>{@code sql/dialect/} — {@code SqlQuery} → SQL string (phase J)</li>
  *   <li>{@code exec/}       — a plan + a session → typed rows (PlanRunner, phase K)</li>
- *   <li>{@code judge/}      — the verdict layer (D71, 2026-10-30): a test body's assertion judged over typed rows</li>
  *   <li>{@code planner/}    — the plan machinery behind the three plan-side doors (step C, D73, 2026-10-30)</li>
- *   <li>{@code driver/}     — the execution side's machinery behind the two execution doors: the body driver, the judges' arms, the seeds, the probes, the system database (D73)</li>
+ *   <li>{@code testplan/}   — a test body planned whole into a test plan (slice 5, 2026-11-09: the driver's and the judges' planning)</li>
+ *   <li>{@code testexec/}   — a test plan run and judged (slice 5: the driver's and the judges' runs; the judge package's verdict layer)</li>
  * </ol>
- * This package holds the five doors alone since D73: {@link com.legend.Compiler}, {@link com.legend.TypedQuery},
- * {@link com.legend.HeldModels} (the plan side, {@code //core:planner}) and {@link com.legend.Execution},
- * {@link com.legend.ExecuteOptions} (the execution side, {@code //core:driver}).
+ * This package holds the doors alone: {@link com.legend.Compiler}, {@link com.legend.TypedQuery},
+ * {@link com.legend.HeldModels} (the plan side, {@code //core:planner}), {@link com.legend.Execution} (the product's
+ * door, {@code //core:execution}) and {@link com.legend.TestExecution}, {@link com.legend.ExecuteOptions} (the test
+ * body's door, {@code //core:test_execution}; the two doors split in slice 5, 2026-11-09).
  *
  * <h2>Invariants</h2>
  * See {@code core/README.md §Strong invariants} for the authoritative

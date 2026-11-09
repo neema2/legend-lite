@@ -65,7 +65,7 @@ public enum StatementOrigin {
     private static final java.util.concurrent.atomic.AtomicReference<java.util.@com.legend.base.Nullable List<String>>
             OBSERVED = new java.util.concurrent.atomic.AtomicReference<>();
 
-    /** Every statement this thread sends until the scope closes, each as {@code [origin] text}, appended to
+    /** Every statement sent until the scope closes (on any thread: one test at a time), each as {@code [origin] text}, appended to
      *  {@code into}: what a parity test compares between two roads (measurement only, as the census). */
     public static Observing observing(java.util.List<String> into) {
         java.util.List<String> previous = OBSERVED.get();

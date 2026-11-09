@@ -30,12 +30,16 @@ import java.util.Objects;
  * @param answersLastVerdict  the body's last statement is an assert: its verdict is the body's answer, written as host
  *                            rows to the caller's sink (a fact the planner decides; the slice 2 invariant audit's hole
  *                            3, 2026-11-08: the router decided it after the run from the planner's objects)
+ * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
+ *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
+ *                            plan, so a plan read back from its JSON could not open its own session)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict) {
+        boolean answersLastVerdict, ExecutionPlan.Target session) {
 
     public TestPlan {
+        Objects.requireNonNull(session, "session");
         parameters = List.copyOf(parameters);
         steps = List.copyOf(steps);
         Objects.requireNonNull(judge, "judge");
@@ -51,7 +55,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
@@ -106,7 +110,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The shape of this plan's answer (the product's rule: {@link ExecutionPlan#answerShape}). */
     public TdsResult.Shape answerShape() {
-        return new ExecutionPlan(parameters, answer()).answerShape();
+        return ExecutionPlan.reading(parameters, answer()).answerShape();
     }
 
     /** Whether this plan's answer is a statement's rows, not a value the plan wrote. */

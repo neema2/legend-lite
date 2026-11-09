@@ -103,7 +103,7 @@ class CypherWritePlansTest {
                 com.legend.executionplan.ExecutionPlan ran = com.legend.Execution.run(typed, CypherGraph.RUNTIME,
                         target -> {
                             throw new AssertionError("a program that writes opens no query session");
-                        }, PlanSessions.of(com.legend.testbackend.TestSessions.over(session)), com.legend.Execution.Establish.DECLARED_SETUP,
+                        }, PlanSessions.of(com.legend.testbackend.TestSessions.over(session)), com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
                         plan -> new com.legend.result.JsonRowsWriter(answer, plan.answerShape()));
                 assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, ran.answerShape(), detach);
                 return graph(session, model);

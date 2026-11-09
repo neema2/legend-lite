@@ -39,7 +39,7 @@ class TypedPlanTest {
         return switch (plan.root()) {
             case ExecutionPlan.TdsResult t -> t.sql().target();
             case ExecutionPlan.Keyed k -> k.keys().target();
-            case ExecutionPlan.Sequence s -> target(new ExecutionPlan(List.of(), s.steps().get(0)));
+            case ExecutionPlan.Sequence s -> target(ExecutionPlan.reading(List.of(), s.steps().get(0)));
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();

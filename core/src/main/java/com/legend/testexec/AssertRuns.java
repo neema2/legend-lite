@@ -59,7 +59,7 @@ final class AssertRuns {
      * THE PROGRAM ROAD'S VERDICT SEAM (the test-is-the-product plan's M6): {@code a}, planned before the program ran,
      * judged at its verdict step over the sides the runner read ({@code sides} shapes them, or raises the error
      * reading them raised: the judgment decides it, {@code com.legend.testexec.HostJudgments.judge}) -- counted and reported to
-     * {@code listener} exactly as {@link #tryAdjudicate} counts and reports an assert the walk adjudicates in place:
+     * {@code listener} exactly as the deleted walk's adjudication counted and reported an assert it judged in place:
      * entered, its verdict reported, a failure (an assert that does not hold, a side's data error) counted as raised
      * and reported, any other exit counted as raised. A side the database refused is thus counted and reported as an
      * assert whose side raised inside the arm (M6's audit, S2; one path since 2026-11-03). Null where the judgment
@@ -144,7 +144,7 @@ final class AssertRuns {
     /**
      * THE AGREEMENT JUDGE'S HOST HALF AT ITS STEP (the walker-deletion program, 2026-11-02): {@code a} judged over the
      * sides the runner read, its verdict HELD -- the verdict of record is decided once the database half's rows are in
-     * ({@link #agreedAtItsStep}) -- counted as {@link #tryAdjudicate} counts an assert it adjudicates in place over the
+     * ({@link #agreedAtItsStep}) -- counted as the deleted walk's adjudication counted an assert it judged in place over the
      * agreement arm (entered; a side's data error counted raised, reported and thrown at once, as the agreement arm
      * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
      */
@@ -193,7 +193,7 @@ final class AssertRuns {
     }
 
     /** The agreement judge's verdict of record for {@code a} ({@code agreed}: the agreement rule over both halves,
-     *  {@link AgreementArm#agree}), reported to {@code listener} as {@link #tryAdjudicate} reports it: a pass, or a
+     *  {@link AgreementArm#agree}), reported to {@code listener} as the deleted walk's adjudication reported it: a pass, or a
      *  failure (an assert that does not hold, a data error) counted raised, its UNJUDGED reason and its verdict told,
      *  and thrown. */
     static TypedSide agreedAtItsStep(com.legend.testexecutionplan.Assertion a,

@@ -121,9 +121,9 @@ class JudgesOnPlansTest {
                     com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|" + c.body() + ";");
                     List<com.legend.protocol.spec.ValueSpecification> statements =
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body();
-                    Execution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
+                    TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), new AssertListener() {
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), new AssertListener() {
                                 @Override
                                 public void verdict(String assertName, boolean pass,
                                         @com.legend.base.Nullable String detail) {
@@ -169,10 +169,10 @@ class JudgesOnPlansTest {
         try (Connection conn = com.legend.testbackend.TestBackends.platform().open()) {
             com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|assertEquals(1, 1 + 1);");
             var failed = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
-                    () -> Execution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(
+                    () -> TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body(),
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                             ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH)));
             assertTrue(failed.getMessage().contains("expected: 1"), failed.getMessage());
             assertTrue(failed.getMessage().contains("actual:   2"), failed.getMessage());

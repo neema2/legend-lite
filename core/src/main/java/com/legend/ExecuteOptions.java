@@ -90,13 +90,23 @@ public record ExecuteOptions(
      *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. The choice is made upfront and
      *  stated in the plan: every verdict step names its rules ({@link #judgingRules}, TestPlan.JudgingRules), which
      *  both judges read. Today: S132's float tokens within 2 ULP inside a String, S127's Integer equal to a Decimal by
-     *  text (judge.Equality, driver.DatabaseJudge). */
+     *  text (testexec.Equality, testplan.DatabaseJudge). */
     public ExecuteOptions withEngineCompat(boolean on) {
         return new ExecuteOptions(edge, resources, features, judgeMode, systemConnections, on);
     }
 
     /** The rules this run's asserts are judged by, which its planners stamp on every verdict step (the user,
      *  2026-11-04: "explicit rule"): backwards compatibility's where the run asked for it, lite's own otherwise. */
+    /** The host's system connections keyed by the plan's database type (the same constant as the model's): the run
+     *  finds a system database by the plan's target alone. The door's until slice 5 (2026-11-09). */
+    public java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
+            systemConnectionsByEngine() {
+        java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener> out =
+                new java.util.LinkedHashMap<>();
+        systemConnections.forEach((t, o) -> out.put(com.legend.executionplan.DatabaseType.valueOf(t.name()), o));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
     public com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules() {
         return engineCompat ? com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT : com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
     }

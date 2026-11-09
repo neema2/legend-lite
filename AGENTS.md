@@ -201,19 +201,19 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
-D73, 2026-10-30) and is reached from that package alone (`ArchitectureTest.theDriverHasOneCaller`): what remains of it
-is the body's environment (`ExecEnv`) and the frame and side planning the judges' planners share. **The walk is
-deleted (2026-11-06)**: its statement-by-statement path (`BodyDriver.execute`, `BodyCompiler`), its door (`WalkDoor`,
-`-Dlegend.walk.allowed`) and the router's walk branch. The body router `driver/BodyRouter`, which `Execution.runProgram`
-alone calls, plans every body whole through the test door (`testplan/BodyClass` names its class; each assert planned
-before the program by its judge's planner: `driver/HostAsserts`, `driver/DatabaseAsserts`, `driver/AgreementAsserts`)
-and runs it as one plan, judging each assert at its verdict step in the router's sink; a body no class admits, or whose
-judge's planner refuses an assert, is refused by name (`NotImplementedException: the program road does not plan this
-body`, with its kinds and the class rule's reason). The root package holds the five public doors alone:
-`Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
-machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
-order.
+**The driver and judge packages are deleted (slice 5, 2026-11-09, docs/PLAN_AS_DATA_2026_11_07.md section 11).** A
+test body is planned by `testplan/` (`TestPlanner`: the body's class, `BodyClass`; each assert planned by its judge's
+planner, `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`; `BodyDriver` is what remains of the body's planning
+environment) into a test plan, which is data (`testexecutionplan/`), and the plan is run by `testexec/` (`TestRunner`:
+exec's program runner with the judges as its callback), which reaches no planning library. **The walk is deleted
+(2026-11-06)**; a body no class admits, or whose judge's planner refuses an assert, is refused by name
+(`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
+The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
+`Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
+`//core:test_execution`). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
+and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
+on no execution class (`plannerIsExecutionFree`).
 
 ## Layer ownership (the contract)
 

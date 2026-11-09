@@ -217,14 +217,24 @@ public final class TypedQuery {
      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
      *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
-        return PlanMaker.plan(this, runtime, java.util.Set.of());
+        return executionPlan(runtime, java.util.Set.of());
     }
 
     /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
-     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). The one planning entry of a
+     *  product query (slice 5, 2026-11-09: the door's and pure/v1's own copies of these lines are gone): planned under
+     *  the wall's planning scope (THE WALL's rule 2: no session opens and no run starts while it is planned), and, where
+     *  the test lanes ask ({@code -Dlegend.plan.roundtrip=true}, every junit lane: tools/junit/defs.bzl), refused if
+     *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features) {
-        return PlanMaker.plan(this, runtime, features);
+        try (var planning = com.legend.base.RunScope.plans("a query")) {
+            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features);
+            if (Boolean.getBoolean("legend.plan.roundtrip")) {
+                com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+            }
+            return plan;
+        }
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {

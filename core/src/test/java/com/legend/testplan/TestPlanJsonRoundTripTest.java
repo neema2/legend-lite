@@ -80,7 +80,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Batched("golden", null, false), 1), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null,
                 RootLoop.NO_APPEAL)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
-                true);
+                true, anyTarget());
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -126,15 +126,19 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"));
     }
 
+    /** Any database's target: the round trip does not depend on which. */
+    private static ExecutionPlan.Target anyTarget() {
+        return new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0], null), List.of(),
+                List.of());
+    }
+
     private static Appeal rowsAppeal() {
         Appeal.Rows rows = new Appeal.Rows(new Appeal.Read(constant(), shape(), null),
                 new Appeal.Read(null, null, null, new Appeal.Unlisted("DateTimeParseException", "bad text")),
                 "select 1", "my::Mapping", "my::C", true, false, List.of("k"), "plan", Map.of("p", List.of("1")),
                 List.of(new Appeal.TempTable("temp", "Integer", List.of("1", "2"))),
                 new Appeal.InListSeed("String", List.of("a")), List.of("my::Store"),
-                // any database: the round trip does not depend on which
-                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0], null), List.of(),
-                        List.of()),
+                anyTarget(),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
         return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);
     }

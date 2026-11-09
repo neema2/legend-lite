@@ -230,7 +230,7 @@ public final class PlanSessions {
      * {@code made} steps where this makes the database itself (a held in-memory one), kept for the process. An
      * unnamed in-memory database and the platform's are keyed apart by the project and filled with nothing (as the
      * server kept them); a URL's or a user-named database is the user's own and opens as it is. The per-query setup
-     * is not run here: the door runs the target's setup on each query ({@code Execution.Establish}), as legend-engine
+     * is not run here: the door runs the target's setup on each query ({@code com.legend.exec.ProductRun.Establish}), as legend-engine
      * establishes a connection on every acquisition.
      */
     public static Sessions.Session projectDatabase(ExecutionPlan.Target target) {

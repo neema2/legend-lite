@@ -27,7 +27,7 @@ class SessionStatementsOnceH2Test {
     private static final List<String> SESSION = List.of("SET @legend_session = 1");
 
     private static ExecutionPlan plan(ExecutionPlan.Target target, String statement) {
-        return new ExecutionPlan(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(statement, target)));
+        return ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(statement, target)));
     }
 
     private static long sessionStatements() {

@@ -38,7 +38,7 @@ public final class Sessions {
     private Sessions() {
     }
 
-    /** A session handed to execution for a target (the driver's {@code Execution.Source} since D72, 2026-10-30): closing it releases it -- for a session the caller owns,
+    /** A session handed to execution for a target (the driver's {@code com.legend.exec.SessionSource} since D72, 2026-10-30): closing it releases it -- for a session the caller owns,
      *  nothing; for one the source opened, whatever that source's lease says. Its state ({@link SessionState}: the
      *  seeds established on it, the database's reported column types, the session statements run, D66) is the owning
      *  session's own, one per connection, shared by every {@link #view} of it -- until D70 a process-wide weak map

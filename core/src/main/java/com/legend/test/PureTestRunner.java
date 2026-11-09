@@ -5,7 +5,7 @@ package com.legend.test;
 
 
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
 import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
@@ -301,12 +301,11 @@ public final class PureTestRunner implements AutoCloseable {
             if (called.containsAll(setups) || !mayProvide(store, ran)) {
                 continue;
             }
-            Execution.PlannedProgram fixture = Execution.planProgram(
+            com.legend.testexecutionplan.TestPlan fixture = TestExecution.planProgram(
                     Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
             if (fixture != null) {
                 provideFixture(store, conn, ran, shared,
-                        (fqn, target) -> Execution.runBody(fixture, target, null, null, options, null,
-                                com.legend.exec.StatementOrigin.SEED));
+                        (fqn, target) -> TestExecution.runFixture(fixture, target, options));
             }
         }
     }
@@ -411,7 +410,7 @@ public final class PureTestRunner implements AutoCloseable {
             // refuses the known clashes
         }
         try {
-            // the fixture's statements counted under SEED: the program's own mark (Execution.runBody's origin)
+            // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's origin)
             program.accept(target);
         } finally {
             if (isolated) {
@@ -421,11 +420,12 @@ public final class PureTestRunner implements AutoCloseable {
         return true;
     }
 
-    /** The setup {@code call} run on {@code target}: the one entry for a program (track C, 2026-10-29), the setup's
-     *  body typed once. */
+    /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
+     *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
+     *  where a thread-scoped SEED mark around the program counted them until then). */
     private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
-        Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn, com.legend.Execution.Source.given(target),
-                null, null, options);
+        TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
+                options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
@@ -540,11 +540,11 @@ public final class PureTestRunner implements AutoCloseable {
                 // the body planned whole, nothing told to anyone; the fixtures its appeals name provided; then run,
                 // its listener told each verdict at its turn (hole 4, 2026-11-08: the two halves, the fixtures
                 // between them -- until then the run asked the listener for them)
-                Execution.PlannedProgram planned = Execution.planBody(Compiler.queryResolved(ctx, resolved),
+                com.legend.testexecutionplan.TestPlan planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved),
                         runtimeFqn, options);
                 provideFixtures(t, facts, conn, options,
-                        com.legend.testexecutionplan.PlannedAppeals.stores(planned.plan()));
-                Execution.runBody(planned, conn,
+                        com.legend.testexecutionplan.PlannedAppeals.stores(planned));
+                TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

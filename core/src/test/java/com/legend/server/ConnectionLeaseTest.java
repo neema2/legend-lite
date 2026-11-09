@@ -158,7 +158,7 @@ class ConnectionLeaseTest {
         // showed as an undeletable file, and says what we actually mean.
         com.legend.exec.Sessions.Session owned;
         try (com.legend.exec.Sessions.Session session =
-                ConnectionResolver.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
+                ServerSessions.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
             owned = session;
             assertTrue(!com.legend.exec.Sessions.closed(owned), "a session must hand out a live connection");
         }
@@ -169,7 +169,7 @@ class ConnectionLeaseTest {
 
         com.legend.exec.Sessions.Session borrowed;
         try (com.legend.exec.Sessions.Session session =
-                ConnectionResolver.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
+                ServerSessions.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
             borrowed = session;
         }
         assertTrue(!com.legend.exec.Sessions.closed(borrowed),

@@ -563,7 +563,7 @@ final class ArchitectureTest {
      * <strong>The driver has one caller (step C, D73, 2026-10-30; the router between them since the
      * test-is-the-product plan's M5, 2026-11-01, the M5 audit's S5).</strong> {@code BodyDriver} was package-private
      * by design while it shared the root package with the execution door; the driver's machinery is its own package
-     * now ({@code com.legend.driver}). The execution door ({@code Execution.runProgram}) calls the body router
+     * now ({@code com.legend.driver}). The execution door ({@code TestExecution.runProgram}) calls the body router
      * ({@code TestPlanner}), which runs a body of a moved class on the program road and walks every other with the
      * body driver: the walk is reached from the driver package alone, and the router from the door alone.
      */
@@ -578,15 +578,15 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
         noClasses()
             .that().resideOutsideOfPackage("com.legend.testplan")
-            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.TestPlanner(\\$.*)?")
-            .as("M5: the test planner is the execution door's alone (Execution.planBody, planProgram)")
+            .as("M5: the test planner is the test door's alone (TestExecution.planBody, planProgram)")
             .check(CORE_PROD_CLASSES);
         noClasses()
             .that().resideOutsideOfPackage("com.legend.testexec")
-            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testexec\\.TestRunner(\\$.*)?")
-            .as("slice 5: the test's run is the execution door's alone (Execution.runBody)")
+            .as("slice 5: the test's run is the test door's alone (TestExecution.runBody)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1181,8 +1181,8 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
-    /** R3 (slice 5, 2026-11-09): only the door ({@code com.legend.Execution}) sees both halves -- no other class depends
-     *  on both the test's planner and the test's run. */
+    /** R3 (slice 5, 2026-11-09): only the test door ({@code com.legend.TestExecution}, its own library since the doors'
+     *  split the same day) sees both halves -- no other class depends on both the test's planner and the test's run. */
     @Test
     void onlyTheDoorSeesBothHalves() {
         java.util.Set<String> both = new java.util.TreeSet<>();
@@ -1194,12 +1194,179 @@ final class ArchitectureTest {
                 plans |= pkg.equals("com.legend.testplan");
                 runs |= pkg.equals("com.legend.testexec");
             }
-            if (plans && runs && !topLevel(c).equals("com.legend.Execution")) {
+            if (plans && runs && !topLevel(c).equals("com.legend.TestExecution")) {
                 both.add(c.getName());
             }
         }
         org.junit.jupiter.api.Assertions.assertTrue(both.isEmpty(), "R3: a class other than the door depends on both"
                 + " the test's planner and the test's run: " + both);
+    }
+
+    /** The planning libraries (R4, below): the compiler, the planners, the middle end, the generator's planning. */
+    private static final java.util.List<String> PLANNING_PACKAGES = java.util.List.of("com.legend.compiler",
+            "com.legend.planner", "com.legend.testplan", "com.legend.lowering", "com.legend.resolver",
+            "com.legend.normalizer", "com.legend.testdatagen");
+
+    /** The running libraries (R4): the runtime and the test's run. */
+    private static final java.util.List<String> RUNNING_PACKAGES = java.util.List.of("com.legend.exec",
+            "com.legend.testexec");
+
+    /** The root's plan-side doors, planning's public entries. */
+    private static final java.util.Set<String> PLAN_SIDE_DOORS = java.util.Set.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels");
+
+    /** The two doors (the user's word of 2026-11-09, "split the door"): the product's and the test body's. */
+    private static final java.util.Set<String> DOORS = java.util.Set.of("com.legend.Execution",
+            "com.legend.TestExecution");
+
+    /** What a caller above the doors may name of planning (R4): its entries -- the plan-side doors -- and the types
+     *  they hand out (the compiled model, a program's facts) and take (the test planner's options). */
+    private static final java.util.Set<String> PLANNING_API = java.util.Set.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels", "com.legend.compiler.element.ModelContext",
+            "com.legend.compiler.element.PureModelContext", "com.legend.planner.ProgramFacts",
+            "com.legend.testplan.PlanningOptions");
+
+    /** What a caller above the doors may name of running (R4): a session and where one comes from (the resource the
+     *  caller owns and hands a door), and the types a door's run takes from it (the answer's sink, the referee). */
+    private static final java.util.Set<String> RUN_API = java.util.Set.of("com.legend.exec.Sessions",
+            "com.legend.exec.SessionSource", "com.legend.testexec.Answer", "com.legend.testexec.SqlReplayReferee");
+
+    private static boolean inAnyPackage(String pkg, java.util.List<String> packages) {
+        for (String p : packages) {
+            if (pkg.equals(p) || pkg.startsWith(p + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * R4, ONLY THE DOORS COMPOSE (slice 5, the user's word of 2026-11-09: "callers compile and call a door, nothing
+     * else"): a class outside the planning and running libraries that reaches both -- the server, the test runners,
+     * the doors' options -- names only planning's public entries and the types they hand out ({@link #PLANNING_API})
+     * and only the session it owns and the run's parameter types ({@link #RUN_API}). The work of putting a plan and a
+     * run together is a door's ({@link #DOORS}); no third place plans with the planner's machinery and runs with the
+     * runtime's. Hard, no register: at its first measure (2026-11-09) three classes reached both, each through these
+     * types alone.
+     */
+    @Test
+    void onlyTheDoorsCompose() {
+        java.util.Set<String> composers = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String top = topLevel(c);
+            if (inAnyPackage(c.getPackageName(), PLANNING_PACKAGES) || inAnyPackage(c.getPackageName(), RUNNING_PACKAGES)
+                    || DOORS.contains(top) || PLAN_SIDE_DOORS.contains(top)) {
+                continue;
+            }
+            java.util.Set<String> plans = new java.util.TreeSet<>();
+            java.util.Set<String> runs = new java.util.TreeSet<>();
+            for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
+                com.tngtech.archunit.core.domain.JavaClass t = d.getTargetClass().getBaseComponentType();
+                String target = topLevel(t);
+                if (inAnyPackage(t.getPackageName(), PLANNING_PACKAGES) || PLAN_SIDE_DOORS.contains(target)) {
+                    plans.add(target);
+                }
+                if (inAnyPackage(t.getPackageName(), RUNNING_PACKAGES)) {
+                    runs.add(target);
+                }
+            }
+            if (plans.isEmpty() || runs.isEmpty()) {
+                continue;
+            }
+            plans.removeAll(PLANNING_API);
+            runs.removeAll(RUN_API);
+            if (!plans.isEmpty() || !runs.isEmpty()) {
+                composers.add(top + " reaches planning " + plans + " and running " + runs);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(composers.isEmpty(), "R4: a class other than the doors plans with"
+                + " the planner's machinery and runs with the runtime's (call a door): " + composers);
+    }
+
+    /** The calls a door may make (the doors' shape, below): planning's entries, the runs' entries, and the test door's
+     *  options' three accessors. */
+    private static final java.util.Set<String> DOOR_PLANNING_CALLS = java.util.Set.of(
+            "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
+            "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
+            "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
+            "com.legend.ExecuteOptions#systemConnectionsByEngine");
+
+    private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
+            "com.legend.testexec.TestRunner#run", "com.legend.testexec.TestRunner#runOpening");
+
+    /**
+     * THE DOORS ONLY COMPOSE (the user's question of 2026-11-09: "something that enforces that this should only call
+     * one line to call planner and one line to call executor and that's all it can do"): a door holds no state (no
+     * field, no nested class) and each of its methods calls only planning's entries ({@link #DOOR_PLANNING_CALLS}),
+     * the runs' entries ({@link #DOOR_RUN_CALLS}) and its own overloads; it calls at most one run -- a run entry or an
+     * overload -- and that call is its last (nothing is planned after a run starts). It reads no field but an enum's
+     * constant. Its source holds no branch, loop, lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}:
+     * the bytecode does not show a branch). A line cap would only measure it; this says what it may do.
+     */
+    @Test
+    void theDoorsOnlyCompose() {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String top = topLevel(c);
+            if (!DOORS.contains(top)) {
+                continue;
+            }
+            if (!c.getName().equals(top)) {
+                found.add("a nested class " + c.getName());
+                continue;
+            }
+            for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
+                found.add("a field " + f.getFullName());
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (u.isConstructor() || u.getName().equals("<clinit>")) {
+                    continue;
+                }
+                int runs = 0;
+                int runLine = -1;
+                int lastPlanningLine = -1;
+                for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                    String target = call.getTargetOwner().getName() + "#" + call.getName();
+                    if (DOOR_RUN_CALLS.contains(target) || call.getTargetOwner().getName().equals(top)) {
+                        runs++;
+                        runLine = call.getLineNumber();
+                    } else if (DOOR_PLANNING_CALLS.contains(target)) {
+                        lastPlanningLine = Math.max(lastPlanningLine, call.getLineNumber());
+                    } else {
+                        found.add(u.getFullName() + " calls " + target);
+                    }
+                }
+                if (runs > 1) {
+                    found.add(u.getFullName() + " runs " + runs + " times");
+                }
+                if (runs == 1 && lastPlanningLine > runLine) {
+                    found.add(u.getFullName() + " plans after it runs (line " + lastPlanningLine + ")");
+                }
+                if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
+                    found.add(u.getFullName() + " makes a method reference");
+                }
+                for (com.tngtech.archunit.core.domain.JavaFieldAccess a : u.getFieldAccesses()) {
+                    com.tngtech.archunit.core.domain.JavaClass owner = a.getTarget().getOwner();
+                    if (!owner.isEnum() || !a.getTarget().getRawType().equals(owner)) {
+                        found.add(u.getFullName() + " reads " + a.getTarget().getFullName());
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "a door does more than compose a plan and a run: "
+                + found);
+    }
+
+    /** No product class reaches the compatibility edge (slice 5's spec, 2026-11-09): the edge depends on the product,
+     *  never the reverse (G5); its codecs reach the test plan through the extension point's service file alone. The
+     *  build's twin is {@code tools/deps/core-layers.txt} (no product library lists {@code edge}). */
+    @Test
+    void noProductClassReachesTheEdge() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.edge..")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .as("G5: the edge depends on the product, never the reverse")
+            .check(CORE_PROD_CLASSES);
     }
 
     /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is

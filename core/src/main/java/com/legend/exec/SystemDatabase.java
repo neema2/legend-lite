@@ -1,6 +1,7 @@
-package com.legend.exec;
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
 
-import com.legend.exec.Sessions;
+package com.legend.exec;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE system database of a graph (user ruling 2026-09-02; the driver's since D72, 2026-10-30 -- keyed by the
+ * THE system database of a graph (user ruling 2026-09-02; exec's since slice 5, 2026-11-09, the driver's from D72 -- keyed by the
  * graph's store key the plan names, never the compiled graph, since hole 2; it holds its sessions through the seam's
  * public doors): the
  * metamodel rows live in a database of their own, SEPARATE from every user
@@ -44,8 +45,8 @@ import java.util.Map;
  * session's own (the private instance's guarantees on a shared server: no
  * other session sees it, two graphs or two runs never collide, and the
  * server drops it when the session ends, a crash included), named
- * {@link Ddl#systemTable}; the query reads it through its table renames
- * ({@link Route#renames}).
+ * {@code Ddl.systemTable}; the query reads it through its table renames
+ * ({@code Route.renames}).
  */
 public final class SystemDatabase {
 

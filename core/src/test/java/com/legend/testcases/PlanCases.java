@@ -242,7 +242,7 @@ public final class PlanCases {
     public static String today(String model, String query, String runtime, Connection c, Written written)
             throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
-        com.legend.Execution.run(model, query, runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)),
+        com.legend.Execution.run(model, query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), p -> written.writer(out, p.answerShape()));
         return out.toString();
     }

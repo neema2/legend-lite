@@ -3,288 +3,87 @@
 
 package com.legend;
 
-import com.legend.testexecutionplan.AssertListener;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.ProductRun;
+import com.legend.exec.SessionSource;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.result.Batcher;
+import com.legend.result.ResultSink;
 
-import com.legend.testexec.SqlReplayReferee;
-
-import com.legend.compiler.element.ModelContext;
-import com.legend.testplan.TestPlanner;
+import java.io.IOException;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
- * THE EXECUTION FRONT DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a query planned by
- * {@link Compiler} (the planner, which never touches a database — its library has no {@code exec}) run on a
- * session — handed by the caller and checked, or opened from the target the planner decided
- * ({@code Compiler.executesOn}, {@code exec.Sessions}). Execution reaches the planner only through its public API:
- * the compiled model, the resolved query, the target, and the lowered query ({@link Compiler.LoweredQuery}).
+ * THE PRODUCT'S DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; thin since the plan-as-data
+ * design's slice 5, 2026-11-09): a query planned by its one planning entry ({@code TypedQuery.executionPlan}: the
+ * planner never touches a database) and the plan run by exec's product run ({@link ProductRun}: the plan alone says
+ * where it runs). Each method is one planning call and one run call, or a call of another of them -- no logic, no
+ * state ({@code ArchitectureTest.theDoorsOnlyCompose}). Its own library ({@code //core:execution}); a test body's door
+ * is {@link TestExecution}, its own.
  */
 public final class Execution {
 
     private Execution() {
     }
 
-    /** How a query that only reads takes its session: established as legend-engine establishes a connection on every
-     *  acquisition, the runtime's declared test data run on it first ({@code pure/v1} execute), or as the caller set it
-     *  up (its own tables, its own connection). */
-    public enum Establish { DECLARED_SETUP, AS_GIVEN }
-
-    /** Where execution gets the session for the target the compiler decided (the server's connection resolver; a
-     *  caller's own session, {@link #given}). {@code ctx} is the compiled model the target was decided from. Exec's
-     *  {@code Sessions.Source} until D72 (2026-10-30): a contract spelled in the compiler's types is the driver's,
-     *  never the runtime's. */
-    @FunctionalInterface
-    public interface Source {
-        com.legend.exec.Sessions.Session open(com.legend.executionplan.ExecutionPlan.Target target);
-
-        /** A source of {@code session} as the caller holds it: a non-closing view of it for every target (D68,
-         *  2026-10-30: the test runners hold sessions, not connections). It checks nothing at open: its callers are
-         *  the program entry, whose {@code dialectOf} checks the session against the database the compiler decided,
-         *  and the query entry, whose runner checks each statement's target (D70's audit: a check here was a second
-         *  metadata read per body). */
-        static Source given(com.legend.exec.Sessions.Session session) {
-            return target -> com.legend.exec.Sessions.view(session);
-        }
-    }
-
     /**
      * THE PRODUCTION EXECUTION (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state recorded 2026-10-27): a query
      * typed once, planned as typed rows, run by the plan's runner, its rows streamed in batches to the sink the caller
-     * makes from the plan that runs. {@code sinkOf} is called before any statement runs, so a sink that refuses the plan
-     * (an answer its format has no form for) refuses it untouched -- a program's writes never land behind a refused
-     * answer. A query that only reads runs on the session {@code sessions} opens for its runtime's target, the plan
-     * written for that session's server; a program that writes runs on {@code planSessions} (decision A: a write runs
-     * on a database of its own, a database the user names or a URL reaches keeps it). Returns the plan that ran.
+     * makes from the plan that runs ({@code sinkOf}, called before any statement runs). A plan that reads runs on the
+     * session {@code sessions} opens for its answer's target, established as {@code establish} says; a program that
+     * writes runs on {@code planSessions} (decision A). Returns the plan that ran.
      */
-    public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions,
-            com.legend.exec.PlanSessions.Source planSessions, Establish establish,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
-            throws java.io.IOException {
-        return run(typed, runtimeFqn, sessions, planSessions, establish, sinkOf,
-                com.legend.result.Batcher.DEFAULT_CAPACITY);
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Function<ExecutionPlan, ResultSink> sinkOf) throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, sinkOf,
+                Batcher.DEFAULT_CAPACITY);
     }
 
-    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
-     *  Establish, java.util.function.Function)} with the rows handed to the sink in batches of up to
-     *  {@code batchRows} (the stream's granularity: a writer writes and flushes each batch as it arrives). */
-    public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions,
-            com.legend.exec.PlanSessions.Source planSessions, Establish establish,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
-            int batchRows) throws java.io.IOException {
-        return run(typed, runtimeFqn, sessions, planSessions, establish, java.util.Set.of(), sinkOf, batchRows);
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Function)} with the
+     *  rows handed to the sink in batches of up to {@code batchRows} (a writer writes and flushes each as it arrives). */
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Function<ExecutionPlan, ResultSink> sinkOf, int batchRows) throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, sinkOf, batchRows);
     }
 
-    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source, Establish,
-     *  java.util.function.Function, int)} under the query's FEATURE FLAGS: upstream's execution context carries them
-     *  per query (its {@code ExecutionOptionContext}'s {@code FeatureFlagOption}), and the lowering reads them (2026-11-03:
-     *  the one door's own parameter, so a caller that sets a flag -- the PCT, the user's ruling of 2026-09-12 -- runs
-     *  through the door, never around it). */
-    public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions,
-            com.legend.exec.PlanSessions.Source planSessions, Establish establish,
-            java.util.Set<com.legend.platform.Feature> features,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
-            int batchRows) throws java.io.IOException {
-        // planned first, then run: the session is opened from the plan's own target, never from the model (the
-        // plan-as-data design's hole 7, the user's go of 2026-11-08: until then the door opened it from the compiled
-        // model before planning, and the server's source read the model to find and fill it)
-        com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
-        com.legend.result.ResultSink sink = sinkOf.apply(plan);
-        com.legend.executionplan.ExecutionPlan.Target target = typed.writes() ? null
-                : plan.sendsTheAnswer() ? plan.answerSql().target()
-                : com.legend.planner.PlanMaker.runtimeTarget(typed.context(), java.util.Objects.requireNonNull(
-                        runtimeFqn, "a query's runtime"));
-        runPlan(plan, target, typed.writes(), sessions, planSessions, establish, sink, batchRows);
-        return plan;
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Function, int)} under
+     *  the query's FEATURE FLAGS: upstream's execution context carries them per query (its
+     *  {@code ExecutionOptionContext}'s {@code FeatureFlagOption}), and the lowering reads them (2026-11-03: the door's
+     *  own parameter, so a caller that sets a flag -- the PCT, the user's ruling of 2026-09-12 -- runs through it). */
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Set<com.legend.platform.Feature> features, Function<ExecutionPlan, ResultSink> sinkOf, int batchRows)
+            throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn, features), sessions, planSessions, establish, sinkOf,
+                batchRows);
     }
 
-    /** A product query's PLAN run (the run half of {@link #run}; slice 5, 2026-11-09: a host that planned the query
-     *  itself, pure/v1's execute, hands the plan, never the compiled query): one that writes on the plan's own sessions
-     *  ({@code planSessions}); one that reads on the session {@code sessions} opens for {@code target}, its declared
-     *  setup established as {@code establish} says; its rows to {@code sink}. */
-    public static void runPlan(com.legend.executionplan.ExecutionPlan plan,
-            com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target target, boolean writes,
-            Source sessions, com.legend.exec.PlanSessions.Source planSessions, Establish establish,
-            com.legend.result.ResultSink sink, int batchRows) throws java.io.IOException {
-        if (writes) {
-            com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
-            return;
-        }
-        java.util.Objects.requireNonNull(target, "a reading plan's session target");
-        try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
-            com.legend.exec.PlanSessions.Source on = switch (establish) {
-                // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
-                case DECLARED_SETUP -> plan.sendsTheAnswer()
-                        ? com.legend.exec.PlanSessions.setUp(session, target)
-                        : com.legend.exec.PlanSessions.of(session);
-                case AS_GIVEN -> com.legend.exec.PlanSessions.of(session);
-            };
-            com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
-        }
+    /** A product query's PLAN run (slice 5, 2026-11-09: a host that planned the query itself, pure/v1's execute, hands
+     *  the plan, never the compiled query), its rows to {@code sink}. */
+    public static void runPlan(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
+            ProductRun.Establish establish, ResultSink sink, int batchRows) throws IOException {
+        ProductRun.run(plan, sessions, planSessions, establish, sink, batchRows);
     }
 
-    /** {@code typed}'s plan, made under the wall's planning scope (THE WALL's rule 2, the final audit, 2026-11-06):
-     *  no session opens and no run starts while the product's query is planned. */
-    private static com.legend.executionplan.ExecutionPlan planned(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, java.util.Set<com.legend.platform.Feature> features) {
-        try (var planning = com.legend.base.RunScope.plans("a query")) {
-            com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, features);
-            roundTrip(plan);
-            return plan;
-        }
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Function)} for a
+     *  model's text and a query's text, the session as the caller set it up. */
+    public static ExecutionPlan run(String model, String query,
+            @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
+            PlanSessions.Source planSessions, Function<ExecutionPlan, ResultSink> sinkOf) throws IOException {
+        return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
+                planSessions, ProductRun.Establish.AS_GIVEN, sinkOf, Batcher.DEFAULT_CAPACITY);
     }
 
-    /** G11's guard on the product door: a plan that does not survive its JSON is refused. Checked where the test lanes
-     *  ask for it ({@code -Dlegend.plan.roundtrip=true}, every junit lane: tools/junit/defs.bzl), so a product query pays
-     *  nothing; the test-body door checks every plan it makes (TestPlanner). */
-    static void roundTrip(com.legend.executionplan.ExecutionPlan plan) {
-        if (Boolean.getBoolean("legend.plan.roundtrip")) {
-            com.legend.executionplan.PlanJson.requireRoundTrip(plan);
-        }
-    }
-
-    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
-     *  Establish, java.util.function.Function)} for a model's text and a query's text, the session as the caller set
-     *  it up. */
-    public static com.legend.executionplan.ExecutionPlan run(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions,
-            com.legend.exec.PlanSessions.Source planSessions,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
-            throws java.io.IOException {
-        return run(model, query, runtimeFqn, sessions, planSessions, sinkOf, com.legend.result.Batcher.DEFAULT_CAPACITY);
-    }
-
-    /** {@link #run(String, String, String, Source, com.legend.exec.PlanSessions.Source,
-     *  java.util.function.Function)} in batches of up to {@code batchRows}. */
-    public static com.legend.executionplan.ExecutionPlan run(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, Source sessions,
-            com.legend.exec.PlanSessions.Source planSessions,
-            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
-            int batchRows) throws java.io.IOException {
-        return run(Compiler.query(Compiler.compileModel(model), query), runtimeFqn, sessions, planSessions,
-                Establish.AS_GIVEN, sinkOf, batchRows);
-    }
-
-    /**
-     * THE dialect of a program: the database its runtime executes on ({@link Compiler#executesOn}, upstream's
-     * {@code createDbConfig(connection.type)}), read from the model alone. Its session setup is the body's target's,
-     * which the plan runner runs on the connection once (D66, 2026-10-30; until then this entry ran it as setup
-     * steps, once per program). The session is not read here (THE WALL, 2026-11-06: until then this entry CHECKED it
-     * outside every run): the runner checks every session it is handed against each statement's target before the
-     * statement runs ({@code JdbcStatements.check}), so a session on another database than the one declared is
-     * refused there, never reinterpreted.
-     */
-    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn) {
-        // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
-        // target's session statements, before the connection's first statement and not again (JudgePlans.target)
-        return Compiler.dialectOf(ctx, runtimeFqn);
-    }
-
-    /**
-     * THE ONE ENTRY FOR A PROGRAM (track B's B2, 2026-10-29; docs/RESULT_BOUNDARY_START_HERE.md, the track B block;
-     * the plan path program's step 8): a test body -- lets, effects, asserts, a value -- typed once
-     * ({@link Compiler#query}), run statement by statement by the body driver on the session {@code sessions} opens
-     * for the target its runtime declares (checked against the declared database, the dialect refined by the server's
-     * version, the session's setup run once: {@link #dialectOf}), every assert's verdict reported to {@code listener}
-     * as it is judged (one event each, in statement order; a failure is raised after its report), the SQL-text
-     * referee {@code referee} consulted where an assert carries a golden text (the harnesses' registration seam;
-     * production passes neither), nothing materialized returned: the last statement's answer, where a caller wants
-     * it, streams to the sink the caller hands for its shape ({@link com.legend.testexec.Answer}; the doors, 2026-10-29: until then the
-     * last side came back materialized, {@code ProgramReport.last}). The session is closed when the program ends
-     * (the source's lease: nothing for a caller's own, {@link Source#given}). It is exactly {@link #runBody} of
-     * {@link #planBody}, nothing between them: it provides no fixture for the stores the plan's appeals name
-     * ({@code PlannedAppeals.stores}) -- a caller whose appeals read another package's store plans and runs the two
-     * halves itself, providing them between (the test runner does).
-     */
-    public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @com.legend.base.Nullable com.legend.testexec.Answer answer) {
-        ModelContext ctx = typed.context();
-        // planned before any session is opened: planning names targets, never sessions
-        PlannedProgram planned = planBody(typed, runtimeFqn, options);
-        // the runtime's target, planned: the session is opened from it, never from the model (hole 7)
-        com.legend.executionplan.ExecutionPlan.Target target = com.legend.planner.PlanMaker.runtimeTarget(ctx,
-                java.util.Objects.requireNonNull(runtimeFqn, "a program's runtime"));
-        try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
-            runBody(planned, session, listener, referee, options, answer);
-        }
-    }
-
-    /** {@link #runProgram(TypedQuery, String, Source, com.legend.testexecutionplan.AssertListener,
-     *  com.legend.testexec.SqlReplayReferee, ExecuteOptions, com.legend.testexec.Answer)} with no answer wanted: the body's last statement
-     *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
-    public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
-        runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
-    }
-
-    /** A test body or program PLANNED before it runs ({@link #planBody}, {@link #planProgram}): its test plan, data
-     *  (the plan-as-data design's step 8c, 2026-11-08: until then a closure); run by {@link #runBody}, on a session of
-     *  the database it was planned for, which plans nothing. */
-    public record PlannedProgram(com.legend.testexecutionplan.TestPlan plan) {
-        public PlannedProgram {
-            java.util.Objects.requireNonNull(plan, "plan");
-        }
-    }
-
-    /**
-     * A test body PLANNED WHOLE, with no session and nothing told to anyone (hole 4, 2026-11-08: the planning half of
-     * {@link #runProgram}): its unread lets made statements, its asserts planned by its judge's planner, the whole
-     * planned by the test door; a body the program road does not plan is refused by name. Run by {@link #runBody}.
-     */
-    public static PlannedProgram planBody(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            ExecuteOptions options) {
-        return new PlannedProgram(TestPlanner.plan(typed, runtimeFqn, options.planning()));
-    }
-
-    /**
-     * {@code planned} RUN on {@code session} (the run half of {@link #runProgram}): its plan's data alone decides what
-     * is sent and judged; each verdict is told to {@code listener} at its turn -- the listener is the run's output and
-     * is asked for nothing (hole 4, 2026-11-08: the fixtures a plan's appeals name, {@code PlannedAppeals.stores}, are
-     * the caller's to provide before this); a held appeal is decided after the run by the {@code referee}; the last
-     * statement's answer, where wanted, streams to {@code answer}'s sink. It takes no compiled model: the run reads
-     * its plan and the database's rows alone (holes 1, 2 and 7, slice 4).
-     */
-    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @com.legend.base.Nullable com.legend.testexec.Answer answer) {
-        // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3
-        // invariant audit, 2026-11-08: the planning door checked it, a plan handed in did not)
-        runBody(planned, session, listener, referee, options, answer, com.legend.exec.StatementOrigin.OTHER);
-    }
-
-    /** {@link #runBody}, its statements counted under {@code origin} (a fixture's seeding: SEED) -- the census's mark,
-     *  passed explicitly (a thread-scoped mark until slice 5, 2026-11-09). */
-    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            com.legend.testexec.@com.legend.base.Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
-        com.legend.testexecutionplan.PlannedAppeals.requireCarried(planned.plan());
-        com.legend.testexec.TestRunner.run(planned.plan(), session, systemConnectionsByEngine(options), options.edge(),
-                listener, referee, answer, origin);
-    }
-
-    /** The host's system connections keyed by the plan's engine (the options name the model's engine): the run finds a
-     *  system database by the plan's target alone. */
-    private static java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
-            systemConnectionsByEngine(ExecuteOptions options) {
-        java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener> out =
-                new java.util.LinkedHashMap<>();
-        options.systemConnections().forEach((t, o) -> out.put(com.legend.planner.ConnectionPlans.type(t), o));
-        return out;
-    }
-
-    /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the
-     *  owner, 2026-11-05: a test runner's fixture program, planned and run before the body whose compatibility appeal
-     *  names its store, {@link #runBody}): as {@link #runProgram} plans it, with
-     *  no session at all (THE WALL, 2026-11-06: until then a session was opened and checked to plan it); null for a
-     *  body that cannot be planned ahead -- one holding an assert, or of no moved class (the walk's). */
-    public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, ExecuteOptions options) {
-        com.legend.testexecutionplan.TestPlan ahead = TestPlanner.planAhead(typed, runtimeFqn, options.planning());
-        return ahead == null ? null : new PlannedProgram(ahead);
+    /** {@link #run(String, String, String, SessionSource, PlanSessions.Source, Function)} in batches of up to
+     *  {@code batchRows}. */
+    public static ExecutionPlan run(String model, String query,
+            @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
+            PlanSessions.Source planSessions, Function<ExecutionPlan, ResultSink> sinkOf, int batchRows)
+            throws IOException {
+        return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
+                planSessions, ProductRun.Establish.AS_GIVEN, sinkOf, batchRows);
     }
 }

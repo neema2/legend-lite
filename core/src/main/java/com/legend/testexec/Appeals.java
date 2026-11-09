@@ -101,7 +101,7 @@ final class Appeals {
     }
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
-     *  appeals; none where no body's run is open (a program planned ahead). */
+     *  appeals (each body's run holds its own record of them, slice 5). */
     void writing() {
         wrote = true;
         if (!held.isEmpty()) {
@@ -171,9 +171,9 @@ final class Appeals {
                 com.legend.exec.StatementOrigin.REFEREE_OURS);
         // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
         com.legend.testexec.SideReader own = side -> switch (side) {
-            case TestPlan.Side.Rows r -> PlanRunner.rows(new ExecutionPlan(List.of(), r.result()), Map.of(),
+            case TestPlan.Side.Rows r -> PlanRunner.rows(ExecutionPlan.reading(List.of(), r.result()), Map.of(),
                     source);
-            case TestPlan.Side.KeyedRows k -> PlanRunner.rows(new ExecutionPlan(List.of(), k.keyed()), Map.of(),
+            case TestPlan.Side.KeyedRows k -> PlanRunner.rows(ExecutionPlan.reading(List.of(), k.keyed()), Map.of(),
                     source);
             case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
                     + " answer is the planned side's own, never read");

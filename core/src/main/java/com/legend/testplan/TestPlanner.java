@@ -17,22 +17,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE BODY ROUTER at the test door (the test-is-the-product plan's R16, brief B1, M5): a body of a class that moves
- * ({@link BodyClass}, a named rule over its typed shape) is planned WHOLE by the test door and run as one plan on its
- * session; every other body is walked by the body driver, until M10 moves the last class and deletes the walk and
- * this router. A moved body the test door refuses fails (R14), never falls back to the walk.
+ * THE TEST PLANNER (the plan-as-data design's slice 5, 2026-11-09: the planning half of the body router of the
+ * test-is-the-product plan's R16, M5): a test body of a class the program road admits ({@link BodyClass}, a named rule
+ * over its typed shape) PLANNED WHOLE into a test plan -- its asserts by its judge's planner, the whole by the test
+ * door -- with no session opened and no statement sent (THE WALL's rule 2, {@code RunScope.plans}). A body no class
+ * admits is refused by name (R14); there is no walk to fall back to (deleted 2026-11-06). The test door
+ * ({@code TestExecution}) is its one caller; the plan's run is {@code testexec.TestRunner}'s.
  */
 public final class TestPlanner {
 
     private TestPlanner() {
     }
 
-    /**
-     * {@code given} PLANNED WHOLE by the test door, its asserts by its judge's planner: lifted, classed, its environment
-     * made -- with no run started, no session opened, no statement sent, and nothing told to anyone (hole 4,
-     * 2026-11-08: planning is handed no listener and no referee, so what it decides reaches the caller only as the
-     * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
-     */
     /** {@code typed} PLANNED whole for a session of its runtime's database (the door's {@code planBody}): the
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
@@ -56,6 +52,12 @@ public final class TestPlanner {
         return program != body ? typed.withBody(program) : typed;
     }
 
+    /**
+     * {@code given} PLANNED WHOLE by the test door, its asserts by its judge's planner: lifted, classed, its environment
+     * made -- with no run started, no session opened, no statement sent, and nothing told to anyone (hole 4,
+     * 2026-11-08: planning is handed no listener and no referee, so what it decides reaches the caller only as the
+     * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
+     */
     static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
             PlanningOptions options) {
         PlanningOptions.JudgeMode mode = options.judgeMode();

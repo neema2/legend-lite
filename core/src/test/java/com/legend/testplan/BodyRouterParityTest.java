@@ -6,6 +6,7 @@ package com.legend.testplan;
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.TypedQuery;
 import com.legend.compiler.element.ModelContext;
 import com.legend.diagnostics.Census;
@@ -1542,8 +1543,8 @@ class BodyRouterParityTest {
             }
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
-            Execution.run(typed(ctx, query), runtime, Execution.Source.given(session),
-                    com.legend.exec.PlanSessions.of(session), Execution.Establish.AS_GIVEN,
+            Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
+                    com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
                     p -> capture.of(p.answerShape()));
             return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), ""));
         }
@@ -1775,7 +1776,7 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
-                Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
+                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
                         capture::of);
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();

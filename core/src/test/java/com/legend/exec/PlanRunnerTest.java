@@ -167,7 +167,7 @@ class PlanRunnerTest {
     /** A plan whose parameters fail is refused before any session is opened. */
     @Test
     void aPlanWhoseParametersFailOpensNoSession() {
-        ExecutionPlan given = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)),
+        ExecutionPlan given = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T").root());
         var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
                 target -> {
@@ -182,7 +182,7 @@ class PlanRunnerTest {
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
                 List.of(), List.of());
-        ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), cell(
+        ExecutionPlan bad = ExecutionPlan.reading(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
         var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(), t -> {
@@ -197,7 +197,7 @@ class PlanRunnerTest {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                 List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
                         new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
-        return new ExecutionPlan(List.of(), cell(
+        return ExecutionPlan.reading(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
 
@@ -253,7 +253,7 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan plan(String statement, ExecutionPlan.Target target) {
-        return new ExecutionPlan(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
+        return ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.SetupStep... setup) {

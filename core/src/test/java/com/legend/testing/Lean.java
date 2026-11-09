@@ -46,7 +46,7 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
                     p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -74,7 +74,7 @@ public final class Lean {
 
     /** {@code query} over {@code model} on {@code runtime}, on the caller's connection {@code c}, the runtime's
      *  DECLARED test data established on it first, as the engine-shaped API establishes a connection on every
-     *  acquisition ({@code ConnectionResolver.RUNNER}: {@code Execution.Establish.DECLARED_SETUP}); a test of the
+     *  acquisition ({@code ConnectionResolver.RUNNER}: {@code com.legend.exec.ProductRun.Establish.DECLARED_SETUP}); a test of the
      *  declared data's loading judges this route. Lite's JSON rows, read back. */
     public static Result established(String model, String query, @com.legend.base.Nullable String runtime,
             Connection c) {
@@ -84,7 +84,7 @@ public final class Lean {
         try {
             plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query),
                     runtime,
-                    com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), Execution.Establish.DECLARED_SETUP, p -> sink.of(p));
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

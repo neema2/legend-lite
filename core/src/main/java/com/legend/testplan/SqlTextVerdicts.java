@@ -201,7 +201,7 @@ final class SqlTextVerdicts {
                 throw new IllegalStateException("a text deferred twice to one verdict step: the arms read each text once");
             }
             String origin = originInForce;
-            if ((deferred != null || deferredGolden != null) && origin != deferredOrigin) {
+            if ((deferred != null || deferredGolden != null) && !java.util.Objects.equals(origin, deferredOrigin)) {
                 // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
                 throw new NotAConstant(NotAConstant.LABEL + "two texts the plan reads under different statement origins");
             }

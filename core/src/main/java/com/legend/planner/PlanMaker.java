@@ -100,7 +100,7 @@ public final class PlanMaker {
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
-            return new ExecutionPlan(declarations(declared, query.context()),
+            return ExecutionPlan.writing(declarations(declared, query.context()),
                     new ExecutionPlan.Sequence(products(program(query, runtime, slots, features,
                             ProgramState.Door.QUERY, NO_TEST_KINDS, false))));
         }
@@ -110,7 +110,7 @@ public final class PlanMaker {
         ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features, frames);
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
-            return new ExecutionPlan(declarations(declared, query.context()), constant);
+            return ExecutionPlan.reading(declarations(declared, query.context()), constant);
         }
         // a typed plan answers a graph fetch's objects one per row: the streaming graph root
         Prepared.Planned planned = ProductStatements.planned(st);
@@ -125,7 +125,7 @@ public final class PlanMaker {
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
-        return new ExecutionPlan(declarations(declared, l.ctx()),
+        return ExecutionPlan.reading(declarations(declared, l.ctx()),
                 stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }
 

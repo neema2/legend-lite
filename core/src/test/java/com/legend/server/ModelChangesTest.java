@@ -262,7 +262,7 @@ class ModelChangesTest {
     }
 
     private static void refusedBy(String route, String body, String expected) {
-        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/model/" + route, null, body, (plan, target, writes, sink) -> {
+        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/model/" + route, null, body, (plan, sink) -> {
             throw new AssertionError("nothing is run here");
         });
         assertEquals(400, a.status(), a.json());
