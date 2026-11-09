@@ -325,7 +325,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
