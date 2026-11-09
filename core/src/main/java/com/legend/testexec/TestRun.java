@@ -255,9 +255,12 @@ final class TestRun {
                     judges.fused(group, null);
                 } catch (DataError e) {
                     judges.fused(group, e);
-                    throw new DataError("the database rejected the verdict statement of "
-                            + group.verdicts().stream().map(TestPlan.Verdict::name).toList() + ": "
-                            + e.getMessage(), e);
+                    // the database's own error first, as the host judge reports it and as legend-engine does, then the
+                    // verdicts the rejected statement held, by name (round 25, 2026-11-09: a prefix before the
+                    // database's text moved the DATABASE judge's message off the host judge's, and off Snowflake's
+                    // channel B ledger)
+                    throw new DataError(e.getMessage() + " (the database rejected the verdict statement of "
+                            + group.verdicts().stream().map(TestPlan.Verdict::name).toList() + ")", e);
                 }
             }
             for (int i = 0; i < group.verdicts().size(); i++) {

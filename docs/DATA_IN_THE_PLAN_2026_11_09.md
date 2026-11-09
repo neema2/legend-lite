@@ -238,25 +238,73 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
 - The separation guards of slice 5 stand; the stores are one more sealed run input.
 - Product writes (`write`, `merge`, decision A) stay statements of the query.
 
-## 8. Open decisions (each with a recommendation; none blocks L1)
+## 8. Decisions (ruled by the user 2026-11-09 where marked; the rest each with a recommendation)
 
-1. **The inline threshold.** Measure plan sizes first (the demo, markets at 1.87 MB, a stress body); recommended near
-   a query's own SQL at p99, about 16 KB.
-2. **A project's `###Data`: loaded when the project is loaded, or at first use.** Recommended: first use; the catalog's
-   rows at load, as its design rules.
-3. **Its cadence.** Recommended: `ONCE` per identity, kept (a register row for the user's ruling).
+1. **Where data lives in a plan (ruled 2026-11-09).** A file is always a reference, at any size: it has a store, so
+   nothing is gained by copying it into the plan. Data written in the model text (`testDataSetupCsv`, `###Data`) is
+   inline below a threshold, with its digest, and above it goes to the content store and the plan carries a reference.
+   The threshold is measured first (the demo, markets at 1.87 MB, a stress body); about 16 KB, near a query's own SQL
+   at p99, is the starting proposal.
+2. **When a project's `###Data` loads (ruled 2026-11-09).** At first use, `ONCE` per identity, and kept: a register
+   row (`docs/SEMANTICS_REGISTER.md` S171). The catalog's rows load with the model, as its design rules.
+3. **(Folded into 2.)**
 4. **The runners' default admission policy.** Recommended: `resource`, `content` and `bundle` everywhere; `url` only
    where the host enables it, never a local `file:`.
 5. **Staging cache.** Recommended: by digest, per process; dropping it is always correct. (L1 stages per load and
    deletes the copy after it; no cache.)
-6. **One CSV rule for every database** (found building L1). DuckDB's `read_csv` and H2's `CSVREAD` (now the streamed
-   rule) differ on a padded unquoted cell (H2 trims it) and a quoted empty cell (DuckDB reads NULL, H2 an empty
-   string), so one file can load differently on the two lanes, as it did before L1. Recommended: one rule, stated as
-   data in the plan's file reference, with DuckDB's reader configured to it; a register row if it differs from
-   legend-engine's H2 (which trims).
+6. **A file's format is declared, one meaning on every database (ruled 2026-11-09).**
+   - **The meaning of a file's cells is the platform's, never a database's.** The format is data on the reference
+     (today `DataRef.format`, a typed CSV-format record from L2). The dialect spells it in its database's reader
+     (`read_csv`'s options, a `COPY`'s) or, where the reader cannot express it, chooses the streamed delivery. The
+     delivery is the dialect's (2.5); the cells are not. Letting each database read a file its own way would load one
+     file as different rows on different lanes (measured below), the one dialect decision that changed an answer.
+   - **The default is DuckDB's rule (the user's pick), which is upstream's** (measured 2026-11-09, read from the pinned
+     sources): legend-pure's `loadCsvToDbTable` reads the file in Java (`CsvReader.readCsv`: Apache Commons CSV 1.5,
+     `CSVFormat.EXCEL`), drops the header, reads an empty cell as NULL (`LoadToDbTableHelper.collectIterable`:
+     `StringIterate.isEmpty`) and binds the rest. On `  Joe  ,"",` both give `[  Joe  ]`, NULL, NULL; a doubled quote,
+     CRLF and a space after a closing quote read alike. **So the default needs no register row, and compatibility mode
+     needs no format of its own.** (The design said until now that legend-engine reads the file with H2's `CSVREAD`; the
+     sources say otherwise: `CSVREAD` is H2's, used by legend-engine for other loads.)
+   - **H2's `CSVREAD` rule is nobody's.** It trims a padded cell and reads `""` as an empty string. The H2 lane loaded
+     files by it before L1 (`CSVREAD` in the statement) and since L1 (`base.CsvCells`, its rule measured equal): a
+     divergence on `main`, register row S172 (pending), removed by L2, whose streamed rule is the default.
+   - **A malformed row is an error, never repaired** (invariant 4). Measured: a short row -- DuckDB refuses it, upstream
+     binds too few values; a long row -- upstream fails on the extra cell, **DuckDB as lite configures it returns no
+     row and no error** (it must be configured to refuse: L2); an empty line -- DuckDB skips it, upstream reads a record
+     of one empty cell. L2 measures what each of upstream's does at the insert and writes the rule to refuse each.
+   - **User options: a small closed set, added when a real file needs one** (null text, quoted empty, trim, delimiter,
+     quote and escape, header; UTF-8 only to start), each a typed value with the default's value as its default. Never
+     an option that is a fallback (skip bad rows, ignore errors, pad a short row), never a database's raw option passed
+     through, never a per-database option. Declared on the data (the file, or a named format element as Snowflake's
+     FILE FORMAT), never in the call: upstream's `loadCsvToDbTable(path, table, conn)` keeps its signature and the
+     default. First expected need: the DataCube and Python file uploads (L7).
+   - **Model-written test data** (`testDataSetupCsv`) is another format, with its own upstream rule (cells stripped,
+     `---null---` NULL), kept as it is.
+   - **A cell's value:** upstream converts an `Integer` column's cell in Java (`Long.valueOf`) and refuses a bad one
+     with its own message; lite binds the text and the database casts. The outcome is the same refusal, the message
+     differs: posted to the user with L2, a register row if ruled.
 
 ## 9. Measurements to take (L1 and L3)
 
 - A product plan's JSON size with a project's data: the demo, markets, a stress service body; a stress body's test plan.
 - First-load time: `Streamed` against `DatabaseReads` on DuckDB for the stress data.
 - The stress lane's memory by load identity.
+
+## 10. Brief for the next session: L2 and L3
+
+Start from `main` (PR #92 merged; the follow-up branch's database-judge message fix). This session's disk allowance is
+spent: run in a new session (`docs/CLOUD_SESSIONS.md`).
+
+- **L2, the CSV format first:** `DataRef.format` becomes a typed CSV-format record with the default (decision 6);
+  `base.CsvCells` takes the default's rule (no trimming, an empty or `""` cell NULL, a malformed row refused by name),
+  its equivalence test measured against DuckDB's reader and Commons CSV 1.5 `EXCEL` (not `CSVREAD`); DuckDB's
+  `read_csv` configured so a long or short row is refused (measure `strict_mode`, `null_padding`, `ignore_errors`);
+  S172 closed. No corpus test should move (its one file is clean); run both corpus lanes and the H2 PCT lane.
+- **L2, test data onto loads (M2, M3, M4, M7's seed forms):** `Target.setup` and the seed `Load` become loads with
+  cadences `PER_ACQUISITION` and `BEFORE_STEP`; model-written data inline below the threshold with its digest; the
+  census rows M2, M3, M4, M7-seed deleted (their symbols in `DataMechanismCensusTest`), the deleted count moved with a
+  dated line.
+- **L3, a project's `###Data`:** a `Load(ONCE)` named by identity, made at first use and kept (S171); the inline
+  `Project.made` deleted; census row M1.
+- **Each slice:** every lane green (local; CI on every OS; the warm lane sessions for the lanes CI does not run, as
+  round 25 did), its deletions done, its guard hard, its record in `docs/GATES.md`.
