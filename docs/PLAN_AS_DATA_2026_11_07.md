@@ -1206,3 +1206,18 @@ exec` pin.
   generator's interleaved plan-and-run moved to the tests (`TestDataGeneratorRun`); the product keeps its planning.
 - **The guard registers (`bf6b4fd0`, `cc935762`):** the closed package registers, the evaluator-size pins and the
   no-connection spelling pin follow the classes to `testplan`, `testexec` and exec, each with a dated reason.
+- **The two doors (`fbb448eb`, `4fd3b31a`; the user's word: "split the door", and "something that enforces that this
+  should only call one line to call planner and one line to call executor"):** `Execution` (`//core:execution`, the
+  product's) and `TestExecution` (`//core:test_execution`, the test body's), each method one statement -- its run call,
+  its plan an argument (`ArchitectureTest.theDoorsOnlyCompose`, `JavaEvalLedgerTest.theDoorsHoldNoLogic`); a class
+  above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). Each plan carries where it
+  runs (`ExecutionPlan.writes`, `TestPlan.session`). pure/v1 compiles and hands the query to the product door.
+- **The full audit (`4fd3b31a`) and the mutable-state fix (the user's word: "fix all of it"), one batch:**
+  - the runtime wall covers a run's caller callbacks (`RunScope.callingBack`); pure/v1's writer reads no compiled
+    query during the run; the project's Data fill is the server's run alone (`TypedQuery.projectPlan`); the test plan's
+    session is the test door's own target; the door's options a record of the two halves' options;
+  - the startup registries sealed once built (`base.Sealed`); the shared dialect instances gone (a dialect keeps state
+    while it writes); the statement observer and two dead censuses deleted; one measurement label;
+    `staticStateIsConstantOrRegistered` holds every static field: constant, or registered by kind and private.
+- **Open:** D3 (a CSV load's local path in the plan), moved by the user into the data-in-the-plan design session
+  (homework in progress: the inventory, upstream's answer, how people will use the platform).
