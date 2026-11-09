@@ -156,7 +156,7 @@ union default	OK	PASS	-	ca716ded7a073e56364b3e8ab95513964f989573b5e7eb0770731c04
 interpolate default	OK	PASS	-	7752781ab7f9172db63e70a9948fdd6bcd145035d459c01d84d55c63f3c9b533	-	43 points
 interpolate method=nan	OK	PASS	-	7752781ab7f9172db63e70a9948fdd6bcd145035d459c01d84d55c63f3c9b533	-	43 points
 interpolate method=zero	OK	PASS	-	27c518b5d36221b514eb054702c8f5e64e7364d23e9a32ed8aff0f12e06c8a56	-	1304 points
-interpolate method=zero,dates=series	OK	DIFF	-	837ef52db31db3e7db0352a229de3ee815a4966d7274e6e5d8b8da9b013e45e1	-	1304 points, 1304 values on 1970-01-01 | lite: 1304 gs-quant points, 1304 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 1970-01-01, 1304 lite's alone from 2020-01-02
+interpolate method=zero,dates=series	OK	DIFF	S168	837ef52db31db3e7db0352a229de3ee815a4966d7274e6e5d8b8da9b013e45e1	-	1304 points, 1304 values on 1970-01-01 | lite: 1304 gs-quant points, 1304 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 1970-01-01, 1304 lite's alone from 2020-01-02
 interpolate method=step	OK	PASS	-	bde2f49a060dd961cc2925ab7a8233978970131575565b5f60c4be7550c67c3b	-	1304 points
 value_at date=2022-03-15	OK	PASS	-	80354344128b348f9e96a6706036b039d161b91c362857e5c0121a3b38b26db8	-	1304 points
 value_at date=2022-03-13	OK	PASS	-	cf2b0ddf38ce7cc4c7e6360e7a1faf356fab4afa1a59e138150d587461f7807d	-	1304 points
