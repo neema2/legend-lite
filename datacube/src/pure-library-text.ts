@@ -2504,22 +2504,24 @@ function timeseries::line::helpers::ramp<K,D>(x: Relation<(key:K, date:D, value:
 // raises (helper._check_window).
 function timeseries::line::helpers::rampFits(n: Integer[1], ramp: Integer[1]): Boolean[1]
 {
-  if($ramp > $n, |fail('a window\\'s ramp, r, is longer than its line: gs-quant raises (Ramp value must be less than the length of the series) -- a smaller r, or a longer line (item 13)'), |timeseries::line::helpers::fromZero($ramp) >= 0)
+  if($ramp > $n, |fail('a window\\'s ramp, r, is longer than its line: gs-quant raises (Ramp value must be less than the length of the series) -- a smaller r, or a longer line (item 13)'), |timeseries::line::helpers::fromZero($ramp))
 }
 
 // A window's ramp r, a whole number from 0: refused below it, as gs-quant's Window(w, r) raises (helper._check_window,
 // "Ramp value must be greater than zero"; the review of 2026-11-08). The library's own rule since main's merge (#92),
 // 2026-11-09 -- the translator had refused it by the parameter's name, which it binds by no name (TsTranslatorGuardrailTest).
-function timeseries::line::helpers::fromZero(r: Integer[1]): Integer[1]
+// A guard, true or raised, read as a row's filter: the raise must be an if's answer (as rampFits' is), never an if's
+// condition with two equal answers, which raised nothing (if(fail(...), |0, |0); found by TsIslandTest, 2026-11-09).
+function timeseries::line::helpers::fromZero(r: Integer[1]): Boolean[1]
 {
-  if($r < 0, |if(fail('a window\\'s ramp, r, is a whole number from 0: gs-quant\\'s Window(w, r) refuses a negative one (item 13)'), |0, |0), |$r)
+  if($r < 0, |fail('a window\\'s ramp, r, is a whole number from 0: gs-quant\\'s Window(w, r) refuses a negative one (item 13)'), |true)
 }
 
 // percentiles' ramp r, pandas' min_periods, at most its window w: refused above it, as pandas raises ("min_periods must be
-// <= window"; the review of 2026-11-08) -- the library's own rule since 2026-11-09, as fromZero's.
-function timeseries::line::helpers::minPeriods(r: Integer[1], w: Integer[1]): Integer[1]
+// <= window"; the review of 2026-11-08) -- the library's own rule since 2026-11-09, a guard as fromZero is.
+function timeseries::line::helpers::minPeriods(r: Integer[1], w: Integer[1]): Boolean[1]
 {
-  if($r > $w, |if(fail('percentiles\\' r is at most its window: gs-quant\\'s percentiles reads r as the window\\'s least number of points (item 13)'), |0, |0), |$r)
+  if($r > $w, |fail('percentiles\\' r is at most its window: gs-quant\\'s percentiles reads r as the window\\'s least number of points (item 13)'), |true)
 }
 
 // A returns type given, else simple (gs-quant's Returns.SIMPLE).
@@ -5001,8 +5003,8 @@ function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:N
         $x->timeseries::line::volatility($w, timeseries::Returns.simple, $annualization_factor, $sample))->extend(~line_src:row|2))
     ->extend(over(~[key], [~date->ascending(), ~line_src->ascending()], rows(unbounded(), 0)), ~line_at:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
     ->extend(over(~[key]), ~line_n:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
-    ->filter(row|($row.line_n >= $w) && ($row.line_at > if($row.line_n == $w, |timeseries::line::helpers::fromZero($r), |timeseries::line::helpers::fromZero($r) + 1))
-      && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)))
+    ->filter(row|if(timeseries::line::helpers::fromZero($r), |($row.line_n >= $w) && ($row.line_at > if($row.line_n == $w, |$r, |$r + 1))
+      && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)), |false))
     ->select(~[key, date, value])
 }
 
@@ -5076,7 +5078,7 @@ function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Numb
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::ramp($x, timeseries::line::percentiles($x, timeseries::Scope.all), timeseries::line::percentiles($x, $w), $w, timeseries::line::helpers::minPeriods($r, $w))
+  timeseries::line::helpers::ramp($x->filter(row|timeseries::line::helpers::minPeriods($r, $w)), timeseries::line::percentiles($x, timeseries::Scope.all), timeseries::line::percentiles($x, $w), $w, $r)
 }
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -5243,19 +5245,19 @@ function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, valu
 {
   $x->timeseries::lines::untied()->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)
     ->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,row|$p->rowNumber($row)})->extend(over(~[key]), ~ln:{p,f,row|1}:y|$y->count())
-    ->filter(row|($row.rn > timeseries::line::helpers::fromZero($r)) && ($row.ln >= $w))->select(~[key, date, lower, upper, width])
+    ->filter(row|if(timeseries::line::helpers::fromZero($r), |($row.rn > $r) && ($row.ln >= $w), |false))->select(~[key, date, lower, upper, width])
 }
 
 function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], k: Float[0..1], r: Integer[1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
 {
   $x->timeseries::lines::untied()->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)
-    ->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,row|$p->rowNumber($row)})->filter(row|$row.rn > timeseries::line::helpers::fromZero($r))->select(~[key, date, lower, upper, width])
+    ->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,row|$p->rowNumber($row)})->filter(row|if(timeseries::line::helpers::fromZero($r), |$row.rn > $r, |false))->select(~[key, date, lower, upper, width])
 }
 
 // winsorize's window: gs-quant clips by the whole series' mean and deviation whatever its window is, which drops the
 // first r points alone (statistics.py's winsorize, apply_ramp)
 function timeseries::line::winsorize<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], limit: Float[0..1], w: timeseries::Whole[1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::winsorize($limit, $w)->timeseries::line::helpers::ramped(timeseries::line::helpers::fromZero($r))
+  $x->filter(row|timeseries::line::helpers::fromZero($r))->timeseries::line::winsorize($limit, $w)->timeseries::line::helpers::ramped($r)
 }
 `;

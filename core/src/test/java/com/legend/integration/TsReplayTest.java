@@ -134,7 +134,7 @@ class TsReplayTest {
 
     /** {@code c} given the samples' tables, as {@code backend}'s dialect writes them, and their rows. */
     private static void seed(TestBackend backend, Connection c, Json.Obj samples) throws Exception {
-        boolean javaTime = com.legend.exec.Connectors.of(backend.type()).decoding().bindsJavaTime();
+        boolean javaTime = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type())).decoding().bindsJavaTime();
         List<com.legend.model.DatabaseDefinition.TableDefinition> tables = Compiler.parseModel(model(backend))
                 .elements().stream().filter(e -> e instanceof com.legend.model.DatabaseDefinition)
                 .flatMap(e -> ((com.legend.model.DatabaseDefinition) e).tables().stream()).toList();

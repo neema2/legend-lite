@@ -557,7 +557,7 @@ class TimeseriesLibraryTest {
             List<Map<String, String>> rows;
             try {
                 rows = rows(backend, query);
-            } catch (com.legend.sql.dialect.DialectCapability e) {
+            } catch (com.legend.sql.DialectCapability e) {
                 assertTrue(e.getMessage().contains("asOfJoin") || e.getMessage().contains("as-of join"),
                         backend + ": refused for its as-of join, not otherwise: " + e.getMessage());
                 continue;

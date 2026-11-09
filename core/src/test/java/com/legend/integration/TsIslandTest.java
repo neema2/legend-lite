@@ -138,7 +138,7 @@ class TsIslandTest {
         // a driver that binds no java.time value (LocalDate, LocalDateTime; its connector's fact, as the plan runner
         // reads it) takes a java.sql one; every other the java.time one, as SQLite's driver writes a java.sql.Date as
         // its epoch milliseconds (2026-11-07, item 10)
-        boolean javaTime = com.legend.exec.Connectors.of(backend.type()).decoding().bindsJavaTime();
+        boolean javaTime = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type())).decoding().bindsJavaTime();
         String prices = backend.dialect().storedName(tables.get(0).name(), tables.get(0).quoted());
         try (java.sql.PreparedStatement ps = c.prepareStatement("INSERT INTO " + prices + " VALUES (?, ?, ?)")) {
             for (Map.Entry<String, double[]> line : Map.of("AAA", AAA, "BBB", BBB).entrySet()) {
@@ -1604,7 +1604,7 @@ class TsIslandTest {
             List<Map<String, String>> windowed;
             try {
                 windowed = rows(backend, byVariable, Map.of("w", 3L));
-            } catch (com.legend.sql.dialect.DialectCapability refused) {
+            } catch (com.legend.sql.DialectCapability refused) {
                 // a database whose frame bound is a literal (Snowflake's, measured 2026-11-07, item 10): refused by
                 // name, never sent
                 assertTrue(String.valueOf(refused.getMessage()).contains("whose frame bound is a literal"),

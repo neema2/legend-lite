@@ -1206,7 +1206,8 @@ junit_test(
 junit_test(
     name = "ts_island_test",
     memory_mb = 512,
-    size = "medium",
+    # large (900 s): 79 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
     srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
     data = ["//projects:timeseries/model.pure"],
     jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
@@ -1270,7 +1271,8 @@ junit_test(
 junit_test(
     name = "ts_gsquant_parity_test",
     memory_mb = 1024,
-    size = "medium",
+    # large (900 s): 82 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
     srcs = [
         "src/test/java/com/legend/integration/TsAnswers.java",
         "src/test/java/com/legend/integration/TsGsquantParityTest.java",
@@ -1340,7 +1342,8 @@ junit_test(
 junit_test(
     name = "ts_island_postgres_test",
     memory_mb = 768,
-    size = "medium",
+    # large (900 s): 66 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
     srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
     data = [
         "//projects:timeseries/model.pure",

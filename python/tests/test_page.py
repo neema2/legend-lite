@@ -3671,10 +3671,12 @@ class Flows(Paged):
     def test_a_timeseries_of_a_box_and_another_grid(self):
         # a timeseries of several grids reads them together, one a flow's box: its input resolved against the page first,
         # as the box is read (headless join.ts sourcesOnHost; the review of 2026-10-26)
+        # six days: a windowed word's line begins where its ramp ends (gs-quant's apply_ramp; item 14i, 2026-11-09), so
+        # correlation(A, B, w => 2) needs more than the filter's first two prices to draw a point
         page = ll.Page('Markets')
-        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04']).date
-        prices = pd.DataFrame({'symbol': ['SPX'] * 3, 'day': days, 'close': [100.0, 101.0, 99.5]})
-        yields = pd.DataFrame({'tenor': ['10Y'] * 3, 'obs_date': days, 'yield': [4.0, 4.1, 3.9]})
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08', '2024-01-09']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 6, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0, 103.5, 101.5]})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 6, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2, 4.0, 4.3]})
         flow = page.flow()
         raw = flow.grid(prices, name='prices')
         px = flow.grid(input=raw)
@@ -3682,7 +3684,8 @@ class Flows(Paged):
         rates = page.grid(yields, name='rates')
         tile = page.sheets[0].timeseries({'px': px, 'rates': rates}, ["px.close['SPX']", "rates.yield['10Y']", "correlation(A, B, w => 2)"])
         alone = tile.frame('A')
-        self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0], "the box's rows, its filter kept")
+        self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0, 101.5, 102.0, 103.5],
+                         "the box's rows, its filter kept")
         # a series of both: the two read together, the box's input resolved
         self.assertGreater(len(tile.frame('C')), 0)
 

@@ -230,7 +230,7 @@ class TsDocumentsTest {
                 .stream().filter(e -> e instanceof com.legend.model.DatabaseDefinition)
                 .flatMap(e -> ((com.legend.model.DatabaseDefinition) e).tables().stream()).toList();
         Map<String, List<Object[]>> rows = rowsOf();
-        boolean javaTime = com.legend.exec.Connectors.of(backend.type()).decoding().bindsJavaTime();
+        boolean javaTime = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type())).decoding().bindsJavaTime();
         try (java.sql.Statement s = c.createStatement()) {
             for (com.legend.model.DatabaseDefinition.TableDefinition t : tables) {
                 s.execute(backend.dialect().render(com.legend.setup.Ddl.createTable(t, null)));

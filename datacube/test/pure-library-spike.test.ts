@@ -276,6 +276,17 @@ function ramped(m: Map<string, number | null>, w: number): Map<string, number | 
   return new Map([...m].sort(([a], [b]) => a.localeCompare(b)).slice(w));
 }
 
+/** A spike line under gs-quant's calendar ramp (helper.apply_ramp with a period: the line from its first date plus the
+ *  window, that date kept), as the calendar words answer since item 14i (2026-11-09): its dates from the first + `days`. */
+function rampedFrom(m: Map<string, number | null>, days: number): Map<string, number | null> {
+  const sorted = [...m].sort(([a], [b]) => a.localeCompare(b));
+  if (sorted.length === 0) return m;
+  const start = new Date(`${sorted[0]![0]}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() + days);
+  const from = start.toISOString().slice(0, 10);
+  return new Map(sorted.filter(([d]) => d >= from));
+}
+
 function same(got: Map<string, number | null>, want: Map<string, number | null>, what: string, tolerance = 1e-9): void {
   assert.deepEqual([...got.keys()].sort(), [...want.keys()].sort(), `${what}: the same dates`);
   for (const [d, w] of want) {
@@ -312,7 +323,8 @@ describe('the Pure library spike: one function of each family, held to today\'s 
       `$prices->filter(x|$x.symbol == '${s}')->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~${r})`;
     const q = `${returns('AAA', 'ra')}->select(~[symbol, day, ra])->spike::pairOf(~symbol, ~day, ~ra, ${returns('BBB', 'rb')}->select(~[symbol, day, rb])->rename(~symbol, ~sb), ~sb, ~day, ~rb, ~ra2, ~rb2)`
       + '->spike::correlation(~symbol, ~day, ~ra2, ~rb2, 10, ~c)';
-    same(await spikeLine(q, 'c'), await today("correlation(close['AAA'], close['BBB'], w => 10)"), 'correlation');
+    // gs-quant's correlation ramps on x's dates (apply_ramp after interpolate onto x): its first 10 points dropped
+    same(ramped(await spikeLine(q, 'c'), 10), await today("correlation(close['AAA'], close['BBB'], w => 10)"), 'correlation');
   });
 
   it('a self-join over each window (percentiles)', async () => {
@@ -320,7 +332,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('a window of a calendar period (mean over 2w): the line joined to itself on dates', async () => {
-    same(await spikeLine('$prices->spike::meanOver(~symbol, ~day, ~close, 2, meta::pure::functions::date::DurationUnit.WEEKS, ~m)', 'm'),
+    same(rampedFrom(await spikeLine('$prices->spike::meanOver(~symbol, ~day, ~close, 2, meta::pure::functions::date::DurationUnit.WEEKS, ~m)', 'm'), 14),
       await today("mean(close['AAA'], 2w)"), 'mean over 2w');
   });
 
