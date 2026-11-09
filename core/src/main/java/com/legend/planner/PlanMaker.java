@@ -848,7 +848,7 @@ public final class PlanMaker {
             // each acquisition establishes on it -- so two editions whose test data differ are two databases, and a
             // query's own per-acquisition loads (the metamodel's tables) never name another (the re-audit's A-4,
             // 2026-11-09: until then exec keyed by every load, one kept database per query shape)
-            named = new ExecutionPlan.Project(com.legend.cache.Hash.ofUtf8(named.key() + "\u0001"
+            named = new ExecutionPlan.Project(com.legend.cache.Hash.ofUtf8(named.key() + "/"
                     + LoadPlanner.identity(ExecutionPlan.Load.Cadence.PER_ACQUISITION, declared)).hex(), named.refused());
         }
         ExecutionPlan.Database database = database(decided, named);
