@@ -890,23 +890,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /** How a file's verified bytes reach its database: chosen at planning for the target's database, as every
-         *  spelling is; no delivery edits a statement at run (a path is bound, cells are bound). */
-        sealed interface Delivery permits Delivery.DatabaseReads, Delivery.Streamed {
-
-            /** The DATABASE reads the file itself: {@code sql}'s one {@code ?} is bound to the path of the runner's
-             *  own copy of the verified bytes (DuckDB's {@code read_csv}, which takes its path as a bound parameter:
-             *  measured 2026-11-09). */
-            record DatabaseReads(String sql) implements Delivery {
-                public DatabaseReads {
-                    Objects.requireNonNull(sql, "sql");
-                }
-            }
+         *  spelling is; no delivery edits a statement at run (its cells are bound). */
+        sealed interface Delivery permits Delivery.Streamed {
 
             /**
-             * The runner splits the verified text into cells and sends {@code insert}, whose {@code columns}
-             * {@code ?}s take one row's cells, once per row (a database that cannot read the runner's file, or whose
-             * reader takes no bound path: H2's {@code CSVREAD}, measured 2026-11-09). The split is the CSV rule of
-             * {@code com.legend.base.CsvCells}; the database casts every cell.
+             * The runner splits the verified text into cells by the reference's declared format and sends
+             * {@code insert}, whose {@code columns} {@code ?}s take one row's cells, once per row in one batch, as
+             * upstream's {@code loadCsvToDbTable} binds a file it read (2026-11-09, L2: every database so, the platform's
+             * format deciding the cells -- DuckDB's own reader, which read the file until then, cannot read the declared
+             * format exactly: measured, a cell whose quote follows a space is quoted to it and a file's mixed line
+             * breaks are refused; H2's {@code CSVREAD} takes no bound path). The database casts every cell.
              */
             record Streamed(String insert, int columns) implements Delivery {
                 public Streamed {

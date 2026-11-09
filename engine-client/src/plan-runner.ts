@@ -60,7 +60,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 31 since 2026-11-09: the setup node is the load node (identity, cadence) and a load step may be a file by its data
 // reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1) -- a load node is refused by name, as the setup node was, and a
 // target's setup steps are refused whatever their kind (below)
-const PLAN_VERSION = 31;
+// 32 since 2026-11-09: a data reference's format is the declared format, an object, and a file's one delivery is the
+// streamed one (L2) -- read by none of this runner's steps: a load node is refused by name, as at 31
+const PLAN_VERSION = 32;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

@@ -82,10 +82,6 @@ public interface Statements {
      *  database's rows load so (B1a). */
     boolean load(ExecutionPlan.LoadStep.Rows rows);
 
-    /** A file's load the database READS (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.5, 2026-11-09): {@code statement}'s one
-     *  {@code ?} bound to {@code staged}, the path of the runner's own copy of the verified bytes. */
-    void readsFile(String statement, String staged);
-
     /** A file's load the runner STREAMS (2.5): {@code insert} sent once per row of {@code rows} in one batch, each
      *  row's cells bound to its {@code ?}s in order as text (a null cell SQL NULL), the database casting each. */
     void streams(String insert, List<List<String>> rows);
@@ -214,11 +210,6 @@ public interface Statements {
         @Override
         public boolean load(ExecutionPlan.LoadStep.Rows rows) {
             return inner.load(rows);
-        }
-
-        @Override
-        public void readsFile(String statement, String staged) {
-            inner.readsFile(statement, staged);
         }
 
         @Override

@@ -147,15 +147,16 @@ class PlanJsonTest {
         // verdict group and the branch leave for the test plan's own format (the plan-as-data design's step 3); 28 the
         // same day: the system database names its store by its content's key (step 7); 29 the same day: a declared or
         // platform database carries its project's identity (hole 7); 30 since 2026-11-09: whether the plan writes (slice 5);
-        // 31 the same day: the load node and a file's load by reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":31,"), json);
+        // 31 the same day: the load node and a file's load by reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1); 32
+        // the same day: a reference's declared format, an object, and the one streamed delivery (L2)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":32,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v31 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v32 plan"), refused.getMessage());
     }
 
     @Test

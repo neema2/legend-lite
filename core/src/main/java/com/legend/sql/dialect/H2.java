@@ -170,8 +170,8 @@ public class H2 extends AnsiSqlRenderer {
 
     /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09): H2's {@code CSVREAD}, which
      *  read the file until then, takes no bound path (measured 2026-11-09), and a path written into the statement is a
-     *  machine's path in the plan. The runner splits the text by {@code CSVREAD}'s own rule ({@code base.CsvCells}),
-     *  which differs from upstream's reader (register row S146) until the design's L2. */
+     *  machine's path in the plan. The runner splits the text ({@code base.CsvCells})
+     *  by the declared format, which is upstream's rule (L2, 2026-11-09; register row S146 closed). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
         return csvStreamed(load);

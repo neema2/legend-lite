@@ -42,10 +42,33 @@ public record DataRef(Namespace namespace, String name, String digest, long size
         RESOURCE
     }
 
-    /** How the referenced bytes are read. */
-    public enum Format {
-        /** Comma-separated text, UTF-8, its first line a header. */
-        CSV
+    /** How the referenced bytes are read: a closed set of declared formats, one meaning on every database
+     *  (docs/DATA_IN_THE_PLAN_2026_11_09.md decision 6, ruled 2026-11-09: a file's cells mean what the platform's
+     *  format says, never what a database's reader makes of them). */
+    public sealed interface Format permits Csv {
+    }
+
+    /**
+     * Comma-separated text, UTF-8, its first record a header (the user's ruling, 2026-11-09, decision 6): the cells as
+     * {@code com.legend.base.CsvCells} splits them, which is upstream's rule (legend-pure's {@code loadCsvToDbTable}:
+     * Commons CSV 1.5's {@code EXCEL}, an empty cell NULL). A record whose width is not the header's is refused, never
+     * padded or cut. Its options are a small closed set, each added when a real file needs one with the default's
+     * value as its default (decision 6); today the delimiter and the quote, each the default's.
+     *
+     * @param delimiter the cell separator
+     * @param quote     the quote that opens and closes a quoted cell, doubled inside one
+     */
+    public record Csv(char delimiter, char quote) implements Format {
+
+        /** The default, upstream's: a comma, a double quote. */
+        public static final Csv DEFAULT = new Csv(',', '"');
+
+        public Csv {
+            if (delimiter == quote || delimiter == '\n' || delimiter == '\r' || quote == '\n' || quote == '\r') {
+                throw new IllegalArgumentException("a CSV format's delimiter and quote are two characters, neither a"
+                        + " line break: '" + delimiter + "', '" + quote + "'");
+            }
+        }
     }
 
     /** {@code name} refused unless it is a relative, {@code /}-separated name with no empty, {@code .} or {@code ..}

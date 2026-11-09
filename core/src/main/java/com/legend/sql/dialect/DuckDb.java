@@ -796,14 +796,15 @@ public final class DuckDb extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} DuckDB's own CSV reader over the runner's copy of the file, its path a bound parameter (2026-11-06;
-     *  the path bound since 2026-11-09, measured). */
+    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09, L2): DuckDB's own reader, which
+     *  read the file from 2026-11-06, cannot read the declared format exactly (measured 2026-11-09 against
+     *  {@code base.CsvCells}, which is upstream's rule: configured strictly -- {@code auto_detect = false}, its columns
+     *  named, {@code strict_mode} -- it still reads a cell whose quote follows a space as quoted, skips an empty line
+     *  in a wider table, and refuses a file whose line breaks are mixed), and a file's cells mean what the platform's
+     *  format says on every database (decision 6). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        // the embedded database reads the file itself: comma-separated, its first line a header, every cell text
-        // (the INSERT casts each into its column, as a seed's cells are cast)
-        return csvReadsFile(load, "read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"',"
-                + " all_varchar = true)");
+        return csvStreamed(load);
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's

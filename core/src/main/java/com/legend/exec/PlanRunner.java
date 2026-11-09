@@ -630,11 +630,6 @@ public final class PlanRunner {
                         // the file by its reference: its verified bytes, delivered as the plan says (DataLoads)
                         byte[] bytes = DataLoads.verified(f.ref(), stores);
                         switch (f.delivery()) {
-                            case ExecutionPlan.LoadStep.Delivery.DatabaseReads reads -> {
-                                try (DataLoads.Staged staged = DataLoads.stage(bytes)) {
-                                    seeding.readsFile(reads.sql(), staged.path());
-                                }
-                            }
                             case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
                                 List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns());
                                 if (!cells.isEmpty()) {
@@ -642,7 +637,7 @@ public final class PlanRunner {
                                 }
                             }
                         }
-                        // the load's one statement (its batch, or the read), counted under the seeds' mark
+                        // the load's one statement (its batch), counted under the seeds' mark
                         StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }

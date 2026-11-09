@@ -84,8 +84,11 @@ public final class PlanJson {
      *  2026-11-09: the {@code setup} node is the {@code load} node, with its {@code identity} and {@code cadence}, and a
      *  load step may be a {@code file} -- its data reference (namespace, name, digest, size, format: never a path) and
      *  its delivery (the database reads the runner's copy, or the runner streams its cells), the data-in-the-plan
-     *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md). */
-    public static final int VERSION = 31;
+     *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md); 32 since 2026-11-09: a data reference's {@code format} is
+     *  the declared format, an object ({@code _type} {@code csv}, its {@code delimiter} and {@code quote}: decision 6),
+     *  and a file's one delivery is the streamed one (the database's own reader cannot read the declared format exactly:
+     *  the {@code databaseReads} delivery is gone, L2). */
+    public static final int VERSION = 32;
 
     private PlanJson() {
     }
@@ -438,16 +441,20 @@ public final class PlanJson {
                 ref.put("name", f.ref().name());
                 ref.put("digest", f.ref().digest());
                 ref.put("size", f.ref().size());
-                ref.put("format", f.ref().format().name());
+                Map<String, Object> format = new LinkedHashMap<>();
+                switch (f.ref().format()) {
+                    case DataRef.Csv csv -> {
+                        format.put("_type", "csv");
+                        format.put("delimiter", String.valueOf(csv.delimiter()));
+                        format.put("quote", String.valueOf(csv.quote()));
+                    }
+                }
+                ref.put("format", format);
                 o.put("ref", ref);
                 Map<String, Object> delivery = new LinkedHashMap<>();
+                delivery.put("_type", "streamed");
                 switch (f.delivery()) {
-                    case LoadStep.Delivery.DatabaseReads r -> {
-                        delivery.put("_type", "databaseReads");
-                        delivery.put("sql", r.sql());
-                    }
                     case LoadStep.Delivery.Streamed st -> {
-                        delivery.put("_type", "streamed");
                         delivery.put("insert", st.insert());
                         delivery.put("columns", st.columns());
                     }
@@ -484,6 +491,21 @@ public final class PlanJson {
     /** {@link #parameterJson}'s inverse. */
     public static Parameter parameterOf(Json.Obj o) {
         return readParameter(o);
+    }
+
+    /** A data reference's declared format (decision 6): {@code csv}, its delimiter and quote one character each. */
+    private static DataRef.Format format(Json.Obj o) {
+        if (!"csv".equals(o.getString("_type"))) {
+            throw new IllegalArgumentException("a data reference's format is csv: " + o.getString("_type"));
+        }
+        return new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
+    }
+
+    private static char oneChar(String s) {
+        if (s.length() != 1) {
+            throw new IllegalArgumentException("a CSV format's delimiter and quote are one character each: '" + s + "'");
+        }
+        return s.charAt(0);
     }
 
     private static Parameter readParameter(Json.Obj o) {
@@ -761,14 +783,12 @@ public final class PlanJson {
                 // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)
                 Json.Obj ref = o.getObj("ref");
                 DataRef data = new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")), ref.getString("name"),
-                        ref.getString("digest"), ref.getLong("size"), DataRef.Format.valueOf(ref.getString("format")));
+                        ref.getString("digest"), ref.getLong("size"), format(ref.getObj("format")));
                 Json.Obj d = o.getObj("delivery");
-                LoadStep.Delivery delivery = switch (d.getString("_type")) {
-                    case "databaseReads" -> new LoadStep.Delivery.DatabaseReads(d.getString("sql"));
-                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
-                    default -> throw new IllegalArgumentException("a file load's delivery is databaseReads or"
-                            + " streamed: " + d.getString("_type"));
-                };
+                if (!"streamed".equals(d.getString("_type"))) {
+                    throw new IllegalArgumentException("a file load's delivery is streamed: " + d.getString("_type"));
+                }
+                LoadStep.Delivery delivery = new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
                 yield new LoadStep.File(data, delivery);
             }
         };

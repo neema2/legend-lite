@@ -36,9 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A FILE'S LOAD BY REFERENCE (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09), on every in-process database whose
  * dialect spells one: the plan names the file by its namespace, name and digest, never a machine's path (P5); the
- * runner resolves it through the stores it was given, refuses bytes that are not the plan's (P6), and delivers them as
- * the plan says -- the database reading the runner's own copy through a bound path, or taking the cells the runner
- * streams -- the rows the database's own CSV reader gave.
+ * runner resolves it through the stores it was given, refuses bytes that are not the plan's (P6), and streams the cells
+ * the file's declared format reads (decision 6, L2: upstream's rule on every database).
  */
 class DataLoadsTest {
 
@@ -59,17 +58,16 @@ class DataLoadsTest {
                 // this database takes no file yet: the dialect says so by name (CsvLoadRenderTest)
             }
         }
-        assertTrue(out.size() >= 2, "a database that reads the file and one the runner streams to: " + out);
+        assertTrue(out.size() >= 2, "DuckDB and H2 at least: " + out);
         return out;
     }
 
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes) {
         SqlDialect.CsvLoad spelled = dialect.csvLoad(LOAD);
-        ExecutionPlan.LoadStep.Delivery delivery = spelled.readsFile()
-                ? new ExecutionPlan.LoadStep.Delivery.DatabaseReads(spelled.sql())
-                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), LOAD.columns().size());
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
+                LOAD.columns().size());
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
-                DataStores.sha256(bytes), bytes.length, DataRef.Format.CSV), delivery);
+                DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery);
     }
 
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
@@ -106,7 +104,7 @@ class DataLoadsTest {
 
     @Test
     void eachDatabaseLoadsTheFileByItsReference(@TempDir Path dir) throws Exception {
-        // a store whose path is long, as a Windows runner's checkout is: the database reads the runner's own copy
+        // a store whose path is long, as a Windows runner's checkout is
         Path deep = dir;
         for (int i = 0; i < 6; i++) {
             deep = deep.resolve("a-directory-name-of-some-length-" + i);
@@ -116,10 +114,8 @@ class DataLoadsTest {
         byte[] bytes = CSV.getBytes(StandardCharsets.UTF_8);
         Files.write(csv, bytes);
         DataStores stores = DataStores.resources(deep);
-        List<Boolean> deliveries = new ArrayList<>();
         for (TestBackend b : loading()) {
             ExecutionPlan.Load load = load(b, file(b.dialect(), "core_relational/tests/employees.csv", bytes));
-            deliveries.add(b.dialect().csvLoad(LOAD).readsFile());
             assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)), loaded(b, stores, load),
                     b.name());
             // the plan holds no path: its JSON names the file by reference alone, and reads back as written
@@ -127,7 +123,6 @@ class DataLoadsTest {
             assertFalse(json.contains(dir.toString()), json);
             assertEquals(json, PlanJson.write(PlanJson.read(json)), b.name());
         }
-        assertTrue(deliveries.contains(true) && deliveries.contains(false), "both deliveries ran: " + deliveries);
     }
 
     @Test
@@ -157,30 +152,70 @@ class DataLoadsTest {
         for (String name : List.of("/tmp/employees.csv", "C:\\data\\employees.csv", "c:/data.csv", "a/../b.csv",
                 "a\\b.csv", "", "a//b.csv", "./a.csv")) {
             assertThrows(IllegalArgumentException.class, () -> new DataRef(DataRef.Namespace.RESOURCE, name,
-                    DataStores.sha256(new byte[0]), 0, DataRef.Format.CSV), name);
+                    DataStores.sha256(new byte[0]), 0, DataRef.Csv.DEFAULT), name);
         }
     }
 
+    /** A file whose cells are malformed by its declared format, or a record of another width than its header's, is
+     *  refused by name at the run as at planning -- never padded, cut, skipped or repaired (invariant 4). */
     @Test
-    void theCsvRuleIsTheDatabaseReadersRule() {
-        // a quoted cell exactly its text, "" inside it a quote; an unquoted cell trimmed, an empty one null; a short row
-        // padded with nulls; an empty line no row; CRLF a line's end
-        List<List<String>> rows = com.legend.base.CsvCells.rows(
-                "A,B,C\r\n \"x, \"\"y\"\"\" , z ,\n\nlast\r\n\"\",,  \n");
-        assertEquals(List.of("A", "B", "C"), rows.get(0));
-        List<List<String>> body = com.legend.base.CsvCells.body(rows, 3);
-        List<String> nulls = new ArrayList<>();
-        nulls.add("last");
-        nulls.add(null);
-        nulls.add(null);
-        List<String> quotedEmpty = new ArrayList<>();
-        quotedEmpty.add("");
-        quotedEmpty.add(null);
-        quotedEmpty.add(null);
-        List<String> first = new ArrayList<>();
-        first.add("x, \"y\"");
-        first.add("z");
-        first.add(null);
-        assertEquals(List.of(first, nulls, quotedEmpty), body);
+    void aMalformedFileIsRefusedNeverRepaired(@TempDir Path dir) throws Exception {
+        for (String text : List.of(CSV + "\nJack,Jones", CSV + "\nJack,Jones,41,extra", CSV + "\n\nJack,Jones,41",
+                CSV + "\n\"Jack\"x,Jones,41", CSV + "\n\"Jack,Jones,41")) {
+            byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+            Files.write(dir.resolve("bad.csv"), bytes);
+            for (TestBackend b : loading()) {
+                DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
+                        load(b, file(b.dialect(), "bad.csv", bytes))), b.name() + ": " + text);
+                assertTrue(e.getMessage().contains("'bad.csv'"), e.getMessage());
+            }
+        }
+    }
+
+    /** The format's cells are upstream's: a padded cell kept, an empty or quoted empty cell NULL, a cell whose quote
+     *  follows a space its text, a doubled quote one quote inside a quoted cell, CRLF a record's end -- loaded so on
+     *  every database (DuckDB's own reader would read the third cell quoted: CsvLoadRenderTest). */
+    @Test
+    void eachDatabaseLoadsUpstreamsCells(@TempDir Path dir) throws Exception {
+        String text = "Firstname,Lastname,Age\r\n  Joe  ,\"\",1\r\n \"x\",\"a \"\"q\"\" b\",2\r\n";
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("cells.csv"), bytes);
+        List<Object> nullLast = new ArrayList<>();
+        nullLast.add("  Joe  ");
+        nullLast.add(null);
+        nullLast.add(1);
+        for (TestBackend b : loading()) {
+            assertEquals(List.of(nullLast, List.of(" \"x\"", "a \"q\" b", 2)),
+                    loadedNullable(b, DataStores.resources(dir), load(b, file(b.dialect(), "cells.csv", bytes))),
+                    b.name());
+        }
+    }
+
+    /** {@code load} run on a fresh table of {@code b}'s, its rows read back with their nulls. */
+    private static List<List<Object>> loadedNullable(TestBackend b, DataStores stores, ExecutionPlan.Load load)
+            throws Exception {
+        try (Connection c = b.open(); Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
+            try {
+                Sessions.Session session = TestSessions.over(c);
+                try (var run = com.legend.base.RunScope.enter()) {
+                    PlanRunner.seed(load, session, PlanRunner.opened(session, load.target()), stores, ran -> { });
+                }
+                List<List<Object>> rows = new ArrayList<>();
+                try (ResultSet rs = st.executeQuery(
+                        "SELECT FIRSTNAME, LASTNAME, AGE FROM data_loads_people ORDER BY AGE")) {
+                    while (rs.next()) {
+                        List<Object> row = new ArrayList<>();
+                        row.add(rs.getString(1));
+                        row.add(rs.getString(2));
+                        row.add(rs.getInt(3));
+                        rows.add(row);
+                    }
+                }
+                return rows;
+            } finally {
+                st.execute("DROP TABLE data_loads_people");
+            }
+        }
     }
 }

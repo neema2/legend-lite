@@ -272,7 +272,7 @@ final class TestKinds implements ProgramKinds {
         }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
                 name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
-                com.legend.executionplan.DataRef.Format.CSV), bytes);
+                com.legend.executionplan.DataRef.Csv.DEFAULT), bytes);
     }
 
     /** A resource's reference and the bytes it digests. */
@@ -506,7 +506,6 @@ final class TestKinds implements ProgramKinds {
             return;
         }
         String delivered = switch (planned.step().delivery()) {
-            case ExecutionPlan.LoadStep.Delivery.DatabaseReads r -> r.sql();
             case ExecutionPlan.LoadStep.Delivery.Streamed st -> st.insert();
         };
         ExecutionPlan.Load load = new ExecutionPlan.Load(com.legend.executionplan.DataStores.sha256(

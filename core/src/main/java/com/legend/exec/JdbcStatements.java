@@ -186,18 +186,6 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void readsFile(String statement, String staged) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
-            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            st.setString(1, staged);
-            st.execute();
-        } catch (SQLException e) {
-            throw failed(e);
-        }
-    }
-
-    @Override
     public void streams(String insert, List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(insert)) {

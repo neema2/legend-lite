@@ -185,26 +185,30 @@ public final class EffectPlanner {
         List<String> columns = env.ctx().findTable(table.dbFqn(), table.table()).orElseThrow(() ->
                 new IllegalStateException("loadCsvToDbTable: no table '" + table.table() + "' in store "
                         + table.dbFqn())).columns().stream().map(c -> c.name()).toList();
-        List<List<String>> rows = com.legend.base.CsvCells.rows(
-                new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
-        if (rows.size() < 2) {
+        // the file's cells by its declared format (decision 6), read here once: a malformed file or a record of
+        // another width is refused at planning, by name, before anything is sent (the digest makes the run's bytes these)
+        List<List<String>> cells;
+        try {
+            cells = switch (ref.format()) {
+                case com.legend.executionplan.DataRef.Csv csv -> com.legend.base.CsvCells.table(new String(bytes,
+                        java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size());
+            };
+        } catch (com.legend.base.CsvCells.Malformed e) {
+            throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
+                    + qualified + "': " + e.getMessage(), e);
+        }
+        if (cells.isEmpty()) {
             // a header alone, or nothing: no row loads, and the plan loads what it was planned against
             return null;
-        }
-        if (rows.get(0).size() != columns.size()) {
-            throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' names "
-                    + rows.get(0).size() + " column(s) in its header, and table '" + qualified + "' takes "
-                    + columns.size(), new IllegalArgumentException(ref.name()));
         }
         java.util.Set<String> quoted = com.legend.setup.CsvSeed.quotedColumns(def);
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
         SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted);
         SqlDialect.CsvLoad spelled = env.writtenIn().csvLoad(load);
-        ExecutionPlan.LoadStep.Delivery delivery = spelled.readsFile()
-                ? new ExecutionPlan.LoadStep.Delivery.DatabaseReads(spelled.sql())
-                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), columns.size());
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
+                columns.size());
         String recorded = refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns,
-                quoted, columns.size(), com.legend.base.CsvCells.body(rows, columns.size())).values());
+                quoted, columns.size(), cells).values());
         return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery), recorded);
     }
 

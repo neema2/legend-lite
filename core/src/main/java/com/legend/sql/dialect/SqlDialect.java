@@ -72,15 +72,15 @@ public interface SqlDialect {
 
     /**
      * How this dialect's database takes a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}; the design's 2.5,
-     * docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09): its statement, and whether the database READS the runner's copy
-     * of the file through the statement's one bound {@code ?} ({@link CsvLoad#readsFile}) or the runner STREAMS the
-     * cells, the statement one row's insert. Chosen here, at planning, as every spelling is; a dialect whose database
-     * takes neither refuses it by name ({@code DialectCapability}).
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09): one row's insert, a {@code ?} per column, which the runner sends
+     * once per row of the cells it splits by the file's declared format (L2: the platform's format decides the cells on
+     * every database, decision 6). Chosen here, at planning, as every spelling is; a dialect whose database takes none
+     * refuses it by name ({@code DialectCapability}).
      */
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
-    /** A CSV file's load as this dialect spells it: {@code sql}, and whether the database reads the file itself. */
-    record CsvLoad(boolean readsFile, String sql) {
+    /** A CSV file's load as this dialect spells it: one row's insert. */
+    record CsvLoad(String sql) {
         public CsvLoad {
             java.util.Objects.requireNonNull(sql, "sql");
         }
