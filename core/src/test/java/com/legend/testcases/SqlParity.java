@@ -3,9 +3,7 @@
 
 package com.legend.testcases;
 
-import com.legend.testexec.Answer;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.testing.Lean;
 import com.legend.json.Json;

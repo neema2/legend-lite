@@ -1,6 +1,5 @@
 package com.legend.sql;
 
-import com.legend.testexecutionplan.Column;
 
 import java.math.BigDecimal;
 import java.util.List;

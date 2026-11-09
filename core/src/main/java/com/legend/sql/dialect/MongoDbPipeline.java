@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.sql.DialectCapability;
 

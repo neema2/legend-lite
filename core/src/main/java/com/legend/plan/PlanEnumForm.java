@@ -3,7 +3,6 @@
 
 package com.legend.plan;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlExpr;

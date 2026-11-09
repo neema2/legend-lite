@@ -3,7 +3,6 @@
 
 package com.legend;
 
-import com.legend.testexecutionplan.Edge;
 
 import com.legend.testexecutionplan.TestPlan;
 

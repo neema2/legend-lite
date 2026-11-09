@@ -3,7 +3,6 @@
 
 package com.legend.protocol.cypher;
 
-import com.legend.testexecutionplan.Edge;
 
 import com.legend.protocol.cypher.CypherAst.BinaryOp;
 import com.legend.protocol.cypher.CypherAst.Clause;

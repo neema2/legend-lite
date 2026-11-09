@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.testexecutionplan.Edge;
 
 import com.legend.sql.DialectCapability;
 

@@ -1,6 +1,5 @@
 package com.legend.compiler.element.type;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.builtin.Pure;
 import com.legend.sql.SqlType;

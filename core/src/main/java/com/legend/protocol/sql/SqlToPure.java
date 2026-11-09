@@ -3,7 +3,6 @@
 
 package com.legend.protocol.sql;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.protocol.TypeExpression;
 import com.legend.protocol.spec.AppliedFunction;

@@ -3,7 +3,6 @@
 
 package com.legend.compiler.spec;
 
-import com.legend.testexecutionplan.Row;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;

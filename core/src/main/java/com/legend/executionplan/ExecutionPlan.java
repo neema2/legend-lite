@@ -3,7 +3,6 @@
 
 package com.legend.executionplan;
 
-import com.legend.testexecutionplan.Column;
 
 
 import java.util.List;

@@ -3,7 +3,6 @@
 
 package com.legend.testing;
 
-import com.legend.testexecutionplan.Column;
 
 import com.legend.Execution;
 import com.legend.exec.PlanSessions;

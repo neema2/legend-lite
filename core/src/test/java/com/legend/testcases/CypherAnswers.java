@@ -3,7 +3,6 @@
 
 package com.legend.testcases;
 
-import com.legend.testexec.Answer;
 
 import com.legend.json.Json;
 

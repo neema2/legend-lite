@@ -3,7 +3,6 @@
 
 package com.legend.server;
 
-import com.legend.testexec.Answer;
 
 import com.legend.json.Json;
 import com.legend.parser.PmcdParser;

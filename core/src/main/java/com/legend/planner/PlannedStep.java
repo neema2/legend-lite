@@ -3,7 +3,6 @@
 
 package com.legend.planner;
 
-import com.legend.testexecutionplan.Extension;
 
 import com.legend.executionplan.ExecutionPlan;
 
