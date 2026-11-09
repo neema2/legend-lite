@@ -173,8 +173,8 @@ commit, in a root container (one heavy lane at a time):
 - `bazel test --lockfile_mode=error //gates:local`: 488 pass, 1 skipped by design; the 10 that refuse root (the eight
   Postgres targets and `//datacube:verify_app_test`) re-run under `tools/postgres/as_unprivileged.sh ubuntu`
   (`--strategy=TestRunner=standalone`, the script copied outside the workspace): 10 pass. Green.
-- `//spec:corpus_duckdb` and `//spec:corpus_h2` (run at bc4bd99c, before L3 and the M4 guard; the rosters' verdicts
-  hold): green. `corpus_one duckdb|h2 host testLoadCsv`: pass on both.
+- `//spec:corpus_duckdb` and `//spec:corpus_h2`: green at bc4bd99c and again at 14a714df (the rosters' verdicts
+  hold). `corpus_one duckdb|h2 host testLoadCsv`: pass on both.
 - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`: green.
 - `//core:stress_suites`, `//core:stress_suites_h2`: green.
 - `//wasm:planner` builds; `//engine-client:plan_runner_test` green.
