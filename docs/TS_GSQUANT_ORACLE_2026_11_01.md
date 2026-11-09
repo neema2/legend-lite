@@ -1,5 +1,10 @@
 # The gs-quant oracle (2026-11-01)
 
+> **Retired 2026-11-09** (docs/TS_DECISIONS_2026_11_07.md item 14f, steps 4b and 4c): `oracle.py` and `calls.py` are
+> gone; every series this oracle checked is a case of the one oracle, `tools/gs-quant-oracle` (its `gallery.jsonl`,
+> judged by `//core:ts_gsquant_parity_test`), its references `tools/gs-quant-oracle/references.py`. This page is the
+> history of what it found; its reports stay in `tools/ts-oracle/` as the register's evidence.
+
 Step 2 of the one-tree plan (`docs/TS_ONE_TREE_PLAN_2026_10_31.md`): the frozen answers hold lite to what it
 answered; the oracle holds it to what gs-quant answers. Every series of the gallery and markets pages (210) is
 recomputed with `gs_quant.timeseries` itself (gs-quant 2.2.3), on the same sample data, from the same formula, and

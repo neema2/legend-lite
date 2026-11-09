@@ -51,8 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * source line, the {@code #TS} statement and lite's SQL, to the test's undeclared outputs ({@code gsquant-findings.md}).
  * A DIFF a register row rules carries the row in the ledger's {@code register} column.
  *
- * <p>The tolerance is the contract's. The gallery's oracle ({@code tools/ts-oracle}) holds the drawn series to
- * gs-quant at 1e-6 relative; this holds every word to gs-quant's own function, case by case.
+ * <p>The tolerance is the contract's. Beside the words' cases, the drawn series: every series of the gallery and the
+ * markets example ({@code gallery.jsonl}, item 14f step 4b), its Show #TS statement against gs-quant's run of its Show
+ * Python over the pages' samples, at the same tolerance -- where {@code tools/ts-oracle}'s retired oracle held them at
+ * 1e-6 relative.
  */
 class TsGsquantParityTest {
 

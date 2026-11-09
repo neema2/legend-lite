@@ -205,7 +205,7 @@ class Printer {
     const [tsName, shape] = entry;
     // Python's name gs-quant's own (var, not TypeScript's var_); excess returns over another line's levels gs-quant's
     // excess_returns_pure, in both (its excess_returns reads an asset, a currency or a rate, never a line: the review of
-    // 2026-11-08, gs-quant run over Show Python's calls, tools/ts-oracle/calls.py)
+    // 2026-11-08, gs-quant run over Show Python's calls -- now the one oracle's gallery, tools/gs-quant-oracle)
     const overLine = shape.gsFunction === 'econometrics.excess_returns' && e.args[1] !== undefined && e.args[1].kind !== 'number';
     const name = overLine ? 'excess_returns_pure'
       : this.#py && shape.gsFunction !== null ? shape.gsFunction.slice(shape.gsFunction.lastIndexOf('.') + 1) : tsName;

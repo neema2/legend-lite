@@ -116,8 +116,6 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   // read by core, prints back as itself and maps back to the tile's tree
   const ownWrong: string[] = [];
   let owned = 0;
-  // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
-  const oracle: Record<string, unknown> = {};
   // THE ONE ORACLE'S GALLERY (item 14f, step 4b): each series as gs-quant's call of it, held (holdGallery)
   const gallery: string[] = [];
   let ran = 0;
@@ -183,16 +181,6 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               shownOf = shown.statement;
             }
             gallery.push(galleryRow(id, ts, series, anchor, pairs.map(([, b]) => b), shownOf));
-            oracle[id] = {
-              // the series inlined: its tree (every parameter told, as lite computed it) is what the oracle reads; its
-              // #TS text is what the report shows
-              formula: seriesText(wholeOf(series, ts.series), []), tree: told(wholeOf(series, ts.series)),
-              split: series.split ?? null, grain: ts.grain ?? null,
-              align: ts.align ?? null, anchor: anchor ?? null,
-              sources: ts.sources.map((x) => ({ alias: x.alias, cube: x.cube, date: x.date, key: x.key ?? null })),
-              columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => ((v as unknown) instanceof Date
-                ? (v as unknown as Date).toISOString() : typeof v === 'bigint' ? Number(v) : v)) })),
-            };
             const d = difference(keyed(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)),
               keyed(mine, date, q.split, pairs.map(([, b]) => b)));
             said = d === undefined ? 'same' : `DIFFERS: ${d}`;
@@ -238,11 +226,6 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   console.log(`${ran} series: ${outcomes.filter((o) => o.includes(') same\n')).length} the same`);
   holdFrozen('TS_ANSWERS', frozen, 'gallery-answers');
   const outputs = process.env['TEST_UNDECLARED_OUTPUTS_DIR'];
-  if (outputs) {
-    const { cashCsv: c, macroCsv: m, marketsCsv: k, ratesCsv: r } = await import('../src/samples.ts');
-    writeFileSync(join(outputs, 'oracle-input.json'), JSON.stringify({ series: oracle,
-      samples: { prices: k(), rates: r(), macro: m(), cash: c() } }));
-  }
   console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
   if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));
   holdStatements(`${statements.join('\n')}\n`);

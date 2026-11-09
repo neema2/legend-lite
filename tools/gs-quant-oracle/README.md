@@ -14,14 +14,22 @@ the snap (STALE), an answer whose case is gone (GONE), and a file snapped with a
 person runs the live check (`--check`), locally: after editing the mapping, after changing this tool, and before
 landing a change to the answers.
 
-## How this differs from `tools/ts-oracle/`
+## Two parities, one oracle (item 14f, 2026-11-09)
 
-`tools/ts-oracle/` (docs/TS_GSQUANT_ORACLE_2026_11_01.md) recomputes the 210 series the gallery and markets pages
-DRAW, each from its tile's formula, and compares them with what the tile answered: parity of the drawn page with
-gs-quant, at 1e-6 relative, over the forms the pages happen to use. This tool takes every word, case by case, in the
-forms its parameters allow (a count, a calendar period, `all`, `whole`, each option), and compares the library's own
-answer with gs-quant's own function at the contract's tolerances: parity of the vocabulary. Both stay: the first
-catches a tile that composes words wrongly, this one a word that departs from gs-quant in a form no page draws.
+The cases hold the vocabulary: every word, case by case, in the forms its parameters allow (a count, a calendar
+period, `all`, `whole`, each option), the library's own answer against gs-quant's own function. The gallery holds the
+pages: every series the gallery and the markets example DRAW (`gallery.jsonl`, which
+`//datacube:timeseries_ts_parity_test` writes: each series' Show Python, its other series inlined, its tile's sources,
+its answer's fields, and why gs-quant cannot answer it), its Show #TS statement against gs-quant's run of its call over
+the pages' samples -- the first catches a word that departs from gs-quant in a form no page draws, the second a tile
+that composes words wrongly. Both are judged by the one test at the one tolerance; the gallery's `answers-gallery` and
+`ledger-gallery` beside the cases'. A gallery case is `series <view> <id>` (a band's or a candle's field `.<field>`); a
+DIFF of one a register row or its word's sentence rules is `mapping.yaml`'s `gallery: known:`. In a gallery run the
+lines meet on the dates both have, as the language's operators do (S152), and `sharpe_ratio`'s risk-free curve is the
+page's cash line (the builders' convention, item 13b), through gs-quant's own `get_ratio_pure` and `excess_returns_pure`
+-- gs-quant itself would read it from Marquee. Words gs-quant has none of are answered by `references.py` (TA-Lib,
+statsmodels, pandas). This replaced `tools/ts-oracle/`'s `oracle.py` (its own evaluator of each tree, at 1e-6
+relative) and `calls.py` (Show Python run through gs-quant's signatures), both retired.
 
 ## Prerequisites
 
@@ -78,8 +86,9 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
 - **`references.py`**: DataCube's own words -- the ones gs-quant has no function for -- each as its pinned outside
   reference computes it from the word's definition: TA-Lib (`atr`, `stochastic`, `obv`, Keltner's and Donchian's
   channels), statsmodels (`alpha`, `r_squared`, `hedge_ratio`, `residual`, `dickey_fuller`, `half_life`) or pandas (the
-  captures, tracking error, information ratio, `lead_lag`, `vwap`, `drawdown`, `ohlc`), moved from `tools/ts-oracle`'s
-  second oracle (item 14f, step 4). `snap.py` binds each word's name to its function, so the word's case is `printed`
+  captures, tracking error, information ratio, `lead_lag`, `vwap`, `drawdown`, `ohlc`; and `cash_index`, `total_return`
+  and `percent_change`, which the gallery reads and whose words stay SKIP as cases), moved from `tools/ts-oracle`'s
+  retired second oracle (item 14f, step 4). `snap.py` binds each word's name to its function, so the word's case is `printed`
   like gs-quant's, its mapping entry `ref:` instead of `gs:`; a window is read by the language's rule for the word (a
   count once the window holds it, to date, a calendar period from the line's first date that period on, gs-quant's
   `Window(w, r)` counted on x). A word's sentence that departs from its reference (TA-Lib's OBV from the first volume,
@@ -114,6 +123,13 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
   in) and, after ` | lite: `, the parity test's account of a DIFF or a REFUSED. Each writer rewrites its own half; the
   two agree byte for byte. A ledger's header names the stack it was snapped on; its columns are read exactly, never
   filled in.
+- **`gallery.jsonl`**, **`answers-gallery.jsonl.gz`** and **`ledger-gallery.tsv`** (item 14f, step 4b): the gallery's
+  and the markets example's series, written and held by `//datacube:timeseries_ts_parity_test`
+  (`--test_env=GS_ORACLE_GALLERY_UPDATE=$PWD/tools/gs-quant-oracle/gallery.jsonl` rewrites it), each its gs-quant call
+  (Show Python of it, its other series inlined), its tile's sources, its answer's fields and why gs-quant cannot answer
+  it (a split, a frequency, an alignment, a base date shown, DataCube's own spelling: SKIP); snapped by `snap.py --write`
+  with the samples (each row its own dates, no spine; a case's sha over its key, not its Show #TS, which the parity test
+  runs as it stands), judged as the cases are. A band's width gs-quant answers none of is SKIP.
 - **`traps.tsv`** (`--write --fixture`): each trap of the fixture's manifest that `mapping.yaml`'s `traps:` names a case
   for -- #90's four: `holiday_gap`, `late_print`, `split_2_for_1`, `stale_price_5d` -- gs-quant's value on the trap's
   date in each price file, against the manifest's correct answer. `--check --fixture` holds it to a fresh reading.

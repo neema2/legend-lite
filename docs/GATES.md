@@ -20705,3 +20705,24 @@ unprivileged user `//core:ts_island_postgres_test` (67.1s), `//core:ts_replay_po
 `//core:ts_replay_clickhouse_test` (28.4s), `//core:ts_documents_postgres_test` and `_clickhouse_test`, `//:generated`
 (72), `//datacube:bundle_budget_test` (the tile's ceiling 144,500 -> 145,200, measured 144,911), `//core:census`: all
 pass. Not run: `//gates:local` and CI (a push to the branch alone).
+
+## 2026-11-09 — Show Python refuses nothing (14h); the one gs-quant oracle takes in the gallery (14f, steps 4b and 4c)
+
+`docs/TS_DECISIONS_2026_11_07.md` items 14h and 14f, §5 (the rulings of the day).
+
+**14h (092c8bcbc, 5e168f4cd):** every series a tile draws is written as the builder's code, in TypeScript and Python;
+where gs-quant has no spelling of the language's meaning, DataCube's own (`ToDate()`, `Across()`, `rand`/`ror`, a value
+gs-quant refuses), never a gs-quant spelling of another meaning. `compare(x, y)` leaves its method to the language
+(S145). The tile refuses `filter`'s `empty` operator given a value (gs-quant's `filter_` raises on one). Checks:
+`//datacube:timeseries_builder_test`, `_code_test`, `_spec_test`, `//python:ts_builder_test` (3.7s; every fixture row
+incl. the extensions), `//core:ts_gsquant_parity_test` (54.0s): pass.
+
+**14f (4b, a41d62608; 4c):** the gallery's and the markets example's series are the one oracle's (`gallery.jsonl`, held
+by `//datacube:timeseries_ts_parity_test`): each its Show Python run by `snap.py` over the pages' samples (the lines
+meeting on the dates both have, S152; `sharpe_ratio`'s curve the page's cash), its Show #TS judged by
+`//core:ts_gsquant_parity_test`: **gallery PASS 196, DIFF 4 (each ruled: S145, Keltner's and OBV's sentences), SKIP 32
+(a split, a frequency, an alignment, a base date shown, `ToDate()`, a band's width)**; the samples PASS 240, DIFF 16, and
+each fixture file PASS 698, DIFF 54, as before; `unruled.tsv` empty. `tools/ts-oracle/oracle.py` and `calls.py`
+retired (its README says what stays: `signatures.py`, the reports). Checks: `//core:ts_gsquant_parity_test` (69.0s),
+`//datacube:timeseries_ts_parity_test` (43.8s), `snap.sh --check` (0 problems: samples 258 cases, gallery 202),
+`//tools/gs-quant-oracle/...`, `//tools/guards/...`: pass. Not run: `//gates:local` and CI.
