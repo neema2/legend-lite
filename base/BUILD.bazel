@@ -16,4 +16,13 @@ legend_java_library(
     visibility = ["//arrow_ipc:__pkg__", "//core:__pkg__", "//depot-server:__pkg__", "//json:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//warehouse:__pkg__"],
 )
 
+# base's CSV split, read by core's census (JavaEvalLedgerTest registers it by name: carriage, no value decided; the
+# total wall's M1 audit, 2026-11-09)
+filegroup(
+    name = "csv_cells_src",
+    testonly = True,
+    srcs = ["src/main/java/com/legend/base/CsvCells.java"],
+    visibility = ["//core:__pkg__"],
+)
+
 guards_package()

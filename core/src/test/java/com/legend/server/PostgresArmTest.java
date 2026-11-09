@@ -168,9 +168,19 @@ class PostgresArmTest {
                 }
             }
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
-            // (Postgres types a bare placeholder by the bound value, every type but a date-time, which is cast to the
-            // type of its literal and passed as its text, cut to six digits as the literal is)
+            // (Postgres types a bare placeholder by the bound value, every type but a date or date-time, which is cast to
+            // its declared type's TIMESTAMP and passed as its text, cut to six digits as the literal is: D1, P4) -- but a
+            // Date parameter given a StrictDate value, which answers a midnight date-time as upstream's TIMESTAMP'${d}'
+            // does, where the StrictDate literal answers the date (both paths upstream's: the total wall's M2, R3)
             for (com.legend.testcases.PlanCases.Parameterised q : com.legend.testcases.PlanCases.scalars("PLAN_T")) {
+                if (q.parameters().equals("d: Date[1]") && q.values().get("d") instanceof java.time.LocalDate) {
+                    for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+                        String written = com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
+                                output::writer);
+                        assertTrue(written.contains("2024-01-02T00:00:00"), output + ": " + written);
+                    }
+                    continue;
+                }
                 assertPlanAnswersAsToday(model, ctx, q, c);
             }
             // an enumeration parameter, compared through a value table of the column's codes
