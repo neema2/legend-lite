@@ -410,6 +410,17 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
   moments for trades and TCA come after #81, each with a design note first; nothing of them is in #81. A lane round on
   #81's head (the lanes CI does not run, measure only) runs in the warm sessions, in parallel, blocking nothing (the
   user: "Can run lane in warm sessions in parallel non blocking").
+- **The order after #81, set against the plan-as-data program's** (the user, 2026-11-09: "Reorder is fine"; its
+  collisions read with that program's session the same day): first 14d (`wavg`, `wsum`), B7 and B8 (with 14c), 18b
+  (Snowflake's compile cost) and 14j (the Sharpe ratio's Postgres plan), none colliding; then F3 (Postgres's wide
+  table) once P4 has landed (P4 types every dialect's run-time parameters); then 3b (a connection's post-processors)
+  after a design note sent to that program -- applied at planning, written into the plan's statements, since exec
+  edits no statement (G4); then v1.1's builds (calendars as a load, intraday time after P4, as-of between moments)
+  after the total-wall PR, each with its design note written ahead; v1's gate where the items it needs are in.
+- **Every difference from gs-quant reviewed, later** (the user, 2026-11-09, ruling F4 lite's: "but then we need to look
+  at all of our differences and see if we should move EVERYTHING to gs-quant - that is later though"): each
+  timeseries row of docs/SEMANTICS_REGISTER.md (S145 to S168, S200 and on) and each DIFF of the one oracle's ledgers
+  weighed again, one question per row: can lite do exactly as gs-quant does? A task of its own, after the order above.
 - **The chart API: whole charts stored, edits as instructions -- option A** (asked "Did we already do the single
   typescript API for typed #TS + chart that ensured that all UI was decoupled from API completely for charts?", then
   "give me your view on if we should move charts to the real API", "Is this the right design and plan?", and, the

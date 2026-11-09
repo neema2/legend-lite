@@ -1097,7 +1097,7 @@ function timeseries::slopePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L
 // counted (item 14g, the user's ruling of 2026-11-08 on PR #91's finding 2: it ramped from the first pair, one
 // observation later). gs-quant interpolates its answer onto x and ramps from x.index[0]: the same date where both lines
 // start on one; where y starts later, gs-quant's ramp runs from x's first date and answers sooner (the calendar twin of
-// S167; posted to the user 2026-11-09 for a ruling, the checkpoint's review) --
+// S167; ruled lite's 2026-11-09, S200) --
 
 // The correlation of the pairs over a calendar period (correlation's).
 function timeseries::correlationPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
