@@ -1179,3 +1179,30 @@ exec` pin.
 7. `testexec` created; `judge` deleted.
 8. The planning classes into `testplan`.
 9. The door's target; `driver` deleted; the guards hard.
+
+### Slice 5's progress (2026-11-09)
+
+- **Steps 1-4 (`c0106c5f`):** the run's 14 planning touches cut in place (the host judge's message text planned whole,
+  the multiplicity's text and the pivot column rule on the plan's records, the verdict query's schema planned, the
+  primitive names exec's own, the system connection found by the plan's target); the three failure classes to
+  `com.legend.error` and `com.legend.sql` (`DialectCapability` there, since `error` may not depend on `sql`); the
+  shared types (`TypedSide`, `Column`, `Row`, `AssertListener`, `Failures`, `JudgeJson`, `Verdicts`) to `test_plan`.
+- **Steps 5-7 (`5300ea20`):** `testexec` created; the mixed classes split into their planning half (kept in
+  `testplan`) and their run half (`HostJudgments`, `AssertRuns`, `AssertErrorRuns`, `SqlTextRuns`, `DatabaseVerdicts`,
+  `SideShapes`, `HostSideShapes`); `judge` deleted.
+- **Hole 6 (`f98801e4`, `9446f09d`):** no thread-scoped state anywhere but `RunScope` (the user's ruling, "remove all
+  thread local"). The run's state is the explicit run record `testexec/BodyRun`; the appeals' decider is handed its
+  reader and sessions; planning's activity comment is `ActivityComments`, its text origin the deferring collector's;
+  the census labels an explicit `test(String)`; exec's statement origin is passed with each statement
+  (`Statements.mark`, `PlanSessions.Source.mark`, `StatementOrigin.under`). Guard: `noThreadLocalState` (hard).
+- **Steps 8-9 (`8e59e9ec`):** the planning classes into `testplan` (`TestPlanner` is the former router's planning
+  half); `driver` deleted; `SystemDatabase` to exec, leased per run; the door is `//core:execution` (`Execution`,
+  `ExecuteOptions`) and the only class that sees both halves. Guards, hard: `theRunReachesNoPlanning` (an allow-list),
+  `planningReachesNoRun`, `onlyTheDoorSeesBothHalves`. `tools/deps/core-layers.txt` pins the targets: `testexec`
+  depends on no planning library, `testplan` on no exec. R1's report-mode test and its 278 pinned crossings are gone,
+  replaced by those rules.
+- **The product's door (`91710200`):** pure/v1's execute hands the runner a plan (`PureV1Api.Runner.run(ExecutionPlan,
+  Target, writes, sink)`), never the compiled query; the server's runner is `Execution.runPlan`. The test-data
+  generator's interleaved plan-and-run moved to the tests (`TestDataGeneratorRun`); the product keeps its planning.
+- **The guard registers (`bf6b4fd0`, `cc935762`):** the closed package registers, the evaluator-size pins and the
+  no-connection spelling pin follow the classes to `testplan`, `testexec` and exec, each with a dated reason.
