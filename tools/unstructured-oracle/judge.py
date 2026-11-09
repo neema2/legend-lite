@@ -44,6 +44,9 @@ SOURCE_OF_CORPUS = {"SALES": "SALES", "LENDING": "LENDING", "EDGAR 13F": "EDGAR"
 ARMS = ("keyword", "vector", "hybrid")
 BACKENDS = ("duckdb", "postgres")
 NEGATIVE_ANSWER = "nothing in the corpus"
+# What a server without pgvector answers: undefined table, type and function or operator. Any other failure of those
+# statements, a syntax error above all, is an ERROR, never a refusal.
+PGVECTOR_ABSENT = ("42P01", "42704", "42883")
 
 
 class QueryFailed(Exception):
@@ -201,6 +204,10 @@ def routes_of(case: dict) -> list[str]:
     return {"text": ["text"], "structured": ["structured"], "both": ["text", "structured"]}[case["route"]]
 
 
+def needs_pgvector(backend: str, arm: str) -> bool:
+    return backend == "postgres" and arm != "keyword"
+
+
 def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
     import duckdb
     import psycopg
@@ -218,8 +225,6 @@ def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
                 identity = {"case": case["id"], "route": "text", "arm": arm, "backend": backend, "road": "direct-sql"}
                 if case["status"] != "resolved":
                     outcome = {"verdict": logic.UNRESOLVED, "receipts": [], "detail": f"status: {case['status']}"}
-                elif backend == "postgres" and arm != "keyword" and refusal is not None:
-                    outcome = {"verdict": logic.REFUSED, "receipts": [], "detail": refusal}
                 else:
                     parameters = {"question": case["question"], "vector": vectors[case["id"]], "time_aware": case["type"] == "time-aware",
                                   "cut": logic.cut(accepted)}
@@ -230,10 +235,19 @@ def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
                     try:
                         connection = duck if backend == "duckdb" else pg
                         rows = connection.execute(statement(f"{arm}_{backend}.sql"), arguments).fetchall()
-                    except (duckdb.Error, psycopg.Error) as failure:
+                    except psycopg.Error as failure:
+                        if needs_pgvector(backend, arm) and refusal is not None and failure.sqlstate in PGVECTOR_ABSENT:
+                            outcome = {"verdict": logic.REFUSED, "receipts": [], "detail": f"{refusal}; {arm}_postgres.sql, run: "
+                                       f"{type(failure).__name__} {failure.sqlstate}: {failure.diag.message_primary}"}
+                        else:
+                            outcome = {"verdict": logic.ERROR, "receipts": [], "detail": f"{type(failure).__name__}: {failure}"[:400]}
+                            failures.append(identity)
+                    except duckdb.Error as failure:
                         outcome = {"verdict": logic.ERROR, "receipts": [], "detail": f"{type(failure).__name__}: {failure}"[:400]}
                         failures.append(identity)
                     else:
+                        if needs_pgvector(backend, arm) and refusal is not None:
+                            raise SystemExit(f"{arm}_postgres.sql returned rows on a server the catalogue says has no pgvector: {refusal}")
                         outcome = logic.text_verdict(normalised(rows), accepted, match, superseded, question_negative(case, "text"))
                 ledger.append(logic.ledger_row(identity, outcome))
     return ledger

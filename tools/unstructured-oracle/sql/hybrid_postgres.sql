@@ -7,7 +7,7 @@
 -- A time-aware case (the time_aware parameter) ranks by 0.7 * relevance + 0.3 * recency; every other case by relevance alone. Recency is
 -- 0.5 ^ (days before its own corpus's latest date / 14). A hash held at several dates takes its most recent location's.
 -- Ties break on the hash. The two arms below are their own files' statements, verbatim; the judge refuses a run if they
--- drift. NEVER RUN WHOLE: the vector arm needs pgvector, which the embedded Postgres lacks. Parameters: question, vector, time_aware, cut.
+-- drift. Has never returned a row: the embedded Postgres has no pgvector, and the server stops at the vector arm's table. Parameters: question, vector, time_aware, cut.
 WITH keyword_arm AS (
 WITH query AS (
     SELECT replace(plainto_tsquery('english', %(question)s)::text, ' & ', ' | ')::tsquery AS Q

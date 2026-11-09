@@ -1,6 +1,7 @@
 -- The vector arm on Postgres: pgvector's cosine distance, top 150 distinct passages, each row carrying every location that
--- holds its hash. NEVER RUN: the repository's embedded Postgres has no pgvector, so this statement is written from
--- pgvector's documentation and the judge's vector row on Postgres is REFUSED. Ties break on the hash. Parameter: %(vector)s.
+-- holds its hash. Has never returned a row: the repository's embedded Postgres has no pgvector. The judge runs this
+-- statement on every case; the server parses it and stops at relation "co_passage_embedding" does not exist, because that
+-- table's column needs the type pgvector provides. Nothing past name resolution has been exercised. Ties break on the hash. Parameter: %(vector)s.
 WITH scored AS (
     SELECT e.SHA256, 1 - (e.EMBEDDING <=> %(vector)s::vector(384)) AS SCORE
     FROM CO_PASSAGE_EMBEDDING e
