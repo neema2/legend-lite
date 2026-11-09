@@ -209,13 +209,19 @@ final class JdbcStatements implements Statements {
 
     @Override
     public boolean load(ExecutionPlan.LoadStep.Rows rows) {
+        return bulk(rows.stagingTable(), rows.createStaging(), rows.copy(), rows.dropStaging(), rows.rows());
+    }
+
+    @Override
+    public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
+            List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try {
             BulkLoad bulk = BulkLoads.of(c);
             if (bulk == null) {
                 return false;
             }
-            BulkLoads.load(bulk, c, rows);
+            BulkLoads.load(bulk, c, stagingTable, createStaging, copy, dropStaging, rows);
             return true;
         } catch (SQLException e) {
             throw failed(e);

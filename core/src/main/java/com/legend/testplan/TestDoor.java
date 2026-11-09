@@ -137,14 +137,14 @@ public final class TestDoor {
             });
         }
         Map<Integer, Effect> effects = byStep(planned, kinds.effects());
-        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds());
+        Map<Integer, java.util.function.Supplier<List<String>>> seeds = byStep(planned, kinds.seeds());
         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge != null) {
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
-            seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts)));
+            seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts.get())));
         }
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)

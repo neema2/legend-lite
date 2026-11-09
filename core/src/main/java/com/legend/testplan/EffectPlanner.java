@@ -157,7 +157,7 @@ public final class EffectPlanner {
     /** A CSV file's load as the program runs it ({@code step}), with the text the replay ledger records for it
      *  ({@code recorded}: the referee's insert of the file's rows -- the referee's copy of the data, as every seed's is
      *  until the design's L8 replays the plan's loads), or none where the file holds no row (no load is planned). */
-    public record PlannedLoad(ExecutionPlan.LoadStep.File step, String recorded) {
+    public record PlannedLoad(ExecutionPlan.LoadStep.File step, java.util.function.Supplier<String> recorded) {
     }
 
     /**
@@ -205,11 +205,18 @@ public final class EffectPlanner {
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
         SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted);
         SqlDialect.CsvLoad spelled = env.writtenIn().csvLoad(load);
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
-                columns.size());
-        String recorded = refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns,
-                quoted, columns.size(), cells).values());
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES), recorded);
+        com.legend.setup.RowLoad rows = new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
+                columns.size(), cells);
+        // the database's bulk loader where it has one (DuckDB's appender: the M1 tenets audit's finding 8), its
+        // staging statements the dialect's; else one row's insert per row
+        ExecutionPlan.LoadStep.Rows staged = env.writtenIn().loadsRowsInBulk() ? rows.staged(env.writtenIn()) : null;
+        ExecutionPlan.LoadStep.Delivery delivery = staged != null
+                ? new ExecutionPlan.LoadStep.Delivery.Bulk(staged.stagingTable(), staged.createStaging(), staged.copy(),
+                        staged.dropStaging(), columns.size())
+                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), columns.size());
+        // the referee's copy of the rows, rendered only when an edge asks for it
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES),
+                () -> refereeDdl().render(rows.values()));
     }
 
     /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:

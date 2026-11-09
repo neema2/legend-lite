@@ -75,7 +75,9 @@ final class TestKinds implements ProgramKinds {
      *  it. */
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
     /** Each seed step this program planned, its statements' ledger texts beside it (M5). */
-    private final Map<ExecutionPlan.Node, List<String>> seeds = new IdentityHashMap<>();
+    // each load's referee texts, made only when an edge asks for them (the M1 tenets audit's finding 8, 2026-11-09: a
+    // file's rows were rendered as the referee's insert for every plan, with no edge too)
+    private final Map<ExecutionPlan.Node, java.util.function.Supplier<List<String>>> seeds = new IdentityHashMap<>();
     /** The places in the program's sequence of the frame lets' eager-run steps this program planned (M9): the walk
      *  sends a frame's run under its own statement origin (LET), which the plan does not say; the router's sink names
      *  it to the runner. By place, not identity: the finished plan rebuilds a check whose stamp nothing reads. */
@@ -397,7 +399,8 @@ final class TestKinds implements ProgramKinds {
         ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, steps,
                 program.target());
         program.add(setup);
-        seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
+        List<String> texts = planned.stream().map(CsvSeed.Planned::text).toList();
+        seeds.put(setup, () -> texts);
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer
@@ -492,7 +495,8 @@ final class TestKinds implements ProgramKinds {
                         loaded.stream().<ExecutionPlan.LoadStep>map(s -> new ExecutionPlan.LoadStep.Statement(
                                 s.executed())).toList(), program.target());
                 program.add(load);
-                seeds.put(load, loaded.stream().map(EffectPlanner.Statement::recorded).toList());
+                List<String> recorded = loaded.stream().map(EffectPlanner.Statement::recorded).toList();
+                seeds.put(load, () -> recorded);
             }
         }
         if (last) {
@@ -513,7 +517,7 @@ final class TestKinds implements ProgramKinds {
     }
 
     /** The seed steps this program planned, each with its statements' ledger texts. */
-    Map<ExecutionPlan.Node, List<String>> seeds() {
+    Map<ExecutionPlan.Node, java.util.function.Supplier<List<String>>> seeds() {
         return Collections.unmodifiableMap(seeds);
     }
 
@@ -535,7 +539,7 @@ final class TestKinds implements ProgramKinds {
         ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                 List.of(planned.step()), program.target());
         program.add(load);
-        seeds.put(load, List.of(planned.recorded()));
+        seeds.put(load, () -> List.of(planned.recorded().get()));
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

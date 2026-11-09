@@ -530,11 +530,19 @@ public final class PlanJson {
                 o.put("ref", ref);
                 o.put("sizeLimitMegabytes", f.sizeLimitMegabytes());
                 Map<String, Object> delivery = new LinkedHashMap<>();
-                delivery.put("_type", "streamed");
                 switch (f.delivery()) {
                     case LoadStep.Delivery.Streamed st -> {
+                        delivery.put("_type", "streamed");
                         delivery.put("insert", st.insert());
                         delivery.put("columns", st.columns());
+                    }
+                    case LoadStep.Delivery.Bulk b -> {
+                        delivery.put("_type", "bulk");
+                        delivery.put("stagingTable", b.stagingTable());
+                        delivery.put("createStaging", b.createStaging());
+                        delivery.put("copy", b.copy());
+                        delivery.put("dropStaging", b.dropStaging());
+                        delivery.put("columns", b.columns());
                     }
                 }
                 o.put("delivery", delivery);
@@ -848,10 +856,13 @@ public final class PlanJson {
                 DataRef data = new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")), ref.getString("name"),
                         ref.getString("digest"), ref.getLong("size"), format(ref.getObj("format")));
                 Json.Obj d = o.getObj("delivery");
-                if (!"streamed".equals(d.getString("_type"))) {
-                    throw new IllegalArgumentException("a file load's delivery is streamed: " + d.getString("_type"));
-                }
-                LoadStep.Delivery delivery = new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
+                LoadStep.Delivery delivery = switch (d.getString("_type")) {
+                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
+                    case "bulk" -> new LoadStep.Delivery.Bulk(d.getString("stagingTable"), d.getString("createStaging"),
+                            d.getString("copy"), d.getString("dropStaging"), d.getInt("columns"));
+                    default -> throw new IllegalArgumentException("a file load's delivery is streamed or bulk: "
+                            + d.getString("_type"));
+                };
                 yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }
         };

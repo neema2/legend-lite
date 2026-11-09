@@ -609,6 +609,16 @@ public final class PlanRunner {
                                     seeding.streams(streamed.insert(), cells);
                                 }
                             }
+                            case ExecutionPlan.LoadStep.Delivery.Bulk bulk -> {
+                                // the session's bulk loader, its staging statements the plan's (finding 8)
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, bulk.columns(),
+                                        f.sizeLimitMegabytes());
+                                if (!cells.isEmpty() && !seeding.bulk(bulk.stagingTable(), bulk.createStaging(),
+                                        bulk.copy(), bulk.dropStaging(), cells)) {
+                                    throw new IllegalStateException("the plan loads a file through a bulk loader, and"
+                                            + " the session's database has none (" + f.ref().name() + ")");
+                                }
+                            }
                         }
                         // the load's one statement (its batch), counted under the seeds' mark
                         StatementOrigin.count(seeding.mark());

@@ -142,6 +142,14 @@ final class MongoDbStatements implements Statements {
     }
 
     @Override
+    public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
+            List<List<String>> rows) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
+                + " the connector's own, and a plan loads none");
+    }
+
+    @Override
     public void streams(String insert, List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"

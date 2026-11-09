@@ -22,6 +22,9 @@ public interface BulkLoad {
     /** Whether this loader speaks {@code connection}'s engine. */
     boolean accepts(Connection connection) throws SQLException;
 
-    /** Loads {@code rows}: creates their staging table, appends the cells, copies them into the target, drops it. */
-    void load(Connection connection, ExecutionPlan.LoadStep.Rows rows) throws SQLException;
+    /** Loads {@code rows}: creates their staging table ({@code createStaging}, named {@code stagingTable}), appends the
+     *  cells, copies them into the target ({@code copy}), drops it ({@code dropStaging}) -- a rows step's statements and
+     *  cells, or a file's cells split by its format with its bulk delivery's statements (L2, 2026-11-09). */
+    void load(Connection connection, String stagingTable, String createStaging, String copy, String dropStaging,
+            java.util.List<java.util.List<String>> rows) throws SQLException;
 }

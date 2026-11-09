@@ -270,4 +270,51 @@ class DataLoadsTest {
             assertTrue(e.getMessage().contains("is not its content's"), e.getMessage());
         }
     }
+
+    /** {@code load}'s file step as a bulk delivery on a database whose dialect loads rows in bulk: the dialect's staging
+     *  statements, the cells handed to the session's bulk loader (the M1 tenets audit's finding 8, 2026-11-09). */
+    private static ExecutionPlan.Load bulk(TestBackend b, ExecutionPlan.Load load) {
+        ExecutionPlan.LoadStep.File f = (ExecutionPlan.LoadStep.File) load.steps().get(0);
+        ExecutionPlan.LoadStep.Rows staged = new com.legend.setup.RowLoad(null, LOAD.table(), LOAD.quoting(),
+                LOAD.columns(), Set.of(), LOAD.columns().size(), List.of(List.of("x", "y", "1"))).staged(b.dialect());
+        return com.legend.planner.LoadPlanner.load(load.cadence(), List.of(new ExecutionPlan.LoadStep.File(f.ref(),
+                new ExecutionPlan.LoadStep.Delivery.Bulk(staged.stagingTable(), staged.createStaging(), staged.copy(),
+                        staged.dropStaging(), LOAD.columns().size()), f.sizeLimitMegabytes())), load.target());
+    }
+
+    /** A file's cells through the bulk loader load the rows the streamed insert loads, the loader counted once; the
+     *  two deliveries timed on 50,000 rows (docs/DATA_IN_THE_PLAN_2026_11_09.md 9: printed, not asserted). */
+    @Test
+    void aBulkDeliveryLoadsTheStreamedRowsThroughTheBulkLoader(@TempDir Path dir) throws Exception {
+        byte[] small = CSV.getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("employees.csv"), small);
+        StringBuilder text = new StringBuilder("Firstname,Lastname,Age");
+        for (int i = 0; i < 50_000; i++) {
+            text.append("\nName").append(i).append(",Last").append(i).append(',').append(i);
+        }
+        byte[] big = text.toString().getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("big.csv"), big);
+        int bulkDatabases = 0;
+        for (TestBackend b : loading()) {
+            if (!b.dialect().loadsRowsInBulk()) {
+                continue;
+            }
+            bulkDatabases++;
+            long before = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BULK_LOADS);
+            assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)), loaded(b,
+                    DataStores.resources(dir), bulk(b, load(b, file(b.dialect(), "employees.csv", small)))), b.name());
+            assertEquals(before + 1, com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BULK_LOADS),
+                    b.name() + ": the bulk loader ran once");
+            long t0 = System.nanoTime();
+            int streamed = loaded(b, DataStores.resources(dir), load(b, file(b.dialect(), "big.csv", big))).size();
+            long t1 = System.nanoTime();
+            int bulked = loaded(b, DataStores.resources(dir), bulk(b, load(b, file(b.dialect(), "big.csv", big)))).size();
+            long t2 = System.nanoTime();
+            assertEquals(50_000, streamed, b.name());
+            assertEquals(50_000, bulked, b.name());
+            System.out.println("@@MEASURE " + b.name() + " 50000 rows: streamed " + (t1 - t0) / 1_000_000 + " ms, bulk "
+                    + (t2 - t1) / 1_000_000 + " ms");
+        }
+        assertTrue(bulkDatabases > 0, "a database with a bulk loader was measured");
+    }
 }
