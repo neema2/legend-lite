@@ -22,7 +22,9 @@ import java.util.Objects;
  * options alone, else a new one ({@link Held}), or none ({@link None}). The host's connection itself ({@link Sessions.Opener}) is a resource the
  * host owns, as a data source is: it opens a connection and decides nothing of the run.
  */
-public sealed interface SessionSource {
+public sealed interface SessionSource
+        permits SessionSource.Given, SessionSource.None, SessionSource.ProjectDatabases, SessionSource.Fresh,
+        SessionSource.Declared, SessionSource.Held {
 
     /** The session for {@code target}: a view where the source holds it, an owned one where it opens one for the use. */
     default Sessions.Session open(ExecutionPlan.Target target) {

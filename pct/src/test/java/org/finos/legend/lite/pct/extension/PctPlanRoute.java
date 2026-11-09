@@ -19,7 +19,7 @@ import java.io.IOException;
  * PCT's feature flag
  * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
  * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
- * answer the server writes from them ({@code PureV1Api.engineWriter}), which the adapter reads as legend-engine's own
+ * answer the server writes from them ({@code Output.Engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
  */

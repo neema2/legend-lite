@@ -7,7 +7,8 @@ package com.legend.server;
  * connection and its project, the model's stores and Data rows hashed at planning (type audit D100: two models whose
  * stores differ never share one) -- so the same stores, definition and rows keep their database across requests
  * (tables persist -- the feature) while an EDITED definition, store or row gets a fresh one. A held in-memory one is
- * made once holding the Data rows the plan carries. Until hole 7 this class keyed and filled them itself by reading
+ * made once holding the Data rows the plan carries. The platform's own engine (a runtime of model data alone) is
+ * keyed by the stores alone and holds no Data rows (the full audit, 2026-11-09). Until hole 7 this class keyed and filled them itself by reading
  * the model; since slice 5 (2026-11-09) it names no runtime class at all -- its runner is the product door, and the
  * sessions' source is exec's.
  */

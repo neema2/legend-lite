@@ -48,8 +48,6 @@ class RunScopeTest {
         RunScope.planning("lower a spec");
     }
 
-    /** A held appeal decided after its body's run (P1.2, 2026-11-07): it plans nothing and plans no body, but it may
-     *  run the plans planned ahead for it, each a run of its own. */
     /** A run's caller called back (a sink, a session source) plans nothing: the full audit's must-fix, 2026-11-09 --
      *  a session source planned the query again inside the run, where the wall did not look. */
     @Test
@@ -61,6 +59,8 @@ class RunScopeTest {
         RunScope.planning("lower a spec");
     }
 
+    /** A held appeal decided after its body's run (P1.2, 2026-11-07): it plans nothing and plans no body, but it may
+     *  run the plans planned ahead for it, each a run of its own. */
     @Test
     void aJudgmentAfterARunPlansNothingButRunsItsPlans() {
         try (var judging = RunScope.judging()) {

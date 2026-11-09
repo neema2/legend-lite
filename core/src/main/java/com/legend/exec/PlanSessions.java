@@ -299,6 +299,17 @@ public final class PlanSessions {
      * establishes a connection on every acquisition.
      */
     public static Sessions.Session projectDatabase(ExecutionPlan.Target target) {
+        // a plan the server did not plan names no project: refused by name, never an empty database shared by every
+        // model (the follow-up audit, 2026-11-09: since the project is the server's road's alone, TypedQuery.projectPlan)
+        ExecutionPlan.Project project = switch (target.database()) {
+            case ExecutionPlan.Database.Platform p -> p.project();
+            case ExecutionPlan.Database.Declared d -> d.project();
+            case ExecutionPlan.Database.System s -> null;
+        };
+        if (project == null && !(target.database() instanceof ExecutionPlan.Database.System)) {
+            throw new IllegalArgumentException("the server's project databases run a plan the server planned "
+                    + "(TypedQuery.projectPlan); this plan's target names no project: " + target.database());
+        }
         // the database's identity: its connection and its project's key -- never the statements that make it, which
         // the key already names (the full audit, 2026-11-09: the whole fill was serialized and hashed on every open)
         ExecutionPlan.Target identity = new ExecutionPlan.Target(identityOf(target.database()), java.util.List.of(),

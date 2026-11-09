@@ -213,8 +213,8 @@ public class MinimalCorpusTest {
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
+        // each assert the host planner declined, by its shape, per test (the test-is-the-product plan's M10c)
         List<String> unplannedRows = new ArrayList<>();
-        /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {

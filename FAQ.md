@@ -236,8 +236,11 @@ The database computes every value; a writer only chooses its text. Each writer h
 
 Implement `com.legend.result.ResultSink` (`columns`, `batch`, `end`): the plan's columns arrive first, with their Pure
 type, multiplicity and SQL slot, then the rows in batches of typed cells (`Batch.get(row, column)`). Spell each cell
-from its column's facts alone (`CellText` holds Pure's print forms and the engine's tokens), and run the query with
-`Execution.run(..., plan -> new YourWriter(out, plan.answerShape()))`.
+from its column's facts alone (`CellText` holds Pure's print forms and the engine's tokens). A format the product
+ships is a variant of `com.legend.result.Output` (a closed set: the result library makes the writer from the plan, so
+the run calls no factory of the caller's), added beside `JsonRows` and `Csv`; a writer of your own runs as the caller's
+receiver, `Execution.run(..., new Output.Rows(new YourWriter(out)))`, told the answer's shape (`ResultSink.answers`)
+before its columns.
 
 ---
 

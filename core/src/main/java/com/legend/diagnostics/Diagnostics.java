@@ -21,8 +21,6 @@ import java.util.Map;
  *   <li>{@code corpus-trace}, {@code detach-trace}, {@code progress}, {@code timing}: the corpus runner's traces</li>
  *   <li>{@code corpus-containing=TEXT}: parser-equivalence's corpus, only the sources containing TEXT (iteration)</li>
  *   <li>{@code chb-only=TEXT}: Channel B, only the PCT tests whose name contains TEXT (iteration; no pins)</li>
- *   <li>{@code primitives}: tally the MIR primitives of every statement the executor sends, by outcome, printed at
- *       the JVM's exit (the coverage map's input; its census, PrimitiveCensus, was deleted 2026-11-09 with no feeder)</li>
  *   <li>{@code plan-sizes}: record, for every plan the round-trip gate judges, its JSON's size with and without the
  *       typed tree and its statements' characters (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18)</li>
  *   <li>{@code sql-sizes}: print each statement's characters and the running test's name before it is sent (the core
@@ -41,7 +39,8 @@ public final class Diagnostics {
     /** The vocabulary: the switches that exist. */
     public static final List<String> NAMES = List.of(
             "dump-sql", "pct-cases", "pct-shapes", "corpus-trace", "detach-trace", "progress", "timing",
-            "corpus-containing", "chb-only", "primitives", "plan-sizes",
+            // ("primitives" deleted 2026-11-09 with its census, PrimitiveCensus, which had no feeder: a dead switch)
+            "corpus-containing", "chb-only", "plan-sizes",
             // the core program's SQL size (2026-11-03, the user's "core test SQL much smaller than PCT/corpus"): each
             // statement sent, its characters and the test that sent it, before it is sent
             "sql-sizes",

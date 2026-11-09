@@ -19,7 +19,7 @@ import java.util.Set;
  * and seals when it is done ({@link Seal#seal}), its last static initializer. Before the seal it takes entries; after
  * it, every write is refused by name, and every view it hands out is read-only. So a static table is a constant of the
  * process, never a channel: a write after start-up, a registration from elsewhere, is an error, not a change. The
- * guard {@code StaticStateRegisterTest} reads every static field of the product after its class is initialised and
+ * guard {@code ArchitectureTest.staticStateIsConstantOrRegistered} reads every static field of the product after its class is initialised and
  * accepts a sealed one as constant.
  */
 public final class Sealed {

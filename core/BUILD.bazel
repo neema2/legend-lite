@@ -1549,7 +1549,7 @@ legend_java_library(
     nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/com/legend/testbackend/*.java"]),
-    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    visibility = ["//pct:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__"],
     deps = [
         ":core",
         "//testing",
@@ -1609,7 +1609,9 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector", ":postgres_cells"],
+    # //arrow_ipc (2026-11-09, the follow-up audit): the result library's framer is the product's too, so the static
+    # state guard holds its constants
+    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_load", ":mongodb_connector", ":postgres_cells"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)

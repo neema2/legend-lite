@@ -31,6 +31,16 @@ public final class TestRunner {
     }
 
 
+    /** A test body's answer is written in lite's formats, refused before anything is opened or sent otherwise (the
+     *  follow-up audit, 2026-11-09: the engine's answer, which needs a plan's statement and columns, was refused only
+     *  when its writer was first asked for -- after the body's writes, where the answer was not sent early). */
+    private static void lites(@Nullable Output answer) {
+        if (answer instanceof Output.Engine || answer instanceof Output.Arrow) {
+            throw new IllegalArgumentException("a test body's answer is written in lite's formats (JSON rows, CSV, or "
+                    + "the caller's receiver): the engine's answer needs a product plan's statement and columns");
+        }
+    }
+
     /**
      * A body's test plan RUN on the session {@code sessions} opens for the plan's own target ({@link TestPlan#session},
      * planned: slice 5, 2026-11-09 -- the door opened it from the model until then), closed when the run ends (a
@@ -40,6 +50,7 @@ public final class TestRunner {
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections, @Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
+        lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
@@ -63,6 +74,7 @@ public final class TestRunner {
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
+        lites(answer);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
         // (the answer's sink is made first): they plan nothing (the full audit's must-fix, 2026-11-09)
         try (var callbacks = com.legend.base.RunScope.callingBack()) {

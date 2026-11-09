@@ -1522,6 +1522,7 @@ class BodyRouterParityTest {
                 "refused by name: " + body + " -> " + routed.outcome);
         assertEquals(0, routed.moved, "the router moved nothing: " + body);
         assertEquals(List.of(), routed.statements, "nothing sent while the router planned and refused: " + body);
+        allRecorded(routed, body);
     }
 
     /** A text as a Pure string literal's body. */
@@ -1546,7 +1547,7 @@ class BodyRouterParityTest {
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
                     new com.legend.result.Output.Rows(capture));
-            return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), ""));
+            return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
         }
     }
 
@@ -1610,6 +1611,7 @@ class BodyRouterParityTest {
         Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         assertEquals("ok", moved.outcome);
+        allRecorded(moved, body);
         assertFalse(moved.statements.stream().anyMatch(s -> STAMP_LITERAL.matcher(s).find()),
                 "the moved side binds the comment, never spelling it: " + moved.statements);
     }
@@ -1704,8 +1706,19 @@ class BodyRouterParityTest {
     private static final java.util.regex.Pattern STAMP_LITERAL =
             java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
 
+    /** @param statements the statements sent on the body's own connection, recorded there
+     *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}
+     *                    holds the recorded list whole (the follow-up audit, 2026-11-09: a system-routed body's
+     *                    statements go to the system session, which the recording does not see) */
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
-            String database, long moved, List<String> statements, List<String> verdicts, String census) {
+            String database, long moved, List<String> statements, List<String> verdicts, String census, long sent) {
+    }
+
+    /** Every statement the run sent was on the body's recorded connection: what {@code r.statements} says of a run is
+     *  of all of it. */
+    private static void allRecorded(Run r, String body) {
+        assertEquals(r.sent(), r.statements().size(), "a statement went to a session the recording does not see: "
+                + body + " -> origins " + r.origins() + ", recorded " + r.statements());
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, String check)
@@ -1799,7 +1812,8 @@ class BodyRouterParityTest {
             });
             return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
-                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString());
+                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString(),
+                    Arrays.stream(delta).sum());
         }
     }
 

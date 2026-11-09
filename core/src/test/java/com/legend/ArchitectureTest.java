@@ -1289,14 +1289,17 @@ final class ArchitectureTest {
     private static final java.util.List<Class<?>> RUN_ENTRY_CLASSES = java.util.List.of(
             com.legend.exec.ProductRun.class, com.legend.testexec.TestRunner.class);
 
-    /** The open interfaces a run may take, each named for what it is: receivers that decide nothing the run does (the
-     *  answer's rows, the verdicts: {@code theListenerIsOutputOnly}), the edge's extension point, referee and data
-     *  marker (the compatibility mode's, G5: every {@code Extension} is a record, {@code PlanTypesAreDataTest}), and the
-     *  host's connection (a resource, as a data source is). */
+    /** The open types a run may take, each named for what it is: receivers that decide nothing the run does (the
+     *  answer's rows, the verdicts: {@code theListenerIsOutputOnly}; the stream an answer is written to), the edge's
+     *  extension point, referee and data marker (the compatibility mode's, G5: every {@code Extension} is a record,
+     *  {@code PlanTypesAreDataTest}), the host's connection (a resource, as a data source is), and a session, which exec
+     *  alone makes ({@code onlyTheSeamMakesSessions}). */
     private static final java.util.Set<Class<?>> CALLER_INTERFACES = java.util.Set.of(
             com.legend.result.ResultSink.class, com.legend.testexecutionplan.AssertListener.class,
+            java.io.Writer.class, java.io.OutputStream.class,
             com.legend.testexecutionplan.Edge.class, com.legend.testexec.SqlReplayReferee.class,
-            com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class);
+            com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
+            com.legend.exec.Sessions.Session.class);
 
     private static void takesData(java.lang.reflect.Type t, String where, java.util.Set<Class<?>> seen,
             java.util.Set<String> violations) {
@@ -1313,6 +1316,10 @@ final class ArchitectureTest {
             }
             return;
         }
+        if (t instanceof java.lang.reflect.TypeVariable<?> v) {
+            violations.add(where + " takes a type variable, " + v.getName() + " (name the type)");
+            return;
+        }
         if (!(t instanceof Class<?> c) || !seen.add(c)) {
             return;
         }
@@ -1320,7 +1327,7 @@ final class ArchitectureTest {
             takesData(c.getComponentType(), where, seen, violations);
             return;
         }
-        // (a file's path is a value, though the JDK declares it an interface)
+        // (a file's path is a value, though the JDK declares it an interface; Object is a bound parameter's value)
         if (c.isPrimitive() || c.isEnum() || c == String.class || c == Object.class || c == java.nio.file.Path.class
                 || CALLER_INTERFACES.contains(c)) {
             return;
@@ -1347,8 +1354,13 @@ final class ArchitectureTest {
             for (java.lang.reflect.RecordComponent rc : c.getRecordComponents()) {
                 takesData(rc.getGenericType(), where, seen, violations);
             }
+            return;
         }
-        // a final class (a session, a typed query, a plan) is the product's own value: its fields are its own
+        // a final class (a typed query, a plan) is the product's own value, its fields its own; an open class is the
+        // caller's code by subclass (the follow-up audit, 2026-11-09: the guard passed every class until then)
+        if (!java.lang.reflect.Modifier.isFinal(c.getModifiers())) {
+            violations.add(where + " takes an open class, " + c.getName());
+        }
     }
 
     private static boolean inAnyPackage(String pkg, java.util.List<String> packages) {
@@ -2232,7 +2244,11 @@ final class ArchitectureTest {
             Class<?> cls;
             try {
                 cls = Class.forName(jc.getName());
-            } catch (Throwable t) {
+            } catch (ExceptionInInitializerError e) {
+                // a class whose initialiser fails is a finding, never a class skipped (the follow-up audit, 2026-11-09)
+                violations.add(jc.getName() + "'s class initialiser fails: " + e.getCause());
+                continue;
+            } catch (NoClassDefFoundError | ClassNotFoundException e) {
                 continue; // a class whose driver is not on the test JVM's classpath: nothing to inspect
             }
             for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
@@ -2272,7 +2288,8 @@ final class ArchitectureTest {
 
     /** Why {@code v} is mutable, or null for a constant. */
     private static @com.legend.base.Nullable String mutableObject(@com.legend.base.Nullable Object v, int depth) {
-        if (v == null || depth > 2) {
+        // (deep enough for a registry of registries: depth 4, the follow-up audit of 2026-11-09 -- 2 until then)
+        if (v == null || depth > 4) {
             return null;
         }
         Class<?> k = v.getClass();
@@ -2288,8 +2305,15 @@ final class ArchitectureTest {
                 || v instanceof StringBuilder) {
             return "a holder " + n;
         }
-        if (k.isEnum() || k.isRecord() || v instanceof String || v instanceof Number || v instanceof Boolean
-                || v instanceof Character || v instanceof Class || k.isHidden() || k.isSynthetic()) {
+        // the JDK's own mutable values (the follow-up audit, 2026-11-09)
+        if (v instanceof java.util.Random || v instanceof java.util.BitSet || v instanceof java.util.Date
+                || v instanceof java.util.Calendar) {
+            return "a mutable value " + n;
+        }
+        // a record and a lambda are as constant as what they hold: their fields are looked at below (the follow-up
+        // audit, 2026-11-09: a record holding a list, a lambda capturing one, passed until then)
+        if (k.isEnum() || v instanceof String || v instanceof Number || v instanceof Boolean
+                || v instanceof Character || v instanceof Class) {
             return null;
         }
         if (v instanceof java.util.Collection<?> || v instanceof java.util.Map<?, ?>) {

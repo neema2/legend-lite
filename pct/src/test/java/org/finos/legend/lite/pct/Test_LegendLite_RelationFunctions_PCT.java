@@ -56,7 +56,7 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
      * Uses PureTestBuilderInterpreted to build the test suite from PCT tests.
      */
     public static Test suite() {
-        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // M4 §3.4: the census gate (its SqlTypeCensus pins deleted 2026-11-09: the census had no feeder)
         // invariants at suite teardown (PctCensusGate)
         return PctCensusGate.wrap("Relation", wrapSuite(
                 () -> true,

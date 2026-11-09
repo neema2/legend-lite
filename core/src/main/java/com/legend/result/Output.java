@@ -17,7 +17,8 @@ import java.io.Writer;
  * the run. {@link Rows}, the caller's own receiver of the answer, is output only: it is told the answer's shape and
  * handed its columns and rows, and decides nothing the run does. The set is closed: a new format is a new variant here.
  */
-public sealed interface Output {
+public sealed interface Output
+        permits Output.JsonRows, Output.Csv, Output.Engine, Output.Arrow, Output.Rows {
 
     /** lite's JSON rows ({@link JsonRowsWriter}). */
     record JsonRows(Writer out) implements Output {
