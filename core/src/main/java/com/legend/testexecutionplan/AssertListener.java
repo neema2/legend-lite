@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.judge;
+package com.legend.testexecutionplan;
 
 /**
  * Observer of statement-root assert adjudications (the AssertVerdicts

@@ -655,7 +655,7 @@ public final class CypherParity {
         } catch (Exception | StackOverflowError e) {
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+                refusal |= t instanceof com.legend.error.DialectCapability;
             }
             if (refusal) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
@@ -711,14 +711,14 @@ public final class CypherParity {
         // TCK's lane judges it: lite does not read the statement, so it does not catch Neo4j's error (PR #67's
         // review, 2026-10-22: eight cases had passed for BOTH_ERROR on a refusal)
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.sql.dialect.DialectCapability || refusedAsItRan(t)) {
+            if (t instanceof com.legend.error.DialectCapability || refusedAsItRan(t)) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
             }
         }
         if (e instanceof com.legend.error.NotImplementedException) {
             return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         }
-        if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
+        if (e instanceof com.legend.error.TypeInferenceException) {
             // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the
             // model does not declare is lite's compile error where Neo4j answers no rows or null -- a decided
             // refusal, by name. The harness's graphs are OPEN (the island's USE names its DataSpace, marked
@@ -1213,7 +1213,7 @@ public final class CypherParity {
             }
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+                refusal |= t instanceof com.legend.error.DialectCapability;
             }
             return new SqlParity.Outcome(refusal ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR,
                     "the control query: " + oneLine(e));

@@ -3,6 +3,10 @@
 
 package com.legend.judge;
 
+import com.legend.testexecutionplan.AssertListener;
+
+import com.legend.testexecutionplan.TypedSide;
+
 import com.legend.exec.Sessions;
 
 /**

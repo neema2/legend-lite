@@ -3,8 +3,8 @@
 
 package com.legend.harness;
 
-import com.legend.judge.TypedSide;
-import com.legend.judge.Row;
+import com.legend.testexecutionplan.TypedSide;
+import com.legend.testexecutionplan.Row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;

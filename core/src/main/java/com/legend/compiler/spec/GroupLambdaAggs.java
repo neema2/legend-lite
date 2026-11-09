@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.ResolvedNames;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.TypedAggCol;

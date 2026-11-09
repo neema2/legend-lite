@@ -12,8 +12,8 @@ import com.legend.error.AssertFailed;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.AssertListener;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.testplan.TestDoor;
 
 import java.util.ArrayList;

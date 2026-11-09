@@ -158,15 +158,15 @@ class ChannelBGrammarTest {
         // this pin guards is the asserts the DATABASE judge names UNJUDGED, printed here and pinned by the lane
         // (ChannelBLane) once measured
         System.out.println("[chB grammar] database judge: judged="
-                + com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount() + " unjudged="
-                + com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() + " "
-                + com.legend.judge.CanonicalDivergence.sqlCensus().entrySet().stream()
+                + com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount() + " unjudged="
+                + com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() + " "
+                + com.legend.diagnostics.VerdictCensus.sqlCensus().entrySet().stream()
                         .filter(e -> e.getKey().startsWith("unjudged ")).toList() + " | "
                 + com.legend.judge.CanonicalDivergence.summary());
         // the UNJUDGED ceiling, shrink-only (measured 2026-10-18 under the agreement gate: 0)
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() <= 0,
+        assertTrue(com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() <= 0,
                 "the database judge's UNJUDGED asserts grew past the measured residue (0): "
-                        + com.legend.judge.CanonicalDivergence.sqlCensus());
+                        + com.legend.diagnostics.VerdictCensus.sqlCensus());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
         // shrink-only): DIVERGE = the true residue (hash UBIGINT,
         // percentile input-type, Number-erasure decimal delivery —

@@ -1116,3 +1116,66 @@ concurrent queries would collide, it would wipe tables a caller loaded, and it r
     so do hole 2's six `MODEL_SITES`.
   - *Scope.* Server engines keep their temporary tables (check 3 of the catalog design). The product's own metamodel
     carriage (`PlanMaker.Metamodel`) is the catalog's product half, later.
+- **Hole 2 v1 landed (`ecaaceb7`, 2026-11-09).** The run finds the system database by the plan's own target:
+  - `SystemDatabase` holds the current one per engine, keyed by `Database.System.graphKey`;
+  - each run leases what it uses (`SystemDatabase.Leases`); a replaced one closes when no run leases it, so a server
+    running bodies of two graphs at once never loses a session mid-run;
+  - `SystemDatabase.of(ctx)` and the graph-derived cache are gone; `Execution.runBody` and `BodyRouter.run` take no
+    model.
+
+  `MODEL_SITES` is empty and `noCompiledModelReachesTheRun` is hard. R1 276. The catalog (platform rows once, the
+  model's registered in a rolled-back transaction) stays the later optimization for G3; v1 reseeds when the graph
+  changes, as before.
+
+### Slice 5: the spec (step 10 and hole 6, written 2026-11-09)
+
+The user's word of 2026-11-09: "keep going, don't stop until we are 100% separately doing planning and exec, without
+any middle package doing both". Section 4 asked for this spec to be reviewed before code; it is written here first and
+the review is held for the end (section 10's rule).
+
+**The measure it starts from (2026-11-09, call and method-reference reachability from the run's entries, every
+override):** the run reaches 1,739 code units and touches a planning library at 14 places: the host judge's message
+text, the walk's multiplicity text, a pivot column's name rule, the verdict query's schema, the primitive types'
+names, the system connection's model key, and the failure classes `TypeInferenceException`,
+`SchemaInvariantException` and `DialectCapability`. Everything else the run reaches is already the run's.
+
+**The libraries:**
+1. **`test_plan`** (`com.legend.testexecutionplan`): the test plan's records, and the few types both halves name:
+   `TypedSide`, `Column`, `Row`, `AssertListener`, `Failures`. Depends on base, json, error, execution_plan.
+2. **`testplan`** (`com.legend.testplan`): planning. Its entry is `TestPlanner`: `plan` (a body's whole plan) and
+   `planned` (a program planned ahead). It may not depend on exec, exec_program, testexec or the edge.
+3. **`testexec`** (`com.legend.testexec`, new): running. Its entry is `TestRunner.run(plan, session, system
+   sessions, listener, edge, answer)`. It may not depend on the compiler, lowering, the resolver, the planner,
+   testplan, a dialect, the database facts or the edge.
+4. **The edge** (`com.legend.edge`): the compatibility hook it has now, the decision after the run, the referee, and
+   the JSON-simple grammar. No product library depends on it.
+5. **The door** (`//core:execution`: `Execution`, `ExecuteOptions`): the one library that sees both halves.
+   `planBody` calls `TestPlanner.plan`; `runBody` calls `TestRunner.run`; `runProgram` opens the session from the
+   plan's target and calls the two. No other logic.
+6. **`driver` is deleted.** The system database holder goes to exec, keyed by the plan's engine and graph key.
+
+**Hole 6, the run record:** one `testexec` object per body's run carries the held appeals, the listener that keeps
+reports back, the sessions by target, the reader of the judgment in progress, and whether the assert being judged has
+a caller's message. It is passed to each judge explicitly. `Appeals.OPEN`, `RunReader.CURRENT` and
+`CallerMessage.DEPTH` are deleted; the decision after the run gets its reads and sessions explicitly.
+
+**The guards, hard at the end:**
+- testexec reaches no planning library (ArchUnit by package, and `tools/deps/core-layers.txt`);
+- testplan reaches no exec, exec_program or testexec;
+- only the door depends on both;
+- no product class reaches the edge;
+- no `ThreadLocal` in testexec;
+- `R1_CROSSINGS` and `SPLIT_CROSSINGS` empty, and the report-mode test made hard.
+
+**The order:** the split map's (`docs/plan-as-data-homework/step-10-split-map.md` section 5), with section 10's two
+corrections: no `testdoor` package (the sequencing is the door's three calls), and no `testplan -> testdatagen ->
+exec` pin.
+1. The run's 14 planning touches cut in place.
+2. The three failure classes to `com.legend.error`.
+3. The census split and `VerdictBatch.Judge`/`Appeal` into `RootLoops`.
+4. The shared types to `test_plan`.
+5. The mixed classes split, with the run record (hole 6).
+6. The edge inversion: the decision after the run behind an interface testexec declares; `RunReader` deleted.
+7. `testexec` created; `judge` deleted.
+8. The planning classes into `testplan`.
+9. The door's target; `driver` deleted; the guards hard.

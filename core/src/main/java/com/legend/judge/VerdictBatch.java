@@ -3,6 +3,10 @@
 
 package com.legend.judge;
 
+import com.legend.testexecutionplan.Failures;
+
+import com.legend.testexecutionplan.Row;
+
 import com.legend.diagnostics.Census;
 import com.legend.exec.ExecutionTrace;
 import com.legend.exec.PlanRunner;
@@ -35,7 +39,7 @@ import java.util.Map;
  * judged statement by statement — today's path, so the error lands on the
  * assert that owns it — counted, never a verdict change. This class sends
  * and orders; the SQL shape is the lowering's, the judgment of a row is
- * the verdict arm's ({@link Judge}), and each statement is sent as a PLAN
+ * the verdict arm's ({@link RootLoops.Judge}), and each statement is sent as a PLAN
  * by the {@link Runner} (the plan path program's step 6, 2026-10-18: a
  * verdict statement is a typed-rows plan whose rows the runner decodes;
  * this class holds no dialect, no shape and no executor). */
@@ -46,17 +50,6 @@ public final class VerdictBatch {
     @FunctionalInterface
     public interface Fusion {
         SqlQuery fuse(List<SqlQuery> statements, Map<String, SqlQuery> frames);
-    }
-
-    /** The verdict arm's reading of one row ({@code verdict, expected,
-     * actual, unjudged, lenient, holds, message}): returns where the row
-     * holds, raises the row's own message otherwise (the test-is-the-product
-     * plan's M8b: the polarity and the message are the statement's). A plain
-     * function the run hands {@link RootLoops} (the plan-as-data design's step
-     * 5, 2026-11-08: the batch no longer holds it). */
-    @FunctionalInterface
-    public interface Judge {
-        void judge(String name, List<Object> row);
     }
 
     /** The lowering's ONE row over a generic verdict row and its ruled row (2026-11-06,
@@ -132,15 +125,6 @@ public final class VerdictBatch {
             ExecutionPlan.Target on, int appeal, @com.legend.base.Nullable Step orElse,
             @com.legend.base.Nullable String decline)
             implements Step {
-    }
-
-    /** A verdict row's APPEAL (block-compiler rung 2a): consulted by the root loop when the row FAILED -- returns on a
-     * pass by another judgment (the SQL-text referee's rows; under the compatibility rules held, its assert holding
-     * until the appeal is decided after the body's run, P1.2, 2026-11-07), raises its own failure otherwise. Never
-     * consulted on a held row. */
-    public interface Appeal {
-        /** The failed {@code row} ({@code VerdictSql.schema}'s columns) decided: a pass returns, a failure raises. */
-        TypedSide appeal(List<Object> row);
     }
 
     /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
@@ -442,12 +426,12 @@ public final class VerdictBatch {
                             true));
                     continue;
                 }
-                com.legend.sql.dialect.DialectCapability genericRefused = planAhead(p.name(), p.query(), p.on()).refused();
-                com.legend.sql.dialect.DialectCapability ruledRefused = planAhead(f.name(), f.query(), p.on()).refused();
+                com.legend.error.DialectCapability genericRefused = planAhead(p.name(), p.query(), p.on()).refused();
+                com.legend.error.DialectCapability ruledRefused = planAhead(f.name(), f.query(), p.on()).refused();
                 Pending one;
                 if (genericRefused == null && ruledRefused == null) {
                     SqlQuery both = either.either(p.query(), f.query());
-                    com.legend.sql.dialect.DialectCapability bothRefused = planAhead(p.name(), both, p.on()).refused();
+                    com.legend.error.DialectCapability bothRefused = planAhead(p.name(), both, p.on()).refused();
                     if (bothRefused != null) {
                         // each row spelled alone, the two together not: a composition bug of lite's, never a choice
                         throw new IllegalStateException("verdict batch: " + p.name() + "'s generic and ruled rows are"
@@ -523,13 +507,13 @@ public final class VerdictBatch {
             try {
                 fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true,
                         g.getKey()));
-            } catch (com.legend.sql.dialect.DialectCapability e) {
+            } catch (com.legend.error.DialectCapability e) {
                 // the split rung at planning (P1, 2026-11-07, the milestone audit's 1): the fused statement the dialect
                 // cannot spell -- each member its own statement, a group with no fused statement as the keyed members'
                 // (the runner runs each verdict's wrapper); a member whose own statement the dialect cannot spell is
                 // refused at its place in the root loop, nothing sent. Until the audit the members the dialect spelled
                 // alone were dropped from every group, and the root loop found no row for them
-                RootLoops.fallback(e, fragments);
+                com.legend.diagnostics.Census.verdictFallback(e, fragments);
                 Group own = ownStatements(ps, g.getKey(), members, unspelled, false);
                 if (own != null) {
                     out.add(own);
@@ -553,7 +537,7 @@ public final class VerdictBatch {
         // split rung's run-time retry and its statements planned outside the plan are deleted)
         Map<Integer, com.legend.testexecutionplan.Failure> refusals = new HashMap<>();   // by the member's ix
         for (Pending u : unspelled) {
-            com.legend.sql.dialect.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
+            com.legend.error.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
             if (refused == null) {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
@@ -660,7 +644,7 @@ public final class VerdictBatch {
 
     /** A statement planned at planning: its plan, or the dialect's refusal of it. */
     private record Ahead(ExecutionPlan.@com.legend.base.Nullable Node plan,
-            com.legend.sql.dialect.@com.legend.base.Nullable DialectCapability refused) {
+            com.legend.error.@com.legend.base.Nullable DialectCapability refused) {
     }
 
     /** An assert the database judge cannot judge, named {@code why} at planning: the assert's own failure, which the
@@ -673,7 +657,7 @@ public final class VerdictBatch {
     private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {
         try {
             return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
-        } catch (com.legend.sql.dialect.DialectCapability e) {
+        } catch (com.legend.error.DialectCapability e) {
             return new Ahead(null, e);
         }
     }
@@ -716,7 +700,7 @@ public final class VerdictBatch {
                         runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
                 verdicts.add(v);
                 members.put(v.id(), p);
-            } catch (com.legend.sql.dialect.DialectCapability e) {
+            } catch (com.legend.error.DialectCapability e) {
                 unspelled.add(p);
             }
         }

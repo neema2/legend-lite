@@ -792,7 +792,7 @@ public class MinimalCorpusTest {
         // leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the SQL
         // canon's census per assert family and route, the policy counts.
         // Printed only.
-        com.legend.judge.CanonicalDivergence.sqlCensus().forEach(
+        com.legend.diagnostics.VerdictCensus.sqlCensus().forEach(
                 (k, v) -> System.out.println("[corpus2] sql-census " + k + "=" + v));
         System.out.println("[corpus2] sql-census policy ulp="
                 + com.legend.judge.CanonicalDivergence.sqlUlpPolicyCount()

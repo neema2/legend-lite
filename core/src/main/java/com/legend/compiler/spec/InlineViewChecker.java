@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.spec.typed.TypedExtendAgg;
 import com.legend.compiler.spec.typed.TypedExtendWindow;
 import com.legend.compiler.spec.typed.TypedSpec;

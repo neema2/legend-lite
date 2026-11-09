@@ -74,16 +74,16 @@ public final class SystemDatabase {
 
     /** A run's leases of the system databases its plan names, opened with the host's {@code systemConnections}
      *  (a server engine's); closed when the run ends. */
-    public static Leases leases(Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
+    public static Leases leases(Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections) {
         return new Leases(java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections)));
     }
 
     /** One run's leases: each system database its steps reach, held until {@link #close}. */
     public static final class Leases implements AutoCloseable {
-        private final Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections;
+        private final Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections;
         private final List<Held> held = new ArrayList<>();
 
-        private Leases(Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
+        private Leases(Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections) {
             this.systemConnections = systemConnections;
         }
 
@@ -106,7 +106,7 @@ public final class SystemDatabase {
                             closeQuietly(current.session);
                         }
                     }
-                    Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> conns = systemConnections;
+                    Map<com.legend.executionplan.DatabaseType, Sessions.Opener> conns = systemConnections;
                     current = new Held(system.graphKey(), Sessions.lazy(() -> Sessions.inProcess(engine)
                             ? openPrivate(engine) : openSystem(engine, conns)));
                     CURRENT.put(engine, current);
@@ -153,9 +153,9 @@ public final class SystemDatabase {
     /** The host's system connection for {@code engine}, checked to be on {@code engine} (the query is planned in its
      *  runtime's dialect): another database is refused, never written to. */
     private static Sessions.Session openSystem(com.legend.executionplan.DatabaseType engine,
-            Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
-        // the host's system connections are configured by the model's name of the engine (ExecuteOptions)
-        Sessions.Opener opener = systemConnections.get(com.legend.planner.ConnectionPlans.model(engine));
+            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections) {
+        // the host's system connections by the plan's engine (the door keys them so, 2026-11-09)
+        Sessions.Opener opener = systemConnections.get(engine);
         if (opener == null) {
             throw new com.legend.error.NotImplementedException("no system connection for " + engine
                     + " is configured: a query reading the system metamodel store on a server engine runs on the"

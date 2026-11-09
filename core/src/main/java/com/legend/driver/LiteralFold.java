@@ -6,7 +6,7 @@ package com.legend.driver;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.Set;
 

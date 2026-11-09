@@ -8,7 +8,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,10 +85,11 @@ final class HostSides {
                 || m.innerSides() != check.asks().size() - 1) {
             return null;
         }
-        // the message's planning failure is read for its text alone (AssertMessages.unevaluated), never raised: its
-        // text, not a failure record (the slice 1 audit, 2026-11-08: a class off the closed list must not fail here)
+        // the message's planning failure is read for its text alone, never raised: its text, not a failure record
+        // (the slice 1 audit, 2026-11-08: a class off the closed list must not fail here) -- the assert's whole failure
+        // text, planned (AssertMessages.unevaluated; slice 5, 2026-11-09: the run spells no message of its own)
         return new Check(check.asks().subList(0, m.innerSides()), new HostJudgment.Messaged(m.inner(), m.innerSides(),
-                String.valueOf(failure.getMessage())));
+                com.legend.compiler.spec.AssertMessages.unevaluated(String.valueOf(failure.getMessage()))));
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}

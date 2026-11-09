@@ -1752,7 +1752,7 @@ class BodyRouterParityTest {
             String outcome = "ok";
             List<String> statements = new ArrayList<>();
             List<String> verdicts = new ArrayList<>();
-            com.legend.judge.AssertListener listener = new com.legend.judge.AssertListener() {
+            com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
                 @Override
                 public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
                     verdicts.add(assertName + " " + pass + " " + detail);
@@ -1774,7 +1774,7 @@ class BodyRouterParityTest {
                 }
             };
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
-                    com.legend.judge.CanonicalDivergence.sqlCensus());
+                    com.legend.diagnostics.VerdictCensus.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
                         capture::of);
@@ -1789,7 +1789,7 @@ class BodyRouterParityTest {
             List<String> ledger = new ArrayList<>();
             recorder.entries().forEach(e -> ledger.add(String.valueOf(e)));
             java.util.SortedMap<String, Long> census = new java.util.TreeMap<>();
-            com.legend.judge.CanonicalDivergence.sqlCensus().forEach((k, v) -> {
+            com.legend.diagnostics.VerdictCensus.sqlCensus().forEach((k, v) -> {
                 long d = v - censusBefore.getOrDefault(k, 0L);
                 if (d != 0) {
                     census.put(k, d);
@@ -1850,7 +1850,7 @@ class BodyRouterParityTest {
         }
 
         @Override
-        public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.judge.TypedSide ours,
+        public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.testexecutionplan.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
                 ReplayFacts facts, com.legend.testexecutionplan.Appeal.Enums enums) {
             List<String> golden = new ArrayList<>();
@@ -1867,7 +1867,7 @@ class BodyRouterParityTest {
                 return RowVerdict.declined("golden execution: " + e.getMessage());
             }
             List<String> mine = new ArrayList<>();
-            for (com.legend.judge.Row r : ours.rows()) {
+            for (com.legend.testexecutionplan.Row r : ours.rows()) {
                 List<String> cells = new ArrayList<>();
                 for (Object v : r.values()) {
                     cells.add(String.valueOf(v));

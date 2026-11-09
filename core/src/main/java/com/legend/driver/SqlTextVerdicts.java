@@ -10,7 +10,7 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.judge.SqlReplayReferee;
 
 import java.util.List;
@@ -281,7 +281,7 @@ final class SqlTextVerdicts {
             collecting.planning = false;
         }
         if (notAConstant != null) {
-            return new HostSides.Check(List.of(), new HostJudgment.Raise(com.legend.judge.Failures.of(notAConstant,
+            return new HostSides.Check(List.of(), new HostJudgment.Raise(com.legend.testexecutionplan.Failures.of(notAConstant,
                     "SqlTextVerdicts.plan: a text side not a constant")));
         }
         if (answered == null) {
@@ -529,17 +529,11 @@ final class SqlTextVerdicts {
         }
     }
 
-    /** The ACTUAL text of a failed verdict row ({@code VerdictSql.schema}'s column): our text as the database computed
-     *  it, or null. */
+    /** The ACTUAL text of a failed verdict row (its column by position, {@code RootLoop.ACTUAL_COLUMN}): our text as
+     *  the database computed it, or null. */
     private static @com.legend.base.Nullable String actualText(List<Object> row) {
-        List<com.legend.compiler.element.type.Type.RelationType.Column> cols =
-                com.legend.lowering.VerdictSql.schema().columns();
-        for (int i = 0; i < cols.size(); i++) {
-            if (com.legend.lowering.VerdictSql.ACTUAL.equals(cols.get(i).name())) {
-                return row.get(i) == null ? null : String.valueOf(row.get(i));
-            }
-        }
-        throw new IllegalStateException("the verdict schema has no actual column");
+        Object actual = row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN);
+        return actual == null ? null : String.valueOf(actual);
     }
 
     /** Whether {@code info} declares at most one value (a scalar side's shape). */
@@ -1756,7 +1750,7 @@ final class SqlTextVerdicts {
             return com.legend.testexecutionplan.Failure.Kind.named(f.getClass().getName()) == null
                     ? new com.legend.testexecutionplan.Appeal.Read(null, null, null,
                             new com.legend.testexecutionplan.Appeal.Unlisted(f.getClass().getSimpleName(), f.getMessage()))
-                    : new com.legend.testexecutionplan.Appeal.Read(null, null, com.legend.judge.Failures.of(f, "SqlTextVerdicts.sideAhead: an appeal's side"));
+                    : new com.legend.testexecutionplan.Appeal.Read(null, null, com.legend.testexecutionplan.Failures.of(f, "SqlTextVerdicts.sideAhead: an appeal's side"));
         }
     }
 
@@ -1787,7 +1781,7 @@ final class SqlTextVerdicts {
      */
     static TypedSide decideAppeal(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
         String name = a.name();
         return switch (a.kind()) {
             case CONTRACT -> fail(java.util.Objects.requireNonNull(a.contract()) + ": expected " + golden + ", got "
@@ -1822,7 +1816,7 @@ final class SqlTextVerdicts {
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
     private static TypedSide rowsLegNow(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
         String name = a.name();
         com.legend.testexecutionplan.Appeal.Rows r = a.rows();
         if (r == null) {
@@ -1922,7 +1916,7 @@ final class SqlTextVerdicts {
     }
 
     /** Our rows underivable: the decline counted, the text the contract (§3.7), the failure in its words. */
-    private static TypedSide underivable(com.legend.judge.@com.legend.base.Nullable AssertListener listener, String name,
+    private static TypedSide underivable(com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, String name,
             String failedAs, @com.legend.base.Nullable String message, boolean textEqual, String golden, String ours) {
         declinedTo(listener, name, "rows-underivable");
         return textEqual ? ok()
@@ -1935,7 +1929,7 @@ final class SqlTextVerdicts {
     private static @com.legend.base.Nullable TypedSide read(com.legend.testexecutionplan.Appeal.Read read) {
         com.legend.testexecutionplan.Failure f = read.failure();
         if (f != null) {
-            throw com.legend.judge.Failures.raised(f);
+            throw com.legend.testexecutionplan.Failures.raised(f);
         }
         com.legend.testexecutionplan.Appeal.Unlisted unlisted = read.unlisted();
         if (unlisted != null) {
@@ -1968,7 +1962,7 @@ final class SqlTextVerdicts {
     }
 
     /** A decline reported to the run's listener (the edge's after the run, the body's while it runs). */
-    private static void declinedTo(com.legend.judge.@com.legend.base.Nullable AssertListener listener, String name,
+    private static void declinedTo(com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, String name,
             String reason) {
         if (listener != null) {
             listener.declined(name, reason);

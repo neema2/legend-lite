@@ -4,7 +4,7 @@ package com.legend.driver;
 
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.List;
 

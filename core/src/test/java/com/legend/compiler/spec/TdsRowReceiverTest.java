@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

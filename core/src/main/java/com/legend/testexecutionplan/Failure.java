@@ -46,12 +46,12 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         RESOLUTION("com.legend.error.ResolutionException"),
         MAPPING_RESOLUTION("com.legend.error.MappingResolutionException"),
         ISLAND_SYNTAX("com.legend.error.IslandSyntaxException"),
-        TYPE_INFERENCE("com.legend.compiler.spec.TypeInferenceException"),
+        TYPE_INFERENCE("com.legend.error.TypeInferenceException"),
         /** a schema invariant a typed side broke (a TypeInferenceException of its own class; the slice 1 audit) */
-        SCHEMA_INVARIANT("com.legend.compiler.spec.SchemaInvariantException"),
+        SCHEMA_INVARIANT("com.legend.error.SchemaInvariantException"),
         DATA("com.legend.error.DataError"),
         ASSERT_FAILED("com.legend.error.AssertFailed"),
-        DIALECT_CAPABILITY("com.legend.sql.dialect.DialectCapability"),
+        DIALECT_CAPABILITY("com.legend.error.DialectCapability"),
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
          *  refused by name), never raised at run */
         NOT_A_CONSTANT("com.legend.driver.SqlTextVerdicts$NotAConstant"),

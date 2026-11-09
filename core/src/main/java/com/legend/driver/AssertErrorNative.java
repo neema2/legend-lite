@@ -11,7 +11,7 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +77,7 @@ final class AssertErrorNative {
      *  arm's (a wall stays loud) and is null here. */
     static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where) {
         return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
-                ? com.legend.judge.Failures.of(e, where) : null;
+                ? com.legend.testexecutionplan.Failures.of(e, where) : null;
     }
 
     /** THE ARM'S VERDICT at its step (the walker-deletion program, 2026-11-03): the error {@code f} raised -- while it

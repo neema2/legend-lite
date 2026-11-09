@@ -501,7 +501,7 @@ public sealed interface Type permits
     record RelationType(List<Column> columns, List<Column> dynamicColumns) implements Type {
 
         /** Separator between a pivoted data value and its aggregate-template name. */
-        public static final String PIVOT_SEPARATOR = "__|__";
+        public static final String PIVOT_SEPARATOR = com.legend.sql.SqlSource.Pivot.SEPARATOR;
 
         /** The LATE-BOUND schema wildcard (One-Platform Plan Phase 1c):
          * a raw-SQL grid's columns first exist at execution — the
@@ -566,10 +566,7 @@ public sealed interface Type permits
          * column stays bare (Fold.pivotIdentity is the reference-side
          * inverse). */
         public static String presentPivotName(String physical) {
-            return physical.contains(PIVOT_SEPARATOR)
-                    && !(physical.startsWith("'") && physical.endsWith("'"))
-                    ? "'" + physical + "'"
-                    : physical;
+            return com.legend.sql.SqlSource.Pivot.presented(physical);
         }
 
         public @com.legend.base.Nullable Type pivotColumnType(String rawName) {

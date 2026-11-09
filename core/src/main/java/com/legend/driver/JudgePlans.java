@@ -12,11 +12,11 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.Column;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.Column;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
-import com.legend.judge.Row;
+import com.legend.testexecutionplan.Row;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.lowering.TypedRows;
@@ -131,12 +131,12 @@ final class JudgePlans {
             case TypedSide.Tabular t -> {
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION;
                 java.util.List<com.legend.executionplan.ExecutionPlan.Column> cs = new java.util.ArrayList<>();
-                for (com.legend.judge.Column c : t.columns()) {
+                for (com.legend.testexecutionplan.Column c : t.columns()) {
                     // the side's column carries the typer's multiplicity where the judge had one; one otherwise
                     cs.add(hostColumn(c.name(), c.pureType(), c.multiplicity() == null ? one : c.multiplicity()));
                 }
                 columns = cs;
-                for (com.legend.judge.Row r : t.rows()) {
+                for (com.legend.testexecutionplan.Row r : t.rows()) {
                     rows.add(new java.util.ArrayList<>(r.values()));
                 }
             }
@@ -501,7 +501,7 @@ final class JudgePlans {
                     com.legend.testexecutionplan.SideShape.Column fixed = s.columns().stream()
                             .filter(x -> x.name().equals(c.name())).findFirst().orElse(null);
                     columns.add(fixed != null ? new Column(fixed.name(), fixed.type(), fixed.multiplicity())
-                            : new Column(Type.RelationType.presentPivotName(c.name()), pivotColumnType(s, c.name())));
+                            : new Column(com.legend.sql.SqlSource.Pivot.presented(c.name()), pivotColumnType(s, c.name())));
                 }
                 yield new TypedSide.Tabular(columns, rowsOf(rows), s.typeName(), s.oneCarrier());
             }
@@ -521,16 +521,16 @@ final class JudgePlans {
      *  presented name's quotes stripped), a per-key one by the template its generated name ends with. */
     private static String pivotColumnType(com.legend.testexecutionplan.SideShape s, String rawName) {
         String name = rawName.length() >= 2 && rawName.startsWith("'") && rawName.endsWith("'")
-                && rawName.contains(Type.RelationType.PIVOT_SEPARATOR)
+                && rawName.contains(com.legend.sql.SqlSource.Pivot.SEPARATOR)
                 ? rawName.substring(1, rawName.length() - 1) : rawName;
         for (com.legend.testexecutionplan.SideShape.Column c : s.columns()) {
             if (c.name().equals(name) || c.name().equals(rawName)) {
                 return c.type();
             }
         }
-        int sep = name.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
+        int sep = name.lastIndexOf(com.legend.sql.SqlSource.Pivot.SEPARATOR);
         if (sep >= 0 && !s.templates().isEmpty()) {
-            String template = name.substring(sep + Type.RelationType.PIVOT_SEPARATOR.length());
+            String template = name.substring(sep + com.legend.sql.SqlSource.Pivot.SEPARATOR.length());
             return s.templates().stream().filter(c -> c.name().equals(template)).findFirst()
                     .map(com.legend.testexecutionplan.SideShape.Column::type)
                     .orElseThrow(() -> new IllegalStateException("pivot column '" + name + "' matches no aggregate"
@@ -566,7 +566,7 @@ final class JudgePlans {
             Object v = r.get(0);
             if (v == null) {
                 if (s.tdsNullRoot()) {
-                    values.add(PlatformTypes.TDS_NULL_CELL);
+                    values.add(com.legend.sql.SqlExpr.TDS_NULL_CELL);
                 } else if (s.nullableRoot()) {
                     values.add(null);
                 } else {
@@ -666,16 +666,14 @@ final class JudgePlans {
                 root, schema);
     }
 
-    /** A reported column's Pure type, in the plan's spelling: the primitive the wire table named, or Any (its cells
-     *  the driver's kind). */
+    /** A reported column's Pure type, in the plan's spelling: the primitive the wire table named
+     *  ({@code WireTypes.NAMES}), or Any (its cells the driver's kind). */
     private static String reportedType(ExecutionPlan.Column c) {
-        for (Type.Primitive p : Type.Primitive.values()) {
-            if (p.typeName().equals(c.type())) {
-                return p.typeName();
-            }
+        if (com.legend.exec.WireTypes.NAMES.contains(c.type())) {
+            return c.type();
         }
         if (c.type().equals("Any")) {
-            return com.legend.compiler.element.type.PlatformTypes.ANY;
+            return com.legend.result.RowDecode.ANY;
         }
         throw new IllegalStateException("a reported column's type '" + c.type() + "' is no primitive the wire table"
                 + " names");

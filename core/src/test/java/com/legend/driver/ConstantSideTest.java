@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.ArrayList;
 import java.util.Arrays;

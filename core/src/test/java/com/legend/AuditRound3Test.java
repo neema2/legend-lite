@@ -90,7 +90,7 @@ class AuditRound3Test {
         var ex = rejects("#TDS\n id, r_id\n 1, 2\n#->join(#TDS\n id\n 1\n#,"
                 + " meta::pure::functions::relation::JoinKind.INNER,"
                 + " {a,b|$a.id==$b.id}, 'r')");
-        assertTrue(ex instanceof com.legend.compiler.spec.TypeInferenceException,
+        assertTrue(ex instanceof com.legend.error.TypeInferenceException,
                 ex.getClass().getName());
         assertTrue(String.valueOf(ex.getMessage()).contains("duplicate column 'r_id'"), ex.getMessage());
     }

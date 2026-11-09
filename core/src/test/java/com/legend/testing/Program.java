@@ -7,7 +7,7 @@ import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.exec.Sessions;
 
 import java.sql.Connection;

@@ -3,6 +3,12 @@
 
 package com.legend.judge;
 
+import com.legend.testexecutionplan.Failures;
+
+import com.legend.testexecutionplan.AssertListener;
+
+import com.legend.testexecutionplan.TypedSide;
+
 import com.legend.diagnostics.Census;
 import com.legend.exec.PlanRunner;
 import com.legend.testexecutionplan.Failure;
@@ -18,12 +24,33 @@ import java.util.Set;
 /**
  * THE DATABASE JUDGE'S ROOT LOOP, RUN FROM THE PLAN (docs/PLAN_AS_DATA_2026_11_07.md, the design's step 5,
  * 2026-11-08): a segment's {@link RootLoop} judged over the rows the runner read for its verdicts -- every root in body
- * order, each row by the verdict's judgment ({@link VerdictBatch.Judge}, handed by the caller: a plain function), a
+ * order, each row by the verdict's judgment ({@link Judge}, handed by the caller: a plain function), a
  * decided outcome raised as planned; each root's verdict to the listener; the first failure raising. The census and
  * listener protocol are the batch's of before this step ({@code VerdictBatch.Planned}), which held the same facts in
  * maps keyed by object identity and judged them itself; nothing here is planned.
  */
 public final class RootLoops {
+
+    /** The verdict arm's reading of one row ({@code verdict, expected,
+     * actual, unjudged, lenient, holds, message}): returns where the row
+     * holds, raises the row's own message otherwise (the test-is-the-product
+     * plan's M8b: the polarity and the message are the statement's). A plain
+     * function the run hands {@link RootLoops} (the plan-as-data design's step
+     * 5, 2026-11-08: the batch no longer holds it; here since slice 5, 2026-11-09). */
+    @FunctionalInterface
+    public interface Judge {
+        void judge(String name, List<Object> row);
+    }
+
+    /** A verdict row's APPEAL (block-compiler rung 2a): consulted by the root loop when the row FAILED -- returns on a
+     * pass by another judgment (the SQL-text referee's rows; under the compatibility rules held, its assert holding
+     * until the appeal is decided after the body's run, P1.2, 2026-11-07), raises its own failure otherwise. Never
+     * consulted on a held row. */
+    public interface Appeal {
+        /** The failed {@code row} ({@code VerdictSql.schema}'s columns) decided: a pass returns, a failure raises. */
+        TypedSide appeal(List<Object> row);
+    }
+
 
     private RootLoops() {
     }
@@ -70,7 +97,7 @@ public final class RootLoops {
             if (rejected == null) {
                 Census.inc(Census.Key.VERDICT_FUSED);
             } else {
-                fallback(rejected, loop.fragments());
+                Census.verdictFallback(rejected, loop.fragments());
             }
         }
 
@@ -98,8 +125,8 @@ public final class RootLoops {
          *  side the plan carries on the root's first verdict, is read through the program's {@code reader}, never a
          *  run of its own; a failed row's appeal is {@code appeals}' by its number. */
         public void judge(@com.legend.base.Nullable AssertListener l, @com.legend.base.Nullable SideReader reader,
-                boolean messages, VerdictBatch.Judge judge,
-                java.util.function.IntFunction<VerdictBatch.Appeal> appeals) {
+                boolean messages, Judge judge,
+                java.util.function.IntFunction<Appeal> appeals) {
             counted();
             for (RootLoop.Root r : loop.roots()) {
                 RuntimeException failure = null;
@@ -133,9 +160,9 @@ public final class RootLoops {
                                 // agreement counts (the slice 3 follow-up audit, 2026-11-08: counted twice)
                                 if (messages && raised instanceof com.legend.error.AssertFailed af
                                         && af.unjudgedReason() != null) {
-                                    CanonicalDivergence.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
+                                    com.legend.diagnostics.VerdictCensus.sqlUnjudged(family(r.listenerName()), af.unjudgedReason());
                                 } else if (messages && !spoke && !d.reported()) {
-                                    CanonicalDivergence.sqlRaisedAt(family(r.listenerName()));
+                                    com.legend.diagnostics.VerdictCensus.sqlRaisedAt(family(r.listenerName()));
                                 }
                                 throw raised;
                             }
@@ -169,8 +196,8 @@ public final class RootLoops {
         /** {@code p} judged: its row (a member the dialect refused at planning raises its refusal, nothing sent; a
          *  generic row whose ruled comparison was decided at planning raises that decision where it fails or was never
          *  written), a failed row heard by its appeal where it has one. */
-        private void row(RootLoop.Row p, RootLoop.Root r, VerdictBatch.Judge judge,
-                java.util.function.IntFunction<VerdictBatch.Appeal> appeals) {
+        private void row(RootLoop.Row p, RootLoop.Root r, Judge judge,
+                java.util.function.IntFunction<Appeal> appeals) {
             List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
             Failure orElse = p.orElse();
             if (row == null && orElse != null && p.verdict() == RootLoop.NO_VERDICT) {
@@ -202,7 +229,7 @@ public final class RootLoops {
                 // P1.2, 2026-11-07), the root holding until it is decided; a messaged root marked, its message unread
                 // after the run
                 com.legend.diagnostics.Diagnostics.judgeSend("appeal", p.name());
-                VerdictBatch.Appeal appeal = appeals.apply(p.appeal());
+                Appeal appeal = appeals.apply(p.appeal());
                 if (r.message() != null) {
                     try (var messaged = CallerMessage.judging()) {
                         appeal.appeal(row);
@@ -222,7 +249,7 @@ public final class RootLoops {
 
     /** A refusal decided at planning raised at its place: counted UNJUDGED, raised as itself. */
     private static RuntimeException refused(String name, Failure refused) {
-        CanonicalDivergence.sqlUnjudged(name, "dialect-capability: " + String.valueOf(refused.message()).split("\n")[0]);
+        com.legend.diagnostics.VerdictCensus.sqlUnjudged(name, "dialect-capability: " + String.valueOf(refused.message()).split("\n")[0]);
         return Failures.raised(refused);
     }
 
@@ -230,7 +257,7 @@ public final class RootLoops {
      *  it (counted UNJUDGED, raised as the dialect's own refusal on both roads), or a failure its planning raised. */
     private static RuntimeException orElseDecides(String name, Failure decided) {
         if (decided.kind() == Failure.Kind.DIALECT_CAPABILITY) {
-            CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
+            com.legend.diagnostics.VerdictCensus.sqlUnjudged(name, "dialect-capability: "
                     + String.valueOf(decided.message()).split("\n")[0]);
         }
         return Failures.raised(decided);
@@ -269,28 +296,6 @@ public final class RootLoops {
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
-    }
-
-    /** A rejected fused statement's accounting (the database's rejection, which then fails the body; the planning
-     *  rung's own at {@link VerdictBatch#plan}): counted, with the reason's head and the frames the message names. */
-    static void fallback(RuntimeException e, Map<String, String> fragments) {
-        Census.inc(Census.Key.VERDICT_FALLBACKS);
-        String m = String.valueOf(e.getMessage());
-        Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
-                + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
-                + attribute(m, fragments));
-    }
-
-    /** The fragments a database message names (a frame alias appears in DuckDB's binder errors and H2's column
-     *  errors), or an empty string. */
-    static String attribute(String message, Map<String, String> fragments) {
-        StringBuilder sb = new StringBuilder();
-        for (var e : fragments.entrySet()) {
-            if (e.getKey().startsWith("frame_") && message.contains(e.getKey())) {
-                sb.append(sb.length() == 0 ? " — near " : ", ").append(e.getValue());
-            }
-        }
-        return sb.toString();
     }
 
     /**

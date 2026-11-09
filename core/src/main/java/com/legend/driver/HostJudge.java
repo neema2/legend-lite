@@ -8,7 +8,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.judge.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
@@ -302,7 +302,7 @@ final class HostJudge {
      * spec's toString(true) grid rendering is message-position only;
      * no witness pins its spelling). */
     static String summarize(TypedSide.Tabular t) {
-        return t.columns().stream().map(com.legend.judge.Column::name)
+        return t.columns().stream().map(com.legend.testexecutionplan.Column::name)
                 .toList() + " (" + t.rows().size() + " rows)";
     }
 
@@ -346,7 +346,7 @@ final class HostJudge {
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
             case HostJudgment.Json js -> jsonOf(js, sides, rules);
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
-            case HostJudgment.Raise r -> throw com.legend.judge.Failures.raised(r.failure());
+            case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides, rules);
             case HostJudgment.AssertError a -> AssertErrorNative.judge(a, () -> sides, rules);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message);
@@ -423,9 +423,9 @@ final class HostJudge {
                         "assertTdsEquivalent timeDelta")).doubleValue()
                 : 0.0;
         List<String> c1 = one.columns().stream()
-                .map(com.legend.judge.Column::name).toList();
+                .map(com.legend.testexecutionplan.Column::name).toList();
         List<String> c2 = two.columns().stream()
-                .map(com.legend.judge.Column::name).toList();
+                .map(com.legend.testexecutionplan.Column::name).toList();
         if (!c1.equals(c2) || one.rows().size() != two.rows().size()) {
             return AssertVerdicts.fail("\n" + summarize(one) + "\n is not"
                     + " equivalent to:\n" + summarize(two));
@@ -455,7 +455,7 @@ final class HostJudge {
                             + " to a non-tabular result");
         }
         boolean held = com.legend.judge.TdsCompare.grids(te, ta, j.sortedOrder(), rules);
-        com.legend.judge.CanonicalDivergence.sqlRoute(j.name(), "grid-pair");
+        com.legend.diagnostics.VerdictCensus.sqlRoute(j.name(), "grid-pair");
         if (held != j.wantEqual()) {
             // upstream's words ('\nexpected: %r\nactual:   %r'; assertNotEquals.pure's '%r should not equal %r'), each
             // grid's rows as the database judge frames them (VerdictSql: no row '[]', one row its cells, several in
@@ -473,7 +473,7 @@ final class HostJudge {
      *  brackets; a row's cells by {@code %r}, comma-separated. */
     private static String gridText(TypedSide.Tabular t) {
         List<String> rows = new ArrayList<>(t.rows().size());
-        for (com.legend.judge.Row r : t.rows()) {
+        for (com.legend.testexecutionplan.Row r : t.rows()) {
             rows.add(r.values().stream().map(com.legend.judge.PureAsserts::repr)
                     .collect(java.util.stream.Collectors.joining(", ")));
         }
@@ -588,8 +588,8 @@ final class HostJudge {
             }
             String unplanned = m.unplanned();
             if (unplanned != null) {
-                throw new com.legend.error.AssertFailed(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(unplanned));
+                // the failure's whole text, planned (HostSides.withoutTheMessage)
+                throw new com.legend.error.AssertFailed(unplanned);
             }
             // read now, the assert having failed: through the verdict's reader, or the side after the inner ones
             TypedSide read = message != null ? message.get() : sides.get(m.innerSides());
@@ -785,7 +785,7 @@ final class HostJudge {
             at += n;
             com.legend.testexecutionplan.Failure before = part.assertion().beforeTheArm();
             if (before != null) {
-                throw com.legend.judge.Failures.raised(before);
+                throw com.legend.testexecutionplan.Failures.raised(before);
             }
             AssertVerdicts.enter(part.assertion());
             TypedSide v = AssertVerdicts.judge(part.assertion(), part.judgment(), () -> slice, rules, null);
@@ -903,7 +903,7 @@ final class HostJudge {
         } else if (j.pairing() == null) {
             TypedSide.Tabular t = (TypedSide.Tabular) sides.get(0);
             rows = new java.util.ArrayList<>(t.rows().size());
-            for (com.legend.judge.Row r : t.rows()) {
+            for (com.legend.testexecutionplan.Row r : t.rows()) {
                 java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
                 for (int i = 0; i < t.columns().size(); i++) {
                     m.put(t.columns().get(i).name(), r.values().get(i));
@@ -1151,7 +1151,7 @@ final class HostJudge {
                         + AssertVerdicts.firstTextDiff(et, at));
             }
             if (j.counted()) {
-                com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
+                com.legend.diagnostics.VerdictCensus.sqlRoute(name, "rendered-text");
             }
             return AssertVerdicts.ok();
         }

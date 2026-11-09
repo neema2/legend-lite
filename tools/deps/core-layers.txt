@@ -83,7 +83,7 @@ door	base model parser protocol
 builtin	base door error model parser protocol
 platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
-sql_dialect	base sql
+sql_dialect	base error sql
 database	base error model sql_dialect
 compiler	base builtin compiler_element_type error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
@@ -137,6 +137,10 @@ ide	base door lexer model parser
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): `test` reaches `test_plan` -- the test runner reads
 # the stores a body's planned appeals name from the plan's data (PlannedAppeals.stores) and provides their fixtures
 # between the body's plan and its run, where the run used to ask its listener for them.
+# 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 5, step 2): `sql_dialect` reaches `error` -- the three classes
+# of the test plan's closed failure list that lived in planning libraries (TypeInferenceException,
+# SchemaInvariantException, DialectCapability) moved to `error`, so the run raises a planned failure naming no planning
+# library.
 test	base compiler driver error exec execution_plan json judge model planner protocol result sql test_plan values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

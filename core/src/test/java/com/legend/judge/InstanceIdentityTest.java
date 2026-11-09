@@ -251,8 +251,8 @@ class InstanceIdentityTest {
     void pairOfPairsKeys() throws Exception {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; under the agreement gate the
         // database judge JUDGES the nested Pair pair (its key tree renders), never names it unjudged
-        long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
-        long unjudged = CanonicalDivergence.sqlUnjudgedCount();
+        long judged = com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount();
+        long unjudged = com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount();
         assertEquals(Boolean.TRUE, runBoth(
                 "{|assert(equal(pair(pair(1, 'a'), 2),"
                         + " pair(pair(1, 'a'), 2)));}").one());
@@ -263,9 +263,9 @@ class InstanceIdentityTest {
         assertEquals(Boolean.TRUE, runBoth(
                 "{|assertEquals(pair(pair(1, 'a'), 2),"
                         + " pair(pair(1, 'a'), 2))}").one());
-        assertEquals(judged + 3, CanonicalDivergence.sqlJudgedInDatabaseCount(),
+        assertEquals(judged + 3, com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount(),
                 "Pair-of-Pairs must be JUDGED by the database judge: " + CanonicalDivergence.summary());
-        assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
+        assertEquals(unjudged, com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount(),
                 "Pair-of-Pairs must CLAIM, not decline: "
                         + CanonicalDivergence.summary());
     }

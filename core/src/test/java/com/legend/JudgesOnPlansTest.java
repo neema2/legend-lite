@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend;
 
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import org.junit.jupiter.api.Test;
 

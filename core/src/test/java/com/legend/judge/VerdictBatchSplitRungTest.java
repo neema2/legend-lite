@@ -13,7 +13,7 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
-import com.legend.sql.dialect.DialectCapability;
+import com.legend.error.DialectCapability;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -182,7 +182,7 @@ public final class Execution {
      * halves itself, providing them between (the test runner does).
      */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
@@ -196,11 +196,11 @@ public final class Execution {
         }
     }
 
-    /** {@link #runProgram(TypedQuery, String, Source, com.legend.judge.AssertListener,
+    /** {@link #runProgram(TypedQuery, String, Source, com.legend.testexecutionplan.AssertListener,
      *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
      *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
@@ -240,7 +240,7 @@ public final class Execution {
      * its plan and the database's rows alone (holes 1, 2 and 7, slice 4).
      */
     public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.spec;
+package com.legend.error;
 
 /**
  * A SCHEMA INVARIANT violation (duplicate/colliding column names — real

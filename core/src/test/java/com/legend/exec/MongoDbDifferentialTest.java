@@ -375,7 +375,7 @@ class MongoDbDifferentialTest {
                 String answer = run(mongo, c.expression(), c.output());
                 verdict = answer.equals(reference) ? "EQUAL" : "DIFFERENT";
                 detail = verdict.equals("EQUAL") ? "" : "reference=" + flat(reference) + " mongodb=" + flat(answer);
-            } catch (com.legend.sql.dialect.DialectCapability e) {
+            } catch (com.legend.error.DialectCapability e) {
                 verdict = "REFUSED";
                 detail = first(e.getMessage());
             } catch (com.legend.error.DataError e) {

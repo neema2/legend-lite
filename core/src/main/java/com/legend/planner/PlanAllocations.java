@@ -11,7 +11,7 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SourceSubst;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.TypeInferenceException;
+import com.legend.error.TypeInferenceException;
 import com.legend.compiler.spec.typed.ExecutionContext;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedCBoolean;

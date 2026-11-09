@@ -15,7 +15,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.judge.PureAsserts;
 
 import java.util.ArrayList;
@@ -85,13 +85,13 @@ final class AssertVerdicts {
         try {
             v = adjudicate(bare, letPrefix, specs, at, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            batch.resolve(com.legend.judge.Failures.of(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
+            batch.resolve(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();
             return DatabasePlan.PLANNED;
         } catch (RuntimeException e) {
             // the wall's raise is counted at the root's turn (RootLoops), from the plan's data: planning counts no
             // verdict outcome (the slice 3 invariant audit, 2026-11-08)
-            batch.wall(com.legend.judge.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
+            batch.wall(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;
         } finally {
@@ -496,7 +496,7 @@ final class AssertVerdicts {
             bare = split.base();
         }
         String name = fn.bareName();
-        com.legend.judge.CanonicalDivergence.sqlFamily(name);   // leg 3.0 census
+        com.legend.diagnostics.VerdictCensus.sqlFamily(name);   // leg 3.0 census
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);
@@ -526,7 +526,7 @@ final class AssertVerdicts {
                 TypedSide sv = SqlTextVerdicts.tryArm(name,
                         wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
-                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "sql-text");
+                    com.legend.diagnostics.VerdictCensus.sqlRoute(name, "sql-text");
                     yield sv;
                 }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
@@ -537,7 +537,7 @@ final class AssertVerdicts {
                 TypedSide ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
                 if (ra != null) {
-                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
+                    com.legend.diagnostics.VerdictCensus.sqlRoute(name, "rendered-text");
                     yield ra;
                 }
                 // D3 — the GRID-PAIR arm: both sides statically
@@ -591,7 +591,7 @@ final class AssertVerdicts {
                 TypedSide rse = renderedArm(name, true, args,
                         letPrefix, specs, env, hook, false);
                 if (rse != null) {
-                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
+                    com.legend.diagnostics.VerdictCensus.sqlRoute(name, "rendered-text");
                     yield rse;
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
@@ -680,7 +680,7 @@ final class AssertVerdicts {
             }
         };
         if (adjudicated == null) {
-            com.legend.judge.CanonicalDivergence.sqlFellThrough();
+            com.legend.diagnostics.VerdictCensus.sqlFellThrough();
         }
         return adjudicated;
     }
@@ -727,12 +727,12 @@ final class AssertVerdicts {
     }
 
     private static void familyEntered(String family) {
-        com.legend.judge.CanonicalDivergence.sqlFamily(family);
+        com.legend.diagnostics.VerdictCensus.sqlFamily(family);
     }
 
     /** The equality arm's census route, as {@link #adjudicate} counts it once the engine-text arm answered. */
     private static void sqlTextRouted(String family) {
-        com.legend.judge.CanonicalDivergence.sqlRoute(family, "sql-text");
+        com.legend.diagnostics.VerdictCensus.sqlRoute(family, "sql-text");
     }
 
     /** {@code a}'s facts as the test plan carries them (the plan-as-data design's step 4, 2026-11-08). */
@@ -770,7 +770,7 @@ final class AssertVerdicts {
 
     private static @com.legend.base.Nullable TypedSide judgedOrFellThrough(@com.legend.base.Nullable TypedSide v) {
         if (v == null) {
-            com.legend.judge.CanonicalDivergence.sqlFellThrough();
+            com.legend.diagnostics.VerdictCensus.sqlFellThrough();
         }
         return v;
     }
@@ -786,20 +786,20 @@ final class AssertVerdicts {
      * declined the sides it read.
      */
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(com.legend.testexecutionplan.TestPlan.Host h,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
-            throw com.legend.judge.Failures.raised(before);
+            throw com.legend.testexecutionplan.Failures.raised(before);
         }
         if (listener == null) {
             enter(a);
             return judge(a, h.judgment(), sides, rules, message);
         }
-        com.legend.judge.CanonicalDivergence.sqlEnter();
+        com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
@@ -811,7 +811,7 @@ final class AssertVerdicts {
             return v;
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             settled = true;
-            com.legend.judge.CanonicalDivergence.sqlRaised();
+            com.legend.diagnostics.VerdictCensus.sqlRaised();
             if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
                 listener.unjudged(a.listenerName(), af.unjudgedReason());
             }
@@ -819,7 +819,7 @@ final class AssertVerdicts {
             throw e;
         } finally {
             if (!settled) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
+                com.legend.diagnostics.VerdictCensus.sqlRaised();
             }
         }
     }
@@ -828,13 +828,13 @@ final class AssertVerdicts {
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
      *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
     static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
         if (listener == null) {
             enter(a);
             DatabaseJudge.verdictOf(a.name(), row);
             return;
         }
-        com.legend.judge.CanonicalDivergence.sqlEnter();
+        com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
@@ -843,7 +843,7 @@ final class AssertVerdicts {
             listener.verdict(a.listenerName(), true, null);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             settled = true;
-            com.legend.judge.CanonicalDivergence.sqlRaised();
+            com.legend.diagnostics.VerdictCensus.sqlRaised();
             if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
                 listener.unjudged(a.listenerName(), af.unjudgedReason());
             }
@@ -851,7 +851,7 @@ final class AssertVerdicts {
             throw e;
         } finally {
             if (!settled) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
+                com.legend.diagnostics.VerdictCensus.sqlRaised();
             }
         }
     }
@@ -868,16 +868,16 @@ final class AssertVerdicts {
      * agreement arm (entered; a side's data error counted raised, reported and thrown at once, as the agreement arm
      * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
      */
-    static HostHeld heldAtItsStep(com.legend.testexecutionplan.TestPlan.Host h, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+    static HostHeld heldAtItsStep(com.legend.testexecutionplan.TestPlan.Host h, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
         com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
-            throw com.legend.judge.Failures.raised(before);
+            throw com.legend.testexecutionplan.Failures.raised(before);
         }
         if (listener != null) {
-            com.legend.judge.CanonicalDivergence.sqlEnter();
+            com.legend.diagnostics.VerdictCensus.sqlEnter();
         }
         boolean settled = false;
         try {
@@ -901,13 +901,13 @@ final class AssertVerdicts {
         } catch (com.legend.error.DataError e) {
             settled = true;
             if (listener != null) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
+                com.legend.diagnostics.VerdictCensus.sqlRaised();
                 listener.verdict(a.listenerName(), false, e.getMessage());
             }
             throw e;
         } finally {
             if (!settled && listener != null) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
+                com.legend.diagnostics.VerdictCensus.sqlRaised();
             }
         }
     }
@@ -917,7 +917,7 @@ final class AssertVerdicts {
      *  failure (an assert that does not hold, a data error) counted raised, its UNJUDGED reason and its verdict told,
      *  and thrown. */
     static TypedSide agreedAtItsStep(com.legend.testexecutionplan.Assertion a,
-            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<@com.legend.base.Nullable TypedSide> agreed) {
         try {
             TypedSide v = java.util.Objects.requireNonNull(agreed.get(), "a host verdict the agreement rule dropped");
@@ -927,7 +927,7 @@ final class AssertVerdicts {
             return v;
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             if (listener != null) {
-                com.legend.judge.CanonicalDivergence.sqlRaised();
+                com.legend.diagnostics.VerdictCensus.sqlRaised();
                 if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
                     listener.unjudged(a.listenerName(), af.unjudgedReason());
                 }
@@ -1056,7 +1056,7 @@ final class AssertVerdicts {
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
             // the family counted first, as adjudicate counts it before the arm (N2)
-            return HostAssert.raising(listenerName(bare), name, com.legend.judge.Failures.of(e, "AssertVerdicts.planHost: the arm's classification"));
+            return HostAssert.raising(listenerName(bare), name, com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planHost: the arm's classification"));
         }
         if (SqlTextVerdicts.notAConstant(check)) {
             // a text side the arm would evaluate by a statement at the assert's turn: the walk's (the census names
@@ -2154,7 +2154,7 @@ final class AssertVerdicts {
         var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
                 schema, r.grid() ? null : r.value().info().type());
         if (parsed.headerMismatch()) {
-            com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
+            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {
@@ -2475,7 +2475,7 @@ final class AssertVerdicts {
      * close of the disagree-9 burn). */
     static List<Object> cells(TypedSide.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
-        for (com.legend.judge.Row r : t.rows()) {
+        for (com.legend.testexecutionplan.Row r : t.rows()) {
             out.addAll(r.values());
         }
         return out;

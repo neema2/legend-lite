@@ -9,8 +9,8 @@ import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.AssertListener;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.util.ArrayList;
 import java.util.List;

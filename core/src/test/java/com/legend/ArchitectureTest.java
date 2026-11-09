@@ -1585,12 +1585,12 @@ final class ArchitectureTest {
         java.util.Set<String> reports = java.util.Set.of(
                 "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
                 "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
-        java.util.Set<String> handed = java.util.Set.of("com.legend.judge.AssertListener",
+        java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
                 "com.legend.judge.SqlReplayReferee");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.driver.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
-            if (c.getName().equals("com.legend.judge.AssertListener")) {
+            if (c.getName().equals("com.legend.testexecutionplan.AssertListener")) {
                 java.util.Set<String> methods = new java.util.TreeSet<>();
                 for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
                     methods.add(m.getName() + "(" + String.join(",", m.getRawParameterTypes().stream()
@@ -1611,7 +1611,7 @@ final class ArchitectureTest {
                 }
             }
         }
-        java.util.Set<String> told = java.util.Set.of("com.legend.judge.AssertListener",
+        java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
                 "com.legend.judge.SqlReplayReferee", "com.legend.driver.Appeals#listenerNow", "com.legend.driver.Appeals#hold",
                 "com.legend.driver.SqlTextVerdicts#declinedNow", "com.legend.driver.SqlTextVerdicts#declinedTo",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
@@ -2102,7 +2102,7 @@ final class ArchitectureTest {
                 // bounded by families × decline-reason heads (~40 keys);
                 // measurement only, printed by the corpus lanes, never
                 // read by a verdict
-                "com.legend.judge.CanonicalDivergence.SQL_CENSUS",
+                "com.legend.diagnostics.VerdictCensus.SQL_CENSUS",
                 "com.legend.judge.CanonicalDivergence.V7_DECLINES",
                 "com.legend.judge.CanonicalDivergence.V7_SAMPLES",
                 // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):

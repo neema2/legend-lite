@@ -207,7 +207,7 @@ public final class StagedRows {
                             inner.addAll(t.tables());
                             innerAny |= t.any();
                         }
-                    } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    } catch (com.legend.error.TypeInferenceException e) {
                         innerAny = true;   // an un-typeable callee cannot run; taken to touch any table
                     }
                     callee = new Touched(inner, innerAny);

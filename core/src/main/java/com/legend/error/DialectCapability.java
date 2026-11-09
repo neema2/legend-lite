@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.sql.dialect;
+package com.legend.error;
 
 /**
  * A RENDERER CAPABILITY WALL (H2_BACKEND.md §9/§10): the SQL IR asked a

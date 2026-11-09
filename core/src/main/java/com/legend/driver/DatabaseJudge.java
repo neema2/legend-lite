@@ -8,7 +8,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.judge.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,7 +93,7 @@ final class DatabaseJudge {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
-                com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
+                com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
                 return wantEqual ? AssertVerdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
                         + " vs " + AssertVerdicts.typeName(aSpec) + ")") : AssertVerdicts.ok();
             }
@@ -429,27 +429,27 @@ final class DatabaseJudge {
     static TypedSide verdictOf(String name, List<Object> row) {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
-            System.err.println("[verdict] " + name + " verdict=" + row.get(0)
-                    + " expected=" + row.get(1) + " actual=" + row.get(2)
-                    + " unjudged=" + row.get(3) + " holds=" + row.get(5));
+            System.err.println("[verdict] " + name + " verdict=" + row.get(com.legend.testexecutionplan.RootLoop.VERDICT_COLUMN)
+                    + " expected=" + row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN) + " actual=" + row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)
+                    + " unjudged=" + row.get(com.legend.testexecutionplan.RootLoop.UNJUDGED_COLUMN) + " holds=" + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));
         }
-        Object unjudged = row.get(3);
+        Object unjudged = row.get(com.legend.testexecutionplan.RootLoop.UNJUDGED_COLUMN);
         if (unjudged != null) {
             // counted UNJUDGED here, at the row's turn: the run's own census (the slice 3 follow-up audit, 2026-11-08:
             // moving the count off planning left the row's UNJUDGED uncounted)
-            com.legend.judge.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
+            com.legend.diagnostics.VerdictCensus.sqlUnjudged(name, String.valueOf(unjudged));
             // the evidence columns ride the message (bounded): an accepted
             // divergence matches its witness here, and a row is diagnosable
             // without a re-run
             return unjudged(name, String.valueOf(unjudged),
-                    "\nexpected: " + AssertVerdicts.excerpt(row.get(1))
-                    + "\nactual:   " + AssertVerdicts.excerpt(row.get(2)));
+                    "\nexpected: " + AssertVerdicts.excerpt(row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN))
+                    + "\nactual:   " + AssertVerdicts.excerpt(row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)));
         }
-        if (!(row.get(5) instanceof Boolean holds)) {
-            throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(5));
+        if (!(row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN) instanceof Boolean holds)) {
+            throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));
         }
-        com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
-        if (Boolean.TRUE.equals(row.get(4))) {
+        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+        if (Boolean.TRUE.equals(row.get(com.legend.testexecutionplan.RootLoop.LENIENT_COLUMN))) {
             // the declared 2-ULP Float leniency decided it — counted as
             // host mode counts its own firings
             com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
@@ -458,7 +458,7 @@ final class DatabaseJudge {
         if (holds) {
             return AssertVerdicts.ok();
         }
-        return AssertVerdicts.fail(String.valueOf(row.get(6)));
+        return AssertVerdicts.fail(String.valueOf(row.get(com.legend.testexecutionplan.RootLoop.MESSAGE_COLUMN)));
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,
@@ -620,7 +620,7 @@ final class DatabaseJudge {
         List<String> n1 = s1.columns().stream().map(c -> c.name()).toList();
         List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
         if (!n1.equals(n2)) {
-            com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
+            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
             return AssertVerdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
         }
         List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
@@ -803,7 +803,7 @@ final class DatabaseJudge {
     /** A statically identified {@code is} pair: decided by the compiler (the same count as
      * the static kind gate). */
     static void staticallyDecided(String name) {
-        com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
+        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
     }
 
     /** The database arm, chosen once per adjudication by the router. */
@@ -1054,11 +1054,11 @@ final class DatabaseJudge {
                     try {
                         env.dialect().render(mq);
                         placeable = true;
-                    } catch (com.legend.sql.dialect.DialectCapability wall) {
+                    } catch (com.legend.error.DialectCapability wall) {
                         placeable = false;
                     }
                     if (placeable) {
-                        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                        com.legend.diagnostics.VerdictCensus.sqlRoute(name, "json-bytes");
                         return runVerdict(name, true, mq, ja.on(env));
                     }
                 }
@@ -1071,7 +1071,7 @@ final class DatabaseJudge {
         if (je.why() != null || ja.why() != null) {
             return unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));
         }
-        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
+        com.legend.diagnostics.VerdictCensus.sqlRoute(name, "json-bytes");
         return runVerdict(name, true,
                 com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
                 ja.on(env));

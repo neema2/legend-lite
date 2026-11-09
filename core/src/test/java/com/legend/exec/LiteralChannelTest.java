@@ -78,14 +78,14 @@ class LiteralChannelTest {
     void mixedClaims() throws Exception {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the database judge is the
         // referee, and this pair is one it JUDGES (the literal channel's claim), never names unjudged
-        long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
-        long unjudged = CanonicalDivergence.sqlUnjudgedCount();
+        long judged = com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount();
+        long unjudged = com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount();
         assertEquals(Boolean.TRUE, (runBoth(
                 "{|assertEquals([1, 'a', true, 2.5], [1, 'a', true, 2.5])}"))
                 .value());
-        assertEquals(judged + 1, CanonicalDivergence.sqlJudgedInDatabaseCount(),
+        assertEquals(judged + 1, com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount(),
                 "mixed Any pair must be JUDGED by the database judge: " + CanonicalDivergence.summary());
-        assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
+        assertEquals(unjudged, com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount(),
                 "mixed Any pair must CLAIM: " + CanonicalDivergence.summary());
     }
 

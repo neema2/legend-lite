@@ -6,9 +6,9 @@ package com.legend.driver;
 import com.legend.base.Nullable;
 import com.legend.error.AssertFailed;
 import com.legend.exec.PlanRunner;
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.judge.RootLoops;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.testexecutionplan.Agreement;
 import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.TestPlan;
@@ -29,11 +29,11 @@ final class AgreementRuns {
 
     private final Map<Integer, Run> byVerdict = new HashMap<>();
     /** A database root's failed row's appeal, by its number in the plan (step 8b). */
-    private final java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals;
+    private final java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> rowAppeals;
 
     /** The runs of {@code steps}' asserts (a branch's sides included), each keyed by every verdict it reads. */
     AgreementRuns(List<? extends TestPlan.TestStep> steps,
-            java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals) {
+            java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> rowAppeals) {
         this.rowAppeals = rowAppeals;
         add(steps);
     }
@@ -84,10 +84,10 @@ final class AgreementRuns {
         /** The host's facts the held verdict was judged by: the plan's, from the verdict the runner handed. */
         private TestPlan.@Nullable Host heldHost;
         private @Nullable List<Object> raisingRow;
-        private final java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals;
+        private final java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> rowAppeals;
 
         Run(TestPlan.Verdicts group, Agreement pairing,
-                java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals) {
+                java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> rowAppeals) {
             this.pairing = pairing;
             this.rowAppeals = rowAppeals;
             RootLoop loop = group.roots();
@@ -161,7 +161,7 @@ final class AgreementRuns {
             RootLoops.Run db = database;
             List<Object> raised = raisingRow;
             boolean raising = pairing.raising();
-            java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> appeals = rowAppeals;
+            java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> appeals = rowAppeals;
             return AssertVerdicts.agreedAtItsStep(a, listener, () -> AgreementArm.agree(a.name(), listener,
                     () -> {
                         AssertFailed failed = h.failed();

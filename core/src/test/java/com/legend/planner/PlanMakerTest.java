@@ -585,7 +585,7 @@ class PlanMakerTest {
      *  name, never bound as something it is not. */
     @Test
     void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
-        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(Databases.PLATFORM,
+        var refused = assertThrows(com.legend.error.DialectCapability.class, () -> plan(Databases.PLATFORM,
                 "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", Written.JSON));
         assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
     }

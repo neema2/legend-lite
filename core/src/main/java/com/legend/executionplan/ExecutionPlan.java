@@ -122,6 +122,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                 throw new IllegalArgumentException("multiplicity [" + lower + ".." + upper + "]");
             }
         }
+
+        /** Source-style spelling, as the compiler's {@code Multiplicity.Bounded.text} spells it: {@code [1]},
+         *  {@code [0..1]}, {@code [*]}, {@code [1..*]} (the run's own, 2026-11-09: the walk's contract message reads
+         *  it, and the run names no compiler type). */
+        public String text() {
+            if (upper == null) {
+                return lower == 0 ? "[*]" : "[" + lower + "..*]";
+            }
+            return lower == upper ? "[" + lower + "]" : "[" + lower + ".." + upper + "]";
+        }
     }
 
     /** A node of the plan. A test body's verdict groups and branches are its test plan's (the plan-as-data design's

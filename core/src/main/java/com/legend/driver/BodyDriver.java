@@ -11,7 +11,7 @@ import com.legend.planner.PlanMaker;
 import com.legend.planner.QueryParameters;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 

@@ -31,6 +31,17 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
     /** No appeal: a row whose failure is the assert's. */
     public static final int NO_APPEAL = 0;
 
+    /** The verdict row's columns, by position, as the verdict statement selects them ({@code VerdictSql.schema}:
+     *  verdict, expected, actual, unjudged, lenient, holds, message; its order pinned by {@code VerdictRowOrderTest}):
+     *  the run reads a row by these, never by the compiler's schema (slice 5, 2026-11-09). */
+    public static final int VERDICT_COLUMN = 0;
+    public static final int EXPECTED_COLUMN = 1;
+    public static final int ACTUAL_COLUMN = 2;
+    public static final int UNJUDGED_COLUMN = 3;
+    public static final int LENIENT_COLUMN = 4;
+    public static final int HOLDS_COLUMN = 5;
+    public static final int MESSAGE_COLUMN = 6;
+
     public RootLoop {
         roots = List.copyOf(roots);
         fragments = Collections.unmodifiableMap(new LinkedHashMap<>(fragments));

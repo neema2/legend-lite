@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.error.DialectCapability;
+
 import java.util.List;
 
 /**

@@ -1,12 +1,11 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.judge;
+package com.legend.testexecutionplan;
 
 import com.legend.base.Nullable;
 import com.legend.error.AssertFailed;
 import com.legend.error.LegendCompileException;
-import com.legend.testexecutionplan.Failure;
 
 /**
  * A PLANNING FAILURE TO DATA, AND BACK AT ITS TURN (docs/PLAN_AS_DATA_2026_11_07.md 2.4, the design's step 2,
@@ -53,14 +52,14 @@ public final class Failures {
             case RESOLUTION -> new com.legend.error.ResolutionException(text(f));
             case MAPPING_RESOLUTION -> new com.legend.error.MappingResolutionException(m, f.element());
             case ISLAND_SYNTAX -> new com.legend.error.IslandSyntaxException(text(f));
-            case TYPE_INFERENCE -> new com.legend.compiler.spec.TypeInferenceException(text(f));
-            case SCHEMA_INVARIANT -> new com.legend.compiler.spec.SchemaInvariantException(text(f));
+            case TYPE_INFERENCE -> new com.legend.error.TypeInferenceException(text(f));
+            case SCHEMA_INVARIANT -> new com.legend.error.SchemaInvariantException(text(f));
             case DATA -> new com.legend.error.DataError(text(f));
             case ASSERT_FAILED -> {
                 String unjudged = f.unjudgedReason();
                 yield unjudged != null ? AssertFailed.unjudged(unjudged, text(f)) : new AssertFailed(text(f));
             }
-            case DIALECT_CAPABILITY -> new com.legend.sql.dialect.DialectCapability(text(f));
+            case DIALECT_CAPABILITY -> new com.legend.error.DialectCapability(text(f));
             case NOT_A_CONSTANT -> new IllegalStateException("a text side that is not a constant of the plan is"
                     + " refused at planning, never raised at run (" + f.where() + "): " + m);
             case ILLEGAL_STATE -> new IllegalStateException(m);

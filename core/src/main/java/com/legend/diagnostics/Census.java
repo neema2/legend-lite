@@ -79,6 +79,29 @@ public final class Census {
     public static final List<String> UNPLANNED_ASSERTS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
+    /** A fused verdict group the database rejected, falling back to its rows one by one (the batch's split rung, at
+     *  planning or at its turn): counted, with the reason's head and the frames the message names (moved here from
+     *  the root loop, slice 5, 2026-11-09: both halves count it, so it is the census's). */
+    public static void verdictFallback(RuntimeException e, java.util.Map<String, String> fragments) {
+        inc(Key.VERDICT_FALLBACKS);
+        String m = String.valueOf(e.getMessage());
+        FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
+                + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
+                + attributed(m, fragments));
+    }
+
+    /** The fragments a database message names (a frame alias appears in DuckDB's binder errors and H2's column
+     *  errors), or an empty string. */
+    private static String attributed(String message, java.util.Map<String, String> fragments) {
+        StringBuilder sb = new StringBuilder();
+        for (var e : fragments.entrySet()) {
+            if (e.getKey().startsWith("frame_") && message.contains(e.getKey())) {
+                sb.append(sb.length() == 0 ? " — near " : ", ").append(e.getValue());
+            }
+        }
+        return sb.toString();
+    }
+
     /** {@link #UNPLANNED_ASSERTS}: one declined assert, by its shape. */
     public static void unplannedAssert(String shape) {
         com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", shape);

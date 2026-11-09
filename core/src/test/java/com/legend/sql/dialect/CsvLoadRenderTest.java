@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.error.DialectCapability;
+
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDml;
 import org.junit.jupiter.api.Test;

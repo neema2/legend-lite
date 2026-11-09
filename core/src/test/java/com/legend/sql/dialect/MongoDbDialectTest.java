@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.error.DialectCapability;
+
 import com.legend.Compiler;
 import com.legend.executionplan.ExecutionPlan;
 import org.junit.jupiter.api.Test;

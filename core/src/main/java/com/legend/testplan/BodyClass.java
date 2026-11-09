@@ -378,7 +378,7 @@ public enum BodyClass {
                             break;
                         }
                     }
-                } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                } catch (com.legend.error.TypeInferenceException e) {
                     // an un-typeable callee executes in no channel; the scan does not decide on it (StatementEffects')
                 }
                 memo.put(key, reaches);

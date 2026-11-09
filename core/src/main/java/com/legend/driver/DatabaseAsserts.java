@@ -13,7 +13,7 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.judge.VerdictBatch;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
@@ -276,7 +276,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the gate's own classification raised (a side's planning): the arm would raise the same at the
                 // assert's turn, after the roots before it reported -- a wall at the root's place
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(com.legend.judge.Failures.of(e, "DatabaseAsserts.plan: the gate's classification"));
+                batch.wall(com.legend.testexecutionplan.Failures.of(e, "DatabaseAsserts.plan: the gate's classification"));
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }
@@ -662,7 +662,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // turn, a wall at the root's place (a frame environment's raise is the host half's before its arm: the
                 // agreement judge never asks this half there)
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(com.legend.judge.Failures.of(e, "DatabaseAsserts.planEach: the frame environment, the gate or the arm"));
+                batch.wall(com.legend.testexecutionplan.Failures.of(e, "DatabaseAsserts.planEach: the frame environment, the gate or the arm"));
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }

@@ -3,8 +3,8 @@
 package com.legend.driver;
 
 import com.legend.error.AssertFailed;
-import com.legend.judge.AssertListener;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexecutionplan.TypedSide;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

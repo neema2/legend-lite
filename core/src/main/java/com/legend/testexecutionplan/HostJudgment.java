@@ -204,9 +204,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  {@code compiler.spec.AssertMessages}): {@code inner} judges the first {@code innerSides} sides, the family's
      *  check over the base overload; the side after them is the message, a String the plan read -- a failure of
      *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. {@code unplanned}: the
-     *  message is no side -- its planning raised that (a message reading what the planner cannot plan), named in the
-     *  failure where {@code inner} fails ({@code AssertMessages.unevaluated}), as upstream evaluates the message only
-     *  there (2026-11-04, the assert bar). */
+     *  message is no side -- its planning failed (a message reading what the planner cannot plan), and this is the
+     *  assert's whole failure text where {@code inner} fails, naming that failure ({@code AssertMessages.unevaluated},
+     *  spelled at planning since 2026-11-09), as upstream evaluates the message only there (2026-11-04, the assert
+     *  bar). */
     record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned) implements HostJudgment {
         /** The message a side the plan reads. */
         public Messaged(HostJudgment inner, int innerSides) {

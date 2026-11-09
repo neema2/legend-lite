@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedColSpec;

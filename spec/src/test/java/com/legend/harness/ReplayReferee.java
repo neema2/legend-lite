@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.TypedSide;
 
 import java.sql.Connection;
 import java.sql.SQLException;

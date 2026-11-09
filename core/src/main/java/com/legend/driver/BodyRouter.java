@@ -7,7 +7,6 @@ import com.legend.Execution;
 import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
-import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.DataError;
@@ -17,8 +16,8 @@ import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.judge.AssertListener;
-import com.legend.judge.TypedSide;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexecutionplan.TypedSide;
 import com.legend.judge.SqlReplayReferee;
 import com.legend.planner.ProductStatements;
 import com.legend.result.Batch;
@@ -180,7 +179,7 @@ public final class BodyRouter {
         // system-routed, else the second, read-only session a statement reading the system store alone runs on
         // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
         // one, leased for the run), opened when a step first asks
-        try (SystemDatabase.Leases leases = SystemDatabase.leases(options.systemConnections())) {
+        try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnectionsByEngine(options))) {
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     leases::sessionFor;
             Moved moved = new Moved(plan, options.edge(), answer, early,
@@ -209,6 +208,13 @@ public final class BodyRouter {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** The host's system connections keyed by the plan's engine (the options name the model's). */
+    static Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnectionsByEngine(ExecuteOptions options) {
+        Map<com.legend.executionplan.DatabaseType, Sessions.Opener> out = new java.util.LinkedHashMap<>();
+        options.systemConnections().forEach((t, o) -> out.put(com.legend.planner.ConnectionPlans.type(t), o));
+        return out;
     }
 
     /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's
@@ -280,7 +286,7 @@ public final class BodyRouter {
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
         private final com.legend.judge.RootLoops.@Nullable Runs databaseRuns;
         /** A database root's failed row's appeal, by its number in the plan (step 8b, 2026-11-08). */
-        private final java.util.function.IntFunction<com.legend.judge.VerdictBatch.Appeal> rowAppeals;
+        private final java.util.function.IntFunction<com.legend.judge.RootLoops.Appeal> rowAppeals;
         /** The agreement judge's asserts, read from the plan (step 6, 2026-11-08), or null under another judge. */
         private final @Nullable AgreementRuns agreementRuns;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
@@ -563,7 +569,7 @@ public final class BodyRouter {
                     ExecutionPlan.Multiplicity m = columns.get(0).multiplicity();
                     Integer upper = m.upper();
                     yield JudgePlans.holding(sink, upper != null && upper <= 1, m.lower(),
-                            new Multiplicity.Bounded(m.lower(), upper).text());
+                            m.text());
                 }
                 // a relation's toOne() is the database's to check (D2, 2026-11-07: ToOneGuard in the plan's SQL)
                 case RELATION -> sink;

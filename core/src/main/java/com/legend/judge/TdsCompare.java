@@ -3,6 +3,8 @@
 
 package com.legend.judge;
 
+import com.legend.testexecutionplan.TypedSide;
+
 import java.util.ArrayList;
 import java.util.List;
 

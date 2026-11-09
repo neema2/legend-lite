@@ -1,4 +1,4 @@
-package com.legend.judge;
+package com.legend.testexecutionplan;
 
 /**
  * One column of a judged side ({@code TypedSide}; exec's until D72, 2026-10-30): its name, its Pure type in the plan's

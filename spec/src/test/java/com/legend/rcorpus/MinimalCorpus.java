@@ -56,7 +56,7 @@ import java.util.stream.Stream;
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
- *     production entry with the platform's {@link com.legend.judge.AssertListener};
+ *     production entry with the platform's {@link com.legend.testexecutionplan.AssertListener};
  *     every assert is the platform's verdict; the harness attaches its referee
  *     and its census through {@link TestObserver} and owns no judgment;</li>
  * <li><b>referee</b> — {@link com.legend.harness.ReplayReferee#INSTANCE}

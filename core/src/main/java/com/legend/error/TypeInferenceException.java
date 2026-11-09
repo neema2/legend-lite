@@ -1,11 +1,11 @@
-package com.legend.compiler.spec;
+package com.legend.error;
 
 /**
  * Phase-G type-inference failure &mdash; a body (or a native-call argument) does
  * not type-check: unification conflict, an unbound type/multiplicity variable
  * at resolution, or an unsatisfied subtype constraint.
  */
-public class TypeInferenceException extends com.legend.error.LegendCompileException {
+public class TypeInferenceException extends LegendCompileException {
     public TypeInferenceException(String message) {
         super(Phase.TYPE, message);
     }

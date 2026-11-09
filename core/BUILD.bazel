@@ -142,7 +142,9 @@ legend_java_library(
     name = "sql_dialect",
     srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":sql"],
+    # :error since 2026-11-09 (the plan-as-data design's slice 5): a dialect's capability wall, DialectCapability, is
+    # one of the test plan's closed failure classes, raised by the run as well, so it lives with the other errors
+    deps = ["//base", ":error", ":sql"],
 )
 
 # THE plan-side owner of every per-database decision (C3 of

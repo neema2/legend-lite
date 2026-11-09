@@ -1,5 +1,7 @@
 package com.legend.sql.dialect;
 
+import com.legend.error.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
