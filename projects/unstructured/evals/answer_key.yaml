@@ -238,7 +238,7 @@ cases:
     why_hard: "Needs the row from each filing; the CUSIP differs from the class A rows, which share the issuer name. Provenance: 237,703 shares in 0001193125-26-226661 and 298,117 in 0001193125-26-352200."
     author: ABS
     reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
-    status: unresolved
+    status: resolved
   - id: C15
     corpus: "EDGAR 13F"
     type: number
