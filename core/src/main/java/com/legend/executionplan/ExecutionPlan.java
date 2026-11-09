@@ -880,12 +880,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * (the design's 2.1 and 2.5, the user's go of 2026-11-09): the runner resolves {@code ref} through the stores
          * it is given, refuses bytes whose digest is not the reference's, and delivers exactly the verified bytes as
          * {@code delivery} says, which the planner chose for the target's database. A CSV file's first line is its
-         * header; its cells are text the database casts into the table's columns, positionally.
+         * header; its cells are text the database casts into the table's columns, positionally. {@code sizeLimitMegabytes}:
+         * the largest file the load admits, refused at planning and again at the run on the bytes it reads (the user's
+         * ruling, 2026-11-09: upstream's {@code loadCsvToDbTable} admits 500 MB).
          */
-        record File(DataRef ref, Delivery delivery) implements LoadStep {
+        record File(DataRef ref, Delivery delivery, int sizeLimitMegabytes) implements LoadStep {
             public File {
                 Objects.requireNonNull(ref, "ref");
                 Objects.requireNonNull(delivery, "delivery");
+                if (sizeLimitMegabytes < 1) {
+                    throw new IllegalArgumentException("a file's load admits at least a megabyte: " + sizeLimitMegabytes);
+                }
             }
         }
 

@@ -451,6 +451,7 @@ public final class PlanJson {
                 }
                 ref.put("format", format);
                 o.put("ref", ref);
+                o.put("sizeLimitMegabytes", f.sizeLimitMegabytes());
                 Map<String, Object> delivery = new LinkedHashMap<>();
                 delivery.put("_type", "streamed");
                 switch (f.delivery()) {
@@ -789,7 +790,7 @@ public final class PlanJson {
                     throw new IllegalArgumentException("a file load's delivery is streamed: " + d.getString("_type"));
                 }
                 LoadStep.Delivery delivery = new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
-                yield new LoadStep.File(data, delivery);
+                yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }
         };
     }

@@ -26,12 +26,17 @@ final class DataLoads {
      *  ({@code DataRef.Csv}: {@code base.CsvCells}, upstream's rule): refused by name unless the header names
      *  {@code columns} columns and every record is that wide and well-formed -- never padded, cut or repaired
      *  (AGENTS.md invariant 4; planning refused such a file already, and the digest makes these its bytes). */
-    static List<List<String>> cells(DataRef ref, byte[] bytes, int columns) {
+    static List<List<String>> cells(DataRef ref, byte[] bytes, int columns, int sizeLimitMegabytes) {
         try {
+            // the load's size limit, again on the bytes the run read (D-b, 2026-11-09): the plan's, never exec's
+            com.legend.base.CsvCells.requireSize(ref.namespace() == DataRef.Namespace.RESOURCE ? "/" + ref.name()
+                    : ref.name(), bytes, sizeLimitMegabytes);
             return switch (ref.format()) {
                 case DataRef.Csv csv -> com.legend.base.CsvCells.table(new String(bytes, StandardCharsets.UTF_8),
                         csv.delimiter(), csv.quote(), columns);
             };
+        } catch (com.legend.base.CsvCells.TooLarge e) {
+            throw new DataError(String.valueOf(e.getMessage()), e);
         } catch (com.legend.base.CsvCells.Malformed e) {
             throw new DataError("the file '" + ref.name() + "': " + e.getMessage(), e);
         }

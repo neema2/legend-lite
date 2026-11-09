@@ -41,6 +41,28 @@ public final class CsvCells {
         }
     }
 
+    /** A file larger than a load admits: refused, never cut (upstream's own refusal, its words). */
+    public static final class TooLarge extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
+        TooLarge(String message) {
+            super(message);
+        }
+    }
+
+    /** {@code bytes} refused ({@link TooLarge}) where they are more than {@code limitMegabytes} megabytes, in
+     *  upstream's words for {@code path} (legend-pure's {@code CsvReader.readCsv}, read 2026-11-09 at 5.99.0: the UTF-8
+     *  length against the limit, the text's length in the message, wrapped by its "Unable to read the CSV file"). */
+    public static void requireSize(String path, byte[] bytes, int limitMegabytes) {
+        long megabyte = 1024 * 1024L;
+        if (bytes.length > limitMegabytes * megabyte) {
+            int length = new String(bytes, java.nio.charset.StandardCharsets.UTF_8).length();
+            throw new TooLarge("Unable to read the CSV file '" + path + "' File is too large, file was "
+                    + String.format(java.util.Locale.ROOT, "%.2f", length * 1.0 / megabyte) + " Mb, limit is "
+                    + limitMegabytes + " Mb");
+        }
+    }
+
     /** {@code text}'s records by the default format's rule (comma, double quote): its header first, each record its
      *  cells in order. */
     public static List<List<String>> rows(String text) {

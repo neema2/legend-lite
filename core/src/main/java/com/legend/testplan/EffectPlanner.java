@@ -209,8 +209,13 @@ public final class EffectPlanner {
                 columns.size());
         String recorded = refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns,
                 quoted, columns.size(), cells).values());
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery), recorded);
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES), recorded);
     }
+
+    /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:
+     *  {@code RelationalGen.loadCsvToDbTable} passes 500 to {@code CsvReader.readCsv}, the interpreted native its
+     *  {@code _500_MB_SIZE_LIMIT}; the user's ruling, 2026-11-09, D-b). */
+    public static final int SIZE_LIMIT_MEGABYTES = 500;
 
     /** {@code n} with its lets chased and its {@code toOne()}s peeled (a store navigation's links). */
     private static TypedSpec peelToOne(TypedSpec n, List<TypedSpec> body) {

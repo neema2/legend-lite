@@ -47,6 +47,8 @@ class DataLoadsTest {
     private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE,
             List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of());
 
+    private static int LIMIT = 500;
+
     /** Every in-process database whose dialect spells a CSV file's load (one that spells none refuses by name). */
     private static List<TestBackend> loading() {
         List<TestBackend> out = new ArrayList<>();
@@ -67,7 +69,7 @@ class DataLoadsTest {
         ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
                 LOAD.columns().size());
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
-                DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery);
+                DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, LIMIT);
     }
 
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
@@ -169,6 +171,30 @@ class DataLoadsTest {
                         load(b, file(b.dialect(), "bad.csv", bytes))), b.name() + ": " + text);
                 assertTrue(e.getMessage().contains("'bad.csv'"), e.getMessage());
             }
+        }
+    }
+
+    /** A file larger than its load admits is refused at the run, in upstream's words, as at planning (D-b: the user's
+     *  ruling, 2026-11-09; upstream admits 500 MB, here a limit of one megabyte keeps the test small). */
+    @Test
+    void aFileLargerThanTheLoadAdmitsIsRefused(@TempDir Path dir) throws Exception {
+        StringBuilder text = new StringBuilder(CSV);
+        while (text.length() <= 1024 * 1024) {
+            text.append("\nJack,Jones,41");
+        }
+        byte[] bytes = text.toString().getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("big.csv"), bytes);
+        int was = LIMIT;
+        LIMIT = 1;
+        try {
+            for (TestBackend b : loading()) {
+                DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
+                        load(b, file(b.dialect(), "big.csv", bytes))), b.name());
+                assertTrue(e.getMessage().startsWith("Unable to read the CSV file '/big.csv' File is too large, file"
+                        + " was 1.00 Mb, limit is 1 Mb"), e.getMessage());
+            }
+        } finally {
+            LIMIT = was;
         }
     }
 

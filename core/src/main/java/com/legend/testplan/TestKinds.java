@@ -270,6 +270,12 @@ final class TestKinds implements ProgramKinds {
         } catch (IllegalStateException | java.io.UncheckedIOException e) {
             throw new com.legend.error.DataError("test resource '" + path + "': " + e.getMessage(), e);
         }
+        try {
+            // upstream's size limit, refused where the file is read for its digest (D-b, 2026-11-09)
+            com.legend.base.CsvCells.requireSize(path, bytes, EffectPlanner.SIZE_LIMIT_MEGABYTES);
+        } catch (com.legend.base.CsvCells.TooLarge e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
                 name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
                 com.legend.executionplan.DataRef.Csv.DEFAULT), bytes);

@@ -631,7 +631,8 @@ public final class PlanRunner {
                         byte[] bytes = DataLoads.verified(f.ref(), stores);
                         switch (f.delivery()) {
                             case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
-                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns());
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns(),
+                                        f.sizeLimitMegabytes());
                                 if (!cells.isEmpty()) {
                                     seeding.streams(streamed.insert(), cells);
                                 }
