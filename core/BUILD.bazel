@@ -426,7 +426,14 @@ legend_java_library(
         "@postgresql//jar",
         "@sqlite_jdbc//jar",
     ],
-    visibility = ["//datacube:__pkg__", "//pct:__pkg__", "//spec:__pkg__"],
+    visibility = [
+        "//datacube:__pkg__",
+        "//pct:__pkg__",
+        # //projects/unstructured:corpus_test reads its corpus through DuckDB (2026-11-08, branch abs/unstructured-study).
+        # Bazel's visibility names packages, never one target: this package holds only that study's targets.
+        "//projects/unstructured:__pkg__",
+        "//spec:__pkg__",
+    ],
 )
 
 # Postgres's JSON cells (a json or jsonb PGobject as its JSON text) behind core's DriverCells seam, found by
