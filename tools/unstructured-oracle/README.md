@@ -20,7 +20,14 @@ retrieval lives there and not in Python: the judge passes in the question and re
 Every arm ranks distinct passages (one row per `sha256`) and each row carries every `(source, path, charStart)` holding
 that hash, so duplicates cannot use up the list.
 
-Each hybrid statement contains its keyword and vector arms verbatim, and the judge refuses a run if they have drifted.
+Each hybrid statement contains its keyword and vector arms' lists verbatim, and the judge refuses a run if they have drifted.
+
+**The floors** (`projects/unstructured/evals/DECISIONS.md`, entry 5). A floor is a minimum on a result set's best score: below
+it the set is empty. BM25 on `keyword_duckdb.sql` is 4.5, `ts_rank` on `keyword_postgres.sql` is 0.026, and each hybrid
+statement's is 0.89 on the fused relevance, before the recency blend. `hybrid_postgres.sql` carries DuckDB's value and has never
+run. The vector arm has no floor: every negative's best cosine is above the lowest PASS's, so no value could turn a negative
+empty without costing a PASS. Hybrid fuses the arms' lists without the keyword floors. A fused score is rank agreement, not
+relevance: a passage first in both lists scores 1.0 whatever it says, and C60 does, so no fused floor can catch it.
 
 **The Postgres vector and hybrid statements are run on every case and refused.** The embedded Postgres has no pgvector, and
 nothing is installed into it. Both statements parse; the server stops at name resolution with
@@ -80,5 +87,6 @@ spelling yet. `summary.tsv` is the counts per route, arm and backend, generated 
 
 ## What this measures, and what it does not
 
-Search is over all of `CO_PASSAGE`, not scoped to the case's corpus, and a text arm has no score cut, so a vector search
-always returns neighbours: a negative on it cannot be `EMPTY_OK`.
+Search is over all of `CO_PASSAGE`, not scoped to the case's corpus. The vector arm has no floor, so a vector search always
+returns neighbours: a negative on it cannot be `EMPTY_OK`. The floors were read from the same 50 cases they are judged on,
+four negatives among them, so a floor passing the gate says little; `DECISIONS.md` entry 5 says what would reverse them.

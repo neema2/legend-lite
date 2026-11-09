@@ -6,8 +6,10 @@
 -- that it can be blended with recency at all: an undivided fused score is at most 0.033 and recency alone would decide.
 -- A time-aware case (the time_aware parameter) ranks by 0.7 * relevance + 0.3 * recency; every other case by relevance alone. Recency is
 -- 0.5 ^ (days before its own corpus's latest date / 14). A hash held at several dates takes its most recent location's.
--- Ties break on the hash. The two arms below are their own files' statements, verbatim; the judge refuses a run if they
--- drift. Has never returned a row: the embedded Postgres has no pgvector, and the server stops at the vector arm's table. Parameters: question, vector, time_aware, cut.
+-- Ties break on the hash. The two arms below are their own files' lists, verbatim and without the keyword arm's floor; the
+-- judge refuses a run if they drift. The floor (DECISIONS.md entry 5): when no passage's relevance reaches 0.89, before the
+-- recency blend, the result set is empty. That value was read from hybrid_duckdb.sql's scores, and this statement has never
+-- run past it. Has never returned a row: the embedded Postgres has no pgvector, and the server stops at the vector arm's table. Parameters: question, vector, time_aware, cut.
 WITH keyword_arm AS (
 WITH query AS (
     SELECT replace(plainto_tsquery('english', %(question)s)::text, ' & ', ' | ')::tsquery AS Q
@@ -81,5 +83,5 @@ ORDER BY r.RANK
 )
 SELECT RANK, SHA256, SCORE, LOCATIONS
 FROM ranked
-WHERE RANK <= %(cut)s
+WHERE RANK <= %(cut)s AND (SELECT MAX(RELEVANCE) FROM fused) >= 0.89
 ORDER BY RANK

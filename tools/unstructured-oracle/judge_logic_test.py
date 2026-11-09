@@ -15,6 +15,21 @@ def result(rank, *pointers):
         {"source": s, "path": p, "charStart": c, "section": "S", "asOfDate": "2026-01-01"} for s, p, c in pointers]}
 
 
+class ArmList(unittest.TestCase):
+    FLOORED = ("-- a comment\nWITH arm AS (\nSELECT 1\n)\nSELECT RANK, SHA256, SCORE, LOCATIONS\nFROM arm\n"
+               "WHERE (SELECT MAX(SCORE) FROM arm) >= 4.5\nORDER BY RANK\n")
+
+    def test_the_floor_is_not_part_of_the_list_hybrid_fuses(self):
+        self.assertEqual(logic.arm_list(self.FLOORED), "SELECT 1")
+
+    def test_an_arm_with_no_floor_is_its_whole_body(self):
+        self.assertEqual(logic.arm_list("-- a comment\nSELECT 1\n"), "SELECT 1")
+
+    def test_a_floor_in_another_form_stays_in_and_so_fails_the_drift_check(self):
+        other = self.FLOORED.replace(">= 4.5", "> 4.5")
+        self.assertNotEqual(logic.arm_list(other), "SELECT 1")
+
+
 class TextVerdict(unittest.TestCase):
     def verdict(self, results, accepted=(A,), match="all", superseded=(), negative=False):
         return logic.text_verdict(list(results), list(accepted), match, list(superseded), negative)

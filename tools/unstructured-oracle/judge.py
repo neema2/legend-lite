@@ -137,8 +137,7 @@ def refuse_drifted_hybrid() -> None:
     for backend in BACKENDS:
         hybrid = statement(f"hybrid_{backend}.sql")
         for arm in ("keyword", "vector"):
-            body = "\n".join(line for line in statement(f"{arm}_{backend}.sql").splitlines() if not line.startswith("--")).strip()
-            if body not in hybrid:
+            if logic.arm_list(statement(f"{arm}_{backend}.sql")) not in hybrid:
                 raise SystemExit(f"hybrid_{backend}.sql no longer contains {arm}_{backend}.sql verbatim")
 
 

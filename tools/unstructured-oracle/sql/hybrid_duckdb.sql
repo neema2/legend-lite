@@ -6,8 +6,9 @@
 -- that it can be blended with recency at all: an undivided fused score is at most 0.033 and recency alone would decide.
 -- A time-aware case ($time_aware) ranks by 0.7 * relevance + 0.3 * recency; every other case by relevance alone. Recency is
 -- 0.5 ^ (days before its own corpus's latest date / 14). A hash held at several dates takes its most recent location's.
--- Ties break on the hash. The two arms below are their own files' statements, verbatim; the judge refuses a run if they
--- drift. Parameters: $question, $vector, $time_aware, $cut.
+-- Ties break on the hash. The two arms below are their own files' lists, verbatim and without the keyword arm's floor; the
+-- judge refuses a run if they drift. The floor (DECISIONS.md entry 5): when no passage's relevance reaches 0.89, before the
+-- recency blend, the result set is empty. Parameters: $question, $vector, $time_aware, $cut.
 WITH keyword_arm AS (
 WITH scored AS (
     SELECT d.SHA256, fts_main_CO_PASSAGE_DISTINCT.match_bm25(d.SHA256, $question) AS SCORE
@@ -73,5 +74,5 @@ ORDER BY r.RANK
 )
 SELECT RANK, SHA256, SCORE, LOCATIONS
 FROM ranked
-WHERE RANK <= $cut
+WHERE RANK <= $cut AND (SELECT MAX(RELEVANCE) FROM fused) >= 0.89
 ORDER BY RANK
