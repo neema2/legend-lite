@@ -89,7 +89,8 @@ public final class PlanJson {
      *  and a file's one delivery is the streamed one (the database's own reader cannot read the declared format exactly:
      *  the {@code databaseReads} delivery is gone, L2), a file step its {@code sizeLimitMegabytes}, and a target's
      *  {@code setup} is its {@code loads}: each a {@code PER_ACQUISITION} load, written once in the plan's {@code loads}
-     *  section and named by its identity in every target that needs it (L2). */
+     *  section and named by its identity in every target that needs it (L2); a project names its key and refusal
+     *  alone, its Data rows the target's ONCE load (L3). */
     public static final int VERSION = 32;
 
     private PlanJson() {
@@ -813,7 +814,8 @@ public final class PlanJson {
         };
     }
 
-    /** A project database's identity (hole 7, 2026-11-08): its key and the steps that make it, or null for none. */
+    /** A project database's identity (hole 7, 2026-11-08): its key and its refusal, or null for none (what fills it
+     *  is the target's ONCE load, L3). */
     private static @com.legend.base.Nullable Map<String, Object> project(
             ExecutionPlan.@com.legend.base.Nullable Project project) {
         if (project == null) {
@@ -821,11 +823,6 @@ public final class PlanJson {
         }
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("key", project.key());
-        List<Object> made = new ArrayList<>();
-        for (LoadStep step : project.made()) {
-            made.add(setupStep(step));
-        }
-        o.put("made", made);
         o.put("refused", project.refused());
         return o;
     }
@@ -837,11 +834,7 @@ public final class PlanJson {
         if (!(database.get("project") instanceof Json.Obj o)) {
             return null;
         }
-        List<LoadStep> made = new ArrayList<>();
-        for (Json.Node n : o.getArr("made").items()) {
-            made.add(readLoadStep((Json.Obj) n));
-        }
-        return new ExecutionPlan.Project(o.getString("key"), made, o.getStringOr("refused", null));
+        return new ExecutionPlan.Project(o.getString("key"), o.getStringOr("refused", null));
     }
 
     private static LoadStep readLoadStep(Json.Obj o) {

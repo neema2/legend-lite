@@ -62,6 +62,24 @@ class ProjectRowsTest {
         assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(PARTY));
     }
 
+    /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): named by
+     *  its target, written once in the plan's load section, and read back as written. */
+    @Test
+    void aProjectsDataIsItsTargetsOnceLoadWrittenOnce() {
+        com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(PARTY),
+                QUERY).projectPlan("proj::RT");
+        com.legend.executionplan.ExecutionPlan.Target target = plan.answerSql().target();
+        List<com.legend.executionplan.ExecutionPlan.Load> once = target.loads().stream()
+                .filter(l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE).toList();
+        assertEquals(1, once.size(), String.valueOf(target.loads()));
+        String json = com.legend.executionplan.PlanJson.write(plan);
+        String fill = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) once.get(0).steps().get(
+                once.get(0).steps().size() - 1)).sql();
+        assertEquals(json.indexOf(com.legend.json.Json.toCompact(fill)), json.lastIndexOf(com.legend.json.Json.toCompact(
+                fill)), "the fill is written once");
+        assertEquals(json, com.legend.executionplan.PlanJson.write(com.legend.executionplan.PlanJson.read(json)));
+    }
+
     /** A Data element over a table no Database declares: every query on the model refused by name (the database the
      *  server made for it let go), where before C5 it ran on an empty database. */
     @Test

@@ -304,7 +304,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  target -- once per in-memory database the target keeps, on each acquisition of a database the plan does
              *  not make (the project road's query) -- a write, as legend-engine establishes a test connection on each
              *  acquisition. */
-            PER_ACQUISITION
+            PER_ACQUISITION,
+            /** A project's Data rows (L3, S145): made once, when the platform makes the project's database the target
+             *  names, and kept with it for the process; never run on a database the plan does not make. */
+            ONCE
         }
     }
 
@@ -753,7 +756,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * settings, such as the time zone); and the LOADS that establish it when a session is acquired for it, before
      * anything else ({@code loads}: a connection's declared test data, written at plan time for the target's database;
      * docs/DATA_IN_THE_PLAN_2026_11_09.md L2, 2026-11-09 -- until then the target's {@code setup} steps). Each is a
-     * {@link Load.Cadence#PER_ACQUISITION} load whose own target is this one's database and session with no load (a
+     * {@link Load.Cadence#PER_ACQUISITION} load, after any {@link Load.Cadence#ONCE} one (a project's Data, made with its
+     * database: L3), whose own target is this one's database and session with no load (a
      * plan's JSON writes each load once, in its load section, and a target names it by identity). Two runs share an
      * in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the
      * loads by their identities, which digest their content. No server version: every database's statements are spelled
@@ -765,10 +769,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             session = List.copyOf(session);
             loads = List.copyOf(loads);
             java.util.Set<String> identities = new java.util.HashSet<>();
+            boolean acquired = false;
             for (Load load : loads) {
-                if (load.cadence() != Load.Cadence.PER_ACQUISITION) {
-                    throw new IllegalArgumentException("a target's load is established on acquisition: "
-                            + load.identity() + " is " + load.cadence());
+                // the project's Data first (made once with the database), then what each acquisition establishes
+                if (load.cadence() == Load.Cadence.PER_ACQUISITION) {
+                    acquired = true;
+                } else if (load.cadence() != Load.Cadence.ONCE || acquired) {
+                    throw new IllegalArgumentException("a target's loads are its ONCE loads, then its PER_ACQUISITION"
+                            + " ones: " + load.identity() + " is " + load.cadence());
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)) {
@@ -791,22 +799,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * A PROJECT'S OWN DATABASE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's hole 7, the user's
      * go of 2026-11-08): what the database holds when it is made, part of its identity -- named by what it holds, so
      * an edited row or table is a fresh database, and two models whose stores differ never share one (type audit D100).
-     * The runner makes it once with {@code made} and keeps it; the per-query setup is the target's.
+     * What fills it is the target's {@link Load.Cadence#ONCE} load (the project's Data rows,
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): made once where the platform makes the database, and kept; until
+     * L3 the project's own {@code made} steps.
      *
      * @param key  the model's stores' and Data rows' content key ({@code ProjectData.contentKey})
-     * @param made the statements that make and fill it, run once when it is made
      * @param refused why the model's Data rows cannot make it (a table its Databases declare none or more than once
      *                of), or null: raised where the runner would make it, never by a run on another database (the
      *                plan-as-data design's slice 5, 2026-11-09: planned as a failure until then, every query of such
      *                a model refused at planning; before hole 7 the server refused it as it made the database)
      */
-    public record Project(String key, List<LoadStep> made, @com.legend.base.Nullable String refused) {
+    public record Project(String key, @com.legend.base.Nullable String refused) {
         public Project {
             Objects.requireNonNull(key, "key");
-            made = List.copyOf(made);
-            if (refused != null && !made.isEmpty()) {
-                throw new IllegalArgumentException("a project database refused carries no statements to make it");
-            }
         }
     }
 

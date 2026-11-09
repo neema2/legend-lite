@@ -853,14 +853,19 @@ public final class PlanMaker {
     private static ExecutionPlan.Target target(Target decided, String runtime,
             ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel, boolean projectDatabase) {
-        ExecutionPlan.Database database = database(decided, projectDatabase ? project(decided, ctx, dialect) : null);
+        ProjectPlan project = projectDatabase ? project(decided, ctx, dialect) : null;
+        ExecutionPlan.Database database = database(decided, project == null ? null : project.project());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
         ExecutionPlan.Target bare = new ExecutionPlan.Target(database, session, List.of());
         // the runtime's declared test data, then the system metamodel store's rows (M6, until L4), each its own load
         // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
-        List<ExecutionPlan.Load> loads = new ArrayList<>(LoadPlanner.targetLoads(
-                setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));
+        List<ExecutionPlan.Load> loads = new ArrayList<>();
+        // a project's Data rows: one ONCE load, made with its database and kept (L3, S145)
+        if (project != null && !project.data().isEmpty()) {
+            loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
+        }
+        loads.addAll(LoadPlanner.targetLoads(setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));
         loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
         return new ExecutionPlan.Target(database, session, loads);
     }
@@ -883,7 +888,7 @@ public final class PlanMaker {
      * database itself. The platform's database is keyed by the stores alone and filled with nothing, as the server
      * kept it. Knowledge, derived once per model and dialect: the run never reads the model for it.
      */
-    private static ExecutionPlan.Project project(Target decided, ModelContext ctx, SqlDialect dialect) {
+    private static ProjectPlan project(Target decided, ModelContext ctx, SqlDialect dialect) {
         boolean platform = decided instanceof Target.Platform;
         return ctx.derived(Projects.class, c -> new Projects()).byKind.computeIfAbsent(
                 (platform ? "platform/" : "declared/") + dialect.getClass().getName(), k -> {
@@ -896,19 +901,24 @@ public final class PlanMaker {
                     // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
                     String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
-                    List<ExecutionPlan.LoadStep> made = new ArrayList<>();
+                    List<ExecutionPlan.LoadStep> data = new ArrayList<>();
                     if (!platform && refused == null) {
                         for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
-                            made.add(new ExecutionPlan.LoadStep.Statement(sql));
+                            data.add(new ExecutionPlan.LoadStep.Statement(sql));
                         }
                     }
-                    return new ExecutionPlan.Project(key, made, refused);
+                    return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data));
                 });
+    }
+
+    /** A project's database as a plan names it, and the statements that fill it from the Data rows (the target's ONCE
+     *  load: L3). */
+    private record ProjectPlan(ExecutionPlan.Project project, List<ExecutionPlan.LoadStep> data) {
     }
 
     /** {@link #project}'s memo on the compiled model, by database kind and dialect. */
     private static final class Projects {
-        private final java.util.concurrent.ConcurrentHashMap<String, ExecutionPlan.Project> byKind =
+        private final java.util.concurrent.ConcurrentHashMap<String, ProjectPlan> byKind =
                 new java.util.concurrent.ConcurrentHashMap<>();
     }
 

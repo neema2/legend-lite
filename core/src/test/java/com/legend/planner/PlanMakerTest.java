@@ -216,7 +216,7 @@ class PlanMakerTest {
         // finds it from the plan alone
         ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
         assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
-                && q.project() != null && q.project().made().isEmpty(), String.valueOf(served.database()));
+                && q.project() != null && served.loads().isEmpty(), String.valueOf(served));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();

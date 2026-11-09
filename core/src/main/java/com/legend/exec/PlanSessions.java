@@ -199,14 +199,23 @@ public final class PlanSessions {
     /** {@code target}'s loads established on {@code session} now, inside the run that acquired it; refused by name
      *  before any statement where a load's rows need a bulk loader the session's database has none of. */
     private static void loads(Sessions.Session session, ExecutionPlan.Target target) {
-        for (ExecutionPlan.Load load : target.loads()) {
+        loads(session, target, ExecutionPlan.Load.Cadence.PER_ACQUISITION);
+    }
+
+    /** {@code target}'s loads of {@code cadence} established on {@code session}: its acquisition's, or the project's
+     *  Data where the platform makes its database ({@link #made}). */
+    private static void loads(Sessions.Session session, ExecutionPlan.Target target,
+            ExecutionPlan.Load.Cadence cadence) {
+        java.util.List<ExecutionPlan.Load> loads = target.loads().stream().filter(l -> l.cadence() == cadence)
+                .toList();
+        for (ExecutionPlan.Load load : loads) {
             if (load.steps().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
                     && !Sessions.loadsRows(session)) {
                 throw new IllegalStateException("the plan's load has rows for a bulk loader, and the session's"
                         + " database has none (" + Sessions.product(session) + ")");
             }
         }
-        for (ExecutionPlan.Load load : target.loads()) {
+        for (ExecutionPlan.Load load : loads) {
             PlanRunner.establishOn(load, session);
         }
     }
@@ -315,7 +324,7 @@ public final class PlanSessions {
         }
         // the database's identity: its connection and its project's key -- never the statements that make it, which
         // the key already names (the full audit, 2026-11-09: the whole fill was serialized and hashed on every open)
-        ExecutionPlan.Target identity = new ExecutionPlan.Target(identityOf(target.database()), java.util.List.of(),
+        ExecutionPlan.Target identity = new ExecutionPlan.Target(target.database(), java.util.List.of(),
                 java.util.List.of());
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(identity));
         return switch (target.database()) {
@@ -341,24 +350,9 @@ public final class PlanSessions {
         };
     }
 
-    /** {@code database} as its identity: a project named by its key alone (its statements dropped). */
-    private static ExecutionPlan.Database identityOf(ExecutionPlan.Database database) {
-        return switch (database) {
-            case ExecutionPlan.Database.Declared d -> d.project() == null ? d
-                    : new ExecutionPlan.Database.Declared(d.connection(), keyOnly(d.project()));
-            case ExecutionPlan.Database.Platform p -> p.project() == null ? p
-                    : new ExecutionPlan.Database.Platform(p.type(), keyOnly(p.project()));
-            case ExecutionPlan.Database.System s -> s;
-        };
-    }
-
-    private static ExecutionPlan.Project keyOnly(ExecutionPlan.Project project) {
-        return new ExecutionPlan.Project(project.key(), java.util.List.of(), project.refused());
-    }
-
-    /** {@code session} made into the project's database: the project's {@code made} steps run on it once (the
-     *  statements that make and fill its tables from the Data rows) as a run of their own (THE WALL: a statement is
-     *  sent only inside a plan's run), under the SEED mark; a failure closes it. */
+    /** {@code session} made into the project's database: the target's ONCE loads (the project's Data rows, S145) run
+     *  on it once, as a run of their own (THE WALL: a statement is sent only inside a plan's run), under the SEED mark;
+     *  a failure closes it. Kept by the caller for the process. */
     private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target,
             ExecutionPlan.@com.legend.base.Nullable Project project) {
         if (project != null && project.refused() != null) {
@@ -368,13 +362,10 @@ public final class PlanSessions {
                 throw new IllegalArgumentException(refused);
             });
         }
-        if (project == null || project.made().isEmpty()) {
-            return session;
-        }
         return closedOnFailure(session, () -> {
-            // the project's fill as a load of its own until L3 makes it the plan's ONCE load (S145)
-            PlanRunner.establish(new ExecutionPlan.Load("the project's Data " + project.key(),
-                    ExecutionPlan.Load.Cadence.PER_ACQUISITION, project.made(), target.bare()), of(session));
+            try (var run = com.legend.base.RunScope.enter()) {
+                loads(session, target, ExecutionPlan.Load.Cadence.ONCE);
+            }
         });
     }
 
