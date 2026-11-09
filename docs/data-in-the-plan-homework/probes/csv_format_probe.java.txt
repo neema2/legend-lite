@@ -57,3 +57,21 @@ public class DuckFuzz {
     System.out.println(tried + " tried, " + valid + " well-formed; on well-formed: " + bad + " differ, " + refusedValid + " duck refuses; ill-formed duck admits: " + admittedInvalid);
   }
 }
+
+// IntCells (D-a, S147): a text cell bound into an INT column, DuckDB 1.5.6 and H2 2.5.252, against upstream's Long.valueOf.
+import java.sql.*;
+public class IntCells { public static void main(String[] a) throws Exception {
+  for (String url : new String[]{"jdbc:duckdb:", "jdbc:h2:mem:x"}) {
+    try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
+      s.execute("CREATE TABLE t (A INT)");
+      for (String cell : new String[]{" 5", "5.0", "1e3", "+5", "5 "}) {
+        String up; try { up = String.valueOf(Long.valueOf(cell)); } catch (NumberFormatException e) { up = "refused"; }
+        String got;
+        try (PreparedStatement p = c.prepareStatement("INSERT INTO t (A) VALUES (?)")) { p.setString(1, cell); p.execute();
+          try (ResultSet r = s.executeQuery("SELECT A FROM t")) { r.next(); got = r.getString(1); } s.execute("DELETE FROM t"); }
+        catch (SQLException e) { got = "refused: " + e.getMessage().split("\n")[0]; }
+        System.out.println(url + " [" + cell + "] upstream=" + up + " lite=" + got);
+      }
+    }
+  }
+}}
