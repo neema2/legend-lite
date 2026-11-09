@@ -21073,3 +21073,107 @@ with no assert's verdict where the split rung used to record each assert): four 
   - their guards are pinned and go to zero at slices 4 and 5.
 
   Marker branch `claude/plan-as-data-slice-3`.
+
+## 2026-11-09 — The plan as data, slices 4 and 5 (docs/PLAN_AS_DATA_2026_11_07.md §11): every hole but D3 closed, the two thin doors, no static state but the register's, a run takes data from its caller; two full audits
+
+- **Slice 4:**
+  - `3f60de81` hole 1: the appeal decided from the plan's data, the referee handed the enumerations, not the model.
+  - `97df8749` A1: one appeal per assert under the agreement judge (the database half's joins the host half's).
+  - `050e78bd` hole 7 v1: the server's session opened from the plan alone, the project database in the plan's target.
+  - `ecaaceb7` hole 2: the system database found by the plan's target, leased per run; no model at run.
+- **Slice 5 (the user's word: "100% separately doing planning and exec, without any middle package doing both"):**
+  - `c0106c5f`, `5300ea20`: the run's planning touches cut; `testexec` created; the mixed classes split; `judge` deleted.
+  - `f98801e4`, `9446f09d` (hole 6): no thread-local state but `RunScope`, the G4 run-time guard; the run's state is the
+    explicit run record `testexec/BodyRun`; statement origins passed with each statement.
+  - `8e59e9ec`: the planning classes into `testplan`; `driver` deleted.
+  - `fbb448eb`, `4fd3b31a` (the user's word: "split the door"): two thin doors in their own libraries --
+    `Execution` (`//core:execution`, the product's) and `TestExecution` (`//core:test_execution`, the test body's);
+    each method one statement, its run call with its plan an argument; each plan carries where it runs
+    (`ExecutionPlan.writes`, `TestPlan.session`; plan JSON v30, test plan JSON v10); pure/v1 compiles and hands the
+    query to the product door, its own plan-then-run deleted; a project database's refusal is plan data.
+  - `b1ed5a98`, `f4ce85c6`, `8aca1eea`: the full audit's fixes and the mutable-state fix (below); `8aca1eea` is what
+    the new guards found on their first Bazel run.
+  - `ea82b7bb` (the user's question: "why do we have any callbacks, esp dangerous ones that can break our tenet?"):
+    a run takes data from its caller (below).
+  - `3cdd8add`, `8ff49fc0`: the follow-up audit's fixes (below).
+- **The full audit (read-only, `4fd3b31a`, everything since slice 3):** 1 must-fix, 8 should-fixes, 6 notes, fixed in
+  `b1ed5a98`/`f4ce85c6` but D3 (open, the user's data-in-the-plan design session):
+  - must: the runtime wall's blind spot at exec's entry -- a run's caller callbacks (the sink factory, the session
+    source, the answer's sink) ran before the run scope opened, and the PCT harness's session source planned the query
+    again inside the run. Now `RunScope.callingBack` refuses planning from exec's entry; the supplier is gone.
+  - pure/v1's writer read the compiled query during the run (a dynamic pivot's columns, Arrow's metadata): now read
+    before the run.
+  - the project's Data fill was planned into every product and test plan: now the server's run alone
+    (`TypedQuery.projectPlan`, `Execution.runOnProjectDatabases`); the test plan's session is the test door's own
+    target; the project database keyed by its project's key, the platform's by its stores alone (as before hole 7).
+  - the door's options hid a switch and a check: now a record of the two halves' options (`PlanningOptions`, the run's
+    system connections), one judge-mode enum, under `theDoorsHoldNoLogic`.
+  - R4 widened to every plan-side library (the parsed program, planning's input, named); R2 names the test door;
+    `noThreadLocalState` catches a subclass and `ScopedValue`; the server's unused runtime deps dropped; a dead
+    planning branch that read the wall as a channel deleted; the stale comments fixed; the storeless test runtime moved
+    to the test backends (it was test-only; `Connectors.named` gone).
+- **Mutable static state (the user's ruling: "fix all of it"):**
+  - the startup registries are sealed once built (`base.Sealed`: a write after class initialisation is refused);
+  - three shared dialect instances replaced by one per use -- a dialect keeps state while it writes (its inline
+    mode, its stacks), so a shared one could mix two statements written at once on the server's threads;
+  - the product's statement observer deleted (the parity test records on its own connection,
+    `testbackend.RecordingConnection`); five per-census test labels replaced by one (`base.Attribution`);
+  - two dead censuses deleted (`SqlTypeCensus`, `PrimitiveCensus`: no feeder, every count zero by construction) and
+    the PCT gates that pinned them -- dead gates; the dead mute and suspend switches deleted;
+  - the guard `ArchitectureTest.staticStateIsConstantOrRegistered` replaces the collections-only one: every static
+    field's object after its class initialised is constant or in the register by kind (the run guard, resources,
+    caches, measurement, constant arrays) and private; exact both ways.
+- **A run takes data from its caller (`ea82b7bb`):**
+  - where the answer goes is data (`result.Output`, a sealed set: JSON rows, CSV, the engine's pure/v1 and Arrow
+    answers, the caller's own receiver); the result library makes the writer from the plan before any statement runs,
+    where the run called the caller's factory with the plan; pure/v1's envelope facts are read from the query before
+    the run (`PureV1Writer.Facts`); `testexec.Answer` deleted;
+  - where a run's sessions come from is data: `SessionSource` and `PlanSessions.Source` are sealed sets exec
+    interprets; the PCT lanes' session rule (a harness function) is exec's (`SessionSource.Held`, `PlanSessions.lane`);
+    the system sessions are the run's leases, not a function; the PCT's engine answer is written after the run from the
+    collected rows;
+  - the guard `ArchitectureTest.aRunTakesDataSealedSourcesAndNamedReceiversAlone`: every parameter of the product's and
+    the test's run, and every record component inside one, is a value, a sealed set, or a named receiver or resource
+    (the answer's and the verdicts' receivers, the edge, the host's connection); no function type. Planning's resource
+    resolver (a CSV load's path) is D3's.
+- **The guards at the end, all hard, no pinned list:** R1-R4, the doors' shape and no-logic rules, no product class
+  reaches the edge, no compiled model reaches the run, the listener output-only, the run re-reads no rule, no
+  thread-local but `RunScope`, no static state but the register's, a run takes no function; `tools/deps/core-layers.txt` pins the targets.
+- **The follow-up audit (read-only, `4fd3b31a..ea82b7bb`):** 1 must-fix, 4 should-fixes, 7 notes, all addressed:
+  - must: the census tool no longer compiled (the storeless runtime moved to the test backends): the tool is testonly
+    over them;
+  - the server's project databases refused a plan without its project nowhere (an empty database shared by every
+    model): refused by name now;
+  - the run-data guard passed any open class (a caller's `Writer` subclass): it checks finality, names the answer's
+    streams and exec's session, and counts the JDK's numbers and times as values;
+  - the static-state guard read records and lambdas as constant, stopped at depth 2, skipped a failing class
+    initialiser and did not see `//arrow_ipc`: all four closed;
+  - the parity test's "nothing sent" checks saw only the body's connection: a refused body is checked on every
+    session (exec's counts by origin), a moved body's unseen statements are bounded by its system database's
+    planning-time setup;
+  - notes kept as they are: the PCT lane opens its held session per query, not only when used; its engine answer is
+    written after the run; pure/v1 reads its envelope's facts before planning (so a facts error precedes a planning
+    error); PCT-only session rules live in exec (`PlanSessions.lane`, `SessionSource.Held`: a follow-up makes them
+    plan data); a test body's answer in the engine's formats is refused before it runs; the stale comments, the dead
+    `primitives` switch and the missing `permits` clauses fixed.
+- **Behaviour (the lane rounds):**
+  - at `ea82b7bb`: every lane green -- core (but the census tool's build, fixed, and the parser ratchet), Postgres,
+    both corpus lanes (re-run, outputs identical), PCT (DuckDB, H2, channel B), stress (DuckDB, H2), wasm;
+  - at `8ff49fc0` (the final commit), green:
+    - `//gates:core` and `//gates:checks` (232 pass, 1 skipped); the nine Postgres tests as an unprivileged user;
+    - `//gates:corpus_duckdb`, `//gates:corpus_h2` (the shards re-run, their outputs identical to the baseline);
+    - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+    - `//core:stress_suites`, `//core:stress_suites_h2`;
+    - `//wasm:planner` and `//pure-protocol:twins_test`.
+
+    Not run here: Windows, macOS and arm (CI on the PR), the server and cloud PCT lanes (their session rule moved
+    into exec: `SessionSource.Held`, `PlanSessions.lane`).
+- **Found on the way:** the round at `cc935762` found two breaks of slice 5's own (fixed in `fbb448eb`): wasm's
+  Boundary on pure/v1's runner signature; and the nine embedded-mapping bodies on both corpus lanes' outside-body
+  register (a setup run through the program door counted as a body statement since the explicit origins). The stress
+  lanes' collapse (5,795 bodies) was hole 7 v1's, two days earlier, not run on stress when it landed.
+- **What this record claims:** P1 of the goals of record (the separation) is done but for D3 (a CSV load's local path
+  in the plan), which the user moved into the data-in-the-plan design session. The slice 5 spec's review is the
+  user's, as built.
+
+  Marker branch `claude/plan-as-data-slice-5`.
