@@ -5,9 +5,12 @@
 // (python/legend_lite/timeseries.py: keyword arguments, Python's operators). Run, it builds the same tree again
 // (timeseries-builder.test.ts holds TypeScript's so, test_ts_builder.py Python's) -- but for a comparison with its number
 // first, written the series' way round (1 < x as x > 1, the same meaning, its tree mirrored: no method of a series' puts
-// the number first; the review of 2026-11-08); where gs-quant has no call of the
-// tree's meaning it is refused in words (a z-score to date), a CodeRefusal -- the one throw Show Code reads as "write the
-// series' #TS" (the review of 2026-11-08: any other is a defect, never a fallback).
+// the number first; the review of 2026-11-08), and a z-score's `all`, written as its call of no window (the same
+// meaning: to date). Every series a tile draws is written (item 1 of 2026-11-09, the user: "everything has a real python
+// typed representation"): where gs-quant has no call of the tree's meaning, DataCube's own names say it -- ToDate() (a
+// z-score to date), Across() (a cross-section), rand (a number first of and), a value gs-quant refuses (vol_swap's
+// n_days '3m', a currency gs-quant has no cash of) -- each one gs-quant has not, never a gs-quant spelling of another
+// meaning. A tree no tile draws (a number alone) is a defect, thrown as one.
 
 import type { TsComparison, TsExpr, TsOperator } from './timeseries-spec.ts';
 import * as generated from './generated/ts-builder-words.ts';
@@ -18,8 +21,8 @@ import { told as filled } from './timeseries-text.ts';
 /** The languages a series is written in as the builder's code. */
 export type BuilderLanguage = 'typescript' | 'python';
 
-/** A tree gs-quant has no call of: its series is written as its #TS text instead (Show Code). */
-export class CodeRefusal extends Error {}
+/** A tree no tile draws (a number alone): a defect of the caller's, never a series written otherwise. */
+export class CodeDefect extends Error {}
 
 /** SQL's words per point, the builder's own (timeseries-builder-core.ts, _ts_terms.py), by the tile's word. */
 const SCALAR_SOURCE: Readonly<Record<string, string>> = {
@@ -31,7 +34,9 @@ const METHOD: Readonly<Record<TsOperator, string>> = {
   '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '>': 'gt', '>=': 'ge', '<': 'lt', '<=': 'le', '==': 'eq', '!=': 'ne',
   and: 'and', or: 'or',
 };
-const REVERSED: Readonly<Partial<Record<TsOperator, string>>> = { '+': 'radd', '-': 'rsub', '*': 'rmul', '/': 'rdiv' };
+const REVERSED: Readonly<Partial<Record<TsOperator, string>>> = {
+  '+': 'radd', '-': 'rsub', '*': 'rmul', '/': 'rdiv', and: 'rand', or: 'ror',
+};
 const MIRRORED: Readonly<Partial<Record<TsOperator, TsComparison>>> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=', '==': '==', '!=': '!=' };
 
 /** Python's operator for each, and how tightly it binds: a comparison least (below & and |, unlike the language's). */
@@ -54,11 +59,14 @@ export function builderSource(e: TsExpr, language: BuilderLanguage = 'typescript
 
 /** The builder's code of `e`, and the builder's names it calls (its words, column, series, Window, an enumeration): what
  *  a program imports -- the printer's own record of them, never its text read back (a column named `Price (USD)` is no
- *  call). */
-export function builderSourceOf(e: TsExpr, language: BuilderLanguage = 'typescript'): { readonly text: string; readonly names: readonly string[] } {
+ *  call); and DataCube's own spellings it uses, none gs-quant's (ToDate(), Across(), rand, a value gs-quant refuses): a
+ *  program of any is no gs-quant program. */
+export function builderSourceOf(e: TsExpr, language: BuilderLanguage = 'typescript'): {
+  readonly text: string; readonly names: readonly string[]; readonly extensions: readonly string[];
+} {
   const p = new Printer(language);
   const text = p.source(filled(e)).text;
-  return { text, names: [...p.names].sort() };
+  return { text, names: [...p.names].sort(), extensions: [...p.extensions] };
 }
 
 interface Code {
@@ -71,6 +79,8 @@ class Printer {
   readonly #py: boolean;
   /** The builder's names the code calls. */
   readonly names = new Set<string>();
+  /** DataCube's own spellings the code uses, gs-quant's none. */
+  readonly extensions = new Set<string>();
 
   constructor(language: BuilderLanguage) {
     this.#py = language === 'python';
@@ -101,6 +111,13 @@ class Printer {
     return `${this.#py ? '' : 'new '}Window(${w}, ${r})`;
   }
 
+  /** DataCube's own window, the builder's (`ToDate()`, `new Across()`): a name gs-quant has not. */
+  own(name: 'ToDate' | 'Across'): string {
+    this.names.add(name);
+    this.extensions.add(`${name}()`);
+    return `${this.#py ? '' : 'new '}${name}()`;
+  }
+
   /** An enumeration's member, the builder's (Returns.LOGARITHMIC). */
   member(enumeration: string, name: string): string {
     this.names.add(enumeration);
@@ -110,7 +127,7 @@ class Printer {
   source(e: TsExpr): Code {
     switch (e.kind) {
       case 'number':
-        throw new CodeRefusal('a number alone is no series of the builder\'s: it is an argument');
+        throw new CodeDefect('a number alone is no series a tile draws: it is an argument');
       case 'ref':
         this.names.add('series');
         return { text: `series(${quote(e.series)})`, at: PY_ATOM };
@@ -130,13 +147,11 @@ class Printer {
     }
   }
 
-  /** A binary's number first, which reads the other way round where it can (5 + x, 1 < x): and, or of a number first
-   *  have no method of a series' -- refused, never written as a method that is not there. */
+  /** A binary's number first, which reads the other way round (5 + x is x.radd(5), 1 < x is x > 1; 1 & x is x.rand(1),
+   *  DataCube's name, as pandas reflects it): of two numbers, no series a tile draws. */
   numberFirst(e: Extract<TsExpr, { kind: 'binary' }>): void {
-    if (e.left.kind === 'number' && e.right.kind === 'number') throw new CodeRefusal('arithmetic of two numbers is no series');
-    if (e.left.kind === 'number' && REVERSED[e.op] === undefined && MIRRORED[e.op] === undefined) {
-      throw new CodeRefusal(`${e.op} of a number first is no builder's call (write the language's #TS)`);
-    }
+    if (e.left.kind === 'number' && e.right.kind === 'number') throw new CodeDefect('arithmetic of two numbers is no series a tile draws');
+    if (e.left.kind === 'number' && (e.op === 'and' || e.op === 'or')) this.extensions.add(`r${e.op}`);
   }
 
   /** TypeScript's arithmetic: pandas' methods. */
@@ -185,7 +200,8 @@ class Printer {
       return { text: `${scalar}(${[arg(e.args[0]!), ...told.map((v) => this.literal(v))].join(', ')})`, at: PY_ATOM };
     }
     const entry = Object.entries(BUILDER_WORDS).find(([, s]) => s.word === e.fn);
-    if (entry === undefined) throw new CodeRefusal(`${e.fn} is no word of the builder's`);
+    // every word a tile draws is one of the builder's (generated from the tile's words, timeseries-words.ts)
+    if (entry === undefined) throw new CodeDefect(`${e.fn} is no word of the builder's`);
     const [tsName, shape] = entry;
     // Python's name gs-quant's own (var, not TypeScript's var_); excess returns over another line's levels gs-quant's
     // excess_returns_pure, in both (its excess_returns reads an asset, a currency or a rate, never a line: the review of
@@ -205,11 +221,14 @@ class Printer {
       if (over === undefined) {
         excess = true;
       } else {
-        if (!RISK_FREE_CURRENCIES.includes(over.currency)) {
-          throw new CodeRefusal(`${e.fn} over cash.index['${over.currency}']: no RiskFreeRateCurrency of gs-quant's (${RISK_FREE_CURRENCIES.join(', ')})`);
-        }
         args = [over.x, ...e.args.slice(1)];
-        placed.push(this.member('RiskFreeRateCurrency', over.currency));
+        if (RISK_FREE_CURRENCIES.includes(over.currency)) {
+          placed.push(this.member('RiskFreeRateCurrency', over.currency));
+        } else {
+          // a currency gs-quant has no cash of, the page's cash line of it: its code, a value gs-quant refuses
+          this.extensions.add(`currency ${quote(over.currency)}`);
+          placed.push(quote(over.currency));
+        }
       }
     }
     if (shape.members !== undefined) {
@@ -228,25 +247,33 @@ class Printer {
     const told = { ...(e.params ?? {}) };
     // gs-quant's filter_ of no operator and no value removes the missing values: the language's operator 'empty'
     if (shape.gsFunction === 'algebra.filter_' && told['operator'] === 'empty') {
-      if (told['value'] !== undefined && told['value'] !== 0) throw new CodeRefusal('filter\'s empty operator reads no value');
+      // a value beside it is refused as the tile reads it (timeseries-spec.ts: gs-quant's filter_ raises on one)
+      if (told['value'] !== undefined && told['value'] !== 0) throw new CodeDefect('filter\'s empty operator reads no value');
       delete told['operator'];
       delete told['value'];
     }
+    // a parameter by place where gs-quant has no default for it, else by name
+    const put = (g: GsParam, value: string): void => {
+      if (g.default === undefined) placed.push(value);
+      else kw.push(this.named(g.name, value));
+    };
     for (const g of shape.gs) {
       if (g.only || g.weights) continue;
       const lib = g.lib ?? g.name;
       const v = told[lib];
       delete told[lib];
+      // a cross-section (item 13c): gs-quant reads none -- DataCube's Across()
       if (v === 'across') {
-        throw new CodeRefusal(`${e.fn}'s ${g.name} across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)`);
+        put(g, this.own('Across'));
+        continue;
       }
+      // vol_swap_volatility's n_days to date: gs-quant's None is one figure of the whole series at its last date --
+      // DataCube's ToDate(); over a calendar period, its value as the language's ('3m': gs-quant's raises on it)
       if (g.name === 'n_days' && v === 0) {
-        throw new CodeRefusal(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its None is one figure of the whole series, at its last date (write the language's #TS)`);
+        put(g, this.own('ToDate'));
+        continue;
       }
-      // a count alone: gs-quant's Window(n_days, n_days - 1) raises on a calendar period (item 14f, 2026-11-09)
-      if (g.name === 'n_days' && typeof v === 'string') {
-        throw new CodeRefusal(`${e.fn}'s ${g.name} over a calendar period is no call of gs-quant's: its n_days is a whole number of observations (write the language's #TS)`);
-      }
+      if (g.name === 'n_days' && typeof v === 'string') this.extensions.add(`${g.name} ${quote(v)}`);
       if (g.whole !== undefined) {
         // gs-quant's default here is the whole line: written as its call without it
         if (v === 'whole') {
@@ -258,25 +285,22 @@ class Printer {
           }
           continue;
         }
-        // to date: percentile's Window(None, 0) (its whole line is None); none of zscores' or winsorize's calls
+        // to date, the language's call of no window (and zscores' all, the same): gs-quant's no window is the whole
+        // series -- DataCube's ToDate(); percentile's all is gs-quant's Window(None, 0), below
         if (v === undefined || (v === 0 && g.whole !== 'default')) {
-          throw new CodeRefusal(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its ${g.name} of no window is the whole series' (write the language's #TS)`);
+          put(g, this.own('ToDate'));
+          continue;
         }
       }
-      if (v === undefined) {
-        // left to the tile where gs-quant always has one (a compare's method, the tile's align): no call of gs-quant's says it
-        if (g.default !== undefined && g.default !== null && typeof g.default !== 'object') {
-          throw new CodeRefusal(`${e.fn}'s ${g.name} is the tile's own here: gs-quant's ${name} takes ${String(g.default)} unless told -- no call of gs-quant's says it (write the language's #TS)`);
-        }
-        continue;
-      }
+      // left to the language, whose reading is gs-quant's default (compare's method: step, S145) -- the builder's call
+      // without it says the same (timeseries-builder-core.ts word)
+      if (v === undefined) continue;
       // a window's ramp apart from its size: gs-quant's Window(w, r) (item 13), the library's w and r
       const ramp = lib === 'w' ? told['r'] : undefined;
       if (ramp !== undefined) delete told['r'];
       const value = ramp !== undefined ? this.window(v === 0 ? this.literal(null) : this.literal(v), String(ramp))
         : lib === 'w' && v === 0 && shape.gsFunction !== null ? this.window(this.literal(null), '0') : this.gsValue(g, v);
-      if (g.default === undefined) placed.push(value);
-      else kw.push(this.named(g.name, value));
+      put(g, value);
     }
     for (const [lib, v] of Object.entries(told)) kw.push(this.named(lib, typeof v === 'string' && /^[1-9][0-9]*[dwmy]$/.test(v) ? quote(v) : this.literal(v)));
     if (excess) kw.push(this.named('curve_type', this.member('CurveType', 'EXCESS_RETURNS')));

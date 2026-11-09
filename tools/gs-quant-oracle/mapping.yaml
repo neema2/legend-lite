@@ -358,9 +358,9 @@ words:
     src: analysis.py:361
     known: {default: S145, method=step: S145}
     cases:
-      - [default, "compare({x}, mean({x}, 200))", "ts.compare(x, ts.mean(x, 200))"]
+      - [default, "compare({x}, mean({x}, 200))", printed]
       - [method=intersect, "compare({x}, mean({x}, 200), 'intersect')", printed]
-      - [y=number, "compare({x}, 100)", "ts.compare(x, 100.0)"]
+      - [y=number, "compare({x}, 100)", printed]
       - [method=nan, "compare({x}, mean({x}, 200), 'nan')", printed]
       - [method=zero, "compare({x}, mean({x}, 200), 'zero')", printed]
       - [method=step, "compare({x}, mean({x}, 200), 'step')", printed]

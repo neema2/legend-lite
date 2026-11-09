@@ -221,8 +221,8 @@
  },
  {
   "series": "word compare",
-  "python": "compare(column('close'), column('open'), method=Interpolate.STEP)",
-  "text": "compare(close, open, method => 'step')"
+  "python": "compare(column('close'), column('open'))",
+  "text": "compare(close, open)"
  },
  {
   "series": "word filter_",
@@ -413,6 +413,71 @@
   "series": "word half_life",
   "python": "half_life(column('close'), w=0)",
   "text": "half_life(close, w => all)"
+ },
+ {
+  "series": "extension zscores(close['SPX'], w => all)",
+  "python": "zscores(column('close', 'SPX'), w=ToDate())",
+  "text": "zscores(close['SPX'], w => all)"
+ },
+ {
+  "series": "extension zscores(close['SPX'], w => all, r => 5)",
+  "python": "zscores(column('close', 'SPX'), w=ToDate(), r=5)",
+  "text": "zscores(close['SPX'], w => all, r => 5)"
+ },
+ {
+  "series": "extension zscores(close['SPX'], w => across)",
+  "python": "zscores(column('close', 'SPX'), w=Across())",
+  "text": "zscores(close['SPX'], w => across)"
+ },
+ {
+  "series": "extension winsorize(close['SPX'], limit => 1.5)",
+  "python": "winsorize(column('close', 'SPX'), limit=1.5, w=ToDate())",
+  "text": "winsorize(close['SPX'], limit => 1.5)"
+ },
+ {
+  "series": "extension winsorize(close['SPX'], limit => 2.5, w => across)",
+  "python": "winsorize(column('close', 'SPX'), limit=2.5, w=Across())",
+  "text": "winsorize(close['SPX'], limit => 2.5, w => across)"
+ },
+ {
+  "series": "extension percentile(close['SPX'], n => 90, w => all)",
+  "python": "percentile(column('close', 'SPX'), 90, w=Window(None, 0))",
+  "text": "percentile(close['SPX'], n => 90, w => all)"
+ },
+ {
+  "series": "extension percentile(close['SPX'], n => 90, w => across)",
+  "python": "percentile(column('close', 'SPX'), 90, w=Across())",
+  "text": "percentile(close['SPX'], n => 90, w => across)"
+ },
+ {
+  "series": "extension vol_swap_volatility(close['SPX'], w => all)",
+  "python": "vol_swap_volatility(column('close', 'SPX'), n_days=ToDate())",
+  "text": "vol_swap_volatility(close['SPX'], w => all)"
+ },
+ {
+  "series": "extension vol_swap_volatility(close['SPX'], w => 3mo)",
+  "python": "vol_swap_volatility(column('close', 'SPX'), n_days='3m')",
+  "text": "vol_swap_volatility(close['SPX'], w => 3mo)"
+ },
+ {
+  "series": "extension sharpe_ratio(excess_returns(close['SPX'], cash.index['CAD']), w => 252)",
+  "python": "sharpe_ratio(column('close', 'SPX'), 'CAD', w=252)",
+  "text": "sharpe_ratio(excess_returns(close['SPX'], cash.index['CAD']), w => 252)"
+ },
+ {
+  "series": "extension 1 AND close['SPX'] > 100",
+  "python": "1 & (column('close', 'SPX') > 100)",
+  "text": "1 AND close['SPX'] > 100"
+ },
+ {
+  "series": "extension 0 OR close['SPX'] < 50",
+  "python": "0 | (column('close', 'SPX') < 50)",
+  "text": "0 OR close['SPX'] < 50"
+ },
+ {
+  "series": "extension compare(close['SPX'], close['NDX'])",
+  "python": "compare(column('close', 'SPX'), column('close', 'NDX'))",
+  "text": "compare(close['SPX'], close['NDX'])"
  },
  {
   "series": "returns A",
@@ -636,7 +701,7 @@
  },
  {
   "series": "winsorize A",
-  "refused": "winsorize's w to date is no call of gs-quant's: its w of no window is the whole series' (write the language's #TS)",
+  "python": "winsorize(returns(column('close', 'EURUSD'), obs=1, type=Returns.SIMPLE), limit=1.5, w=ToDate())",
   "text": "winsorize(returns(close['EURUSD'], 1, 'simple'), limit => 1.5)"
  },
  {
@@ -646,8 +711,8 @@
  },
  {
   "series": "cross-section A",
-  "refused": "zscores's w across a date's instruments is no call of gs-quant's: none reads a cross-section (write the language's #TS)",
-  "text": "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), across)"
+  "python": "zscores(returns(column('close', {'asset_class': 'Equity'}), obs=63, type=Returns.SIMPLE), w=Across())",
+  "text": "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), w => across)"
  },
  {
   "series": "exponential A",
@@ -1056,7 +1121,7 @@
  },
  {
   "series": "if-compare B",
-  "refused": "compare's method is the tile's own here: gs-quant's compare takes step unless told -- no call of gs-quant's says it (write the language's #TS)",
+  "python": "compare(column('close', 'SPX'), mean(column('close', 'SPX'), w=200))",
   "text": "compare(close['SPX'], mean(close['SPX'], 200))"
  },
  {

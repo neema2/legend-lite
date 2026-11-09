@@ -192,7 +192,7 @@ export function max_drawdown(x: Line, ...args: Args<[w: WindowLike], { w?: Windo
 
 const SHARPE_RATIO_SHAPE: WordShape = { word: 'sharpe_ratio', gsFunction: 'econometrics.sharpe_ratio', lines: ['series'], gs: [{ name: 'currency', only: true, default: 'USD' }, { name: 'w', default: null }, { name: 'curve_type', only: true, default: 'prices' }, { name: 'method', only: true, default: 'nan' }], extra: ['annualization_factor', 'r'] };
 /** Sharpe ratio: Its annualized return -- the window's last level over its first, compounded over 365.25 days -- over its annualized volatility, over the last w observations (gs-quant's get_ratio_pure). (gs-quant's econometrics.sharpe_ratio.) */
-export function sharpe_ratio(series: Line, ...args: Args<[currency: RiskFreeRateCurrency, w: WindowLike | null, curve_type: CurveType, method: typeof Interpolate.NAN], { currency?: RiskFreeRateCurrency; w?: WindowLike | null; curve_type?: CurveType; method?: typeof Interpolate.NAN; annualization_factor?: number | null; r?: number | null }>): Term {
+export function sharpe_ratio(series: Line, ...args: Args<[currency: RiskFreeRateCurrency | (string & {}), w: WindowLike | null, curve_type: CurveType, method: typeof Interpolate.NAN], { currency?: RiskFreeRateCurrency | (string & {}); w?: WindowLike | null; curve_type?: CurveType; method?: typeof Interpolate.NAN; annualization_factor?: number | null; r?: number | null }>): Term {
   return word(SHARPE_RATIO_SHAPE, [series], args);
 }
 

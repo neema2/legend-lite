@@ -19,7 +19,7 @@ import { codeOfPage, tileCode } from '../src/timeseries-code.ts';
 import { tileAsks } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { readPageTexts } from './catalog-builder.ts';
-import { builderSource, CodeRefusal } from '../src/timeseries-builder-source.ts';
+import { builderSource } from '../src/timeseries-builder-source.ts';
 import { treeOf } from '../src/timeseries-text.ts';
 // the builder each program imports for its series (B4: each series gs-quant's call of it), in the test's files to run them
 import '../src/timeseries-builder.ts';
@@ -57,16 +57,10 @@ describe('a timeseries tile as the code that builds it', () => {
       assert.ok(python.includes('page = ll.Page()') && python.includes('ll.show(page)'), v.id);
       assert.ok(python.includes("print(s, tile.query(s)['pure'])"), v.id);
       for (const lookup of ['Page.load', 'page.sheets', 'page.grids', '.id ==']) assert.ok(!python.includes(lookup), `${v.id}: finds nothing of this page (${lookup})`);
-      // each series gs-quant's call of it (B4: python/legend_lite/timeseries.py, run by //python:ts_builder_test), its
-      // #TS text where gs-quant has none
+      // each series gs-quant's call of it (B4: python/legend_lite/timeseries.py, run by //python:ts_builder_test), with
+      // DataCube's own names where gs-quant has none of its meaning (item 1 of 2026-11-09: every series written)
       for (const s of spec.series) {
-        let said: string;
-        try {
-          said = builderSource(treeOf(s, spec.series), 'python');
-        } catch (e) {
-          if (!(e instanceof CodeRefusal)) throw e;
-          said = `'${s.text.replace(/'/g, "\\'")}'`;
-        }
+        const said = builderSource(treeOf(s, spec.series), 'python');
         assert.ok(python.includes(said), `${v.id} ${s.id}: ${said}`);
       }
     }

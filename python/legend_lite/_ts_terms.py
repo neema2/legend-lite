@@ -13,7 +13,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-__all__ = ['Term', 'ColumnTerm', 'Window', 'column', 'series', 'log', 'exp', 'sqrt', 'abs_', 'power', 'not_']
+__all__ = ['Term', 'ColumnTerm', 'Window', 'ToDate', 'Across', 'column', 'series', 'log', 'exp', 'sqrt', 'abs_', 'power',
+           'not_']
 
 
 class _Default:
@@ -42,12 +43,38 @@ class Window:
         return f'Window({self.w!r}, {self.r!r})'
 
 
+class ToDate:
+    """EVERY OBSERVATION TO DATE where gs-quant has no spelling of it -- DataCube's own, a name gs-quant has not:
+    ``zscores(x, w=ToDate())`` (gs-quant's zscores of no window is the whole series), ``winsorize``'s, ``percentile``'s,
+    ``vol_swap_volatility(x, n_days=ToDate())`` (gs-quant's None is one figure at the line's last date). Elsewhere
+    gs-quant's own ``Window(None, 0)`` says it."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return 'ToDate()'
+
+
+class Across:
+    """ACROSS A DATE'S INSTRUMENTS -- DataCube's own, a name gs-quant has not: ``zscores(x, w=Across())``, each date's
+    cross-section (``winsorize``'s and ``percentile``'s too)."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return 'Across()'
+
+
 def _wire(v: Any) -> Any:
     """``v`` as DataCube's builder is told it (timeseries-builder-wire.ts): a term, a window, an enumeration's value."""
     if isinstance(v, Term):
         return v._wire
     if isinstance(v, Window):
         return {'term': 'window', 'w': v.w, 'r': v.r}
+    if isinstance(v, ToDate):
+        return {'term': 'to_date'}
+    if isinstance(v, Across):
+        return {'term': 'across'}
     if isinstance(v, Enum):
         return v.value
     if isinstance(v, (list, tuple)):
@@ -134,6 +161,16 @@ class Term:
 
     def __or__(self, other: Any) -> Term:
         return self._method('or', other)
+
+    # a number first: ``1 & x``, ``0 | x`` (DataCube's rand and ror, as pandas reflects & and |)
+    def rand(self, other: Any) -> Term:
+        return self._method('rand', other)
+
+    def ror(self, other: Any) -> Term:
+        return self._method('ror', other)
+
+    __rand__ = rand
+    __ror__ = ror
 
     def __invert__(self) -> Term:
         return not_(self)

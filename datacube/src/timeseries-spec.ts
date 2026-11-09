@@ -626,6 +626,11 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           }
         }
       }
+      // filter's empty operator (its default) reads no value: a value beside it is no part of the series -- refused,
+      // never dropped, as gs-quant's filter_ refuses a value of no operator (algebra.filter_; item 1 of 2026-11-09)
+      if (fn === 'filter' && isRecord(params) && (params['operator'] ?? 'empty') === 'empty' && params['value'] !== undefined && params['value'] !== 0) {
+        return `${fn}'s value ${JSON.stringify(params['value'])} is read by no operator: empty drops the empty values alone (gs-quant's filter_ refuses a value of no operator)`;
+      }
       // a parameter every call gives, given (a mean's window: the spec's §7)
       const missing = f.params.find((q) => q.required && (!isRecord(params) || params[q.name] === undefined));
       if (missing !== undefined) return `${what}: ${fn} is given its ${missing.name} in every call`;

@@ -214,6 +214,9 @@ describe('the saved spec\'s reader', () => {
       [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: 20 } }, /winsorize's w takes no count of observations/],
       [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: '3m' } }, /winsorize's w takes no calendar period/],
       [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: 0 } }, /winsorize's w takes no window to date/],
+      // filter's empty operator reads no value: gs-quant's filter_ refuses a value of no operator (item 1 of 2026-11-09)
+      [{ kind: 'call', fn: 'filter', args: [{ kind: 'column', column: 'c' }], params: { operator: 'empty', value: 5 } }, /filter's value 5 is read by no operator/],
+      [{ kind: 'call', fn: 'filter', args: [{ kind: 'column', column: 'c' }], params: { value: 5 } }, /filter's value 5 is read by no operator/],
     ];
     for (const [tree, said] of cases) assert.match(treeProblem(tree, 'series A', ['px']) ?? '', said, JSON.stringify(tree));
     assert.equal(treeProblem({ kind: 'column', source: 'px', column: 'c' }, 'series A', ['px']), null);

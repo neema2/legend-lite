@@ -9,15 +9,18 @@
 //   {term: 'scalar', name, x, args?}          log, exp, sqrt, abs_, power, not_
 //   {term: 'method', name, x, y}              x.add(y), x.radd(y), x.gt(y), x.and(y), ...
 //   {term: 'window', w, r}                    new Window(w, r), a word's argument
+//   {term: 'to_date'}, {term: 'across'}       new ToDate(), new Across(): DataCube's own windows, gs-quant's none
 //
 // PURE: no DOM, no planner.
 
 import { BUILDER_WORDS } from './generated/ts-builder-words.ts';
-import { abs_, BuilderRefusal, column, ColumnTerm, exp, log, not_, power, series, sqrt, Term, Window, word } from './timeseries-builder-core.ts';
+import {
+  abs_, Across, BuilderRefusal, column, ColumnTerm, exp, log, not_, power, series, sqrt, Term, ToDate, Window, word,
+} from './timeseries-builder-core.ts';
 import type { TsAggregate } from './timeseries-spec.ts';
 
-/** The methods of a term Python's operators and methods call (pandas' names). */
-const METHODS = new Set(['add', 'sub', 'mul', 'div', 'radd', 'rsub', 'rmul', 'rdiv', 'gt', 'ge', 'lt', 'le', 'eq', 'ne', 'and', 'or']);
+/** The methods of a term Python's operators and methods call (pandas' names; rand and ror, `1 & x`, DataCube's). */
+const METHODS = new Set(['add', 'sub', 'mul', 'div', 'radd', 'rsub', 'rmul', 'rdiv', 'gt', 'ge', 'lt', 'le', 'eq', 'ne', 'and', 'or', 'rand', 'ror']);
 const SCALARS: Readonly<Record<string, (x: Term, ...a: number[]) => Term>> = {
   log, exp, sqrt, abs_, not_, power: (x, y) => power(x, y),
 };
@@ -45,6 +48,10 @@ function argOf(w: unknown): unknown {
       return series(String(w['id']));
     case 'window':
       return new Window(w['w'] as number | string | null, w['r'] as number | string | null | undefined);
+    case 'to_date':
+      return new ToDate();
+    case 'across':
+      return new Across();
     case 'scalar': {
       const fn = SCALARS[String(w['name'])];
       if (fn === undefined) throw new BuilderRefusal(`${String(w['name'])} is no word of SQL's per point the builder has`);

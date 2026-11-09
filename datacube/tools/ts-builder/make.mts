@@ -219,6 +219,9 @@ for (const name of TS_FUNCTION_NAMES) {
         if (cashed && (p.name === 'currency' || p.name === 'curve_type') && p.default !== null && 'enum' in p.default) {
           enumsUsed.add(p.default.enum);
           type = p.default.enum;
+          // a currency gs-quant has no cash of, the page's cash line of it: its code, DataCube's own (item 1 of
+          // 2026-11-09: Show Python writes it as a value gs-quant refuses)
+          if (p.name === 'currency') type = `${type} | (string & {})`;
         }
         // a value beside gs-quant's default the word computes (the library's gsAlso: lag's truncate)
         const also = tagged(cat, 'gsAlso').get(p.name);

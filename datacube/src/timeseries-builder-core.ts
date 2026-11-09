@@ -6,7 +6,9 @@
 // (timeseries-spec.ts TsExpr), its text the tile's writer's (timeseries-text.ts seriesText), and core reads it back --
 // the builder never parses. Every value gs-quant takes that the language has no way to say is refused in words, never
 // dropped: a calendar window's ramp apart from its period, a gs-quant parameter DataCube has not (assume_zero_mean)
-// other than at gs-quant's default.
+// other than at gs-quant's default. What the language says and gs-quant has no spelling of, DataCube's own names say --
+// ToDate(), Across(), a number first of `and` (rand) -- or a value gs-quant refuses (n_days '3m', a currency gs-quant has
+// no cash of): one gs-quant has not, never a gs-quant spelling of another meaning (item 1 of 2026-11-09).
 
 import type { TsAggregate, TsExpr, TsFunctionName, TsMatch, TsOperator, TsParamShape } from './timeseries-spec.ts';
 import { AGGREGATES, TS_SIGNATURES } from './timeseries-spec.ts';
@@ -104,13 +106,23 @@ export class Term {
   }
 
   /** pandas' `x & y`: both conditions hold. */
-  and(other: Term): Term {
+  and(other: Term | number): Term {
     return binary('and', this, other);
   }
 
   /** pandas' `x | y`: either holds. */
-  or(other: Term): Term {
+  or(other: Term | number): Term {
     return binary('or', this, other);
+  }
+
+  /** `y & x`, a number first (Python's `1 & x`: pandas' reflected and, DataCube's name for it as radd is add's). */
+  rand(other: Term | number): Term {
+    return reversed('and', this, other);
+  }
+
+  /** `y | x`, a number first (Python's `0 | x`). */
+  ror(other: Term | number): Term {
+    return reversed('or', this, other);
   }
 }
 
@@ -185,8 +197,28 @@ export class Window {
   }
 }
 
-/** What a window parameter takes: gs-quant's Window, a number of observations, or a calendar period. */
-export type WindowLike = Window | number | string;
+// ------------------------------------------------------------------ DataCube's windows gs-quant has not
+//
+// Show Python writes every series a tile draws (item 1 of 2026-11-09, the user: "everything has a real python typed
+// representation"): where gs-quant has no spelling of the language's meaning, DataCube's own name -- one gs-quant has
+// not, never a gs-quant spelling of another meaning (gs-quant's zscores of no window is the whole series; ToDate() is the
+// language's to date).
+
+/**
+ * EVERY OBSERVATION TO DATE where gs-quant has no spelling of it: zscores' and winsorize's window of none (gs-quant's:
+ * the whole series; the language's no window, to date), vol_swap_volatility's n_days (gs-quant's None: one figure at the
+ * line's last date; the language's `all`). Elsewhere gs-quant's own `Window(None, 0)` says it (a mean's, percentile's),
+ * and ToDate() is the same. DataCube's own: gs-quant has none.
+ */
+export class ToDate {}
+
+/** ACROSS A DATE'S INSTRUMENTS (the language's `across`, item 13c): each date's cross-section -- zscores', winsorize's,
+ *  percentile's. DataCube's own: gs-quant reads none. */
+export class Across {}
+
+/** What a window parameter takes: gs-quant's Window, a number of observations, or a calendar period -- or DataCube's own
+ *  ToDate() and Across(). */
+export type WindowLike = Window | number | string | ToDate | Across;
 
 const TENOR = /^([1-9][0-9]*)([dwmy])$/;
 
@@ -231,11 +263,9 @@ function gsWindow(fn: string, g: GsParam, gsFunction: string | null, v: WindowLi
   if (v instanceof Window && v.w === null && v.r === null) {
     throw new BuilderRefusal(`${fn}'s ${g.name}: Window() is gs-quant's whole series ramped by its whole length -- no point; Window(None, 0) is every observation to date`);
   }
-  // n_days is a count alone: gs-quant's Window(n_days, n_days - 1) subtracts from it (econometrics.py
-  // vol_swap_volatility: '3m' raises; the oracle's catalog cases, item 14f, 2026-11-09)
-  if (g.name === 'n_days' && typeof (v instanceof Window ? v.w : v) === 'string') {
-    throw new BuilderRefusal(`${fn}'s ${g.name} is a whole number of observations: gs-quant's raises on a calendar period (${JSON.stringify(v instanceof Window ? v.w : v)})`);
-  }
+  // n_days a calendar period ('3m') is the language's and none of gs-quant's: its Window(n_days, n_days - 1) subtracts
+  // from it and raises (econometrics.py vol_swap_volatility) -- DataCube's own, a value gs-quant refuses (item 1 of
+  // 2026-11-09); its Window(n, n - 1) a count alone
   if (g.name === 'n_days' && v instanceof Window) {
     if (typeof v.w !== 'number' || v.r !== v.w - 1) {
       throw new BuilderRefusal(`${fn}'s ${g.name}: gs-quant's ramp-up is the window's size less 1, Window(n, n - 1), not Window(${JSON.stringify(v.w)}, ${JSON.stringify(v.r)})`);
@@ -247,7 +277,7 @@ function gsWindow(fn: string, g: GsParam, gsFunction: string | null, v: WindowLi
 
 /** A window as the tile holds it (timeseries-spec.ts: a span, 0 every observation, `3m` a period); its ramp apart from its
  *  size is rampOf's. */
-function spanOf(fn: string, name: string, v: WindowLike): number | string {
+function spanOf(fn: string, name: string, v: Window | number | string): number | string {
   if (v instanceof Window) return v.w === null ? 0 : spanOf(fn, name, v.w);
   if (typeof v === 'number') {
     if (!Number.isInteger(v) || v < 0) throw new BuilderRefusal(`${fn}'s ${name} is a whole number of observations, not ${v}`);
@@ -315,7 +345,8 @@ export interface GsParam {
 }
 
 function isKeywords(v: unknown): v is Readonly<Record<string, unknown>> {
-  return typeof v === 'object' && v !== null && !(v instanceof Term) && !(v instanceof Window) && !Array.isArray(v);
+  return typeof v === 'object' && v !== null && !(v instanceof Term) && !(v instanceof Window) && !(v instanceof ToDate)
+    && !(v instanceof Across) && !Array.isArray(v);
 }
 
 function defaultOf(p: GsParam): unknown {
@@ -386,11 +417,16 @@ function cashOf(fn: string, told: ReadonlyMap<string, unknown>): string | null {
   if (curve === 'excess_returns') return null;
   if (curve !== 'prices') throw new BuilderRefusal(`${fn}'s curve_type is CurveType.PRICES or CurveType.EXCESS_RETURNS, not ${JSON.stringify(curve)}`);
   const currency = told.has('currency') ? told.get('currency') : 'USD';
-  if (typeof currency !== 'string' || !RISK_FREE_CURRENCIES.includes(currency.toUpperCase())) {
-    throw new BuilderRefusal(`${fn}'s currency is one of gs-quant's RiskFreeRateCurrency (${RISK_FREE_CURRENCIES.join(', ')}), not ${JSON.stringify(currency)}`);
+  // a currency of gs-quant's RiskFreeRateCurrency, or any other the page has a cash line of ('CAD': DataCube's own, a
+  // value gs-quant refuses -- item 1 of 2026-11-09)
+  if (typeof currency !== 'string' || !CURRENCY.test(currency.toUpperCase())) {
+    throw new BuilderRefusal(`${fn}'s currency is a currency's three letters, one of gs-quant's RiskFreeRateCurrency (${RISK_FREE_CURRENCIES.join(', ')}) or another the page has cash of, not ${JSON.stringify(currency)}`);
   }
   return currency.toUpperCase();
 }
+
+/** A currency's code: its three letters. */
+const CURRENCY = /^[A-Z]{3}$/;
 
 /**
  * A WORD CALLED as gs-quant calls it: its lines, then `args` -- its parameters by place, any after by name in a
@@ -432,7 +468,28 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
   const cash = takesCash(shape) ? cashOf(fn, told) : undefined;
   for (const g of shape.gs) {
     if (cash !== undefined && (g.name === 'currency' || g.name === 'curve_type')) continue;
-    let v = told.has(g.name) ? told.get(g.name) : defaultOf(g);
+    const lib = sig.params.find((q) => q.name === (g.lib ?? g.name));
+    // a parameter the language leaves to itself where it is not told, its reading gs-quant's default: compare's method,
+    // step unless given (gs-quant's, but for a line's start: S145) -- not written, as the tile's own call writes none
+    // (item 1 of 2026-11-09: Show Python's compare(x, y))
+    const own = !told.has(g.name) && g.whole === undefined && !g.only && !g.weights && lib !== undefined && lib.default === undefined && !lib.required;
+    let v = told.has(g.name) ? told.get(g.name) : own ? undefined : defaultOf(g);
+    // DataCube's own windows: the language's to date and across, where the parameter takes them
+    if (v instanceof ToDate || v instanceof Across) {
+      const said = v instanceof ToDate ? 'ToDate()' : 'Across()';
+      if (lib?.kind !== 'span') throw new BuilderRefusal(`${fn}'s ${g.name} is no window: ${said} is a window's`);
+      if (v instanceof Across) {
+        if (lib.across !== true) throw new BuilderRefusal(`${fn}'s ${g.name} reads no cross-section: Across() is zscores', winsorize's and percentile's`);
+        params[lib.name] = 'across';
+      } else if (g.whole === undefined || told.has('r')) {
+        // to date, the language's `all` -- a whole word's too where a ramp is told (its call of no window takes none)
+        if (lib.all === false || (lib.min ?? 0) > 0) throw new BuilderRefusal(`${fn}'s ${g.name} takes no window to date`);
+        params[lib.name] = 0;
+      }
+      // else a window gs-quant reads as the whole series where it has no size (zscores', winsorize's, percentile's): to
+      // date is the language's call of no window
+      continue;
+    }
     if ((g.lib ?? g.name) === 'w' && shape.gsFunction !== null && v !== undefined && v !== null) {
       // gs-quant's window rules (helper.normalize_window, _check_window): a window of 0 raises, Window() is the whole
       // series ramped by its whole length (no point) -- but zscores reads any window of no size as the whole series
@@ -468,7 +525,7 @@ export function word(shape: WordShape, lines: readonly (Term | number | readonly
     }
     if (v === undefined || v === null) continue;
     const libName = g.lib ?? g.name;
-    const p = sig.params.find((q) => q.name === libName);
+    const p = lib;
     if (p === undefined) throw new Error(`${fn}'s gs-quant parameter ${g.name} is the library's ${libName}, which ${fn} has not`);
     params[libName] = libValue(fn, g.name, p, g, v);
     // a window's ramp apart from its size: the word's own r, where it takes one

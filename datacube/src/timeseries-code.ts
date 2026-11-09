@@ -21,7 +21,7 @@ import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { columnsOf, nextSeriesId } from './timeseries-expr.ts';
 import { treeOf } from './timeseries-text.ts';
-import { builderSourceOf, CodeRefusal, type BuilderLanguage } from './timeseries-builder-source.ts';
+import { builderSourceOf, type BuilderLanguage } from './timeseries-builder-source.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
 /** The languages a tile's code is written in. */
@@ -132,35 +132,27 @@ function pyName(title: string, taken: Set<string>): string {
 }
 
 /** EACH SERIES AS THE BUILDER'S CODE (B4: Show TypeScript, Show Python; timeseries-builder-source.ts) -- gs-quant's call
- *  of it, with the builder's names it calls -- or, where gs-quant has none of its meaning (a z-score to date, a compare
- *  by the tile's align: the printer's CodeRefusal, nothing else), undefined: its #TS text stands in the program. */
-function builderCode(spec: TimeseriesSpec, language: BuilderLanguage): ({ readonly text: string; readonly names: readonly string[] } | undefined)[] {
-  return spec.series.map((s) => {
-    try {
-      return builderSourceOf(treeOf(s, spec.series), language);
-    } catch (e) {
-      if (e instanceof CodeRefusal) return undefined;
-      throw e;
-    }
-  });
+ *  of it, with the builder's names it calls; where gs-quant has none of its meaning (a z-score to date, a cross-section),
+ *  DataCube's own names in it (ToDate(), Across(): item 1 of 2026-11-09, every series written). */
+function builderCode(spec: TimeseriesSpec, language: BuilderLanguage): { readonly text: string; readonly names: readonly string[] }[] {
+  return spec.series.map((s) => builderSourceOf(treeOf(s, spec.series), language));
 }
 
 /** The builder's names a program's code calls (its words, column, series, Window, an enumeration), as the printer
  *  recorded them: what it imports, and what no variable of its own may be named. */
-function namesUsed(code: readonly ({ readonly names: readonly string[] } | undefined)[]): string[] {
-  return [...new Set(code.flatMap((c) => c?.names ?? []))].sort();
+function namesUsed(code: readonly { readonly names: readonly string[] }[]): string[] {
+  return [...new Set(code.flatMap((c) => c.names))].sort();
 }
 
-/** Each series as `page.timeseries` takes it: its term (the builder's code) or its #TS text alone, or a mapping of it and
- *  how it is drawn -- its id told where it is not the one the reader would give it (the next free letter, nextSeriesId). */
-function pySeries(series: readonly TsSeries[], code: readonly ({ readonly text: string } | undefined)[]): string[] {
+/** Each series as `page.timeseries` takes it: its term (the builder's code), or a mapping of it and how it is drawn -- its
+ *  id told where it is not the one the reader would give it (the next free letter, nextSeriesId). */
+function pySeries(series: readonly TsSeries[], code: readonly { readonly text: string }[]): string[] {
   return series.map((s, i) => {
     const natural = nextSeriesId(series.slice(0, i)) === s.id;
     const rest = SERIES_KEYS.filter((k) => s[k] !== undefined);
-    const term = code[i]?.text;
-    if (natural && rest.length === 0) return term ?? py(s.text);
-    const told = [...(natural ? [] : [`'id': ${py(s.id)}`]), term !== undefined ? `'term': ${term}` : `'text': ${py(s.text)}`,
-      ...rest.map((k) => `${py(k)}: ${py(s[k])}`)];
+    const term = code[i]!.text;
+    if (natural && rest.length === 0) return term;
+    const told = [...(natural ? [] : [`'id': ${py(s.id)}`]), `'term': ${term}`, ...rest.map((k) => `${py(k)}: ${py(s[k])}`)];
     return `{${told.join(', ')}}`;
   });
 }
@@ -279,9 +271,9 @@ function ts(v: unknown): string {
 }
 
 /** A series as its spec holds it: its text, which core reads -- the builder's term's (B4), else its #TS formula. */
-function tsSeries(s: TsSeries, term: string | undefined): string {
+function tsSeries(s: TsSeries, term: string): string {
   const rest = SERIES_KEYS.filter((k) => s[k] !== undefined).map((k) => `, ${k}: ${ts(s[k])}`).join('');
-  return `{ id: ${ts(s.id)}, text: ${term !== undefined ? `${term}.text()` : ts(s.text)}${rest} }`;
+  return `{ id: ${ts(s.id)}, text: ${term}.text()${rest} }`;
 }
 
 function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
@@ -319,7 +311,7 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     'export const spec: TimeseriesSpec = {',
     `  sources: [${spec.sources.map(source).join(', ')}],`,
     '  series: [',
-    ...spec.series.map((s, i) => `    ${tsSeries(s, code[i]?.text)},`),
+    ...spec.series.map((s, i) => `    ${tsSeries(s, code[i]!.text)},`),
     '  ],',
     ...slots,
     '};',

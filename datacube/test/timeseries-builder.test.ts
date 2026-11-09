@@ -19,7 +19,7 @@ import { SCALARS } from '../src/timeseries-words.ts';
 import { seriesExpr, seriesText, told, treeOf } from '../src/timeseries-text.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
-import { builderSource } from '../src/timeseries-builder-source.ts';
+import { builderSource, builderSourceOf } from '../src/timeseries-builder-source.ts';
 import { readPageTexts, readText } from './catalog-builder.ts';
 
 type GsDefault = null | { value: unknown } | { window: [unknown, unknown] } | { enum: string; member: string };
@@ -161,7 +161,10 @@ describe('a builder term is its #TS text', () => {
     assert.equal(mean!(spx, '3m').text(), "mean(close['SPX'], 3mo)");
     assert.equal(mean!(spx, new Window(22)).text(), "mean(close['SPX'], 22)");
     assert.equal(mean!(spx, new Window(null, 0)).text(), "mean(close['SPX'], all)");
-    assert.equal(compare!(spx, ndx).text(), "compare(close['SPX'], close['NDX'], method => 'step')");
+    // compare's method left to the language, step unless given (gs-quant's but for a line's start, S145; item 1 of
+    // 2026-11-09): the tile's own call, which Show Python writes as gs-quant's compare(x, y)
+    assert.equal(compare!(spx, ndx).text(), "compare(close['SPX'], close['NDX'])");
+    assert.equal(compare!(spx, ndx, Interpolate.STEP).text(), "compare(close['SPX'], close['NDX'], method => 'step')");
     assert.equal(basket_series!([spx, ndx]).text(), "basket(close['SPX'], 0.5, close['NDX'], 0.5, rebalance => 'daily')");
     assert.equal(basket_series!([spx, ndx], [0.6, 0.4], null, 'monthly').text(),
       "basket(close['SPX'], 0.6, close['NDX'], 0.4, rebalance => 'monthly')");
@@ -289,6 +292,71 @@ it('every series is the builder\'s code, which run builds the same tree (B4\'s S
   }
 });
 
+/** Series gs-quant has no call of, each built with DataCube's own names (item 1 of 2026-11-09, the user: "everything has
+ *  a real python typed representation"): the extension each uses, and its builder call. */
+function extensionTerms(): { readonly uses: readonly string[]; readonly term: Term }[] {
+  const { zscores: z, winsorize, percentile: pct, vol_swap_volatility: swap, sharpe_ratio: sharpe, compare: cmp } = functions;
+  const spx = column('close', 'SPX');
+  const ndx = column('close', 'NDX');
+  const { ToDate, Across } = builder;
+  return [
+    { uses: ['ToDate()'], term: z!(spx, new ToDate()) },
+    { uses: ['ToDate()'], term: z!(spx, new ToDate(), { r: 5 }) },
+    { uses: ['Across()'], term: z!(spx, new Across()) },
+    { uses: ['ToDate()'], term: winsorize!(spx, 1.5, new ToDate()) },
+    { uses: ['Across()'], term: winsorize!(spx, 2.5, new Across()) },
+    // percentile's to date is gs-quant's own Window(None, 0): ToDate() the same, written as gs-quant's
+    { uses: [], term: pct!(spx, 90, new ToDate()) },
+    { uses: ['Across()'], term: pct!(spx, 90, new Across()) },
+    { uses: ['ToDate()'], term: swap!(spx, new ToDate()) },
+    { uses: ["n_days '3m'"], term: swap!(spx, '3m') },
+    { uses: ["currency 'CAD'"], term: sharpe!(spx, 'CAD', 252) },
+    { uses: ['rand'], term: spx.gt(100).rand(1) },
+    { uses: ['ror'], term: spx.lt(50).ror(0) },
+    // compare's method left to the language, step unless given (S145): gs-quant's own call, no extension
+    { uses: [], term: cmp!(spx, ndx) },
+  ];
+}
+
+it('a series gs-quant has no call of is written with DataCube\'s own names, and run builds the same tree', async () => {
+  const names = Object.keys(functions);
+  const run = (code: string): Term => new Function(...names, `return ${code};`)(...names.map((n) => functions[n])) as Term;
+  for (const { uses, term } of extensionTerms()) {
+    const own = term.text();
+    // core reads the text back as the term's own tree
+    const read = await readText(own);
+    assert.ok(read.text !== undefined, `${own}: ${read.text === undefined ? read.error.message : ''}`);
+    assert.equal(read.text, own, 'core prints it as written');
+    assert.equal(canonical(told(seriesExpr(read.item.expr!, []))), canonical(told(term.expr)), own);
+    for (const language of ['typescript', 'python'] as const) {
+      const code = builderSourceOf(told(term.expr), language);
+      assert.deepEqual(code.extensions, uses, `${own} in ${language}: ${code.text}`);
+      if (language === 'typescript') assert.equal(canonical(told(run(code.text).expr)), canonical(told(term.expr)), code.text);
+    }
+  }
+  // the tile's own spellings of them, each its own tree again
+  const z = await readText("zscores(close['SPX'])");
+  assert.equal(builderSource(told(seriesExpr(z.item!.expr!, [])), 'python'), "zscores(column('close', 'SPX'), w=ToDate())");
+  const w = await readText("winsorize(close['SPX'], limit => 1.5)");
+  assert.equal(builderSource(told(seriesExpr(w.item!.expr!, [])), 'python'), "winsorize(column('close', 'SPX'), limit=1.5, w=ToDate())");
+  assert.equal(builderSource(told(seriesExpr((await readText("zscores(close['SPX'], across)")).item!.expr!, [])), 'python'),
+    "zscores(column('close', 'SPX'), w=Across())");
+  assert.equal(builderSource(cmp(), 'python'), "compare(column('close', 'SPX'), column('close', 'NDX'))");
+  assert.equal(builderSource(cmp()), "compare(column('close', 'SPX'), column('close', 'NDX'))");
+  // a z-score's all is its call of no window, the same meaning: written as it, read back so
+  const all = await readText("zscores(close['SPX'], all)");
+  assert.equal(builderSource(told(seriesExpr(all.item!.expr!, [])), 'python'), "zscores(column('close', 'SPX'), w=ToDate())");
+  // DataCube's own windows only where the language takes them
+  assert.throws(() => functions['mean']!(column('close'), new builder.Across()), /mean's w reads no cross-section/);
+  assert.throws(() => functions['returns']!(column('close'), new builder.ToDate()), /returns's .* takes no window to date|is no window/);
+  // a tree no tile draws is a defect, thrown as one
+  assert.throws(() => builderSource({ kind: 'number', value: 5 }, 'python'), /a number alone is no series a tile draws/);
+});
+
+function cmp(): TsExpr {
+  return told(functions['compare']!(column('close', 'SPX'), column('close', 'NDX')).expr);
+}
+
 it('a term as Python tells it is the builder\'s own (B3\'s Python twin: python/legend_lite/timeseries.py)', () => {
   const spx = { term: 'column', name: 'close', picks: ['SPX'] };
   const cases: readonly (readonly [unknown, Term])[] = [
@@ -316,27 +384,26 @@ it('a term as Python tells it is the builder\'s own (B3\'s Python twin: python/l
 /**
  * B4'S SHOW PYTHON: every gallery series, and every word's own call, as Python's builder code with the text it writes --
  * held to test/fixtures/timeseries/builder-python.json, which //python:ts_builder_test runs in Python (each source a
- * term, its text DataCube's builder's, read by core). A series gs-quant has no call for is listed with why. A change on
- * purpose rewrites the fixture:
+ * term, its text DataCube's builder's, read by core) -- and each series gs-quant has no call of, written with DataCube's
+ * own names (ToDate(), Across(): item 1 of 2026-11-09), none refused. A change on purpose rewrites the fixture:
  *   bazel test //datacube:timeseries_builder_test --strategy=TestRunner=local \
  *     --test_env=BUILDER_PYTHON_UPDATE=$PWD/datacube/test/fixtures/timeseries/builder-python.json
  */
 it('every gallery series and every word as Python\'s builder code, with its text (held for Python to run)', async () => {
   const page = await readPageTexts(readPage(pageToJson(await timeseriesGalleryPage())));
-  const rows: { readonly series: string; readonly python?: string; readonly refused?: string; readonly text: string }[] = [];
+  const rows: { readonly series: string; readonly python: string; readonly text: string }[] = [];
   for (const [fn, s] of Object.entries(BUILDER_WORDS)) {
     const expr = told(sampleCall(fn, s).expr);
     rows.push({ series: `word ${fn}`, python: builderSource(expr, 'python'), text: seriesText(expr, []) });
   }
+  for (const { term } of extensionTerms()) {
+    const expr = told(term.expr);
+    rows.push({ series: `extension ${seriesText(expr, [])}`, python: builderSource(expr, 'python'), text: seriesText(expr, []) });
+  }
   for (const v of page.views) {
     if (v.kind !== 'timeseries') continue;
     for (const s of v.spec.series) {
-      const tree = treeOf(s, v.spec.series);
-      try {
-        rows.push({ series: `${v.id} ${s.id}`, python: builderSource(tree, 'python'), text: s.text });
-      } catch (e) {
-        rows.push({ series: `${v.id} ${s.id}`, refused: (e as Error).message, text: s.text });
-      }
+      rows.push({ series: `${v.id} ${s.id}`, python: builderSource(treeOf(s, v.spec.series), 'python'), text: s.text });
     }
   }
   const text = `${JSON.stringify(rows, null, 1)}\n`;
@@ -518,6 +585,8 @@ function flowScalars(text: string): string[] {
 it('every case of the gs-quant oracle as Show Python prints it: the call gs-quant answers', async () => {
   const lines = ['# THE GS-QUANT ORACLE\'S CALLS (generated by //datacube:timeseries_builder_test from mapping.yaml): each case\'s #TS'
     + ' item as Show Python prints it -- the call snap.py runs. GENERATED: see the test for how to rewrite it.', 'case\tpython'];
+  // a case Show Python writes with DataCube's own names is no call of gs-quant's: its form is its word's `uncovered:`
+  const extended: string[] = [];
   let word: string | undefined;
   for (const line of readFileSync(runfileFromEnv('GS_ORACLE_MAPPING'), 'utf8').split('\n')) {
     const w = /^ {2}- word: (\S+)$/.exec(line);
@@ -531,7 +600,7 @@ it('every case of the gs-quant oracle as Show Python prints it: the call gs-quan
     }
     const c = /^ {6}- \[(.*)\]$/.exec(line);
     if (!c || word === undefined) continue;
-    const [args, ts] = flowScalars(c[1]!) as [string, string];
+    const [args, ts, call] = flowScalars(c[1]!) as [string, string, string];
     const key = `${word} ${args}`;
     if (ts.startsWith('WITH')) {
       lines.push(`${key}\tSTATEMENT`);
@@ -544,11 +613,16 @@ it('every case of the gs-quant oracle as Show Python prints it: the call gs-quan
       continue;
     }
     try {
-      lines.push(`${key}\t${builderSource(told(seriesExpr(read.item.expr!, [])), 'python')}`);
+      const code = builderSourceOf(told(seriesExpr(read.item.expr!, [])), 'python');
+      // (a case of the mapping's own gs-quant call -- a whole-series word's default, gs-quant's whole and lite's to date
+      // -- is printed for the record alone)
+      if (call === 'printed' && code.extensions.length > 0) extended.push(`${key}: ${code.text} (${code.extensions.join(', ')})`);
+      lines.push(`${key}\t${code.text}`);
     } catch (e) {
       lines.push(`${key}\tREFUSED: ${(e as Error).message.split('\n')[0]}`);
     }
   }
+  assert.deepEqual(extended, [], 'a case of DataCube\'s own spelling is no gs-quant call: its form is its word\'s uncovered:');
   const text = `${lines.join('\n')}\n`;
   const update = process.env['GS_ORACLE_CALLS_UPDATE'];
   if (update) {

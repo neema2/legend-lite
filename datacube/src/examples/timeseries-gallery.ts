@@ -198,7 +198,7 @@ const ROLLING: GallerySheet = {
     // each stock's 3-month return as a z-score among that day's stocks, no date reading another
     tile('cross-section', 'Across the stocks: each one\'s 3-month return as a z-score among the day\'s equities', {
       sources: ON_PRICES,
-      series: [s('A', "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), across)", { name: 'Momentum z-score', split: 'symbol' })],
+      series: [s('A', "zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), w => across)", { name: 'Momentum z-score', split: 'symbol' })],
       range: { last: '1y' },
       annotations: [{ kind: 'level', value: 0 }],
     }),
